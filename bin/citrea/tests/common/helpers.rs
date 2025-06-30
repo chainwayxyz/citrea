@@ -197,17 +197,29 @@ pub async fn start_rollup(
     };
 
     let rpc_storage = storage_manager.create_final_view_storage();
-    let rpc_module = mock_demo_rollup
+    let mut rpc_module = mock_demo_rollup
         .create_rpc_methods(
-            rpc_storage,
+            rpc_storage.clone(),
             &ledger_db,
             &da_service,
-            sequencer_client_url,
-            l2_block_rx,
             &backup_manager,
             rollup_config.rpc.clone(),
         )
         .expect("RPC module setup should work");
+
+    // Register Ethereum RPC methods if this is not the Light Client Prover
+    if light_client_prover_config.is_none() {
+        mock_demo_rollup
+            .register_ethereum_rpc(
+                da_service.clone(),
+                rpc_storage,
+                ledger_db.clone(),
+                &mut rpc_module,
+                sequencer_client_url,
+                l2_block_rx,
+            )
+            .expect("Failed to register Ethereum RPC methods");
+    }
 
     if let Some(sequencer_config) = sequencer_config {
         warn!(

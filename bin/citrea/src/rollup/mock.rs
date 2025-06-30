@@ -48,9 +48,7 @@ impl RollupBlueprint for MockDemoRollup {
         &self,
         storage: <DefaultContext as Spec>::Storage,
         ledger_db: &LedgerDB,
-        da_service: &Arc<Self::DaService>,
-        sequencer_client_url: Option<String>,
-        l2_block_rx: Option<broadcast::Receiver<u64>>,
+        _da_service: &Arc<Self::DaService>,
         backup_manager: &Arc<BackupManager>,
         rpc_config: RpcConfig,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
@@ -62,20 +60,30 @@ impl RollupBlueprint for MockDemoRollup {
             CitreaRuntime<DefaultContext, Self::DaSpec>,
         >(storage.clone(), ledger_db, sequencer, rpc_config)?;
 
-        crate::eth::register_ethereum::<Self::DaService>(
-            da_service.clone(),
-            storage,
-            ledger_db.clone(),
-            &mut rpc_methods,
-            sequencer_client_url,
-            l2_block_rx,
-        )?;
-
         register_healthcheck_rpc(&mut rpc_methods, ledger_db.clone())?;
         let backup_methods = create_backup_rpc_module(ledger_db.clone(), backup_manager.clone());
         rpc_methods.merge(backup_methods)?;
 
         Ok(rpc_methods)
+    }
+
+    fn register_ethereum_rpc(
+        &self,
+        da_service: Arc<Self::DaService>,
+        storage: <DefaultContext as Spec>::Storage,
+        ledger_db: LedgerDB,
+        methods: &mut jsonrpsee::RpcModule<()>,
+        sequencer_client_url: Option<String>,
+        l2_block_rx: Option<broadcast::Receiver<u64>>,
+    ) -> Result<(), anyhow::Error> {
+        crate::eth::register_ethereum::<Self::DaService>(
+            da_service,
+            storage,
+            ledger_db,
+            methods,
+            sequencer_client_url,
+            l2_block_rx,
+        )
     }
 
     async fn create_da_service(

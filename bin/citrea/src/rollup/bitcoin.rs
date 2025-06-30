@@ -68,8 +68,6 @@ impl RollupBlueprint for BitcoinRollup {
         storage: ProverStorage,
         ledger_db: &LedgerDB,
         da_service: &Arc<Self::DaService>,
-        sequencer_client_url: Option<String>,
-        l2_block_rx: Option<broadcast::Receiver<u64>>,
         backup_manager: &Arc<BackupManager>,
         rpc_config: RpcConfig,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
@@ -81,15 +79,6 @@ impl RollupBlueprint for BitcoinRollup {
             CitreaRuntime<DefaultContext, Self::DaSpec>,
         >(storage.clone(), ledger_db, sov_sequencer, rpc_config)?;
 
-        crate::eth::register_ethereum::<Self::DaService>(
-            da_service.clone(),
-            storage,
-            ledger_db.clone(),
-            &mut rpc_methods,
-            sequencer_client_url,
-            l2_block_rx,
-        )?;
-
         register_healthcheck_rpc(&mut rpc_methods, ledger_db.clone())?;
 
         let backup_methods = create_backup_rpc_module(ledger_db.clone(), backup_manager.clone());
@@ -99,6 +88,27 @@ impl RollupBlueprint for BitcoinRollup {
         rpc_methods.merge(da_methods)?;
 
         Ok(rpc_methods)
+    }
+
+    #[instrument(level = "trace", skip_all, err)]
+    fn register_ethereum_rpc(
+        &self,
+        da_service: Arc<Self::DaService>,
+        storage: ProverStorage,
+        ledger_db: LedgerDB,
+        methods: &mut jsonrpsee::RpcModule<()>,
+        sequencer_client_url: Option<String>,
+        l2_block_rx: Option<broadcast::Receiver<u64>>,
+    ) -> Result<(), anyhow::Error> {
+        // Register Ethereum RPC methods
+        crate::eth::register_ethereum::<Self::DaService>(
+            da_service.clone(),
+            storage,
+            ledger_db.clone(),
+            methods,
+            sequencer_client_url,
+            l2_block_rx,
+        )
     }
 
     #[instrument(level = "trace", skip_all, err)]

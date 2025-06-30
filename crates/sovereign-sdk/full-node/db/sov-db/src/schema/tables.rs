@@ -136,7 +136,7 @@ pub const LIGHT_CLIENT_PROVER_LEDGER_TABLES: &[&str] = &[
     // This table is apparently needed to be able to initialize
     // RPC module among other components such as fork manager.
     // TODO: Look into removing it later on
-    L2BlockByNumber::table_name(),
+    // L2BlockByNumber::table_name(),
     LightClientProofBySlotNumber::table_name(),
     ProverLastScannedSlot::table_name(),
     // Don't know if this will be needed

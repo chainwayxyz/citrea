@@ -65,17 +65,25 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>;
 
     /// Creates RPC methods for the rollup.
-    #[allow(clippy::too_many_arguments)]
     fn create_rpc_methods(
         &self,
         storage: ProverStorage,
         ledger_db: &LedgerDB,
         da_service: &Arc<Self::DaService>,
-        sequencer_client_url: Option<String>,
-        l2_block_rx: Option<broadcast::Receiver<u64>>,
         backup_manager: &Arc<BackupManager>,
         rpc_config: RpcConfig,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
+
+    /// Registers Ethereum RPC methods.
+    fn register_ethereum_rpc(
+        &self,
+        da_service: Arc<Self::DaService>,
+        storage: ProverStorage,
+        ledger_db: LedgerDB,
+        methods: &mut jsonrpsee::RpcModule<()>,
+        sequencer_client_url: Option<String>,
+        l2_block_rx: Option<broadcast::Receiver<u64>>,
+    ) -> Result<(), anyhow::Error>;
 
     /// Creates GenesisConfig from genesis files.
     #[allow(clippy::type_complexity)]

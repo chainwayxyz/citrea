@@ -225,15 +225,25 @@ where
     };
 
     let rpc_storage = storage_manager.create_final_view_storage();
-    let rpc_module = rollup_blueprint.create_rpc_methods(
-        rpc_storage,
+    let mut rpc_module = rollup_blueprint.create_rpc_methods(
+        rpc_storage.clone(),
         &ledger_db,
         &da_service,
-        sequencer_client_url,
-        l2_block_rx,
         &backup_manager,
         rollup_config.rpc.clone(),
     )?;
+
+    if !matches!(node_type, NodeType::LightClientProver(_)) {
+        // Register Ethereum RPC methods if the node is not a light client prover
+        rollup_blueprint.register_ethereum_rpc(
+            da_service.clone(),
+            rpc_storage,
+            ledger_db.clone(),
+            &mut rpc_module,
+            sequencer_client_url,
+            l2_block_rx,
+        )?;
+    }
 
     let task_executor = task_manager.executor();
 
