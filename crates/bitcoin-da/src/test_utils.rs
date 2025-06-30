@@ -6,8 +6,8 @@ use crate::service::{BitcoinService, Result};
 impl BitcoinService {
     pub async fn test_send_separate_chunk_transaction_with_fee_rate(
         &self,
-        tx_request: DaTxRequest,
-        fee_sat_per_vbyte: u64,
+        _tx_request: DaTxRequest,
+        _fee_sat_per_vbyte: u64,
     ) -> Result<Vec<Txid>> {
         // let network = self.network;
 
