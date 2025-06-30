@@ -1,6 +1,6 @@
 //! Data Availability (DA) block handling for the light client prover
 //!
-//! This module handles the processing of Data Availability (DA) layer blocks for light client proof generation
+//! This module handles the processing of DA layer blocks for light client proof generation
 //! and maintaining the light client state.
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -41,10 +41,10 @@ pub enum StartVariant {
     FromBlock(u64),
 }
 
-/// Handler for processing L1 blocks and their contained proofs and commitments
+/// Handler for processing L1 blocks and the relevant transactions within them.
 ///
 /// This component is responsible for processing finalized L1 blocks, running the light client proof circuit logic per L1 block,
-/// keeping track of the light client state, and generating proofs for the light client circuit.
+/// keeping track of the light client state, and generating proofs light client proofs.
 pub struct L1BlockHandler<Vm, Da, DB>
 where
     Da: DaService,
@@ -124,8 +124,7 @@ where
         }
     }
 
-    /// Starts the L1 block handler to process L1 blocks and generate proofs
-    /// Runs the L1BlockHandler service
+    /// Starts the L1 block handler to process L1 blocks and generate proofs.
     ///
     /// This method continuously:
     /// 1. Syncs new L1 blocks from the DA layer
@@ -184,7 +183,7 @@ where
         }
     }
 
-    /// Processes L1 blocks waiting in the queue
+    /// Processes L1 blocks waiting in the queue.
     async fn process_queued_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
         loop {
             let Some(l1_block) = self.queued_l1_blocks.lock().await.front().cloned() else {
@@ -197,7 +196,7 @@ where
         Ok(())
     }
 
-    /// Processes a single L1 block
+    /// Processes a single L1 block.
     ///
     /// # Arguments
     /// * `l1_block` - The L1 block to process
