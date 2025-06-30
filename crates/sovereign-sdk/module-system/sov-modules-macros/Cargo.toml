@@ -45,4 +45,10 @@ default = ["native"]
 native = ["jsonrpsee"]
 
 [package.metadata.cargo-udeps.ignore]
-development = ["borsh", "sov-modules-api", "sov-modules-core", "sov-state"]
+development = [
+    "borsh",
+    "sov-modules-api",
+    "sov-modules-core",
+    "sov-state",
+    "sha2",
+]
