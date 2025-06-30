@@ -35,7 +35,7 @@ pub fn test_create_single_chunk(
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
-    let kind = TransactionKind::ChunkedPart;
+    let kind = TransactionKind::Chunks;
     let kind_bytes = kind.to_bytes();
 
     // start creating inscription content
@@ -179,7 +179,7 @@ pub fn test_create_single_aggregate(
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
     let (signature, signer_public_key) = sign_blob_with_private_key(&reveal_body, da_private_key);
 
-    let kind = TransactionKind::Chunked;
+    let kind = TransactionKind::Aggregate;
     let kind_bytes = kind.to_bytes();
 
     // start creating inscription content

@@ -1,7 +1,4 @@
 use core::result::Result::Ok;
-use std::fs::File;
-use std::io::{BufWriter, Write};
-use std::path::PathBuf;
 use std::time::Instant;
 
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
@@ -12,8 +9,7 @@ use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
 use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_NIP};
 use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::{SecretKey, XOnlyPublicKey};
-use bitcoin::{consensus, Address, Amount, Network, Transaction};
-use itertools::Itertools;
+use bitcoin::{Address, Amount, Network, Transaction};
 use metrics::histogram;
 use secp256k1::SECP256K1;
 use serde::Serialize;
@@ -41,7 +37,7 @@ pub(crate) enum RawTxData {
 }
 
 /// This is a list of txs we need to send to DA
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 pub enum DaTxs {
     Complete {
         commit: Transaction, // unsigned
@@ -61,79 +57,6 @@ pub enum DaTxs {
         commit: Transaction, // unsigned
         reveal: TxWithId,
     },
-}
-
-pub(crate) fn backup_complete_txs(
-    mut path: PathBuf,
-    raw_txs: &[Vec<u8>; 2],
-    name: &str,
-) -> Result<(), anyhow::Error> {
-    let commit_tx: Transaction = consensus::deserialize(&raw_txs[0])?;
-    let reveal_tx: Transaction = consensus::deserialize(&raw_txs[1])?;
-
-    path.push(format!(
-        "{}_inscription_commit_id_{}_reveal_id_{}.txs",
-        name,
-        commit_tx.compute_txid(),
-        reveal_tx.compute_txid()
-    ));
-    let file = File::create(path)?;
-    let mut writer: BufWriter<&File> = BufWriter::new(&file);
-
-    writer.write_all(format!("commit {}\n", commit_tx.compute_txid()).as_bytes())?;
-    writer.write_all(hex::encode(raw_txs[0].as_slice()).as_bytes())?;
-    writer.write_all(b"\n")?;
-
-    writer.write_all(format!("reveal {}\n", reveal_tx.compute_txid()).as_bytes())?;
-    writer.write_all(hex::encode(raw_txs[1].as_slice()).as_bytes())?;
-    writer.flush()?;
-
-    Ok(())
-}
-
-pub(crate) fn backup_chunked_txs(
-    mut path: PathBuf,
-    raw_txs: &[Vec<u8>],
-) -> Result<(), anyhow::Error> {
-    let aggr_commit: Transaction = consensus::deserialize(&raw_txs[raw_txs.len() - 2])?;
-    let aggr_reveal: Transaction = consensus::deserialize(&raw_txs[raw_txs.len() - 1])?;
-
-    path.push(format!(
-        "chunked_inscription_commit_id_{}_reveal_id_{}.txs",
-        aggr_commit.compute_txid(),
-        aggr_reveal.compute_txid(),
-    ));
-
-    let file = File::create(path)?;
-    let mut writer = BufWriter::new(&file);
-    for (idx, (commit_chunk, reveal_chunk)) in
-        raw_txs[0..raw_txs.len() - 2].iter().tuples().enumerate()
-    {
-        let commit_tx: Transaction = consensus::deserialize(commit_chunk)?;
-        let reveal_tx: Transaction = consensus::deserialize(reveal_chunk)?;
-
-        writer.write_all(
-            format!("chunk {} commit {}\n", idx + 1, commit_tx.compute_txid()).as_bytes(),
-        )?;
-        writer.write_all(hex::encode(commit_chunk).as_bytes())?;
-        writer.write_all(b"\n")?;
-
-        writer.write_all(
-            format!("chunk {} reveal {}\n", idx + 1, reveal_tx.compute_txid()).as_bytes(),
-        )?;
-        writer.write_all(hex::encode(reveal_chunk).as_bytes())?;
-        writer.write_all(b"\n")?;
-    }
-
-    writer.write_all(format!("aggregate commit {}\n", aggr_commit.compute_txid()).as_bytes())?;
-    writer.write_all(hex::encode(raw_txs[raw_txs.len() - 2].as_slice()).as_bytes())?;
-    writer.write_all(b"\n")?;
-
-    writer.write_all(format!("aggregate reveal {}\n", aggr_reveal.compute_txid()).as_bytes())?;
-    writer.write_all(hex::encode(raw_txs[raw_txs.len() - 1].as_slice()).as_bytes())?;
-    writer.flush()?;
-
-    Ok(())
 }
 
 // Creates the light client transactions (commit and reveal)
@@ -391,7 +314,7 @@ pub fn create_inscription_type_1(
     let start = Instant::now();
 
     for body in chunks {
-        let kind = TransactionKind::ChunkedPart;
+        let kind = TransactionKind::Chunks;
         let kind_bytes = kind.to_bytes();
 
         // start creating inscription content
@@ -571,7 +494,7 @@ pub fn create_inscription_type_1(
     // sign the body for authentication of the sequencer
     let (signature, signer_public_key) = sign_blob_with_private_key(&reveal_body, da_private_key);
 
-    let kind = TransactionKind::Chunked;
+    let kind = TransactionKind::Aggregate;
     let kind_bytes = kind.to_bytes();
 
     // start creating inscription content

@@ -16,6 +16,7 @@ use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::select;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
 use tracing::{debug, error, info, instrument};
@@ -110,11 +111,21 @@ impl MonitoredTx {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ChainState {
     current_height: BlockHeight,
-    current_tip: Option<BlockHash>,
+    current_tip: BlockHash,
     recent_blocks: Vec<(BlockHash, BlockHeight)>,
+}
+
+impl Default for ChainState {
+    fn default() -> Self {
+        Self {
+            current_height: BlockHeight::default(),
+            current_tip: BlockHash::all_zeros(),
+            recent_blocks: Vec::new(),
+        }
+    }
 }
 
 #[derive(Error, Debug)]
@@ -235,19 +246,30 @@ pub struct MonitoringService {
     // Only takes into account inner tx field from MonitoredTx
     total_size: AtomicUsize,
     finality_depth: u64,
+    block_tx: UnboundedSender<u64>,
 }
 
 impl MonitoringService {
-    pub fn new(client: Arc<Client>, config: Option<MonitoringConfig>, finality_depth: u64) -> Self {
-        Self {
-            client,
-            monitored_txs: RwLock::new(HashMap::new()),
-            chain_state: RwLock::new(ChainState::default()),
-            config: config.unwrap_or_default(),
-            last_tx: Mutex::new(None),
-            total_size: AtomicUsize::new(0),
-            finality_depth,
-        }
+    pub fn new(
+        client: Arc<Client>,
+        config: Option<MonitoringConfig>,
+        finality_depth: u64,
+    ) -> (Self, UnboundedReceiver<u64>) {
+        let (block_tx, block_rx) = tokio::sync::mpsc::unbounded_channel();
+
+        (
+            Self {
+                client,
+                monitored_txs: RwLock::new(HashMap::new()),
+                chain_state: RwLock::new(ChainState::default()),
+                config: config.unwrap_or_default(),
+                last_tx: Mutex::new(None),
+                total_size: AtomicUsize::new(0),
+                finality_depth,
+                block_tx,
+            },
+            block_rx,
+        )
     }
 
     pub async fn restore(&self) -> Result<()> {
@@ -270,7 +292,7 @@ impl MonitoringService {
         let mut chain_state = self.chain_state.write().await;
         *chain_state = ChainState {
             current_height,
-            current_tip: Some(current_tip),
+            current_tip,
             recent_blocks,
         };
 
@@ -487,7 +509,10 @@ impl MonitoringService {
 
         let mut chain_state = self.chain_state.write().await;
 
-        if new_tip != chain_state.current_tip.unwrap_or(BlockHash::all_zeros()) {
+        if new_tip != chain_state.current_tip {
+            // Send new tip notification
+            let _ = self.block_tx.send(new_height);
+
             let mut current_hash: BlockHash;
             let mut new_blocks = vec![(new_tip, new_height)];
             let mut reorg_detected = false;
@@ -517,7 +542,7 @@ impl MonitoringService {
             }
 
             chain_state.current_height = new_height;
-            chain_state.current_tip = Some(new_tip);
+            chain_state.current_tip = new_tip;
             chain_state.recent_blocks = new_blocks;
         }
 

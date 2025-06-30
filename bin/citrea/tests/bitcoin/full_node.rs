@@ -4,7 +4,6 @@ use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
-use bitcoin_da::error::BitcoinServiceError::MempoolRejection;
 use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
 use bitcoincore_rpc::RpcApi;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
@@ -24,6 +23,7 @@ use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::BatchProofCircuitOutputV3;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
+use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 use tokio::time::sleep;
 
@@ -3965,7 +3965,6 @@ impl TestCase for ChunkingPackageTooBigTest {
             with_full_node: true,
             with_sequencer: true,
             with_light_client_prover: true,
-            with_batch_prover: true,
             ..Default::default()
         }
     }
@@ -4013,7 +4012,6 @@ impl TestCase for ChunkingPackageTooBigTest {
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
-        let _batch_prover = f.batch_prover.as_mut().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
         let light_client_prover = f.light_client_prover.as_mut().unwrap();
 
@@ -4099,30 +4097,50 @@ impl TestCase for ChunkingPackageTooBigTest {
                     None,
                 );
 
-            let res = batch_prover_da_service
+            batch_prover_da_service
                 .send_transaction_with_fee_rate(
                     DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
                     1,
                 )
                 .await;
 
+            // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
             if i == 4 {
-                assert!(
-                    matches!(res, Err(MempoolRejection(msg)) if msg.contains("package-mempool-limits, possibly exceeds descendant size limit"))
-                );
+                // The three first proofs should hit the mempool + 3 chunks (only the aggregate doesn't make it through mempool policy)
+                da.wait_mempool_len(8 * 3 + 2, None).await?;
+                assert_eq!(da.get_raw_mempool().await?.len(), 26);
+                // We mine the first three proofs + the 3 chunks and make sure that the aggregate is properly queued and sent on next block when mempool size is freed
 
-                // Make sure mining the ancestors and re-trying goes through
                 da.generate(1).await?;
+                // Assert that all chunks were mined and mempool space is freed
+                assert_eq!(da.get_raw_mempool().await?.len(), 0);
 
-                let res = batch_prover_da_service
-                    .send_transaction_with_fee_rate(
-                        DaTxRequest::ZKProof(verifiable_100kb_batch_proof),
-                        1,
-                    )
-                    .await;
+                let height = da.get_block_count().await?;
+                let hash = da.get_block_hash(height).await?;
+                let block = batch_prover_da_service
+                    .get_block_by_hash(hash.into())
+                    .await?;
+                let (relevant_txs, _, _) =
+                    batch_prover_da_service.extract_relevant_blobs_with_proof(&block);
 
-                assert!(res.is_ok());
-                da.wait_mempool_len(8, None).await?;
+                assert_eq!(relevant_txs.len(), 13);
+
+                // Remaining aggregate should now hit the mempool
+                da.wait_mempool_len(6, None).await?;
+
+                assert_eq!(da.get_raw_mempool().await?.len(), 6);
+                da.generate(1).await?;
+                // Assert that all chunks were mined and mempool space is freed
+                assert_eq!(da.get_raw_mempool().await?.len(), 0);
+
+                let height = da.get_block_count().await?;
+                let hash = da.get_block_hash(height).await?;
+                let block = batch_prover_da_service
+                    .get_block_by_hash(hash.into())
+                    .await?;
+                let (relevant_txs, _, _) =
+                    batch_prover_da_service.extract_relevant_blobs_with_proof(&block);
+                assert_eq!(relevant_txs.len(), 3);
             } else {
                 da.wait_mempool_len(8 * i, None).await?;
             }
@@ -4150,11 +4168,41 @@ impl TestCase for ChunkingPackageTooBigTest {
                 None,
             );
 
+        // This over the mempool limit proof should be accepted and split up over multiple blocks
         let res = batch_prover_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_400kb_batch_proof), 1)
             .await;
+        assert!(res.is_ok());
 
-        assert!(matches!(res, Err(MempoolRejection(msg)) if msg.contains("package-too-large")));
+        da.wait_mempool_len(18, None).await?;
+        assert_eq!(da.get_raw_mempool().await?.len(), 18);
+        da.generate(1).await?;
+        // Assert that all chunks were mined and mempool space is freed
+        assert_eq!(da.get_raw_mempool().await?.len(), 0);
+
+        let height = da.get_block_count().await?;
+        let hash = da.get_block_hash(height).await?;
+        let block = batch_prover_da_service
+            .get_block_by_hash(hash.into())
+            .await?;
+        let (relevant_txs, _, _) =
+            batch_prover_da_service.extract_relevant_blobs_with_proof(&block);
+        assert_eq!(relevant_txs.len(), 9);
+
+        da.wait_mempool_len(6, None).await?;
+        assert_eq!(da.get_raw_mempool().await?.len(), 6);
+        da.generate(1).await?;
+        // Assert that all chunks and aggregate were mined
+        assert_eq!(da.get_raw_mempool().await?.len(), 0);
+
+        let height = da.get_block_count().await?;
+        let hash = da.get_block_hash(height).await?;
+        let block = batch_prover_da_service
+            .get_block_by_hash(hash.into())
+            .await?;
+        let (relevant_txs, _, _) =
+            batch_prover_da_service.extract_relevant_blobs_with_proof(&block);
+        assert_eq!(relevant_txs.len(), 3);
 
         Ok(())
     }

@@ -7,16 +7,12 @@ use crate::monitoring::{MonitorError, TxStatus};
 
 #[derive(Error, Debug)]
 pub enum BitcoinServiceError {
-    #[error("Fail to parse address: {0}")]
+    #[error("Failed to parse address: {0}")]
     AddressParseError(#[from] ParseError),
     #[error("Invalid transaction: {0}")]
     InvalidTransaction(String),
     #[error("Task join error: {0}")]
     JoinError(#[from] JoinError),
-    #[error("Transaction rejected: minimum relay fee not met")]
-    MinRelayFeeNotMet,
-    #[error("Transaction rejected by mempool: {0}")]
-    MempoolRejection(String),
     #[error("There are no UTXOs")]
     MissingUTXO,
     #[error("There are no spendable UTXOs")]
@@ -32,5 +28,37 @@ pub enum BitcoinServiceError {
     #[error("Cannot bump fee for TX with status: {0:?}. Transaction must be pending")]
     WrongStatusForBumping(TxStatus),
     #[error(transparent)]
+    MempoolRejection(#[from] MempoolRejection),
+    #[error(transparent)]
     Other(#[from] anyhow::Error),
+}
+
+#[derive(Error, Debug)]
+pub enum MempoolRejection {
+    #[error("Transaction rejected: minimum relay fee not met")]
+    MinRelayFeeNotMet,
+    #[error("Transaction rejected: package-too-large")]
+    PackageTooLarge,
+    #[error("Transaction rejected: package-too-many-transactions")]
+    PackageTooManyTransactions,
+    #[error("Transaction rejected: package-mempool-limits")]
+    PackageMempoolLimits,
+    #[error("Transaction rejected by mempool: {0}")]
+    Other(String),
+}
+
+impl MempoolRejection {
+    pub fn from_reason(reason: String) -> Self {
+        if reason.contains("min relay fee not met") {
+            MempoolRejection::MinRelayFeeNotMet
+        } else if reason.contains("package-too-large") {
+            MempoolRejection::PackageTooLarge
+        } else if reason.contains("package-too-many-transactions") {
+            MempoolRejection::PackageTooManyTransactions
+        } else if reason.contains("package-mempool-limits") {
+            MempoolRejection::PackageMempoolLimits
+        } else {
+            MempoolRejection::Other(reason.to_string())
+        }
+    }
 }

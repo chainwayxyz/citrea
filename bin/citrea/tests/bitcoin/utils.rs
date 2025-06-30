@@ -149,7 +149,7 @@ pub async fn spawn_bitcoin_da_service(
 
     let network = network_to_bitcoin_network(&chain_params.network);
     let network_constants = get_network_constants(&network);
-    let monitoring_service = MonitoringService::new(
+    let (monitoring_service, block_rx) = MonitoringService::new(
         client.clone(),
         da_config.monitoring.clone(),
         network_constants.finality_depth,
@@ -174,7 +174,8 @@ pub async fn spawn_bitcoin_da_service(
         .unwrap(),
     );
 
-    task_executor.spawn_with_graceful_shutdown_signal(|tk| service.clone().run_da_queue(rx, tk));
+    task_executor
+        .spawn_with_graceful_shutdown_signal(|tk| service.clone().run_da_queue(rx, block_rx, tk));
 
     service.monitoring.restore().await.unwrap();
     task_executor.spawn_with_graceful_shutdown_signal(|tk| Arc::clone(&service.monitoring).run(tk));
