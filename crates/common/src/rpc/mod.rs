@@ -108,7 +108,10 @@ pub fn register_healthcheck_rpc_light_client_prover<T: Send + Sync + 'static, Da
         .await;
         match res {
             Ok(_) => Ok::<(), ErrorObjectOwned>(()),
-            Err(e) => Err(error(&format!("Failed to retrieve head block header: {}", e))),
+            Err(e) => Err(error(&format!(
+                "Failed to retrieve head block header: {}",
+                e
+            ))),
         }
     })?;
 
