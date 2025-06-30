@@ -9,4 +9,4 @@
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable
 [submodule "crates/evm/src/evm/system_contracts/lib/bitcoin-spv"]
 	path = crates/evm/src/evm/system_contracts/lib/bitcoin-spv
-	url = https://github.com/eyusufatik/bitcoin-spv
+	url = https://github.com/chainwayxyz/bitcoin-spv
