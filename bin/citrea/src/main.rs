@@ -10,6 +10,7 @@ use citrea::{
 };
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
+use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_light_client_prover};
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig};
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::StartVariant;
@@ -233,7 +234,11 @@ where
         rollup_config.rpc.clone(),
     )?;
 
-    if !matches!(node_type, NodeType::LightClientProver(_)) {
+    if matches!(node_type, NodeType::LightClientProver(_)) {
+        register_healthcheck_rpc_light_client_prover(&mut rpc_module, da_service.clone())
+            .expect("Failed to register healthcheck RPC for light client prover");
+    } else {
+        register_healthcheck_rpc(&mut rpc_module, ledger_db.clone());
         // Register Ethereum RPC methods if the node is not a light client prover
         rollup_blueprint.register_ethereum_rpc(
             da_service.clone(),

@@ -8,6 +8,7 @@ use borsh::BorshDeserialize;
 use citrea::{CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage};
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
+use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_light_client_prover};
 use citrea_common::{
     BatchProverConfig, FullNodeConfig, LightClientProverConfig, RollupPublicKeys, RpcConfig,
     RunnerConfig, SequencerConfig, StorageConfig,
@@ -207,8 +208,11 @@ pub async fn start_rollup(
         )
         .expect("RPC module setup should work");
 
-    // Register Ethereum RPC methods if this is not the Light Client Prover
-    if light_client_prover_config.is_none() {
+    if light_client_prover_config.is_some() {
+        register_healthcheck_rpc_light_client_prover(&mut rpc_module, da_service.clone())
+            .expect("Failed to register healthcheck RPC for light client prover");
+    } else {
+        // Register Ethereum RPC methods if this is not the Light Client Prover
         mock_demo_rollup
             .register_ethereum_rpc(
                 da_service.clone(),
@@ -219,6 +223,8 @@ pub async fn start_rollup(
                 l2_block_rx,
             )
             .expect("Failed to register Ethereum RPC methods");
+        register_healthcheck_rpc(&mut rpc_module, ledger_db.clone())
+            .expect("Failed to register healthcheck RPC");
     }
 
     if let Some(sequencer_config) = sequencer_config {

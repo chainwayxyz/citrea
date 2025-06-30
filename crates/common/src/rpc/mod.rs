@@ -1,6 +1,9 @@
 //! Common RPC crate provides helper methods that are needed in rpc servers
+use std::sync::Arc;
 use std::time::Duration;
 
+use backoff::future::retry as retry_backoff;
+use backoff::ExponentialBackoff;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use hyper::Method;
@@ -12,6 +15,7 @@ use jsonrpsee::types::{ErrorObjectOwned, Request};
 use jsonrpsee::{MethodResponse, RpcModule};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::schema::types::L2BlockNumber;
+use sov_rollup_interface::services::da::DaService;
 use tower_http::cors::{Any, CorsLayer};
 
 mod auth;
@@ -66,6 +70,46 @@ pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
         } else {
             Err(error("Block number is not increasing"))
         }
+    })?;
+
+    rpc_methods.merge(rpc)
+}
+
+/// Register the healthcheck rpc
+pub fn register_healthcheck_rpc_light_client_prover<T: Send + Sync + 'static, Da: DaService>(
+    rpc_methods: &mut RpcModule<T>,
+    da_service: Arc<Da>,
+) -> Result<(), RegisterMethodError> {
+    let mut rpc = RpcModule::new(da_service.clone());
+
+    rpc.register_async_method("health_check", |_, da_service, _| async move {
+        let error = |msg: &str| {
+            ErrorObjectOwned::owned(
+                INTERNAL_ERROR_CODE,
+                INTERNAL_ERROR_MSG,
+                Some(msg.to_string()),
+            )
+        };
+
+        let exponential_backoff = ExponentialBackoff::default();
+        let tx_raw = {
+            let res = retry_backoff(exponential_backoff.clone(), || {
+                let da_service = da_service.clone();
+                async move {
+                    da_service
+                        .get_head_block_header()
+                        .await
+                        .map_err(|e| match e {
+                            e => backoff::Error::transient(e),
+                        })
+                }
+            })
+            .await;
+            match res {
+                Ok(r) => Ok::<(), ErrorObjectOwned>(()),
+                Err(e) => Err(error(&format!("Failed to get raw transaction info: {}", e))),
+            }
+        };
     })?;
 
     rpc_methods.merge(rpc)

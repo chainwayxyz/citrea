@@ -79,8 +79,6 @@ impl RollupBlueprint for BitcoinRollup {
             CitreaRuntime<DefaultContext, Self::DaSpec>,
         >(storage.clone(), ledger_db, sov_sequencer, rpc_config)?;
 
-        register_healthcheck_rpc(&mut rpc_methods, ledger_db.clone())?;
-
         let backup_methods = create_backup_rpc_module(ledger_db.clone(), backup_manager.clone());
         rpc_methods.merge(backup_methods)?;
 
