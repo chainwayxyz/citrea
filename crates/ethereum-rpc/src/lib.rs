@@ -273,9 +273,14 @@ where
 
         let evm = Evm::<C>::default();
 
-        let block_id_internal = evm.block_number_from_state(block_id, &mut working_set)?;
+        let block_id_internal =
+            evm.block_number_from_state(block_id, &mut working_set, &self.ethereum.ledger_db)?;
 
-        evm.set_state_to_end_of_evm_block_by_block_id(block_id, &mut working_set)?;
+        evm.set_state_to_end_of_evm_block_by_block_id(
+            block_id,
+            &mut working_set,
+            &self.ethereum.ledger_db,
+        )?;
 
         let version = if block_id == Some(BlockId::Number(BlockNumberOrTag::Pending)) {
             // if pending it will already be last block + 1

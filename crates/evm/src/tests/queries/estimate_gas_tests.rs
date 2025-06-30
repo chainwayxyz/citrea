@@ -7,6 +7,7 @@ use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use serde_json::json;
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Spec, WorkingSet};
 
@@ -21,7 +22,8 @@ type C = DefaultContext;
 
 #[test]
 fn test_payable_contract_value() {
-    let (evm, mut working_set, signer) = init_evm_single_block(sov_modules_api::SpecId::Tangerine);
+    let (evm, mut working_set, signer, ledger_db) =
+        init_evm_single_block(sov_modules_api::SpecId::Tangerine);
 
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
@@ -51,6 +53,7 @@ fn test_payable_contract_value() {
         tx_req,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
     assert_eq!(result.unwrap(), U256::from_str("0xab13").unwrap());
@@ -58,7 +61,8 @@ fn test_payable_contract_value() {
 
 #[test]
 fn test_tx_request_fields_gas_fork1() {
-    let (evm, mut working_set, signer) = init_evm_single_block(sov_modules_api::SpecId::Tangerine);
+    let (evm, mut working_set, signer, ledger_db) =
+        init_evm_single_block(sov_modules_api::SpecId::Tangerine);
 
     let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),
@@ -88,6 +92,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_contract_call.clone(),
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
     assert_eq!(
@@ -98,6 +103,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_contract_call.clone(),
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
     assert_eq!(
@@ -115,6 +121,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_no_gas.clone(),
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
     assert_eq!(
@@ -133,6 +140,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_no_sender,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
     assert_eq!(result_no_sender.unwrap(), U256::from_str("0x6602").unwrap());
@@ -147,6 +155,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_no_recipient,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
     assert_eq!(
@@ -164,6 +173,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_no_gas,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
     assert_eq!(result_no_gas.unwrap(), U256::from_str("0x6602").unwrap());
@@ -178,6 +188,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_no_gas_price,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
     assert_eq!(
@@ -195,6 +206,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_no_chain_id,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
     assert_eq!(
@@ -212,6 +224,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_invalid_chain_id,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
     assert_eq!(
@@ -230,6 +243,7 @@ fn test_tx_request_fields_gas_fork1() {
         tx_req_no_blob_versioned_hashes,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
     assert_eq!(
@@ -247,6 +261,7 @@ fn test_tx_request_fields_gas_fork1() {
         no_access_list_req,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
 
@@ -277,6 +292,7 @@ fn test_tx_request_fields_gas_fork1() {
         access_list_req.clone(),
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
 
@@ -290,6 +306,7 @@ fn test_tx_request_fields_gas_fork1() {
         access_list_req,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
 
@@ -312,7 +329,7 @@ fn test_access_list() {
     // 0x819c5497b157177315e1204f52e588b393771719 -- Storage contract
     // 0x5ccda3e6d071a059f00d4f3f25a1adc244eb5c93 -- Caller contract
 
-    let (evm, mut working_set, signer, _) = init_evm_with_caller_contract();
+    let (evm, mut working_set, signer, _, ledger_db) = init_evm_with_caller_contract();
 
     let caller = CallerContract::default();
     let input_data = caller.call_set_call_data(
@@ -345,6 +362,7 @@ fn test_access_list() {
         tx_req_contract_call.clone(),
         None,
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
     assert_eq!(no_access_list.unwrap(), U256::from_str("0x788c").unwrap());
@@ -353,6 +371,7 @@ fn test_access_list() {
         tx_req_contract_call.clone(),
         None,
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
 
@@ -383,6 +402,7 @@ fn test_access_list() {
         tx_req_with_access_list,
         None,
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
     assert_eq!(with_access_list.unwrap(), U256::from_str("0x775e").unwrap());
@@ -390,23 +410,39 @@ fn test_access_list() {
 
 #[test]
 fn estimate_gas_with_varied_inputs_test() {
-    let (evm, mut working_set, _, signer, _) = init_evm(sov_modules_api::SpecId::Tangerine);
+    let (evm, mut working_set, _, signer, _, ledger_db) =
+        init_evm(sov_modules_api::SpecId::Tangerine);
 
     let simple_call_data = 0;
-    let simple_result =
-        test_estimate_gas_with_input(&evm, &mut working_set, &signer, simple_call_data);
+    let simple_result = test_estimate_gas_with_input(
+        &evm,
+        &mut working_set,
+        &ledger_db,
+        &signer,
+        simple_call_data,
+    );
 
     assert_eq!(simple_result.unwrap(), U256::from_str("0x684e").unwrap());
 
     let simple_call_data = 131;
-    let simple_result =
-        test_estimate_gas_with_input(&evm, &mut working_set, &signer, simple_call_data);
+    let simple_result = test_estimate_gas_with_input(
+        &evm,
+        &mut working_set,
+        &ledger_db,
+        &signer,
+        simple_call_data,
+    );
 
     assert_eq!(simple_result.unwrap(), U256::from_str("0x68cd").unwrap());
 
     // Testing with non-zero value transfer EOA
-    let value_transfer_result =
-        test_estimate_gas_with_value(&evm, &mut working_set, &signer, U256::from(1_000_000));
+    let value_transfer_result = test_estimate_gas_with_value(
+        &evm,
+        &mut working_set,
+        &ledger_db,
+        &signer,
+        U256::from(1_000_000),
+    );
 
     assert_eq!(
         value_transfer_result.unwrap(),
@@ -416,7 +452,8 @@ fn estimate_gas_with_varied_inputs_test() {
 
 #[test]
 fn test_pending_env() {
-    let (evm, mut working_set, signer) = init_evm_single_block(sov_modules_api::SpecId::Tangerine);
+    let (evm, mut working_set, signer, ledger_db) =
+        init_evm_single_block(sov_modules_api::SpecId::Tangerine);
 
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
@@ -447,6 +484,7 @@ fn test_pending_env() {
             tx_req.clone(),
             Some(BlockNumberOrTag::Latest),
             &mut working_set,
+            &ledger_db,
             get_fork_fn_latest(),
         )
         .unwrap();
@@ -455,12 +493,19 @@ fn test_pending_env() {
         tx_req.clone(),
         Some(BlockNumberOrTag::Pending),
         &mut working_set,
+        &ledger_db,
         get_fork_fn_latest(),
     );
     assert_eq!(result_pending.unwrap(), result);
 
     let result = evm
-        .create_access_list_inner(tx_req.clone(), None, &mut working_set, get_fork_fn_latest())
+        .create_access_list_inner(
+            tx_req.clone(),
+            None,
+            &mut working_set,
+            &ledger_db,
+            get_fork_fn_latest(),
+        )
         .unwrap();
 
     let result_pending = evm
@@ -468,6 +513,7 @@ fn test_pending_env() {
             tx_req.clone(),
             Some(BlockNumberOrTag::Pending),
             &mut working_set,
+            &ledger_db,
             get_fork_fn_latest(),
         )
         .unwrap();
@@ -478,6 +524,7 @@ fn test_pending_env() {
 fn test_estimate_gas_with_input(
     evm: &Evm<C>,
     working_set: &mut WorkingSet<<C as Spec>::Storage>,
+    ledger_db: &LedgerDB,
     signer: &TestSigner,
     input_data: u32,
 ) -> RpcResult<U256> {
@@ -496,6 +543,7 @@ fn test_estimate_gas_with_input(
         tx_req,
         Some(BlockNumberOrTag::Latest),
         working_set,
+        ledger_db,
         get_fork_fn_latest(),
     )
 }
@@ -503,6 +551,7 @@ fn test_estimate_gas_with_input(
 fn test_estimate_gas_with_value(
     evm: &Evm<C>,
     working_set: &mut WorkingSet<<C as Spec>::Storage>,
+    ledger_db: &LedgerDB,
     signer: &TestSigner,
     value: U256,
 ) -> RpcResult<U256> {
@@ -519,6 +568,7 @@ fn test_estimate_gas_with_value(
         tx_req,
         Some(BlockNumberOrTag::Latest),
         working_set,
+        ledger_db,
         get_fork_fn_latest(),
     )
 }
