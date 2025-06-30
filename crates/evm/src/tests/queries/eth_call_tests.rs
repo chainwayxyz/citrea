@@ -9,6 +9,7 @@ use alloy_rpc_types::{BlockId, BlockOverrides, TransactionInput, TransactionRequ
 use jsonrpsee::core::RpcResult;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use revm::primitives::U256;
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
@@ -19,16 +20,14 @@ use crate::smart_contracts::{BlockHashContract, SimpleStorageContract};
 use crate::tests::get_test_seq_pub_key;
 use crate::tests::queries::{init_evm, init_evm_single_block};
 use crate::tests::test_signer::TestSigner;
-use crate::tests::utils::{
-    create_contract_message, get_evm, get_evm_config, get_fork_fn_only_tangerine,
-};
+use crate::tests::utils::{create_contract_message, get_evm, get_evm_config, get_fork_fn_latest};
 use crate::{CallMessage, Evm};
 
 type C = DefaultContext;
 
 #[test]
 fn call_contract_without_value() {
-    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Tangerine);
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::Tangerine);
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -47,7 +46,8 @@ fn call_contract_without_value() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
@@ -66,7 +66,8 @@ fn call_contract_without_value() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert_eq!(
@@ -78,9 +79,9 @@ fn call_contract_without_value() {
 
 #[test]
 fn test_state_change() {
-    let (mut evm, mut working_set, _, signer, l2_height) = init_evm(SpecId::Tangerine);
+    let (mut evm, mut working_set, _, signer, l2_height, ledger_db) = init_evm(SpecId::Tangerine);
 
-    let balance_1 = evm.get_balance(signer.address(), None, &mut working_set);
+    let balance_1 = evm.get_balance(signer.address(), None, &mut working_set, &ledger_db);
 
     let random_address = Address::from_str("0x000000000000000000000000000000000000dead").unwrap();
 
@@ -107,7 +108,8 @@ fn test_state_change() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
@@ -115,13 +117,13 @@ fn test_state_change() {
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    let balance_2 = evm.get_balance(signer.address(), None, &mut working_set);
+    let balance_2 = evm.get_balance(signer.address(), None, &mut working_set, &ledger_db);
     assert_eq!(balance_1, balance_2);
 }
 
 #[test]
 fn call_contract_with_value_transfer() {
-    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Tangerine);
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::Tangerine);
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -140,7 +142,8 @@ fn call_contract_with_value_transfer() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert!(call_result.is_err());
@@ -148,7 +151,7 @@ fn call_contract_with_value_transfer() {
 
 #[test]
 fn call_contract_with_invalid_nonce() {
-    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Tangerine);
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::Tangerine);
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -171,7 +174,8 @@ fn call_contract_with_invalid_nonce() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert_eq!(call_result, Ok(Bytes::from_str("0x").unwrap()));
@@ -192,7 +196,8 @@ fn call_contract_with_invalid_nonce() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert_eq!(call_result, Ok(Bytes::from_str("0x").unwrap()));
@@ -200,7 +205,7 @@ fn call_contract_with_invalid_nonce() {
 
 #[test]
 fn call_to_nonexistent_contract() {
-    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Tangerine);
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::Tangerine);
 
     let nonexistent_contract_address =
         Address::from_str("0x000000000000000000000000000000000000dead").unwrap();
@@ -221,7 +226,8 @@ fn call_to_nonexistent_contract() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
@@ -229,7 +235,7 @@ fn call_to_nonexistent_contract() {
 
 #[test]
 fn call_with_high_gas_price() {
-    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Tangerine);
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::Tangerine);
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -249,7 +255,8 @@ fn call_with_high_gas_price() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert_eq!(
@@ -264,11 +271,12 @@ fn call_with_high_gas_price() {
 
 #[test]
 fn test_eip1559_fields_call() {
-    let (evm, mut working_set, _, signer, _) = init_evm(SpecId::Tangerine);
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::Tangerine);
 
     let default_result = eth_call_eip1559(
         &evm,
         &mut working_set,
+        &ledger_db,
         &signer,
         Some(100e9 as _),
         Some(2e9 as _),
@@ -282,6 +290,7 @@ fn test_eip1559_fields_call() {
     let high_fee_result = eth_call_eip1559(
         &evm,
         &mut working_set,
+        &ledger_db,
         &signer,
         Some(u128::MAX),
         Some(u128::MAX),
@@ -295,15 +304,28 @@ fn test_eip1559_fields_call() {
         .into())
     );
 
-    let low_max_fee_result = eth_call_eip1559(&evm, &mut working_set, &signer, Some(1), Some(1));
+    let low_max_fee_result = eth_call_eip1559(
+        &evm,
+        &mut working_set,
+        &ledger_db,
+        &signer,
+        Some(1),
+        Some(1),
+    );
 
     assert_eq!(
         low_max_fee_result,
         Err(RpcInvalidTransactionError::FeeCapTooLow.into())
     );
 
-    let no_max_fee_per_gas =
-        eth_call_eip1559(&evm, &mut working_set, &signer, None, Some(2e9 as _));
+    let no_max_fee_per_gas = eth_call_eip1559(
+        &evm,
+        &mut working_set,
+        &ledger_db,
+        &signer,
+        None,
+        Some(2e9 as _),
+    );
     assert_eq!(
         no_max_fee_per_gas,
         Ok(
@@ -312,14 +334,21 @@ fn test_eip1559_fields_call() {
         )
     );
 
-    let no_priority_fee = eth_call_eip1559(&evm, &mut working_set, &signer, Some(100e9 as _), None);
+    let no_priority_fee = eth_call_eip1559(
+        &evm,
+        &mut working_set,
+        &ledger_db,
+        &signer,
+        Some(100e9 as _),
+        None,
+    );
 
     assert_eq!(
         no_priority_fee.unwrap().to_string(),
         "0x00000000000000000000000000000000000000000000000000000000000001de"
     );
 
-    let none_res = eth_call_eip1559(&evm, &mut working_set, &signer, None, None);
+    let none_res = eth_call_eip1559(&evm, &mut working_set, &ledger_db, &signer, None, None);
 
     assert_eq!(
         none_res.unwrap().to_string(),
@@ -330,6 +359,7 @@ fn test_eip1559_fields_call() {
 fn eth_call_eip1559(
     evm: &Evm<C>,
     working_set: &mut WorkingSet<<C as Spec>::Storage>,
+    ledger_db: &LedgerDB,
     signer: &TestSigner,
     max_fee_per_gas: Option<u128>,
     max_priority_fee_per_gas: Option<u128>,
@@ -358,13 +388,14 @@ fn eth_call_eip1559(
         None,
         None,
         working_set,
-        get_fork_fn_only_tangerine(),
+        ledger_db,
+        get_fork_fn_latest(),
     )
 }
 
 #[test]
 fn gas_price_call_test() {
-    let (evm, mut working_set, signer) = init_evm_single_block(SpecId::Tangerine);
+    let (evm, mut working_set, signer, ledger_db) = init_evm_single_block(SpecId::Tangerine);
 
     // Define a base transaction request for reuse
     let base_tx_req = || TransactionRequest {
@@ -400,7 +431,8 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert_eq!(
@@ -419,7 +451,8 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert_eq!(result_only_gas, Ok(Bytes::new()));
@@ -437,7 +470,8 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert_eq!(
@@ -458,7 +492,8 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert_eq!(result_gas_and_gas_price, Ok(Bytes::new()));
@@ -476,7 +511,8 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert!(result_fees.is_ok());
@@ -495,7 +531,8 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert!(result_high_gas_price.is_ok());
@@ -514,7 +551,8 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert!(result_high_gas_price.is_ok());
@@ -532,7 +570,8 @@ fn gas_price_call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert!(result_high_fees.is_ok());
@@ -541,7 +580,7 @@ fn gas_price_call_test() {
 
 #[test]
 fn test_call_with_state_overrides() {
-    let (evm, mut working_set, prover_storage, signer, _) = init_evm(SpecId::Tangerine);
+    let (evm, mut working_set, prover_storage, signer, _, ledger_db) = init_evm(SpecId::Tangerine);
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -559,7 +598,8 @@ fn test_call_with_state_overrides() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -601,7 +641,8 @@ fn test_call_with_state_overrides() {
             Some(state_override),
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -626,7 +667,8 @@ fn test_call_with_state_overrides() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -670,7 +712,8 @@ fn test_call_with_state_overrides() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -689,7 +732,8 @@ fn test_call_with_state_overrides() {
             Some(state_override),
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -705,7 +749,7 @@ fn test_call_with_block_overrides() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -786,7 +830,8 @@ fn test_call_with_block_overrides() {
                 block_hash: Some(block_hashes.clone()),
             }),
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -815,7 +860,8 @@ fn test_call_with_block_overrides() {
                 block_hash: Some(block_hashes),
             }),
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
     let expected_hash = Bytes::from_iter([2; 32]);

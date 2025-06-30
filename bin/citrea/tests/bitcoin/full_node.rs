@@ -4,10 +4,13 @@ use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
+use bitcoin_da::error::BitcoinServiceError::MempoolRejection;
 use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
 use bitcoincore_rpc::RpcApi;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
-use citrea_e2e::config::{BatchProverConfig, BitcoinConfig, SequencerConfig, TestCaseConfig};
+use citrea_e2e::config::{
+    BatchProverConfig, BitcoinConfig, LightClientProverConfig, SequencerConfig, TestCaseConfig,
+};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
@@ -27,8 +30,8 @@ use tokio::time::sleep;
 use super::light_client_test::{create_random_state_diff, TEN_MINS};
 use super::{get_citrea_cli_path, get_citrea_path};
 use crate::bitcoin::utils::{
-    spawn_bitcoin_da_service, wait_for_prover_job, wait_for_prover_job_count, wait_for_zkproofs,
-    DaServiceKeyKind,
+    spawn_bitcoin_da_prover_service, spawn_bitcoin_da_sequencer_service, wait_for_prover_job,
+    wait_for_prover_job_count, wait_for_zkproofs,
 };
 
 fn calculate_merkle_root(blocks: &[Option<L2BlockResponse>]) -> [u8; 32] {
@@ -40,6 +43,581 @@ fn calculate_merkle_root(blocks: &[Option<L2BlockResponse>]) -> [u8; 32] {
 
     let tree = rs_merkle::MerkleTree::<rs_merkle::algorithms::Sha256>::from_leaves(&leaves);
     tree.root().unwrap()
+}
+
+struct PreStateRootMismatchTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for PreStateRootMismatchTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_light_client_prover: true,
+            with_sequencer: true,
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec!["-persistmempool=0", "-walletbroadcast=0"],
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(175)
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 175,
+            ..Default::default()
+        }
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let task_executor = self.task_manager.executor();
+
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
+
+        let prover_da_service =
+            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let commitment1_l1_height = da.get_finalized_height(None).await?;
+
+        full_node
+            .wait_for_l1_height(commitment1_l1_height, None)
+            .await?;
+        let commitment_response = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(1))
+            .await?
+            .unwrap();
+
+        let commitment1 = SequencerCommitment {
+            merkle_root: commitment_response.merkle_root,
+            index: commitment_response.index.to::<u32>(),
+            l2_end_block_number: commitment_response.l2_end_block_number.to::<u64>(),
+        };
+
+        light_client_prover
+            .wait_for_l1_height(commitment1_l1_height, None)
+            .await?;
+
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+
+        let l1_hash = da.get_block_hash(commitment1_l1_height).await?;
+
+        let genesis_state_root = full_node
+            .client
+            .http_client()
+            .get_l2_genesis_state_root()
+            .await?
+            .unwrap()
+            .0;
+
+        // First proof
+        let proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            genesis_state_root.try_into().unwrap(),
+            max_l2_blocks_per_commitment,
+            batch_proof_method_ids[0].method_id.into(),
+            None,
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment1.clone()],
+            vec![commitment_response.merkle_root],
+            None,
+        );
+
+        // Send the first proof
+        prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof), 1)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let proof1_l1_height = da.get_finalized_height(None).await?;
+
+        full_node.wait_for_l1_height(proof1_l1_height, None).await?;
+
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let commitment2_l1_height = da.get_finalized_height(None).await?;
+
+        full_node
+            .wait_for_l1_height(commitment2_l1_height, None)
+            .await?;
+
+        let commitment_response2 = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(2))
+            .await?
+            .unwrap();
+
+        let commitment2 = SequencerCommitment {
+            merkle_root: commitment_response2.merkle_root,
+            index: commitment_response2.index.to::<u32>(),
+            l2_end_block_number: commitment_response2.l2_end_block_number.to::<u64>(),
+        };
+
+        light_client_prover
+            .wait_for_l1_height(commitment2_l1_height, None)
+            .await?;
+
+        // Get batch proof method IDs and L1 hash
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+
+        let l1_hash = da.get_block_hash(commitment2_l1_height).await?;
+
+        let commitment_2_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment2.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+
+        // Invalid proof with invalid starting state root
+        let invalid_proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            [1; 32], // Invalid state root
+            max_l2_blocks_per_commitment * 2,
+            batch_proof_method_ids[0].method_id.into(),
+            None,
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment2.clone()],
+            vec![commitment_2_state_root],
+            Some(commitment1.serialize_and_calculate_sha_256()),
+        );
+
+        // Send the invalid proof
+        prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(invalid_proof), 1)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let invalid_proof_l1_height = da.get_finalized_height(None).await?;
+
+        full_node
+            .wait_for_l1_height(invalid_proof_l1_height, None)
+            .await?;
+
+        // Assert that proof wasn't accepted and is correctly discarded due to pre state root mismatch
+        let proofs = full_node
+            .client
+            .http_client()
+            .get_verified_batch_proofs_by_slot_height(U64::from(invalid_proof_l1_height))
+            .await?;
+        assert!(proofs.is_none());
+
+        // Generate 1 blocks and assert that L1 sync is not halted and full node continues syncing
+        da.generate(1).await?;
+        full_node
+            .wait_for_l1_height(invalid_proof_l1_height + 1, None)
+            .await?;
+        let final_scanned_l1_height = full_node
+            .client
+            .http_client()
+            .get_last_scanned_l1_height()
+            .await?;
+        assert_eq!(
+            final_scanned_l1_height.to::<u64>(),
+            invalid_proof_l1_height + 1,
+        );
+
+        // Verify the first proof is still the only valid one
+        let proven_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+
+        assert_eq!(proven_height.height, max_l2_blocks_per_commitment);
+        assert_eq!(proven_height.commitment_index, 1);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_pre_state_root_mismatch() -> Result<()> {
+    TestCaseRunner::new(PreStateRootMismatchTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
+}
+
+struct SequencerCommitmentHashMismatchTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for SequencerCommitmentHashMismatchTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_light_client_prover: true, // Used for getting batch_proof_method_ids
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec!["-persistmempool=0", "-walletbroadcast=0"],
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let task_executor = self.task_manager.executor();
+
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+
+        let prover_da_service =
+            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
+        let sequencer_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(2, None).await?;
+
+        da.restart(None, None).await?;
+        assert_eq!(da.get_raw_mempool().await?.len(), 0);
+
+        let range1 = sequencer
+            .client
+            .http_client()
+            .get_l2_block_range(U64::from(1), U64::from(max_l2_blocks_per_commitment))
+            .await?;
+        let correct_merkle_root = calculate_merkle_root(&range1);
+
+        let correct_commitment = SequencerCommitment {
+            merkle_root: correct_merkle_root,
+            l2_end_block_number: max_l2_blocks_per_commitment,
+            index: 1,
+        };
+
+        let wrong_merkle_root = [1; 32];
+        let wrong_commitment = SequencerCommitment {
+            merkle_root: wrong_merkle_root,
+            l2_end_block_number: max_l2_blocks_per_commitment,
+            index: 1,
+        };
+
+        // Send the `correct_commitment` so it's stored and will trigger the pre-hash mismatch against `wrong_commitment`
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(correct_commitment.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let commitment_l1_height = da.get_finalized_height(None).await?;
+
+        // Wait for full node to process the commitment
+        full_node
+            .wait_for_l1_height(commitment_l1_height, None)
+            .await?;
+        light_client_prover
+            .wait_for_l1_height(commitment_l1_height, None)
+            .await
+            .unwrap();
+
+        // Verify the correct commitment is stored and has the expected merkle_root
+        let stored_commitment = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(1))
+            .await?
+            .unwrap();
+        assert_eq!(stored_commitment.merkle_root, correct_merkle_root);
+
+        let finalized_height = da.get_finalized_height(None).await?;
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+
+        let genesis_state_root = full_node
+            .client
+            .http_client()
+            .get_l2_genesis_state_root()
+            .await?
+            .unwrap()
+            .0;
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+
+        let wrong_commitment_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(wrong_commitment.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+
+        // Create a fake proof against the wrong commitment
+        let fake_proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            genesis_state_root.try_into().unwrap(),
+            max_l2_blocks_per_commitment,
+            batch_proof_method_ids[0].method_id.into(),
+            None,
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![wrong_commitment.clone()],
+            vec![wrong_commitment_state_root],
+            None,
+        );
+        prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(fake_proof), 1)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let proof_l1_height = da.get_finalized_height(None).await?;
+
+        full_node.wait_for_l1_height(proof_l1_height, None).await?;
+
+        // Assert that proof wasn't accepted and is correctly discarded due to hash mismatch
+        let proofs = full_node
+            .client
+            .http_client()
+            .get_verified_batch_proofs_by_slot_height(U64::from(proof_l1_height))
+            .await?;
+        assert!(proofs.is_none());
+
+        // Generate 1 blocks and assert that L1 sync is not halted and full node continues syncing
+        da.generate(1).await?;
+        full_node
+            .wait_for_l1_height(proof_l1_height + 1, None)
+            .await?;
+        let final_scanned_l1_height = full_node
+            .client
+            .http_client()
+            .get_last_scanned_l1_height()
+            .await?;
+        assert_eq!(final_scanned_l1_height.to::<u64>(), proof_l1_height + 1,);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_sequencer_commitment_hash_mismatch() -> Result<()> {
+    TestCaseRunner::new(SequencerCommitmentHashMismatchTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
+}
+
+struct PendingCommitmentHaltingErrorTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for PendingCommitmentHaltingErrorTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec!["-persistmempool=0", "-walletbroadcast=0"],
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(150)
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let task_executor = self.task_manager.executor();
+
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        let bitcoin_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
+
+        // This should cause a halting error as merkle root doesn't match the expected root from known L2 blocks
+        // Send it first then generate block so that it's pending then causes a mismatch
+        let wrong_merkle_root_commitment = SequencerCommitment {
+            merkle_root: [0xAA; 32], // Wrong merkle root
+            l2_end_block_number: max_l2_blocks_per_commitment,
+            index: 1,
+        };
+
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(wrong_merkle_root_commitment.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for l2 blocks and make sure the node is halted
+        full_node
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
+            .await?;
+        // Generate a block and make sure fullnode doesn't process it
+        da.generate(1).await?;
+
+        // Sleep to trigger L1 block processing
+        sleep(Duration::from_secs(1)).await;
+
+        // Check that the full node has stopped processing L1 blocks due to halting error
+        let last_scanned_l1_height = full_node
+            .client
+            .http_client()
+            .get_last_scanned_l1_height()
+            .await?;
+
+        // The full node should be halted at commitment height + 1
+        // It is processed and kept as pending at commitment height.
+        // Next block triggers the HaltingError
+        assert_eq!(last_scanned_l1_height.to::<u64>(), l1_height);
+
+        // Verify that no commitment were processed
+        let committed_height = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?;
+        assert!(committed_height.is_none());
+
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Assert that full node can still process L2 blocks
+        full_node
+            .wait_for_l2_height(max_l2_blocks_per_commitment * 2, None)
+            .await?;
+
+        // Generate 5 blocks and assert that L1 sync is halted
+        da.generate(5).await?;
+        let final_scanned_l1_height = full_node
+            .client
+            .http_client()
+            .get_last_scanned_l1_height()
+            .await?;
+        assert_eq!(
+            final_scanned_l1_height.to::<u64>(),
+            last_scanned_l1_height.to::<u64>(),
+        );
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_halting_pending_commitment_merkle_root_mismatch() -> Result<()> {
+    TestCaseRunner::new(PendingCommitmentHaltingErrorTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
 }
 
 struct FullNodeRestartTest;
@@ -280,7 +858,7 @@ impl TestCase for L2StatusTest {
 
         full_node.wait_until_stopped().await?;
 
-        // Rollback to genesis and check that committed and proven height are correctly resetted
+        // Rollback to genesis and check that committed and proven height are correctly reset
         citrea_cli
             .run(
                 "rollback",
@@ -370,13 +948,9 @@ impl TestCase for OutOfOrderCommitmentsTest {
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        let bitcoin_da_service = spawn_bitcoin_da_service(
-            task_executor,
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
-        )
-        .await;
+        let bitcoin_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
         for _ in 0..max_l2_blocks_per_commitment * 2 {
             sequencer.client.send_publish_batch_request().await?;
@@ -415,10 +989,42 @@ impl TestCase for OutOfOrderCommitmentsTest {
             index: 2,
         };
 
+        let zero_index_commitment = SequencerCommitment {
+            merkle_root: merkle_root1,
+            l2_end_block_number: max_l2_blocks_per_commitment,
+            index: 0,
+        };
+
         // Restart and remove txs from mempool
         da.restart(None, None).await?;
         let mempool = da.get_raw_mempool().await?;
         assert_eq!(mempool.len(), 0, "Mempool should be empty after restart");
+
+        // Send the zero index commitment first, should be ignored
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(zero_index_commitment.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let second_batch_height = da.get_finalized_height(None).await?;
+
+        full_node
+            .wait_for_l1_height(second_batch_height, None)
+            .await?;
+
+        // Check that zero index commitment is successfully skipped
+        let committed_height = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?;
+        assert!(committed_height.is_none());
 
         // Send the second commitment first
         bitcoin_da_service
@@ -535,13 +1141,9 @@ impl TestCase for ConflictingCommitmentsTest {
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        let bitcoin_da_service = spawn_bitcoin_da_service(
-            task_executor,
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
-        )
-        .await;
+        let bitcoin_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
         for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -577,6 +1179,13 @@ impl TestCase for ConflictingCommitmentsTest {
             index: 1,
         };
 
+        // Create another conflicting commitment B with same index but different merkle root
+        let conflicting_commitment_different_root = SequencerCommitment {
+            merkle_root: [1u8; 32],
+            l2_end_block_number: max_l2_blocks_per_commitment,
+            index: 1,
+        };
+
         // Send commitment A
         bitcoin_da_service
             .send_transaction_with_fee_rate(
@@ -601,6 +1210,32 @@ impl TestCase for ConflictingCommitmentsTest {
 
         assert_eq!(committed_height_a.height, max_l2_blocks_per_commitment);
         assert_eq!(committed_height_a.commitment_index, 1);
+
+        // Send conflicting commitment with different merkle root, should be ignored
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(conflicting_commitment_different_root.clone()),
+                1,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height_b = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height_b, None).await?;
+
+        // The full node should ignore commitment with conflicting merkle root
+        let committed_height_b = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .unwrap();
+
+        // The committed height should still match commitment A
+        assert_eq!(committed_height_b.height, max_l2_blocks_per_commitment);
+        assert_eq!(committed_height_b.commitment_index, 1);
 
         // Send conflicting commitment B
         bitcoin_da_service
@@ -702,7 +1337,7 @@ impl TestCase for OutOfRangeProofTest {
         TestCaseConfig {
             with_full_node: true,
             with_sequencer: true,
-            with_batch_prover: true,
+            with_light_client_prover: true,
             with_citrea_cli: true,
             ..Default::default()
         }
@@ -720,6 +1355,13 @@ impl TestCase for OutOfRangeProofTest {
         Some(150)
     }
 
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
     async fn cleanup(self) -> Result<()> {
         self.task_manager
             .graceful_shutdown_with_timeout(Duration::from_secs(1));
@@ -731,27 +1373,49 @@ impl TestCase for OutOfRangeProofTest {
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
-        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let light_client_prover = f.light_client_prover.as_mut().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
         let citrea_cli = f.citrea_cli.as_ref().unwrap();
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        let prover_da_service = spawn_bitcoin_da_service(
-            task_executor.clone(),
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
-        )
-        .await;
+        let prover_da_service =
+            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
-        let sequencer_da_service = spawn_bitcoin_da_service(
-            task_executor,
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
-        )
-        .await;
+        let sequencer_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
+
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Wait for light client prover to create light client proof.
+        light_client_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        // Expect light client prover to have generated light client proof
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?;
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+
+        // Get initial method ids and genesis state root
+        let method_id = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?[0]
+            .method_id
+            .into();
+
+        // Stopping lcp so it doesn't sync over the rolled back state
+        light_client_prover.wait_until_stopped().await?;
+
+        let genesis_state_root = lcp_output.l2_state_root;
 
         // Generate two commitments to test pending proof over commitment ranges
         for _ in 0..max_l2_blocks_per_commitment * 2 {
@@ -762,15 +1426,9 @@ impl TestCase for OutOfRangeProofTest {
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
 
-        batch_prover
+        full_node
             .wait_for_l1_height(commitments_l1_height, None)
             .await?;
-
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let proof_l1_height = da.get_finalized_height(None).await?;
-
-        full_node.wait_for_l1_height(proof_l1_height, None).await?;
 
         let range1 = sequencer
             .client
@@ -799,12 +1457,6 @@ impl TestCase for OutOfRangeProofTest {
             index: 2,
         };
 
-        let proof1 = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
-            .await
-            .unwrap()[0]
-            .clone()
-            .proof;
-
         // Generate a third commitment for second proof
         for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -813,15 +1465,9 @@ impl TestCase for OutOfRangeProofTest {
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
-        batch_prover
+        full_node
             .wait_for_l1_height(commitments_l1_height, None)
             .await?;
-
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let proof_l1_height = da.get_finalized_height(None).await?;
-
-        full_node.wait_for_l1_height(proof_l1_height, None).await?;
 
         let range3 = sequencer
             .client
@@ -838,12 +1484,6 @@ impl TestCase for OutOfRangeProofTest {
             index: 3,
         };
 
-        let proof2 = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
-            .await
-            .unwrap()[0]
-            .clone()
-            .proof;
-
         // Generate a fourth commitment for third proof
         for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -852,15 +1492,9 @@ impl TestCase for OutOfRangeProofTest {
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
-        batch_prover
+        full_node
             .wait_for_l1_height(commitments_l1_height, None)
             .await?;
-
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let proof_l1_height = da.get_finalized_height(None).await?;
-
-        full_node.wait_for_l1_height(proof_l1_height, None).await?;
 
         let range4 = sequencer
             .client
@@ -876,12 +1510,6 @@ impl TestCase for OutOfRangeProofTest {
             l2_end_block_number: max_l2_blocks_per_commitment * 4,
             index: 4,
         };
-
-        let proof3 = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
-            .await
-            .unwrap()[0]
-            .clone()
-            .proof;
 
         /*
          ** Test that a proof is discarded if it's over a range of sequencer commitment that hasn't been processed yet
@@ -921,6 +1549,39 @@ impl TestCase for OutOfRangeProofTest {
             .await?;
 
         full_node.start(None, None).await?;
+
+        // Create first proof
+        let commitment1_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment1.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+        let commitment2_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment2.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+
+        let current_l1_height = da.get_finalized_height(None).await?;
+        let current_l1_hash = da.get_block_hash(current_l1_height).await?;
+
+        let proof1 = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            genesis_state_root,
+            max_l2_blocks_per_commitment * 2,
+            method_id,
+            None,
+            false,
+            current_l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment1.clone(), commitment2.clone()],
+            vec![commitment1_state_root, commitment2_state_root],
+            None,
+        );
 
         // Send the proof first. It should be discard as none of its commitments exist
         prover_da_service
@@ -1126,9 +1787,9 @@ impl TestCase for OutOfRangeProofTest {
 
         da.wait_mempool_len(4, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let commitment2_l1_height = da.get_finalized_height(None).await?;
+        let commitment4_l1_height = da.get_finalized_height(None).await?;
         full_node
-            .wait_for_l1_height(commitment2_l1_height, None)
+            .wait_for_l1_height(commitment4_l1_height, None)
             .await?;
 
         // Both commitments should be processed
@@ -1141,6 +1802,36 @@ impl TestCase for OutOfRangeProofTest {
         assert_eq!(committed_height.height, max_l2_blocks_per_commitment * 4);
         assert_eq!(committed_height.commitment_index, 4);
 
+        // Create third proof
+        let current_l1_hash = da.get_block_hash(commitment4_l1_height).await?;
+        let commitment3_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment3.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+        let commitment4_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment4.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+
+        let proof3 = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            commitment3_state_root,
+            max_l2_blocks_per_commitment * 4,
+            method_id,
+            None,
+            false,
+            current_l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment4.clone()],
+            vec![commitment4_state_root],
+            Some(commitment3.serialize_and_calculate_sha_256()),
+        );
         // Send the third proof first. It should be set as pending as its commitments exist but it's starting commitment index is not proven proof last commitment index + 1
         prover_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof3), 1)
@@ -1163,6 +1854,43 @@ impl TestCase for OutOfRangeProofTest {
         assert_eq!(proven_height.height, max_l2_blocks_per_commitment * 2);
         assert_eq!(proven_height.commitment_index, 2);
 
+        light_client_prover.start(None, None).await?;
+
+        light_client_prover
+            .wait_for_l1_height(proof_l1_height, None)
+            .await?;
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(proof_l1_height)
+            .await?
+            .unwrap();
+        assert_eq!(
+            lcp.light_client_proof_output.last_l2_height,
+            U64::from(proven_height.height)
+        );
+        assert_eq!(
+            lcp.light_client_proof_output
+                .last_sequencer_commitment_index,
+            U32::from(proven_height.commitment_index)
+        );
+
+        // Create second proof
+        let current_l1_hash = da.get_block_hash(proof_l1_height).await?;
+
+        // Recreate proof2 with valid L1 hash
+        let proof2 = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            commitment2_state_root,
+            max_l2_blocks_per_commitment * 3,
+            method_id,
+            None,
+            false,
+            current_l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment3.clone()],
+            vec![commitment3_state_root],
+            Some(commitment2.serialize_and_calculate_sha_256()),
+        );
+
         // Now send the second proof. It should be processed and trigger a processing of pending proof3
         prover_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof2), 1)
@@ -1184,6 +1912,25 @@ impl TestCase for OutOfRangeProofTest {
 
         assert_eq!(proven_height.height, max_l2_blocks_per_commitment * 4);
         assert_eq!(proven_height.commitment_index, 4);
+
+        light_client_prover
+            .wait_for_l1_height(proof_l1_height, None)
+            .await?;
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(proof_l1_height)
+            .await?
+            .unwrap();
+        assert_eq!(
+            lcp.light_client_proof_output.last_l2_height,
+            U64::from(proven_height.height)
+        );
+        assert_eq!(
+            lcp.light_client_proof_output
+                .last_sequencer_commitment_index,
+            U32::from(proven_height.commitment_index)
+        );
 
         Ok(())
     }
@@ -1210,7 +1957,7 @@ impl TestCase for OverlappingProofRangesTest {
         TestCaseConfig {
             with_full_node: true,
             with_sequencer: true,
-            with_batch_prover: true,
+            with_light_client_prover: true,
             with_citrea_cli: true,
             ..Default::default()
         }
@@ -1227,6 +1974,13 @@ impl TestCase for OverlappingProofRangesTest {
         Some(170)
     }
 
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
     async fn cleanup(self) -> Result<()> {
         self.task_manager
             .graceful_shutdown_with_timeout(Duration::from_secs(1));
@@ -1238,25 +1992,47 @@ impl TestCase for OverlappingProofRangesTest {
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
-        let batch_prover = f.batch_prover.as_mut().unwrap();
+        let light_client_prover = f.light_client_prover.as_mut().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
         let citrea_cli = f.citrea_cli.as_ref().unwrap();
 
-        let sequencer_da_service = spawn_bitcoin_da_service(
-            task_executor.clone(),
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
-        )
-        .await;
+        let sequencer_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
-        let prover_da_service = spawn_bitcoin_da_service(
-            task_executor,
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
-        )
-        .await;
+        let prover_da_service =
+            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
+
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Wait for light client prover to create light client proof.
+        light_client_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        // Expect light client prover to have generated light client proof
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?;
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+
+        // Get initial method ids and genesis state root
+        let method_id = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?[0]
+            .method_id
+            .into();
+
+        // Stopping lcp so it doesn't sync over the rolled back state
+        light_client_prover.wait_until_stopped().await?;
+
+        let genesis_state_root = lcp_output.l2_state_root;
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
@@ -1269,22 +2045,9 @@ impl TestCase for OverlappingProofRangesTest {
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
 
-        batch_prover
+        full_node
             .wait_for_l1_height(commitments_l1_height, None)
             .await?;
-
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let proof_l1_height = da.get_finalized_height(None).await?;
-
-        full_node.wait_for_l1_height(proof_l1_height, None).await?;
-
-        // Extract proof_a over range [1,2,3]
-        let proof_a = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
-            .await
-            .unwrap()[0]
-            .clone()
-            .proof;
 
         let range1 = sequencer
             .client
@@ -1365,28 +2128,6 @@ impl TestCase for OverlappingProofRangesTest {
 
         full_node.start(None, None).await?;
 
-        // Rollback batchprover to genesis
-        batch_prover.wait_until_stopped().await?;
-        citrea_cli
-            .run(
-                "rollback",
-                &[
-                    "--node-type",
-                    "batch-prover",
-                    "--db-path",
-                    batch_prover.config.rollup.storage.path.to_str().unwrap(),
-                    "--l2-target",
-                    "0",
-                    "--l1-target",
-                    &f.initial_da_height.to_string(),
-                    "--sequencer-commitment-index",
-                    "0",
-                ],
-            )
-            .await?;
-
-        batch_prover.start(None, None).await?;
-
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment1.clone()),
@@ -1412,23 +2153,14 @@ impl TestCase for OverlappingProofRangesTest {
         assert_eq!(committed_height.height, max_l2_blocks_per_commitment);
         assert_eq!(committed_height.commitment_index, 1);
 
-        let commitments_l1_height = da.get_finalized_height(None).await?;
-        batch_prover
-            .wait_for_l1_height(commitments_l1_height, None)
-            .await?;
-
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let proof_l1_height = da.get_finalized_height(None).await?;
-
-        full_node.wait_for_l1_height(proof_l1_height, None).await?;
-
-        // Generate a proof over commitment range [1] that will be discarded
-        let _discarded_proof = wait_for_zkproofs(full_node, proof_l1_height, None, 1)
-            .await
-            .unwrap()[0]
-            .clone()
-            .proof;
+        let commitment1_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment1.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
 
         sequencer_da_service
             .send_transaction_with_fee_rate(
@@ -1482,24 +2214,30 @@ impl TestCase for OverlappingProofRangesTest {
         assert_eq!(committed_height.height, max_l2_blocks_per_commitment * 4);
         assert_eq!(committed_height.commitment_index, 4);
 
-        // Generate a proof over range [2,3,4]
-        batch_prover
-            .wait_for_l1_height(commitments_l1_height, None)
-            .await?;
-
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let proof_b_l1_height = da.get_finalized_height(None).await?;
-        full_node
-            .wait_for_l1_height(proof_b_l1_height, None)
-            .await?;
-
-        // Extract proof_b over rnage [2,3,4]
-        let proof_b = wait_for_zkproofs(full_node, proof_b_l1_height, None, 1)
-            .await
-            .unwrap()[0]
-            .clone()
-            .proof;
+        let commitment2_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment2.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+        let commitment3_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment3.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+        let commitment4_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment4.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
 
         // Rollback Bitcoin to initial height and clear transactions
         let initial_height_hash = da.get_block_hash(f.initial_da_height + 1).await?;
@@ -1587,6 +2325,29 @@ impl TestCase for OverlappingProofRangesTest {
         assert_eq!(committed_height.height, max_l2_blocks_per_commitment * 4);
         assert_eq!(committed_height.commitment_index, 4);
 
+        // Create proof_a over commitments [1,2,3]
+        let current_l1_hash = da.get_block_hash(commitments_l1_height).await?;
+
+        let proof_a = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            genesis_state_root,
+            max_l2_blocks_per_commitment * 3,
+            method_id,
+            None,
+            false,
+            current_l1_hash.as_raw_hash().to_byte_array(),
+            vec![
+                commitment1.clone(),
+                commitment2.clone(),
+                commitment3.clone(),
+            ],
+            vec![
+                commitment1_state_root,
+                commitment2_state_root,
+                commitment3_state_root,
+            ],
+            None,
+        );
+
         // Send proof_a over commitments [1,2,3]
         prover_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_a.clone()), 1)
@@ -1630,6 +2391,50 @@ impl TestCase for OverlappingProofRangesTest {
         assert_eq!(proven_height_a.height, max_l2_blocks_per_commitment * 3);
         assert_eq!(proven_height_a.commitment_index, 3);
 
+        light_client_prover.start(None, None).await?;
+
+        light_client_prover
+            .wait_for_l1_height(proof_a_l1_height, None)
+            .await?;
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(proof_a_l1_height)
+            .await?
+            .unwrap();
+        assert_eq!(
+            lcp.light_client_proof_output.last_l2_height,
+            U64::from(proven_height_a.height)
+        );
+        assert_eq!(
+            lcp.light_client_proof_output
+                .last_sequencer_commitment_index,
+            U32::from(proven_height_a.commitment_index)
+        );
+
+        // Create proof_b with overlapping range of [2,3,4] using current L1 hash
+        let current_l1_hash = da.get_block_hash(proof_a_l1_height).await?;
+
+        let proof_b = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            commitment1_state_root,
+            max_l2_blocks_per_commitment * 4,
+            method_id,
+            None,
+            false,
+            current_l1_hash.as_raw_hash().to_byte_array(),
+            vec![
+                commitment2.clone(),
+                commitment3.clone(),
+                commitment4.clone(),
+            ],
+            vec![
+                commitment2_state_root,
+                commitment3_state_root,
+                commitment4_state_root,
+            ],
+            Some(commitment1.serialize_and_calculate_sha_256()),
+        );
+
         // Send proof_b with overlapping range of [2,3,4]
         prover_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_b.clone()), 1)
@@ -1672,6 +2477,25 @@ impl TestCase for OverlappingProofRangesTest {
             .unwrap();
         assert_eq!(proven_height_b.height, max_l2_blocks_per_commitment * 4);
         assert_eq!(proven_height_b.commitment_index, 4);
+
+        light_client_prover
+            .wait_for_l1_height(proof_b_l1_height, None)
+            .await?;
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(proof_b_l1_height)
+            .await?
+            .unwrap();
+        assert_eq!(
+            lcp.light_client_proof_output.last_l2_height,
+            U64::from(proven_height_b.height)
+        );
+        assert_eq!(
+            lcp.light_client_proof_output
+                .last_sequencer_commitment_index,
+            U32::from(proven_height_b.commitment_index)
+        );
 
         Ok(())
     }
@@ -1760,13 +2584,9 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         let full_node = f.full_node.as_mut().unwrap();
         let light_client_prover = f.light_client_prover.as_mut().unwrap();
 
-        let sequencer_da_service = spawn_bitcoin_da_service(
-            task_executor.clone(),
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
-        )
-        .await;
+        let sequencer_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
         let sequencer_client = sequencer.client.clone();
 
@@ -2158,6 +2978,13 @@ impl TestCase for FullNodeLcpChunkProofTest {
         Some(170)
     }
 
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
     async fn cleanup(self) -> Result<()> {
         self.task_manager
             .graceful_shutdown_with_timeout(Duration::from_secs(1));
@@ -2199,13 +3026,9 @@ impl TestCase for FullNodeLcpChunkProofTest {
         let full_node = f.full_node.as_mut().unwrap();
         let light_client_prover = f.light_client_prover.as_mut().unwrap();
 
-        let batch_prover_da_service = spawn_bitcoin_da_service(
-            task_executor,
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
-        )
-        .await;
+        let batch_prover_da_service =
+            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
@@ -2910,13 +3733,9 @@ impl TestCase for FullNodeL1SyncHaltOnMerkleRootMismatch {
             merkle_root,
         };
         let task_executor = self.task_manager.executor();
-        let sequencer_da_service = spawn_bitcoin_da_service(
-            task_executor,
-            &da.config,
-            Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
-        )
-        .await;
+        let sequencer_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
 
         sequencer_da_service
             .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(correct_commitment), 1)
@@ -3127,6 +3946,223 @@ impl TestCase for UnsyncedFirstCommitmentTest {
 #[tokio::test]
 async fn test_unsynced_first_commitment() -> Result<()> {
     TestCaseRunner::new(UnsyncedFirstCommitmentTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .set_citrea_cli_path(get_citrea_cli_path())
+    .run()
+    .await
+}
+
+struct ChunkingPackageTooBigTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for ChunkingPackageTooBigTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_sequencer: true,
+            with_light_client_prover: true,
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec![
+                "-persistmempool=0",
+                "-walletbroadcast=0",
+                "-limitancestorcount=100", // Prevent test from hitting default ancestor count limit of 25
+                "-limitdescendantcount=100", // Prevent test from hitting default descendant count limit of 25
+                "-fallbackfee=0.00001",
+            ],
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            // prevent proving
+            proof_sampling_number: 999_999_999_999,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let task_executor = self.task_manager.executor();
+
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let _batch_prover = f.batch_prover.as_mut().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
+        let light_client_prover = f.light_client_prover.as_mut().unwrap();
+
+        let batch_prover_da_service =
+            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Wait for light client prover to create light client proof.
+        light_client_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        // Expect light client prover to have generated light client proof
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?;
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+
+        // Get initial method ids and genesis state root
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        let genesis_state_root = lcp_output.l2_state_root;
+
+        let sequencer_client = sequencer.client.clone();
+
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer_client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Wait for full node to process sequencer commitments
+        full_node.wait_for_l1_height(finalized_height, None).await?;
+
+        let commitment_1 = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(1))
+            .await?
+            .map(|c| SequencerCommitment {
+                merkle_root: c.merkle_root,
+                l2_end_block_number: c.l2_end_block_number.to::<u64>(),
+                index: c.index.to::<u32>(),
+            })
+            .unwrap();
+        let commitment_1_state_root = sequencer_client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment_1.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+
+        // Test for `MempoolRejection("package-mempool-limits, possibly exceeds descendant size limit for tx 6a0c9e3c2fed9cbac73c88031e7333d0ce2242a664e3141ba028b765b0b1e562 [limit: 101000]` error
+        // Send 4 100kb proofs. The 4th one will be tipping the total package size over the 101kvb limit and be rejected with package-too-large error
+        for i in 1..=4 {
+            let state_diff_100kb = create_random_state_diff(100);
+            let l1_hash = da.get_block_hash(finalized_height).await?;
+
+            // Create a 100kb batch proof
+            let verifiable_100kb_batch_proof =
+                create_serialized_fake_receipt_batch_proof_with_state_roots(
+                    genesis_state_root,
+                    20,
+                    batch_proof_method_ids[0].method_id.into(),
+                    Some(state_diff_100kb.clone()),
+                    false,
+                    l1_hash.as_raw_hash().to_byte_array(),
+                    vec![commitment_1.clone()],
+                    vec![commitment_1_state_root],
+                    None,
+                );
+
+            let res = batch_prover_da_service
+                .send_transaction_with_fee_rate(
+                    DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
+                    1,
+                )
+                .await;
+
+            if i == 4 {
+                assert!(
+                    matches!(res, Err(MempoolRejection(msg)) if msg.contains("package-mempool-limits, possibly exceeds descendant size limit"))
+                );
+
+                // Make sure mining the ancestors and re-trying goes through
+                da.generate(1).await?;
+
+                let res = batch_prover_da_service
+                    .send_transaction_with_fee_rate(
+                        DaTxRequest::ZKProof(verifiable_100kb_batch_proof),
+                        1,
+                    )
+                    .await;
+
+                assert!(res.is_ok());
+                da.wait_mempool_len(8, None).await?;
+            } else {
+                da.wait_mempool_len(8 * i, None).await?;
+            }
+        }
+
+        da.generate(1).await?;
+
+        // Test for `MempoolRejection("package-too-large")` error
+        // Single 400kb state diff
+        let state_diff_400kb = create_random_state_diff(400);
+
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+
+        // Create a 400kb batch proof
+        let verifiable_400kb_batch_proof =
+            create_serialized_fake_receipt_batch_proof_with_state_roots(
+                genesis_state_root,
+                20,
+                batch_proof_method_ids[0].method_id.into(),
+                Some(state_diff_400kb.clone()),
+                false,
+                l1_hash.as_raw_hash().to_byte_array(),
+                vec![commitment_1.clone()],
+                vec![commitment_1_state_root],
+                None,
+            );
+
+        let res = batch_prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_400kb_batch_proof), 1)
+            .await;
+
+        assert!(matches!(res, Err(MempoolRejection(msg)) if msg.contains("package-too-large")));
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_chunking_package_too_big() -> Result<()> {
+    TestCaseRunner::new(ChunkingPackageTooBigTest {
         task_manager: TaskManager::current(),
     })
     .set_citrea_path(get_citrea_path())

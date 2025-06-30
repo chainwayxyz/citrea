@@ -142,7 +142,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context>(
             });
         }
 
-        native_trace!("Commiting tx to DB");
+        native_trace!("Committing tx to DB");
         evm.commit(result_and_state.state);
         cumulative_gas_used += result_and_state.result.gas_used();
 
@@ -157,11 +157,6 @@ fn verify_system_tx<C: sov_modules_api::Context>(
     tx: &Recovered<TransactionSigned>,
     l2_height: u64,
 ) -> Result<(), L2BlockModuleCallError> {
-    // Early return if this is the first block because sequencer will not have any L1 block hash in system contract before setblock info call
-    if l2_height == 1 {
-        return Ok(());
-    }
-
     let function_selector: [u8; 4] = tx
         .input()
         .get(0..4)
@@ -191,7 +186,7 @@ fn verify_system_tx<C: sov_modules_api::Context>(
             .expect("Short header proof provider not set");
         match shp_provider.get_and_verify_short_header_proof_by_l1_hash(
             l1_block_hash.0,
-            prev_hash.unwrap().to_be_bytes(),
+            prev_hash.to_be_bytes(),
             next_l1_height,
             txs_commitment.0,
             coinbase_depth,
@@ -204,6 +199,9 @@ fn verify_system_tx<C: sov_modules_api::Context>(
             }
             Err(ShortHeaderProofProviderError::ShortHeaderProofNotFound) => {
                 return Err(L2BlockModuleCallError::ShortHeaderProofNotFound);
+            }
+            Err(ShortHeaderProofProviderError::VectorAllocationFailed(e)) => {
+                return Err(L2BlockModuleCallError::ShortHeaderProofAllocationError(e));
             }
         }
     }
@@ -226,11 +224,12 @@ pub fn get_last_l1_height_in_light_client<C: sov_modules_api::Context>(
     .map(|v| v.saturating_sub(U256::from(1u64)))
 }
 
-/// Returns the last set l1 block hash in bitcoin light client contract
+/// Returns the last set l1 block height with its corresponding l1 block hash in bitcoin light client contract
+/// If the hash is not set, it returns a zero hash as it should be since in evm if a storage key is not set, it defaults to zero
 pub fn get_last_l1_height_and_hash_in_light_client<C: sov_modules_api::Context>(
     evm: &Evm<C>,
     working_set: &mut WorkingSet<C::Storage>,
-) -> (U256, Option<U256>) {
+) -> (U256, U256) {
     let last_l1_height_in_contract = evm
         .storage_get(
             &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
@@ -244,11 +243,14 @@ pub fn get_last_l1_height_and_hash_in_light_client<C: sov_modules_api::Context>(
     );
     // counter intuitively the contract stores next block height (expected on setBlockInfo)
     bytes[32..64].copy_from_slice(&U256::from(1).to_be_bytes::<32>());
-    let last_l1_hash = evm.storage_get(
-        &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
-        &keccak256(bytes).into(),
-        working_set,
-    );
+    let last_l1_hash = evm
+        .storage_get(
+            &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+            &keccak256(bytes).into(),
+            working_set,
+        )
+        // If the hash is not set, we return a zero hash as it should be in since in evm if a storage key is not set, it defaults to zero
+        .unwrap_or_default();
 
     (last_l1_height_in_contract, last_l1_hash)
 }

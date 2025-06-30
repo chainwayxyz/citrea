@@ -133,6 +133,9 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
 pub const LIGHT_CLIENT_PROVER_LEDGER_TABLES: &[&str] = &[
     ExecutedMigrations::table_name(),
     SlotByHash::table_name(),
+    // This table is apparently needed to be able to initialize
+    // RPC module among other components such as fork manager.
+    // TODO: Look into removing it later on
     L2BlockByNumber::table_name(),
     LightClientProofBySlotNumber::table_name(),
     ProverLastScannedSlot::table_name(),

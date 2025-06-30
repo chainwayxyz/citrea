@@ -56,7 +56,7 @@ pub const fn verify_forks(forks: &[Fork]) -> bool {
             }
         } else {
             // Validate spec_id increase by 1, and activation height is strictly greater than the previous fork
-            if (fork.spec_id as u8).wrapping_sub(forks[i - 1].spec_id as u8) != 1
+            if (fork.spec_id as u8).saturating_sub(forks[i - 1].spec_id as u8) != 1
                 || fork.activation_height <= forks[i - 1].activation_height
             {
                 return false;

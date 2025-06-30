@@ -49,7 +49,7 @@ pub struct FeeHistoryCache<C: sov_modules_api::Context> {
 }
 
 impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
-    /// Creates new FeeHistoryCache instance, initialize it with the mose recent data, set bounds
+    /// Creates new FeeHistoryCache instance, initialize it with the most recent data, set bounds
     pub fn new(config: FeeHistoryCacheConfig, block_cache: BlockCache<C>) -> Self {
         let max_blocks = config.max_blocks;
         Self {

@@ -14,6 +14,7 @@ resolver = "2"
 borsh = { workspace = true }
 futures = { workspace = true, optional = true }
 once_cell = { workspace = true, default-features = false }
+parking_lot = { workspace = true, default-features = false, optional = true }
 
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", default-features = false, optional = true }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
@@ -32,4 +33,5 @@ native = [
 
   "dep:sov-db",
   "dep:futures",
+  "dep:parking_lot",
 ]

@@ -1,3 +1,7 @@
+//! Prover module for batch proving operations
+//! This module implements the `Prover` struct which handles batch proving operations
+//! It manages proving jobs, partitions commitments, creates circuit inputs, and interacts with the DA service.
+
 use std::collections::{hash_map, HashMap, VecDeque};
 use std::sync::Arc;
 
@@ -5,8 +9,8 @@ use anyhow::Context;
 use citrea_common::utils::merge_state_diffs;
 use citrea_common::{BatchProverConfig, ProverGuestRunConfig};
 use citrea_primitives::compression::compress_blob;
-use citrea_primitives::forks::fork_from_block_number;
-use citrea_primitives::MAX_TX_BODY_SIZE;
+use citrea_primitives::forks::{fork_from_block_number, get_tangerine_activation_height_non_zero};
+use citrea_primitives::{MAX_TX_BODY_SIZE, MAX_WITNESS_CACHE_SIZE};
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
@@ -24,7 +28,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3;
+use sov_rollup_interface::zk::batch_proof::input::v3::{BatchProofCircuitInputV3, PrevHashProof};
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
 use sov_state::Witness;
@@ -37,9 +41,14 @@ use uuid::Uuid;
 
 use crate::partition::{Partition, PartitionMode, PartitionReason, PartitionState};
 
+/// Request types for the Prover service.
+/// These requests can be sent from the RPC interface to control the proving process.
 pub enum ProverRequest {
+    /// Request to pause the proving process.
     Pause,
+    /// Request to trigger try_proving with a specific partition mode.
     Prove(PartitionMode, oneshot::Sender<Vec<Uuid>>),
+    /// Request to create circuit input for a specific partition mode, and specific sequencer commitments.
     CreateInput(
         PartitionMode,
         Vec<SequencerCommitment>,
@@ -47,23 +56,45 @@ pub enum ProverRequest {
     ),
 }
 
+/// Handler for batch proving operations.
+///
+/// This component is responsible for:
+/// - Tracking pending (not yet proven) commitments
+/// - Partitioning commitments into provable chunks
+/// - Creating circuit inputs for each partition
+/// - Starting proving jobs and assigning each  job their own unique job ids.
+/// - Tracking jobs with their job ids and update ledger db accordingly at each step.
+/// - Verifies generated proofs and submits them to the DA.
+/// - Listens to signals from L1 syncer, L2 syncer, and RPC requests to trigger proving operations.
 pub struct Prover<Da, DB, Vm>
 where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + 'static,
     Vm: ZkvmHost + 'static,
 {
+    /// Configuration for the batch prover
     prover_config: BatchProverConfig,
+    /// Database for ledger operations
     ledger_db: DB,
+    /// Manager for prover storage
     storage_manager: ProverStorageManager,
+    /// Service for parallel proving operations
     prover_service: Arc<ParallelProverService<Da, Vm>>,
+    /// Sequencer's public key used for verifying commitments
     sequencer_pub_key: K256PublicKey,
+    /// Map of ELF binaries by spec ID, used for proving
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
+    /// Map of code commitments by spec ID, used for verifying proofs before submitting to DA
     code_commitments_by_spec: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
+    /// Signal receiver from L1 syncer to try proving
     l1_signal_rx: mpsc::Receiver<()>,
+    /// Signal receiver from L2 syncer to try proving
     l2_block_rx: broadcast::Receiver<u64>,
+    /// Channel for RPC requests to trigger manual proving operations
     request_rx: mpsc::Receiver<ProverRequest>,
+    /// The L2 height of the first unsynced commitment
     sync_target_l2_height: Option<u64>,
+    /// Flag to indicate if proving is paused, can be set by RPC request
     proving_paused: bool,
 }
 
@@ -73,6 +104,19 @@ where
     DB: BatchProverLedgerOps + Clone,
     Vm: ZkvmHost,
 {
+    /// Creates a new instance of the Prover
+    ///
+    /// # Arguments
+    /// * `prover_config` - Configuration for the batch prover
+    /// * `ledger_db` - Database for ledger operations
+    /// * `storage_manager` - Manager for prover storage
+    /// * `prover_service` - Service for parallel proving operations
+    /// * `sequencer_pub_key` - Sequencer's public key used for verifying commitments
+    /// * `elfs_by_spec` - Map of ELF binaries by spec ID, used for proving
+    /// * `code_commitments_by_spec` - Map of code commitments by spec ID, used for verifying proofs before submitting to DA
+    /// * `l1_signal_rx` - Signal receiver from L1 syncer to try proving
+    /// * `l2_block_rx` - Signal receiver from L2 syncer to try proving
+    /// * `request_rx` - Channel for RPC requests to trigger manual proving operations
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         prover_config: BatchProverConfig,
@@ -103,6 +147,14 @@ where
         }
     }
 
+    /// Runs the prover service
+    ///
+    /// This method continuously listens for signals from L1 syncer, L2 syncer, and RPC requests to trigger proving operations.
+    /// Signals from RPC requests can pause proving, trigger proving with specific parameters
+    /// or return batch proof input created with specific partition mode and commitments.
+    ///
+    /// # Arguments
+    /// * `shutdown_signal` - A signal to gracefully shut down the prover service
     #[instrument(name = "BatchProver", skip_all)]
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
         self.recover_proving_sessions().await;
@@ -131,12 +183,13 @@ where
                     };
 
                     let Some(sync_target_l2_height) = self.sync_target_l2_height else {
-                        // we are already fully synced or no commitments are waiting for l2 blocks
+                        // there are no commitments that are waiting the L2 chain to be synced
                         continue;
                     };
 
                     if l2_height < sync_target_l2_height {
-                        // new l2 height has not yet reached the next sync target
+                        // there are commitments waiting the L2 chain to be synced to a point,
+                        // but we haven't reached the next sync target yet
                         continue;
                     }
 
@@ -194,6 +247,20 @@ where
         }
     }
 
+    /// This function will try to start proving process based on three checks:
+    /// - Firstly checks if proving is paused, if so, it returns empty vector
+    /// - Secondly checks if the prover should prove based on the configured sampling rate,
+    /// - And lastly it tries to create partitions from pending commitments with given partition mode
+    /// - If partitions are created, it will create inputs for each partition,
+    ///   and then it starts proving jobs in the background and returns their job ids.
+    /// - The background jobs will return a signal receiver which helps the monitoring task to continuously poll and check the status of the proving jobs.
+    /// - The receiver then passed to the watch_proving_jobs method which will monitor the proving jobs and update the ledger db accordingly.
+    /// # Arguments
+    /// * `mode` - The partition mode to use for proving
+    /// * `with_sampling` - Whether to apply sampling rate to the proving process
+    ///
+    /// # Returns
+    /// A vector of job IDs for the started proving jobs, or an empty vector if no jobs were started.
     async fn try_proving(
         &mut self,
         mode: PartitionMode,
@@ -229,6 +296,7 @@ where
                 .create_circuit_input(&partition, id)
                 .context("Failed to create circuit input")?;
 
+            // start the proving job in the background
             let rx = self.start_proving(input, id).await?;
             proving_jobs.push((id, rx));
 
@@ -238,6 +306,7 @@ where
                 .map(|comm| comm.index)
                 .collect::<Vec<_>>();
 
+            // insert the proving job to the ledger db, and delete the pending commitments
             self.ledger_db
                 .insert_new_proving_job(id, &commitment_indices)
                 .context("Failed to insert prover job")?;
@@ -248,11 +317,24 @@ where
 
         let job_ids = proving_jobs.iter().map(|job| job.0).collect();
 
+        // start watching the proving jobs to finish in the background
         self.watch_proving_jobs(proving_jobs);
 
         Ok(job_ids)
     }
 
+    /// This function will try to create provable partitions from the pending commitments.
+    /// It will initially filter out the commitments that are not synced to the L2 blocks yet,
+    /// then it will filter out the commitments that don't have a known previous commitment,
+    /// and finally it will partition the commitments into provable chunks based on the given partition mode.
+    ///
+    /// # Arguments
+    /// * `commitments` - A mutable reference to the vector of pending commitments
+    ///     This vector is mutable because it will be updated with the filtered commitments.
+    /// * `mode` - The partition mode to use for partitioning the commitments
+    ///
+    /// # Returns
+    /// A vector of partitions, each containing a slice of commitments and their start and end heights.
     fn create_partitions<'a>(
         &mut self,
         commitments: &'a mut Vec<SequencerCommitment>,
@@ -265,9 +347,9 @@ where
         }
         info!("Got {} synced commitment(s)", filtered_commitments.len());
 
-        let filtered_commitments = self.filter_prev_missing_commitments(filtered_commitments)?;
+        let filtered_commitments = self.filter_commitments_with_index_gap(filtered_commitments)?;
         if filtered_commitments.is_empty() {
-            warn!("None of the pending commitments have a known previous commitment");
+            warn!("Previous commitment of pending commitment list is not known yet");
             return Ok(Vec::new());
         }
         info!("Got {} provable commitment(s)", filtered_commitments.len());
@@ -281,6 +363,19 @@ where
     }
 
     /// Filters out the commitments that prover l2 blocks not synced to yet
+    /// This function checks the head L2 block height in the ledger database
+    /// and compares it with the L2 end block number of each commitment.
+    /// If the L2 end block number is less than or equal to the head L2 height,
+    /// it means the commitment is already synced and can be included.
+    /// If the L2 end block number is greater than the head L2 height,
+    /// it means the commitment is not synced yet and should be filtered out.
+    /// (This function assumes that the commitments are sorted by L2 end block number in ascending order.)
+    ///
+    /// # Arguments
+    /// * `commitments` - A vector of sequencer commitments to filter
+    ///
+    /// # Returns
+    /// A vector of sequencer commitments that are synced to the L2 blocks.
     fn filter_unsynced_commitments(
         &mut self,
         mut commitments: Vec<SequencerCommitment>,
@@ -316,38 +411,59 @@ where
         Ok(commitments)
     }
 
-    /// Filters out the commitments that doesn't have a known previous commitment, hence, can't be proven.
-    /// E.g. commitments = [3, 4, 5], but commitment 2 is not known yet, outputs [4, 5]
-    fn filter_prev_missing_commitments(
+    /// Filters out the commitments that has index gaps, hence, can't be proven. Expects commitments to be in ascending order by index.
+    /// E.g. commitments = [3, 4, 5], and commitment 2 is not known yet, outputs []
+    /// E.g. commitments = [3, 4, 6], and commitment 2 is known, outputs [3, 4]
+    fn filter_commitments_with_index_gap(
         &self,
         commitments: Vec<SequencerCommitment>,
     ) -> anyhow::Result<Vec<SequencerCommitment>> {
-        commitments
-            .into_iter()
-            .filter_map(|comm| {
-                if comm.index == 1 {
-                    return Some(Ok(comm));
-                }
+        let first_index = commitments[0].index;
+        let mut prev_index = if first_index == 1 {
+            0
+        } else {
+            match self.ledger_db.get_commitment_by_index(first_index - 1)? {
+                Some(_) => first_index - 1,
+                // prev commitment not found
+                None => return Ok(Vec::new()),
+            }
+        };
 
-                match self.ledger_db.get_commitment_by_index(comm.index - 1) {
-                    // prev commitment exists
-                    Ok(Some(_)) => Some(Ok(comm)),
-                    // prev commitment doesn't exist
-                    Ok(None) => None,
-                    // db error
-                    Err(e) => Some(Err(e)),
-                }
-            })
-            .collect()
+        let mut filtered_commitments = Vec::with_capacity(commitments.len());
+        for comm in commitments {
+            if comm.index != prev_index + 1 {
+                // break immediately when an index gap is found
+                break;
+            }
+            prev_index = comm.index;
+            filtered_commitments.push(comm);
+        }
+
+        Ok(filtered_commitments)
     }
 
-    /// Partition the commitments into provable chunks. Here are the rules when partitioning in Normal mode:
-    /// 1. If there is an index gap in between commitments, partition is formed
-    /// 2. If ƒork has changed, partition is formed
-    /// 3. If max state diff limit is surpassed, partition is formed
+    /// Partition the commitments into provable chunks.
+    /// If partition Mode is OneByOne, each commitment is treated as a separate partition.
     ///
-    /// This function expects each commitment to have previous commitment, so, ensure filtering commitments
-    /// with `filter_prev_missing_commitments` before calling this function.
+    /// If PartitionMode is Normal:
+    /// If there is only one commitment, it will be treated as a single partition.
+    /// If there are more than one commitment, the commitments are iterated and following conditions are checked at each iteration:
+    /// 0. The state diff is increased at each iteration with the current commitment state diff and reset after each partition to the current commitments state diff.
+    /// 1. If other than the first commitment, the index of the current commitment and the previous commitment index is checked,
+    ///     if they are not consecutive, a partition is formed with the IndexGap PartitionReason.
+    /// 2. If the previous commitment l2 end block number and the current commitment l2 end block number are from different forks,
+    ///     a partition is formed with the SpecChange PartitionReason.
+    /// 3. If serialized and then compressed cumulative state diff of the (current commitment included) partition exceeds the MAX_TX_BODY_SIZE,
+    ///     a partition is formed with the StateDiff PartitionReason.
+    /// 4. If there is a remaining commitment after the loop, it is added as a last partition with the Finish PartitionReason.
+    ///
+    /// # Gotchas:
+    /// This function expects contiguous known commitments, so, ensure filtering commitments
+    /// with `filter_commitments_with_index_gaps` before calling this function.
+    ///
+    /// # Arguments
+    /// * `commitments` - A slice of sequencer commitments to partition
+    /// * `mode` - The partition mode to use for partitioning the commitments
     fn partition_commitments<'a>(
         &self,
         commitments: &'a [SequencerCommitment],
@@ -381,14 +497,11 @@ where
                 continue;
             }
 
-            // check index gap
-            if commitment.index != commitments[i - 1].index + 1 {
-                cumulative_state_diff = commitment_state_diff;
-                state.add_partition(i - 1, PartitionReason::IndexGap)?;
-                // override commitment start height as we lost track of the latest commitment due to index gap
-                commitment_start_height = state.next_partition_start_height();
-                continue;
-            }
+            assert_eq!(
+                commitment.index,
+                commitments[i - 1].index + 1,
+                "Commitments with index gap must be filtered before calling partition"
+            );
 
             // check spec change
             let current_spec = fork_from_block_number(commitment_end_height);
@@ -419,6 +532,13 @@ where
         Ok(state.into_inner())
     }
 
+    /// This function creates the input for the batch proof circuit
+    ///
+    /// # Arguments
+    /// * `partition` - The partition to create the input for
+    ///
+    /// # Returns
+    /// A `BatchProofCircuitInputV3` containing the necessary data for the circuit input.
     #[instrument(skip_all, fields(job_id = _job_id.to_string()))]
     fn create_circuit_input(
         &self,
@@ -436,14 +556,13 @@ where
             .context("Failed to get final state root")?
             .expect("End l2 height must have state root");
 
-        // TODO: REPLACE THIS
-        let (
+        let CommitmentStateTransitionData {
             short_header_proofs,
             state_transition_witnesses,
             cache_prune_l2_heights,
-            l2_blocks,
+            committed_l2_blocks,
             last_l1_hash_witness,
-        ) = get_batch_proof_circuit_input_from_commitments::<Da, _>(
+        } = get_batch_proof_circuit_input_from_commitments::<Da, _>(
             partition.start_height,
             partition.commitments,
             &self.ledger_db,
@@ -460,19 +579,34 @@ where
                 .expect("Commitment should exist")
         });
 
+        let prev_hash_proof = previous_sequencer_commitment
+            .as_ref()
+            .map(|c| get_prev_hash_proof(c, &self.ledger_db));
+
         Ok(BatchProofCircuitInputV3 {
             initial_state_root,
             final_state_root,
-            l2_blocks,
+            l2_blocks: committed_l2_blocks,
             state_transition_witnesses,
             short_header_proofs,
             sequencer_commitments: partition.commitments.to_vec(),
             cache_prune_l2_heights,
             last_l1_hash_witness,
             previous_sequencer_commitment,
+            prev_hash_proof,
         })
     }
 
+    /// This function starts the proving process for a given input and job ID.
+    /// It will fetch the appropriate ELF binary for the current spec,
+    /// serialize the input, and then call the prover service to start the proving job.
+    ///
+    /// # Arguments
+    /// * `input` - The input for the batch proof circuit
+    /// * `job_id` - The unique identifier for the proving job
+    ///
+    /// # Returns
+    /// A `oneshot::Receiver<Proof>` that will resolve once the proving job is completed.
     #[instrument(skip_all, fields(job_id = job_id.to_string()))]
     async fn start_proving(
         &self,
@@ -506,6 +640,20 @@ where
             .await
     }
 
+    /// This function watches the proving jobs and updates the ledger database accordingly.
+    /// This is called after the proving jobs are started in the background.
+    /// The signal receiver for each job is passed to this function,
+    /// which will resolve once the proving job is completed.
+    /// This function creates an unordered stream of proving jobs,
+    /// and continuously polls for the completion of each job.
+    /// Once a job is completed, it extracts the proof output, verifies the proof,
+    /// stores the proof in the ledger database, and submits the proof to the DA service.
+    /// After successful submission, it updates the ledger database with the transaction ID of the submitted proof
+    /// and removes job from pending da submission.
+    ///
+    /// # Arguments
+    /// * `proving_jobs` - A vector of tuples containing the job ID and the signal receiver for each proving job.
+    /// * Each job ID is a unique identifier for the proving job, and the signal receiver is used to get the proof once the job is completed.
     #[instrument(skip_all)]
     fn watch_proving_jobs(&self, proving_jobs: Vec<(Uuid, oneshot::Receiver<Proof>)>) {
         assert!(!proving_jobs.is_empty(), "received empty jobs list");
@@ -522,6 +670,7 @@ where
             })
             .collect::<FuturesUnordered<_>>();
 
+        // start watching the proving jobs to finish in the background
         tokio::spawn(async move {
             while let Some((job_id, proof)) = proving_jobs.next().await {
                 info!("Proving job finished {}", job_id);
@@ -548,6 +697,12 @@ where
         });
     }
 
+    /// This function recovers proving sessions that were not completed before the node was restarted.
+    /// It retrieves all pending proving jobs from the ledger database,
+    /// starts the recovery process for each job, and waits for the proofs to be generated.
+    /// Once a proof is generated, it extracts the proof output, stores the proof in the ledger database.
+    /// This function will also recover proofs of jobs that are pending for DA submission,
+    /// and submit the recovered proofs to the DA service with them.
     #[instrument(name = "recovery", skip_all)]
     async fn recover_proving_sessions(&self) {
         // recover proving sessions
@@ -618,6 +773,15 @@ where
         }
     }
 
+    /// Given a range of l2 blocks, this function retrieves the state diff for each block in the range
+    /// and merges them into a single state diff.
+    ///
+    /// # Arguments
+    /// * `start_height` - The starting L2 block height for the range
+    /// * `end_height` - The ending L2 block height for the range
+    ///
+    /// # Returns
+    /// A `StateDiff` that represents the merged state diff for the given range of L2 blocks.
     fn get_state_diff(&self, start_height: u64, end_height: u64) -> anyhow::Result<StateDiff> {
         let mut commitment_state_diff = StateDiff::new();
         for l2_height in start_height..=end_height {
@@ -631,6 +795,11 @@ where
         Ok(commitment_state_diff)
     }
 
+    /// Determines whether the prover should attempt to prove based on the configured proving mode and sampling rate.
+    /// This function checks the `proving_mode` in the `prover_config` and applies the sampling rate if applicable.
+    ///
+    /// # Returns
+    /// A boolean indicating whether the prover should proceed with proving.
     fn should_prove(&self) -> bool {
         match self.prover_config.proving_mode {
             // Unconditionally call prove
@@ -645,16 +814,37 @@ where
     }
 }
 
-const MAX_CUMULATIVE_CACHE_SIZE: usize = 128 * 1024 * 1024;
+/// Represents the data required to create a batch proof circuit input from sequencer commitments
+/// This structure contains the short header proofs, state transition witnesses,
+/// cache prune L2 heights, committed L2 blocks, and the last L1 hash witness.
+pub(crate) struct CommitmentStateTransitionData {
+    /// The short header proofs for verifying the SetBlockInfo system transactions
+    short_header_proofs: VecDeque<Vec<u8>>,
+    /// Corresponding witness for the l2 blocks.
+    state_transition_witnesses: VecDeque<Vec<(Witness, Witness)>>,
+    /// L2 heights in which the guest should prune the log caches to avoid OOM.
+    cache_prune_l2_heights: Vec<u64>,
+    /// The L2 blocks that are inside the sequencer commitments.
+    committed_l2_blocks: VecDeque<Vec<L2Block>>,
+    /// Witness needed to get the last Bitcoin hash on Bitcoin Light Client contract
+    last_l1_hash_witness: Witness,
+}
 
-type CommitmentStateTransitionData = (
-    VecDeque<Vec<u8>>,
-    VecDeque<Vec<(Witness, Witness)>>,
-    Vec<u64>,
-    VecDeque<Vec<L2Block>>,
-    Witness,
-);
-
+/// This function retrieves the batch proof circuit input from the sequencer commitments
+/// It processes the sequencer commitments, retrieves the corresponding L2 blocks,
+/// generates the cumulative witnesses, and returns the necessary data for the batch proof circuit input.
+/// Also verifies the commitment merkle root by calculating the merkle root from the L2 blocks
+///
+/// # Arguments
+/// * `first_l2_height_of_commitments` - The first L2 block height of the commitments, needed to determine the range of L2 blocks to retrieve.
+/// * `sequencer_commitments` - A slice of sequencer commitments to process.
+/// * `ledger_db` - A reference to the ledger database to retrieve L2 blocks and state roots.
+/// * `storage_manager` - A reference to the prover storage manager to create storage for L2 heights for applying them to state and getting the necessary witness data.
+/// * `sequencer_pub_key` - The public key of the sequencer, used for applying L2 blocks and generating witnesses.
+///
+/// # Returns
+/// A `CommitmentStateTransitionData` containing the short header proofs, state transition witnesses,
+/// cache prune L2 heights, committed L2 blocks, and the last L1 hash witness.
 pub(crate) fn get_batch_proof_circuit_input_from_commitments<
     Da: DaService,
     DB: BatchProverLedgerOps,
@@ -728,15 +918,35 @@ pub(crate) fn get_batch_proof_circuit_input_from_commitments<
         sequencer_pub_key,
     )?;
 
-    Ok((
+    Ok(CommitmentStateTransitionData {
         short_header_proofs,
         state_transition_witnesses,
         cache_prune_l2_heights,
         committed_l2_blocks,
         last_l1_hash_witness,
-    ))
+    })
 }
 
+/// This function will basically re-apply all the L2 blocks in the given
+/// `committed_l2_blocks` to the prover storage manager and generate the cumulative witnesses.
+/// This function will iterate over each commitment in the `committed_l2_blocks`
+/// and apply each L2 block in the commitment to the prover storage manager.
+/// It will also collect the short header proofs that are needed to verify the SetBlockInfo system transactions.
+/// After applying each l2 block, it will check if the cache size exceeds the maximum allowed size,
+/// and if so, it will prune the state and offchain logs to avoid OOM errors and push the l2 height where this should happen to the cache prune l2 heights.
+///
+/// # Arguments
+/// * `committed_l2_blocks` - A reference to a deque of vectors of L2 blocks that are committed.
+/// * `ledger_db` - A reference to the ledger database to retrieve L2 state roots and short header proofs.
+/// * `storage_manager` - A reference to the prover storage manager to create storage for L2 heights for applying them to state and getting the necessary witness data.
+/// * `sequencer_pub_key` - The public key of the sequencer, used for applying L2 blocks and generating witnesses.
+///
+/// # Returns
+/// A tuple containing:
+/// - A deque of vectors of tuples containing the state transition witness and offchain witness for each L2 block.
+/// - A vector of L2 heights where the cache should be pruned to avoid OOM errors.
+/// - A deque of vectors of serialized short header proofs.
+/// - A witness for the last L1 hash, which is needed to get the last Bitcoin hash on the Bitcoin Light Client contract.
 #[allow(clippy::type_complexity)]
 fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
     committed_l2_blocks: &VecDeque<Vec<L2Block>>,
@@ -814,7 +1024,7 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
             // If cache grew too large, zkvm will error with OOM, hence, we pass
             // when to prune as hint
             if state_log.estimated_cache_size() + offchain_log.estimated_cache_size()
-                > MAX_CUMULATIVE_CACHE_SIZE
+                > MAX_WITNESS_CACHE_SIZE
             {
                 state_log.prune_half();
                 offchain_log.prune_half();
@@ -836,7 +1046,7 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
                         .last()
                         .expect("must have at least one")
                         .height(),
-            );
+            )?;
 
         for hash in new_hashes {
             let serialized_shp = ledger_db
@@ -874,6 +1084,68 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
     ))
 }
 
+/// Given a previous sequencer commitment, this function will generate a `PrevHashProof`.
+/// This proof will be used inside the circuit to verify the `prev_hash` field of the first
+/// L2 block that will be run in the batch proof circuit for the given commitments.
+fn get_prev_hash_proof<DB: BatchProverLedgerOps>(
+    previous_commitment: &SequencerCommitment,
+    ledger_db: &DB,
+) -> PrevHashProof {
+    let prev_commitment_start_height = if previous_commitment.index == 1 {
+        get_tangerine_activation_height_non_zero()
+    } else {
+        ledger_db
+            .get_commitment_by_index(previous_commitment.index - 1)
+            .expect("Should get previous commitment")
+            .expect("Previous commitment should exist")
+            .l2_end_block_number
+            + 1
+    };
+
+    let blocks = ledger_db
+        .get_l2_block_range(
+            &(L2BlockNumber(prev_commitment_start_height)
+                ..=L2BlockNumber(previous_commitment.l2_end_block_number)),
+        )
+        .unwrap();
+
+    let tree = MerkleTree::<Sha256>::from_leaves(
+        blocks
+            .iter()
+            .map(|block| block.hash)
+            .collect::<Vec<_>>()
+            .as_slice(),
+    );
+
+    let merkle_proof = tree.proof(&[blocks.len() - 1]);
+
+    let last_block: L2Block = blocks
+        .into_iter()
+        .last()
+        .expect("Blocks must not be empty")
+        .try_into()
+        .unwrap();
+
+    PrevHashProof {
+        last_header: last_block.header.inner,
+        merkle_proof_bytes: merkle_proof.to_bytes(),
+        prev_sequencer_commitment_start: prev_commitment_start_height,
+    }
+}
+
+/// This function extracts the proof output from the given proof and verifies it using the provided code commitments.
+/// It uses the `Vm` trait to extract the output and verify the proof.
+/// It also checks the last L2 height in the output to determine the spec ID,
+/// and retrieves the corresponding code commitment from the `code_commitments_by_spec` map.
+/// If the proof verification fails, it panics with an error message containing the job ID.
+///
+/// # Arguments
+/// * `job_id` - The unique identifier for the proving job.
+/// * `proof` - The proof to extract the output from.
+/// * `code_commitments_by_spec` - A map containing code commitments indexed by spec ID.
+///
+/// # Returns
+/// A `BatchProofCircuitOutput` that contains the extracted output from the proof.
 fn extract_proof_output<Vm: ZkvmHost>(
     job_id: &Uuid,
     proof: &Proof,
@@ -1097,47 +1369,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn commitment_partition_with_index_gap() {
-        let MockProverData { mut prover, .. } = create_mock_prover();
-        // put 4 l2 blocks
-        put_l2_blocks(&prover.ledger_db, vec![(1, 0), (2, 0), (3, 0), (4, 0)]);
-
-        // commitments with index gap should create 2 partitions
-        let mut commitments = vec![
-            SequencerCommitment {
-                merkle_root: [0; 32],
-                index: 1,
-                l2_end_block_number: 1,
-            },
-            SequencerCommitment {
-                merkle_root: [0; 32],
-                index: 3,
-                l2_end_block_number: 3,
-            },
-            SequencerCommitment {
-                merkle_root: [0; 32],
-                index: 4,
-                l2_end_block_number: 4,
-            },
-        ];
-        put_commitments(&prover.ledger_db, &commitments);
-
-        let partitions = prover
-            .create_partitions(&mut commitments, PartitionMode::Normal)
-            .unwrap();
-        assert_eq!(partitions.len(), 2);
-        let partition_1 = &partitions[0];
-        assert_eq!(partition_1.start_height, 1);
-        assert_eq!(partition_1.end_height, 1);
-        assert_eq!(partition_1.commitments.len(), 1);
-        // index 3 should be filtered due to prev missing, and index 4 should be the 2nd partition
-        let partition_2 = &partitions[1];
-        assert_eq!(partition_2.start_height, 4);
-        assert_eq!(partition_2.end_height, 4);
-        assert_eq!(partition_2.commitments.len(), 1);
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
     async fn commitment_partition_with_state_diff() {
         let MockProverData { mut prover, .. } = create_mock_prover();
         // put 3 l2 blocks with total state diff of 1.33 * maxsize
@@ -1189,28 +1420,37 @@ mod tests {
     async fn commitment_partition_with_spec_change() {
         let MockProverData { mut prover, .. } = create_mock_prover();
         // put 4 l2 blocks where l2 blocks are switching to a new fork
-        put_l2_blocks(&prover.ledger_db, vec![(8, 0), (9, 0), (10, 0), (11, 0)]);
+        put_l2_blocks(
+            &prover.ledger_db,
+            vec![
+                (1, 0),
+                (2, 0),
+                (3, 0),
+                (4, 0),
+                (5, 0),
+                (6, 0),
+                (7, 0),
+                (8, 0),
+                (9, 0),
+                (10, 0),
+                (11, 0),
+            ],
+        );
 
         let mut commitments = vec![
-            // index 2 is going to be filtered because index 1 is unknown
             SequencerCommitment {
                 merkle_root: [0; 32],
-                index: 2,
-                l2_end_block_number: 7,
-            },
-            SequencerCommitment {
-                merkle_root: [0; 32],
-                index: 3,
+                index: 1,
                 l2_end_block_number: 8,
             },
             SequencerCommitment {
                 merkle_root: [0; 32],
-                index: 4,
+                index: 2,
                 l2_end_block_number: 10,
             },
             SequencerCommitment {
                 merkle_root: [0; 32],
-                index: 5,
+                index: 3,
                 l2_end_block_number: 11,
             },
         ];
@@ -1220,13 +1460,13 @@ mod tests {
             .create_partitions(&mut commitments, PartitionMode::Normal)
             .unwrap();
         assert_eq!(partitions.len(), 2);
-        // first partition is commitment index 3
+        // first partition is commitment index 1
         let partition_1 = &partitions[0];
-        assert_eq!(partition_1.start_height, 8);
+        assert_eq!(partition_1.start_height, 1);
         assert_eq!(partition_1.end_height, 8);
         assert_eq!(partition_1.commitments.len(), 1);
 
-        // second partitions is commitment indices 4 and 5
+        // second partitions is commitment indices 2 and 3
         let partition_2 = &partitions[1];
         assert_eq!(partition_2.start_height, 9);
         assert_eq!(partition_2.end_height, 11);

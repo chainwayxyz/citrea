@@ -8,7 +8,8 @@ use std::sync::Arc;
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{
-    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter, Index, Transaction,
+    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter, Index, SyncInfo,
+    SyncStatus as EthSyncStatus, Transaction,
 };
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
 use citrea_evm::{generate_eth_proof, Evm};
@@ -153,6 +154,10 @@ pub trait EthereumRpc {
     ) -> RpcResult<Option<Transaction>>;
 
     /// Gets sync status (full node only).
+    #[method(name = "eth_syncing")]
+    async fn eth_syncing(&self) -> RpcResult<EthSyncStatus>;
+
+    /// Gets sync status (full node only).
     #[method(name = "citrea_syncStatus")]
     async fn citrea_sync_status(&self) -> RpcResult<SyncStatus>;
 
@@ -183,6 +188,7 @@ where
     Da: DaService,
 {
     ethereum: Arc<Ethereum<C, Da>>,
+    starting_l2_height: U64,
 }
 
 impl<C, Da> EthereumRpcServerImpl<C, Da>
@@ -190,8 +196,11 @@ where
     C: sov_modules_api::Context,
     Da: DaService,
 {
-    pub fn new(ethereum: Arc<Ethereum<C, Da>>) -> Self {
-        Self { ethereum }
+    pub fn new(ethereum: Arc<Ethereum<C, Da>>, starting_l2_height: U64) -> Self {
+        Self {
+            ethereum,
+            starting_l2_height,
+        }
     }
 }
 
@@ -264,9 +273,14 @@ where
 
         let evm = Evm::<C>::default();
 
-        let block_id_internal = evm.block_number_from_state(block_id, &mut working_set)?;
+        let block_id_internal =
+            evm.block_number_from_state(block_id, &mut working_set, &self.ethereum.ledger_db)?;
 
-        evm.set_state_to_end_of_evm_block_by_block_id(block_id, &mut working_set)?;
+        evm.set_state_to_end_of_evm_block_by_block_id(
+            block_id,
+            &mut working_set,
+            &self.ethereum.ledger_db,
+        )?;
 
         let version = if block_id == Some(BlockId::Number(BlockNumberOrTag::Pending)) {
             // if pending it will already be last block + 1
@@ -459,6 +473,37 @@ where
         }
     }
 
+    async fn eth_syncing(&self) -> RpcResult<EthSyncStatus> {
+        let highest_block = self
+            .ethereum
+            .sequencer_client
+            .as_ref()
+            .unwrap()
+            .get_head_l2_block_height()
+            .await
+            .map_err(|e| to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e))?;
+
+        let head_l2_block = match self.ethereum.ledger_db.get_head_l2_block() {
+            Ok(Some((height, _))) => height.0,
+            Ok(None) => 0u64,
+            Err(e) => return Err(to_jsonrpsee_error_object("LEDGER_DB_ERROR", e)),
+        };
+
+        let sync_status = if head_l2_block == highest_block.saturating_to::<u64>() {
+            EthSyncStatus::None
+        } else {
+            EthSyncStatus::Info(Box::new(SyncInfo {
+                starting_block: U256::from(self.starting_l2_height),
+                current_block: U256::from(head_l2_block),
+                highest_block: U256::from(highest_block),
+                warp_chunks_amount: None,
+                warp_chunks_processed: None,
+                stages: None,
+            }))
+        };
+        Ok(sync_status)
+    }
+
     async fn citrea_sync_status(&self) -> RpcResult<SyncStatus> {
         let (sequencer_response, da_response) = join!(
             self.ethereum
@@ -586,6 +631,11 @@ where
     C::Storage: NativeStorage,
     Da: DaService,
 {
+    let head_l2_block = match ledger_db.get_head_l2_block().unwrap() {
+        Some((height, _)) => height.0,
+        None => 0u64,
+    };
+
     // Unpack config
     let EthRpcConfig {
         gas_price_oracle_config,
@@ -606,7 +656,7 @@ where
         sequencer_client_url.map(|url| HttpClientBuilder::default().build(url).unwrap()),
         l2_block_rx,
     ));
-    let server = EthereumRpcServerImpl::new(ethereum);
+    let server = EthereumRpcServerImpl::new(ethereum, U64::from(head_l2_block));
 
     let mut module = EthereumRpcServer::into_rpc(server);
 

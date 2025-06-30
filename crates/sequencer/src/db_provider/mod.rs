@@ -24,12 +24,29 @@ use reth_provider::{
 use reth_trie::updates::TrieUpdates;
 use reth_trie::{HashedPostState, HashedStorage, StorageMultiProof, StorageProof};
 use revm::database::BundleState;
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::{Spec, WorkingSet};
 
+/// Provider for EVM database operations in the sequencer
+///
+/// This struct primarily exists for reth compatibility, implementing various traits
+/// from the Reth ecosystem to provide access to blockchain data. While many trait
+/// methods are marked as `unimplemented!()`, they can be implemented as needed -
+/// they were left unimplemented as they weren't required for our current use cases.
+///
+/// The provider handles access to:
+/// - Blocks
+/// - Transactions
+/// - Receipts
+/// - State information
 #[derive(Clone)]
 pub struct DbProvider {
+    /// The EVM instance for executing transactions
     pub evm: Evm<DefaultContext>,
+    /// Storage for the sequencer state
     pub storage: <DefaultContext as Spec>::Storage,
+    /// LedgerDb
+    ledger_db: LedgerDB,
 }
 
 impl Debug for DbProvider {
@@ -39,19 +56,31 @@ impl Debug for DbProvider {
 }
 
 impl DbProvider {
-    pub fn new(storage: <DefaultContext as Spec>::Storage) -> Self {
+    /// Creates a new DbProvider instance with the given storage
+    ///
+    /// # Arguments
+    /// * `storage` - The storage implementation to use
+    pub fn new(storage: <DefaultContext as Spec>::Storage, ledger_db: LedgerDB) -> Self {
         let evm = Evm::<DefaultContext>::default();
-        Self { evm, storage }
+        Self {
+            evm,
+            storage,
+            ledger_db,
+        }
     }
 
+    /// Returns the current EVM chain configuration
     pub fn cfg(&self) -> EvmChainConfig {
         let mut working_set = WorkingSet::new(self.storage.clone());
         self.evm.get_chain_config(&mut working_set)
     }
 
+    /// Returns the transaction hashes from the last block
     pub fn last_block_tx_hashes(&self) -> RpcResult<Vec<B256>> {
         let mut working_set = WorkingSet::new(self.storage.clone());
-        let rich_block = self.evm.get_block_by_number(None, None, &mut working_set)?;
+        let rich_block =
+            self.evm
+                .get_block_by_number(None, None, &mut working_set, &self.ledger_db)?;
         let hashes = rich_block.map(|b| b.inner.transactions);
         match hashes {
             Some(BlockTransactions::Hashes(hashes)) => Ok(hashes),
@@ -59,20 +88,23 @@ impl DbProvider {
         }
     }
 
+    /// Returns the last block with full transaction details
     pub fn last_block(&self) -> RpcResult<Option<WithOtherFields<AlloyRpcBlock>>> {
         let mut working_set = WorkingSet::new(self.storage.clone());
-        let rich_block = self
-            .evm
-            .get_block_by_number(None, Some(true), &mut working_set)?;
+        let rich_block =
+            self.evm
+                .get_block_by_number(None, Some(true), &mut working_set, &self.ledger_db)?;
         Ok(rich_block)
     }
 
+    /// Returns the genesis block
     pub fn genesis_block(&self) -> RpcResult<Option<WithOtherFields<AlloyRpcBlock>>> {
         let mut working_set = WorkingSet::new(self.storage.clone());
         let rich_block = self.evm.get_block_by_number(
             Some(BlockNumberOrTag::Earliest),
             None,
             &mut working_set,
+            &self.ledger_db,
         )?;
 
         Ok(rich_block)
@@ -143,6 +175,13 @@ impl BlockReaderIdExt for DbProvider {
     fn pending_header(&self) -> ProviderResult<Option<reth_primitives::SealedHeader>> {
         unimplemented!("pending_header")
     }
+    /// Gets a sealed header by block ID
+    ///
+    /// # Arguments
+    /// * `id` - Block identifier (number or hash)
+    ///
+    /// # Returns
+    /// The sealed header if found, wrapped in a ProviderResult
     fn sealed_header_by_id(
         &self,
         id: BlockId,
@@ -163,7 +202,7 @@ impl BlockReaderIdExt for DbProvider {
 
         let block = self
             .evm
-            .get_block_by_number(Some(block_num), None, &mut working_set)
+            .get_block_by_number(Some(block_num), None, &mut working_set, &self.ledger_db)
             .unwrap()
             .unwrap();
         let hash = block.header.hash;
@@ -173,6 +212,7 @@ impl BlockReaderIdExt for DbProvider {
             hash,
         )))
     }
+
     fn sealed_header_by_number_or_tag(
         &self,
         _id: BlockNumberOrTag,

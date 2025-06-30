@@ -34,8 +34,11 @@ pub enum SpecId {
     Kumquat = 1,
     /// Tangerine spec
     Tangerine = 2,
-    /// Fork3 spec
-    #[cfg(feature = "testing")]
+    /// Third fork activates:
+    /// 1. Fixes for vulnerabilities that need forking on existing networks
+    /// 2. Sov-tx signature serialization
+    /// 3. Sov-tx serialization to generate signature
+    /// 4. L2 merkle tree separators
     Fork3 = 3,
     /// Fork4 spec
     #[cfg(feature = "testing")]
@@ -43,18 +46,8 @@ pub enum SpecId {
 }
 
 impl SpecId {
-    /// Const fn to convert u8 to corresponding SpecId. Valid values are
-    /// 0, 1, 2 and 3.
-    pub const fn from_u8(n: u8) -> Option<SpecId> {
-        match n {
-            0 => Some(SpecId::Genesis),
-            1 => Some(SpecId::Kumquat),
-            2 => Some(SpecId::Tangerine),
-            #[cfg(feature = "testing")]
-            3 => Some(SpecId::Fork3),
-            #[cfg(feature = "testing")]
-            4 => Some(SpecId::Fork4),
-            _ => None,
-        }
+    /// Get the latest active (official) SpecId.
+    pub const fn latest() -> Self {
+        Self::Fork3
     }
 }

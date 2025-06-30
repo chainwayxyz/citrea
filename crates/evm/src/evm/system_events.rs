@@ -12,7 +12,7 @@ pub const SYSTEM_SIGNATURE: PrimitiveSignature =
     PrimitiveSignature::new(U256::ZERO, U256::ZERO, false);
 
 /// A system event is an event that is emitted on special conditions by the EVM.
-/// There events will be transformed into Evm transactions and put in the begining of the block.
+/// There events will be transformed into Evm transactions and put in the beginning of the block.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
 pub enum SystemEvent {
     /// Initializes the Bitcoin light client with the given block number.

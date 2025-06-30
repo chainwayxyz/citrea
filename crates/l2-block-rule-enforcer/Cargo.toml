@@ -13,6 +13,7 @@ resolver = "2"
 
 [dependencies]
 citrea-evm = { path = "../evm" }
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false, features = ["macros"] }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
@@ -35,4 +36,4 @@ tempfile = { workspace = true }
 
 [features]
 default = []
-native = ["sov-modules-api/native", "dep:tracing", "jsonrpsee"]
+native = ["dep:sov-db", "sov-modules-api/native", "dep:tracing", "jsonrpsee"]

@@ -15,6 +15,11 @@ pub const MAX_TX_BODY_SIZE: usize = 39700;
 #[cfg(not(feature = "testing"))]
 pub const MAX_TX_BODY_SIZE: usize = 397000;
 
+#[cfg(feature = "testing")]
+pub const MAX_WITNESS_CACHE_SIZE: usize = 6 * 1024 * 1024;
+#[cfg(not(feature = "testing"))]
+pub const MAX_WITNESS_CACHE_SIZE: usize = 512 * 1024 * 1024;
+
 /// SHA-256 hash of "citrea" string
 /// Used as the default tx merkle root when the block has no transactions
 pub const EMPTY_TX_ROOT: [u8; 32] = [
@@ -34,3 +39,12 @@ pub const PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS: &[u8] = &[
     10, 8, 0, 0, 0, 0, 59, 154, 202, 0, 104, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0,
 ];
+
+/// Maximum size of a decompressed blob in bytes.
+/// This is set to 1 MB for testing and 100 MB for production to allow larger blobs in real scenarios.
+/// This limit is enforced during decompression to prevent excessive memory usage
+/// and potential denial of service attacks like decompression bombs.
+#[cfg(feature = "testing")]
+pub const MAX_DECOMPRESSED_BLOB_SIZE: usize = 1024 * 1024; // 1 MB
+#[cfg(not(feature = "testing"))]
+pub const MAX_DECOMPRESSED_BLOB_SIZE: usize = 1024 * 1024 * 100; // 100 MB

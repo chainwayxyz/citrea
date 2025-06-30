@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use anyhow::bail;
 use async_trait::async_trait;
+use bitcoin::hashes::Hash;
 use bitcoin::{Amount, Txid};
 use bitcoin_da::monitoring::TxStatus;
 use bitcoin_da::rpc::DaRpcClient;
@@ -77,7 +78,7 @@ impl TestCase for BitcoinReorgTest {
         f.bitcoin_nodes.connect_nodes().await?;
         f.bitcoin_nodes.wait_for_sync(None).await?;
 
-        // Assert that re-org occured
+        // Assert that re-org occurred
         let new_hash = da0.get_block_hash(original_chain_height).await?;
         assert_ne!(original_chain_hash, new_hash, "Re-org did not occur");
 
@@ -181,6 +182,20 @@ impl TestCase for DaMonitoringTest {
             .da_get_tx_status(mempool0[0])
             .await?;
         assert!(matches!(tx_status, Some(TxStatus::Pending { .. })));
+
+        let monitored_tx = sequencer
+            .client
+            .http_client()
+            .da_get_monitored_transaction(pending_txs[0].txid, false)
+            .await?;
+        assert_eq!(pending_txs[0], monitored_tx.unwrap());
+
+        let non_monitored_tx = sequencer
+            .client
+            .http_client()
+            .da_get_monitored_transaction(Txid::all_zeros(), false)
+            .await?;
+        assert!(non_monitored_tx.is_none());
 
         da.generate(1).await?;
 
@@ -438,7 +453,7 @@ impl CpfpFeeBumpingTest {
         let cpfp_entry = da.get_mempool_entry(cpfp_txid).await?;
         let cpfp_fee_rate = cpfp_entry.fees.base.to_sat() as f64 / cpfp_entry.vsize as f64;
 
-        // Verify the child tx has higher fee rate to accomodate for child + parent
+        // Verify the child tx has higher fee rate to accommodate for child + parent
         assert!(cpfp_fee_rate >= target_fee_rate);
 
         // Verify that child spends from reveal tx and keeps a correct tx chain

@@ -58,13 +58,13 @@ enum Commands {
         db_path: PathBuf,
         /// The target L2 block number to rollback to (non-inclusive)
         #[arg(long)]
-        l2_target: u64,
+        l2_target: Option<u64>,
         /// The target L1 block number to rollback to (non-inclusive)
         #[arg(long)]
-        l1_target: u64,
+        l1_target: Option<u64>,
         /// The target sequencer commitment index to rollback to
         #[arg(long)]
-        sequencer_commitment_index: u32,
+        sequencer_commitment_index: Option<u32>,
     },
     /// Backup DBs
     RestoreBackup {
@@ -80,12 +80,6 @@ enum Commands {
         /// The backup ID
         #[arg(long)]
         backup_id: u32,
-    },
-    /// Clear pending commitments and proofs
-    ClearPending {
-        /// The path of the databases to clear
-        #[arg(long)]
-        db_path: PathBuf,
     },
 }
 
@@ -112,6 +106,10 @@ async fn main() -> anyhow::Result<()> {
             l1_target,
             sequencer_commitment_index,
         } => {
+            if l2_target.is_none() && l1_target.is_none() && sequencer_commitment_index.is_none() {
+                println!("Missing L2/L1 target or sequencer commitment");
+                return Ok(());
+            }
             commands::rollback(
                 node_type,
                 db_path.clone(),
@@ -129,9 +127,6 @@ async fn main() -> anyhow::Result<()> {
         } => {
             commands::restore_backup(node_kind.to_string(), db_path, backup_path, backup_id)
                 .await?;
-        }
-        Commands::ClearPending { db_path } => {
-            commands::clear_pending_proofs_and_commitments(db_path).await?
         }
     }
 

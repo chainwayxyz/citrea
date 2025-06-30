@@ -101,7 +101,7 @@ pub fn config_constant(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Derives a [`jsonrpsee`] implementation for the underlying type. Any code relying on this macro
 /// must take jsonrpsee as a dependency with at least the following features enabled: `["macros", "client-core", "server"]`.
 ///
-/// Syntax is identical to `jsonrpsee`'s `#[rpc]` execept that:
+/// Syntax is identical to `jsonrpsee`'s `#[rpc]` except that:
 /// 1. `#[rpc]` is renamed to `#[rpc_gen]` to avoid confusion with `jsonrpsee`'s `#[rpc]`
 /// 2. `#[rpc_gen]` is applied to an `impl` block instead of a trait
 /// 3. `#[method]` is renamed to with `#[rpc_method]` to avoid import confusion and clarify the purpose of the annotation

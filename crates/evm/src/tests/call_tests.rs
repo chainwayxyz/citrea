@@ -32,8 +32,8 @@ use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
     config_push_contracts, create_contract_message, create_contract_message_with_fee,
     create_contract_message_with_fee_and_gas_limit, create_contract_transaction, get_evm,
-    get_evm_config, get_evm_config_starting_base_fee, get_evm_with_spec,
-    get_fork_fn_only_tangerine, publish_event_message, set_arg_message,
+    get_evm_config, get_evm_config_starting_base_fee, get_evm_with_spec, get_fork_fn_latest,
+    publish_event_message, set_arg_message,
 };
 use crate::tests::{get_test_seq_pub_key, DEFAULT_CHAIN_ID};
 use crate::{
@@ -56,7 +56,7 @@ fn call_multiple_test() {
         }],
         ..Default::default()
     };
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
 
     let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
 
@@ -180,6 +180,7 @@ fn call_multiple_test() {
             BlockNumberOrTag::Number(l2_height),
             U64::from(0),
             &mut working_set,
+            &ledger_db,
         )
         .unwrap()
         .unwrap();
@@ -192,7 +193,7 @@ fn call_test() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
 
@@ -269,7 +270,7 @@ fn failed_transaction_test() {
     let dev_signer: TestSigner = TestSigner::new_random();
     let config = EvmConfig::default();
 
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
     let working_set = &mut working_set;
     let l1_fee_rate = 0;
     let l2_height = 2;
@@ -337,7 +338,8 @@ fn self_destruct_test() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm_with_spec(&config, SovSpecId::Tangerine);
+    let (mut evm, mut working_set, _spec_id, _ledger_db) =
+        get_evm_with_spec(&config, SovSpecId::Tangerine);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -492,7 +494,7 @@ fn test_block_hash_in_evm() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -584,7 +586,8 @@ fn test_block_hash_in_evm() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            &ledger_db,
+            get_fork_fn_latest(),
         );
         if (260..=515).contains(&i) {
             // Should be equal to the hash in accessory state
@@ -611,7 +614,8 @@ fn test_block_hash_in_evm() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert_eq!(
@@ -627,7 +631,8 @@ fn test_block_hash_in_evm() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert_eq!(resp.unwrap().to_vec(), vec![0u8; 32]);
@@ -640,7 +645,7 @@ fn test_block_gas_limit() {
         Some(ETHEREUM_BLOCK_GAS_LIMIT_30M),
     );
 
-    let (mut evm, working_set, _spec_id) = get_evm(&config);
+    let (mut evm, working_set, _spec_id, ledger_db) = get_evm(&config);
 
     let mut working_set = working_set.checkpoint().to_revertable();
     let l1_fee_rate = 0;
@@ -752,7 +757,12 @@ fn test_block_gas_limit() {
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let block = evm
-        .get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set)
+        .get_block_by_number(
+            Some(BlockNumberOrTag::Latest),
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
         .unwrap()
         .unwrap();
 
@@ -854,13 +864,13 @@ fn test_l1_fee_success() {
         expected_base_fee_vault_balance: U256,
         expected_l1_fee_vault_balance: U256,
     ) {
-        let (mut config, dev_signer, _) =
+        let (mut config, dev_signer, _, _ledger_db) =
             get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
 
         // this will push contracts to the config
         config_push_contracts(&mut config, None);
 
-        let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+        let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
 
         let l2_block_info = HookL2BlockInfo {
             l2_height: 2,
@@ -955,7 +965,7 @@ fn test_l1_fee_success() {
 
 #[test]
 fn test_l1_fee_not_enough_funds() {
-    let (mut config, dev_signer, _) = get_evm_config_starting_base_fee(
+    let (mut config, dev_signer, _, _ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("1142350000000").unwrap(), // only covers base fee
         None,
         MIN_BASE_FEE_PER_GAS,
@@ -963,7 +973,7 @@ fn test_l1_fee_not_enough_funds() {
     config_push_contracts(&mut config, None);
 
     let l1_fee_rate = 10000;
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
 
     let l2_height = 2;
 
@@ -1031,12 +1041,12 @@ fn test_l1_fee_not_enough_funds() {
 
 #[test]
 fn test_l1_fee_halt() {
-    let (mut config, dev_signer, _) =
+    let (mut config, dev_signer, _, _ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("20000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config); // l2 height 1
+    let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config); // l2 height 1
     let l1_fee_rate = 1;
     let l2_height = 2;
 
@@ -1145,12 +1155,13 @@ fn test_l1_fee_halt() {
 
 #[test]
 fn test_l1_fee_compression_discount() {
-    let (mut config, dev_signer, _) =
+    let (mut config, dev_signer, _, _ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
 
-    let (mut evm, mut working_set, _spec_id) = get_evm_with_spec(&config, SovSpecId::Tangerine);
+    let (mut evm, mut working_set, _spec_id, _ledger_db) =
+        get_evm_with_spec(&config, SovSpecId::Tangerine);
     let l1_fee_rate = 1;
 
     let l2_block_info = HookL2BlockInfo {
@@ -1237,7 +1248,7 @@ fn test_l1_fee_compression_discount() {
 fn test_blob_tx() {
     let (config, dev_signer, _contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
 
     let l1_fee_rate = 0;
     let l2_height = 2;
@@ -1245,7 +1256,7 @@ fn test_blob_tx() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine, // wont be Tangerine at height 2 currently but we can trick the spec id
+        current_spec: SovSpecId::Tangerine, // won't be Tangerine at height 2 currently but we can trick the spec id
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1279,11 +1290,11 @@ fn test_eip7702_tx() {
     // two signers
     // create log contract and set arg contract
     // get authorization from signer 1 that delegates to log contract
-    // signer 2 sends transaction to signer1's adress and we see log contract is called
-    // assert both adresses nonce went up
+    // signer 2 sends transaction to signer1's address and we see log contract is called
+    // assert both addresses nonce went up
     // then we assert receipts
     // then signer 1 delegates to set arg contract
-    // signer 2 sends transaction to signer1's adress
+    // signer 2 sends transaction to signer1's address
     // we check for storage of signer1 and see it has changed now
 
     let signer1 = TestSigner::new_random(); // use set seed so we can test deterministically
@@ -1310,7 +1321,7 @@ fn test_eip7702_tx() {
         ],
         ..Default::default()
     };
-    let (mut evm, mut working_set, _spec_id) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
 
     let log_contract_address = address!("819c5497b157177315e1204f52e588b393771719");
     let set_arg_contract_address = address!("d26ff5586e488e65d86bcc3f0fe31551e381a596");
@@ -1580,7 +1591,8 @@ fn test_eip7702_tx() {
             None,
             None,
             None,
-            &mut working_set
+            &mut working_set,
+            &ledger_db,
         )
         .unwrap(),
         Bytes::from_str("0x0000000000000000000000000000000000000000000000000000000000000064")

@@ -9,7 +9,6 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use citrea_common::backup::BackupManager;
-use citrea_common::utils::{compute_tx_hashes, compute_tx_merkle_root};
 use citrea_common::{InitParams, RollupPublicKeys, SequencerConfig};
 use citrea_evm::system_events::{create_system_transactions, SystemEvent};
 use citrea_evm::{
@@ -19,25 +18,26 @@ use citrea_evm::{
 };
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::forks::fork_from_block_number;
+use citrea_primitives::merkle::{compute_tx_hashes, compute_tx_merkle_root};
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use parking_lot::Mutex;
 use reth_execution_types::ChangedAccount;
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_tasks::shutdown::GracefulShutdown;
+use reth_transaction_pool::error::InvalidPoolTransactionError;
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
     ValidPoolTransaction,
 };
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
-use sov_db::ledger_db::SequencerLedgerOps;
+use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::k256_private_key::K256PrivateKey;
-use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{
-    EncodeCall, L2Block, L2BlockModuleCallError, PrivateKey, SlotData, Spec, StateDiff,
+    EncodeCall, L2Block, L2BlockModuleCallError, PrivateKey, SlotData, Spec, SpecId, StateDiff,
     StateValueAccessor, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprint;
@@ -54,7 +54,7 @@ use sov_state::ProverStorage;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::{broadcast, mpsc};
 use tracing::level_filters::LevelFilter;
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 use tracing_subscriber::layer::SubscriberExt;
 
 use crate::commitment::service::CommitmentService;
@@ -65,36 +65,76 @@ use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS;
 use crate::utils::recover_raw_transaction;
 
+/// Maximum number of DA blocks that can be missed per L2 block
 pub const MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK: u64 = 10;
 
-pub struct CitreaSequencer<Da, DB>
+/// The main sequencer implementation that manages block production and transaction processing
+///
+/// This struct is responsible for:
+/// - Managing the transaction mempool
+/// - Producing L2 blocks
+/// - Processing system transactions
+/// - Handling DA layer synchronization
+/// - Managing state transitions
+pub struct CitreaSequencer<Da>
 where
     Da: DaService,
-    DB: SequencerLedgerOps + Send + Clone + 'static,
 {
+    /// Data availability service instance
     da_service: Arc<Da>,
+    /// Transaction mempool
     mempool: Arc<CitreaMempool>,
+    /// Private key for signing transactions
     pub(crate) sov_tx_signer_priv_key: K256PrivateKey,
+    /// Channel for receiving force block production signals
     l2_force_block_rx: UnboundedReceiver<()>,
+    /// Database provider for blockchain data access
     db_provider: DbProvider,
-    pub(crate) ledger_db: DB,
+    /// Database for ledger operations
+    pub(crate) ledger_db: LedgerDB,
+    /// Sequencer configuration
     pub(crate) config: SequencerConfig,
+    /// State transition function blueprint
     pub(crate) stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
+    /// Mempool for deposit transactions
     pub(crate) deposit_mempool: Arc<Mutex<DepositDataMempool>>,
+    /// Manager for prover storage
     pub(crate) storage_manager: ProverStorageManager,
+    /// Current state root hash
     pub(crate) state_root: StorageRootHash,
+    /// Current L2 block hash
     pub(crate) l2_block_hash: L2BlockHash,
+    /// Sequencer's DA public key
     sequencer_da_pub_key: Vec<u8>,
+    /// Manager for handling chain forks
     pub(crate) fork_manager: ForkManager<'static>,
+    /// Channel for broadcasting L2 block updates
     l2_block_tx: broadcast::Sender<u64>,
+    /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
 }
 
-impl<Da, DB> CitreaSequencer<Da, DB>
+impl<Da> CitreaSequencer<Da>
 where
     Da: DaService,
-    DB: SequencerLedgerOps + Send + Sync + Clone + 'static,
 {
+    /// Creates a new CitreaSequencer instance
+    ///
+    /// # Arguments
+    /// * `da_service` - Data availability service
+    /// * `config` - Sequencer configuration
+    /// * `init_params` - Initial parameters for sequencer setup
+    /// * `stf` - State transition function blueprint
+    /// * `storage_manager` - Manager for prover storage
+    /// * `public_keys` - Public keys for the rollup
+    /// * `ledger_db` - Database for ledger operations
+    /// * `db_provider` - Provider for database operations
+    /// * `mempool` - Transaction mempool
+    /// * `deposit_mempool` - Mempool for deposit transactions
+    /// * `fork_manager` - Manager for handling chain forks
+    /// * `l2_block_tx` - Channel for L2 block notifications
+    /// * `backup_manager` - Manager for backup operations
+    /// * `l2_force_block_rx` - Channel for force block production signals
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         da_service: Arc<Da>,
@@ -103,7 +143,7 @@ where
         stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
         storage_manager: ProverStorageManager,
         public_keys: RollupPublicKeys,
-        ledger_db: DB,
+        ledger_db: LedgerDB,
         db_provider: DbProvider,
         mempool: Arc<CitreaMempool>,
         deposit_mempool: Arc<Mutex<DepositDataMempool>>,
@@ -135,13 +175,23 @@ where
         })
     }
 
+    /// Performs a dry run of transactions to validate them before inclusion in a block
+    ///
+    /// # Arguments
+    /// * `transactions` - Transactions to validate
+    /// * `prestate` - Initial state for the dry run
+    /// * `l2_block_info` - Block information for hooks
+    /// * `deposit_data` - Deposit transaction data
+    /// * `da_blocks` - Data availability blocks
+    ///
+    /// # Returns
+    /// A tuple containing the validated transactions and their hashes
     #[allow(clippy::too_many_arguments)]
     async fn dry_run_transactions(
         &mut self,
         mut transactions: Box<
             dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>,
         >,
-        pub_key: &K256PublicKey,
         prestate: ProverStorage,
         l2_block_info: HookL2BlockInfo,
         deposit_data: &[Vec<u8>],
@@ -149,6 +199,7 @@ where
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
         let start = Instant::now();
 
+        // Disable logging during dry run to avoid noise
         let silent_subscriber = tracing_subscriber::registry().with(LevelFilter::OFF);
 
         tracing::subscriber::with_default(silent_subscriber, || {
@@ -156,9 +207,10 @@ where
 
             let mut nonce = self.get_nonce(&mut working_set_to_discard)?;
 
-            if let Err(err) =
-                self.stf
-                    .begin_l2_block(pub_key, &mut working_set_to_discard, &l2_block_info)
+            // Apply L2 block hook before processing transactions
+            if let Err(err) = self
+                .stf
+                .begin_l2_block(&mut working_set_to_discard, &l2_block_info)
             {
                 warn!(
                     "DryRun: Failed to apply l2 block hook: {:?} \n reverting batch workspace",
@@ -179,16 +231,7 @@ where
                     &mut nonce,
                 )?;
 
-            // Normally, transactions.mark_invalid() calls would give us the same
-            // functionality as invalid_senders, however,
-            // in this version of reth, mark_invalid uses transaction.hash() to mark invalid
-            // which is not desired. This was fixed in later versions, but we can not update
-            // to those versions because we have to lock our Rust version to 1.81.
-            //
-            // When a tx is rejected, its sender is added to invalid_senders set
-            // because other transactions from the same sender now cannot be included in the block
-            // since they are auto rejected due to the nonce gap.
-            let mut invalid_senders = HashSet::new();
+            // Track transactions that failed due to insufficient L1 fee balance
             let mut l1_fee_failed_txs = vec![];
 
             // using .next() instead of a for loop because its the intended
@@ -196,10 +239,6 @@ where
             // when we update reth we'll need to call transactions.mark_invalid()
             #[allow(clippy::while_let_on_iterator)]
             while let Some(evm_tx) = transactions.next() {
-                if invalid_senders.contains(&evm_tx.transaction_id.sender) {
-                    continue;
-                }
-
                 let buf = evm_tx.to_consensus().into_inner().encoded_2718();
                 let rlp_tx = RlpEvmTransaction { rlp: buf };
                 let call_txs = CallMessage {
@@ -209,7 +248,7 @@ where
                     citrea_evm::Evm<DefaultContext>,
                 >>::encode_call(call_txs);
 
-                let signed_tx = self.sign_tx(raw_message, nonce)?;
+                let signed_tx = self.sign_tx(l2_block_info.current_spec, raw_message, nonce)?;
                 nonce += 1;
 
                 let txs = vec![signed_tx];
@@ -235,13 +274,19 @@ where
                         ) => match soft_confirmation_module_call_error {
                             L2BlockModuleCallError::EvmGasUsedExceedsBlockGasLimit {
                                 cumulative_gas,
-                                tx_gas_used: _,
+                                tx_gas_used,
                                 block_gas_limit,
                             } => {
                                 if block_gas_limit - cumulative_gas < MIN_TRANSACTION_GAS {
                                     break;
                                 } else {
-                                    invalid_senders.insert(evm_tx.transaction_id.sender);
+                                    transactions.mark_invalid(
+                                        &evm_tx,
+                                        InvalidPoolTransactionError::ExceedsGasLimit(
+                                            tx_gas_used,
+                                            block_gas_limit - cumulative_gas,
+                                        ),
+                                    );
                                     working_set_to_discard = working_set.revert().to_revertable();
                                     continue;
                                 }
@@ -250,7 +295,16 @@ where
                                 panic!("got unsupported tx type")
                             }
                             L2BlockModuleCallError::EvmTransactionExecutionError(_) => {
-                                invalid_senders.insert(evm_tx.transaction_id.sender);
+                                transactions.mark_invalid(
+                                    &evm_tx,
+                                    // don't really have a way to know the underlying EVM error due to
+                                    // our APIs so passing a generic overdraft error
+                                    // as it doesn't matter (the kind field is never used)
+                                    InvalidPoolTransactionError::Overdraft {
+                                        cost: U256::from(1),
+                                        balance: U256::ZERO,
+                                    },
+                                );
                                 working_set_to_discard = working_set.revert().to_revertable();
                                 continue;
                             }
@@ -259,7 +313,15 @@ where
                             }
                             L2BlockModuleCallError::EvmNotEnoughFundsForL1Fee => {
                                 l1_fee_failed_txs.push(*evm_tx.hash());
-                                invalid_senders.insert(evm_tx.transaction_id.sender);
+                                transactions.mark_invalid(
+                                    &evm_tx,
+                                    // don't really have a way to know the cost right now
+                                    // passing 1 & 0 as it doesn't matter (the kind field is never used)
+                                    InvalidPoolTransactionError::Overdraft {
+                                        cost: U256::from(1),
+                                        balance: U256::ZERO,
+                                    },
+                                );
                                 working_set_to_discard = working_set.revert().to_revertable();
                                 continue;
                             }
@@ -280,6 +342,9 @@ where
                             L2BlockModuleCallError::EvmSystemTransactionNotSuccessful => {
                                 panic!("System tx failed")
                             }
+                            L2BlockModuleCallError::ShortHeaderProofAllocationError(e) => {
+                                panic!("Short header proof error: {:?}", e);
+                            }
                         },
                     }
                 };
@@ -299,6 +364,7 @@ where
         })
     }
 
+    /// Saves proofs for short headers from DA blocks
     fn save_short_header_proofs(&self, da_blocks: Vec<Da::FilteredBlock>) {
         debug!("Saving short header proofs to ledger db");
         for da_block in da_blocks {
@@ -318,6 +384,15 @@ where
         }
     }
 
+    /// Produces a new L2 block with the given DA blocks
+    ///
+    /// # Arguments
+    /// * `da_blocks` - Data availability blocks to process
+    /// * `l1_fee_rate` - Current L1 fee rate
+    /// * `last_used_l1_height` - Last processed L1 block height
+    ///
+    /// # Returns
+    /// The height of the produced L2 block
     async fn produce_l2_block(
         &mut self,
         mut da_blocks: Vec<Da::FilteredBlock>,
@@ -347,7 +422,16 @@ where
         result
     }
 
-    /// Post tangerine block production
+    /// Inner implementation of L2 block production
+    ///
+    /// # Arguments
+    /// * `da_blocks` - Data availability blocks to process
+    /// * `l1_fee_rate` - Current L1 fee rate
+    /// * `l2_height` - Height of the L2 block to produce
+    /// * `last_used_l1_height` - Last processed L1 block height
+    ///
+    /// # Returns
+    /// The height of the produced L2 block
     async fn produce_l2_block_inner(
         &mut self,
         da_blocks: Vec<Da::FilteredBlock>,
@@ -363,6 +447,7 @@ where
 
         let timestamp = chrono::Local::now().timestamp() as u64;
 
+        // Get pending deposits up to configured limit
         let deposit_data = self
             .deposit_mempool
             .lock()
@@ -379,8 +464,10 @@ where
             timestamp,
         };
 
+        // Create storage for the next L2 block
         let prestate = self.storage_manager.create_storage_for_next_l2_height();
 
+        // Get best transactions from mempool based on gas price
         let evm_txs = self.get_best_transactions()?;
 
         let last_da_block_height = da_blocks.last().map(|b| b.header().height());
@@ -391,7 +478,6 @@ where
         let (txs_to_run, l1_fee_failed_txs) = self
             .dry_run_transactions(
                 evm_txs,
-                &pub_key,
                 prestate.clone(),
                 l2_block_info.clone(),
                 &deposit_data,
@@ -408,10 +494,7 @@ where
 
         let mut working_set = WorkingSet::new(prestate.clone());
 
-        if let Err(err) = self
-            .stf
-            .begin_l2_block(&pub_key, &mut working_set, &l2_block_info)
-        {
+        if let Err(err) = self.stf.begin_l2_block(&mut working_set, &l2_block_info) {
             warn!(
                 "Failed to apply l2 block hook: {:?} \n reverting batch workspace",
                 err
@@ -433,7 +516,7 @@ where
                 citrea_evm::Evm<DefaultContext>,
             >>::encode_call(call_txs);
 
-            let signed_tx = self.sign_tx(raw_message, nonce)?;
+            let signed_tx = self.sign_tx(active_fork_spec, raw_message, nonce)?;
 
             blobs.push(signed_tx.to_blob()?);
             txs.push(signed_tx);
@@ -451,8 +534,8 @@ where
             .finalize_l2_block(active_fork_spec, working_set, prestate);
 
         // Calculate tx hashes for merkle root
-        let tx_hashes = compute_tx_hashes::<DefaultContext>(&txs, active_fork_spec);
-        let tx_merkle_root = compute_tx_merkle_root(&tx_hashes)?;
+        let tx_hashes = compute_tx_hashes(&txs, active_fork_spec);
+        let tx_merkle_root = compute_tx_merkle_root(&tx_hashes, active_fork_spec);
 
         // create the l2 block header
         let header = L2Header::new(
@@ -489,7 +572,16 @@ where
         Ok(l2_height)
     }
 
-    #[allow(clippy::too_many_arguments)]
+    /// Saves an L2 block and its associated data to storage
+    ///
+    /// # Arguments
+    /// * `l2_block` - The L2 block to save
+    /// * `l2_block_result` - Result of block execution
+    /// * `tx_hashes` - Transaction hashes in the block
+    /// * `blobs` - Associated blob data
+    ///
+    /// # Returns
+    /// The state diff resulting from the block
     pub(crate) fn save_l2_block(
         &mut self,
         l2_block: L2Block,
@@ -501,6 +593,7 @@ where
 
         let state_root_transition = l2_block_result.state_root_transition;
 
+        // Check if state has actually changed
         if state_root_transition.final_root.as_ref() == self.state_root.as_ref() {
             bail!("Max L2 blocks per L1 is reached for the current L1 block. State root is the same as before, skipping");
         }
@@ -512,11 +605,13 @@ where
 
         let next_state_root = state_root_transition.final_root;
 
+        // Finalize storage changes from block execution
         self.storage_manager
             .finalize_storage(l2_block_result.change_set);
 
         let l2_block_hash = l2_block.hash();
 
+        // Persist block data to storage
         self.ledger_db
             .commit_l2_block(l2_block, tx_hashes, Some(blobs))?;
 
@@ -533,17 +628,25 @@ where
         Ok(l2_block_result.state_diff)
     }
 
+    /// Maintains the mempool by removing failed transactions
+    ///
+    /// # Arguments
+    /// * `l1_fee_failed_txs` - Transactions that failed due to L1 fee issues
     pub(crate) fn maintain_mempool(&self, l1_fee_failed_txs: Vec<TxHash>) -> anyhow::Result<()> {
+        // Combine transactions from last block and those that failed L1 fee check
         let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
         txs_to_remove.extend(l1_fee_failed_txs);
 
+        // Remove processed/failed transactions from mempool
         self.mempool.remove_transactions(txs_to_remove.clone());
         SEQUENCER_METRICS.mempool_txs.set(self.mempool.len() as f64);
 
+        // Update account states in mempool
         let account_updates = self.get_account_updates()?;
 
         self.mempool.update_accounts(account_updates);
 
+        // Remove transactions from persistent storage
         let txs = txs_to_remove
             .iter()
             .map(|tx_hash| tx_hash.to_vec())
@@ -555,7 +658,10 @@ where
         Ok(())
     }
 
-    #[instrument(name = "Sequencer", skip_all)]
+    /// Main sequencer run loop
+    ///
+    /// # Arguments
+    /// * `shutdown_signal` - Signal for graceful shutdown
     pub async fn run(
         &mut self,
         mut shutdown_signal: GracefulShutdown,
@@ -566,6 +672,7 @@ where
             .await
             .map_err(|e| anyhow!(e))?;
 
+        // Restore mempool state from persistent storage
         match self.restore_mempool().await {
             Ok(()) => debug!("Sequencer: Mempool restored"),
             Err(e) => {
@@ -573,6 +680,7 @@ where
             }
         }
 
+        // Get initial DA block data and fee rate
         let (mut last_finalized_block, mut l1_fee_rate) =
             match get_da_block_data(self.da_service.clone()).await {
                 Ok(l1_data) => l1_data,
@@ -587,6 +695,8 @@ where
         let evm = Evm::<DefaultContext>::default();
         let head_l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0);
         let _spec_id = fork_from_block_number(head_l2_height).spec_id;
+
+        // Get last processed L1 height from light client
         let mut last_used_l1_height =
             match get_last_l1_height_in_light_client(&evm, &mut working_set) {
                 Some(l1_height) => l1_height.to(),
@@ -597,6 +707,7 @@ where
         // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
 
+        // Initialize commitment service for DA layer publication
         let commitment_service = CommitmentService::new(
             self.ledger_db.clone(),
             self.da_service.clone(),
@@ -604,12 +715,14 @@ where
             self.config.max_l2_blocks_per_commitment,
         );
 
+        // Spawn commitment service task
         tokio::spawn(commitment_service.run(
             self.storage_manager.clone(),
             self.l2_block_hash,
             shutdown_signal.clone(),
         ));
 
+        // Spawn DA block monitor task
         tokio::spawn(da_block_monitor(
             self.da_service.clone(),
             da_height_update_tx,
@@ -649,7 +762,7 @@ where
                 },
                 // If sequencer is in test mode, it will build a block every time it receives a message
                 // The RPC from which the sender can be called is only registered for test mode. This means
-                // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
+                // that even though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
                 _ = self.l2_force_block_rx.recv(), if self.config.test_mode => {
                     if missed_da_blocks_count > 0 {
                         if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, &mut last_used_l1_height, l1_fee_rate).await {
@@ -713,6 +826,13 @@ where
         }
     }
 
+    /// Gets the best transactions from the mempool for inclusion in the next block
+    ///
+    /// This method considers base fee and other transaction attributes to select
+    /// the most appropriate transactions.
+    ///
+    /// # Returns
+    /// A boxed iterator of valid pool transactions
     pub(crate) fn get_best_transactions(
         &self,
     ) -> anyhow::Result<
@@ -742,24 +862,50 @@ where
         Ok(best_txs_with_base_fee)
     }
 
-    pub(crate) fn sign_tx(&self, raw_message: Vec<u8>, nonce: u64) -> anyhow::Result<Transaction> {
+    /// Signs a transaction with the sequencer's private key
+    ///
+    /// # Arguments
+    /// * `raw_message` - Raw transaction message to sign
+    /// * `nonce` - Nonce for the transaction
+    ///
+    /// # Returns
+    /// A signed transaction
+    pub(crate) fn sign_tx(
+        &self,
+        spec: SpecId,
+        raw_message: Vec<u8>,
+        nonce: u64,
+    ) -> anyhow::Result<Transaction> {
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
-        let tx = Transaction::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce);
+        let tx =
+            Transaction::new_signed_tx(spec, &self.sov_tx_signer_priv_key, raw_message, 0, nonce);
         Ok(tx)
     }
 
+    /// Signs an L2 block header with the sequencer's private key
+    ///
+    /// # Arguments
+    /// * `header` - The L2 block header to sign
+    ///
+    /// # Returns
+    /// A signed L2 block header
     fn sign_l2_block_header(&mut self, header: L2Header) -> anyhow::Result<SignedL2Header> {
-        let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
-        let hash = Into::<[u8; 32]>::into(digest);
+        let hash = header.compute_digest();
 
         let signature = self.sov_tx_signer_priv_key.sign(&hash);
         let signature = borsh::to_vec(&signature)?;
         Ok(SignedL2Header::new(header, hash, signature))
     }
 
-    /// Fetches nonce from state
+    /// Gets the current nonce for the sequencer account
+    ///
+    /// # Arguments
+    /// * `working_set` - Working set for state access
+    ///
+    /// # Returns
+    /// The current nonce value
     pub(crate) fn get_nonce(
         &self,
         working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
@@ -777,9 +923,12 @@ where
         }
     }
 
+    /// Restores the mempool state after a restart
     pub async fn restore_mempool(&self) -> Result<(), anyhow::Error> {
+        // Load transactions from persistent storage
         let mempool_txs = self.ledger_db.get_mempool_txs()?;
         for (_, tx) in mempool_txs {
+            // Recover and add each transaction back to mempool
             let recovered = recover_raw_transaction(Bytes::from(tx.as_slice().to_vec()))?;
             let pooled_tx = EthPooledTransaction::from_pooled(recovered);
 
@@ -788,12 +937,21 @@ where
         Ok(())
     }
 
+    /// Gets account updates for mempool maintenance
+    ///
+    /// This method retrieves account updates that occurred in the last block
+    /// to help maintain accurate account states in the mempool.
+    ///
+    /// # Returns
+    /// A vector of changed accounts with their updated states
     fn get_account_updates(&self) -> Result<Vec<ChangedAccount>, anyhow::Error> {
+        // Get the most recent block
         let head = self
             .db_provider
             .last_block()?
             .expect("Unrecoverable: Head must exist");
 
+        // Extract unique addresses from block transactions
         let addresses: HashSet<Address> = match head.transactions {
             alloy_rpc_types::BlockTransactions::Full(ref txs) => {
                 txs.iter().map(|tx| tx.inner.signer()).collect()
@@ -803,6 +961,7 @@ where
 
         let mut updates = vec![];
 
+        // Get updated account state for each address
         for address in addresses {
             let account = self
                 .db_provider
@@ -818,6 +977,12 @@ where
         Ok(updates)
     }
 
+    /// Processes missed DA blocks to catch up with L1
+    ///
+    /// # Arguments
+    /// * `missed_da_blocks_count` - Number of DA blocks missed
+    /// * `last_used_l1_height` - Last processed L1 block height
+    /// * `l1_fee_rate` - Current L1 fee rate
     pub async fn process_missed_da_blocks(
         &mut self,
         missed_da_blocks_count: u64,
@@ -825,6 +990,8 @@ where
         l1_fee_rate: u128,
     ) -> anyhow::Result<()> {
         debug!("We have {} missed DA blocks", missed_da_blocks_count);
+
+        // Configure exponential backoff for DA block fetching retries
         let exponential_backoff = ExponentialBackoffBuilder::new()
             .with_initial_interval(Duration::from_millis(200))
             .with_max_elapsed_time(Some(Duration::from_secs(30)))
@@ -833,6 +1000,7 @@ where
 
         let mut filtered_blocks = vec![];
 
+        // Fetch all missed DA blocks with retry logic
         for i in 1..=missed_da_blocks_count {
             let needed_da_block_height = *last_used_l1_height + i;
 
@@ -870,14 +1038,22 @@ where
         Ok(())
     }
 
+    /// Calculates the number of DA blocks missed
+    ///
+    /// # Arguments
+    /// * `last_finalized_block_height` - Height of the last finalized L1 block
+    /// * `last_used_l1_height` - Last processed L1 block height
     pub fn da_blocks_missed(
         &self,
         last_finalized_block_height: u64,
         last_used_l1_height: u64,
     ) -> u64 {
+        // No blocks missed if we're caught up or behind
         if last_finalized_block_height <= last_used_l1_height {
             return 0;
         }
+
+        // Calculate number of blocks we've skipped
         let skipped_blocks = last_finalized_block_height - last_used_l1_height - 1;
         if skipped_blocks > 0 {
             // This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
@@ -890,6 +1066,15 @@ where
         skipped_blocks
     }
 
+    /// Produces and runs system transactions for a block
+    ///
+    /// # Arguments
+    /// * `l2_block_info` - Block information for hooks
+    /// * `evm` - EVM instance
+    /// * `working_set_to_discard` - Working set for state changes
+    /// * `deposit_data` - Deposit transaction data
+    /// * `da_blocks` - Data availability blocks
+    /// * `nonce` - Current nonce
     fn produce_and_run_system_transactions(
         &mut self,
         l2_block_info: &HookL2BlockInfo,
@@ -910,7 +1095,7 @@ where
                 let bridge_init_param = hex::decode(self.config.bridge_initialize_params.clone())
                     .expect("should deserialize");
 
-                info!("Initializign Bitcoin Light Client with L1 block: #{} with hash {}, tx commitment {}, and coinbase depth {}. Using {:?} for bridge initialization params.", l1_block.header().height(), hex::encode(Into::<[u8; 32]>::into(l1_block.header().txs_commitment())), hex::encode(l1_block.hash()), l1_block.header().coinbase_txid_merkle_proof_height(), bridge_init_param);
+                info!("Initializing Bitcoin Light Client with L1 block: #{} with hash {}, tx commitment {}, and coinbase depth {}. Using {:?} for bridge initialization params.", l1_block.header().height(), hex::encode(Into::<[u8; 32]>::into(l1_block.header().txs_commitment())), hex::encode(l1_block.hash()), l1_block.header().coinbase_txid_merkle_proof_height(), bridge_init_param);
 
                 let initialize_events = create_initial_system_events(
                     l1_block.header().hash().into(),
@@ -948,6 +1133,14 @@ where
         )
     }
 
+    /// Processes system transactions
+    ///
+    /// # Arguments
+    /// * `l2_block_info` - Block information for hooks
+    /// * `working_set_to_discard` - Working set for state changes
+    /// * `nonce` - Current nonce
+    /// * `evm` - EVM instance
+    /// * `system_events` - System events to process
     fn process_sys_txs(
         &mut self,
         l2_block_info: &HookL2BlockInfo,
@@ -962,6 +1155,7 @@ where
         info!("Processing {} system transactions", system_events.len());
 
         let mut all_txs = vec![];
+        // Get system account info or use default if not exists
         let system_signer = evm
             .account_info(&SYSTEM_SIGNER, &mut working_set_to_discard)
             .unwrap_or(AccountInfo {
@@ -970,11 +1164,19 @@ where
                 code_hash: None,
             });
 
+        // Get chain configuration for transaction creation
         let cfg = evm.cfg.get(&mut working_set_to_discard).unwrap();
         let chain_id = cfg.chain_id;
 
+        // Store deposit txs by index
+        let is_deposit_tx = system_events
+            .iter()
+            .map(|ev| matches!(ev, SystemEvent::BridgeDeposit(_)))
+            .collect::<Vec<_>>();
+        // Create and process each system transaction
         let sys_txs = create_system_transactions(system_events, system_signer.nonce, chain_id);
-        for sys_tx in sys_txs {
+        for (sys_tx, is_deposit) in sys_txs.iter().zip(is_deposit_tx) {
+            // Encode transaction in EIP-2718 format
             let buf = sys_tx.encoded_2718();
             let sys_tx_rlp = RlpEvmTransaction { rlp: buf };
 
@@ -985,17 +1187,32 @@ where
                 citrea_evm::Evm<DefaultContext>,
             >>::encode_call(call_txs);
 
-            let signed_tx = self.sign_tx(raw_message, *nonce)?;
+            // Sign and increment nonce
+            let signed_tx = self.sign_tx(l2_block_info.current_spec, raw_message, *nonce)?;
             *nonce += 1;
 
             let txs = vec![signed_tx];
 
+            // Create checkpoint for potential revert
             let mut working_set = working_set_to_discard.checkpoint().to_revertable();
 
             if let Err(e) = self
                 .stf
                 .apply_l2_block_txs(l2_block_info, &txs, &mut working_set)
             {
+                // If a deposit failed, revert back the working set and continue,
+                // as deposits to non-EOA addresses can revert
+                if matches!(
+                    e,
+                    StateTransitionError::ModuleCallError(
+                        L2BlockModuleCallError::EvmSystemTransactionNotSuccessful
+                    )
+                ) && is_deposit
+                {
+                    warn!("Deposit transaction failed: {:?}", e);
+                    working_set_to_discard = working_set.revert().to_revertable();
+                    continue;
+                }
                 return Err(anyhow!("Failed to apply system transaction: {:?}", e));
             }
             working_set_to_discard = working_set.checkpoint().to_revertable();

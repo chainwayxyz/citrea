@@ -7,9 +7,10 @@ use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
 use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
-use bitcoin_da::spec::{BitcoinSpec, RollupParams};
+use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::BitcoinVerifier;
 use bitcoincore_rpc::{Client, RpcApi};
+use borsh::BorshDeserialize;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::PartitionMode;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
@@ -22,12 +23,12 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
-use citrea_primitives::compression::decompress_blob;
+use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::REVEAL_TX_PREFIX;
 use rand::{thread_rng, Rng};
 use reth_tasks::TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
-use sov_modules_api::{BlobReaderTrait, DaSpec};
+use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{
     BatchProofMethodId, DaTxRequest, DaVerifier, DataOnDa, SequencerCommitment,
 };
@@ -38,9 +39,10 @@ use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, Cum
 use sov_rollup_interface::Network;
 
 use super::get_citrea_path;
-use super::utils::PROVER_DA_PUBLIC_KEY;
+use super::utils::PROVER_DA_PRIVATE_KEY;
 use crate::bitcoin::utils::{
-    spawn_bitcoin_da_service, wait_for_prover_job, wait_for_zkproofs, DaServiceKeyKind,
+    spawn_bitcoin_da_prover_service, spawn_bitcoin_da_sequencer_service, spawn_bitcoin_da_service,
+    wait_for_prover_job, wait_for_zkproofs, DaServiceKeyKind,
 };
 
 pub const TEN_MINS: Duration = Duration::from_secs(10 * 60);
@@ -569,12 +571,13 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let bitcoin_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor(),
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::Other(
                 "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077".to_string(),
             ),
+            REVEAL_TX_PREFIX.to_vec(),
         )
         .await;
 
@@ -776,19 +779,17 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let bitcoin_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor(),
+        let bitcoin_da_service = spawn_bitcoin_da_prover_service(
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
         )
         .await;
 
-        let sequencer_bitcoin_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor(),
+        let sequencer_bitcoin_da_service = spawn_bitcoin_da_sequencer_service(
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
         )
         .await;
 
@@ -1041,19 +1042,17 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let bitcoin_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor(),
+        let bitcoin_da_service = spawn_bitcoin_da_prover_service(
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
         )
         .await;
 
-        let sequencer_bitcoin_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor(),
+        let sequencer_bitcoin_da_service = spawn_bitcoin_da_sequencer_service(
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
         )
         .await;
 
@@ -1414,19 +1413,17 @@ impl TestCase for UnchainedBatchProofsTest {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let bitcoin_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor(),
+        let bitcoin_da_service = spawn_bitcoin_da_prover_service(
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
         )
         .await;
 
-        let sequencer_bitcoin_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor(),
+        let sequencer_bitcoin_da_service = spawn_bitcoin_da_sequencer_service(
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
         )
         .await;
 
@@ -1685,18 +1682,16 @@ impl TestCase for UnknownL1HashBatchProofTest {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let bitcoin_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor(),
+        let bitcoin_da_service = spawn_bitcoin_da_prover_service(
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
         )
         .await;
-        let sequencer_bitcoin_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor(),
+        let sequencer_bitcoin_da_service = spawn_bitcoin_da_sequencer_service(
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
         )
         .await;
 
@@ -1738,7 +1733,7 @@ impl TestCase for UnknownL1HashBatchProofTest {
         let genesis_root = initial_lcp.light_client_proof_output.l2_state_root;
         let mut l1_hash = da.get_block_hash(171).await?.to_raw_hash().to_byte_array();
 
-        // make it uknown
+        // make it unknown
         l1_hash[0] = l1_hash[0].wrapping_add(1);
 
         let bp = create_serialized_fake_receipt_batch_proof(
@@ -1831,19 +1826,17 @@ impl TestCase for ChainProofByCommitmentIndex {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let bitcoin_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor(),
+        let bitcoin_da_service = spawn_bitcoin_da_prover_service(
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
         )
         .await;
 
-        let sequencer_bitcoin_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor(),
+        let sequencer_bitcoin_da_service = spawn_bitcoin_da_sequencer_service(
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
         )
         .await;
 
@@ -2045,11 +2038,10 @@ impl TestCase for ProofWithMissingCommitment {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let bitcoin_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor(),
+        let bitcoin_da_service = spawn_bitcoin_da_prover_service(
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
         )
         .await;
 
@@ -2191,29 +2183,28 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let batch_prover_bitcoin_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor(),
+        let batch_prover_bitcoin_da_service = spawn_bitcoin_da_prover_service(
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
         )
         .await;
 
-        let sequencer_bitcoin_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor(),
+        let sequencer_bitcoin_da_service = spawn_bitcoin_da_sequencer_service(
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
         )
         .await;
 
         let malicious_bitcoin_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor(),
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::Other(
                 "1212121212121212121212121212121212121212121212121212121212121212".to_string(),
             ),
+            REVEAL_TX_PREFIX.to_vec(),
         )
         .await;
 
@@ -2535,19 +2526,17 @@ impl TestCase for ProofWithWrongPreviousCommitmentHash {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let batch_prover_bitcoin_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor(),
+        let batch_prover_bitcoin_da_service = spawn_bitcoin_da_prover_service(
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
         )
         .await;
 
-        let sequencer_bitcoin_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor(),
+        let sequencer_bitcoin_da_service = spawn_bitcoin_da_sequencer_service(
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
-            DaServiceKeyKind::Sequencer,
         )
         .await;
 
@@ -2834,7 +2823,14 @@ struct UndecompressableBlobTest {
 impl UndecompressableBlobTest {
     fn verify_complete_is_non_decompressable(tx: &bitcoin::Transaction) -> bool {
         if let Ok(ParsedTransaction::Complete(complete)) = parse_relevant_transaction(tx) {
-            decompress_blob(&complete.body).is_err()
+            let Ok(data) = DataOnDa::try_from_slice(&complete.body) else {
+                panic!("Failed to parse complete data");
+            };
+
+            let DataOnDa::Complete(compressed_zk_proof) = data else {
+                panic!("Expected complete data type");
+            };
+            decompress_blob(&compressed_zk_proof).is_err()
         } else {
             false
         }
@@ -2849,7 +2845,7 @@ impl UndecompressableBlobTest {
             }
         }
 
-        BitcoinSpec::decompress_chunks(&complete_proof).is_err()
+        decompress_blob(&complete_proof).is_err()
     }
 
     async fn send_complete_tx(client: &Client) -> anyhow::Result<(Txid, Txid)> {
@@ -2858,7 +2854,7 @@ impl UndecompressableBlobTest {
         use bitcoin::secp256k1::SecretKey;
         use bitcoin_da::helpers::builders::body_builders::{create_inscription_type_0, DaTxs};
 
-        let da_private_key = SecretKey::from_str(PROVER_DA_PUBLIC_KEY).unwrap();
+        let da_private_key = SecretKey::from_str(PROVER_DA_PRIVATE_KEY).unwrap();
         let change_address = client.get_new_address(None, None).await?.assume_checked();
         let utxos = client
             .list_unspent(None, None, None, None, None)
@@ -2867,7 +2863,11 @@ impl UndecompressableBlobTest {
             .map(Into::into)
             .collect();
 
-        let body = vec![1u8; 64];
+        let compressed_data = compress_blob(&[1u8; 64]).unwrap();
+        let mut malformed_undecompressable_data = vec![0u8];
+        malformed_undecompressable_data.extend_from_slice(&compressed_data);
+
+        let body = borsh::to_vec(&DataOnDa::Complete(malformed_undecompressable_data)).unwrap();
         let DaTxs::Complete { commit, reveal } = create_inscription_type_0(
             body,
             &da_private_key,
@@ -2905,7 +2905,7 @@ impl UndecompressableBlobTest {
         use bitcoin_da::helpers::builders::body_builders::{create_inscription_type_1, DaTxs};
         use bitcoincore_rpc::json::SignRawTransactionInput;
 
-        let da_private_key = SecretKey::from_str(PROVER_DA_PUBLIC_KEY).unwrap();
+        let da_private_key = SecretKey::from_str(PROVER_DA_PRIVATE_KEY).unwrap();
         let change_address = client.get_new_address(None, None).await?.assume_checked();
         let utxos = client
             .list_unspent(None, None, None, None, None)
@@ -3051,11 +3051,10 @@ impl TestCase for UndecompressableBlobTest {
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let prover_da_service = spawn_bitcoin_da_service(
-            self.task_manager.executor().clone(),
+        let prover_da_service = spawn_bitcoin_da_prover_service(
+            &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
-            DaServiceKeyKind::BatchProver,
         )
         .await;
 

@@ -641,8 +641,8 @@ async fn test_offchain_contract_storage() {
 
     let seq_fork = fork_from_block_number(seq_height);
 
-    // Assert we are at tangerine
-    assert_eq!(seq_fork.spec_id, SpecId::Tangerine);
+    // Assert we are at latest (which should be >= Tangerine)
+    assert_eq!(seq_fork.spec_id, SpecId::latest());
 
     // This should access the `code` and copy code over to `offchain_code` in EVM
     let code = sequencer_client

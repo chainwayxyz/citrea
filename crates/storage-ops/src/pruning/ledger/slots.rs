@@ -1,11 +1,11 @@
 use sov_db::schema::tables::{
-    L2RangeByL1Height, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber,
+    CommitmentsByNumber, L2RangeByL1Height, LightClientProofBySlotNumber, ProofsBySlotNumber,
+    ProofsBySlotNumberV2, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber,
 };
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_schema_db::{ScanDirection, DB};
 
-use crate::pruning::types::StorageNodeType;
-use crate::utils::delete_slots_by_number;
+use crate::types::StorageNodeType;
 
 pub(crate) fn prune_slots(
     node_type: StorageNodeType,
@@ -29,7 +29,17 @@ pub(crate) fn prune_slots(
             break;
         }
 
-        delete_slots_by_number(node_type, ledger_db, slot_height)?;
+        ledger_db.delete::<L2RangeByL1Height>(&slot_height)?;
+        ledger_db.delete::<CommitmentsByNumber>(&slot_height)?;
+
+        if matches!(node_type, StorageNodeType::BatchProver) {
+            ledger_db.delete::<ProofsBySlotNumber>(&slot_height)?;
+            ledger_db.delete::<ProofsBySlotNumberV2>(&slot_height)?;
+        }
+
+        if matches!(node_type, StorageNodeType::LightClient) {
+            ledger_db.delete::<LightClientProofBySlotNumber>(&slot_height)?;
+        }
 
         if !matches!(node_type, StorageNodeType::Sequencer) {
             prune_slot_by_hash(node_type, ledger_db, slot_height)?;

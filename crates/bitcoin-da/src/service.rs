@@ -19,7 +19,7 @@ use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
 use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
 use bitcoincore_rpc::json::{SignRawTransactionInput, TestMempoolAcceptResult};
-use bitcoincore_rpc::{Auth, Client, Error as BitcoinError, Error, RpcApi, RpcError};
+use bitcoincore_rpc::{Client, Error as BitcoinError, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
 use citrea_common::utils::read_env;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
@@ -48,7 +48,7 @@ use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
 use crate::monitoring::{MonitoredTxKind, MonitoringConfig, MonitoringService, TxStatus};
-use crate::network_constants::{get_network_constants, NetworkConstants};
+use crate::network_constants::NetworkConstants;
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
 use crate::spec::header::HeaderWrapper;
@@ -122,119 +122,84 @@ pub struct BitcoinService {
 }
 
 impl BitcoinService {
-    // Create a new instance of the DA service from the given configuration.
-    pub async fn new_with_wallet_check(
-        config: BitcoinServiceConfig,
-        chain_params: RollupParams,
-        tx: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
-    ) -> Result<Self> {
-        let client = Arc::new(
-            Client::new(
-                &config.node_url,
-                Auth::UserPass(config.node_username, config.node_password),
-            )
-            .await?,
-        );
-
-        let private_key = config
-            .da_private_key
-            .map(|pk| SecretKey::from_str(&pk))
-            .transpose()
-            .context("Invalid private key")?;
-
-        let wallets = client
-            .list_wallets()
-            .await
-            .expect("Failed to list loaded wallets");
-
-        if wallets.is_empty() {
-            tracing::warn!("No loaded wallet found!");
-        }
-
-        let tx_backup_dir = std::path::Path::new(&config.tx_backup_dir);
-
-        if !tx_backup_dir.exists() {
-            std::fs::create_dir_all(tx_backup_dir)
-                .context("Failed to create tx backup directory")?;
-        }
-
-        let network = network_to_bitcoin_network(&chain_params.network);
-        let network_constants = get_network_constants(&network);
-        let monitoring = Arc::new(MonitoringService::new(
-            client.clone(),
-            config.monitoring,
-            network_constants.finality_depth,
-        ));
-        let fee = FeeService::new(client.clone(), network, config.mempool_space_url);
-        let l1_block_hash_to_height =
-            Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap())));
-        Ok(Self {
-            client,
-            network_constants,
-            network,
-            da_private_key: private_key,
-            reveal_tx_prefix: chain_params.reveal_tx_prefix,
-            inscribes_queue: tx,
-            tx_backup_dir: tx_backup_dir.to_path_buf(),
-            monitoring,
-            fee,
-            l1_block_hash_to_height,
-        })
-    }
-
-    pub async fn new_without_wallet_check(
-        config: BitcoinServiceConfig,
-        chain_params: RollupParams,
-        tx: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
-    ) -> Result<Self> {
-        let client = Arc::new(
-            Client::new(
-                &config.node_url,
-                Auth::UserPass(config.node_username, config.node_password),
-            )
-            .await?,
-        );
-
-        let da_private_key = config
-            .da_private_key
-            .map(|pk| SecretKey::from_str(&pk))
-            .transpose()
-            .context("Invalid private key")?;
-
-        // check if config.tx_backup_dir exists
-        let tx_backup_dir = std::path::Path::new(&config.tx_backup_dir);
-
-        if !tx_backup_dir.exists() {
-            std::fs::create_dir_all(tx_backup_dir)
-                .context("Failed to create tx backup directory")?;
-        }
-
-        let network = network_to_bitcoin_network(&chain_params.network);
-        let network_constants = get_network_constants(&network);
-        let monitoring = Arc::new(MonitoringService::new(
-            client.clone(),
-            config.monitoring,
-            network_constants.finality_depth,
-        ));
-        let fee = FeeService::new(client.clone(), network, config.mempool_space_url);
-        let l1_block_hash_to_height =
-            Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap())));
-
-        Ok(Self {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        client: Arc<Client>,
+        network: bitcoin::Network,
+        network_constants: NetworkConstants,
+        monitoring: Arc<MonitoringService>,
+        fee: FeeService,
+        inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
+        da_private_key: Option<SecretKey>,
+        reveal_tx_prefix: Vec<u8>,
+        tx_backup_dir: PathBuf,
+    ) -> Self {
+        Self {
             client,
             network_constants,
             network,
             da_private_key,
-            reveal_tx_prefix: chain_params.reveal_tx_prefix,
-            inscribes_queue: tx,
-            tx_backup_dir: tx_backup_dir.to_path_buf(),
+            reveal_tx_prefix,
+            inscribes_queue,
+            tx_backup_dir,
             monitoring,
             fee,
-            l1_block_hash_to_height,
-        })
+            l1_block_hash_to_height: Arc::new(Mutex::new(LruCache::new(
+                NonZeroUsize::new(100).unwrap(),
+            ))),
+        }
     }
 
-    #[instrument(name = "BitcoinDA")]
+    // Create a new instance of the DA service from the given configuration.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn from_config(
+        config: &BitcoinServiceConfig,
+        chain_params: RollupParams,
+        client: Arc<Client>,
+        network: bitcoin::Network,
+        network_constants: NetworkConstants,
+        monitoring: Arc<MonitoringService>,
+        fee_service: FeeService,
+        require_wallet_check: bool,
+        inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
+    ) -> Result<Self> {
+        if require_wallet_check
+            && client
+                .list_wallets()
+                .await
+                .expect("Failed to list loaded wallets")
+                .is_empty()
+        {
+            tracing::warn!("No loaded wallet found!");
+        }
+
+        let tx_backup_dir = std::path::Path::new(&config.tx_backup_dir);
+        if !tx_backup_dir.exists() {
+            std::fs::create_dir_all(tx_backup_dir)
+                .context("Failed to create tx backup directory")?;
+        }
+
+        let da_private_key = config
+            .da_private_key
+            .as_ref()
+            .map(|pk| SecretKey::from_str(pk))
+            .transpose()
+            .context("Invalid private key")?;
+
+        Ok(Self::new(
+            client,
+            network,
+            network_constants,
+            monitoring,
+            fee_service,
+            inscribes_queue,
+            da_private_key,
+            chain_params.reveal_tx_prefix,
+            tx_backup_dir.to_path_buf(),
+        ))
+    }
+
+    #[instrument(name = "BitcoinDA", skip(self))]
     pub async fn run_da_queue(
         self: Arc<Self>,
         mut rx: UnboundedReceiver<TxRequestWithNotifier<TxidWrapper>>,
@@ -352,7 +317,7 @@ impl BitcoinService {
             .collect()
     }
 
-    #[instrument(level = "trace", fields(prev_utxo), ret, err)]
+    #[instrument(level = "trace", fields(prev_utxo), ret, err, skip(self))]
     pub async fn send_transaction_with_fee_rate(
         &self,
         tx_request: DaTxRequest,
@@ -965,21 +930,22 @@ impl DaService for BitcoinService {
                         if complete.public_key() == prover_da_pub_key
                             && complete.get_sig_verified_hash().is_some()
                         {
-                            // push only when signature is correct
-                            let Ok(body) = decompress_blob(&complete.body) else {
-                                warn!("{tx_id}: Failed to decompress blob");
-                                continue;
-                            };
-
-                            let Ok(data) = DataOnDa::borsh_parse_complete(&body) else {
+                            let Ok(data) = DataOnDa::try_from_slice(&complete.body) else {
                                 warn!("{tx_id}: Failed to parse complete data");
                                 continue;
                             };
 
-                            let DataOnDa::Complete(zk_proof) = data else {
+                            let DataOnDa::Complete(compressed_zk_proof) = data else {
                                 warn!("{}: Complete: unexpected kind", tx_id);
                                 continue;
                             };
+
+                            // push only when signature is correct
+                            let Ok(zk_proof) = self.decompress_chunks(&compressed_zk_proof) else {
+                                warn!("{tx_id}: Failed to decompress blob");
+                                continue;
+                            };
+
                             completes.push((i, zk_proof));
                         }
                     }
@@ -1099,14 +1065,11 @@ impl DaService for BitcoinService {
                     }
                 }
             }
-            let Ok(blob) = decompress_blob(&body) else {
+            let Ok(zk_proof) = decompress_blob(&body) else {
                 warn!("{tx_id}: Failed to decompress blob from Aggregate");
                 continue 'aggregate;
             };
-            let Ok(zk_proof) = borsh::from_slice(blob.as_slice()) else {
-                warn!("{}: Failed to parse Proof from Aggregate", tx_id);
-                continue 'aggregate;
-            };
+
             aggregates.push((i, zk_proof));
         }
 
@@ -1219,11 +1182,10 @@ impl DaService for BitcoinService {
                 match tx {
                     ParsedTransaction::Complete(complete) => {
                         if let Some(hash) = complete.get_sig_verified_hash() {
-                            let Ok(blob) = decompress_blob(&complete.body) else {
-                                continue;
-                            };
+                            // complete.body is compressed, but we'll leave the compression to
+                            // circuit logic
                             let relevant_tx = BlobWithSender::new(
-                                blob,
+                                complete.body,
                                 complete.public_key,
                                 hash,
                                 Some(wtxid.to_byte_array()),
@@ -1467,19 +1429,17 @@ impl From<TxidWrapper> for [u8; 32] {
 }
 
 /// This function splits Proof based on its size. It is either:
-/// 1: compress(borsh(DataOnDa::Complete(Proof)))
+/// 1: borsh(DataOnDa::Complete(compress(Proof)))
 /// 2:
-///   let compressed = compress(borsh(Proof))
+///   let compressed = compress(Proof)
 ///   let chunks = compressed.chunks(MAX_TX_BODY_SIZE)
 ///   [borsh(DataOnDa::Chunk(chunk)) for chunk in chunks]
 pub(crate) fn split_proof(zk_proof: Proof) -> anyhow::Result<RawTxData> {
-    let original_blob = borsh::to_vec(&zk_proof).expect("zk::Proof serialize must not fail");
-    let original_compressed = compress_blob(&original_blob)?;
+    let original_compressed = compress_blob(&zk_proof)?;
 
     if original_compressed.len() < MAX_TX_BODY_SIZE {
-        let data = DataOnDa::Complete(zk_proof);
+        let data = DataOnDa::Complete(original_compressed);
         let blob = borsh::to_vec(&data).expect("zk::Proof serialize must not fail");
-        let blob = compress_blob(&blob)?;
         Ok(RawTxData::Complete(blob))
     } else {
         let mut chunks = vec![];

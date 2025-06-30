@@ -18,7 +18,7 @@ where
     RT: RuntimeTrait<DefaultContext, <Da as DaService>::Spec> + Send + Sync + 'static,
 {
     // runtime rpc.
-    let mut rpc_methods = RT::rpc_methods(storage);
+    let mut rpc_methods = RT::rpc_methods(storage, ledger_db.clone());
 
     // ledger rpc.
     {

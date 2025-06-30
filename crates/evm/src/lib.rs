@@ -18,6 +18,8 @@ pub use hooks::{
 };
 use revm::context::BlockEnv;
 use revm::primitives::hardfork::SpecId as EvmSpecId;
+#[cfg(feature = "native")]
+use sov_db::ledger_db::LedgerDB;
 use sov_state::codec::BorshCodec;
 pub use system_events::SYSTEM_SIGNER;
 

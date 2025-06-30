@@ -2,13 +2,13 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 use std::time::Duration;
 
-use alloy_primitives::{Address, U64};
-use alloy_rpc_types::BlockNumberOrTag;
+use alloy_primitives::{Address, U256, U64};
+use alloy_rpc_types::{BlockNumberOrTag, SyncStatus as EthSyncStatus};
 use async_trait::async_trait;
 use citrea_e2e::config::{CitreaMode, SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
-use citrea_e2e::traits::NodeT;
+use citrea_e2e::traits::{NodeT, Restart};
 use citrea_e2e::Result;
 use ethereum_rpc::LayerStatus;
 use sov_ledger_rpc::LedgerRpcClient;
@@ -105,7 +105,7 @@ impl TestCase for SyncStatusTest {
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_ref().unwrap();
-        let full_node = f.full_node.as_ref().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).unwrap();
 
         let seq_test_client = make_test_client(SocketAddr::new(
@@ -132,6 +132,17 @@ impl TestCase for SyncStatusTest {
         sequencer.wait_for_l2_height(300, None).await?;
         full_node.wait_for_l2_height(5, None).await?;
 
+        // Check eth_syncing
+        let eth_sync = full_node_test_client.eth_syncing().await;
+        match eth_sync {
+            EthSyncStatus::Info(sync_info_box) => {
+                assert_eq!(sync_info_box.starting_block, U256::from(0));
+                assert_eq!(sync_info_box.highest_block, U256::from(300));
+                assert!(sync_info_box.current_block < U256::from(300));
+            }
+            _ => panic!("Expected EthSyncStatus::Info variant, got {:?}", eth_sync),
+        }
+
         // Check sync status while syncing
         let l2_status = full_node_test_client.citrea_sync_status().await.l2_status;
         match l2_status {
@@ -147,6 +158,9 @@ impl TestCase for SyncStatusTest {
 
         full_node.wait_for_l2_height(300, None).await?;
 
+        let eth_sync = full_node_test_client.eth_syncing().await;
+        assert!(matches!(eth_sync, EthSyncStatus::None));
+
         // Check sync status after fully synced
         let l2_status = full_node_test_client.citrea_sync_status().await.l2_status;
         match l2_status {
@@ -154,6 +168,31 @@ impl TestCase for SyncStatusTest {
                 assert_eq!(synced_up_to.to::<u64>(), 300);
             }
             _ => panic!("Expected synced status"),
+        }
+
+        // Restart full node
+        full_node.wait_until_stopped().await?;
+
+        for _ in 0..300 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        full_node.start(None, None).await?;
+
+        let full_node_test_client = make_test_client(SocketAddr::new(
+            full_node.config.rpc_bind_host().parse()?,
+            full_node.config.rpc_bind_port(),
+        ))
+        .await?;
+
+        let eth_sync = full_node_test_client.eth_syncing().await;
+        match eth_sync {
+            EthSyncStatus::Info(sync_info_box) => {
+                assert_eq!(sync_info_box.starting_block, U256::from(300));
+                assert_eq!(sync_info_box.highest_block, U256::from(600));
+                assert!(sync_info_box.current_block < U256::from(600));
+            }
+            _ => panic!("Expected EthSyncStatus::Info variant, got {:?}", eth_sync),
         }
 
         // Generate DA blocks and check L1 sync status

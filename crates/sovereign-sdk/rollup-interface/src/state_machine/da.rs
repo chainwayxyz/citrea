@@ -81,14 +81,6 @@ pub enum DataOnDa {
     SequencerCommitment(SequencerCommitment),
 }
 
-impl DataOnDa {
-    /// Implement parsing of ::Complete variant according to possible changes
-    ///  of format on DA.
-    pub fn borsh_parse_complete(body: &[u8]) -> borsh::io::Result<Self> {
-        Self::try_from_slice(body)
-    }
-}
-
 /// A specification for the types used by a DA layer.
 pub trait DaSpec:
     'static + BorshDeserialize + BorshSerialize + Debug + PartialEq + Eq + Clone + Send + Sync
@@ -132,7 +124,7 @@ pub trait DaSpec:
 
     /// A verifiable proof that upon verification, returns the hash of the header,
     /// the transaction commitment from the header, and the txid merkle proof height of the coinbase transaction.
-    type ShortHeaderProof: VerifableShortHeaderProof
+    type ShortHeaderProof: VerifiableShortHeaderProof
         + BorshDeserialize
         + BorshSerialize
         + Send
@@ -162,7 +154,7 @@ pub struct L1UpdateSystemTransactionInfo {
     pub block_height: u64,
 }
 /// A trait for a verifiable short header proof
-pub trait VerifableShortHeaderProof {
+pub trait VerifiableShortHeaderProof {
     /// Verifies the proof and returns the header hash, transaction commitment and coinbase transaction txid merkle proof
     /// height.
     ///
@@ -170,7 +162,7 @@ pub trait VerifableShortHeaderProof {
     /// are valid.
     ///
     /// These proofs will be used inside the batch proofs, and the hash is going to be committed to the output of the
-    /// proof. It will be upto the verifier to check if the hash is correct.
+    /// proof. It will be up to the verifier to check if the hash is correct.
     ///
     /// In the light client proof, the circuit will extract the `l1_hashes` output and will check that the hashes are
     /// included in the header chain.
@@ -263,7 +255,7 @@ pub struct CountedBufReader<B: bytes::Buf> {
 }
 
 impl<B: bytes::Buf> CountedBufReader<B> {
-    /// Creates a new buffer reader with counter from an objet that implements the buffer trait
+    /// Creates a new buffer reader with counter from an object that implements the buffer trait
     pub fn new(inner: B) -> Self {
         let buf_size = inner.remaining();
         CountedBufReader {

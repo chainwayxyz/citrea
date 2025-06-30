@@ -30,7 +30,7 @@ bind_port = 8080
 # for below if you don't want to use default values
 # comment out and set to desired value
 
-# max connections are deafult to 100
+# max connections are default to 100
 # max_connections = 100
 
 # max request body size is default to 10MB

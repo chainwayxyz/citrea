@@ -8,6 +8,9 @@ use sov_modules_api::{
 };
 use sov_state::ZkStorage;
 
+#[derive(Clone)]
+struct LedgerDB {}
+
 pub trait TestSpec {
     type Data: Data;
 }

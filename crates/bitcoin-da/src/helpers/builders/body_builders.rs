@@ -28,7 +28,7 @@ use crate::spec::utxo::UTXO;
 use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
 pub(crate) enum RawTxData {
-    /// compress(borsh(DataOnDa::Complete(Proof)))
+    /// borsh(DataOnDa::Complete(compress(Proof)))
     Complete(Vec<u8>),
     /// let compressed = compress(borsh(Proof))
     /// let chunks = compressed.chunks(MAX_TX_BODY_SIZE)
@@ -565,7 +565,7 @@ pub fn create_inscription_type_1(
 
     let aggregate = DataOnDa::Aggregate(reveal_tx_ids, reveal_wtx_ids);
 
-    // To sign the list of tx ids we assume they form a contigious list of bytes
+    // To sign the list of tx ids we assume they form a contiguous list of bytes
     let reveal_body: Vec<u8> =
         borsh::to_vec(&aggregate).expect("Aggregate serialize must not fail");
     // sign the body for authentication of the sequencer

@@ -277,7 +277,7 @@ impl BonsaiProver {
                     session.receipt_type,
                 ),
                 BonsaiSessionKind::SnarkSession(id, _) => {
-                    // TODO: check if create snark call creates a new snark session everytime and update if needed
+                    // TODO: check if create snark call creates a new snark session every time and update if needed
                     self.spawn_handler(
                         job_id,
                         SessionId::new(id),

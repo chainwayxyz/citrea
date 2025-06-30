@@ -1,13 +1,23 @@
-mod test_utils;
-
+use std::str::FromStr;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use bitcoin::absolute::LockTime;
+use bitcoin::block::Header;
+use bitcoin::blockdata::script::Builder;
 use bitcoin::hashes::Hash;
-use bitcoin::{ScriptBuf, Witness};
+use bitcoin::transaction::Version;
+use bitcoin::{
+    Amount, BlockHash, CompactTarget, OutPoint, ScriptBuf, Sequence, Transaction, TxIn,
+    TxMerkleNode, TxOut, Witness, WitnessMerkleNode,
+};
 use bitcoin_da::helpers::merkle_tree::BitcoinMerkleTree;
+use bitcoin_da::helpers::parsers::parse_hex_transaction;
+use bitcoin_da::service::BitcoinService;
+use bitcoin_da::spec::block::BitcoinBlock;
 use bitcoin_da::spec::header::HeaderWrapper;
 use bitcoin_da::spec::proof::InclusionMultiProof;
+use bitcoin_da::spec::transaction::TransactionWrapper;
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::{BitcoinVerifier, ValidationError, WITNESS_COMMITMENT_PREFIX};
 use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
@@ -16,13 +26,62 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_primitives::REVEAL_TX_PREFIX;
 use reth_tasks::TaskManager;
-use sov_rollup_interface::da::{BlobReaderTrait, DaVerifier};
+use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::Network;
-use test_utils::macros::assert_panic;
-use test_utils::{
-    generate_mock_txs, get_citrea_path, get_default_service, get_mock_nonsegwit_block,
-};
+
+use crate::bitcoin::get_citrea_path;
+use crate::bitcoin::utils::macros::assert_panic;
+use crate::bitcoin::utils::{generate_mock_txs, get_default_service};
+
+pub fn get_mock_nonsegwit_block() -> BitcoinBlock {
+    // There are no relevant txs
+    // txs[2] is a non-segwit tx but its txid has the prefix 00
+    let txs = [
+        "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff0f048bdb051a02e503062f503253482fffffffff0140e10d2a01000000434104808df9f502a2f1a2dd1848bade4be111b9f2e66d5c4bd6b9f1682b4d04a53bdb052ebb91ae056dc8a3cd59545265947ee61d54c49aa81981d550bf7f9167ef12ac00000000",
+        "01000000016a5aa0c54e24722d2cd6be99c26b3729fae9b7c27c851b080aa45c5b47c26d2d010000008a47304402201c9404cd4a8b21509834fafff15d700788ffaa842f760e1ab1dc173fa2676ec202202c7e77ad14e48320a272952db318f9f968bcefcf50123f0f40db410d6cd300bc01410491d63a7c33798ca1da6a88ea5cd8daf9c33190571ca4738306b8848466b8494619a0d217a39d4bb0c929735f9c4a1c0dea074239e153b81b9b7cfc85dd36faf8ffffffff0200ec6021000000001976a9146c11a5e60863b35f85d3911920a1aecf11f7153988ac40a8f527000000001976a914ccaf060b633fe6b1f43e2ecc8e0f17adf09d534c88ac00000000",
+        "01000000013377c58db37da73db2c3a269ddf410251073673983790ab5426e215f323ce00f010000008c493046022100fa6a7c25870c377080c1b5b42d216d501ac971ac09507ce079bdaf6da5b046ec022100fa885eef30ffa7a8768a30a5faac6cace724851cd53806413b10aec060bc274a0141049a162e57d5e0f96374f8ead29937ab5a90385f07678b159da4f57cb87b646c148f56a870fb779a9037fabf5fdacc753b34eb98d49e300c36e9b0f3873194e759ffffffff02002d3101000000001976a91406f1b66ffe49df7fce684df16c62f59dc9adbd3f88ac90762907000000001976a9144ef9f0e7ad583d773495722dd79ec11188b9e4fd88ac00000000",
+        "0100000001c9e1effb36254352bca658cfc7b06d6d358cbbffda74dc1c6fb7e25ff3fde256010000008c493046022100d871f859bf9cc2be5080194ed0c38e977e83c212be7150d7d0b65a7704bd830f022100e27f5d8922d7d977b690386457f7fb9c714241ab9d7b91bf05fbac68f2dc69b001410449f6c65c3ba451e4891f8e51e46580c7fcb87480bf5aa2f9d47644ff7b692cfa801d95f6980cef95fb49b3ec42c6ff4ed289d948f03c7f409b34647d0fedf803ffffffff0220651100000000001976a914d0b79214b73d2cba68b524ae1c0f102771e7551c88aca016f912000000001976a9142af648c077286a6c1233eb190bcd767478ced70d88ac00000000",
+        "01000000020792275b6ad62da82d98eaebb5de782642a06c92a80872c2cb3354da52c1ba2e000000008b483045022100fdc067f20ee84e3a4aea25638eb125b44376555ffbdd0fa05611a27a55d2610f022009b3c111bffae5e517bf957bd3f53a3306a6b5c5725418955f20afb6fbd1bb380141048cc0b94178715f03ed3d0bceb368191d0fdd7fc16d806567f6f2c45aecafb8f53e5ef849564072189b9b4f8bfe1564da776567ba359cfb0c05e839bcf65371abffffffff2316672bbcf879e3a96a2e8aab283b44529c4eec8fed798e5e435011c2b5059b010000008b48304502204caab3248930be319ba445c44398aa94e0032dfd25456d09ccd2b076737ef2f6022100eb460ca09390a67b8195fad6c4d0563d243b824ece6bafb69d21ca30542cfaa5014104952fe2d53debd645dffac11367b3888a9e5465eb9c150b98a504d7f8d4c3e98c1a6876175be17462d163e6015ce12c9c2b0a3629e1371e247109222d0b8ed5dbffffffff0230578d09000000001976a9144ef9f0e7ad583d773495722dd79ec11188b9e4fd88ac18366704000000001976a914b4f5b5a9e5119d3f0327d4ff64a1b0a97fc423d988ac00000000",
+        "01000000019ac1695d2e613e3bee66317bbd9ad8ec4033f596ce5c43691837e8322b3a8112010000008c49304602210083a64c8ff430ac05376ab5f940d7801796d6dd0687922af2c8f7247368a41f56022100d55326fdc50a70d992f0a04ef19e5d8edc244941d9976d609ab1b6c1ed2e92760141046992f8f0bdde46834e24df367c28233501fa8615ada18c84631b84f85eb4af10aebd92dec0a870e038fdd9820aae836edba7ba2fae915d6fc25e5727621adc1dffffffff0260011200000000001976a9147c442f8fcb7c525720ee3b587e561fffe028c16d88ac1088810e000000001976a91460b18c23c1d6139e337a306413119f6e9efda4e388ac00000000",
+    ];
+    let txs: Vec<TransactionWrapper> = txs
+        .into_iter()
+        .map(|tx| parse_hex_transaction(tx).unwrap())
+        .map(Into::into)
+        .collect();
+
+    let header = HeaderWrapper::new(
+        Header {
+            version: bitcoin::block::Version::from_consensus(536870912),
+            prev_blockhash: BlockHash::from_str(
+                "6b15a2e4b17b0aabbd418634ae9410b46feaabf693eea4c8621ffe71435d24b0",
+            )
+            .unwrap(),
+            merkle_root: TxMerkleNode::from_slice(&[
+                164, 71, 72, 235, 241, 189, 131, 141, 120, 210, 207, 233, 212, 171, 56, 52, 25, 40,
+                83, 62, 135, 211, 81, 44, 3, 109, 10, 127, 210, 213, 124, 221,
+            ])
+            .unwrap(),
+            time: 1694177029,
+            bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
+            nonce: 0,
+        },
+        6,
+        2,
+        WitnessMerkleNode::from_str(
+            "dd7cd5d27f0a6d032c51d3873e5328193438abd4e9cfd2788d83bdf1eb4847a4",
+        )
+        .unwrap()
+        .to_raw_hash()
+        .to_byte_array(),
+    );
+
+    BitcoinBlock {
+        header,
+        txdata: txs,
+    }
+}
 
 struct BitcoinVerifierTest {
     task_manager: TaskManager,
@@ -450,11 +509,241 @@ impl TestCase for BitcoinVerifierTest {
             );
         }
 
+        self.test_malicious_witness_prefix_only(&verifier)?;
+
+        self.test_malicious_witness_empty_witness(&verifier)?;
+
+        self.test_malicious_multiple_witness_commitments(&verifier, &service, &block)
+            .await?;
+
         Ok(())
     }
 }
 
-#[cfg(feature = "native")]
+impl BitcoinVerifierTest {
+    // Test protection against malicious blocks with truncated witness commitment outputs.
+    // Bitcoin core protocol does witness malleation check only if it matches MINIMUM_WITNESS_COMMITMENT_SIZE
+    // This witness commitment structure would be ignored from bitcoin core verification logic and is a valid block that needs to be
+    // handled on our side. An additional MINIMUM_WITNESS_COMMITMENT_SIZE check is added to find the commitment index.
+    // In that case, no commmitment index is found and this block is treated as one without relevant txs
+    fn test_malicious_witness_prefix_only(&self, verifier: &BitcoinVerifier) -> Result<()> {
+        let coinbase_input = TxIn {
+            previous_output: OutPoint::null(),
+            script_sig: Builder::new().push_int(1).into_script(),
+            sequence: Sequence::MAX,
+            witness: Witness::new(),
+        };
+
+        let reward_output = TxOut {
+            value: Amount::from_sat(5000000000),
+            script_pubkey: ScriptBuf::from_hex("76a914").unwrap(),
+        };
+
+        // Create a malicious witness commitment output with only the prefix.
+        // This should fail to pass the MINIMUM_WITNESS_COMMITMENT_SIZE check and be ignored
+        let malicious_witness_commitment = TxOut {
+            value: Amount::ZERO,
+            script_pubkey: ScriptBuf::from_bytes(WITNESS_COMMITMENT_PREFIX.to_vec()),
+        };
+
+        let malicious_coinbase = TransactionWrapper::from(Transaction {
+            version: Version::ONE,
+            lock_time: LockTime::ZERO,
+            input: vec![coinbase_input],
+            output: vec![reward_output, malicious_witness_commitment],
+        });
+
+        let malicious_txs = [malicious_coinbase.clone()];
+
+        let tree = BitcoinMerkleTree::new(
+            malicious_txs
+                .iter()
+                .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
+                .collect(),
+        );
+
+        let inclusion_proof = InclusionMultiProof {
+            wtxids: malicious_txs
+                .iter()
+                .map(|t| t.compute_wtxid().to_raw_hash().to_byte_array())
+                .collect(),
+            coinbase_tx: malicious_coinbase,
+            coinbase_merkle_proof: tree.get_idx_path(0),
+        };
+
+        let header = Header {
+            version: bitcoin::block::Version::from_consensus(0x20000000),
+            prev_blockhash: BlockHash::all_zeros(),
+            merkle_root: TxMerkleNode::from_byte_array(tree.root()),
+            time: 1,
+            bits: CompactTarget::from_consensus(1),
+            nonce: 0,
+        };
+
+        let malicious_header = HeaderWrapper::new(header, 1, 1, [0; 32]);
+
+        // This malicious block should be ignored
+        assert_eq!(
+            verifier.verify_transactions(&malicious_header, inclusion_proof, vec![],),
+            Ok(Vec::new())
+        );
+        Ok(())
+    }
+
+    // Test protection against malicious blocks with witness commitments but invalid witness structure.
+    // This wouldn't pass bitcoin core protocol validation but verifies the `InvalidWitnessCommitmentStructure` safeguard
+    fn test_malicious_witness_empty_witness(&self, verifier: &BitcoinVerifier) -> Result<()> {
+        let coinbase_input = TxIn {
+            previous_output: OutPoint::null(),
+            script_sig: Builder::new().push_int(1).into_script(),
+            sequence: Sequence::MAX,
+            witness: Witness::new(), // Empty witness
+        };
+
+        let reward_output = TxOut {
+            value: Amount::from_sat(5000000000),
+            script_pubkey: ScriptBuf::from_hex("76a914").unwrap(),
+        };
+
+        let witness_commitment = TxOut {
+            value: Amount::ZERO,
+            script_pubkey: ScriptBuf::from_bytes(
+                [WITNESS_COMMITMENT_PREFIX.to_vec(), vec![0u8; 32]].concat(),
+            ),
+        };
+
+        let malicious_coinbase = TransactionWrapper::from(Transaction {
+            version: Version::ONE,
+            lock_time: LockTime::ZERO,
+            input: vec![coinbase_input],
+            output: vec![reward_output, witness_commitment],
+        });
+
+        let malicious_txs = [malicious_coinbase.clone()];
+
+        let tree = BitcoinMerkleTree::new(
+            malicious_txs
+                .iter()
+                .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
+                .collect(),
+        );
+
+        let inclusion_proof = InclusionMultiProof {
+            wtxids: malicious_txs
+                .iter()
+                .map(|t| t.compute_wtxid().to_raw_hash().to_byte_array())
+                .collect(),
+            coinbase_tx: malicious_coinbase,
+            coinbase_merkle_proof: tree.get_idx_path(0),
+        };
+
+        let header = Header {
+            version: bitcoin::block::Version::from_consensus(0x20000000),
+            prev_blockhash: BlockHash::all_zeros(),
+            merkle_root: TxMerkleNode::from_byte_array(tree.root()),
+            time: 1,
+            bits: CompactTarget::from_consensus(1),
+            nonce: 0,
+        };
+        let malicious_header = HeaderWrapper::new(header, 1, 1, [0; 32]);
+
+        // This malicious block should be caught has having an invalid witness commitment structure
+        assert_eq!(
+            verifier.verify_transactions(&malicious_header, inclusion_proof, vec![],),
+            Err(ValidationError::InvalidWitnessCommitmentStructure)
+        );
+
+        Ok(())
+    }
+
+    /// Test protection against malicious blocks with multiple witness commitment outputs.
+    ///
+    /// This test verifies that the verifier correctly handles coinbase transactions that
+    /// contain multiple outputs with witness commitment prefixes, where some may be
+    /// malformed or malicious. In line with BIP-141 [https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki], only the commitment with the highest
+    /// output index should be considered valid, and malformed commitments should be ignored.
+    async fn test_malicious_multiple_witness_commitments(
+        &self,
+        verifier: &BitcoinVerifier,
+        service: &BitcoinService,
+        block: &BitcoinBlock,
+    ) -> Result<()> {
+        let (mut original_txs, original_inclusion_proof, original_completeness_proof) =
+            service.extract_relevant_blobs_with_proof(block);
+        original_txs.iter_mut().for_each(|t| {
+            t.full_data();
+        });
+
+        let original_coinbase = &block.txdata[0];
+
+        let malformed_witness_commitment = TxOut {
+            value: Amount::ZERO,
+            script_pubkey: ScriptBuf::from_bytes(WITNESS_COMMITMENT_PREFIX.to_vec()),
+        };
+
+        let invalid_witness_commitment = TxOut {
+            value: Amount::ZERO,
+            script_pubkey: ScriptBuf::from_bytes(
+                [WITNESS_COMMITMENT_PREFIX.to_vec(), vec![1u8; 32]].concat(),
+            ),
+        };
+
+        // Create new coinbase with malicious witness commitments
+        let mut new_outputs = original_coinbase.output.clone();
+
+        // Insert malicious commitments before the original valid one
+        new_outputs.insert(1, malformed_witness_commitment);
+        new_outputs.insert(2, invalid_witness_commitment);
+
+        let malicious_coinbase = TransactionWrapper::from(Transaction {
+            version: original_coinbase.version,
+            lock_time: original_coinbase.lock_time,
+            input: original_coinbase.input.clone(),
+            output: new_outputs,
+        });
+
+        let mut malicious_txs = block.txdata.clone();
+        malicious_txs[0] = malicious_coinbase.clone();
+
+        let tree = BitcoinMerkleTree::new(
+            malicious_txs
+                .iter()
+                .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
+                .collect(),
+        );
+
+        // Create new inclusion proof with the malicious coinbase
+        let malicious_inclusion_proof = InclusionMultiProof {
+            wtxids: original_inclusion_proof.wtxids.clone(),
+            coinbase_tx: malicious_coinbase,
+            coinbase_merkle_proof: tree.get_idx_path(0),
+        };
+
+        // Update the block header with new merkle root
+        let mut new_header = *block.header.inner();
+        new_header.merkle_root = bitcoin::TxMerkleNode::from_byte_array(tree.root());
+
+        let malicious_header = HeaderWrapper::new(
+            new_header,
+            block.header.tx_count,
+            block.header.height,
+            block.header.txs_commitment().to_byte_array(),
+        );
+
+        // The verifier should still successfully extract the relevant txs
+        // and ignore the malicious additional witness commitments
+        let result = verifier.verify_transactions(
+            &malicious_header,
+            malicious_inclusion_proof,
+            original_completeness_proof,
+        );
+
+        assert_eq!(result, Ok(original_txs));
+
+        Ok(())
+    }
+}
+
 #[tokio::test]
 async fn test_bitcoin_verifier() -> Result<()> {
     TestCaseRunner::new(BitcoinVerifierTest {

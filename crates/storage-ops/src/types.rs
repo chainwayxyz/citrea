@@ -1,4 +1,6 @@
-#[derive(Copy, Clone, Debug)]
+use derive_more::Display;
+
+#[derive(Copy, Clone, Debug, Display)]
 pub enum StorageNodeType {
     Sequencer,
     FullNode,

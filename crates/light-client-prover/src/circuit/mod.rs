@@ -40,12 +40,12 @@ pub enum LightClientVerificationError<DaV: DaVerifier> {
 }
 
 pub struct RunL1BlockResult<S: Storage> {
-    l2_state_root: [u8; 32],
+    pub l2_state_root: [u8; 32],
     pub lcp_state_root: [u8; 32],
-    last_l2_height: u64,
+    pub last_l2_height: u64,
     pub witness: Witness,
     pub change_set: S,
-    last_sequencer_commitment_index: u32,
+    pub last_sequencer_commitment_index: u32,
 }
 
 pub struct LightClientProofCircuit<S: Storage, DS: DaSpec, Z: Zkvm> {
@@ -337,6 +337,11 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         continue;
                     }
 
+                    let Ok(proof) = DS::decompress_chunks(&proof) else {
+                        log!("Failed to decompress and deserialize complete proof");
+                        continue;
+                    };
+
                     match self.process_complete_proof(
                         &proof,
                         last_l2_height,
@@ -464,6 +469,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             } else {
                 // This should be infallible
                 // this can only happen if commitment started committing to a different chain
+                // We make sure in the batch proof circuit that a proof cannot build on a previous commitment
+                // but start with a different state root
                 unreachable!("Commitment with the next index having an unexpected state root");
             }
         }

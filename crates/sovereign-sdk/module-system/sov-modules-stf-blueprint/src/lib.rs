@@ -1,23 +1,170 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
+//! # Sovereign SDK STF Blueprint Module
+//!
+//! This module provides the core State Transition Function (STF) blueprint implementation
+//! for the Sovereign SDK. It defines the framework for processing L2 blocks and managing
+//! state transitions in a rollup system.
+//!
+//! ## Core Components
+//!
+//! ### StfBlueprint
+//! The main implementation of the State Transition Function that works with the module system.
+//! It provides:
+//! - L2 block processing and validation
+//! - Transaction execution and state management
+//! - Genesis initialization
+//! - Sequencer commitment handling
+//!
+//! ### Runtime Integration
+//! The `Runtime` trait defines the interface that runtimes must implement to work with the STF:
+//! - Transaction hooks for context setup
+//! - Slot hooks for block processing
+//! - Genesis configuration
+//! - RPC method definitions
+//!
+//! ## Public Interface
+//!
+//! ### Block Processing
+//! ```rust
+//! impl<C, RT, Da> StfBlueprint<C, Da, RT> {
+//!     /// Begin processing an L2 block
+//!     pub fn begin_l2_block(
+//!         &mut self,
+//!         sequencer_public_key: &K256PublicKey,
+//!         working_set: &mut WorkingSet<C::Storage>,
+//!         l2_block_info: &HookL2BlockInfo,
+//!     ) -> Result<(), StateTransitionError>
+//!
+//!     /// Apply transactions from an L2 block
+//!     pub fn apply_l2_block_txs(
+//!         &mut self,
+//!         l2_block_info: &HookL2BlockInfo,
+//!         txs: &[Transaction],
+//!         batch_workspace: &mut WorkingSet<C::Storage>,
+//!     ) -> Result<(), StateTransitionError>
+//!
+//!     /// Verify L2 block hash and signature
+//!     pub fn verify_l2_block(
+//!         &self,
+//!         l2_block: &L2Block,
+//!         sequencer_public_key: &K256PublicKey,
+//!     ) -> Result<(), StateTransitionError>
+//!
+//!     /// End L2 block processing
+//!     pub fn end_l2_block(
+//!         &mut self,
+//!         l2_block_info: HookL2BlockInfo,
+//!         working_set: &mut WorkingSet<C::Storage>,
+//!     ) -> Result<(), StateTransitionError>
+//! }
+//! ```
+//!
+//! ### State Management
+//! ```rust
+//! impl<C, RT, Da> StfBlueprint<C, Da, RT> {
+//!     /// Finalize an L2 block and compute state transitions
+//!     pub fn finalize_l2_block(
+//!         &self,
+//!         current_spec: SpecId,
+//!         working_set: WorkingSet<C::Storage>,
+//!         pre_state: C::Storage,
+//!     ) -> L2BlockResult<C::Storage, Witness, ReadWriteLog>
+//!
+//!     /// Initialize chain from genesis configuration
+//!     pub fn init_chain(
+//!         &self,
+//!         pre_state: C::Storage,
+//!         params: GenesisParams<<RT as Genesis>::Config>,
+//!     ) -> (StorageRootHash, C::Storage)
+//! }
+//! ```
+//!
+//! ### Sequencer Commitment Processing
+//! ```rust
+//! impl<C, RT, Da> StfBlueprint<C, Da, RT> {
+//!     /// Apply L2 blocks from sequencer commitments
+//!     pub fn apply_l2_blocks_from_sequencer_commitments(
+//!         &mut self,
+//!         guest: &impl ZkvmGuest,
+//!         sequencer_public_key: &[u8],
+//!         initial_state_root: &StorageRootHash,
+//!         pre_state: C::Storage,
+//!         previous_sequencer_commitment: Option<SequencerCommitment>,
+//!         sequencer_commitments: Vec<SequencerCommitment>,
+//!         cache_prune_l2_heights: &[u64],
+//!         forks: &[Fork],
+//!     ) -> ApplySequencerCommitmentsOutput
+//! }
+//! ```
+//!
+//! ## Type Parameters
+//!
+//! - `C`: Context type implementing the `Context` trait
+//! - `Da`: Data availability specification implementing `DaSpec`
+//! - `RT`: Runtime type implementing the `Runtime` trait
+//!
+//! ## Error Handling
+//!
+//! The module uses several error types:
+//! - `StateTransitionError`: General state transition errors
+//! - `L2BlockError`: Specific L2 block processing errors
+//! - `HookError`: Errors from runtime hooks
+//!
+//! ## Security Considerations
+//!
+//! The STF blueprint implements several security measures:
+//! - Sequencer public key verification
+//! - Block signature validation
+//! - Transaction merkle root verification
+//! - State root validation
+//!
+//! ## Integration Guide
+//!
+//! To use the STF blueprint in a rollup:
+//!
+//! 1. Implement the `Runtime` trait for your runtime
+//! 2. Configure genesis parameters
+//! 3. Initialize the STF with your runtime
+//! 4. Use the block processing methods to handle L2 blocks
+//! 5. Implement proper error handling and recovery
+//!
+//! ## Example Usage
+//!
+//! ```rust
+//! // Initialize STF with runtime
+//! let stf = StfBlueprint::<MyContext, MyDaSpec, MyRuntime>::new();
+//!
+//! // Process L2 block
+//! stf.begin_l2_block(&sequencer_key, &mut working_set, &block_info)?;
+//! stf.apply_l2_block_txs(&block_info, &transactions, &mut working_set)?;
+//! stf.end_l2_block(block_info, &mut working_set)?;
+//!
+//! // Finalize block
+//! let result = stf.finalize_l2_block(current_spec, working_set, pre_state);
+//! ```
+
 use borsh::BorshDeserialize;
-use citrea_primitives::EMPTY_TX_ROOT;
+use citrea_primitives::merkle::verify_tx_merkle_root;
 use rs_merkle::algorithms::Sha256;
-use rs_merkle::MerkleTree;
+use rs_merkle::{MerkleProof, MerkleTree};
+#[cfg(feature = "native")]
+use sov_db::ledger_db::LedgerDB;
 use sov_keys::default_signature::{K256PublicKey, K256Signature};
 use sov_keys::Signature;
 use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::{
     ApplyL2BlockHooks, FinalizeHook, HookL2BlockInfo, SlotHooks, TxHooks,
 };
-use sov_modules_api::{native_debug, Context, DaSpec, DispatchCall, Genesis, Spec, WorkingSet};
+use sov_modules_api::{native_debug, Context, DaSpec, DispatchCall, Genesis, WorkingSet};
 use sov_rollup_interface::block::{L2Block, SignedL2Header};
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{L2BlockError, L2BlockResult, StateTransitionError};
 use sov_rollup_interface::transaction::Transaction;
+use sov_rollup_interface::zk::batch_proof::input::v3::PrevHashProof;
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
 use sov_state::{ReadWriteLog, Storage, Witness};
@@ -58,7 +205,7 @@ pub trait Runtime<C: Context, Da: DaSpec>:
 
     #[cfg(feature = "native")]
     /// Default rpc methods.
-    fn rpc_methods(storage: C::Storage) -> jsonrpsee::RpcModule<()>;
+    fn rpc_methods(storage: C::Storage, ledger: crate::LedgerDB) -> jsonrpsee::RpcModule<()>;
 
     #[cfg(feature = "native")]
     /// Reads genesis configs.
@@ -105,17 +252,9 @@ where
     /// There are no slot hash comparisons with l2 blocks
     pub fn begin_l2_block(
         &mut self,
-        sequencer_public_key: &K256PublicKey,
         working_set: &mut WorkingSet<C::Storage>,
         l2_block_info: &HookL2BlockInfo,
     ) -> Result<(), StateTransitionError> {
-        // check if l2 block is coming from our sequencer
-        if l2_block_info.sequencer_pub_key() != sequencer_public_key {
-            return Err(StateTransitionError::L2BlockError(
-                L2BlockError::SequencerPublicKeyMismatch,
-            ));
-        };
-
         self.begin_l2_block_inner(working_set, l2_block_info)
             .map_err(StateTransitionError::HookError)
     }
@@ -136,14 +275,17 @@ where
         &self,
         l2_block: &L2Block,
         sequencer_public_key: &K256PublicKey,
+        current_spec: SpecId,
     ) -> Result<(), StateTransitionError> {
         let l2_header = &l2_block.header;
 
-        verify_tx_merkle_root::<C>(l2_block)
-            .map_err(|_| StateTransitionError::L2BlockError(L2BlockError::InvalidTxMerkleRoot))?;
+        if !verify_tx_merkle_root(&l2_block.txs, l2_block.tx_merkle_root(), current_spec) {
+            return Err(StateTransitionError::L2BlockError(
+                L2BlockError::InvalidTxMerkleRoot,
+            ));
+        }
 
-        let expected_hash =
-            Into::<[u8; 32]>::into(l2_header.inner.compute_digest::<<C as Spec>::Hasher>());
+        let expected_hash = l2_header.inner.compute_digest();
 
         if l2_block.hash() != expected_hash {
             return Err(StateTransitionError::L2BlockError(
@@ -299,9 +441,9 @@ where
 
         native_debug!("Applying l2 block in STF Blueprint");
 
-        self.verify_l2_block(l2_block, sequencer_public_key)?;
+        self.verify_l2_block(l2_block, sequencer_public_key, current_spec)?;
 
-        self.begin_l2_block(sequencer_public_key, &mut working_set, &l2_block_info)?;
+        self.begin_l2_block(&mut working_set, &l2_block_info)?;
 
         self.apply_l2_block_txs(&l2_block_info, &l2_block.txs, &mut working_set)?;
 
@@ -323,9 +465,11 @@ where
         &mut self,
         guest: &impl ZkvmGuest,
         sequencer_public_key: &[u8],
+        initial_prev_l2_block_hash: Option<[u8; 32]>,
         initial_state_root: &StorageRootHash,
         pre_state: C::Storage,
         previous_sequencer_commitment: Option<SequencerCommitment>,
+        prev_hash_proof: Option<PrevHashProof>,
         sequencer_commitments: Vec<SequencerCommitment>,
         cache_prune_l2_heights: &[u64],
         forks: &[Fork],
@@ -347,28 +491,69 @@ where
 
         // Verify these soft confirmations.
         let mut current_state_root = *initial_state_root;
-        let mut prev_l2_block_hash: Option<[u8; 32]> = None;
+
+        // prev_l2_block_hash is extracted from the previous_sequencer_commitment, but previous_sequencer_commitment
+        // is always None for the first proof of each network. Hence, we hardcode the initial_prev_l2_block_hash as
+        // constant into the guest binary. But for the TestNetworkWithForks we can't know the initial_prev_l2_block_hash
+        // because it changes on every test run, hence, in that case, prev_l2_block_hash becomes None.
+        let mut prev_l2_block_hash: Option<[u8; 32]> = match &previous_sequencer_commitment {
+            Some(commitment) => {
+                let prev_hash_proof = prev_hash_proof
+                    .expect("Previous sequencer commitment must have a prev hash proof");
+
+                let merkle_proof = MerkleProof::<Sha256>::from_bytes(
+                    prev_hash_proof.merkle_proof_bytes.as_slice(),
+                )
+                .expect("Merkle proof must be valid");
+
+                // This means we could actually bake in the genesis root into the batch proof
+                // and we could start from the first l2 block
+                assert_eq!(
+                    prev_hash_proof.last_header.state_root(),
+                    *initial_state_root,
+                    "Initial state root must match the last header state root"
+                );
+
+                let index = (commitment.l2_end_block_number
+                    - prev_hash_proof.prev_sequencer_commitment_start)
+                    as usize;
+                let count = index + 1;
+                let last_header_hash = prev_hash_proof.last_header.compute_digest();
+
+                assert!(
+                    merkle_proof.verify(
+                        commitment.merkle_root,
+                        &[index],
+                        &[last_header_hash],
+                        count
+                    ),
+                    "Prev hash proof must be valid"
+                );
+
+                Some(last_header_hash)
+            }
+            None => {
+                assert!(prev_hash_proof.is_none());
+                initial_prev_l2_block_hash
+            }
+        };
 
         let group_count: u32 = guest.read_from_host();
 
         assert_eq!(group_count, sequencer_commitments.len() as u32);
-
-        // Get tangerine
-        let tangerine = forks
+        // Proofs start when Tangerine fork is activated.
+        // As proofs are only generated post tangerine, >= is safe to do
+        // As with the introudction of Fork3, nightly tests run on Fork3 fork only
+        let proving_activation_height = forks
             .iter()
-            .find(|f| f.spec_id == SpecId::Tangerine)
-            .expect("Tangerine must exist");
-
-        let tangerine_activation_height = tangerine.activation_height;
-
-        let mut previous_batch_proof_l2_end_height = tangerine_activation_height;
+            .find(|f| f.spec_id >= SpecId::Tangerine)
+            .expect("A fork GTE to Tangerine must exist")
+            .activation_height;
 
         // If tangerine start height is not 0 meaning there are other forks before tangerine,
         // then the previous batch proof l2 end height should be the tangerine start height - 1
         // Because the first l2 height of the first tangerine batch proof must be non-zero tangerine activation height
-        if tangerine_activation_height != 0 {
-            previous_batch_proof_l2_end_height = tangerine_activation_height - 1;
-        }
+        let mut previous_batch_proof_l2_end_height = proving_activation_height.saturating_sub(1);
 
         // If there is no previous commitment, then this is the first batch proof
         // and this should start from proving the first l2 block
@@ -409,7 +594,7 @@ where
 
         let mut last_commitment_end_height = previous_batch_proof_l2_end_height;
 
-        // Reuseable log caches
+        // Reusable log caches
         let mut cumulative_state_log = None;
         let mut cumulative_offchain_log = None;
         let mut cache_prune_l2_heights_iter = cache_prune_l2_heights.iter().peekable();
@@ -451,10 +636,10 @@ where
                     "L2 block height is not equal to the expected height"
                 );
 
-                if let Some(hash) = prev_l2_block_hash {
+                if let Some(prev_hash) = prev_l2_block_hash {
                     assert_eq!(
                         l2_block.prev_hash(),
-                        hash,
+                        prev_hash,
                         "L2 block previous hash must match the hash of the block before"
                     );
                 }
@@ -485,12 +670,6 @@ where
                 // The state root of prover should match l2 block coming from sequencer
                 assert_eq!(current_state_root, l2_block.state_root());
 
-                l2_height += 1;
-
-                prev_l2_block_hash = Some(l2_block.hash());
-
-                l2_block_hashes.push(l2_block.hash());
-
                 let mut state_log = result.state_log;
                 let mut offchain_log = result.offchain_log;
                 // prune cache logs if it is hinted from native
@@ -501,6 +680,10 @@ where
                     state_log.prune_half();
                     offchain_log.prune_half();
                 }
+
+                l2_height += 1;
+                prev_l2_block_hash = Some(l2_block.hash());
+                l2_block_hashes.push(l2_block.hash());
 
                 cumulative_state_log = Some(state_log);
                 cumulative_offchain_log = Some(offchain_log);
@@ -546,30 +729,5 @@ fn verify_signature(
 
     signature.verify(sequencer_public_key, &header.hash)?;
 
-    Ok(())
-}
-
-fn verify_tx_merkle_root<C: Context + Spec>(
-    l2_block: &L2Block,
-) -> Result<(), StateTransitionError> {
-    let tx_hashes: Vec<[u8; 32]> = l2_block
-        .txs
-        .iter()
-        .map(|tx| tx.compute_digest::<<C as Spec>::Hasher>().into())
-        .collect();
-
-    let tx_merkle_root = if tx_hashes.is_empty() {
-        EMPTY_TX_ROOT
-    } else {
-        MerkleTree::<Sha256>::from_leaves(&tx_hashes)
-            .root()
-            .expect("Couldn't compute merkle root")
-    };
-
-    if tx_merkle_root != l2_block.tx_merkle_root() {
-        return Err(StateTransitionError::L2BlockError(
-            L2BlockError::InvalidTxMerkleRoot,
-        ));
-    }
     Ok(())
 }

@@ -14,15 +14,15 @@ use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::smart_contracts::{CallerContract, SimpleStorageContract};
 use crate::tests::queries::{init_evm, init_evm_with_caller_contract};
-use crate::tests::utils::get_fork_fn_only_tangerine;
+use crate::tests::utils::get_fork_fn_latest;
 use crate::EstimatedDiffSize;
 
 #[test]
 fn get_block_by_hash_test() {
     // make a block
-    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Tangerine);
+    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SovSpecId::Tangerine);
 
-    let result = evm.get_block_by_hash([5u8; 32].into(), Some(false), &mut working_set);
+    let result = evm.get_block_by_hash([5u8; 32].into(), Some(false), &mut working_set, &ledger_db);
 
     assert_eq!(result, Ok(None));
 
@@ -31,6 +31,7 @@ fn get_block_by_hash_test() {
             b256!("e6066b2feeda57a112b5343057a48f2c19377994073cc72e425e23bd59a65306"),
             None,
             &mut working_set,
+            &ledger_db,
         )
         .unwrap()
         .unwrap();
@@ -42,12 +43,13 @@ fn get_block_by_hash_test() {
 #[test]
 fn get_block_by_number_test() {
     // make a block
-    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Tangerine);
+    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SovSpecId::Tangerine);
 
     let result = evm.get_block_by_number(
         Some(BlockNumberOrTag::Number(1000)),
         Some(false),
         &mut working_set,
+        &ledger_db,
     );
 
     assert_eq!(result, Ok(None));
@@ -58,6 +60,7 @@ fn get_block_by_number_test() {
             Some(BlockNumberOrTag::Number(2)),
             Some(false),
             &mut working_set,
+            &ledger_db,
         )
         .unwrap()
         .unwrap();
@@ -68,11 +71,12 @@ fn get_block_by_number_test() {
 #[test]
 fn get_block_receipts_test() {
     // make a block
-    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Tangerine);
+    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SovSpecId::Tangerine);
 
     let result = evm.get_block_receipts(
         BlockId::Number(BlockNumberOrTag::Number(1000)),
         &mut working_set,
+        &ledger_db,
     );
 
     // AnyTransactionReceipt doesn't impl Eq or PartialEq
@@ -81,7 +85,11 @@ fn get_block_receipts_test() {
     assert!(result.is_ok());
     assert!(result.unwrap().is_none());
 
-    let result = evm.get_block_receipts(BlockId::from(B256::from([5u8; 32])), &mut working_set);
+    let result = evm.get_block_receipts(
+        BlockId::from(B256::from([5u8; 32])),
+        &mut working_set,
+        &ledger_db,
+    );
 
     assert!(result.is_ok());
     assert!(result.unwrap().is_none());
@@ -90,6 +98,7 @@ fn get_block_receipts_test() {
         .get_block_receipts(
             BlockId::Number(BlockNumberOrTag::Number(2)),
             &mut working_set,
+            &ledger_db,
         )
         .unwrap()
         .unwrap();
@@ -99,7 +108,7 @@ fn get_block_receipts_test() {
 
 #[test]
 fn get_transaction_by_block_hash_and_index_test() {
-    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Tangerine);
+    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SovSpecId::Tangerine);
 
     let result = evm.get_transaction_by_block_hash_and_index(
         [0u8; 32].into(),
@@ -114,6 +123,7 @@ fn get_transaction_by_block_hash_and_index_test() {
             Some(BlockNumberOrTag::Number(2)),
             Some(false),
             &mut working_set,
+            &ledger_db,
         )
         .unwrap()
         .unwrap()
@@ -142,12 +152,13 @@ fn get_transaction_by_block_hash_and_index_test() {
 
 #[test]
 fn get_transaction_by_block_number_and_index_test() {
-    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Tangerine);
+    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SovSpecId::Tangerine);
 
     let result = evm.get_transaction_by_block_number_and_index(
         BlockNumberOrTag::Number(100),
         U64::from(0),
         &mut working_set,
+        &ledger_db,
     );
 
     assert_eq!(result, Ok(None));
@@ -157,6 +168,7 @@ fn get_transaction_by_block_number_and_index_test() {
         BlockNumberOrTag::Number(1),
         U64::from(6),
         &mut working_set,
+        &ledger_db,
     );
 
     assert_eq!(result, Ok(None));
@@ -167,6 +179,7 @@ fn get_transaction_by_block_number_and_index_test() {
             BlockNumberOrTag::Number(1),
             U64::from(i),
             &mut working_set,
+            &ledger_db,
         );
 
         assert!(result.unwrap().is_some());
@@ -183,6 +196,7 @@ fn get_transaction_by_block_number_and_index_test() {
             BlockNumberOrTag::Number(2),
             U64::from(i),
             &mut working_set,
+            &ledger_db,
         );
 
         assert_eq!(result.unwrap().unwrap().tx_hash(), *tx_hash);
@@ -191,71 +205,104 @@ fn get_transaction_by_block_number_and_index_test() {
 
 #[test]
 fn get_block_transaction_count_by_hash_test() {
-    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Tangerine);
+    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SovSpecId::Tangerine);
 
-    let result =
-        evm.eth_get_block_transaction_count_by_hash(B256::from([0u8; 32]), &mut working_set);
+    let result = evm.eth_get_block_transaction_count_by_hash(
+        B256::from([0u8; 32]),
+        &mut working_set,
+        &ledger_db,
+    );
     // Non-existent blockhash should return None
     assert_eq!(result, Ok(None));
 
     let block_hash_1 = evm
-        .get_block_by_number(Some(BlockNumberOrTag::Number(1)), None, &mut working_set)
+        .get_block_by_number(
+            Some(BlockNumberOrTag::Number(1)),
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
         .unwrap()
         .unwrap()
         .header
         .hash;
 
-    let result = evm.eth_get_block_transaction_count_by_hash(block_hash_1, &mut working_set);
+    let result =
+        evm.eth_get_block_transaction_count_by_hash(block_hash_1, &mut working_set, &ledger_db);
 
     assert_eq!(result, Ok(Some(U256::from(3))));
 
     let block_hash_2 = evm
-        .get_block_by_number(Some(BlockNumberOrTag::Number(2)), None, &mut working_set)
+        .get_block_by_number(
+            Some(BlockNumberOrTag::Number(2)),
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
         .unwrap()
         .unwrap()
         .header
         .hash;
 
-    let result = evm.eth_get_block_transaction_count_by_hash(block_hash_2, &mut working_set);
+    let result =
+        evm.eth_get_block_transaction_count_by_hash(block_hash_2, &mut working_set, &ledger_db);
     assert_eq!(result, Ok(Some(U256::from(4))));
 
     let block_hash_3 = evm
-        .get_block_by_number(Some(BlockNumberOrTag::Number(3)), None, &mut working_set)
+        .get_block_by_number(
+            Some(BlockNumberOrTag::Number(3)),
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
         .unwrap()
         .unwrap()
         .header
         .hash;
 
-    let result = evm.eth_get_block_transaction_count_by_hash(block_hash_3, &mut working_set);
+    let result =
+        evm.eth_get_block_transaction_count_by_hash(block_hash_3, &mut working_set, &ledger_db);
 
     assert_eq!(result, Ok(Some(U256::from(2))));
 }
 
 #[test]
 fn get_block_transaction_count_by_number_test() {
-    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Tangerine);
+    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SovSpecId::Tangerine);
 
-    let result = evm
-        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(5), &mut working_set);
+    let result = evm.eth_get_block_transaction_count_by_number(
+        BlockNumberOrTag::Number(5),
+        &mut working_set,
+        &ledger_db,
+    );
     // Non-existent block number should return None
     assert_eq!(result, Ok(None));
 
-    let result = evm
-        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(1), &mut working_set);
+    let result = evm.eth_get_block_transaction_count_by_number(
+        BlockNumberOrTag::Number(1),
+        &mut working_set,
+        &ledger_db,
+    );
     assert_eq!(result, Ok(Some(U256::from(3))));
 
-    let result = evm
-        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(2), &mut working_set);
+    let result = evm.eth_get_block_transaction_count_by_number(
+        BlockNumberOrTag::Number(2),
+        &mut working_set,
+        &ledger_db,
+    );
     assert_eq!(result, Ok(Some(U256::from(4))));
 
-    let result = evm
-        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(3), &mut working_set);
+    let result = evm.eth_get_block_transaction_count_by_number(
+        BlockNumberOrTag::Number(3),
+        &mut working_set,
+        &ledger_db,
+    );
     assert_eq!(result, Ok(Some(U256::from(2))));
 }
 
 #[test]
 fn call_test() {
-    let (evm, mut working_set, _, signer, _) = init_evm(SovSpecId::Tangerine);
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SovSpecId::Tangerine);
 
     let fail_result = evm.get_call_inner(
         TransactionRequest {
@@ -282,7 +329,8 @@ fn call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert_eq!(
@@ -295,7 +343,12 @@ fn call_test() {
     let call_data = contract.get_call_data();
 
     let block_hash_3 = evm
-        .get_block_by_number(Some(BlockNumberOrTag::Number(3)), None, &mut working_set)
+        .get_block_by_number(
+            Some(BlockNumberOrTag::Number(3)),
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
         .unwrap()
         .unwrap()
         .header
@@ -326,7 +379,8 @@ fn call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     let nonce_too_low_result = evm.get_call_inner(
@@ -354,7 +408,8 @@ fn call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_tangerine(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert_eq!(call_with_hash_nonce_too_low_result, nonce_too_low_result);
@@ -362,7 +417,12 @@ fn call_test() {
     working_set.unset_archival_version();
 
     let latest_block_hash = evm
-        .get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set)
+        .get_block_by_number(
+            Some(BlockNumberOrTag::Latest),
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
         .unwrap()
         .unwrap()
         .header
@@ -395,7 +455,8 @@ fn call_test() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -426,7 +487,8 @@ fn call_test() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -464,7 +526,8 @@ fn call_test() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_tangerine(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -738,7 +801,7 @@ fn test_queries_with_forks() {
     // 0x819c5497b157177315e1204f52e588b393771719 -- Storage contract
     // 0x5ccda3e6d071a059f00d4f3f25a1adc244eb5c93 -- Caller contract
 
-    let (evm, mut working_set, signer, _l2_height) = init_evm_with_caller_contract();
+    let (evm, mut working_set, signer, _l2_height, ledger_db) = init_evm_with_caller_contract();
 
     let fork_fn = |_: u64| Fork::new(SovSpecId::Tangerine, 3);
 
@@ -773,6 +836,7 @@ fn test_queries_with_forks() {
         tx_req_contract_call.clone(),
         None,
         &mut working_set,
+        &ledger_db,
         fork_fn,
     );
     assert_eq!(no_access_list.clone().unwrap(), U256::from(30860));
@@ -782,6 +846,7 @@ fn test_queries_with_forks() {
             tx_req_contract_call.clone(),
             None,
             &mut working_set,
+            &ledger_db,
             fork_fn,
         )
         .unwrap();
@@ -798,6 +863,7 @@ fn test_queries_with_forks() {
             tx_req_contract_call.clone(),
             None,
             &mut working_set,
+            &ledger_db,
             fork_fn,
         )
         .unwrap();
@@ -818,7 +884,12 @@ fn test_queries_with_forks() {
         ..tx_req_contract_call.clone()
     };
 
-    let with_access_list =
-        evm.eth_estimate_gas_inner(tx_req_with_access_list, None, &mut working_set, fork_fn);
+    let with_access_list = evm.eth_estimate_gas_inner(
+        tx_req_with_access_list,
+        None,
+        &mut working_set,
+        &ledger_db,
+        fork_fn,
+    );
     assert_eq!(with_access_list.unwrap(), U256::from(30558));
 }

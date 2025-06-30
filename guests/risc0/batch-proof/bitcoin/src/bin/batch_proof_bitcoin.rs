@@ -42,6 +42,35 @@ const SEQUENCER_PUBLIC_KEY: [u8; 33] = {
     }
 };
 
+const INITIAL_PREV_L2_BLOCK_HASH: Option<[u8; 32]> = {
+    let hex_block_hash: Option<&str> = match NETWORK {
+        Network::Mainnet => Some("0000000000000000000000000000000000000000000000000000000000000000"),
+        Network::Testnet => Some("deca8bf8314fc46e772898f7a4df864eb4b635ae9d1bbccab25a87e52f68902c"), // block #9056999
+        Network::Devnet => Some("0000000000000000000000000000000000000000000000000000000000000000"),
+        Network::Nightly => {
+            match option_env!("INITIAL_PREV_L2_BLOCK_HASH") {
+                Some(hex) => Some(hex),
+                None => Some("0000000000000000000000000000000000000000000000000000000000000000"),
+            }
+        }
+        Network::TestNetworkWithForks => {
+            match option_env!("INITIAL_PREV_L2_BLOCK_HASH") {
+                Some(hex) => Some(hex),
+                None => None,
+            }
+        }
+    };
+
+    match hex_block_hash {
+        Some(hex) => match const_hex::const_decode_to_array(hex.as_bytes()) {
+            Ok(hash) => Some(hash),
+            Err(_) => panic!("INITIAL_PREV_L2_BLOCK_HASH must be valid 32-byte hex string"),
+        },
+        None => None,
+    }
+};
+
+
 const FORKS: &[Fork] = match NETWORK {
     Network::Mainnet => &MAINNET_FORKS,
     Network::Testnet => &TESTNET_FORKS,
@@ -72,11 +101,21 @@ pub fn main() {
         CitreaRuntime<_, _>,
     > = StateTransitionVerifier::new(stf);
 
+    let forks = get_forks();
+
+    // if all forks enabled, we can't know the previous l2 block hash
+    let initial_prev_l2_block_hash = if forks == &ALL_FORKS {
+        None
+    } else {
+        INITIAL_PREV_L2_BLOCK_HASH
+    };
+
     let out = stf_verifier.run_sequencer_commitments_in_da_slot(
         &guest,
         storage,
         &SEQUENCER_PUBLIC_KEY,
-        get_forks(),
+        initial_prev_l2_block_hash,
+        forks,
     );
 
     guest.commit(&out);

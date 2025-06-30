@@ -5,6 +5,7 @@ use alloy_primitives::U64;
 use anyhow::{bail, Context as _};
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
+use citrea_primitives::merkle::compute_tx_hashes;
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -25,7 +26,7 @@ use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, warn};
 
-use crate::utils::{compute_tx_hashes, decode_sov_tx_and_update_short_header_proofs};
+use crate::utils::decode_sov_tx_and_update_short_header_proofs;
 
 pub struct ProcessL2BlockResult {
     pub l2_height: u64,
@@ -122,7 +123,7 @@ pub async fn process_l2_block<Da: DaService, DB: SharedLedgerOps>(
 
     storage_manager.finalize_storage(l2_block_result.change_set);
 
-    let tx_hashes = compute_tx_hashes::<DefaultContext>(&l2_block.txs, current_spec);
+    let tx_hashes = compute_tx_hashes(&l2_block.txs, current_spec);
     let tx_bodies = if include_tx_body { tx_bodies } else { None };
 
     ledger_db.commit_l2_block(l2_block, tx_hashes, tx_bodies)?;

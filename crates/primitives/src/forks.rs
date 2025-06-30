@@ -63,12 +63,14 @@ pub const TESTNET_FORKS: [Fork; 3] = [
 
 pub const DEVNET_FORKS: [Fork; 1] = [Fork::new(SpecId::Tangerine, 0)];
 
-pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::Tangerine, 0)];
+pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::latest(), 0)];
 
-pub const ALL_FORKS: [Fork; 3] = [
+pub const ALL_FORKS: [Fork; 4] = [
     Fork::new(SpecId::Genesis, 0),
     Fork::new(SpecId::Kumquat, 100),
     Fork::new(SpecId::Tangerine, 200),
+    Fork::new(SpecId::Fork3, 210),
+    // Add the next fork here when needed
 ];
 
 const _CHECK_FORKS: () = {
@@ -87,8 +89,15 @@ const _CHECK_FORKS: () = {
 // If it is 0, it errors out because l2 block 0 is not valid
 // So for only in tests, if tangerine activation height is 0, return 1
 // In production, it will return whatever the activation height is
+// If network starts from Fork3, use 1 as the activation height
+// as we'd like to behave the same way
 pub fn get_tangerine_activation_height_non_zero() -> u64 {
     let forks = get_forks();
+
+    if forks[0].spec_id > SpecId::Tangerine {
+        return 1;
+    }
+
     let fork = forks
         .iter()
         .find(|f| f.spec_id == SpecId::Tangerine)

@@ -1,3 +1,7 @@
+//! This crate contains the parallel proving services for the zkVM.
+//! The main entry point is the `ParallelProverService` struct, which is capable of invoking the zkVM proving sessions in parallel.
+//! It is useful for managing multiple proof sessions with a limited number of parallel slots.
+
 mod parallel;
 pub use parallel::*;
 
