@@ -91,25 +91,25 @@ pub fn register_healthcheck_rpc_light_client_prover<T: Send + Sync + 'static, Da
             )
         };
 
-        let exponential_backoff = ExponentialBackoff::default();
-        let tx_raw = {
-            let res = retry_backoff(exponential_backoff.clone(), || {
-                let da_service = da_service.clone();
-                async move {
-                    da_service
-                        .get_head_block_header()
-                        .await
-                        .map_err(|e| match e {
-                            e => backoff::Error::transient(e),
-                        })
-                }
-            })
-            .await;
-            match res {
-                Ok(r) => Ok::<(), ErrorObjectOwned>(()),
-                Err(e) => Err(error(&format!("Failed to get raw transaction info: {}", e))),
-            }
+        let exponential_backoff = ExponentialBackoff {
+            max_elapsed_time: Some(Duration::from_secs(120)),
+            ..Default::default()
         };
+
+        let res = retry_backoff(exponential_backoff.clone(), || {
+            let da_service = da_service.clone();
+            async move {
+                da_service.get_head_block_header().await.map_err(|e| {
+                    let e = e;
+                    backoff::Error::transient(e)
+                })
+            }
+        })
+        .await;
+        match res {
+            Ok(_) => Ok::<(), ErrorObjectOwned>(()),
+            Err(e) => Err(error(&format!("Failed to get raw transaction info: {}", e))),
+        }
     })?;
 
     rpc_methods.merge(rpc)
