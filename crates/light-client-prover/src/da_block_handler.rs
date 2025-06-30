@@ -130,7 +130,7 @@ where
     /// This method continuously:
     /// 1. Syncs new L1 blocks from the DA layer
     /// 2. Processes queued blocks to generate light client proofs and move the light client state forward
-
+    ///
     /// # Arguments
     /// * `last_l1_height_scanned` - `StartVariant` to start syncing from
     /// * `shutdown_signal` - Signal to gracefully shut down
