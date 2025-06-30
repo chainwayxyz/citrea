@@ -65,7 +65,8 @@ pub struct RunL1BlockResult<S: Storage> {
     last_sequencer_commitment_index: u32,
 }
 
-/// LightClientProofCircuit struct implements the functionality of the light client proof circuit. Contains methods that define the logic of the circuit, and holds the types of the storage, DA spec, and zkVM.
+/// LightClientProofCircuit struct implements the functionality of the light client proof circuit. 
+/// Contains methods that define the logic of the circuit, and holds the types of the storage, DA spec, and zkVM.
 /// 
 /// # Type Parameters
 /// * `S` - Storage type implementing the Storage trait
@@ -352,7 +353,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// - The last sequencer commitment index, last L2 height, and L2 state root are retrieved from the previous light client proof.  
     /// - If no previous proof exists, (0, 0, genesis root) is used as the starting point, and the initial method IDs are set.
     /// - Relevant transactions are processed:
-    ///    - Complete proofs are processed with the `process_complete_proof` method.
+    ///    - Complete proofs are decompressed, and processed with the `process_complete_proof` method.
     ///    - Chunk proofs are stored in JMT to construct the complete proof body later.
     ///    - Aggregate proofs are processed by concatenating the chunks and processing the complete proof as above.
     ///    - Sequencer commitments are stored in the JMT state by their index.
