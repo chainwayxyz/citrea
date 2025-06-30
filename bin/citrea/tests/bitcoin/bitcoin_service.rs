@@ -1,5 +1,3 @@
-mod test_utils;
-
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
@@ -19,7 +17,9 @@ use reth_tasks::TaskManager;
 use sov_rollup_interface::da::{BlobReaderTrait, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::Network;
-use test_utils::{generate_mock_txs, get_citrea_path, get_default_service, DEFAULT_DA_PRIVATE_KEY};
+
+use crate::bitcoin::get_citrea_path;
+use crate::bitcoin::utils::{generate_mock_txs, get_default_service, SEQUENCER_DA_PRIVATE_KEY};
 
 struct BitcoinServiceTest {
     task_manager: TaskManager,
@@ -128,7 +128,7 @@ impl TestCase for BitcoinServiceTest {
 
         {
             let secp = bitcoin::secp256k1::Secp256k1::new();
-            let secret = SecretKey::from_str(DEFAULT_DA_PRIVATE_KEY).unwrap();
+            let secret = SecretKey::from_str(SEQUENCER_DA_PRIVATE_KEY).unwrap();
             let da_pubkey = secret.keypair(&secp).public_key().serialize().to_vec();
 
             let wrong_secret = SecretKey::from_str(
@@ -162,7 +162,6 @@ impl TestCase for BitcoinServiceTest {
     }
 }
 
-#[cfg(feature = "native")]
 #[tokio::test]
 async fn test_bitcoin_service() -> Result<()> {
     TestCaseRunner::new(BitcoinServiceTest {

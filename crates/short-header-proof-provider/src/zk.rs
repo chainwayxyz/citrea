@@ -5,7 +5,7 @@ use std::ops::RangeInclusive;
 
 use borsh::BorshDeserialize;
 use sov_modules_api::DaSpec;
-use sov_rollup_interface::da::VerifableShortHeaderProof;
+use sov_rollup_interface::da::VerifiableShortHeaderProof;
 
 use super::ShortHeaderProofProvider;
 use crate::ShortHeaderProofProviderError;
@@ -77,7 +77,10 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
         unimplemented!("clear_queried_hashes is not implemented for zk provider");
     }
 
-    fn take_queried_hashes(&self, _l2_range: RangeInclusive<u64>) -> Vec<[u8; 32]> {
+    fn take_queried_hashes(
+        &self,
+        _l2_range: RangeInclusive<u64>,
+    ) -> Result<Vec<[u8; 32]>, ShortHeaderProofProviderError> {
         unimplemented!("take_queried_hashes is not implemented for zk provider");
     }
 

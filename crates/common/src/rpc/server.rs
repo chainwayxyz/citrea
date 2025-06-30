@@ -15,6 +15,7 @@ pub fn start_rpc_server(
     methods: RpcModule<()>,
     channel: Option<oneshot::Sender<SocketAddr>>,
 ) {
+    info!("Starting rpc server with config : {rpc_config}");
     let bind_host = match rpc_config.bind_host.parse() {
         Ok(bind_host) => bind_host,
         Err(e) => {

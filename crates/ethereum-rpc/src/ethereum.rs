@@ -50,8 +50,12 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         l2_block_rx: Option<broadcast::Receiver<u64>>,
     ) -> Self {
         let evm = Evm::<C>::default();
-        let gas_price_oracle =
-            GasPriceOracle::new(evm, gas_price_oracle_config, fee_history_cache_config);
+        let gas_price_oracle = GasPriceOracle::new(
+            evm,
+            gas_price_oracle_config,
+            fee_history_cache_config,
+            ledger_db.clone(),
+        );
 
         let rollup = "citrea";
         let arch = std::env::consts::ARCH;
@@ -61,8 +65,8 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
 
         let trace_cache = Mutex::new(LruMap::new(ByLength::new(MAX_TRACE_BLOCK)));
 
-        let subscription_manager =
-            l2_block_rx.map(|rx| SubscriptionManager::new::<C>(storage.clone(), rx));
+        let subscription_manager = l2_block_rx
+            .map(|rx| SubscriptionManager::new::<C>(storage.clone(), ledger_db.clone(), rx));
 
         Self {
             da_service,
@@ -80,7 +84,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
     pub(crate) fn max_fee_per_gas(&self, working_set: &mut WorkingSet<C::Storage>) -> (U256, U256) {
         let evm = Evm::<C>::default();
         let base_fee = evm
-            .get_block_by_number(None, None, working_set)
+            .get_block_by_number(None, None, working_set, &self.ledger_db)
             .unwrap()
             .unwrap()
             .header

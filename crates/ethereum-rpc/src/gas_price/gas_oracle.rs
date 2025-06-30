@@ -16,6 +16,7 @@ use parking_lot::Mutex;
 use reth_rpc_eth_api::RpcTransaction;
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use serde::{Deserialize, Serialize};
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::WorkingSet;
 use tracing::warn;
 
@@ -108,6 +109,8 @@ pub struct GasPriceOracle<C: sov_modules_api::Context> {
     last_price: Mutex<GasPriceOracleResult>,
     /// Fee history cache with lifetime
     fee_history_cache: Mutex<FeeHistoryCache<C>>,
+    /// LedgerDb
+    ledger_db: LedgerDB,
 }
 
 impl<C: sov_modules_api::Context> GasPriceOracle<C> {
@@ -116,6 +119,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         provider: Evm<C>,
         mut oracle_config: GasPriceOracleConfig,
         fee_history_config: FeeHistoryCacheConfig,
+        ledger_db: LedgerDB,
     ) -> Self {
         // sanitize the percentile to be less than 100
         if oracle_config.percentile > 100 {
@@ -125,7 +129,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
 
         let max_header_history = oracle_config.max_header_history as u32;
 
-        let block_cache = BlockCache::new(max_header_history, provider.clone());
+        let block_cache = BlockCache::new(max_header_history, provider.clone(), ledger_db.clone());
         let fee_history_cache = FeeHistoryCache::new(fee_history_config, block_cache);
 
         Self {
@@ -133,6 +137,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
             oracle_config,
             last_price: Default::default(),
             fee_history_cache: Mutex::new(fee_history_cache),
+            ledger_db,
         }
     }
 
@@ -164,9 +169,9 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
             block_count = max_fee_history
         }
 
-        let end_block = self
-            .provider
-            .block_number_for_id(&newest_block, working_set)?;
+        let end_block =
+            self.provider
+                .block_number_for_id(&newest_block, working_set, &self.ledger_db)?;
 
         // need to add 1 to the end block to get the correct (inclusive) range
         let end_block_plus = end_block + 1;
@@ -247,7 +252,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
     pub fn suggest_tip_cap(&self, working_set: &mut WorkingSet<C::Storage>) -> EthResult<u128> {
         let header = &self
             .provider
-            .get_block_by_number(None, None, working_set)
+            .get_block_by_number(None, None, working_set, &self.ledger_db)
             .unwrap()
             .unwrap()
             .header;

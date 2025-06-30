@@ -60,19 +60,11 @@ fn test_native_clear_and_take_queried_hashes() {
         .get_and_verify_short_header_proof_by_l1_hash(block_hash, [2u8; 32], 100, [3u8; 32], 1, 50)
         .unwrap();
 
-    assert!(!native_service
-        .queried_and_verified_hashes
-        .lock()
-        .unwrap()
-        .is_empty());
+    assert!(!native_service.queried_and_verified_hashes.lock().is_empty());
 
     native_service.clear_queried_hashes();
 
-    assert!(native_service
-        .queried_and_verified_hashes
-        .lock()
-        .unwrap()
-        .is_empty());
+    assert!(native_service.queried_and_verified_hashes.lock().is_empty());
 
     // test with multiple hashes
     let block_hash1 = [1u8; 32];
@@ -108,12 +100,12 @@ fn test_native_clear_and_take_queried_hashes() {
         .get_and_verify_short_header_proof_by_l1_hash(block_hash2, [5u8; 32], 101, [6u8; 32], 1, 51)
         .unwrap();
 
-    let hashes = native_service.take_queried_hashes(50..=51);
+    let hashes = native_service.take_queried_hashes(50..=51).unwrap();
     assert_eq!(hashes.len(), 2);
     assert!(hashes.contains(&block_hash1));
     assert!(hashes.contains(&block_hash2));
 
-    let hashes = native_service.take_queried_hashes(50..=50);
+    let hashes = native_service.take_queried_hashes(50..=50).unwrap();
     assert_eq!(hashes.len(), 1);
     assert!(hashes.contains(&block_hash1));
 }
@@ -186,7 +178,7 @@ fn test_native_to_zk_proof_flow() {
         assert!(ok);
     }
 
-    let verified_hashes = native_service.take_queried_hashes(50..=52);
+    let verified_hashes = native_service.take_queried_hashes(50..=52).unwrap();
     assert_eq!(verified_hashes.len(), 3);
     assert_eq!(verified_hashes, block_hashes);
 
@@ -263,7 +255,7 @@ fn test_native_to_zk_invalid_proof_flow() {
         .unwrap();
     assert!(!ok);
 
-    let verified_hashes = native_service.take_queried_hashes(50..=50);
+    let verified_hashes = native_service.take_queried_hashes(50..=50).unwrap();
     assert!(verified_hashes.is_empty());
 
     let proofs_queue = VecDeque::from(vec![proof_bytes.clone(), proof_bytes.clone(), proof_bytes]);
@@ -322,7 +314,7 @@ fn test_native_to_zk_first_block_flow() {
         .unwrap();
     assert!(ok);
 
-    let verified_hashes = native_service.take_queried_hashes(1..=1);
+    let verified_hashes = native_service.take_queried_hashes(1..=1).unwrap();
     assert_eq!(verified_hashes, vec![block_hash]);
 
     let mut proofs_queue = VecDeque::new();

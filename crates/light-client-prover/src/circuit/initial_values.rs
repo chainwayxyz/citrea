@@ -25,11 +25,18 @@ const fn decode_to_u32_array(hex: &str) -> [u32; 8] {
     }
 }
 
+const fn non_empty_slice<T>(slice: &[T]) -> &[T] {
+    assert!(!slice.is_empty(), "Empty slice passed to non_empty_slice");
+    slice
+}
+
 /// Module containing initial values for the mock DA specification.
 pub mod mockda {
+    use super::non_empty_slice;
+
     /// Genesis L2 genesis root for the mock DA.
     pub const GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
-        b"8a2668ef91b369dfa05fb3b8c93cbdf98fc88aad1a801d76ec8a64d742a2257e",
+        b"658e15edbc2b4168ac974778a2b516955589122d1a8309a7aa5afe8e22647c18",
     ) {
         Ok(root) => root,
         Err(_) => panic!("Can't happen"),
@@ -37,7 +44,7 @@ pub mod mockda {
 
     /// Initial batch proof method IDs for the mock DA.
     pub const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] =
-        &[(0, citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID)];
+        non_empty_slice(&[(0, citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID)]);
 
     /// Public key of the batch prover in the mock DA.    
     pub const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
@@ -67,7 +74,7 @@ pub mod mockda {
 
 /// Module containing initial values for the Bitcoin DA (Data Availability) specification.
 pub mod bitcoinda {
-    use super::decode_to_u32_array;
+    use super::{decode_to_u32_array, non_empty_slice};
 
     /// Genesis L2 root for the Bitcoin DA on Mainnet.
     pub const MAINNET_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
@@ -100,7 +107,7 @@ pub mod bitcoinda {
     pub const NIGHTLY_GENESIS_ROOT: [u8; 32] = {
         let hex_root = match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
-            None => "8a2668ef91b369dfa05fb3b8c93cbdf98fc88aad1a801d76ec8a64d742a2257e",
+            None => "2aa61219ad6eca9c511b2e360d2e74d084f0a2a52859954a5dd7cfd38eef4868",
         };
 
         match const_hex::const_decode_to_array(hex_root.as_bytes()) {
@@ -116,7 +123,7 @@ pub mod bitcoinda {
     pub const TEST_NETWORK_WITH_FORKS_GENESIS_ROOT: [u8; 32] = {
         let hex_root = match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
-            None => "8a2668ef91b369dfa05fb3b8c93cbdf98fc88aad1a801d76ec8a64d742a2257e",
+            None => "2aa61219ad6eca9c511b2e360d2e74d084f0a2a52859954a5dd7cfd38eef4868",
         };
 
         match const_hex::const_decode_to_array(hex_root.as_bytes()) {
@@ -124,38 +131,40 @@ pub mod bitcoinda {
             Err(_) => panic!("L2_GENESIS_ROOT must be valid 32-byte hex string"),
         }
     };
-
+    
     /// Initial batch proof method IDs for the Bitcoin DA on Mainnet.
-    pub const MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[(0, [0; 8])];
+    pub const MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] =
+        non_empty_slice(&[(0, [0; 8])]);
 
     /// Initial batch proof method IDs for the Bitcoin DA on Testnet.
-    pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[(
+    pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = non_empty_slice(&[(
         0,
         decode_to_u32_array("0baedfda1cce68a982e96cc5f155699dadd95b6f47cb4efb45ef6b0bc510b1ba"),
-    )];
+    )]);
 
     /// Initial batch proof method IDs for the Bitcoin DA on Devnet.
-    pub const DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[(
+    pub const DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = non_empty_slice(&[(
         0,
         decode_to_u32_array("aba3ac6bc099b8669930c9a488f7c94d4e829d75800dbe77db115c830a27c246"),
-    )];
+    )]);
 
     /// Initial batch proof method IDs for the Bitcoin DA on Nightly.
     /// This method ID is set at compile time via the `BATCH_PROOF_METHOD_ID` environment variable.
     /// If the variable is not set, it defaults to the method ID from the guest compilation via the `citrea_risc0_batch_proof` crate.
     /// Method IDs are paired with activation height 0.
     pub const NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
-        match option_env!("BATCH_PROOF_METHOD_ID") {
+        const METHOD_IDS: &[(u64, [u32; 8])] = match option_env!("BATCH_PROOF_METHOD_ID") {
             Some(hex_method_id) => &[(0, decode_to_u32_array(hex_method_id))],
             None => &[(0, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID)],
-        }
+        };
+        non_empty_slice(METHOD_IDS)
     };
 
     /// Initial batch proof method IDs for the Bitcoin DA on Test Network with Forks. 
     /// This method ID is set at compile time via the `BATCH_PROOF_METHOD_ID` environment variable, paired with activation height 0.
     /// If the variable is not set, the method ID from the guest compilation is appended to the predefined method IDs.
     pub const TEST_NETWORK_WITH_FORKS_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
-        match option_env!("BATCH_PROOF_METHOD_ID") {
+        const METHOD_IDS: &[(u64, [u32; 8])] = match option_env!("BATCH_PROOF_METHOD_ID") {
             Some(hex_method_id) => &[(0, decode_to_u32_array(hex_method_id))],
             None => &[
                 (
@@ -170,9 +179,11 @@ pub mod bitcoinda {
                         "7d28b6b03836af95eedd4c0aedfe93ed89d28356f0714dd01009a0b892585c03",
                     ),
                 ),
+                (100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
                 (200, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
             ],
-        }
+        };
+        non_empty_slice(METHOD_IDS)
     };
 
     /// Public key of the batch prover in the Bitcoin DA on Mainnet.
@@ -456,5 +467,26 @@ impl InitialValueProvider<BitcoinSpec> for Network {
                 bitcoinda::TEST_NETWORK_WITH_FORKS_SEQUENCER_DA_PUBLIC_KEY
             }
         }
+    }
+}
+
+mod tests {
+    #[test]
+    fn test_non_empty_slice_check() {
+        let slice: &[(u64, [u32; 8])] = &[];
+        let result = std::panic::catch_unwind(|| super::non_empty_slice(slice));
+        assert!(result.is_err());
+
+        let slice: &[u32] = &[];
+        let result = std::panic::catch_unwind(|| super::non_empty_slice(slice));
+        assert!(result.is_err());
+
+        let slice: &[(u64, [u32; 8])] = &[(0, [0; 8])];
+        let result = super::non_empty_slice(slice);
+        assert_eq!(result, slice);
+
+        let slice = &[0];
+        let result = super::non_empty_slice(slice);
+        assert_eq!(result, slice);
     }
 }

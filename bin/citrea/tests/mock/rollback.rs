@@ -10,8 +10,8 @@ use alloy_primitives::{Address, U256};
 use alloy_rpc_types::{BlockId, BlockNumberOrTag};
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
-use citrea_storage_ops::pruning::types::StorageNodeType;
 use citrea_storage_ops::rollback::Rollback;
+use citrea_storage_ops::types::StorageNodeType;
 use futures::FutureExt;
 use reth_tasks::TaskManager;
 use sov_db::ledger_db::migrations::copy_db_dir_recursive;
@@ -181,10 +181,9 @@ async fn rollback_node(
     rollback
         .execute(
             node_type,
-            50,
-            rollback_l2_height,
-            rollback_l1_height,
-            commitment_index,
+            Some(rollback_l2_height),
+            Some(rollback_l1_height),
+            Some(commitment_index),
         )
         .await
         .unwrap();

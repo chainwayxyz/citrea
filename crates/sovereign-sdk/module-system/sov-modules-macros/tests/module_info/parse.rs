@@ -64,7 +64,7 @@ fn main() {
     );
 
     use sov_modules_api::digest::Digest;
-    let mut hasher = <C as sov_modules_api::Spec>::Hasher::new();
+    let mut hasher = sha2::Sha256::new();
     // hasher.update("trybuild000::test_module/TestStruct/".as_bytes());
     hasher.update("TestStruct/".as_bytes());
     let hash: [u8; 32] = hasher.finalize().into();

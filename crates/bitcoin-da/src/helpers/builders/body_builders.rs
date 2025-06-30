@@ -28,7 +28,7 @@ use crate::spec::utxo::UTXO;
 use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
 pub(crate) enum RawTxData {
-    /// compress(borsh(DataOnDa::Complete(Proof)))
+    /// borsh(DataOnDa::Complete(compress(Proof)))
     Complete(Vec<u8>),
     /// let compressed = compress(borsh(Proof))
     /// let chunks = compressed.chunks(MAX_TX_BODY_SIZE)

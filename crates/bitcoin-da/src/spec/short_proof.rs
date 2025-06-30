@@ -2,7 +2,7 @@ use bitcoin::hashes::Hash;
 use bitcoin::script;
 use sov_rollup_interface::da::{
     BlockHeaderTrait, L1UpdateSystemTransactionInfo, ShortHeaderProofVerificationError,
-    VerifableShortHeaderProof,
+    VerifiableShortHeaderProof,
 };
 
 use super::header::HeaderWrapper;
@@ -31,7 +31,7 @@ impl BitcoinHeaderShortProof {
     }
 }
 
-impl VerifableShortHeaderProof for BitcoinHeaderShortProof {
+impl VerifiableShortHeaderProof for BitcoinHeaderShortProof {
     fn verify(&self) -> Result<L1UpdateSystemTransactionInfo, ShortHeaderProofVerificationError> {
         // First verify that the precomputed (from circuit input) hash actually matches
         // the hash of the header
@@ -163,7 +163,7 @@ mod test {
     use bitcoin::hashes::Hash;
     use bitcoin::BlockHash;
     use hex::FromHex;
-    use sov_rollup_interface::da::{ShortHeaderProofVerificationError, VerifableShortHeaderProof};
+    use sov_rollup_interface::da::{ShortHeaderProofVerificationError, VerifiableShortHeaderProof};
     use sov_rollup_interface::services::da::DaService;
 
     use super::BitcoinHeaderShortProof;

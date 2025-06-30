@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use anyhow::bail;
 use async_trait::async_trait;
+use bitcoin::hashes::Hash;
 use bitcoin::{Amount, Txid};
 use bitcoin_da::monitoring::TxStatus;
 use bitcoin_da::rpc::DaRpcClient;
@@ -181,6 +182,20 @@ impl TestCase for DaMonitoringTest {
             .da_get_tx_status(mempool0[0])
             .await?;
         assert!(matches!(tx_status, Some(TxStatus::Pending { .. })));
+
+        let monitored_tx = sequencer
+            .client
+            .http_client()
+            .da_get_monitored_transaction(pending_txs[0].txid, false)
+            .await?;
+        assert_eq!(pending_txs[0], monitored_tx.unwrap());
+
+        let non_monitored_tx = sequencer
+            .client
+            .http_client()
+            .da_get_monitored_transaction(Txid::all_zeros(), false)
+            .await?;
+        assert!(non_monitored_tx.is_none());
 
         da.generate(1).await?;
 

@@ -200,6 +200,9 @@ fn verify_system_tx<C: sov_modules_api::Context>(
             Err(ShortHeaderProofProviderError::ShortHeaderProofNotFound) => {
                 return Err(L2BlockModuleCallError::ShortHeaderProofNotFound);
             }
+            Err(ShortHeaderProofProviderError::VectorAllocationFailed(e)) => {
+                return Err(L2BlockModuleCallError::ShortHeaderProofAllocationError(e));
+            }
         }
     }
 

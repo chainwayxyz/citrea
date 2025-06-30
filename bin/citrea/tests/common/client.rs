@@ -26,6 +26,7 @@ use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
+use sov_db::schema::types::L2HeightAndIndex;
 use sov_ledger_rpc::{HexHash, LedgerRpcClient};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
@@ -801,6 +802,20 @@ impl TestClient {
     pub(crate) async fn citrea_sync_status(&self) -> SyncStatus {
         self.http_client
             .request("citrea_syncStatus", rpc_params![])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn get_last_committed_l2_height(&self) -> Option<L2HeightAndIndex> {
+        self.http_client
+            .request("citrea_getLastCommittedL2Height", rpc_params![])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn get_last_proven_l2_height(&self) -> Option<L2HeightAndIndex> {
+        self.http_client
+            .request("citrea_getLastProvenL2Height", rpc_params![])
             .await
             .unwrap()
     }

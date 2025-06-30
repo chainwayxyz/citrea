@@ -6,7 +6,7 @@ use sov_schema_db::DB;
 use tracing::debug;
 
 use crate::log_result_or_error;
-use crate::pruning::types::StorageNodeType;
+use crate::types::StorageNodeType;
 
 mod l2_blocks;
 mod slots;

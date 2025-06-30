@@ -7,6 +7,9 @@ use sov_modules_api::{
     WorkingSet,
 };
 
+#[derive(Clone)]
+struct LedgerDB {}
+
 #[derive(ModuleInfo)]
 pub struct QueryModule<C: Context> {
     #[address]

@@ -70,19 +70,10 @@ pub struct L2BlockResult<Cs, W, SL> {
 #[derive(Debug, PartialEq)]
 /// Error in the l2 block itself
 pub enum L2BlockError {
-    /// The public key of the sequencer (known by a full node or prover) does not match
-    /// the public key in the l2 block
-    SequencerPublicKeyMismatch,
-    /// The DA hash in the l2 block does not match the hash of the DA block provided
-    InvalidDaHash,
-    /// The DA tx commitment in the l2 block does not match the tx commitment of the DA block provided
-    InvalidDaTxsCommitment,
     /// The hash of the l2 block is incorrect
     InvalidL2BlockHash,
-    /// The l2 block signature is incorrect
+    /// The public key of the sequencer (known by a full node or prover) does not verify the l2 block signature
     InvalidL2BlockSignature,
-    /// The l2 block includes a non-serializable sov-tx
-    NonSerializableSovTx,
     /// The l2 block includes a sov-tx that can not be signature verified
     InvalidSovTxSignature,
     /// The l2 block includes a sov-tx that can not be runtime decoded
@@ -139,6 +130,9 @@ pub enum L2BlockModuleCallError {
     ShortHeaderProofNotFound,
     /// Short Header Proof Verification Error
     ShortHeaderProofVerificationError,
+    /// Some other error related to short header proof
+    /// This will occur if mutex is poisoned or vector reservation fails in native side
+    ShortHeaderProofAllocationError(String),
     /// Some System transaction was placed after a user transaction in the block
     EvmSystemTransactionPlacedAfterUserTx,
     /// System tx failed to parse
@@ -174,11 +168,6 @@ impl std::error::Error for StateTransitionError {}
 impl std::fmt::Display for L2BlockError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            L2BlockError::SequencerPublicKeyMismatch => {
-                write!(f, "Sequencer public key mismatch")
-            }
-            L2BlockError::InvalidDaHash => write!(f, "Invalid DA hash"),
-            L2BlockError::InvalidDaTxsCommitment => write!(f, "Invalid DA txs commitment"),
             L2BlockError::InvalidL2BlockHash => {
                 write!(f, "Invalid l2 block hash")
             }
@@ -186,7 +175,6 @@ impl std::fmt::Display for L2BlockError {
                 write!(f, "Invalid l2 block signature")
             }
             L2BlockError::Other(s) => write!(f, "Other error: {}", s),
-            L2BlockError::NonSerializableSovTx => write!(f, "Non serializable sov tx"),
             L2BlockError::InvalidSovTxSignature => write!(f, "Invalid sov tx signature"),
             L2BlockError::SovTxCantBeRuntimeDecoded => {
                 write!(f, "Sov tx can't be runtime decoded")
@@ -264,6 +252,9 @@ impl std::fmt::Display for L2BlockModuleCallError {
             }
             L2BlockModuleCallError::EvmSystemTransactionNotSuccessful => {
                 write!(f, "EVM system transaction reverted or halted")
+            }
+            L2BlockModuleCallError::ShortHeaderProofAllocationError(e) => {
+                write!(f, "Short header proof allocation error: {}", e)
             }
         }
     }

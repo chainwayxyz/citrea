@@ -9,7 +9,6 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use citrea_common::backup::BackupManager;
-use citrea_common::utils::{compute_tx_hashes, compute_tx_merkle_root};
 use citrea_common::{InitParams, RollupPublicKeys, SequencerConfig};
 use citrea_evm::system_events::{create_system_transactions, SystemEvent};
 use citrea_evm::{
@@ -19,6 +18,7 @@ use citrea_evm::{
 };
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::forks::fork_from_block_number;
+use citrea_primitives::merkle::{compute_tx_hashes, compute_tx_merkle_root};
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use parking_lot::Mutex;
@@ -32,13 +32,12 @@ use reth_transaction_pool::{
 };
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
-use sov_db::ledger_db::SequencerLedgerOps;
+use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::k256_private_key::K256PrivateKey;
-use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{
-    EncodeCall, L2Block, L2BlockModuleCallError, PrivateKey, SlotData, Spec, StateDiff,
+    EncodeCall, L2Block, L2BlockModuleCallError, PrivateKey, SlotData, Spec, SpecId, StateDiff,
     StateValueAccessor, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprint;
@@ -77,10 +76,9 @@ pub const MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK: u64 = 10;
 /// - Processing system transactions
 /// - Handling DA layer synchronization
 /// - Managing state transitions
-pub struct CitreaSequencer<Da, DB>
+pub struct CitreaSequencer<Da>
 where
     Da: DaService,
-    DB: SequencerLedgerOps + Send + Clone + 'static,
 {
     /// Data availability service instance
     da_service: Arc<Da>,
@@ -93,7 +91,7 @@ where
     /// Database provider for blockchain data access
     db_provider: DbProvider,
     /// Database for ledger operations
-    pub(crate) ledger_db: DB,
+    pub(crate) ledger_db: LedgerDB,
     /// Sequencer configuration
     pub(crate) config: SequencerConfig,
     /// State transition function blueprint
@@ -116,10 +114,9 @@ where
     backup_manager: Arc<BackupManager>,
 }
 
-impl<Da, DB> CitreaSequencer<Da, DB>
+impl<Da> CitreaSequencer<Da>
 where
     Da: DaService,
-    DB: SequencerLedgerOps + Send + Sync + Clone + 'static,
 {
     /// Creates a new CitreaSequencer instance
     ///
@@ -146,7 +143,7 @@ where
         stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
         storage_manager: ProverStorageManager,
         public_keys: RollupPublicKeys,
-        ledger_db: DB,
+        ledger_db: LedgerDB,
         db_provider: DbProvider,
         mempool: Arc<CitreaMempool>,
         deposit_mempool: Arc<Mutex<DepositDataMempool>>,
@@ -182,7 +179,6 @@ where
     ///
     /// # Arguments
     /// * `transactions` - Transactions to validate
-    /// * `pub_key` - Public key for signing
     /// * `prestate` - Initial state for the dry run
     /// * `l2_block_info` - Block information for hooks
     /// * `deposit_data` - Deposit transaction data
@@ -196,7 +192,6 @@ where
         mut transactions: Box<
             dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>,
         >,
-        pub_key: &K256PublicKey,
         prestate: ProverStorage,
         l2_block_info: HookL2BlockInfo,
         deposit_data: &[Vec<u8>],
@@ -213,9 +208,9 @@ where
             let mut nonce = self.get_nonce(&mut working_set_to_discard)?;
 
             // Apply L2 block hook before processing transactions
-            if let Err(err) =
-                self.stf
-                    .begin_l2_block(pub_key, &mut working_set_to_discard, &l2_block_info)
+            if let Err(err) = self
+                .stf
+                .begin_l2_block(&mut working_set_to_discard, &l2_block_info)
             {
                 warn!(
                     "DryRun: Failed to apply l2 block hook: {:?} \n reverting batch workspace",
@@ -253,7 +248,7 @@ where
                     citrea_evm::Evm<DefaultContext>,
                 >>::encode_call(call_txs);
 
-                let signed_tx = self.sign_tx(raw_message, nonce)?;
+                let signed_tx = self.sign_tx(l2_block_info.current_spec, raw_message, nonce)?;
                 nonce += 1;
 
                 let txs = vec![signed_tx];
@@ -346,6 +341,9 @@ where
                             }
                             L2BlockModuleCallError::EvmSystemTransactionNotSuccessful => {
                                 panic!("System tx failed")
+                            }
+                            L2BlockModuleCallError::ShortHeaderProofAllocationError(e) => {
+                                panic!("Short header proof error: {:?}", e);
                             }
                         },
                     }
@@ -480,7 +478,6 @@ where
         let (txs_to_run, l1_fee_failed_txs) = self
             .dry_run_transactions(
                 evm_txs,
-                &pub_key,
                 prestate.clone(),
                 l2_block_info.clone(),
                 &deposit_data,
@@ -497,10 +494,7 @@ where
 
         let mut working_set = WorkingSet::new(prestate.clone());
 
-        if let Err(err) = self
-            .stf
-            .begin_l2_block(&pub_key, &mut working_set, &l2_block_info)
-        {
+        if let Err(err) = self.stf.begin_l2_block(&mut working_set, &l2_block_info) {
             warn!(
                 "Failed to apply l2 block hook: {:?} \n reverting batch workspace",
                 err
@@ -522,7 +516,7 @@ where
                 citrea_evm::Evm<DefaultContext>,
             >>::encode_call(call_txs);
 
-            let signed_tx = self.sign_tx(raw_message, nonce)?;
+            let signed_tx = self.sign_tx(active_fork_spec, raw_message, nonce)?;
 
             blobs.push(signed_tx.to_blob()?);
             txs.push(signed_tx);
@@ -540,8 +534,8 @@ where
             .finalize_l2_block(active_fork_spec, working_set, prestate);
 
         // Calculate tx hashes for merkle root
-        let tx_hashes = compute_tx_hashes::<DefaultContext>(&txs, active_fork_spec);
-        let tx_merkle_root = compute_tx_merkle_root(&tx_hashes)?;
+        let tx_hashes = compute_tx_hashes(&txs, active_fork_spec);
+        let tx_merkle_root = compute_tx_merkle_root(&tx_hashes, active_fork_spec);
 
         // create the l2 block header
         let header = L2Header::new(
@@ -876,11 +870,17 @@ where
     ///
     /// # Returns
     /// A signed transaction
-    pub(crate) fn sign_tx(&self, raw_message: Vec<u8>, nonce: u64) -> anyhow::Result<Transaction> {
+    pub(crate) fn sign_tx(
+        &self,
+        spec: SpecId,
+        raw_message: Vec<u8>,
+        nonce: u64,
+    ) -> anyhow::Result<Transaction> {
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
-        let tx = Transaction::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce);
+        let tx =
+            Transaction::new_signed_tx(spec, &self.sov_tx_signer_priv_key, raw_message, 0, nonce);
         Ok(tx)
     }
 
@@ -892,8 +892,7 @@ where
     /// # Returns
     /// A signed L2 block header
     fn sign_l2_block_header(&mut self, header: L2Header) -> anyhow::Result<SignedL2Header> {
-        let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
-        let hash = Into::<[u8; 32]>::into(digest);
+        let hash = header.compute_digest();
 
         let signature = self.sov_tx_signer_priv_key.sign(&hash);
         let signature = borsh::to_vec(&signature)?;
@@ -1096,7 +1095,7 @@ where
                 let bridge_init_param = hex::decode(self.config.bridge_initialize_params.clone())
                     .expect("should deserialize");
 
-                info!("Initializign Bitcoin Light Client with L1 block: #{} with hash {}, tx commitment {}, and coinbase depth {}. Using {:?} for bridge initialization params.", l1_block.header().height(), hex::encode(Into::<[u8; 32]>::into(l1_block.header().txs_commitment())), hex::encode(l1_block.hash()), l1_block.header().coinbase_txid_merkle_proof_height(), bridge_init_param);
+                info!("Initializing Bitcoin Light Client with L1 block: #{} with hash {}, tx commitment {}, and coinbase depth {}. Using {:?} for bridge initialization params.", l1_block.header().height(), hex::encode(Into::<[u8; 32]>::into(l1_block.header().txs_commitment())), hex::encode(l1_block.hash()), l1_block.header().coinbase_txid_merkle_proof_height(), bridge_init_param);
 
                 let initialize_events = create_initial_system_events(
                     l1_block.header().hash().into(),
@@ -1169,9 +1168,14 @@ where
         let cfg = evm.cfg.get(&mut working_set_to_discard).unwrap();
         let chain_id = cfg.chain_id;
 
+        // Store deposit txs by index
+        let is_deposit_tx = system_events
+            .iter()
+            .map(|ev| matches!(ev, SystemEvent::BridgeDeposit(_)))
+            .collect::<Vec<_>>();
         // Create and process each system transaction
         let sys_txs = create_system_transactions(system_events, system_signer.nonce, chain_id);
-        for sys_tx in sys_txs {
+        for (sys_tx, is_deposit) in sys_txs.iter().zip(is_deposit_tx) {
             // Encode transaction in EIP-2718 format
             let buf = sys_tx.encoded_2718();
             let sys_tx_rlp = RlpEvmTransaction { rlp: buf };
@@ -1184,7 +1188,7 @@ where
             >>::encode_call(call_txs);
 
             // Sign and increment nonce
-            let signed_tx = self.sign_tx(raw_message, *nonce)?;
+            let signed_tx = self.sign_tx(l2_block_info.current_spec, raw_message, *nonce)?;
             *nonce += 1;
 
             let txs = vec![signed_tx];
@@ -1196,6 +1200,19 @@ where
                 .stf
                 .apply_l2_block_txs(l2_block_info, &txs, &mut working_set)
             {
+                // If a deposit failed, revert back the working set and continue,
+                // as deposits to non-EOA addresses can revert
+                if matches!(
+                    e,
+                    StateTransitionError::ModuleCallError(
+                        L2BlockModuleCallError::EvmSystemTransactionNotSuccessful
+                    )
+                ) && is_deposit
+                {
+                    warn!("Deposit transaction failed: {:?}", e);
+                    working_set_to_discard = working_set.revert().to_revertable();
+                    continue;
+                }
                 return Err(anyhow!("Failed to apply system transaction: {:?}", e));
             }
             working_set_to_discard = working_set.checkpoint().to_revertable();

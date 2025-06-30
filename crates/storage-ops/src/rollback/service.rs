@@ -4,10 +4,10 @@ use tokio::sync::mpsc::Receiver;
 use tracing::info;
 
 use super::Rollback;
-use crate::pruning::types::StorageNodeType;
+use crate::types::StorageNodeType;
 
 pub struct RollbackSignal {
-    current_l2_height: u64,
+    _current_l2_height: u64,
     target_l2: u64,
     target_l1: u64,
     last_sequencer_commitment_index: u32,
@@ -33,7 +33,7 @@ impl RollbackService {
                 },
                 Some(signal) = self.receiver.recv() => {
                     info!("Received signal to rollback to L2 {}, L1 {}", signal.target_l2, signal.target_l1);
-                    if let Err(e) = self.rollback.execute(node_type, signal.current_l2_height, signal.target_l2, signal.target_l1, signal.last_sequencer_commitment_index).await {
+                    if let Err(e) = self.rollback.execute(node_type, Some(signal.target_l2), Some(signal.target_l1), Some(signal.last_sequencer_commitment_index)).await {
                         panic!("Could not rollback blocks: {:?}", e);
                     }
                 }

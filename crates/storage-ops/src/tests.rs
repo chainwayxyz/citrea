@@ -21,10 +21,10 @@ use sov_schema_db::DB;
 use sov_state::Storage;
 use tokio::sync::broadcast;
 
-use crate::pruning::components::prune_ledger;
 use crate::pruning::criteria::{Criteria, DistanceCriteria};
-use crate::pruning::types::StorageNodeType;
+use crate::pruning::ledger::prune_ledger;
 use crate::pruning::{Pruner, PrunerService, PruningConfig};
+use crate::types::StorageNodeType;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_pruning_simple_run() {

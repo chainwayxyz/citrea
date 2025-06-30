@@ -5,6 +5,7 @@ use alloy_rpc_types_eth::Block as AlloyRpcBlock;
 use alloy_serde::WithOtherFields;
 use reth_rpc_eth_types::EthResult;
 use schnellru::{ByLength, LruMap};
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::WorkingSet;
 
 /// Cache for gas oracle
@@ -12,14 +13,16 @@ pub struct BlockCache<C: sov_modules_api::Context> {
     number_to_hash: LruMap<u64, B256, ByLength>, // Number -> hash mapping
     cache: LruMap<B256, WithOtherFields<AlloyRpcBlock>, ByLength>,
     provider: citrea_evm::Evm<C>,
+    ledger_db: LedgerDB,
 }
 
 impl<C: sov_modules_api::Context> BlockCache<C> {
-    pub fn new(max_size: u32, provider: citrea_evm::Evm<C>) -> Self {
+    pub fn new(max_size: u32, provider: citrea_evm::Evm<C>, ledger_db: LedgerDB) -> Self {
         Self {
             number_to_hash: LruMap::new(ByLength::new(max_size)),
             cache: LruMap::new(ByLength::new(max_size)),
             provider,
+            ledger_db,
         }
     }
 
@@ -41,7 +44,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
         // Get block from provider
         let block = self
             .provider
-            .get_block_by_hash(block_hash, Some(true), working_set)
+            .get_block_by_hash(block_hash, Some(true), working_set, &self.ledger_db)
             .unwrap_or(None);
 
         // Add block to cache if it exists
@@ -73,6 +76,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
                 Some(BlockNumberOrTag::Number(block_number)),
                 Some(true),
                 working_set,
+                &self.ledger_db,
             )
             .unwrap_or(None);
 
