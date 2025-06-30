@@ -9,7 +9,6 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use citrea_common::backup::BackupManager;
-use citrea_common::utils::{compute_tx_hashes, compute_tx_merkle_root};
 use citrea_common::{InitParams, RollupPublicKeys, SequencerConfig};
 use citrea_evm::system_events::{create_system_transactions, SystemEvent};
 use citrea_evm::{
@@ -19,6 +18,7 @@ use citrea_evm::{
 };
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::forks::fork_from_block_number;
+use citrea_primitives::merkle::{compute_tx_hashes, compute_tx_merkle_root};
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use parking_lot::Mutex;
@@ -534,8 +534,8 @@ where
             .finalize_l2_block(active_fork_spec, working_set, prestate);
 
         // Calculate tx hashes for merkle root
-        let tx_hashes = compute_tx_hashes::<DefaultContext>(&txs, active_fork_spec);
-        let tx_merkle_root = compute_tx_merkle_root(&tx_hashes)?;
+        let tx_hashes = compute_tx_hashes(&txs, active_fork_spec);
+        let tx_merkle_root = compute_tx_merkle_root(&tx_hashes, active_fork_spec);
 
         // create the l2 block header
         let header = L2Header::new(
@@ -892,8 +892,7 @@ where
     /// # Returns
     /// A signed L2 block header
     fn sign_l2_block_header(&mut self, header: L2Header) -> anyhow::Result<SignedL2Header> {
-        let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
-        let hash = Into::<[u8; 32]>::into(digest);
+        let hash = header.compute_digest();
 
         let signature = self.sov_tx_signer_priv_key.sign(&hash);
         let signature = borsh::to_vec(&signature)?;

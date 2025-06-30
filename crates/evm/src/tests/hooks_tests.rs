@@ -2,7 +2,7 @@ use alloy_consensus::constants::{EMPTY_WITHDRAWALS, KECCAK_EMPTY};
 use alloy_consensus::EMPTY_OMMER_ROOT_HASH;
 use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::hex_literal::hex;
-use alloy_primitives::{Address, Bloom, Bytes, PrimitiveSignature, B256, B64, U256};
+use alloy_primitives::{Address, Bloom, Bytes, B256, B64, U256};
 use lazy_static::lazy_static;
 use rand::Rng;
 use reth_primitives::{Header, TransactionSigned};
@@ -15,6 +15,7 @@ use sov_rollup_interface::spec::SpecId;
 use crate::evm::primitive_types::{
     Block, CitreaReceiptWithBloom, SealedBlock, TransactionSignedAndRecovered,
 };
+use crate::system_events::SYSTEM_SIGNATURE;
 use crate::tests::genesis_tests::BENEFICIARY;
 use crate::tests::utils::{get_evm, get_evm_test_config, GENESIS_STATE_ROOT};
 use crate::tests::{get_test_seq_pub_key, DEFAULT_CHAIN_ID};
@@ -212,7 +213,7 @@ fn create_pending_transaction(index: u64, nonce: u64) -> PendingTransaction {
             access_list: alloy_rpc_types::AccessList::default(),
             input: Bytes::from([4u8; 20]),
         }),
-        PrimitiveSignature::new(U256::ZERO, U256::ZERO, false),
+        SYSTEM_SIGNATURE,
     );
 
     PendingTransaction {

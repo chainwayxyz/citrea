@@ -38,6 +38,7 @@ pub enum SpecId {
     /// 1. Fixes for vulnerabilities that need forking on existing networks
     /// 2. Sov-tx signature serialization
     /// 3. Sov-tx serialization to generate signature
+    /// 4. L2 merkle tree separators
     Fork3 = 3,
     /// Fork4 spec
     #[cfg(feature = "testing")]

@@ -28,7 +28,6 @@ metrics = { workspace = true }
 reth-primitives = { workspace = true }
 reth-tasks = { workspace = true }
 rocksdb = { workspace = true }
-rs_merkle = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }

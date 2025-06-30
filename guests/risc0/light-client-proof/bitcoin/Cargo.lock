@@ -722,6 +722,8 @@ version = "0.7.2"
 dependencies = [
  "alloy-eips",
  "brotli",
+ "rs_merkle",
+ "sha2",
  "sov-rollup-interface",
 ]
 

@@ -122,8 +122,7 @@ fn create_l2_block(
         EMPTY_TX_ROOT,
         10 * (height - 1),
     );
-    let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
-    let hash = Into::<[u8; 32]>::into(digest);
+    let hash = header.compute_digest();
     let signature = sequencer_private_key.sign(&hash);
     let signature = borsh::to_vec(&signature).unwrap();
     let l2_block = L2Block {
@@ -175,8 +174,7 @@ fn test_wrong_l2_block_signature() {
     let random_private_key = K256PrivateKey::generate();
 
     let header = L2Header::new(2, [0; 32], [0; 32], 128u128, EMPTY_TX_ROOT, 10);
-    let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
-    let hash = Into::<[u8; 32]>::into(digest);
+    let hash = header.compute_digest();
     let signature = random_private_key.sign(&hash);
     let signature = borsh::to_vec(&signature).unwrap();
 
@@ -184,7 +182,7 @@ fn test_wrong_l2_block_signature() {
         header: SignedL2Header::new(header, hash, signature),
         txs: vec![],
     };
-    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key);
+    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key, SpecId::Fork3);
 
     assert!(matches!(
         result,
@@ -202,15 +200,14 @@ fn test_wrong_l2_block_hash() {
     let sequencer_public_key = sequencer_private_key.pub_key();
 
     let header = L2Header::new(2, [0; 32], [0; 32], 128u128, EMPTY_TX_ROOT, 10);
-    let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
-    let hash = Into::<[u8; 32]>::into(digest);
+    let hash = header.compute_digest();
     let signature = sequencer_private_key.sign(&hash);
     let signature = borsh::to_vec(&signature).unwrap();
     let l2_block = L2Block {
         header: SignedL2Header::new(header, [0; 32], signature),
         txs: vec![],
     };
-    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key);
+    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key, SpecId::Fork3);
     assert!(matches!(
         result,
         Err(StateTransitionError::L2BlockError(
@@ -227,15 +224,14 @@ fn test_wrong_l2_tx_merkle_root() {
     let sequencer_public_key = sequencer_private_key.pub_key();
 
     let header = L2Header::new(2, [0; 32], [0; 32], 128u128, [100; 32], 10);
-    let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
-    let hash = Into::<[u8; 32]>::into(digest);
+    let hash = header.compute_digest();
     let signature = sequencer_private_key.sign(&hash);
     let signature = borsh::to_vec(&signature).unwrap();
     let l2_block = L2Block {
         header: SignedL2Header::new(header, [0; 32], signature),
         txs: vec![],
     };
-    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key);
+    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key, SpecId::Fork3);
     assert!(matches!(
         result,
         Err(StateTransitionError::L2BlockError(
@@ -918,8 +914,7 @@ fn test_panic_l2_block_processing_failure() {
         EMPTY_TX_ROOT,
         20, // Use proper timestamp
     );
-    let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
-    let hash = Into::<[u8; 32]>::into(digest);
+    let hash = header.compute_digest();
     let signature = sequencer_private_key.sign(&hash);
     let signature = borsh::to_vec(&signature).unwrap();
     let fake_block = L2Block {
@@ -1001,8 +996,7 @@ fn test_panic_l2_block_timestamp_validation_failure() {
         block_cache[2].1.tx_merkle_root(),
         0, // wrong timestamp (should be greater than previous block's timestamp)
     );
-    let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
-    let hash = Into::<[u8; 32]>::into(digest);
+    let hash = header.compute_digest();
     let signature = sequencer_private_key.sign(&hash);
     let signature = borsh::to_vec(&signature).unwrap();
     let corrupted_l2_block = L2Block {
@@ -1104,8 +1098,7 @@ fn test_panic_l2_block_prev_hash_failure() {
         block_cache[2].1.tx_merkle_root(),
         block_cache[2].1.timestamp(), // Use a later timestamp to avoid TimestampShouldBeGreater error
     );
-    let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
-    let hash = Into::<[u8; 32]>::into(digest);
+    let hash = header.compute_digest();
     let signature = sequencer_private_key.sign(&hash);
     let signature = borsh::to_vec(&signature).unwrap();
     let corrupted_l2_block = L2Block {
@@ -1189,8 +1182,7 @@ fn test_panic_state_root_assertion_failure() {
         EMPTY_TX_ROOT,
         0,
     );
-    let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
-    let hash = Into::<[u8; 32]>::into(digest);
+    let hash = header.compute_digest();
     let signature = sequencer_private_key.sign(&hash);
     let signature = borsh::to_vec(&signature).unwrap();
     let corrupted_l2_block = L2Block {
@@ -1444,8 +1436,7 @@ fn test_panic_state_root_mismatch_assertion() {
         EMPTY_TX_ROOT,
         0,
     );
-    let digest = header.compute_digest::<<DefaultContext as sov_modules_api::Spec>::Hasher>();
-    let hash = Into::<[u8; 32]>::into(digest);
+    let hash = header.compute_digest();
     let signature = sequencer_private_key.sign(&hash);
     let signature = borsh::to_vec(&signature).unwrap();
     let problematic_block = L2Block {

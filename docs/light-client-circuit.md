@@ -1,5 +1,7 @@
 # The Light Client Circuit
-This document describes the logic and structure of light client proofs, which allow a verifier to confirm that an L2 state committed to by the sequencer is valid, using information included in a DA (Data Availability) block. Each proof builds on the previous one, forming a verifiable chain of state transitions. Verifying a single proof attests that, for the given Bitcoin chain up to that DA block, the L2 state produced by the circuit is correct, verified, and consistent with the on-chain commitments.
+This document describes the logic and structure of light client proofs, which allow a verifier to confirm that an L2 state committed to by the sequencer is valid, using information included in a DA (Data Availability) block. Each proof builds on the previous one, forming a verifiable chain of state transitions. Verifying a single proof attests that, for the given Bitcoin chain up to that DA block, the L2 state produced by the circuit is correct, verified, and consistent with the on-chain commitments. 
+
+The light client proof's main use case is to provide the L2 state root to Citrea's Bitcoin Bridge, [Clementine](https://citrea.xyz/clementine_whitepaper.pdf). The light client proof is verified inside Clementine's Bridge Proof in case of a challenge to one of the bridge operators.
 
 ## Light Client Circuit Input
 

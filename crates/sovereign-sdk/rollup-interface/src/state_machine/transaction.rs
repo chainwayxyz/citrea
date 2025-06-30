@@ -1,6 +1,7 @@
 #![allow(missing_docs)]
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use sha2::digest::{Digest, FixedOutput};
 #[cfg(feature = "native")]
 use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 use sov_keys::default_signature::{K256PublicKey, K256Signature};
@@ -63,12 +64,12 @@ impl TransactionV1 {
         Ok(())
     }
 
-    pub fn compute_digest<D: digest::Digest>(&self) -> digest::Output<D> {
-        let mut hasher = D::new();
+    pub fn compute_digest(&self) -> [u8; 32] {
+        let mut hasher = sha2::Sha256::new();
         hasher.update(&self.runtime_msg);
         hasher.update(self.chain_id.to_be_bytes());
         hasher.update(self.nonce.to_be_bytes());
-        hasher.finalize()
+        <[u8; 32]>::from(hasher.finalize_fixed())
     }
 }
 
@@ -115,13 +116,13 @@ impl TransactionV2 {
         Ok(())
     }
 
-    pub fn compute_digest<D: digest::Digest>(&self) -> digest::Output<D> {
-        let mut hasher = D::new();
+    pub fn compute_digest(&self) -> [u8; 32] {
+        let mut hasher = sha2::Sha256::new();
         hasher.update([TxVersion::V2 as u8]);
         hasher.update(&self.runtime_msg);
         hasher.update(self.chain_id.to_be_bytes());
         hasher.update(self.nonce.to_be_bytes());
-        hasher.finalize()
+        <[u8; 32]>::from(hasher.finalize_fixed())
     }
 }
 
@@ -216,10 +217,10 @@ impl Transaction {
         }
     }
 
-    pub fn compute_digest<D: digest::Digest>(&self) -> digest::Output<D> {
+    pub fn compute_digest(&self) -> [u8; 32] {
         match self {
-            Self::V1(tx) => tx.compute_digest::<D>(),
-            Self::V2(tx) => tx.compute_digest::<D>(),
+            Self::V1(tx) => tx.compute_digest(),
+            Self::V2(tx) => tx.compute_digest(),
         }
     }
 }

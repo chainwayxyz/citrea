@@ -7,6 +7,10 @@ use super::system_contracts::{BitcoinLightClient, BridgeWrapper};
 /// This is a special system address to indicate a tx is called by system not by a user/contract.
 pub const SYSTEM_SIGNER: Address = address!("deaddeaddeaddeaddeaddeaddeaddeaddeaddead");
 
+/// This is a special signature to force tx.signer to be set to SYSTEM_SIGNER
+pub const SYSTEM_SIGNATURE: PrimitiveSignature =
+    PrimitiveSignature::new(U256::ZERO, U256::ZERO, false);
+
 /// A system event is an event that is emitted on special conditions by the EVM.
 /// There events will be transformed into Evm transactions and put in the beginning of the block.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
@@ -83,11 +87,7 @@ pub(crate) fn signed_system_transaction(
     chain_id: u64,
 ) -> Recovered<TransactionSigned> {
     let transaction = system_event_to_transaction(event, nonce, chain_id);
-    let signed_no_hash = TransactionSigned::new_unhashed(
-        transaction,
-        // This is a special signature to force tx.signer to be set to SYSTEM_SIGNER
-        PrimitiveSignature::new(U256::ZERO, U256::ZERO, false),
-    );
+    let signed_no_hash = TransactionSigned::new_unhashed(transaction, SYSTEM_SIGNATURE);
     Recovered::new_unchecked(signed_no_hash, SYSTEM_SIGNER)
 }
 
