@@ -4106,10 +4106,10 @@ impl TestCase for ChunkingPackageTooBigTest {
 
             // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
             if i == 4 {
-                // The three first proofs should hit the mempool + 3 chunks (only the aggregate doesn't make it through mempool policy)
+                // The three first proofs should hit the mempool + 1 chunk
                 da.wait_mempool_len(8 * 3 + 2, None).await?;
                 assert_eq!(da.get_raw_mempool().await?.len(), 26);
-                // We mine the first three proofs + the 3 chunks and make sure that the aggregate is properly queued and sent on next block when mempool size is freed
+                // We mine the first three proofs + the 1 chunk pair and make sure that the aggregate is properly queued and sent on next block when mempool size is freed
 
                 da.generate(1).await?;
                 // Assert that all chunks were mined and mempool space is freed
@@ -4125,12 +4125,11 @@ impl TestCase for ChunkingPackageTooBigTest {
 
                 assert_eq!(relevant_txs.len(), 13);
 
-                // Remaining aggregate should now hit the mempool
+                // Remaining chunks and aggregate should now hit the mempool
                 da.wait_mempool_len(6, None).await?;
 
                 assert_eq!(da.get_raw_mempool().await?.len(), 6);
                 da.generate(1).await?;
-                // Assert that all chunks were mined and mempool space is freed
                 assert_eq!(da.get_raw_mempool().await?.len(), 0);
 
                 let height = da.get_block_count().await?;

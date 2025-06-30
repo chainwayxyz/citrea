@@ -421,7 +421,7 @@ impl BitcoinService {
 
         let mut txids = Vec::new();
         while let Some(tx) = queue.front() {
-            if let Err(_) = self.test_mempool_accept(&tx.as_raw_txs()).await {
+            if self.test_mempool_accept(&tx.as_raw_txs()).await.is_err() {
                 break;
             }
 

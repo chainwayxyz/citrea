@@ -1,9 +1,11 @@
-use crate::{helpers::TransactionKind, tx_signer::SignedTxPair};
-use bitcoin::{consensus, Transaction};
 use std::fs::File;
 use std::io::{BufWriter, Write};
-
 use std::path::Path;
+
+use bitcoin::{consensus, Transaction};
+
+use crate::helpers::TransactionKind;
+use crate::tx_signer::SignedTxPair;
 
 fn transaction_kind_to_backup_name(kind: &TransactionKind) -> &str {
     match kind {
@@ -17,7 +19,7 @@ fn transaction_kind_to_backup_name(kind: &TransactionKind) -> &str {
 }
 
 pub(crate) fn backup_txs_to_file(path: &Path, txs: &[SignedTxPair]) -> anyhow::Result<()> {
-    if let Some(tx) = txs.get(0) {
+    if let Some(tx) = txs.first() {
         match &tx.kind {
             TransactionKind::Complete
             | TransactionKind::BatchProofMethodId
