@@ -4,7 +4,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use citrea_common::backup::{create_backup_rpc_module, BackupManager};
 use citrea_common::config::ProverGuestRunConfig;
-use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::{FullNodeConfig, RpcConfig};
 use citrea_primitives::forks::use_network_forks;
 // use citrea_sp1::host::SP1Host;
