@@ -10083,6 +10083,7 @@ dependencies = [
  "quote",
  "serde",
  "serde_json",
+ "sha2 0.10.8",
  "sov-modules-api",
  "sov-modules-core",
  "sov-state",
