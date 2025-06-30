@@ -25,7 +25,9 @@ const fn decode_to_u32_array(hex: &str) -> [u32; 8] {
     }
 }
 
+/// Module containing initial values for the mock DA specification.
 pub mod mockda {
+    /// Genesis L2 genesis root for the mock DA.
     pub const GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
         b"8a2668ef91b369dfa05fb3b8c93cbdf98fc88aad1a801d76ec8a64d742a2257e",
     ) {
@@ -33,9 +35,11 @@ pub mod mockda {
         Err(_) => panic!("Can't happen"),
     };
 
+    /// Initial batch proof method IDs for the mock DA.
     pub const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] =
         &[(0, citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID)];
 
+    /// Public key of the batch prover in the mock DA.    
     pub const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"03eedab888e45f3bdc3ec9918c491c11e5cf7af0a91f38b97fbc1e135ae4056601",
     ) {
@@ -43,6 +47,7 @@ pub mod mockda {
         Err(_) => panic!("Can't happen"),
     };
 
+    /// Public key of the sequencer in the mock DA.
     pub const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9",
     ) {
@@ -50,6 +55,7 @@ pub mod mockda {
         Err(_) => panic!("Can't happen"),
     };
 
+    /// Public key of the method ID upgrade authority in the mock DA.
     pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] =
         match const_hex::const_decode_to_array(
             b"0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
@@ -59,9 +65,11 @@ pub mod mockda {
         };
 }
 
+/// Module containing initial values for the Bitcoin DA (Data Availability) specification.
 pub mod bitcoinda {
     use super::decode_to_u32_array;
 
+    /// Genesis L2 root for the Bitcoin DA on Mainnet.
     pub const MAINNET_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
         b"0000000000000000000000000000000000000000000000000000000000000000",
     ) {
@@ -69,6 +77,7 @@ pub mod bitcoinda {
         Err(_) => panic!("Can't happen"),
     };
 
+    /// Genesis L2 root for the Bitcoin DA on Testnet.
     pub const TESTNET_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
         b"8292a2b07f40f9cee43fde4523567faab5261b1c1cf79ae56e1b4ef4b323735f",
     ) {
@@ -76,6 +85,7 @@ pub mod bitcoinda {
         Err(_) => panic!("Can't happen"),
     };
 
+    /// Genesis L2 root for the Bitcoin DA on Devnet.
     pub const DEVNET_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
         b"ee72838efc878217d4a8150828f19afa9e58c3270269413a3c757aeddbad05a6",
     ) {
@@ -83,6 +93,10 @@ pub mod bitcoinda {
         Err(_) => panic!("Can't happen"),
     };
 
+    /// Genesis L2 root for the Bitcoin DA on Nightly.
+    /// This root is set at compile time via the `L2_GENESIS_ROOT` environment variable.
+    /// If the variable is not set, it defaults to the genesis root from the
+    /// genesis config under resources/genesis/bitcoin-regtest.
     pub const NIGHTLY_GENESIS_ROOT: [u8; 32] = {
         let hex_root = match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
@@ -95,6 +109,10 @@ pub mod bitcoinda {
         }
     };
 
+    /// Genesis LCP root for the Bitcoin DA on Test Network with Forks.
+    /// This root is set at compile time via the `L2_GENESIS_ROOT` environment variable.
+    /// If the variable is not set, it defaults to the genesis root from the
+    /// genesis config under resources/genesis/bitcoin-regtest.
     pub const TEST_NETWORK_WITH_FORKS_GENESIS_ROOT: [u8; 32] = {
         let hex_root = match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
@@ -107,18 +125,25 @@ pub mod bitcoinda {
         }
     };
 
+    /// Initial batch proof method IDs for the Bitcoin DA on Mainnet.
     pub const MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[(0, [0; 8])];
 
+    /// Initial batch proof method IDs for the Bitcoin DA on Testnet.
     pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[(
         0,
         decode_to_u32_array("0baedfda1cce68a982e96cc5f155699dadd95b6f47cb4efb45ef6b0bc510b1ba"),
     )];
 
+    /// Initial batch proof method IDs for the Bitcoin DA on Devnet.
     pub const DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = &[(
         0,
         decode_to_u32_array("aba3ac6bc099b8669930c9a488f7c94d4e829d75800dbe77db115c830a27c246"),
     )];
 
+    /// Initial batch proof method IDs for the Bitcoin DA on Nightly.
+    /// This method ID is set at compile time via the `BATCH_PROOF_METHOD_ID` environment variable.
+    /// If the variable is not set, it defaults to the method ID from the guest compilation via the `citrea_risc0_batch_proof` crate.
+    /// Method IDs are paired with activation height 0.
     pub const NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
         match option_env!("BATCH_PROOF_METHOD_ID") {
             Some(hex_method_id) => &[(0, decode_to_u32_array(hex_method_id))],
@@ -126,6 +151,9 @@ pub mod bitcoinda {
         }
     };
 
+    /// Initial batch proof method IDs for the Bitcoin DA on Test Network with Forks. 
+    /// This method ID is set at compile time via the `BATCH_PROOF_METHOD_ID` environment variable, paired with activation height 0.
+    /// If the variable is not set, the method ID from the guest compilation is appended to the predefined method IDs.
     pub const TEST_NETWORK_WITH_FORKS_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
         match option_env!("BATCH_PROOF_METHOD_ID") {
             Some(hex_method_id) => &[(0, decode_to_u32_array(hex_method_id))],
@@ -147,6 +175,7 @@ pub mod bitcoinda {
         }
     };
 
+    /// Public key of the batch prover in the Bitcoin DA on Mainnet.
     pub const MAINNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"030000000000000000000000000000000000000000000000000000000000000000",
     ) {
@@ -154,6 +183,7 @@ pub mod bitcoinda {
         Err(_) => panic!("PROVER_DA_PUB_KEY must be valid 33-byte hex string"),
     };
 
+    /// Public key of the batch prover in the Bitcoin DA on Testnet.
     pub const TESTNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42",
     ) {
@@ -161,6 +191,7 @@ pub mod bitcoinda {
         Err(_) => panic!("PROVER_DA_PUB_KEY must be valid 33-byte hex string"),
     };
 
+    /// Public key of the batch prover in the Bitcoin DA on Devnet.
     pub const DEVNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"03fc6fb2ef68368009c895d2d4351dcca4109ec2f5f327291a0553570ce769f5e5",
     ) {
@@ -168,6 +199,9 @@ pub mod bitcoinda {
         Err(_) => panic!("PROVER_DA_PUB_KEY must be valid 33-byte hex string"),
     };
 
+    /// Public key of the batch prover in the Bitcoin DA on Nightly.
+    /// This public key is set at compile time via the `PROVER_DA_PUB_KEY` environment variable.
+    /// If the variable is not set, it defaults to the public key from the config under resources/configs/bitcoin-regtest.
     pub const NIGHTLY_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
         let hex_pub_key = match option_env!("PROVER_DA_PUB_KEY") {
             Some(hex_pub_key) => hex_pub_key,
@@ -180,6 +214,9 @@ pub mod bitcoinda {
         }
     };
 
+    /// Public key of the batch prover in the Bitcoin DA on Test Network with Forks.
+    /// This public key is set at compile time via the `PROVER_DA_PUB_KEY` environment variable.
+    /// If the variable is not set, it defaults to the public key from the config under resources/configs/bitcoin-regtest.
     pub const TEST_NETWORK_WITH_FORKS_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
         let hex_pub_key = match option_env!("PROVER_DA_PUB_KEY") {
             Some(hex_pub_key) => hex_pub_key,
@@ -192,6 +229,7 @@ pub mod bitcoinda {
         }
     };
 
+    /// Public key of the sequencer in the Bitcoin DA on Mainnet.
     pub const MAINNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"030000000000000000000000000000000000000000000000000000000000000000",
     ) {
@@ -199,6 +237,7 @@ pub mod bitcoinda {
         Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
     };
 
+    /// Public key of the sequencer in the Bitcoin DA on Testnet.
     pub const TESTNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b",
     ) {
@@ -206,6 +245,7 @@ pub mod bitcoinda {
         Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
     };
 
+    /// Public key of the sequencer in the Bitcoin DA on Devnet.
     pub const DEVNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"039cd55f9b3dcf306c4d54f66cd7c4b27cc788632cd6fb73d80c99d303c6536486",
     ) {
@@ -213,6 +253,9 @@ pub mod bitcoinda {
         Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
     };
 
+    /// Public key of the sequencer in the Bitcoin DA on Nightly.
+    /// This public key is set at compile time via the `SEQUENCER_DA_PUB_KEY environment variable.
+    /// If the variable is not set, it defaults to the public key from the config under resources/configs/bitcoin-regtest.
     pub const NIGHTLY_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
         let hex_pub_key = match option_env!("SEQUENCER_DA_PUB_KEY") {
             Some(hex_pub_key) => hex_pub_key,
@@ -225,6 +268,9 @@ pub mod bitcoinda {
         }
     };
 
+    /// Public key of the sequencer in the Bitcoin DA on Test Network with Forks.
+    /// This public key is set at compile time via the `SEQUENCER_DA_PUB_KEY environment variable.
+    /// If the variable is not set, it defaults to the public key from the config under resources/configs/bitcoin-regtest.
     pub const TEST_NETWORK_WITH_FORKS_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
         let hex_pub_key = match option_env!("SEQUENCER_DA_PUB_KEY") {
             Some(hex_pub_key) => hex_pub_key,
@@ -237,6 +283,7 @@ pub mod bitcoinda {
         }
     };
 
+    /// Public key of the method ID upgrade authority in the Bitcoin DA on Mainnet.
     pub const MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] =
         match const_hex::const_decode_to_array(
             b"000000000000000000000000000000000000000000000000000000000000000000",
@@ -247,6 +294,7 @@ pub mod bitcoinda {
             }
         };
 
+    /// Public key of the method ID upgrade authority in the Bitcoin DA on Testnet.
     pub const TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] =
         match const_hex::const_decode_to_array(
             b"03796a3a8a86ff1cc37437585f0450f6059c397c01bce06bfbaaa36242f7ebfc02",
@@ -256,6 +304,8 @@ pub mod bitcoinda {
                 panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
             }
         };
+
+    /// Public key of the method ID upgrade authority in the Bitcoin DA on Devnet.
     pub const DEVNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] =
         match const_hex::const_decode_to_array(
             b"0388e988066db18e19750fa92aa0fbf9c85104be2b5b507ce0aa7f30f3fe24b1ac",
@@ -266,6 +316,9 @@ pub mod bitcoinda {
             }
         };
 
+    /// Public key of the method ID upgrade authority in the Bitcoin DA on Nightly.
+    /// This public key is set at compile time via the `METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY` environment variable.
+    /// If the variable is not set, it defaults to a predefined value.
     pub const NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] = {
         let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY") {
             Some(hex_pub_key) => hex_pub_key,
@@ -280,6 +333,9 @@ pub mod bitcoinda {
         }
     };
 
+    /// Public key of the method ID upgrade authority in the Bitcoin DA on Test Network with Forks.
+    /// This public key is set at compile time via the `METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY` environment variable.
+    /// If the variable is not set, it defaults to a predefined value.
     pub const TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] = {
         let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY") {
             Some(hex_pub_key) => hex_pub_key,
@@ -295,16 +351,22 @@ pub mod bitcoinda {
     };
 }
 
+/// Trait to provide initial values for the Light Client circuit based on the Data Availability specification.
 #[cfg(feature = "native")]
 pub trait InitialValueProvider<Das: DaSpec> {
+    /// Returns the L2 genesis root
     fn get_l2_genesis_root(&self) -> [u8; 32];
 
+    /// Returns the initial batch proof method IDs.
     fn initial_batch_proof_method_ids(&self) -> Vec<(u64, [u32; 8])>;
 
+    /// Returns the public key of the batch prover.
     fn batch_prover_da_public_key(&self) -> [u8; 33];
 
+    /// Returns the public key of the sequencer.
     fn sequencer_da_public_key(&self) -> [u8; 33];
 
+    /// Returns the public key of the method ID upgrade authority.
     fn method_id_upgrade_authority_da_public_key(&self) -> [u8; 33];
 }
 
