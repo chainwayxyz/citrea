@@ -16,7 +16,6 @@ pub(crate) const LCP_JMT_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_
 };
 
 /// Constant function to decode a hex string into a fixed-size array of u32.
-/// This function is used to decode method IDs from hex strings at compile time.
 const fn decode_to_u32_array(hex: &str) -> [u32; 8] {
     let bytes = const_hex::const_decode_to_array::<32>(hex.as_bytes());
     match bytes {
