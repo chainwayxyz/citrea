@@ -35,7 +35,7 @@ use crate::runner::CitreaLightClientProver;
 /// * `backup_manager` - Manager for backup operations
 ///
 /// # Type Parameters
-/// * `DA` - Data availability service type
+/// * `Da` - Data availability service type
 /// * `DB` - Database type implementing LightClientProverLedgerOps and SharedLedgerOps
 /// * `Vm` - ZKVM implementation type
 ///
