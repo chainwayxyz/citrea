@@ -1,4 +1,4 @@
-//! This module provides functionality for building the services required for the running the Citrea Light Client Prover.
+//! This module provides functionality for building the services required for running the Citrea Light Client Prover.
 use std::collections::HashMap;
 use std::sync::Arc;
 
