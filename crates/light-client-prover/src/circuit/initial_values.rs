@@ -264,7 +264,7 @@ pub mod bitcoinda {
     };
 
     /// Public key of the sequencer in the Bitcoin DA on Nightly.
-    /// This public key is set at compile time via the `SEQUENCER_DA_PUB_KEY environment variable.
+    /// This public key is set at compile time via the `SEQUENCER_DA_PUB_KEY` environment variable.
     /// If the variable is not set, it defaults to the public key from the config under resources/configs/bitcoin-regtest.
     pub const NIGHTLY_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
         let hex_pub_key = match option_env!("SEQUENCER_DA_PUB_KEY") {
