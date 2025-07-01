@@ -342,6 +342,20 @@ impl BitcoinService {
         tx_request: DaTxRequest,
         fee_sat_per_vbyte: u64,
     ) -> Result<DaTxs> {
+        let data = match tx_request {
+            DaTxRequest::ZKProof(zkproof) => split_proof(zkproof)?,
+            DaTxRequest::SequencerCommitment(comm) => {
+                let data = DataOnDa::SequencerCommitment(comm);
+                let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
+                RawTxData::SequencerCommitment(blob)
+            }
+            DaTxRequest::BatchProofMethodId(method_id) => {
+                let data = DataOnDa::BatchProofMethodId(method_id);
+                let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
+                RawTxData::BatchProofMethodId(blob)
+            }
+        };
+
         let network = self.network;
 
         let da_private_key = self.da_private_key.expect("No private key set");
@@ -356,20 +370,6 @@ impl BitcoinService {
             .clone()
             .context("Missing address")?
             .require_network(network)?;
-
-        let data = match tx_request {
-            DaTxRequest::ZKProof(zkproof) => split_proof(zkproof)?,
-            DaTxRequest::SequencerCommitment(comm) => {
-                let data = DataOnDa::SequencerCommitment(comm);
-                let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
-                RawTxData::SequencerCommitment(blob)
-            }
-            DaTxRequest::BatchProofMethodId(method_id) => {
-                let data = DataOnDa::BatchProofMethodId(method_id);
-                let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
-                RawTxData::BatchProofMethodId(blob)
-            }
-        };
 
         let prefix = self.reveal_tx_prefix.clone();
         Ok(tokio::task::spawn_blocking(move || {
