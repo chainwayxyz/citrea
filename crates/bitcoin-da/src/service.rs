@@ -357,8 +357,6 @@ impl BitcoinService {
             .context("Missing address")?
             .require_network(network)?;
 
-        let prefix = self.reveal_tx_prefix.clone();
-
         let data = match tx_request {
             DaTxRequest::ZKProof(zkproof) => split_proof(zkproof)?,
             DaTxRequest::SequencerCommitment(comm) => {
@@ -373,6 +371,7 @@ impl BitcoinService {
             }
         };
 
+        let prefix = self.reveal_tx_prefix.clone();
         Ok(tokio::task::spawn_blocking(move || {
             // Since this is CPU bound work, we use spawn_blocking
             // to release the tokio runtime execution
