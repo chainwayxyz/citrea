@@ -4,6 +4,7 @@ use std::sync::{Arc, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, ensure, Context};
+use citrea_storage_ops::types::NodeKind;
 use rocksdb::backup::BackupEngineInfo;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
@@ -37,7 +38,7 @@ impl BackupConfig {
 /// with L1/L2 block processing.
 pub struct BackupManager {
     /// Node kind
-    node_kind: String,
+    node_kind: NodeKind,
     /// Optional base path used for backups. Can be overridden via RPC
     base_path: Option<PathBuf>,
     /// Map of path to backupable database
@@ -85,7 +86,7 @@ impl BackupManager {
     /// * `config` - Optional config to override required/optional directories
     pub fn new(
         // Todo Wait on https://github.com/chainwayxyz/citrea/pull/1714 and RollupClient enum
-        node_kind: String,
+        node_kind: NodeKind,
         base_path: Option<PathBuf>,
         config: Option<BackupConfig>,
     ) -> Self {
@@ -164,20 +165,15 @@ impl BackupManager {
         let l1_lock = self.l1_processing_lock.lock().await;
         let l2_lock = self.l2_processing_lock.lock().await;
 
-        // TODO: Update with NodeType enum
-        let (l1_block_height, l2_block_height) = match self.node_kind.as_str() {
-            "sequencer" | "full-node" | "batch-prover" => (
+        let (l1_block_height, l2_block_height) = match self.node_kind {
+            NodeKind::Sequencer | NodeKind::FullNode | NodeKind::BatchProver => (
                 ledger_db.get_last_scanned_l1_height()?.map(|h| h.0),
                 ledger_db.get_head_l2_block_height()?,
             ),
-            "light-client-prover" => {
+            NodeKind::LightClientProver => {
                 // Light client prover does not have L2 blocks, so we use L1 height
                 (ledger_db.get_last_scanned_l1_height()?.map(|h| h.0), None)
             }
-            _ => bail!(
-                "Unsupported node kind for backup creation: {}",
-                self.node_kind
-            ),
         };
 
         let start_time = Instant::now();
@@ -259,18 +255,15 @@ impl BackupManager {
                 version: 0,
             }
         };
-        // TODO: Update with NodeType enum
         let block_height = {
-            match self.node_kind.as_str() {
-                "sequencer" | "full-node" | "batch-prover" => info.l2_block_height.unwrap_or(0),
-                "light-client-prover" => {
+            match self.node_kind {
+                NodeKind::Sequencer | NodeKind::FullNode | NodeKind::BatchProver => {
+                    info.l2_block_height.unwrap_or(0)
+                }
+                NodeKind::LightClientProver => {
                     // Light client prover does not have L2 blocks, so we use L1 height
                     info.l1_block_height.unwrap_or(0)
                 }
-                _ => bail!(
-                    "Unsupported node kind for backup metadata: {}",
-                    self.node_kind
-                ),
             }
         };
         metadata.backups.insert(info.backup_id, block_height);

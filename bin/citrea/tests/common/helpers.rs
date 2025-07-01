@@ -17,7 +17,7 @@ use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_storage_ops::pruning::PruningConfig;
-use citrea_storage_ops::types::StorageNodeType;
+use citrea_storage_ops::types::{NodeKind, StorageNodeType};
 use reth_tasks::TaskManager;
 use short_header_proof_provider::{
     NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
@@ -84,15 +84,14 @@ pub async fn start_rollup(
         panic!("Both batch prover and light client prover config cannot be set at the same time");
     }
 
-    let backup_manager = Arc::new(BackupManager::new("test".to_string(), None, None));
-
-    let (tables, migrations) = if sequencer_config.is_some() {
+    let (tables, migrations, backup_manager) = if sequencer_config.is_some() {
         (
             SEQUENCER_LEDGER_TABLES
                 .iter()
                 .map(|table| table.to_string())
                 .collect::<Vec<_>>(),
             citrea_sequencer::db_migrations::migrations(),
+            Arc::new(BackupManager::new(NodeKind::Sequencer, None, None)),
         )
     } else if rollup_prover_config.is_some() {
         (
@@ -101,6 +100,7 @@ pub async fn start_rollup(
                 .map(|table| table.to_string())
                 .collect::<Vec<_>>(),
             citrea_batch_prover::db_migrations::migrations(),
+            Arc::new(BackupManager::new(NodeKind::BatchProver, None, None)),
         )
     } else if light_client_prover_config.is_some() {
         (
@@ -109,6 +109,7 @@ pub async fn start_rollup(
                 .map(|table| table.to_string())
                 .collect::<Vec<_>>(),
             citrea_light_client_prover::db_migrations::migrations(),
+            Arc::new(BackupManager::new(NodeKind::LightClientProver, None, None)),
         )
     } else {
         (
@@ -117,6 +118,7 @@ pub async fn start_rollup(
                 .map(|table| table.to_string())
                 .collect::<Vec<_>>(),
             citrea_fullnode::db_migrations::migrations(),
+            Arc::new(BackupManager::new(NodeKind::FullNode, None, None)),
         )
     };
     mock_demo_rollup

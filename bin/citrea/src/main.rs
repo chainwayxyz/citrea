@@ -141,7 +141,7 @@ where
     let rollup_blueprint = S::new(network);
 
     let backup_manager = Arc::new(BackupManager::new(
-        node_type.to_string(),
+        (&node_type).into(),
         rollup_config.storage.backup_path.clone(),
         Default::default(),
     ));
