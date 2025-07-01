@@ -14,7 +14,6 @@ use bitcoin_da::verifier::BitcoinVerifier;
 use bitcoincore_rpc::{Auth, Client};
 use citrea_common::backup::{create_backup_rpc_module, BackupManager};
 use citrea_common::config::ProverGuestRunConfig;
-use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::{FullNodeConfig, RpcConfig};
 use citrea_primitives::forks::use_network_forks;
 use citrea_primitives::REVEAL_TX_PREFIX;
@@ -31,7 +30,6 @@ use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::TxRequestWithNotifier;
 use sov_state::ProverStorage;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
 use tracing::instrument;
 
@@ -68,8 +66,6 @@ impl RollupBlueprint for BitcoinRollup {
         storage: ProverStorage,
         ledger_db: &LedgerDB,
         da_service: &Arc<Self::DaService>,
-        sequencer_client_url: Option<String>,
-        l2_block_rx: Option<broadcast::Receiver<u64>>,
         backup_manager: &Arc<BackupManager>,
         rpc_config: RpcConfig,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
@@ -80,17 +76,6 @@ impl RollupBlueprint for BitcoinRollup {
             Self::DaService,
             CitreaRuntime<DefaultContext, Self::DaSpec>,
         >(storage.clone(), ledger_db, sov_sequencer, rpc_config)?;
-
-        crate::eth::register_ethereum::<Self::DaService>(
-            da_service.clone(),
-            storage,
-            ledger_db.clone(),
-            &mut rpc_methods,
-            sequencer_client_url,
-            l2_block_rx,
-        )?;
-
-        register_healthcheck_rpc(&mut rpc_methods, ledger_db.clone())?;
 
         let backup_methods = create_backup_rpc_module(ledger_db.clone(), backup_manager.clone());
         rpc_methods.merge(backup_methods)?;

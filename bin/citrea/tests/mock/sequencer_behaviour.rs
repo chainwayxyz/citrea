@@ -678,3 +678,110 @@ fn find_subarray(haystack: &[u8], needle: &[u8]) -> Option<usize> {
         .windows(needle.len())
         .position(|window| window == needle)
 }
+
+/// Test the halt and resume commitments functionality
+#[tokio::test(flavor = "multi_thread")]
+async fn test_sequencer_halt_resume_commitments() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging(tracing::Level::DEBUG);
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+
+    let sequencer_config = SequencerConfig {
+        max_l2_blocks_per_commitment: 2, // Small number of commitments for testing
+        da_update_interval_ms: 100,
+        block_production_interval_ms: 100,
+        ..Default::default()
+    };
+
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_test_client = init_test_rollup(seq_port).await;
+
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
+
+    // Publish initial DA block
+    da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 2, None).await;
+
+    // Create first 2 L2 blocks to trigger initial commitment
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 2, None).await;
+
+    // Wait for first commitment to be published
+    let initial_commitments =
+        wait_for_commitment(&da_service, 3, Some(Duration::from_secs(30))).await;
+    assert_eq!(
+        initial_commitments.len(),
+        1,
+        "Expected 1 initial commitment"
+    );
+
+    // Halt commitments via RPC
+    seq_test_client.sequencer_halt_commitments().await.unwrap();
+
+    // Wait a bit for the halt signal to be processed
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // Create more blocks - should not result in commitments while halted
+    for _ in 0..3 {
+        seq_test_client.send_publish_batch_request().await;
+    }
+
+    // Wait for potential commitments (should not happen)
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
+    // Verify no new commitments were published while halted
+    // Since the sequencer is halted, no new DA blocks should be published
+    // We should still be at DA block 3
+    let current_da_height = da_service.get_height().await;
+    assert_eq!(
+        current_da_height, 3,
+        "No L1 block should have been produced while halted"
+    );
+
+    // Resume commitments via RPC
+    seq_test_client
+        .sequencer_resume_commitments()
+        .await
+        .unwrap();
+
+    // Wait a bit for the resume signal to be processed
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // Wait for commitment to be published after resume
+    let resumed_commitments =
+        wait_for_commitment(&da_service, 5, Some(Duration::from_secs(30))).await;
+    // We should have a single commitment at block 5
+    assert_eq!(resumed_commitments.len(), 1);
+
+    // Verify the commitment is for the correct block range
+    let commitment = &resumed_commitments[0];
+    assert_eq!(commitment.l2_end_block_number, 6);
+
+    seq_task.graceful_shutdown();
+    Ok(())
+}

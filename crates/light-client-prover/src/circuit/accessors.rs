@@ -9,15 +9,31 @@ use sov_rollup_interface::RefCount;
 
 use super::InitialBatchProofMethodIds;
 
+/// Vector of activation height to method id
 pub type BatchProofMethodIds = Vec<(u64, [u32; 8])>;
 
+/// Accessor for managing block hash storage in the light client proof circuit
+///
+/// It handles storage and retrieval of L1 block hashes that have been processed by the light client prover.
+/// Used to prove the existence of a previous hash.
+/// It is a wrapper around working set where key is prefix + block hash and the value is an empty vector
 pub struct BlockHashAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
     phantom: core::marker::PhantomData<S>,
 }
 
 impl<S: Storage> BlockHashAccessor<S> {
+    /// Block hash storage prefix
     const PREFIX: u8 = b'b';
 
+    /// Checks if a block hash exists in storage
+    ///
+    /// # Arguments
+    /// * `hash` - The L1 block hash to check for
+    /// * `working_set` - Mutable reference to the working set for storage access
+    ///
+    /// # Returns
+    /// `true` if the hash exists in storage, `false` otherwise
     pub fn exists(hash: [u8; 32], working_set: &mut WorkingSet<S>) -> bool {
         // use `StorageKey::singleton_owned` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
@@ -32,6 +48,11 @@ impl<S: Storage> BlockHashAccessor<S> {
         working_set.get(&key).is_some()
     }
 
+    /// Inserts a block hash into storage
+    ///
+    /// # Arguments
+    /// * `hash` - The L1 block hash to insert
+    /// * `working_set` - Mutable reference to the working set for storage access
     pub fn insert(hash: [u8; 32], working_set: &mut WorkingSet<S>) {
         // use `StorageKey::singleton_owned` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
@@ -48,14 +69,28 @@ impl<S: Storage> BlockHashAccessor<S> {
     }
 }
 
+/// Accessor for managing block chunks storage in the light client proof circuit
+///
+/// This accessor handles storage and retrieval of proof chunks that are part of
+/// aggregated proofs. Chunks are identified by their wtxid.
+/// It is a wrapper around working set where key is prefix + wtxid and the value is the chunk's body
 pub struct ChunkAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
     phantom: core::marker::PhantomData<S>,
 }
 
 impl<S: Storage> ChunkAccessor<S> {
+    /// Chunk storage prefix
     const PREFIX: u8 = b'c';
 
-    /// Returns body of the chunk if it exists
+    /// Retrieves the body of a chunk if it exists in storage
+    ///
+    /// # Arguments
+    /// * `wtxid` - The wtxid in which the proof was found
+    /// * `working_set` - Mutable reference to the working set for storage access
+    ///
+    /// # Returns
+    /// The chunk body if found, `None` otherwise
     pub fn get(wtxid: [u8; 32], working_set: &mut WorkingSet<S>) -> Option<RefCount<[u8]>> {
         // use `StorageKey::singleton_owned` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
@@ -70,7 +105,12 @@ impl<S: Storage> ChunkAccessor<S> {
         working_set.get(&key).map(|v| v.into())
     }
 
-    /// Insert a new chunk to the LCP state
+    /// Inserts a new chunk into the light client prover state
+    ///
+    /// # Arguments
+    /// * `wtxid` - The wtxid that corresponds to the chunk body
+    /// * `body` - The chunk data to store
+    /// * `working_set` - Mutable reference to the working set for storage access
     pub fn insert(wtxid: [u8; 32], body: Vec<u8>, working_set: &mut WorkingSet<S>) {
         // use `StorageKey::singleton_owned` as a hack to create no serialization key
         let mut key = [0u8; 33]; // 1 prefix + 32 hash
@@ -88,13 +128,28 @@ impl<S: Storage> ChunkAccessor<S> {
     }
 }
 
+/// Accessor for managing sequencer commitments storage in the light client proof circuit
+///
+/// This accessor handles storage and retrieval of sequencer commitments indexed by
+/// their commitment index.
+/// It is a wrapper around working set where key is prefix + sequencer commitment index
+/// and the value is `SequencerCommitment` itself
 pub struct SequencerCommitmentAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
     phantom: core::marker::PhantomData<S>,
 }
 
 impl<S: Storage> SequencerCommitmentAccessor<S> {
+    /// Sequencer commitment storage prefix
     const PREFIX: u8 = b's';
 
+    /// Creates a storage key for a sequencer commitment index
+    ///
+    /// # Arguments
+    /// * `index` - The commitment index to create a key for
+    ///
+    /// # Returns
+    /// A storage key for the given commitment index
     fn key(index: u32) -> StorageKey {
         // use `StorageKey::singleton_owned` as a hack to create no serialization key
         let mut key = [0u8; 5]; // 1 prefix + 4 bytes
@@ -106,7 +161,14 @@ impl<S: Storage> SequencerCommitmentAccessor<S> {
         StorageKey::singleton_owned(p)
     }
 
-    /// Returns sequencer commitment if it exists
+    /// Retrieves a sequencer commitment by its index if it exists
+    ///
+    /// # Arguments
+    /// * `index` - The commitment index to retrieve
+    /// * `working_set` - Mutable reference to the working set for storage access
+    ///
+    /// # Returns
+    /// The sequencer commitment if found, `None` otherwise
     pub fn get(index: u32, working_set: &mut WorkingSet<S>) -> Option<SequencerCommitment> {
         let key = Self::key(index);
 
@@ -116,7 +178,12 @@ impl<S: Storage> SequencerCommitmentAccessor<S> {
         })
     }
 
-    /// Insert a new sequencer commitment to the LCP state
+    /// Inserts a new sequencer commitment into the light client prover state
+    ///
+    /// # Arguments
+    /// * `index` - The commitment index to store at
+    /// * `commitment` - The sequencer commitment to store
+    /// * `working_set` - Mutable reference to the working set for storage access
     pub fn insert(index: u32, commitment: SequencerCommitment, working_set: &mut WorkingSet<S>) {
         let key = Self::key(index);
         let value: StorageValue = borsh::to_vec(&commitment)
@@ -126,13 +193,28 @@ impl<S: Storage> SequencerCommitmentAccessor<S> {
     }
 }
 
+/// Accessor for managing verified state transitions indexed by sequencer commitment
+///
+/// This accessor handles storage and retrieval of sequencer commitments indexed by
+/// their commitment index.
+/// It is a wrapper around working set where key is prefix + sequencer commitment index
+/// and the value is a `VerifiedStateTransitionForSequencerCommitmentIndex`
 pub struct VerifiedStateTransitionForSequencerCommitmentIndexAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
     phantom: core::marker::PhantomData<S>,
 }
 
 impl<S: Storage> VerifiedStateTransitionForSequencerCommitmentIndexAccessor<S> {
+    /// Verified state transaction storage prefix
     const PREFIX: u8 = b'u';
 
+    /// Creates a storage key for a verified state transition index
+    ///
+    /// # Arguments
+    /// * `index` - The commitment index to create a key for
+    ///
+    /// # Returns
+    /// A storage key for the given commitment index
     fn key(index: u32) -> StorageKey {
         // use `StorageKey::singleton_owned` as a hack to create no serialization key
         let mut key = [0u8; 5]; // 1 prefix + 4 bytes
@@ -144,7 +226,14 @@ impl<S: Storage> VerifiedStateTransitionForSequencerCommitmentIndexAccessor<S> {
         StorageKey::singleton_owned(p)
     }
 
-    /// Returns batch proof info if it exists
+    /// Retrieves verified state transition info by commitment index if it exists
+    ///
+    /// # Arguments
+    /// * `index` - The commitment index to retrieve
+    /// * `working_set` - Mutable reference to the working set for storage access
+    ///
+    /// # Returns
+    /// The verified state transition info if found, `None` otherwise
     pub fn get(
         index: u32,
         working_set: &mut WorkingSet<S>,
@@ -157,7 +246,12 @@ impl<S: Storage> VerifiedStateTransitionForSequencerCommitmentIndexAccessor<S> {
         })
     }
 
-    /// Insert a new batch proof info to the LCP state
+    /// Inserts new verified state transition info into the LCP state
+    ///
+    /// # Arguments
+    /// * `index` - The commitment index to store at
+    /// * `sequencer_commitment_info` - The verified state transition info to store
+    /// * `working_set` - Mutable reference to the working set for storage access
     pub fn insert(
         index: u32,
         sequencer_commitment_info: VerifiedStateTransitionForSequencerCommitmentIndex,
@@ -171,16 +265,27 @@ impl<S: Storage> VerifiedStateTransitionForSequencerCommitmentIndexAccessor<S> {
     }
 }
 
+/// Accessor for managing batch proof method ids
+///
+/// This accessor handles storage and retrieval of batch proof method ids that are
+/// activated at different L2 block heights, allowing for upgrades to the proving system.
+/// It is a wrapper around working set where key is the prefix
+/// and the value is a borsh serialized vector of activation height to method id
 pub struct BatchProofMethodIdAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
     phantom: core::marker::PhantomData<S>,
 }
 
 impl<S: Storage> BatchProofMethodIdAccessor<S> {
+    /// Batch proof method ids storage prefix
     const PREFIX: u8 = b'm';
 
+    /// Creates a storage key containing just the prefix
+    /// # Returns
+    /// A storage key for accessing batch proof method ids
     fn key() -> StorageKey {
         // use `StorageKey::singleton_owned` as a hack to create no serialization key
-        let mut key = [0u8; 1]; // 1 prefix + 1 byte
+        let mut key = [0u8; 1]; // 1 prefix
 
         key[0] = Self::PREFIX;
 
@@ -188,6 +293,13 @@ impl<S: Storage> BatchProofMethodIdAccessor<S> {
         StorageKey::singleton_owned(p)
     }
 
+    /// Retrieves the batch proof method ids if they exist
+    ///
+    /// # Arguments
+    /// * `working_set` - Mutable reference to the working set for storage access
+    ///
+    /// # Returns
+    /// The batch proof method IDs if they exist, `None` otherwise
     pub fn get(working_set: &mut WorkingSet<S>) -> Option<BatchProofMethodIds> {
         let key = Self::key();
 
@@ -198,6 +310,12 @@ impl<S: Storage> BatchProofMethodIdAccessor<S> {
         })
     }
 
+    /// Inserts a new batch proof method id into the LCP state
+    ///
+    /// # Arguments
+    /// * `activation_l2_height` - The L2 block height at which the method id is activated
+    /// * `method_id` - The method id to store
+    /// * `working_set` - Mutable reference to the working set for storage access
     pub fn insert(activation_l2_height: u64, method_id: [u32; 8], working_set: &mut WorkingSet<S>) {
         let key = Self::key();
         let mut method_ids = Self::get(working_set).unwrap_or_default();
@@ -208,6 +326,13 @@ impl<S: Storage> BatchProofMethodIdAccessor<S> {
         working_set.set(&key, value);
     }
 
+    /// Initializes the batch proof method ids with an initial set of method ids. Must be called at most once and before any insertions.
+    /// # Arguments
+    /// * `initial_batch_proof_method_ids` - The initial set of method ids to store
+    /// * `working_set` - Mutable reference to the working set for storage access
+    ///
+    /// # Panics
+    /// Panics if the batch proof method ids are not empty when initializing
     pub fn initialize(
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         working_set: &mut WorkingSet<S>,

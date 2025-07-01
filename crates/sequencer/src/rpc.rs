@@ -22,6 +22,7 @@ use tracing::{debug, error};
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS;
+use crate::types::SequencerRpcMessage;
 use crate::utils::recover_raw_transaction;
 
 /// RPC context containing all the shared data needed for RPC method implementations
@@ -30,8 +31,8 @@ pub struct RpcContext {
     pub mempool: Arc<CitreaMempool>,
     /// The deposit transaction mempool
     pub deposit_mempool: Arc<Mutex<DepositDataMempool>>,
-    /// Channel for forcing block production (used in test mode)
-    pub l2_force_block_tx: UnboundedSender<()>,
+    /// Channel for sending messages to the sequencer
+    pub rpc_message_tx: UnboundedSender<SequencerRpcMessage>,
     /// Storage for the sequencer state
     pub storage: <DefaultContext as Spec>::Storage,
     /// Ledger database access
@@ -52,7 +53,7 @@ pub struct RpcContext {
 pub fn create_rpc_context(
     mempool: Arc<CitreaMempool>,
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
-    l2_force_block_tx: UnboundedSender<()>,
+    rpc_message_tx: UnboundedSender<SequencerRpcMessage>,
     storage: <DefaultContext as Spec>::Storage,
     ledger_db: LedgerDB,
     test_mode: bool,
@@ -60,7 +61,7 @@ pub fn create_rpc_context(
     RpcContext {
         mempool,
         deposit_mempool,
-        l2_force_block_tx,
+        rpc_message_tx,
         storage,
         ledger: ledger_db,
         test_mode,
@@ -149,6 +150,14 @@ pub trait SequencerRpc {
     /// This method is only available when the sequencer is running in test mode.
     #[method(name = "citrea_testPublishBlock")]
     async fn publish_test_block(&self) -> RpcResult<()>;
+
+    /// Halt sequencer commitments
+    #[method(name = "citrea_haltCommitments")]
+    async fn halt_commitments(&self) -> RpcResult<()>;
+
+    /// Resume sequencer commitments
+    #[method(name = "citrea_resumeCommitments")]
+    async fn resume_commitments(&self) -> RpcResult<()>;
 }
 
 /// Sequencer RPC server implementation
@@ -297,9 +306,32 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
         }
 
         debug!("Sequencer: citrea_testPublishBlock");
-        self.context.l2_force_block_tx.send(()).map_err(|e| {
-            internal_rpc_error(format!("Could not send L2 force block transaction: {e}"))
-        })
+        self.context
+            .rpc_message_tx
+            .send(SequencerRpcMessage::ProduceTestBlock)
+            .map_err(|e| {
+                internal_rpc_error(format!("Could not send L2 force block transaction: {e}"))
+            })
+    }
+
+    /// Halt sequencer commitments
+    async fn halt_commitments(&self) -> RpcResult<()> {
+        debug!("Sequencer: citrea_haltCommitments");
+        self.context
+            .rpc_message_tx
+            .send(SequencerRpcMessage::HaltCommitments)
+            .map_err(|e| internal_rpc_error(format!("Could not send halt commitments signal: {e}")))
+    }
+
+    /// Resume sequencer commitments
+    async fn resume_commitments(&self) -> RpcResult<()> {
+        debug!("Sequencer: citrea_resumeCommitments");
+        self.context
+            .rpc_message_tx
+            .send(SequencerRpcMessage::ResumeCommitments)
+            .map_err(|e| {
+                internal_rpc_error(format!("Could not send resume commitments signal: {e}"))
+            })
     }
 }
 

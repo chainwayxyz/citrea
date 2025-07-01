@@ -10,6 +10,7 @@ use citrea::{
 };
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
+use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_light_client_prover};
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig};
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::StartVariant;
@@ -39,8 +40,10 @@ use tokio::signal::unix::{signal, SignalKind};
 use tracing::{debug, error, info, instrument};
 
 use crate::cli::{node_type_from_args, Args, NodeType, SupportedDaLayer};
+use crate::eth::register_ethereum;
 
 mod cli;
+mod eth;
 
 /// Main runner. Initializes a DA service, and starts a node using the provided arguments.
 #[tokio::main]
@@ -138,7 +141,7 @@ where
     let rollup_blueprint = S::new(network);
 
     let backup_manager = Arc::new(BackupManager::new(
-        node_type.to_string(),
+        (&node_type).into(),
         rollup_config.storage.backup_path.clone(),
         Default::default(),
     ));
@@ -225,15 +228,29 @@ where
     };
 
     let rpc_storage = storage_manager.create_final_view_storage();
-    let rpc_module = rollup_blueprint.create_rpc_methods(
-        rpc_storage,
+    let mut rpc_module = rollup_blueprint.create_rpc_methods(
+        rpc_storage.clone(),
         &ledger_db,
         &da_service,
-        sequencer_client_url,
-        l2_block_rx,
         &backup_manager,
         rollup_config.rpc.clone(),
     )?;
+
+    if matches!(node_type, NodeType::LightClientProver(_)) {
+        register_healthcheck_rpc_light_client_prover(&mut rpc_module, da_service.clone())
+            .expect("Failed to register healthcheck RPC for light client prover");
+    } else {
+        register_healthcheck_rpc(&mut rpc_module, ledger_db.clone())?;
+        // Register Ethereum RPC methods if the node is not a light client prover
+        register_ethereum(
+            da_service.clone(),
+            rpc_storage,
+            ledger_db.clone(),
+            &mut rpc_module,
+            sequencer_client_url,
+            l2_block_rx,
+        )?;
+    }
 
     let task_executor = task_manager.executor();
 

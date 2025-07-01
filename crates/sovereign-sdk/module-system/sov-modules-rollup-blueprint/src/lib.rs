@@ -21,7 +21,6 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_rollup_interface::Network;
-use tokio::sync::broadcast;
 
 mod runtime_rpc;
 
@@ -65,14 +64,11 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>;
 
     /// Creates RPC methods for the rollup.
-    #[allow(clippy::too_many_arguments)]
     fn create_rpc_methods(
         &self,
         storage: ProverStorage,
         ledger_db: &LedgerDB,
         da_service: &Arc<Self::DaService>,
-        sequencer_client_url: Option<String>,
-        l2_block_rx: Option<broadcast::Receiver<u64>>,
         backup_manager: &Arc<BackupManager>,
         rpc_config: RpcConfig,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;

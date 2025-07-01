@@ -868,6 +868,28 @@ impl TestClient {
 
         Some(commitments)
     }
+
+    /// Halt sequencer commitments
+    pub(crate) async fn sequencer_halt_commitments(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let _: () = self
+            .http_client
+            .request("citrea_haltCommitments", rpc_params![])
+            .await?;
+        Ok(())
+    }
+
+    /// Resume sequencer commitments
+    pub(crate) async fn sequencer_resume_commitments(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let _: () = self
+            .http_client
+            .request("citrea_resumeCommitments", rpc_params![])
+            .await?;
+        Ok(())
+    }
 }
 
 #[derive(serde::Deserialize, Debug)]
