@@ -24,6 +24,7 @@ const fn decode_to_u32_array(hex: &str) -> [u32; 8] {
     }
 }
 
+/// Constant function to ensure a slice is non-empty at compile time.
 const fn non_empty_slice<T>(slice: &[T]) -> &[T] {
     assert!(!slice.is_empty(), "Empty slice passed to non_empty_slice");
     slice
@@ -469,6 +470,7 @@ impl InitialValueProvider<BitcoinSpec> for Network {
     }
 }
 
+/// Tests for the initial values module
 mod tests {
     #[test]
     fn test_non_empty_slice_check() {
