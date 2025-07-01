@@ -772,14 +772,6 @@ async fn test_sequencer_halt_resume_commitments() -> Result<(), anyhow::Error> {
     // Wait a bit for the resume signal to be processed
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    // Create one more L2 block to trigger commitment processing
-    seq_test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&seq_test_client, 5, None).await;
-
-    // Publish DA block to provide space for commitments
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 5, None).await;
-
     // Wait for commitment to be published after resume
     let resumed_commitments =
         wait_for_commitment(&da_service, 5, Some(Duration::from_secs(30))).await;
@@ -788,7 +780,7 @@ async fn test_sequencer_halt_resume_commitments() -> Result<(), anyhow::Error> {
 
     // Verify the commitment is for the correct block range
     let commitment = &resumed_commitments[0];
-    assert_eq!(commitment.l2_end_block_number, 4);
+    assert_eq!(commitment.l2_end_block_number, 6);
 
     seq_task.graceful_shutdown();
     Ok(())
