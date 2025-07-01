@@ -614,9 +614,12 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     ///
     /// # Logic
     /// 1. Verifies the previous light client proof and extracts its output.  
-    /// 2. Uses `DaVerifier::verify_header_chain` to check if the new block header is valid under the Bitcoin consensus rules (including proof-of-work) and follows the latest DA block from the previous light client proof. If there is no previous light client proof, a predefined constant initial network state is used.  
-    /// 3. Uses `DaVerifier::verify_transactions` to validate the inclusion and completeness proofs against the block header and retrieve the relevant transactions from the DA block. This guarantees that all relevant transactions in the DA block will be processed.
-    /// 4. Calls `run_l1_block` to process the DA transactions, and verifying the updates to the L2 state and the JMT state,
+    /// 2. Uses `DaVerifier::verify_header_chain` to check if the new block header is valid under the Bitcoin consensus rules (including proof-of-work)
+    ///    and follows the latest DA block from the previous light client proof. If there is no previous light client proof,
+    ///    a predefined constant initial network state is used.  
+    /// 3. Uses `DaVerifier::verify_transactions` to validate the inclusion and completeness proofs against the block header and retrieve the relevant transactions from the DA block.
+    ///    This guarantees that all relevant transactions in the DA block will be processed.
+    /// 4. Calls `run_l1_block` to process the DA transactions, and verifying the updates to the L2 state and the JMT state.
     /// 5. Uses `RunL1BlockResult` to generate the output of the light client circuit.
     ///
     /// # Returns
