@@ -75,7 +75,7 @@ impl std::fmt::Display for NodeType {
                 write!(f, "sequencer")
             }
             NodeType::FullNode => {
-                write!(f, "fullnode")
+                write!(f, "full-node")
             }
             NodeType::BatchProver(_) => {
                 write!(f, "batch-prover")

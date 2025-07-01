@@ -135,7 +135,7 @@ impl TestCase for BackupSequencerTest {
         assert_eq!(backup_info.backup_id, 1);
         assert!(backup_info.created_at > 0);
         assert_eq!(backup_info.backup_path, backup_path);
-        assert_eq!(backup_info.block_height, start_height);
+        assert_eq!(backup_info.l2_block_height.unwrap(), start_height);
 
         let validation = validate_backup(&client, Some(&backup_path)).await?;
         assert!(validation.is_valid);
@@ -177,13 +177,13 @@ impl TestCase for BackupSequencerTest {
         let incremental_backup = create_backup(&client, Some(&backup_path)).await?;
 
         assert_eq!(incremental_backup.backup_id, 3);
-        assert_eq!(incremental_backup.block_height, current_height);
+        assert_eq!(incremental_backup.l2_block_height.unwrap(), current_height);
 
         // Create new non-incremental backup
         let backup_path_2 = sequencer.config.base.dir.join("backup_2");
         let backup_info_2 = create_backup(&client, Some(&backup_path_2)).await?;
 
-        assert_eq!(backup_info_2.block_height, current_height);
+        assert_eq!(backup_info_2.l2_block_height.unwrap(), current_height);
 
         // Test restore flow
 
@@ -215,7 +215,10 @@ impl TestCase for BackupSequencerTest {
 
         // Assert that heights is properly restored to the expected height
         let restored_l2_height = sequencer.client.ledger_get_head_l2_block_height().await?;
-        assert_eq!(restored_l2_height, incremental_backup.block_height);
+        assert_eq!(
+            restored_l2_height,
+            incremental_backup.l2_block_height.unwrap()
+        );
         assert_ne!(restored_l2_height, current_height);
 
         // Test backup and restore post rollback
@@ -229,7 +232,7 @@ impl TestCase for BackupSequencerTest {
         let backup_path_3 = sequencer.config.base.dir.join("backup_3");
         let backup_3 = create_backup(&client, Some(&backup_path_3)).await?;
 
-        let backup_3_height = backup_3.block_height;
+        let backup_3_height = backup_3.l2_block_height.unwrap();
         assert_eq!(backup_3_height, current_height);
 
         // Rollback to start l2 height
@@ -266,7 +269,7 @@ impl TestCase for BackupSequencerTest {
         let post_rollback_backup_path = sequencer.config.base.dir.join("post_rollback_backup");
         let post_rollback_backup = create_backup(&client, Some(&post_rollback_backup_path)).await?;
 
-        let post_rollback_backup_height = post_rollback_backup.block_height;
+        let post_rollback_backup_height = post_rollback_backup.l2_block_height.unwrap();
         assert_eq!(post_rollback_backup_height, rolled_back_height);
 
         for _ in 0..max_l2_blocks_per_commitment {
@@ -375,11 +378,12 @@ impl TestCase for BackupFullNodeTest {
         let backup_path = full_node.config.base.dir.join("backup");
         let create_backup_info = create_backup(&client, Some(&backup_path)).await?;
 
-        assert_eq!(create_backup_info.node_kind, "fullnode");
+        assert_eq!(create_backup_info.node_kind, "full-node");
         assert_eq!(create_backup_info.backup_id, 1);
         assert!(create_backup_info.created_at > 0);
         assert_eq!(create_backup_info.backup_path, backup_path);
-        assert_eq!(create_backup_info.block_height, start_l2_height);
+        assert_eq!(create_backup_info.l2_block_height.unwrap(), start_l2_height);
+        assert_eq!(create_backup_info.l1_block_height.unwrap(), start_l1_height);
 
         let validation = validate_backup(&client, Some(&backup_path)).await?;
         assert!(validation.is_valid);
@@ -672,7 +676,7 @@ impl TestCase for BackupBatchProverTest {
         assert_eq!(backup_info.backup_id, 1);
         assert!(backup_info.created_at > 0);
         assert_eq!(backup_info.backup_path, backup_path);
-        assert!(backup_info.block_height > 0);
+        assert!(backup_info.l2_block_height.is_some());
 
         let validation = validate_backup(&client, Some(&backup_path)).await?;
         assert!(validation.is_valid);
@@ -1003,7 +1007,7 @@ impl TestCase for BackupLightClientProverTest {
         assert_eq!(backup_info.backup_id, 1);
         assert!(backup_info.created_at > 0);
         assert_eq!(backup_info.backup_path, backup_path);
-        assert_eq!(backup_info.block_height, 0);
+        assert!(backup_info.l2_block_height.is_none());
 
         let validation = validate_backup(&client, Some(&backup_path)).await?;
         assert!(validation.is_valid);
