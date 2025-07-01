@@ -498,7 +498,7 @@ impl BitcoinService {
     async fn test_mempool_accept_queue_tx(&self, txs: &[SignedTxPair]) -> Result<()> {
         let raw_txs: Vec<&Vec<u8>> = txs.iter().flat_map(|v| v.as_raw_txs()).collect();
 
-        match self.test_mempool_accept(raw_txs.as_slice()).await {
+        match self.test_mempool_accept(&raw_txs).await {
             Ok(())
             // Mempool rejection variants that are recoverable by queueing such as too many transactions in mempool or package too large
             | Err(BitcoinServiceError::MempoolRejection(
