@@ -202,7 +202,7 @@ where
     /// * `l1_block` - The L1 block to process
     ///
     /// This method:
-    /// 1. Runs the L1 block of the light client proof circuit to generate a witness, and gets the updates to the LCP's JMT state.
+    /// 1. Runs the L1 block of the light client proof circuit to generate a witness, and gets the updates to the JMT state.
     /// 2. Prepares the light client circuit input and calls `Self::prove` to generate a proof for the L1 block.
     /// 3. Asserts that the state update's state root matches the one in the circuit output, and finalizes the storage.
     async fn process_l1_block(&mut self, l1_block: Da::FilteredBlock) -> anyhow::Result<()> {
