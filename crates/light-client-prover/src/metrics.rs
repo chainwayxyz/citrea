@@ -10,8 +10,8 @@ use once_cell::sync::Lazy;
 #[metrics(scope = "light_client_prover")]
 /// Collection of metrics for monitoring light client performance and state
 pub struct LightClientProverMetrics {
-    #[metric(describe = "The current L1 block number which is used to produce L2 blocks")]
-    /// The current L1 block number which is used to produce L2 blocks
+    #[metric(describe = "The height of the last L1 block proved")]
+    /// The height of the last L1 block proved
     pub current_l1_block: Gauge,
     #[metric(describe = "The duration of scanning and processing a single L1 block")]
     /// The duration of scanning and processing a single L1 block
