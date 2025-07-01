@@ -29,8 +29,8 @@ use crate::runner::CitreaLightClientProver;
 /// * `ledger_db` - Database for ledger operations
 /// * `da_service` - Data availability service implementation
 /// * `prover_service` - Parallel prover service for handling ZKVM operations
-/// * `light_client_prover_code_commitments` - Map of ZKVM code commitments by spec ID for light client proof circuit
-/// * `light_client_prover_elfs` - Map of ZKVM ELF binaries by spec ID for light client proof circuit
+/// * `light_client_prover_code_commitments` - Map of ZKVM code commitments by spec ID for the light client proof circuit
+/// * `light_client_prover_elfs` - Map of ZKVM ELF binaries by spec ID for the light client proof circuit
 /// * `rpc_module` - RPC module for external communication
 /// * `backup_manager` - Manager for backup operations
 ///
