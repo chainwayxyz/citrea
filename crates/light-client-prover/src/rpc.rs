@@ -27,7 +27,7 @@ where
 }
 
 /// Creates a shared RpcContext with all required data.
-/// 
+///
 /// # Arguments
 /// * `ledger_db` - Database instance for ledger operations
 /// * `storage` - Database for storage operations
@@ -72,7 +72,7 @@ pub fn register_rpc_methods<DB: LightClientProverLedgerOps + Clone + 'static>(
 #[rpc(client, server, namespace = "lightClientProver")]
 pub trait LightClientProverRpc {
     /// Generate state transition data for the given L1 block height, and return the data as a borsh serialized hex string.
-    /// 
+    ///
     /// # Arguments
     /// * `l1_height` - The L1 block height for which to get the light client proof.
     #[method(name = "getLightClientProofByL1Height")]

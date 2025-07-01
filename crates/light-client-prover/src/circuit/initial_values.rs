@@ -131,7 +131,7 @@ pub mod bitcoinda {
             Err(_) => panic!("L2_GENESIS_ROOT must be valid 32-byte hex string"),
         }
     };
-    
+
     /// Initial batch proof method IDs for the Bitcoin DA on Mainnet.
     pub const MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] =
         non_empty_slice(&[(0, [0; 8])]);
@@ -160,7 +160,7 @@ pub mod bitcoinda {
         non_empty_slice(METHOD_IDS)
     };
 
-    /// Initial batch proof method IDs for the Bitcoin DA on Test Network with Forks. 
+    /// Initial batch proof method IDs for the Bitcoin DA on Test Network with Forks.
     /// This method ID is set at compile time via the `BATCH_PROOF_METHOD_ID` environment variable, paired with activation height 0.
     /// If the variable is not set, the method ID from the guest compilation is appended to the predefined method IDs.
     pub const TEST_NETWORK_WITH_FORKS_INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {

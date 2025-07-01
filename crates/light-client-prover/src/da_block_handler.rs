@@ -74,7 +74,7 @@ where
     queued_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
-    /// Light client proof circuit logic 
+    /// Light client proof circuit logic
     circuit: LightClientProofCircuit<ProverStorage, Da::Spec, Vm>,
 }
 
@@ -312,7 +312,7 @@ where
     /// * `light_client_elf` - The ELF binary for the light client proof circuit
     /// * `circuit_input` - The input for the light client circuit
     /// * `assumptions` - Assumptions used in the proving process
-    /// 
+    ///
     /// # Returns
     /// A proof, in bytes, for the light client circuit.
     async fn prove(

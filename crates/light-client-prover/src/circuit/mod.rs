@@ -1,7 +1,7 @@
 //! # Light Client Circuit Module
 //!
-//! This module defines the logic of the light client circuit. 
-//! The light client circuit processes DA blocks, validates batch proofs, and generates proofs 
+//! This module defines the logic of the light client circuit.
+//! The light client circuit processes DA blocks, validates batch proofs, and generates proofs
 //! that verify L2 state transitions and updates to the light client state.
 use accessors::{
     BatchProofMethodIdAccessor, BlockHashAccessor, ChunkAccessor, SequencerCommitmentAccessor,
@@ -65,9 +65,9 @@ pub struct RunL1BlockResult<S: Storage> {
     pub last_sequencer_commitment_index: u32,
 }
 
-/// LightClientProofCircuit struct implements the functionality of the light client proof circuit. 
+/// LightClientProofCircuit struct implements the functionality of the light client proof circuit.
 /// Contains methods that define the logic of the circuit, and holds the types of the storage, DA spec, and zkVM.
-/// 
+///
 /// # Type Parameters
 /// * `S` - Storage type implementing the Storage trait
 /// * `DS` - Data Availability specification type implementing the DaSpec trait
@@ -87,18 +87,18 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
     /// Verifies that all the sequencer commitments in the batch proof output, including the previous commitment,
     /// match the sequencer commitments stored in the JMT state.
-    /// 
+    ///
     /// # Arguments
     /// * `batch_proof_output` - The output of the batch proof circuit.
     /// * `working_set` - The working set to use accessors that read the JMT state.
-    /// 
-    /// 
+    ///
+    ///
     /// # Logic
-    /// - If the batch proof output contains a previous commitment index and hash, compares it with the sequencer commitment stored in the JMT state. 
+    /// - If the batch proof output contains a previous commitment index and hash, compares it with the sequencer commitment stored in the JMT state.
     ///     If the previous commitment index is not set, ensures that the first commitment index in the batch proof output is 1.
     /// - For each sequencer commitment in the batch proof output, checks that the index and hash match the sequencer commitments stored in the JMT state.
     /// - Checks that if the last L2 height of last commitment matches the last L2 height in the batch proof output.
-    /// 
+    ///
     /// # Returns
     /// * `true` if all checks are successful, `false` otherwise.
     fn verify_batch_proof_seq_comm_relation(
@@ -216,15 +216,15 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
     /// Processes a complete proof, verifying it and validating it according to the current state of the JMT.
     /// If the proof is valid, all of the sequencer commitments in the proof's range are added to the JMT state as verified state transitions.
-    /// 
+    ///
     /// # Arguments
     /// * `proof` - The serialized complete proof to process.
     /// * `last_l2_height` - The last L2 height known before processing this proof.
     /// * `last_sequencer_commitment_index` - The last sequencer commitment index known before processing this proof.
     /// * `working_set` - The working set to use accessor that reads the JMT state.
-    /// 
+    ///
     /// # Logic
-    /// 
+    ///
     /// - The proof is deserialized and the output is extracted.
     /// - The output is checked to ensure it contains a valid L1 hash that is known
     /// - The last L2 height of the output is checked to ensure it is greater than the last known height.
@@ -232,9 +232,9 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// - The proof is verified using the batch proof method ID.
     /// - The sequencer commitment relation is verified to ensure the proof's sequencer commitments are known.
     /// - The last sequencer commitment index is checked to ensure it is greater than the last known index.
-    /// 
+    ///
     /// At this point, the proof is considered valid and the sequencer commitments in the proof's range are added to the JMT state as verified state transitions.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(())` if the proof was processed successfully.
     /// * `Err(CircuitError)` if there was an error processing the proof, such as verification failure, deserialization error, or state root mismatch.
@@ -333,13 +333,13 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    /// Called by both the native execution and the circuit. 
-    /// This function processes the relevant transactions, moves the L2 state forward, and validates the changes to the LCP’s JMT state. 
-    /// 
+    /// Called by both the native execution and the circuit.
+    /// This function processes the relevant transactions, moves the L2 state forward, and validates the changes to the LCP’s JMT state.
+    ///
     /// # Arguments
     /// * `storage` - The storage used for accessing the JMT state, performing updates, and validating read and write operations.
     /// * `witness` - The witness that contains the hints for the JMT state.
-    /// * `da_txs` - Vector of the relevant transactions. Transactions are considered relevant if their wtxid begins with a predefined constant reveal transaction prefix. 
+    /// * `da_txs` - Vector of the relevant transactions. Transactions are considered relevant if their wtxid begins with a predefined constant reveal transaction prefix.
     /// * `da_block_header` - The block header of the DA block that is being processed.
     /// * `previous_light_client_proof_output` - The previous light client proof output.
     /// * `l2_genesis_root` - The L2 genesis root, which is used to initialize the L2 state root if there is no previous light client proof output.
@@ -358,7 +358,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     ///    - Aggregate proofs are processed by concatenating the chunks and processing the complete proof as above.
     ///    - Sequencer commitments are stored in the JMT state by their index.
     ///    - Batch proof method ID transactions are processed to update the batch proof method IDs in the JMT state.
-    /// 
+    ///
     /// # Returns
     /// * `RunL1BlockResult` - The result of running the L1 block, contains updates to the L2 state and the light client's JMT state.
     pub fn run_l1_block(
@@ -599,8 +599,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         }
     }
 
-    /// Called by the guest to run the light client circuit. 
-    /// 
+    /// Called by the guest to run the light client circuit.
+    ///
     /// # Arguments
     /// * `da_verifier` - The DA verifier to use for verifying the DA block and its transactions
     /// * `input` - The input to the light client circuit, containing the DA block header, inclusion proof, completeness proof, and previous light client proof, and the witness.
@@ -611,14 +611,14 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// * `batch_prover_da_public_key` - The public key of the batch prover
     /// * `sequencer_da_public_key` - The public key of the sequencer
     /// * `method_id_upgrade_authority_da_public_key` - The public key of the method ID upgrade authority
-    /// 
+    ///
     /// # Logic
     /// 1. Verifies the previous light client proof and extracts its output.  
     /// 2. Uses `DaVerifier::verify_header_chain` to check if the new block header is valid under the Bitcoin consensus rules (including proof-of-work) and follows the latest DA block from the previous light client proof. If there is no previous light client proof, a predefined constant initial network state is used.  
     /// 3. Uses `DaVerifier::verify_transactions` to validate the inclusion and completeness proofs against the block header and retrieve the relevant transactions from the DA block. This guarantees that all relevant transactions in the DA block will be processed.
-    /// 4. Calls `run_l1_block` to process the DA transactions, and verifying the updates to the L2 state and the JMT state, 
+    /// 4. Calls `run_l1_block` to process the DA transactions, and verifying the updates to the L2 state and the JMT state,
     /// 5. Uses `RunL1BlockResult` to generate the output of the light client circuit.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(LightClientCircuitOutput)` if the circuit was run successfully
     /// * `Err(LightClientVerificationError)` if there was an error running the circuit.
