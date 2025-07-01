@@ -18,7 +18,6 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Address, Spec, SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
-use tokio::sync::broadcast;
 
 use crate::guests::{BATCH_PROOF_LATEST_MOCK_GUESTS, LIGHT_CLIENT_LATEST_MOCK_GUESTS};
 use crate::{CitreaRollupBlueprint, Network};
@@ -63,25 +62,6 @@ impl RollupBlueprint for MockDemoRollup {
         rpc_methods.merge(backup_methods)?;
 
         Ok(rpc_methods)
-    }
-
-    fn register_ethereum_rpc(
-        &self,
-        da_service: Arc<Self::DaService>,
-        storage: <DefaultContext as Spec>::Storage,
-        ledger_db: LedgerDB,
-        methods: &mut jsonrpsee::RpcModule<()>,
-        sequencer_client_url: Option<String>,
-        l2_block_rx: Option<broadcast::Receiver<u64>>,
-    ) -> Result<(), anyhow::Error> {
-        crate::eth::register_ethereum::<Self::DaService>(
-            da_service,
-            storage,
-            ledger_db,
-            methods,
-            sequencer_client_url,
-            l2_block_rx,
-        )
     }
 
     async fn create_da_service(

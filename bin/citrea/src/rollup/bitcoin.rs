@@ -30,7 +30,6 @@ use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::TxRequestWithNotifier;
 use sov_state::ProverStorage;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
 use tracing::instrument;
 
@@ -85,27 +84,6 @@ impl RollupBlueprint for BitcoinRollup {
         rpc_methods.merge(da_methods)?;
 
         Ok(rpc_methods)
-    }
-
-    #[instrument(level = "trace", skip_all, err)]
-    fn register_ethereum_rpc(
-        &self,
-        da_service: Arc<Self::DaService>,
-        storage: ProverStorage,
-        ledger_db: LedgerDB,
-        methods: &mut jsonrpsee::RpcModule<()>,
-        sequencer_client_url: Option<String>,
-        l2_block_rx: Option<broadcast::Receiver<u64>>,
-    ) -> Result<(), anyhow::Error> {
-        // Register Ethereum RPC methods
-        crate::eth::register_ethereum::<Self::DaService>(
-            da_service.clone(),
-            storage,
-            ledger_db.clone(),
-            methods,
-            sequencer_client_url,
-            l2_block_rx,
-        )
     }
 
     #[instrument(level = "trace", skip_all, err)]

@@ -21,7 +21,6 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_rollup_interface::Network;
-use tokio::sync::broadcast;
 
 mod runtime_rpc;
 
@@ -73,17 +72,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         backup_manager: &Arc<BackupManager>,
         rpc_config: RpcConfig,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
-
-    /// Registers Ethereum RPC methods.
-    fn register_ethereum_rpc(
-        &self,
-        da_service: Arc<Self::DaService>,
-        storage: ProverStorage,
-        ledger_db: LedgerDB,
-        methods: &mut jsonrpsee::RpcModule<()>,
-        sequencer_client_url: Option<String>,
-        l2_block_rx: Option<broadcast::Receiver<u64>>,
-    ) -> Result<(), anyhow::Error>;
 
     /// Creates GenesisConfig from genesis files.
     #[allow(clippy::type_complexity)]

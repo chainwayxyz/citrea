@@ -213,16 +213,15 @@ pub async fn start_rollup(
             .expect("Failed to register healthcheck RPC for light client prover");
     } else {
         // Register Ethereum RPC methods if this is not the Light Client Prover
-        mock_demo_rollup
-            .register_ethereum_rpc(
-                da_service.clone(),
-                rpc_storage,
-                ledger_db.clone(),
-                &mut rpc_module,
-                sequencer_client_url,
-                l2_block_rx,
-            )
-            .expect("Failed to register Ethereum RPC methods");
+        citrea::register_ethereum(
+            da_service.clone(),
+            rpc_storage,
+            ledger_db.clone(),
+            &mut rpc_module,
+            sequencer_client_url,
+            l2_block_rx,
+        )
+        .expect("Failed to register Ethereum RPC methods");
         register_healthcheck_rpc(&mut rpc_module, ledger_db.clone())
             .expect("Failed to register healthcheck RPC");
     }

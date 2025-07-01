@@ -40,8 +40,10 @@ use tokio::signal::unix::{signal, SignalKind};
 use tracing::{debug, error, info, instrument};
 
 use crate::cli::{node_type_from_args, Args, NodeType, SupportedDaLayer};
+use crate::eth::register_ethereum;
 
 mod cli;
+mod eth;
 
 /// Main runner. Initializes a DA service, and starts a node using the provided arguments.
 #[tokio::main]
@@ -240,7 +242,7 @@ where
     } else {
         register_healthcheck_rpc(&mut rpc_module, ledger_db.clone())?;
         // Register Ethereum RPC methods if the node is not a light client prover
-        rollup_blueprint.register_ethereum_rpc(
+        register_ethereum(
             da_service.clone(),
             rpc_storage,
             ledger_db.clone(),
