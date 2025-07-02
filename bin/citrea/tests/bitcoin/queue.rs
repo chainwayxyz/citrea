@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use crate::bitcoin::full_node::create_serialized_fake_receipt_batch_proof_with_state_roots;
 use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
@@ -22,6 +21,7 @@ use sov_rollup_interface::services::da::DaService;
 
 use super::light_client_test::create_random_state_diff;
 use super::{get_citrea_cli_path, get_citrea_path};
+use crate::bitcoin::full_node::create_serialized_fake_receipt_batch_proof_with_state_roots;
 use crate::bitcoin::utils::spawn_bitcoin_da_prover_service;
 
 struct DaTransactionQueueingTest {
@@ -31,6 +31,7 @@ struct DaTransactionQueueingTest {
 impl DaTransactionQueueingTest {
     // Test for `MempoolRejection("package-mempool-limits, possibly exceeds descendant size limit for tx 6a0c9e3c2fed9cbac73c88031e7333d0ce2242a664e3141ba028b765b0b1e562 [limit: 101000]` error
     // Send 4 100kb proofs. The 4th one will be tipping the total package size over the 101kvb limit and be rejected with package-too-large error
+    #[allow(clippy::too_many_arguments)]
     async fn test_package_mempool_limits(
         &self,
         da: &BitcoinNode,
@@ -107,6 +108,7 @@ impl DaTransactionQueueingTest {
 
     // Test for `MempoolRejection("package-too-large")` error
     // Single 400kb state diff
+    #[allow(clippy::too_many_arguments)]
     async fn test_package_too_large(
         &self,
         da: &BitcoinNode,
@@ -290,7 +292,7 @@ impl TestCase for DaTransactionQueueingTest {
             .state_root;
 
         self.test_package_mempool_limits(
-            &da,
+            da,
             &da_service,
             finalized_height,
             genesis_state_root,
@@ -301,7 +303,7 @@ impl TestCase for DaTransactionQueueingTest {
         .await?;
 
         self.test_package_too_large(
-            &da,
+            da,
             &da_service,
             finalized_height,
             genesis_state_root,
