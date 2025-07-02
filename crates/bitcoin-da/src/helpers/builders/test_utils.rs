@@ -1,5 +1,15 @@
 use core::result::Result::Ok;
 
+use super::{
+    build_commit_transaction, build_reveal_transaction, build_taproot, build_witness,
+    get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind,
+};
+use crate::helpers::builders::body_builders::DaTxs;
+use crate::helpers::builders::body_builders::RawTxData;
+use crate::helpers::builders::TxWithId;
+use crate::service::split_proof;
+use crate::spec::utxo::UTXO;
+use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
 use bitcoin::blockdata::script;
@@ -11,13 +21,6 @@ use bitcoin::secp256k1::{SecretKey, XOnlyPublicKey};
 use bitcoin::{Address, Amount, Network, Transaction};
 use secp256k1::SECP256K1;
 use tracing::{trace, warn};
-
-use super::{
-    build_commit_transaction, build_reveal_transaction, build_taproot, build_witness,
-    get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind,
-};
-use crate::spec::utxo::UTXO;
-use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
 // Returns (chunk commit tx, chunk reveal tx)
 #[allow(clippy::too_many_arguments)]
@@ -31,7 +34,7 @@ pub fn test_create_single_chunk(
     reveal_fee_rate: u64,
     network: Network,
     reveal_tx_prefix: &[u8],
-) -> Result<(Transaction, Transaction), anyhow::Error> {
+) -> Result<DaTxs, anyhow::Error> {
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
@@ -144,7 +147,13 @@ pub fn test_create_single_chunk(
                     commit_tx_address
                 );
 
-                return Ok((unsigned_commit_tx, reveal_tx));
+                return Ok(DaTxs::Complete {
+                    commit: unsigned_commit_tx,
+                    reveal: TxWithId {
+                        id: reveal_tx.compute_txid(),
+                        tx: reveal_tx,
+                    },
+                });
             } else {
                 unsigned_commit_tx.output[0].value -= Amount::ONE_SAT;
                 unsigned_commit_tx.output[1].value += Amount::ONE_SAT;
@@ -173,7 +182,7 @@ pub fn test_create_single_aggregate(
     commit_fee_rate: u64,
     prev_utxo: Option<UTXO>,
     reveal_tx_prefix: &[u8],
-) -> Result<(Transaction, Transaction), anyhow::Error> {
+) -> Result<DaTxs, anyhow::Error> {
     // sign the body for authentication of the sequencer
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
@@ -296,7 +305,13 @@ pub fn test_create_single_aggregate(
                     commit_tx_address
                 );
 
-                return Ok((unsigned_commit_tx, reveal_tx));
+                return Ok(DaTxs::Complete {
+                    commit: unsigned_commit_tx,
+                    reveal: TxWithId {
+                        id: reveal_tx.compute_txid(),
+                        tx: reveal_tx,
+                    },
+                });
             } else {
                 unsigned_commit_tx.output[0].value -= Amount::ONE_SAT;
                 unsigned_commit_tx.output[1].value += Amount::ONE_SAT;

@@ -118,7 +118,7 @@ pub struct BitcoinService {
     fee: FeeService,
     l1_block_hash_to_height: Arc<Mutex<LruCache<BlockHash, usize>>>,
     tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
-    tx_signer: TxSigner,
+    pub(crate) tx_signer: TxSigner,
 }
 
 impl BitcoinService {
