@@ -1,15 +1,13 @@
-use crate::error::BitcoinServiceError;
-use crate::helpers::builders::body_builders::DaTxs;
-use crate::helpers::builders::body_builders::RawTxData;
-use crate::helpers::builders::test_utils::test_create_single_aggregate;
-use crate::helpers::builders::test_utils::test_create_single_chunk;
-use crate::service::split_proof;
-use crate::service::{BitcoinService, Result};
 use anyhow::Context;
 use bitcoin::hashes::Hash;
-use bitcoin::Txid;
-use sov_rollup_interface::da::DaTxRequest;
-use sov_rollup_interface::da::DataOnDa;
+use sov_rollup_interface::da::{DaTxRequest, DataOnDa};
+
+use crate::error::BitcoinServiceError;
+use crate::helpers::builders::body_builders::{DaTxs, RawTxData};
+use crate::helpers::builders::test_utils::{
+    test_create_single_aggregate, test_create_single_chunk,
+};
+use crate::service::{split_proof, BitcoinService, Result};
 
 impl BitcoinService {
     pub async fn test_send_separate_chunk_transaction_with_fee_rate(

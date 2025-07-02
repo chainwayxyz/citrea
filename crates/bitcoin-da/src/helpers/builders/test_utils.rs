@@ -1,15 +1,5 @@
 use core::result::Result::Ok;
 
-use super::{
-    build_commit_transaction, build_reveal_transaction, build_taproot, build_witness,
-    get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind,
-};
-use crate::helpers::builders::body_builders::DaTxs;
-use crate::helpers::builders::body_builders::RawTxData;
-use crate::helpers::builders::TxWithId;
-use crate::service::split_proof;
-use crate::spec::utxo::UTXO;
-use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
 use bitcoin::blockdata::script;
@@ -18,9 +8,18 @@ use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
 use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_NIP};
 use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::{SecretKey, XOnlyPublicKey};
-use bitcoin::{Address, Amount, Network, Transaction};
+use bitcoin::{Address, Amount, Network};
 use secp256k1::SECP256K1;
 use tracing::{trace, warn};
+
+use super::{
+    build_commit_transaction, build_reveal_transaction, build_taproot, build_witness,
+    get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind,
+};
+use crate::helpers::builders::body_builders::DaTxs;
+use crate::helpers::builders::TxWithId;
+use crate::spec::utxo::UTXO;
+use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
 // Returns (chunk commit tx, chunk reveal tx)
 #[allow(clippy::too_many_arguments)]
