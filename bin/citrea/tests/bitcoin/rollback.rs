@@ -109,3 +109,105 @@ async fn test_rollback_fullnode_slots() -> Result<()> {
         .run()
         .await
 }
+
+struct TestRollBackLightClientProverToInitialDaHeight;
+
+#[async_trait]
+impl TestCase for TestRollBackLightClientProverToInitialDaHeight {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_light_client_prover: true,
+            with_citrea_cli: true,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(150)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let light_client_prover = f.light_client_prover.as_mut().unwrap();
+        let citrea_cli = f.citrea_cli.as_ref().unwrap();
+
+        let lcp_initial_da_height = light_client_prover.config.node.initial_da_height;
+
+        da.generate(10).await?;
+
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        light_client_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        let last_scanned_l1_height: u64 = light_client_prover
+            .client
+            .http_client()
+            .get_last_scanned_l1_height()
+            .await
+            .unwrap()
+            .to();
+        assert_eq!(last_scanned_l1_height, finalized_height);
+        // last scanned = 181
+        // initial 150, target sent = 149
+
+        // Rollback light client prover to initial_da_height
+        light_client_prover.wait_until_stopped().await?;
+
+        citrea_cli
+            .run(
+                "rollback",
+                &[
+                    "--node-type",
+                    "light-client",
+                    "--db-path",
+                    light_client_prover
+                        .config
+                        .rollup
+                        .storage
+                        .path
+                        .to_str()
+                        .unwrap(),
+                    "--l1-target",
+                    &(lcp_initial_da_height - 1).to_string(),
+                ],
+            )
+            .await?;
+
+        light_client_prover.start(None, None).await?;
+
+        let last_scanned_l1_height: u64 = light_client_prover
+            .client
+            .http_client()
+            .get_last_scanned_l1_height()
+            .await
+            .unwrap()
+            .to();
+        assert_eq!(last_scanned_l1_height, lcp_initial_da_height - 1);
+
+        // Wait for the light client prover to process the DA heights again
+        light_client_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+        let last_scanned_l1_height: u64 = light_client_prover
+            .client
+            .http_client()
+            .get_last_scanned_l1_height()
+            .await
+            .unwrap()
+            .to();
+        assert_eq!(last_scanned_l1_height, finalized_height);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_rollback_light_client_prover_to_initial_da_height() -> Result<()> {
+    TestCaseRunner::new(TestRollBackLightClientProverToInitialDaHeight)
+        .set_citrea_path(get_citrea_path())
+        .set_citrea_cli_path(get_citrea_cli_path())
+        .run()
+        .await
+}
