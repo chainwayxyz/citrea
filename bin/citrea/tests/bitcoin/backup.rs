@@ -1070,7 +1070,7 @@ impl TestCase for BackupLightClientProverTest {
             .run(
                 "restore-backup",
                 &[
-                    "--node-kind",
+                    "--node-type",
                     "light-client-prover",
                     "--db-path",
                     light_client_prover
