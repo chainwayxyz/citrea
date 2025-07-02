@@ -75,10 +75,10 @@ impl Rollback {
         // If node is light client, the target version is the L1 height
         // as light client prover does not hold L2 state.
         let target_version = match node_type {
-            StorageNodeType::FullNode
-            | StorageNodeType::BatchProver
-            | StorageNodeType::Sequencer => l2_target.map(|l2| l2 + 1), // +1 because version = height + 1
-            StorageNodeType::LightClient => {
+            NodeType::FullNode | NodeType::BatchProver | NodeType::Sequencer => {
+                l2_target.map(|l2| l2 + 1)
+            } // +1 because version = height + 1
+            NodeType::LightClientProver => {
                 if let Some(l1_target) = l1_target {
                     // Get highest state version from the state DB
                     let state_db_last_version = StateDB::new(state_db.clone())
