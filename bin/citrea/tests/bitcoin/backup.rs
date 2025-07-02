@@ -1130,7 +1130,7 @@ impl TestCase for BackupLightClientProverTest {
                 "rollback",
                 &[
                     "--node-type",
-                    "light-client",
+                    "light-client-prover",
                     "--db-path",
                     light_client_prover
                         .config
