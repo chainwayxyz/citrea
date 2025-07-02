@@ -50,7 +50,7 @@ enum Commands {
     RestoreBackup {
         /// The node kind
         #[arg(long)]
-        node_kind: CliNodeTypeArg,
+        node_type: CliNodeTypeArg,
         /// The path of the databases to restore to
         #[arg(long)]
         db_path: PathBuf,
@@ -102,10 +102,10 @@ async fn main() -> anyhow::Result<()> {
         Commands::RestoreBackup {
             db_path,
             backup_path,
-            node_kind,
+            node_type,
             backup_id,
         } => {
-            commands::restore_backup(node_kind.into(), db_path, backup_path, backup_id).await?;
+            commands::restore_backup(node_type.into(), db_path, backup_path, backup_id).await?;
         }
     }
 

@@ -199,7 +199,7 @@ impl TestCase for BackupSequencerTest {
             .run(
                 "restore-backup",
                 &[
-                    "--node-kind",
+                    "--node-type",
                     "sequencer",
                     "--db-path",
                     sequencer.config.rollup.storage.path.to_str().unwrap(),
@@ -282,7 +282,7 @@ impl TestCase for BackupSequencerTest {
             .run(
                 "restore-backup",
                 &[
-                    "--node-kind",
+                    "--node-type",
                     "sequencer",
                     "--db-path",
                     sequencer.config.rollup.storage.path.to_str().unwrap(),
@@ -425,7 +425,7 @@ impl TestCase for BackupFullNodeTest {
             .run(
                 "restore-backup",
                 &[
-                    "--node-kind",
+                    "--node-type",
                     "full-node",
                     "--db-path",
                     full_node.config.rollup.storage.path.to_str().unwrap(),
@@ -552,7 +552,7 @@ impl TestCase for BackupFullNodeTest {
             .run(
                 "restore-backup",
                 &[
-                    "--node-kind",
+                    "--node-type",
                     "full-node",
                     "--db-path",
                     full_node.config.rollup.storage.path.to_str().unwrap(),
@@ -732,7 +732,7 @@ impl TestCase for BackupBatchProverTest {
             .run(
                 "restore-backup",
                 &[
-                    "--node-kind",
+                    "--node-type",
                     "batch-prover",
                     "--db-path",
                     batch_prover.config.rollup.storage.path.to_str().unwrap(),
@@ -860,7 +860,7 @@ impl TestCase for BackupBatchProverTest {
             .run(
                 "restore-backup",
                 &[
-                    "--node-kind",
+                    "--node-type",
                     "batch-prover",
                     "--db-path",
                     batch_prover.config.rollup.storage.path.to_str().unwrap(),
@@ -1210,7 +1210,7 @@ impl TestCase for BackupLightClientProverTest {
             .run(
                 "restore-backup",
                 &[
-                    "--node-kind",
+                    "--node-type",
                     "light-client-prover",
                     "--db-path",
                     light_client_prover
