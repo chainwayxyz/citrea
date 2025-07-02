@@ -5,10 +5,11 @@ use sov_schema_db::ScanDirection;
 use tracing::{debug, error};
 
 /// Rollback native DB
-pub(crate) fn rollback_native_db(native_db: Arc<sov_schema_db::DB>, down_to_block: u64) {
-    debug!("Rolling back native DB, down to L2 block {}", down_to_block);
-
-    let target_version = down_to_block + 1;
+pub(crate) fn rollback_native_db(native_db: Arc<sov_schema_db::DB>, target_version: u64) {
+    debug!(
+        "Rolling back native DB, down to L2 block {}",
+        target_version
+    );
 
     let Ok(mut iter) = native_db
         .iter_with_direction::<ModuleAccessoryState>(Default::default(), ScanDirection::Backward)
