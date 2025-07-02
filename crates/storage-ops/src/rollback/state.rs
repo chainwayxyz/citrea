@@ -5,10 +5,11 @@ use sov_db::schema::tables::{JmtNodes, JmtValues, KeyHashToKey};
 use sov_schema_db::{ScanDirection, SchemaBatch};
 use tracing::{error, info};
 
-pub(crate) fn rollback_state_db(state_db: Arc<sov_schema_db::DB>, down_to_block: u64) {
-    info!("Rolling back state DB, down to L2 block {}", down_to_block);
-
-    let target_version = down_to_block + 1;
+pub(crate) fn rollback_state_db(state_db: Arc<sov_schema_db::DB>, target_version: u64) {
+    info!(
+        "Rolling back state DB, down to target version {}",
+        target_version
+    );
 
     let mut indices = state_db
         .iter_with_direction::<JmtNodes>(Default::default(), ScanDirection::Backward)
