@@ -71,20 +71,8 @@ pub(crate) enum NodeWithConfig {
 
 impl std::fmt::Display for NodeWithConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            NodeWithConfig::Sequencer(_) => {
-                write!(f, "sequencer")
-            }
-            NodeWithConfig::FullNode => {
-                write!(f, "full-node")
-            }
-            NodeWithConfig::BatchProver(_) => {
-                write!(f, "batch-prover")
-            }
-            NodeWithConfig::LightClientProver(_) => {
-                write!(f, "light-client-prover")
-            }
-        }
+        let node_type: NodeType = self.into();
+        node_type.fmt(f)
     }
 }
 
