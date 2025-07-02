@@ -1,4 +1,4 @@
-use citrea_primitives::types::NodeType;
+use citrea_common::NodeType;
 use reth_tasks::shutdown::Shutdown;
 use tokio::select;
 use tokio::sync::mpsc::Receiver;

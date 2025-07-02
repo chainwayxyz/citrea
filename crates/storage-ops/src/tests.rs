@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 
-use citrea_primitives::types::NodeType;
+use citrea_common::{NodeType, PruningConfig};
 use reth_tasks::TaskManager;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
@@ -24,7 +24,7 @@ use tokio::sync::broadcast;
 
 use crate::pruning::criteria::{Criteria, DistanceCriteria};
 use crate::pruning::ledger::prune_ledger;
-use crate::pruning::{Pruner, PrunerService, PruningConfig};
+use crate::pruning::{Pruner, PrunerService};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_pruning_simple_run() {

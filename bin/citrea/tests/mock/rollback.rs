@@ -8,8 +8,7 @@ use std::sync::Arc;
 
 use alloy_primitives::{Address, U256};
 use alloy_rpc_types::{BlockId, BlockNumberOrTag};
-use citrea_common::{BatchProverConfig, SequencerConfig};
-use citrea_primitives::types::NodeType;
+use citrea_common::{BatchProverConfig, NodeType, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_storage_ops::rollback::Rollback;
 use futures::FutureExt;

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use citrea_common::backup::BackupManager;
-use citrea_primitives::types::NodeType;
+use citrea_common::NodeType;
 use tracing::info;
 
 pub(crate) async fn restore_backup(

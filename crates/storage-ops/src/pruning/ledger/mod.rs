@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use citrea_primitives::types::NodeType;
+use citrea_common::NodeType;
 use l2_blocks::prune_l2_blocks;
 use slots::prune_slots;
 use sov_schema_db::DB;

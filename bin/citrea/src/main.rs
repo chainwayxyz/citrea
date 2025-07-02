@@ -11,10 +11,9 @@ use citrea::{
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_light_client_prover};
-use citrea_common::{from_toml_path, FromEnv, FullNodeConfig};
+use citrea_common::{from_toml_path, FromEnv, FullNodeConfig, NodeType};
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::StartVariant;
-use citrea_primitives::types::NodeType;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use clap::Parser;

@@ -1,5 +1,5 @@
 pub(crate) use backup::*;
-use citrea_primitives::types::NodeType;
+use citrea_common::NodeType;
 use clap::ValueEnum;
 use derive_more::Display;
 pub(crate) use prune::*;

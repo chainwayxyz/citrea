@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use citrea_primitives::types::NodeType;
+use citrea_common::NodeType;
 use futures::future;
 use ledger::rollback_ledger;
 use native::rollback_native_db;

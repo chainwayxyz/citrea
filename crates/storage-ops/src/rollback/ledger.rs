@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use citrea_primitives::types::NodeType;
+use citrea_common::NodeType;
 use sov_db::schema::tables::{
     BATCH_PROVER_LEDGER_TABLES, FULL_NODE_LEDGER_TABLES, LIGHT_CLIENT_PROVER_LEDGER_TABLES,
     SEQUENCER_LEDGER_TABLES,

@@ -1,4 +1,4 @@
-use citrea_primitives::types::NodeType;
+use citrea_common::NodeType;
 use sov_db::schema::tables::{L2BlockByHash, L2BlockByNumber, L2StatusHeights, ProverStateDiffs};
 use sov_db::schema::types::{L2BlockNumber, L2HeightStatus};
 use sov_schema_db::{ScanDirection, DB};

@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use citrea_primitives::types::NodeType;
+use citrea_common::config::PruningConfig;
+use citrea_common::NodeType;
 use futures::future;
 use ledger::prune_ledger;
 use native::prune_native_db;
-use serde::{Deserialize, Serialize};
 use sov_db::schema::tables::{LastPrunedBlock, LastPrunedL2Height};
 use tracing::info;
 
@@ -16,19 +16,6 @@ pub(crate) mod ledger;
 pub(crate) mod native;
 pub(crate) mod service;
 pub(crate) mod state;
-
-/// A configuration type to define the behaviour of the pruner.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct PruningConfig {
-    /// Defines the number of blocks from the tip of the chain to remove.
-    pub distance: u64,
-}
-
-impl Default for PruningConfig {
-    fn default() -> Self {
-        Self { distance: 256 }
-    }
-}
 
 pub struct Pruner {
     /// Access to ledger tables.

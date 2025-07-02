@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use citrea_storage_ops::pruning::{Pruner, PruningConfig};
+use citrea_common::PruningConfig;
+use citrea_storage_ops::pruning::Pruner;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;

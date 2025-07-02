@@ -10,14 +10,12 @@ use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_light_client_prover};
 use citrea_common::{
-    BatchProverConfig, FullNodeConfig, LightClientProverConfig, RollupPublicKeys, RpcConfig,
-    RunnerConfig, SequencerConfig, StorageConfig,
+    BatchProverConfig, FullNodeConfig, LightClientProverConfig, NodeType, PruningConfig,
+    RollupPublicKeys, RpcConfig, RunnerConfig, SequencerConfig, StorageConfig,
 };
 use citrea_light_client_prover::da_block_handler::StartVariant;
-use citrea_primitives::types::NodeType;
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
-use citrea_storage_ops::pruning::PruningConfig;
 use reth_tasks::TaskManager;
 use short_header_proof_provider::{
     NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,

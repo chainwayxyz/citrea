@@ -4,7 +4,6 @@ use std::sync::{Arc, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, ensure, Context};
-use citrea_primitives::types::NodeType;
 use rocksdb::backup::BackupEngineInfo;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
@@ -14,6 +13,7 @@ use tokio::sync::{Mutex, MutexGuard, Semaphore};
 use tracing::{info, warn};
 
 use super::utils::{get_backup_engine, restore_from_backup, validate_backup};
+use crate::NodeType;
 
 /// Configuration for database backups
 #[derive(Debug, Clone, Serialize, Deserialize)]

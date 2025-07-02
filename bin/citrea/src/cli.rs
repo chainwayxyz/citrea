@@ -1,9 +1,8 @@
 use anyhow::Context;
 use citrea::NetworkArg;
 use citrea_common::{
-    from_toml_path, BatchProverConfig, FromEnv, LightClientProverConfig, SequencerConfig,
+    from_toml_path, BatchProverConfig, FromEnv, LightClientProverConfig, NodeType, SequencerConfig,
 };
-use citrea_primitives::types::NodeType;
 use clap::{command, Parser};
 
 #[derive(clap::ValueEnum, Clone, Debug)]

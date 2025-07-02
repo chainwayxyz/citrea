@@ -1,4 +1,4 @@
-use citrea_primitives::types::NodeType;
+use citrea_common::NodeType;
 use sov_db::schema::tables::{
     CommitmentsByNumber, L2RangeByL1Height, LightClientProofBySlotNumber, ProofsBySlotNumber,
     ProofsBySlotNumberV2, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber,

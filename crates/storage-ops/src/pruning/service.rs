@@ -1,4 +1,4 @@
-use citrea_primitives::types::NodeType;
+use citrea_common::NodeType;
 use reth_tasks::shutdown::GracefulShutdown;
 use tokio::select;
 use tokio::sync::broadcast;

@@ -10,7 +10,7 @@ repository.workspace = true
 
 [dependencies]
 # Citrea dependencies
-citrea-primitives = { path = "../primitives" }
+citrea-common = { path = "../common" }
 
 # Sov SDK deps
 jmt = { workspace = true }
