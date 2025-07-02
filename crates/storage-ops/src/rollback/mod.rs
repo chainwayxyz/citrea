@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
+use citrea_primitives::types::NodeType;
 use futures::future;
 use ledger::rollback_ledger;
 use native::rollback_native_db;
 use state::rollback_state_db;
 use tracing::info;
 use types::RollbackContext;
-
-use crate::types::StorageNodeType;
 
 mod ledger;
 mod native;
@@ -42,7 +41,7 @@ impl Rollback {
     /// Rollback the provided L2/L1 block combination.
     pub async fn execute(
         &self,
-        node_type: StorageNodeType,
+        node_type: NodeType,
         l2_target: Option<u64>,
         l1_target: Option<u64>,
         last_sequencer_commitment_index: Option<u32>,

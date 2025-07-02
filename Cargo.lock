@@ -2374,8 +2374,10 @@ version = "0.7.2"
 dependencies = [
  "anyhow",
  "citrea-common",
+ "citrea-primitives",
  "citrea-storage-ops",
  "clap",
+ "derive_more 1.0.0",
  "sov-db",
  "tokio",
  "tracing",
@@ -2588,6 +2590,7 @@ version = "0.7.2"
 dependencies = [
  "alloy-eips",
  "brotli",
+ "derive_more 1.0.0",
  "rs_merkle",
  "sha2 0.10.8",
  "sov-rollup-interface",
@@ -2721,6 +2724,7 @@ name = "citrea-storage-ops"
 version = "0.7.2"
 dependencies = [
  "anyhow",
+ "citrea-primitives",
  "derive_more 1.0.0",
  "futures",
  "hex",

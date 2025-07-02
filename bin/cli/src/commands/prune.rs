@@ -8,11 +8,11 @@ use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::state_db::StateDB;
 use tracing::{debug, info};
 
-use super::StorageNodeTypeArg;
+use super::CliNodeTypeArg;
 use crate::commands::cfs_from_node_type;
 
 pub(crate) async fn prune(
-    node_type: StorageNodeTypeArg,
+    node_type: CliNodeTypeArg,
     db_path: PathBuf,
     distance: u64,
 ) -> anyhow::Result<()> {

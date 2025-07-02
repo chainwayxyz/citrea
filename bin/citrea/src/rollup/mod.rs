@@ -15,11 +15,11 @@ use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientProverL1BlockHandler;
 use citrea_light_client_prover::runner::CitreaLightClientProver;
 use citrea_primitives::forks::get_forks;
+use citrea_primitives::types::NodeType;
 use citrea_sequencer::CitreaSequencer;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use citrea_storage_ops::pruning::PrunerService;
 use citrea_storage_ops::rollback::Rollback;
-use citrea_storage_ops::types::StorageNodeType;
 use jsonrpsee::RpcModule;
 use reth_tasks::{TaskExecutor, TaskManager};
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
@@ -136,7 +136,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         &self,
         ledger_db: &LedgerDB,
         storage_manager: &ProverStorageManager,
-        node_type: StorageNodeType,
+        node_type: NodeType,
     ) -> Result<()> {
         let next_version = StateDB::new(storage_manager.get_state_db_handle()).next_version();
         let state_version = if next_version >= 2 {
@@ -261,7 +261,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let native_stf = StfBlueprint::new();
 
-        self.sync_ledger_and_state_db(&ledger_db, &storage_manager, StorageNodeType::FullNode)
+        self.sync_ledger_and_state_db(&ledger_db, &storage_manager, NodeType::FullNode)
             .await?;
         let init_params =
             self.init_chain(genesis_config, &native_stf, &ledger_db, &storage_manager)?;
@@ -316,7 +316,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let native_stf = StfBlueprint::new();
 
-        self.sync_ledger_and_state_db(&ledger_db, &storage_manager, StorageNodeType::BatchProver)
+        self.sync_ledger_and_state_db(&ledger_db, &storage_manager, NodeType::BatchProver)
             .await?;
         let init_params =
             self.init_chain(genesis_config, &native_stf, &ledger_db, &storage_manager)?;

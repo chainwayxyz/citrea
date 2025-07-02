@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use citrea_primitives::types::NodeType;
 use futures::future;
 use ledger::prune_ledger;
 use native::prune_native_db;
@@ -9,7 +10,6 @@ use tracing::info;
 
 use self::criteria::{Criteria, DistanceCriteria};
 pub use self::service::*;
-use crate::types::StorageNodeType;
 
 pub(crate) mod criteria;
 pub(crate) mod ledger;
@@ -75,7 +75,7 @@ impl Pruner {
     }
 
     /// Prune everything
-    pub async fn prune(&self, node_type: StorageNodeType, up_to_block: u64) {
+    pub async fn prune(&self, node_type: NodeType, up_to_block: u64) {
         info!("Pruning up to L2 block: {}", up_to_block);
         let ledger_db = self.ledger_db.clone();
 

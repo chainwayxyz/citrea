@@ -3,7 +3,7 @@ use citrea::NetworkArg;
 use citrea_common::{
     from_toml_path, BatchProverConfig, FromEnv, LightClientProverConfig, SequencerConfig,
 };
-use citrea_storage_ops::types::NodeKind;
+use citrea_primitives::types::NodeType;
 use clap::{command, Parser};
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -62,44 +62,44 @@ pub(crate) struct Args {
     pub(crate) quiet: bool,
 }
 
-pub(crate) enum NodeType {
+pub(crate) enum NodeWithConfig {
     Sequencer(SequencerConfig),
     FullNode,
     BatchProver(BatchProverConfig),
     LightClientProver(LightClientProverConfig),
 }
 
-impl std::fmt::Display for NodeType {
+impl std::fmt::Display for NodeWithConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NodeType::Sequencer(_) => {
+            NodeWithConfig::Sequencer(_) => {
                 write!(f, "sequencer")
             }
-            NodeType::FullNode => {
+            NodeWithConfig::FullNode => {
                 write!(f, "full-node")
             }
-            NodeType::BatchProver(_) => {
+            NodeWithConfig::BatchProver(_) => {
                 write!(f, "batch-prover")
             }
-            NodeType::LightClientProver(_) => {
+            NodeWithConfig::LightClientProver(_) => {
                 write!(f, "light-client-prover")
             }
         }
     }
 }
 
-impl From<&NodeType> for NodeKind {
-    fn from(value: &NodeType) -> Self {
+impl From<&NodeWithConfig> for NodeType {
+    fn from(value: &NodeWithConfig) -> Self {
         match value {
-            NodeType::Sequencer(_) => NodeKind::Sequencer,
-            NodeType::FullNode => NodeKind::FullNode,
-            NodeType::BatchProver(_) => NodeKind::BatchProver,
-            NodeType::LightClientProver(_) => NodeKind::LightClientProver,
+            NodeWithConfig::Sequencer(_) => NodeType::Sequencer,
+            NodeWithConfig::FullNode => NodeType::FullNode,
+            NodeWithConfig::BatchProver(_) => NodeType::BatchProver,
+            NodeWithConfig::LightClientProver(_) => NodeType::LightClientProver,
         }
     }
 }
 
-pub(crate) fn node_type_from_args(args: &Args) -> anyhow::Result<NodeType> {
+pub(crate) fn node_type_from_args(args: &Args) -> anyhow::Result<NodeWithConfig> {
     let sequencer_config = match &args.sequencer {
         Some(Some(path)) => Some(
             from_toml_path(path)
@@ -137,11 +137,13 @@ pub(crate) fn node_type_from_args(args: &Args) -> anyhow::Result<NodeType> {
     };
 
     if let Some(sequencer_config) = sequencer_config {
-        return Ok(NodeType::Sequencer(sequencer_config));
+        return Ok(NodeWithConfig::Sequencer(sequencer_config));
     } else if let Some(batch_prover_config) = batch_prover_config {
-        return Ok(NodeType::BatchProver(batch_prover_config));
+        return Ok(NodeWithConfig::BatchProver(batch_prover_config));
     } else if let Some(light_client_prover_config) = light_client_prover_config {
-        return Ok(NodeType::LightClientProver(light_client_prover_config));
+        return Ok(NodeWithConfig::LightClientProver(
+            light_client_prover_config,
+        ));
     }
-    Ok(NodeType::FullNode)
+    Ok(NodeWithConfig::FullNode)
 }
