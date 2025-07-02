@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use async_trait::async_trait;
 use bitcoincore_rpc::RpcApi;
 use citrea_e2e::config::TestCaseConfig;
