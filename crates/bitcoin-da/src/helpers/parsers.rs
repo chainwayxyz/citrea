@@ -38,6 +38,9 @@ pub struct ParsedAggregate {
     pub public_key: Vec<u8>,
 }
 
+// That's the only kind of transaction that does not have
+// a signature (and a nonce) because the signature and the nonce live
+// in the parent Aggregate transaction.
 #[derive(Debug, Clone)]
 pub struct ParsedChunk {
     pub body: Vec<u8>,
@@ -64,6 +67,7 @@ pub trait VerifyParsed {
     fn body(&self) -> &[u8];
 
     /// Verifies the signature of the inscription and returns the hash of the body
+    /// Returns None if the signature is unparsable or doesn't belong to the body.
     fn get_sig_verified_hash(&self) -> Option<[u8; 32]> {
         if let Ok(key) = k256::ecdsa::VerifyingKey::from_sec1_bytes(self.public_key()) {
             use k256::ecdsa::signature::DigestVerifier;
@@ -108,18 +112,6 @@ impl VerifyParsed for ParsedSequencerCommitment {
     }
     fn signature(&self) -> &[u8] {
         &self.signature
-    }
-    fn body(&self) -> &[u8] {
-        &self.body
-    }
-}
-
-impl VerifyParsed for ParsedChunk {
-    fn public_key(&self) -> &[u8] {
-        unimplemented!("public_key call Should not be used with chunks")
-    }
-    fn signature(&self) -> &[u8] {
-        unimplemented!("signature call Should not be used with chunks")
     }
     fn body(&self) -> &[u8] {
         &self.body
@@ -213,6 +205,7 @@ fn parse_transaction(
     }
 }
 
+/// Read next instruction or return Err(EOF).
 fn read_instr<'a>(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'a>, ParserError>>,
 ) -> Result<Instruction<'a>, ParserError> {
@@ -222,6 +215,7 @@ fn read_instr<'a>(
     Ok(instr)
 }
 
+/// Read next instruction expecting it to be PushBytes.
 fn read_push_bytes<'a>(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'a>, ParserError>>,
 ) -> Result<&'a StructPushBytes, ParserError> {
@@ -232,6 +226,7 @@ fn read_push_bytes<'a>(
     }
 }
 
+/// Read next instruction expecting it to be Opcode (non-push opcode).
 fn read_opcode(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
 ) -> Result<Opcode, ParserError> {
@@ -242,6 +237,7 @@ fn read_opcode(
     Ok(op)
 }
 
+/// The implementation of parsers for a specific type.
 mod body_parsers {
     use bitcoin::opcodes::all::{OP_ENDIF, OP_IF, OP_NIP};
     use bitcoin::script::Instruction;
@@ -252,7 +248,7 @@ mod body_parsers {
         ParsedChunk, ParsedComplete, ParsedSequencerCommitment, ParserError,
     };
 
-    // Parse transaction body of Type0
+    /// Parse transaction body of Type0
     pub(super) fn parse_type_0_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
     ) -> Result<ParsedComplete, ParserError> {
@@ -311,7 +307,7 @@ mod body_parsers {
         })
     }
 
-    // Parse transaction body of Type1
+    /// Parse transaction body of Type1
     pub(super) fn parse_type_1_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
     ) -> Result<ParsedAggregate, ParserError> {
@@ -365,7 +361,7 @@ mod body_parsers {
         })
     }
 
-    // Parse transaction body of Type2
+    /// Parse transaction body of Type2
     pub(super) fn parse_type_2_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
     ) -> Result<ParsedChunk, ParserError> {
@@ -414,7 +410,7 @@ mod body_parsers {
         Ok(ParsedChunk { body })
     }
 
-    // Parse transaction body of Type3
+    /// Parse transaction body of Type3
     pub(super) fn parse_type_3_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
     ) -> Result<ParsedBatchProverMethodId, ParserError> {
@@ -457,7 +453,7 @@ mod body_parsers {
         })
     }
 
-    // Parse transaction body of Type4
+    /// Parse transaction body of Type4
     pub(super) fn parse_type_4_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
     ) -> Result<ParsedSequencerCommitment, ParserError> {
@@ -534,7 +530,7 @@ mod tests {
         let reveal_script_builder = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
             .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(kind.to_bytes()).expect("Cannot push header"))
+            .push_slice(PushBytesBuf::from(kind.to_bytes()))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature
@@ -573,7 +569,7 @@ mod tests {
         let reveal_script_builder = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
             .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(kind.to_bytes()).expect("Cannot push header"));
+            .push_slice(PushBytesBuf::from(kind.to_bytes()));
 
         let reveal_script = reveal_script_builder.into_script();
 
@@ -607,7 +603,7 @@ mod tests {
         let reveal_script = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
             .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(kind.to_bytes()).expect("Cannot push header"))
+            .push_slice(PushBytesBuf::from(kind.to_bytes()))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature
@@ -640,7 +636,7 @@ mod tests {
         let reveal_script = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
             .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(kind.to_bytes()).expect("Cannot push header"))
+            .push_slice(PushBytesBuf::from(kind.to_bytes()))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature
@@ -676,7 +672,7 @@ mod tests {
         let reveal_script = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
             .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(kind.to_bytes()).expect("Cannot push header"))
+            .push_slice(PushBytesBuf::from(kind.to_bytes()))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature

@@ -28,6 +28,7 @@ const BLOCKS_PER_EPOCH: u64 = 2016;
 
 #[derive(Debug)]
 pub struct BitcoinVerifier {
+    /// The prefix of wtxids
     reveal_tx_prefix: Vec<u8>,
 }
 

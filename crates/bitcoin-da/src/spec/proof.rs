@@ -25,13 +25,3 @@ impl InclusionMultiProof {
         }
     }
 }
-
-impl Default for InclusionMultiProof {
-    fn default() -> Self {
-        InclusionMultiProof {
-            wtxids: vec![],
-            coinbase_tx: TransactionWrapper::empty(),
-            coinbase_merkle_proof: Vec::new(),
-        }
-    }
-}

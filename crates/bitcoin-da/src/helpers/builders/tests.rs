@@ -467,20 +467,18 @@ fn create_inscription_transactions() {
     let (signature, signer_public_key) = sign_blob_with_private_key(&body, &da_private_key);
 
     let tx_prefix = &[0u8];
-    let DaTxs::Complete { commit, reveal } =
-        super::body_builders::create_light_client_transactions(
-            RawTxData::Complete(body.clone()),
-            da_private_key,
-            None,
-            utxos.clone(),
-            address.clone(),
-            12,
-            10,
-            bitcoin::Network::Bitcoin,
-            tx_prefix.to_vec(),
-        )
-        .unwrap()
-    else {
+    let DaTxs::Complete { commit, reveal } = super::body_builders::create_inscription_transactions(
+        RawTxData::Complete(body.clone()),
+        da_private_key,
+        None,
+        utxos.clone(),
+        address.clone(),
+        12,
+        10,
+        bitcoin::Network::Bitcoin,
+        tx_prefix.to_vec(),
+    )
+    .unwrap() else {
         panic!("Unexpected tx kind was produced");
     };
 

@@ -21,12 +21,13 @@ use sov_rollup_interface::da::DataOnDa;
 use tracing::{instrument, trace, warn};
 
 use super::{
-    build_commit_transaction, build_reveal_transaction, build_taproot, build_witness,
+    build_commit_transaction, build_control_block, build_reveal_transaction, build_witness,
     get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind, TxWithId,
 };
 use crate::spec::utxo::UTXO;
 use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
+/// These are real blobs we put on DA.
 pub(crate) enum RawTxData {
     /// borsh(DataOnDa::Complete(compress(Proof)))
     Complete(Vec<u8>),
@@ -63,6 +64,7 @@ pub enum DaTxs {
     },
 }
 
+/// Save DaTxs::Complete on disk.
 pub(crate) fn backup_complete_txs(
     mut path: PathBuf,
     raw_txs: &[Vec<u8>; 2],
@@ -91,6 +93,7 @@ pub(crate) fn backup_complete_txs(
     Ok(())
 }
 
+/// Save DaTxs::Chunked on disk.
 pub(crate) fn backup_chunked_txs(
     mut path: PathBuf,
     raw_txs: &[Vec<u8>],
@@ -136,10 +139,13 @@ pub(crate) fn backup_chunked_txs(
     Ok(())
 }
 
-// Creates the light client transactions (commit and reveal)
+// Creates the light client transactions (commit and reveal).
+// Based on data type, the number of transactions may vary.
+// In the end, reveal txs will be mined with a nonce to have
+// wtxid start from the `reveal_tx_prefix`.
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
-pub fn create_light_client_transactions(
+pub fn create_inscription_transactions(
     data: RawTxData,
     da_private_key: SecretKey,
     prev_utxo: Option<UTXO>,
@@ -228,7 +234,7 @@ pub fn create_inscription_type_0(
     let mut reveal_script_builder = script::Builder::new()
         .push_x_only_key(&public_key)
         .push_opcode(OP_CHECKSIGVERIFY)
-        .push_slice(PushBytesBuf::try_from(kind_bytes).expect("Cannot push header"))
+        .push_slice(PushBytesBuf::from(kind_bytes))
         .push_opcode(OP_FALSE)
         .push_opcode(OP_IF)
         .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
@@ -267,7 +273,7 @@ pub fn create_inscription_type_0(
         let reveal_script = reveal_script_builder.into_script();
 
         let (control_block, merkle_root, tapscript_hash) =
-            build_taproot(&reveal_script, public_key, SECP256K1);
+            build_control_block(&reveal_script, public_key, SECP256K1);
 
         // create commit tx address
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
@@ -398,7 +404,7 @@ pub fn create_inscription_type_1(
         let mut reveal_script_builder = script::Builder::new()
             .push_x_only_key(&public_key)
             .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(kind_bytes).expect("Cannot push header"))
+            .push_slice(PushBytesBuf::from(kind_bytes))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF);
         // push body in chunks of 520 bytes
@@ -433,7 +439,7 @@ pub fn create_inscription_type_1(
             let reveal_script = reveal_script_builder.into_script();
 
             let (control_block, merkle_root, tapscript_hash) =
-                build_taproot(&reveal_script, public_key, SECP256K1);
+                build_control_block(&reveal_script, public_key, SECP256K1);
 
             // create commit tx address
             let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
@@ -578,7 +584,7 @@ pub fn create_inscription_type_1(
     let mut reveal_script_builder = script::Builder::new()
         .push_x_only_key(&public_key)
         .push_opcode(OP_CHECKSIGVERIFY)
-        .push_slice(PushBytesBuf::try_from(kind_bytes).expect("Cannot push header"))
+        .push_slice(PushBytesBuf::from(kind_bytes))
         .push_opcode(OP_FALSE)
         .push_opcode(OP_IF)
         .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
@@ -620,7 +626,7 @@ pub fn create_inscription_type_1(
         let reveal_script = reveal_script_builder.into_script();
 
         let (control_block, merkle_root, tapscript_hash) =
-            build_taproot(&reveal_script, public_key, SECP256K1);
+            build_control_block(&reveal_script, public_key, SECP256K1);
 
         // create commit tx address
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
@@ -750,7 +756,7 @@ pub fn create_inscription_type_3(
     let mut reveal_script_builder = script::Builder::new()
         .push_x_only_key(&public_key)
         .push_opcode(OP_CHECKSIGVERIFY)
-        .push_slice(PushBytesBuf::try_from(kind_bytes).expect("Cannot push header"))
+        .push_slice(PushBytesBuf::from(kind_bytes))
         .push_opcode(OP_FALSE)
         .push_opcode(OP_IF)
         .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
@@ -791,7 +797,7 @@ pub fn create_inscription_type_3(
         let reveal_script = reveal_script_builder.into_script();
 
         let (control_block, merkle_root, tapscript_hash) =
-            build_taproot(&reveal_script, public_key, SECP256K1);
+            build_control_block(&reveal_script, public_key, SECP256K1);
 
         // create commit tx address
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
@@ -925,7 +931,7 @@ pub fn create_inscription_type_4(
     let reveal_script_builder = script::Builder::new()
         .push_x_only_key(&public_key)
         .push_opcode(OP_CHECKSIGVERIFY)
-        .push_slice(PushBytesBuf::try_from(kind_bytes).expect("Cannot push header"))
+        .push_slice(PushBytesBuf::from(kind_bytes))
         .push_opcode(OP_FALSE)
         .push_opcode(OP_IF)
         .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
@@ -959,7 +965,7 @@ pub fn create_inscription_type_4(
         let reveal_script = reveal_script_builder.into_script();
 
         let (control_block, merkle_root, tapscript_hash) =
-            build_taproot(&reveal_script, public_key, SECP256K1);
+            build_control_block(&reveal_script, public_key, SECP256K1);
 
         // create commit tx address
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);

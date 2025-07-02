@@ -5,6 +5,7 @@ use super::calculate_double_sha256;
 
 #[derive(Debug, Clone)]
 pub struct BitcoinMerkleTree {
+    /// Inner nodes.
     nodes: Vec<Vec<[u8; 32]>>,
 }
 

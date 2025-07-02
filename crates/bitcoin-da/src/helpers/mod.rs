@@ -24,21 +24,24 @@ enum TransactionKind {
     SequencerCommitment = 4,
     // /// ForcedTransaction
     // ForcedTransaction, // = ?,
+    /// An unknown type of transaction
     Unknown(NonZero<u16>),
 }
 
 impl TransactionKind {
     #[cfg(feature = "native")]
-    fn to_bytes(&self) -> Vec<u8> {
+    /// Serialize itself into bytes.
+    fn to_bytes(&self) -> [u8; 2] {
         match self {
-            TransactionKind::Complete => 0u16.to_le_bytes().to_vec(),
-            TransactionKind::Chunked => 1u16.to_le_bytes().to_vec(),
-            TransactionKind::ChunkedPart => 2u16.to_le_bytes().to_vec(),
-            TransactionKind::BatchProofMethodId => 3u16.to_le_bytes().to_vec(),
-            TransactionKind::SequencerCommitment => 4u16.to_le_bytes().to_vec(),
-            TransactionKind::Unknown(n) => n.get().to_le_bytes().to_vec(),
+            TransactionKind::Complete => 0u16.to_le_bytes(),
+            TransactionKind::Chunked => 1u16.to_le_bytes(),
+            TransactionKind::ChunkedPart => 2u16.to_le_bytes(),
+            TransactionKind::BatchProofMethodId => 3u16.to_le_bytes(),
+            TransactionKind::SequencerCommitment => 4u16.to_le_bytes(),
+            TransactionKind::Unknown(n) => n.get().to_le_bytes(),
         }
     }
+    /// Deserialize itself from bytes.
     fn from_bytes(bytes: &[u8]) -> Option<TransactionKind> {
         if bytes.len() != 2 {
             return None;
@@ -58,6 +61,7 @@ impl TransactionKind {
     }
 }
 
+/// Calculate SHA-256d with the patched sha256 impl.
 pub fn calculate_double_sha256(input: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::default();
     hasher.update(input);
@@ -70,7 +74,9 @@ pub fn calculate_double_sha256(input: &[u8]) -> [u8; 32] {
 ///
 /// Hashes the transaction **excluding** the segwit data (i.e. the marker, flag bytes, and the
 /// witness fields themselves). For non-segwit transactions which do not have any segwit data,
-/// this will be equal to [`Transaction::compute_wtxid()`].
+/// this will be equal to [`Transaction::compute_txid()`].
+///
+/// To override `Transaction::compute_txid` with the patched sha256 impl.
 pub fn calculate_txid(tx: &Transaction) -> [u8; 32] {
     // input and output types might have different sizes
     // however we are dealing with taproot transactions
@@ -106,6 +112,8 @@ pub fn calculate_txid(tx: &Transaction) -> [u8; 32] {
 /// Hashes the transaction **including** all segwit data (i.e. the marker, flag bytes, and the
 /// witness fields themselves). For non-segwit transactions which do not have any segwit data,
 /// this will be equal to [`Transaction::txid()`].
+///
+/// To override `Transaction::compute_wtxid` with the patched sha256 impl.
 pub fn calculate_wtxid(tx: &Transaction) -> [u8; 32] {
     let mut enc = vec![];
     tx.consensus_encode(&mut enc).expect("engines don't error");

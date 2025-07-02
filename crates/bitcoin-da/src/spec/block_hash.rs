@@ -50,6 +50,7 @@ impl AsRef<[u8]> for BlockHashWrapper {
 }
 
 impl BlockHashWrapper {
+    /// Returns the underlying byte array.
     pub fn to_byte_array(&self) -> [u8; 32] {
         self.0.as_raw_hash().to_byte_array()
     }

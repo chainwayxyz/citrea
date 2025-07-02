@@ -72,6 +72,7 @@ impl BorshDeserialize for TransactionWrapper {
     }
 }
 
+/// Serialize `TxIn` into the borsh writer
 fn serialize_txin<W: borsh::io::Write>(txin: &TxIn, writer: &mut W) -> borsh::io::Result<()> {
     BorshSerialize::serialize(&txin.previous_output.txid.to_byte_array(), writer)?;
     BorshSerialize::serialize(&txin.previous_output.vout, writer)?;
@@ -80,6 +81,7 @@ fn serialize_txin<W: borsh::io::Write>(txin: &TxIn, writer: &mut W) -> borsh::io
     BorshSerialize::serialize(&txin.witness.to_vec(), writer)
 }
 
+/// Deserialize `TxIn` from the borsh reader
 fn deserialize_txin<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<TxIn> {
     let txid = bitcoin::Txid::from_byte_array(<[u8; 32]>::deserialize_reader(reader)?);
     let vout = u32::deserialize_reader(reader)?;
@@ -95,11 +97,13 @@ fn deserialize_txin<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<TxI
     })
 }
 
+/// Serialize `TxOut` into the borsh writer
 fn serialize_txout<W: borsh::io::Write>(txout: &TxOut, writer: &mut W) -> borsh::io::Result<()> {
     BorshSerialize::serialize(&txout.value.to_sat(), writer)?;
     BorshSerialize::serialize(&txout.script_pubkey.as_bytes(), writer)
 }
 
+/// Deserialize `TxOut` from the borsh reader
 fn deserialize_txout<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<TxOut> {
     let value = Amount::from_sat(u64::deserialize_reader(reader)?);
     let script_pubkey = ScriptBuf::from_bytes(Vec::<u8>::deserialize_reader(reader)?);
