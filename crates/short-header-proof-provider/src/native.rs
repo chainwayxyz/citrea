@@ -63,14 +63,18 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
                     let entry = unlocked.entry(l2_height);
                     match entry {
                         std::collections::hash_map::Entry::Occupied(mut occ) => {
-                            const BLOCK_HASH_SIZE: usize = 32;
-                            occ.get_mut().try_reserve(BLOCK_HASH_SIZE).map_err(|e| {
+                            occ.get_mut().try_reserve(1).map_err(|e| {
                                 ShortHeaderProofProviderError::VectorAllocationFailed(e.to_string())
                             })?;
                             occ.get_mut().push(block_hash);
                         }
                         std::collections::hash_map::Entry::Vacant(vac) => {
-                            vac.insert(vec![block_hash]);
+                            let mut v: Vec<[u8; 32]> = Vec::new();
+                            v.try_reserve(1).map_err(|e| {
+                                ShortHeaderProofProviderError::VectorAllocationFailed(e.to_string())
+                            })?;
+                            v.push(block_hash);
+                            vac.insert(v);
                         }
                     }
                 }
@@ -93,11 +97,11 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
         let queried_and_verified_hashes = self.queried_and_verified_hashes.lock();
         let mut hashes = Vec::new();
         for l2_height in l2_range {
-            if let Some(hash) = queried_and_verified_hashes.get(&l2_height) {
-                hashes.try_reserve(hash.len() * 32).map_err(|e| {
+            if let Some(queried_hashes) = queried_and_verified_hashes.get(&l2_height) {
+                hashes.try_reserve(queried_hashes.len()).map_err(|e| {
                     ShortHeaderProofProviderError::VectorAllocationFailed(e.to_string())
                 })?;
-                hashes.extend(hash.clone());
+                hashes.extend(queried_hashes.clone());
             }
         }
         Ok(hashes)
