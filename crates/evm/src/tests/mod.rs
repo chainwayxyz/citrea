@@ -17,6 +17,7 @@ mod utils;
 #[cfg(test)]
 pub const DEFAULT_CHAIN_ID: u64 = 1;
 
+#[allow(dead_code)]
 fn get_test_seq_pub_key() -> K256PublicKey {
     K256PublicKey::try_from_slice(
         &hex::decode("036360e856310ce5d294e8be33fc807077dc56ac80d95d9cd4ddbd21325eff73f7").unwrap(),

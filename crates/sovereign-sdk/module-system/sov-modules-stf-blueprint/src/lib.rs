@@ -254,8 +254,9 @@ where
         &mut self,
         working_set: &mut WorkingSet<C::Storage>,
         l2_block_info: &HookL2BlockInfo,
+        sequencer_pub_key: &K256PublicKey,
     ) -> Result<(), StateTransitionError> {
-        self.begin_l2_block_inner(working_set, l2_block_info)
+        self.begin_l2_block_inner(working_set, l2_block_info, sequencer_pub_key)
             .map_err(StateTransitionError::HookError)
     }
 
@@ -424,7 +425,6 @@ where
             l2_block,
             *pre_state_root,
             current_spec,
-            sequencer_public_key.clone(),
         );
 
         let mut working_set = if let Some(state_log) = cumulative_state_log {
@@ -443,7 +443,7 @@ where
 
         self.verify_l2_block(l2_block, sequencer_public_key, current_spec)?;
 
-        self.begin_l2_block(&mut working_set, &l2_block_info)?;
+        self.begin_l2_block(&mut working_set, &l2_block_info, sequencer_public_key)?;
 
         self.apply_l2_block_txs(&l2_block_info, &l2_block.txs, &mut working_set)?;
 

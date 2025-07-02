@@ -96,13 +96,12 @@ fn create_l2_block(
         l2_height: height,
         pre_state_root: prev_state_root,
         current_spec: SpecId::Tangerine,
-        sequencer_pub_key: sequencer_public_key.clone(),
         l1_fee_rate: 128u128,
         timestamp: 10 * (height - 1),
     };
 
     stf_blueprint
-        .begin_l2_block(&mut working_set, &l2_block_info)
+        .begin_l2_block(&mut working_set, &l2_block_info, &sequencer_public_key)
         .unwrap();
     stf_blueprint
         .end_l2_block(l2_block_info, &mut working_set)
@@ -1197,13 +1196,12 @@ fn test_panic_state_root_assertion_failure() {
         l2_height: 1,
         pre_state_root: state_root,
         current_spec: SpecId::Tangerine,
-        sequencer_pub_key: sequencer_public_key.clone(),
         l1_fee_rate: 128u128,
         timestamp: 0,
     };
 
     stf_blueprint
-        .begin_l2_block(&mut working_set, &l2_block_info)
+        .begin_l2_block(&mut working_set, &l2_block_info, &sequencer_public_key)
         .unwrap();
     stf_blueprint
         .end_l2_block(l2_block_info, &mut working_set)
@@ -1451,13 +1449,12 @@ fn test_panic_state_root_mismatch_assertion() {
         l2_height: 1,
         pre_state_root: state_root,
         current_spec: SpecId::Tangerine,
-        sequencer_pub_key: sequencer_public_key.clone(),
         l1_fee_rate: u128::MAX, // This should match the block's gas fee rate
         timestamp: 0,
     };
 
     stf_blueprint
-        .begin_l2_block(&mut working_set, &l2_block_info)
+        .begin_l2_block(&mut working_set, &l2_block_info, &sequencer_public_key)
         .unwrap();
     stf_blueprint
         .end_l2_block(l2_block_info, &mut working_set)

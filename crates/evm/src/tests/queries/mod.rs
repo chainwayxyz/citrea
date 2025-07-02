@@ -15,7 +15,6 @@ use sov_modules_api::{Context, Module, Spec, WorkingSet};
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 use sov_state::ProverStorage;
 
-use super::get_test_seq_pub_key;
 use crate::call::CallMessage;
 use crate::smart_contracts::{
     CallerContract, LogsContract, SimplePayableContract, SimpleStorageContract,
@@ -79,7 +78,6 @@ fn init_evm(
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: spec_id,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 24,
     };
@@ -117,7 +115,6 @@ fn init_evm(
         l2_height,
         pre_state_root: [99u8; 32],
         current_spec: spec_id,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 24,
     };
@@ -156,7 +153,6 @@ fn init_evm(
         l2_height,
         pre_state_root: [100u8; 32],
         current_spec: spec_id,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 24,
     };
@@ -244,7 +240,6 @@ pub fn init_evm_single_block(
         l2_height: 1,
         pre_state_root: [0u8; 32],
         current_spec: spec_id,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -319,7 +314,6 @@ pub fn init_evm_with_caller_contract() -> (
         l2_height,
         pre_state_root: [0u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -355,7 +349,6 @@ pub fn init_evm_with_caller_contract() -> (
         l2_height,
         pre_state_root: [2u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };

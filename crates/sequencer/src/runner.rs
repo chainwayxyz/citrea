@@ -35,6 +35,7 @@ use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::k256_private_key::K256PrivateKey;
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{
     EncodeCall, L2Block, L2BlockModuleCallError, PrivateKey, SlotData, Spec, SpecId, StateDiff,
@@ -195,6 +196,7 @@ where
         >,
         prestate: ProverStorage,
         l2_block_info: HookL2BlockInfo,
+        sequencer_public_key: &K256PublicKey,
         deposit_data: &[Vec<u8>],
         da_blocks: Vec<Da::FilteredBlock>,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
@@ -209,10 +211,11 @@ where
             let mut nonce = self.get_nonce(&mut working_set_to_discard)?;
 
             // Apply L2 block hook before processing transactions
-            if let Err(err) = self
-                .stf
-                .begin_l2_block(&mut working_set_to_discard, &l2_block_info)
-            {
+            if let Err(err) = self.stf.begin_l2_block(
+                &mut working_set_to_discard,
+                &l2_block_info,
+                sequencer_public_key,
+            ) {
                 warn!(
                     "DryRun: Failed to apply l2 block hook: {:?} \n reverting batch workspace",
                     err
@@ -460,7 +463,6 @@ where
             l2_height,
             pre_state_root: self.state_root,
             current_spec: active_fork_spec,
-            sequencer_pub_key: pub_key.clone(),
             l1_fee_rate,
             timestamp,
         };
@@ -481,6 +483,7 @@ where
                 evm_txs,
                 prestate.clone(),
                 l2_block_info.clone(),
+                &pub_key,
                 &deposit_data,
                 da_blocks,
             )
@@ -495,7 +498,10 @@ where
 
         let mut working_set = WorkingSet::new(prestate.clone());
 
-        if let Err(err) = self.stf.begin_l2_block(&mut working_set, &l2_block_info) {
+        if let Err(err) = self
+            .stf
+            .begin_l2_block(&mut working_set, &l2_block_info, &pub_key)
+        {
             warn!(
                 "Failed to apply l2 block hook: {:?} \n reverting batch workspace",
                 err

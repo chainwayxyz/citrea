@@ -14,7 +14,6 @@ use sov_rollup_interface::spec::SpecId;
 
 use crate::call::CallMessage;
 use crate::smart_contracts::LogsContract;
-use crate::tests::get_test_seq_pub_key;
 use crate::tests::queries::init_evm;
 use crate::tests::utils::{
     create_contract_message, get_evm, get_evm_config, publish_event_message,
@@ -92,7 +91,6 @@ fn log_filter_test_at_block_hash() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -303,7 +301,6 @@ fn log_filter_test_with_range() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -361,7 +358,6 @@ fn log_filter_test_with_range() {
         l2_height,
         pre_state_root: [99u8; 32],
         current_spec: SpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -421,7 +417,6 @@ fn test_log_limits() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -518,8 +513,7 @@ fn test_log_limits() {
             l2_height,
             pre_state_root: [99u8; 32],
             current_spec: SpecId::Tangerine,
-            sequencer_pub_key: get_test_seq_pub_key(),
-            l1_fee_rate,
+                l1_fee_rate,
             timestamp: 0,
         };
         // generate 100_000 blocks to test the max block range limit

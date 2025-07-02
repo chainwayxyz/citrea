@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{native_debug, native_error, Context, DaSpec, WorkingSet};
 use sov_rollup_interface::stf::{L2BlockError, L2BlockHookError, StateTransitionError};
@@ -109,11 +110,12 @@ where
         &mut self,
         working_set: &mut WorkingSet<C::Storage>,
         l2_block_info: &HookL2BlockInfo,
+        sequencer_pub_key: &K256PublicKey,
     ) -> Result<(), L2BlockHookError> {
         native_debug!(
             "Beginning l2 block #{} from sequencer: 0x{}",
             l2_block_info.l2_height(),
-            l2_block_info.sequencer_pub_key()
+            sequencer_pub_key
         );
 
         // ApplyL2BlockHook: begin
