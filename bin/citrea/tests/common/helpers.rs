@@ -14,10 +14,10 @@ use citrea_common::{
     RunnerConfig, SequencerConfig, StorageConfig,
 };
 use citrea_light_client_prover::da_block_handler::StartVariant;
+use citrea_primitives::types::NodeType;
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_storage_ops::pruning::PruningConfig;
-use citrea_storage_ops::types::{NodeKind, StorageNodeType};
 use reth_tasks::TaskManager;
 use short_header_proof_provider::{
     NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
@@ -91,7 +91,7 @@ pub async fn start_rollup(
                 .map(|table| table.to_string())
                 .collect::<Vec<_>>(),
             citrea_sequencer::db_migrations::migrations(),
-            Arc::new(BackupManager::new(NodeKind::Sequencer, None, None)),
+            Arc::new(BackupManager::new(NodeType::Sequencer, None, None)),
         )
     } else if rollup_prover_config.is_some() {
         (
@@ -100,7 +100,7 @@ pub async fn start_rollup(
                 .map(|table| table.to_string())
                 .collect::<Vec<_>>(),
             citrea_batch_prover::db_migrations::migrations(),
-            Arc::new(BackupManager::new(NodeKind::BatchProver, None, None)),
+            Arc::new(BackupManager::new(NodeType::BatchProver, None, None)),
         )
     } else if light_client_prover_config.is_some() {
         (
@@ -109,7 +109,7 @@ pub async fn start_rollup(
                 .map(|table| table.to_string())
                 .collect::<Vec<_>>(),
             citrea_light_client_prover::db_migrations::migrations(),
-            Arc::new(BackupManager::new(NodeKind::LightClientProver, None, None)),
+            Arc::new(BackupManager::new(NodeType::LightClientProver, None, None)),
         )
     } else {
         (
@@ -118,7 +118,7 @@ pub async fn start_rollup(
                 .map(|table| table.to_string())
                 .collect::<Vec<_>>(),
             citrea_fullnode::db_migrations::migrations(),
-            Arc::new(BackupManager::new(NodeKind::FullNode, None, None)),
+            Arc::new(BackupManager::new(NodeType::FullNode, None, None)),
         )
     };
     mock_demo_rollup
@@ -406,7 +406,7 @@ pub async fn start_rollup(
         // Spawn pruner if configs are set
         if let Some(pruner) = pruner {
             task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
-                pruner.run(StorageNodeType::FullNode, shutdown_signal).await
+                pruner.run(NodeType::FullNode, shutdown_signal).await
             });
         }
 
