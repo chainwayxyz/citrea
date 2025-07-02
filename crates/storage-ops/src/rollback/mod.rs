@@ -104,12 +104,12 @@ impl Rollback {
 
                     if last_scanned_l1_height == 0 {
                         // If no slots have been scanned, we can rollback to the target version
+                        info!("No rollback needed: no L1 slots have been scanned.");
                         return Ok(());
                     }
 
-                    // TODO: Should I check this?
                     if last_scanned_l1_height <= state_db_last_version {
-                        return Ok(());
+                        unreachable!("Last scanned L1 height should not be less than or equal to the last state DB version");
                     }
 
                     // This is done because the state DB version will start from 0 but the L1 height starts from a random value
