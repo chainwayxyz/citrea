@@ -28,7 +28,7 @@ pub struct SequencerMetrics {
     #[metric(describe = "The current L2 block number")]
     pub current_l2_block: Gauge,
     /// Current L1 block number
-    #[metric(describe = "The current L1 block number which is used to produce L2 blocks")]
+    #[metric(describe = "The height of the current L1 block put into the Bitcoin Light Client")]
     pub current_l1_block: Gauge,
 }
 

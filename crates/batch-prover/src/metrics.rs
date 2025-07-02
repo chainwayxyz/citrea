@@ -11,8 +11,8 @@ use once_cell::sync::Lazy;
 #[derive(Metrics)]
 #[metrics(scope = "batch_prover")]
 pub struct BatchProverMetrics {
-    /// Current L1 block number that has been processed by the batch prover
-    #[metric(describe = "The current L1 block number which is used to produce L2 blocks")]
+    /// Latest L1 block number that has been processed by the batch prover
+    #[metric(describe = "Latest L1 block number that has been processed by the batch prover")]
     pub current_l1_block: Gauge,
 
     /// Current L2 block number that has been processed by the batch prover
