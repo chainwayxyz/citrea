@@ -1241,9 +1241,225 @@ fn test_l1_fee_compression_discount() {
     );
 }
 
-// TODO: test is not doing anything significant at the moment
-// after the cancun upgrade related issues are solved come back
-// and invoke point eval precompile
+#[test]
+fn test_ignore_eip4844_transactions() {
+    let dev_signer = TestSigner::new_random();
+
+    let config = EvmConfig {
+        data: vec![AccountData {
+            address: dev_signer.address(),
+            balance: U256::from_str("100000000000000000000").unwrap(),
+            code_hash: KECCAK_EMPTY,
+            code: Bytes::default(),
+            nonce: 0,
+            storage: Default::default(),
+        }],
+        ..Default::default()
+    };
+    let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
+
+    let l1_fee_rate = 0;
+    let l2_height = 2;
+
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::Tangerine,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    let sender_address = generate_address::<C>("sender");
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+
+        // Create transactions for with eip4844 tx in the middle
+        let regular_tx1 = dev_signer
+            .sign_default_transaction(TxKind::Call(Address::ZERO), vec![], 0, 0)
+            .unwrap();
+        let blob_tx = dev_signer
+            .sign_blob_transaction(Address::ZERO, vec![B256::random()], 1)
+            .unwrap();
+        let regular_tx2 = dev_signer
+            .sign_default_transaction(TxKind::Call(Address::ZERO), vec![], 2, 0)
+            .unwrap();
+
+        let transactions: Vec<RlpEvmTransaction> = vec![
+            regular_tx1.try_into().unwrap(),
+            blob_tx.try_into().unwrap(),
+            regular_tx2.try_into().unwrap(),
+        ];
+
+        let result = evm.call(
+            CallMessage { txs: transactions },
+            &context,
+            &mut working_set,
+        );
+
+        // The call should succeed
+        assert!(
+            result.is_ok(),
+            "Call failed for middle scenario: {:?}",
+            result
+        );
+
+        // Make sure that the nonce was incremented for all transactions
+        let account_info = evm
+            .account_info(&dev_signer.address(), &mut working_set)
+            .unwrap();
+        assert_eq!(
+            account_info.nonce, 3,
+            "Expected nonce to be 3 after executing all transactions in middle scenario"
+        );
+    }
+
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    let receipts: Vec<_> = evm
+        .receipts
+        .iter(&mut working_set.accessory_state())
+        .collect();
+
+    assert_eq!(
+        receipts.len(),
+        3,
+        "Expected 3 receipts for middle scenario, got {}",
+        receipts.len()
+    );
+
+    // Verify transaction results
+    // First transaction (regular) should succeed
+    assert!(
+        receipts[0].receipt.status(),
+        "First transaction should have succeeded in middle scenario"
+    );
+    // Second transaction (blob) should be halted
+    assert!(
+        !receipts[1].receipt.status(),
+        "Blob transaction should have failed in middle scenario"
+    );
+    assert_eq!(
+        receipts[1].gas_used, 0,
+        "Blob transaction should use 0 gas in middle scenario"
+    );
+    assert_eq!(
+        receipts[1].l1_diff_size, 0,
+        "Blob transaction should have 0 l1_diff_size in middle scenario"
+    );
+    // Third transaction (regular) should succeed
+    assert!(
+        receipts[2].receipt.status(),
+        "Third transaction should have succeeded in middle scenario"
+    );
+
+    // Second scenario: eip4844 blob transaction at the end
+    let dev_signer2 = TestSigner::new_random();
+
+    let config2 = EvmConfig {
+        data: vec![AccountData {
+            address: dev_signer2.address(),
+            balance: U256::from_str("100000000000000000000").unwrap(),
+            code_hash: KECCAK_EMPTY,
+            code: Bytes::default(),
+            nonce: 0,
+            storage: Default::default(),
+        }],
+        ..Default::default()
+    };
+    let (mut evm2, mut working_set2, _spec_id2, _ledger_db2) = get_evm(&config2);
+
+    let l2_block_info2 = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::Tangerine,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm2.begin_l2_block_hook(&l2_block_info2, &mut working_set2);
+    {
+        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+
+        // Create transactions for end scenario: [regular, regular, blob]
+        let regular_tx1 = dev_signer2
+            .sign_default_transaction(TxKind::Call(Address::ZERO), vec![], 0, 0)
+            .unwrap();
+        let regular_tx2 = dev_signer2
+            .sign_default_transaction(TxKind::Call(Address::ZERO), vec![], 1, 0)
+            .unwrap();
+        let blob_tx = dev_signer2
+            .sign_blob_transaction(Address::ZERO, vec![B256::random()], 2)
+            .unwrap();
+
+        let transactions: Vec<RlpEvmTransaction> = vec![
+            regular_tx1.try_into().unwrap(),
+            regular_tx2.try_into().unwrap(),
+            blob_tx.try_into().unwrap(),
+        ];
+
+        let result = evm2.call(
+            CallMessage { txs: transactions },
+            &context,
+            &mut working_set2,
+        );
+
+        assert!(result.is_ok(), "Call failed for end scenario: {:?}", result);
+
+        // Make sure that the nonce was incremented for all transactions
+        let account_info = evm2
+            .account_info(&dev_signer2.address(), &mut working_set2)
+            .unwrap();
+        assert_eq!(
+            account_info.nonce, 3,
+            "Expected nonce to be 3 after executing all transactions in end scenario"
+        );
+    }
+
+    evm2.end_l2_block_hook(&l2_block_info2, &mut working_set2);
+    evm2.finalize_hook(&[99u8; 32], &mut working_set2.accessory_state());
+
+    let receipts2: Vec<_> = evm2
+        .receipts
+        .iter(&mut working_set2.accessory_state())
+        .collect();
+
+    assert_eq!(
+        receipts2.len(),
+        3,
+        "Expected 3 receipts for end scenario, got {}",
+        receipts2.len()
+    );
+
+    // Verify transaction results for end scenario
+    // First transaction (regular) should succeed
+    assert!(
+        receipts2[0].receipt.status(),
+        "First transaction should have succeeded in end scenario"
+    );
+    // Second transaction (regular) should succeed
+    assert!(
+        receipts2[1].receipt.status(),
+        "Second transaction should have succeeded in end scenario"
+    );
+    // Third transaction (blob) should be halted
+    assert!(
+        !receipts2[2].receipt.status(),
+        "Blob transaction should have failed in end scenario"
+    );
+    assert_eq!(
+        receipts2[2].gas_used, 0,
+        "Blob transaction should use 0 gas in end scenario"
+    );
+    assert_eq!(
+        receipts2[2].l1_diff_size, 0,
+        "Blob transaction should have 0 l1_diff_size in end scenario"
+    );
+}
+
 #[test]
 fn test_blob_tx() {
     let (config, dev_signer, _contract_addr) =
@@ -1271,18 +1487,58 @@ fn test_blob_tx() {
             .sign_blob_transaction(Address::ZERO, vec![B256::random()], 0)
             .unwrap();
 
+        // EIP-4844 transactions should now be handled gracefully (skipped with nonce increment)
+        let result = evm.call(
+            CallMessage {
+                txs: vec![blob_message],
+            },
+            &context,
+            &mut working_set,
+        );
+
+        // The call should succeed
+        assert!(
+            result.is_ok(),
+            "Blob transaction should be handled gracefully"
+        );
+
+        // Verify that the nonce was incremented
+        let account_info = evm
+            .account_info(&dev_signer.address(), &mut working_set)
+            .unwrap();
         assert_eq!(
-            evm.call(
-                CallMessage {
-                    txs: vec![blob_message],
-                },
-                &context,
-                &mut working_set,
-            )
-            .unwrap_err(),
-            L2BlockModuleCallError::EvmTxTypeNotSupported("EIP-4844".to_string())
+            account_info.nonce, 1,
+            "Expected nonce to be incremented after blob transaction"
         );
     }
+
+    // End the block to move pending transactions to receipts
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // Get the receipts from the last block
+    let receipts: Vec<_> = evm
+        .receipts
+        .iter(&mut working_set.accessory_state())
+        .collect();
+
+    assert_eq!(
+        receipts.len(),
+        1,
+        "Expected 1 receipt, got {}",
+        receipts.len()
+    );
+
+    // Verify that the blob transaction was halted (not executed)
+    assert!(
+        !receipts[0].receipt.status(),
+        "Blob transaction should have failed status"
+    );
+    assert_eq!(receipts[0].gas_used, 0, "Blob transaction should use 0 gas");
+    assert_eq!(
+        receipts[0].l1_diff_size, 0,
+        "Blob transaction should have 0 l1_diff_size"
+    );
 }
 
 #[test]
