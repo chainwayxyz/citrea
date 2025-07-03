@@ -1,3 +1,7 @@
+//! Data Availability (DA) block handling for the light client prover
+//!
+//! This module handles the processing of DA layer blocks for light client proof generation
+//! and maintaining the light client state.
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
@@ -29,11 +33,18 @@ use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
 use crate::metrics::LIGHT_CLIENT_METRICS;
 
+/// Variant to specify how to start processing L1 blocks
 pub enum StartVariant {
+    /// Resume from the last scanned L1 block height, the following L1 block will be the next one to process.
     LastScanned(u64),
+    /// Start processing from an initial L1 block height
     FromBlock(u64),
 }
 
+/// Handler for processing L1 blocks and the relevant transactions within them.
+///
+/// This component is responsible for processing finalized L1 blocks, running the light client proof circuit logic per L1 block,
+/// keeping track of the light client state, and generating proofs light client proofs.
 pub struct L1BlockHandler<Vm, Da, DB>
 where
     Da: DaService,
@@ -41,17 +52,29 @@ where
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
     Network: InitialValueProvider<Da::Spec>,
 {
+    /// The Citrea network this handler is running on
     network: Network,
+    /// Prover configuration
     _prover_config: LightClientProverConfig,
+    /// Prover service to submit proof data and handle proving sessions
     prover_service: Arc<ParallelProverService<Da, Vm>>,
+    /// Manager for light client prover storage
     storage_manager: ProverStorageManager,
+    /// Database for ledger operations
     ledger_db: DB,
+    /// Data availability service instance
     da_service: Arc<Da>,
+    /// Code commitments for light client proof circuit
     light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
+    /// ELF binaries for light client proof circuit
     light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
+    /// Cache for L1 block data
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+    /// Queue of L1 blocks waiting to be processed
     queued_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
+    /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
+    /// Light client proof circuit logic
     circuit: LightClientProofCircuit<ProverStorage, Da::Spec, Vm>,
 }
 
@@ -62,6 +85,17 @@ where
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
     Network: InitialValueProvider<Da::Spec>,
 {
+    /// Creates a new instance of the L1BlockHandler
+    /// # Arguments
+    /// * `network` - The Citrea network this handler is running on
+    /// * `prover_config` - Prover configuration
+    /// * `prover_service` - Prover service to submit proof data and handle proving sessions
+    /// * `storage_manager` - Manager for light client prover storage
+    /// * `ledger_db` - Database for ledger operations
+    /// * `da_service` - Data availability service instance
+    /// * `light_client_proof_code_commitments` - Code commitments for light client proof circuit
+    /// * `light_client_proof_elfs` - ELF binaries for light client proof circuit
+    /// * `backup_manager` - Manager for backup operations
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         network: Network,
@@ -90,6 +124,15 @@ where
         }
     }
 
+    /// Starts the L1 block handler to process L1 blocks and generate proofs.
+    ///
+    /// This method continuously:
+    /// 1. Syncs new L1 blocks from the DA layer
+    /// 2. Processes queued blocks to generate light client proofs and move the light client state forward
+    ///
+    /// # Arguments
+    /// * `last_l1_height_scanned` - `StartVariant` to start syncing from
+    /// * `shutdown_signal` - Signal to gracefully shut down
     #[instrument(name = "L1BlockHandler", skip_all)]
     pub async fn run(
         mut self,
@@ -140,6 +183,7 @@ where
         }
     }
 
+    /// Processes L1 blocks waiting in the queue.
     async fn process_queued_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
         loop {
             let Some(l1_block) = self.queued_l1_blocks.lock().await.front().cloned() else {
@@ -152,6 +196,15 @@ where
         Ok(())
     }
 
+    /// Processes a single L1 block.
+    ///
+    /// # Arguments
+    /// * `l1_block` - The L1 block to process
+    ///
+    /// This method:
+    /// 1. Runs the L1 block of the light client proof circuit to generate a witness, and gets the updates to the JMT state.
+    /// 2. Prepares the light client circuit input and calls `Self::prove` to generate a proof for the L1 block.
+    /// 3. Asserts that the state update's state root matches the one in the circuit output, and finalizes the storage.
     async fn process_l1_block(&mut self, l1_block: Da::FilteredBlock) -> anyhow::Result<()> {
         let l1_hash = l1_block.header().hash().into();
         let l1_height = l1_block.header().height();
@@ -253,6 +306,15 @@ where
         Ok(())
     }
 
+    /// This method submits the circuit input and ELF binary to the prover service
+    /// to generates a proof for the light client circuit.
+    /// # Arguments
+    /// * `light_client_elf` - The ELF binary for the light client proof circuit
+    /// * `circuit_input` - The input for the light client circuit
+    /// * `assumptions` - Assumptions used in the proving process
+    ///
+    /// # Returns
+    /// A proof, in bytes, for the light client circuit.
     async fn prove(
         &self,
         light_client_elf: Vec<u8>,

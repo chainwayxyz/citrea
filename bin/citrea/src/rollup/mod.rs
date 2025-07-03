@@ -385,15 +385,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
-        let current_l2_height = ledger_db
-            .get_head_l2_block()
-            .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
-            .map(|(l2_height, _)| l2_height)
-            .unwrap_or(L2BlockNumber(0));
-
-        let mut fork_manager = ForkManager::new(get_forks(), current_l2_height.0);
-        fork_manager.register_handler(Box::new(ledger_db.clone()));
-
         let prover_service = Arc::new(
             self.create_prover_service(
                 prover_config.proving_mode,

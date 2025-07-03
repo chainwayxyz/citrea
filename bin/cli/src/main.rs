@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use citrea_storage_ops::types::NodeKind;
 use clap::{Parser, Subcommand, ValueEnum};
 use commands::StorageNodeTypeArg;
 use tracing_subscriber::fmt;
@@ -10,20 +11,31 @@ mod commands;
 
 #[derive(Clone, Debug, ValueEnum)]
 #[value(rename_all = "kebab-case")]
-enum NodeKind {
+enum NodeKindArg {
     BatchProver,
     Sequencer,
     FullNode,
     LightClientProver,
 }
 
-impl std::fmt::Display for NodeKind {
+impl std::fmt::Display for NodeKindArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NodeKind::BatchProver => write!(f, "batch-prover"),
-            NodeKind::Sequencer => write!(f, "sequencer"),
-            NodeKind::FullNode => write!(f, "full-node"),
-            NodeKind::LightClientProver => write!(f, "light-client-prover"),
+            NodeKindArg::BatchProver => write!(f, "batch-prover"),
+            NodeKindArg::Sequencer => write!(f, "sequencer"),
+            NodeKindArg::FullNode => write!(f, "full-node"),
+            NodeKindArg::LightClientProver => write!(f, "light-client-prover"),
+        }
+    }
+}
+
+impl From<NodeKindArg> for NodeKind {
+    fn from(value: NodeKindArg) -> Self {
+        match value {
+            NodeKindArg::Sequencer => NodeKind::Sequencer,
+            NodeKindArg::FullNode => NodeKind::FullNode,
+            NodeKindArg::BatchProver => NodeKind::BatchProver,
+            NodeKindArg::LightClientProver => NodeKind::LightClientProver,
         }
     }
 }
@@ -70,7 +82,7 @@ enum Commands {
     RestoreBackup {
         /// The node kind
         #[arg(long)]
-        node_kind: NodeKind,
+        node_kind: NodeKindArg,
         /// The path of the databases to restore to
         #[arg(long)]
         db_path: PathBuf,
@@ -125,8 +137,7 @@ async fn main() -> anyhow::Result<()> {
             node_kind,
             backup_id,
         } => {
-            commands::restore_backup(node_kind.to_string(), db_path, backup_path, backup_id)
-                .await?;
+            commands::restore_backup(node_kind.into(), db_path, backup_path, backup_id).await?;
         }
     }
 

@@ -1,3 +1,4 @@
+//! This module provides functionality for building the services required for running the Citrea Light Client Prover.
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -18,6 +19,31 @@ use crate::da_block_handler::L1BlockHandler;
 use crate::rpc;
 use crate::runner::CitreaLightClientProver;
 
+/// Builds and initializes all light client prover services
+///
+/// # Arguments
+/// * `network` - The Citrea network for the L1 block handler
+/// * `prover_config` - Proving configuration for the light client prover
+/// * `runner_config` - Runner configuration for the light client prover
+/// * `storage_manager` - Manager for prover storage
+/// * `ledger_db` - Database for ledger operations
+/// * `da_service` - Data availability service implementation
+/// * `prover_service` - Parallel prover service for handling ZKVM operations
+/// * `light_client_prover_code_commitments` - Map of ZKVM code commitments by spec ID for the light client proof circuit
+/// * `light_client_prover_elfs` - Map of ZKVM ELF binaries by spec ID for the light client proof circuit
+/// * `rpc_module` - RPC module for external communication
+/// * `backup_manager` - Manager for backup operations
+///
+/// # Type Parameters
+/// * `Da` - Data availability service type
+/// * `DB` - Database type implementing LightClientProverLedgerOps and SharedLedgerOps
+/// * `Vm` - ZKVM implementation type
+///
+/// # Returns
+/// A tuple containing:
+/// - Light client prover runner
+/// - L1BlockHandler for DA block processing
+/// - Configured RPC module
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn build_services<Vm, Da, DB>(
     network: Network,

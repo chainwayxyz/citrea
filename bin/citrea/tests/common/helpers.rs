@@ -8,6 +8,7 @@ use borsh::BorshDeserialize;
 use citrea::{CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage};
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
+use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_light_client_prover};
 use citrea_common::{
     BatchProverConfig, FullNodeConfig, LightClientProverConfig, RollupPublicKeys, RpcConfig,
     RunnerConfig, SequencerConfig, StorageConfig,
@@ -16,7 +17,7 @@ use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_storage_ops::pruning::PruningConfig;
-use citrea_storage_ops::types::StorageNodeType;
+use citrea_storage_ops::types::{NodeKind, StorageNodeType};
 use reth_tasks::TaskManager;
 use short_header_proof_provider::{
     NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
@@ -83,15 +84,14 @@ pub async fn start_rollup(
         panic!("Both batch prover and light client prover config cannot be set at the same time");
     }
 
-    let backup_manager = Arc::new(BackupManager::new("test".to_string(), None, None));
-
-    let (tables, migrations) = if sequencer_config.is_some() {
+    let (tables, migrations, backup_manager) = if sequencer_config.is_some() {
         (
             SEQUENCER_LEDGER_TABLES
                 .iter()
                 .map(|table| table.to_string())
                 .collect::<Vec<_>>(),
             citrea_sequencer::db_migrations::migrations(),
+            Arc::new(BackupManager::new(NodeKind::Sequencer, None, None)),
         )
     } else if rollup_prover_config.is_some() {
         (
@@ -100,6 +100,7 @@ pub async fn start_rollup(
                 .map(|table| table.to_string())
                 .collect::<Vec<_>>(),
             citrea_batch_prover::db_migrations::migrations(),
+            Arc::new(BackupManager::new(NodeKind::BatchProver, None, None)),
         )
     } else if light_client_prover_config.is_some() {
         (
@@ -108,6 +109,7 @@ pub async fn start_rollup(
                 .map(|table| table.to_string())
                 .collect::<Vec<_>>(),
             citrea_light_client_prover::db_migrations::migrations(),
+            Arc::new(BackupManager::new(NodeKind::LightClientProver, None, None)),
         )
     } else {
         (
@@ -116,6 +118,7 @@ pub async fn start_rollup(
                 .map(|table| table.to_string())
                 .collect::<Vec<_>>(),
             citrea_fullnode::db_migrations::migrations(),
+            Arc::new(BackupManager::new(NodeKind::FullNode, None, None)),
         )
     };
     mock_demo_rollup
@@ -197,17 +200,33 @@ pub async fn start_rollup(
     };
 
     let rpc_storage = storage_manager.create_final_view_storage();
-    let rpc_module = mock_demo_rollup
+    let mut rpc_module = mock_demo_rollup
         .create_rpc_methods(
-            rpc_storage,
+            rpc_storage.clone(),
             &ledger_db,
             &da_service,
-            sequencer_client_url,
-            l2_block_rx,
             &backup_manager,
             rollup_config.rpc.clone(),
         )
         .expect("RPC module setup should work");
+
+    if light_client_prover_config.is_some() {
+        register_healthcheck_rpc_light_client_prover(&mut rpc_module, da_service.clone())
+            .expect("Failed to register healthcheck RPC for light client prover");
+    } else {
+        // Register Ethereum RPC methods if this is not the Light Client Prover
+        citrea::register_ethereum(
+            da_service.clone(),
+            rpc_storage,
+            ledger_db.clone(),
+            &mut rpc_module,
+            sequencer_client_url,
+            l2_block_rx,
+        )
+        .expect("Failed to register Ethereum RPC methods");
+        register_healthcheck_rpc(&mut rpc_module, ledger_db.clone())
+            .expect("Failed to register healthcheck RPC");
+    }
 
     if let Some(sequencer_config) = sequencer_config {
         warn!(

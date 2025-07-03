@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 
 use citrea_common::backup::BackupManager;
+use citrea_storage_ops::types::NodeKind;
 use tracing::info;
 
 pub(crate) async fn restore_backup(
-    node_kind: String,
+    node_kind: NodeKind,
     db_path: PathBuf,
     backup_path: PathBuf,
     backup_id: u32,

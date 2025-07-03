@@ -43,12 +43,14 @@ pub struct BatchProofMethodId {
     pub activation_l2_height: u64,
 }
 
+/// SequencerCommitment's are ordered by their index
 impl core::cmp::PartialOrd for SequencerCommitment {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        Some(self.cmp(other))
+        Some(self.index.cmp(&other.index))
     }
 }
 
+/// SequencerCommitment's are ordered by their index
 impl core::cmp::Ord for SequencerCommitment {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.index.cmp(&other.index)

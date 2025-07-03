@@ -3,6 +3,7 @@ use citrea::NetworkArg;
 use citrea_common::{
     from_toml_path, BatchProverConfig, FromEnv, LightClientProverConfig, SequencerConfig,
 };
+use citrea_storage_ops::types::NodeKind;
 use clap::{command, Parser};
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -75,7 +76,7 @@ impl std::fmt::Display for NodeType {
                 write!(f, "sequencer")
             }
             NodeType::FullNode => {
-                write!(f, "fullnode")
+                write!(f, "full-node")
             }
             NodeType::BatchProver(_) => {
                 write!(f, "batch-prover")
@@ -83,6 +84,17 @@ impl std::fmt::Display for NodeType {
             NodeType::LightClientProver(_) => {
                 write!(f, "light-client-prover")
             }
+        }
+    }
+}
+
+impl From<&NodeType> for NodeKind {
+    fn from(value: &NodeType) -> Self {
+        match value {
+            NodeType::Sequencer(_) => NodeKind::Sequencer,
+            NodeType::FullNode => NodeKind::FullNode,
+            NodeType::BatchProver(_) => NodeKind::BatchProver,
+            NodeType::LightClientProver(_) => NodeKind::LightClientProver,
         }
     }
 }

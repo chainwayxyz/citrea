@@ -26,7 +26,7 @@ pub struct MonitoredTxResponse {
 
 impl From<(Txid, MonitoredTx, bool)> for MonitoredTxResponse {
     fn from((txid, tx, with_hex): (Txid, MonitoredTx, bool)) -> Self {
-        let base_fee = if let TxStatus::Pending { base_fee, .. } = tx.status {
+        let base_fee = if let TxStatus::InMempool { base_fee, .. } = tx.status {
             Some(base_fee)
         } else {
             None
@@ -105,7 +105,7 @@ impl DaRpcServer for DaRpcServerImpl {
             .get_monitored_txs()
             .await
             .into_iter()
-            .filter(|(_, tx)| matches!(tx.status, TxStatus::Pending { .. }))
+            .filter(|(_, tx)| matches!(tx.status, TxStatus::InMempool { .. }))
             .map(Into::into)
             .collect::<Vec<_>>();
 

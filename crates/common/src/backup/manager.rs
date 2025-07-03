@@ -4,6 +4,7 @@ use std::sync::{Arc, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, ensure, Context};
+use citrea_storage_ops::types::NodeKind;
 use rocksdb::backup::BackupEngineInfo;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
@@ -37,7 +38,7 @@ impl BackupConfig {
 /// with L1/L2 block processing.
 pub struct BackupManager {
     /// Node kind
-    node_kind: String,
+    node_kind: NodeKind,
     /// Optional base path used for backups. Can be overridden via RPC
     base_path: Option<PathBuf>,
     /// Map of path to backupable database
@@ -58,7 +59,9 @@ pub struct CreateBackupInfo {
     /// Node kind
     pub node_kind: String,
     /// L2 block height when backup was created
-    pub block_height: u64,
+    pub l2_block_height: Option<u64>,
+    /// Last scanned L1 block height when backup was created
+    pub l1_block_height: Option<u64>,
     /// Full path to the backup directory
     pub backup_path: PathBuf,
     /// Unix timestamp when backup was created
@@ -71,7 +74,7 @@ pub struct CreateBackupInfo {
 struct BackupMetadata {
     version: u32,
     node_kind: String,
-    backups: HashMap<u32, u64>, // backup_id -> block_height
+    backups: HashMap<u32, u64>, // backup_id -> l1_block_height if node_kind is light client prover, otherwise l2_block_height
 }
 
 impl BackupManager {
@@ -83,7 +86,7 @@ impl BackupManager {
     /// * `config` - Optional config to override required/optional directories
     pub fn new(
         // Todo Wait on https://github.com/chainwayxyz/citrea/pull/1714 and RollupClient enum
-        node_kind: String,
+        node_kind: NodeKind,
         base_path: Option<PathBuf>,
         config: Option<BackupConfig>,
     ) -> Self {
@@ -162,7 +165,16 @@ impl BackupManager {
         let l1_lock = self.l1_processing_lock.lock().await;
         let l2_lock = self.l2_processing_lock.lock().await;
 
-        let l2_height = ledger_db.get_head_l2_block_height()?.unwrap_or_default();
+        let (l1_block_height, l2_block_height) = match self.node_kind {
+            NodeKind::Sequencer | NodeKind::FullNode | NodeKind::BatchProver => (
+                ledger_db.get_last_scanned_l1_height()?.map(|h| h.0),
+                ledger_db.get_head_l2_block_height()?,
+            ),
+            NodeKind::LightClientProver => {
+                // Light client prover does not have L2 blocks, so we use L1 height
+                (ledger_db.get_last_scanned_l1_height()?.map(|h| h.0), None)
+            }
+        };
 
         let start_time = Instant::now();
         info!("Starting database backup process...");
@@ -209,7 +221,8 @@ impl BackupManager {
 
         let info = CreateBackupInfo {
             node_kind: self.node_kind.to_string(),
-            block_height: l2_height,
+            l2_block_height,
+            l1_block_height,
             backup_path: backup_path.to_path_buf(),
             created_at: timestamp,
             backup_id,
@@ -242,7 +255,18 @@ impl BackupManager {
                 version: 0,
             }
         };
-        metadata.backups.insert(info.backup_id, info.block_height);
+        let block_height = {
+            match self.node_kind {
+                NodeKind::Sequencer | NodeKind::FullNode | NodeKind::BatchProver => {
+                    info.l2_block_height.unwrap_or(0)
+                }
+                NodeKind::LightClientProver => {
+                    // Light client prover does not have L2 blocks, so we use L1 height
+                    info.l1_block_height.unwrap_or(0)
+                }
+            }
+        };
+        metadata.backups.insert(info.backup_id, block_height);
         let metadata_json = serde_json::to_string_pretty(&metadata)?;
         tokio::fs::write(metadata_path, metadata_json).await?;
         Ok(())

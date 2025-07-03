@@ -8,8 +8,8 @@ use sov_rollup_interface::services::da::DaService;
 use sov_state::ProverStorage;
 use tokio::sync::broadcast;
 
-// register ethereum methods.
-pub(crate) fn register_ethereum<Da: DaService>(
+/// Register ethereum methods.
+pub fn register_ethereum<Da: DaService>(
     da_service: Arc<Da>,
     storage: ProverStorage,
     ledger_db: LedgerDB,

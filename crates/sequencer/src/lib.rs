@@ -75,6 +75,8 @@ mod metrics;
 pub mod rpc;
 /// Module implementing the main sequencer running logic
 mod runner;
+/// Module for declaring types used by the sequencer
+mod types;
 /// Module containing utility functions and helpers
 mod utils;
 
@@ -118,7 +120,7 @@ pub fn build_services<Da>(
 where
     Da: DaService,
 {
-    let (l2_force_block_tx, l2_force_block_rx) = unbounded_channel();
+    let (rpc_message_tx, rpc_message_rx) = unbounded_channel();
     // used as client of reth's mempool
     let db_provider_storage = storage_manager.create_final_view_storage();
     let db_provider = DbProvider::new(db_provider_storage, ledger_db.clone());
@@ -133,7 +135,7 @@ where
     let rpc_context = rpc::create_rpc_context(
         mempool.clone(),
         deposit_mempool.clone(),
-        l2_force_block_tx,
+        rpc_message_tx,
         rpc_storage,
         ledger_db.clone(),
         sequencer_config.test_mode,
@@ -154,7 +156,7 @@ where
         fork_manager,
         l2_block_tx,
         backup_manager,
-        l2_force_block_rx,
+        rpc_message_rx,
     )
     .unwrap();
 

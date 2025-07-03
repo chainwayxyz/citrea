@@ -20,6 +20,7 @@ use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
 use tracing::{debug, error, info, instrument};
 
+use crate::helpers::builders::TxWithId;
 use crate::helpers::parsers::parse_relevant_transaction;
 use crate::spec::utxo::UTXO;
 
@@ -33,26 +34,28 @@ fn get_timestamp() -> anyhow::Result<u64> {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TxStatus {
+    // Tx in mempool
     #[serde(rename_all = "camelCase")]
-    Pending {
-        in_mempool: bool,
-        base_fee: u64,
-        timestamp: u64,
-    },
+    InMempool { base_fee: u64, timestamp: u64 },
+    // Tx confirmed but below finality_depth
     #[serde(rename_all = "camelCase")]
     Confirmed {
         block_hash: BlockHash,
         block_height: u64,
         confirmations: u64,
     },
+    // Tx confirmed above finality_depth
     #[serde(rename_all = "camelCase")]
     Finalized {
         block_hash: BlockHash,
         block_height: u64,
         confirmations: u64,
     },
+    // Tx replaced by RBF
     #[serde(rename_all = "camelCase")]
     Replaced { by_txid: Txid },
+    // Tx that was previously in mempool and not found anymore
+    #[serde(rename_all = "camelCase")]
     Evicted {
         last_seen: u64,
         rebroadcast_attempts: u32,
@@ -70,6 +73,7 @@ pub enum MonitoredTxKind {
 #[derive(Debug, Clone)]
 pub struct MonitoredTx {
     pub tx: Transaction,
+    pub txid: Txid,
     address: Option<Address<NetworkUnchecked>>,
     pub initial_broadcast: u64,
     pub initial_height: BlockHeight,
@@ -83,20 +87,19 @@ pub struct MonitoredTx {
 impl MonitoredTx {
     pub fn to_utxos(&self) -> Option<Vec<UTXO>> {
         let confirmations = match self.status {
-            TxStatus::Pending { .. } => 0,
+            TxStatus::InMempool { .. } => 0,
             TxStatus::Confirmed { confirmations, .. }
             | TxStatus::Finalized { confirmations, .. } => confirmations,
             _ => return None,
         };
 
-        let tx_id = self.tx.compute_txid();
         Some(
             self.tx
                 .output
                 .iter()
                 .enumerate()
                 .map(|(vout, output)| UTXO {
-                    tx_id,
+                    tx_id: self.txid,
                     vout: vout as u32,
                     address: self.address.clone(),
                     script_pubkey: output.script_pubkey.to_hex_string(),
@@ -291,22 +294,37 @@ impl MonitoringService {
 
         let mut txids = Vec::new();
         for tx in &unspent {
-            let txid = tx.txid;
-            let tx = self
+            let reveal_txid = tx.txid;
+            let reveal_tx = self
                 .client
-                .get_transaction(&txid, None)
+                .get_transaction(&reveal_txid, None)
                 .await?
                 .transaction()
                 .unwrap();
 
-            let reveal_wtxid = tx.compute_wtxid();
+            let reveal_wtxid = reveal_tx.compute_wtxid();
             let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
 
             // Assumes that no wallet can hold both txs utxos
-            if reveal_hash.starts_with(REVEAL_TX_PREFIX) && parse_relevant_transaction(&tx).is_ok()
+            if reveal_hash.starts_with(REVEAL_TX_PREFIX)
+                && parse_relevant_transaction(&reveal_tx).is_ok()
             {
-                txids.push(tx.input[0].previous_output.txid);
-                txids.push(txid);
+                let commit_txid = reveal_tx.input[0].previous_output.txid;
+                let commit_tx = self
+                    .client
+                    .get_transaction(&commit_txid, None)
+                    .await?
+                    .transaction()
+                    .unwrap();
+
+                txids.push(TxWithId {
+                    id: commit_txid,
+                    tx: commit_tx,
+                });
+                txids.push(TxWithId {
+                    id: reveal_txid,
+                    tx: reveal_tx,
+                });
             }
         }
 
@@ -348,32 +366,24 @@ impl MonitoringService {
     /// The txids are expected to be in order: [commit1, reveal1, commit2, reveal2, ..., commitN, revealN]
     /// where intermediate pairs are chunks leading to the final commit/reveal pair
     #[instrument(level = "trace", skip(self))]
-    pub async fn monitor_transaction_chain(&self, txids: Vec<Txid>) -> Result<()> {
-        if txids.len() % 2 != 0 {
+    pub async fn monitor_transaction_chain(&self, txs: Vec<TxWithId>) -> Result<()> {
+        if txs.len() % 2 != 0 {
             return Err(MonitorError::OddNumberOfTxs);
         }
 
         let mut last_tx = *self.last_tx.lock().await;
 
-        let mut txids_iter = txids.into_iter();
-        while let (Some(commit_txid), Some(reveal_txid)) = (txids_iter.next(), txids_iter.next()) {
-            self.monitor_transaction(
-                commit_txid,
-                last_tx,
-                Some(reveal_txid),
-                MonitoredTxKind::Commit,
-            )
-            .await?;
+        let mut txids_iter = txs.into_iter();
+        while let (Some(commit), Some(reveal)) = (txids_iter.next(), txids_iter.next()) {
+            let next_id = reveal.id;
+            let prev_id = commit.id;
+            self.monitor_transaction(commit, last_tx, Some(next_id), MonitoredTxKind::Commit)
+                .await?;
 
-            self.monitor_transaction(
-                reveal_txid,
-                Some(commit_txid),
-                None,
-                MonitoredTxKind::Reveal,
-            )
-            .await?;
+            self.monitor_transaction(reveal, Some(prev_id), None, MonitoredTxKind::Reveal)
+                .await?;
 
-            last_tx = Some(reveal_txid)
+            last_tx = Some(next_id)
         }
 
         Ok(())
@@ -382,11 +392,13 @@ impl MonitoringService {
     #[instrument(skip(self))]
     pub async fn monitor_transaction(
         &self,
-        txid: Txid,
+        tx: TxWithId,
         prev_txid: Option<Txid>,
         next_txid: Option<Txid>,
         kind: MonitoredTxKind,
     ) -> Result<()> {
+        let txid = tx.id;
+
         {
             let monitored_txs = self.monitored_txs.read().await;
             if monitored_txs.contains_key(&txid) {
@@ -409,6 +421,7 @@ impl MonitoringService {
         let status = self.determine_tx_status(&tx_result).await?;
         let monitored_tx = MonitoredTx {
             tx,
+            txid,
             address: tx_result
                 .details
                 .first()
@@ -449,6 +462,7 @@ impl MonitoringService {
 
         let new_tx = MonitoredTx {
             tx,
+            txid: new_txid,
             address: tx_result
                 .details
                 .first()
@@ -533,7 +547,7 @@ impl MonitoringService {
                     let tx_result = self.client.get_transaction(txid, None).await?;
                     tx.status = self.determine_tx_status(&tx_result).await?;
 
-                    if let TxStatus::Pending { .. } = tx.status {
+                    if let TxStatus::InMempool { .. } = tx.status {
                         info!("Rebroadcasting tx {} {tx:?}", tx.tx.compute_txid());
                         let raw_tx = self.client.get_raw_transaction_hex(txid, None).await?;
                         self.client.send_raw_transaction(raw_tx).await?;
@@ -552,7 +566,7 @@ impl MonitoringService {
         for (txid, monitored_tx) in txs.iter_mut() {
             match &monitored_tx.status {
                 // Check non-finalized TXs
-                TxStatus::Pending { .. }
+                TxStatus::InMempool { .. }
                 | TxStatus::Evicted { .. }
                 | TxStatus::Confirmed { .. }
                 | TxStatus::Replaced { .. } => {
@@ -601,8 +615,7 @@ impl MonitoringService {
             match self.client.get_mempool_entry(&tx_result.info.txid).await {
                 Ok(entry) => {
                     let base_fee = entry.fees.base.to_sat();
-                    TxStatus::Pending {
-                        in_mempool: true,
+                    TxStatus::InMempool {
                         base_fee,
                         timestamp: SystemTime::now()
                             .duration_since(UNIX_EPOCH)

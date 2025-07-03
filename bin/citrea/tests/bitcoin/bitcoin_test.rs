@@ -99,7 +99,7 @@ impl TestCase for BitcoinReorgTest {
             .http_client()
             .da_get_tx_status(mempool0[0])
             .await?;
-        assert!(matches!(tx_status, Some(TxStatus::Pending { .. })));
+        assert!(matches!(tx_status, Some(TxStatus::InMempool { .. })));
 
         // Wait for re-org monitoring
         tokio::time::sleep(Duration::from_secs(20)).await;
@@ -181,7 +181,7 @@ impl TestCase for DaMonitoringTest {
             .http_client()
             .da_get_tx_status(mempool0[0])
             .await?;
-        assert!(matches!(tx_status, Some(TxStatus::Pending { .. })));
+        assert!(matches!(tx_status, Some(TxStatus::InMempool { .. })));
 
         let monitored_tx = sequencer
             .client

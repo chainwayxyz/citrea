@@ -18,8 +18,8 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaTxRequest, SequencerCommitmen
 use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
 use sov_state::ProverStorage;
 use tokio::select;
-use tokio::sync::oneshot;
-use tracing::{debug, error, info, instrument};
+use tokio::sync::{mpsc, oneshot};
+use tracing::{debug, error, info, instrument, warn};
 
 use super::controller::CommitmentController;
 use crate::metrics::SEQUENCER_METRICS;
@@ -41,6 +41,10 @@ where
     sequencer_da_pub_key: Vec<u8>,
     /// Maximum number of L2 blocks that can be included in a single commitment
     max_l2_blocks: u64,
+    /// Channel for receiving halt signals from the runner
+    halt_rx: mpsc::UnboundedReceiver<bool>,
+    /// Current commitment production state
+    is_producing_commitments: bool,
 }
 
 impl<Da, Db> CommitmentService<Da, Db>
@@ -55,17 +59,24 @@ where
     /// * `da_service` - Data availability service interface
     /// * `sequencer_da_pub_key` - Public key for signing commitments
     /// * `max_l2_blocks` - Maximum number of L2 blocks per commitment
+    /// * `halt_rx` - Channel for receiving halt signals
+    ///
+    /// # Returns
+    /// A new CommitmentService instance
     pub fn new(
         ledger_db: Db,
         da_service: Arc<Da>,
         sequencer_da_pub_key: Vec<u8>,
         max_l2_blocks: u64,
+        halt_rx: mpsc::UnboundedReceiver<bool>,
     ) -> Self {
         Self {
             ledger_db,
             da_service,
             sequencer_da_pub_key,
             max_l2_blocks,
+            halt_rx,
+            is_producing_commitments: true,
         }
     }
 
@@ -100,9 +111,37 @@ where
             select! {
                 biased;
                 _ = &mut shutdown_signal => {
+                    info!("CommitmentService shutting down");
                     return;
                 },
+                // Handle halt signals from the runner
+                halt_signal = self.halt_rx.recv() => {
+                    match halt_signal {
+                        Some(should_halt) => {
+                            let should_run = !should_halt;
+                            if self.is_producing_commitments != should_run {
+                                self.is_producing_commitments = should_run;
+                                if should_halt {
+                                    warn!("CommitmentService: Commitments halted via RPC");
+                                } else {
+                                    info!("CommitmentService: Commitments resumed via RPC");
+                                }
+                            }
+                        }
+                        None => {
+                            // Channel closed, should shutdown
+                            warn!("CommitmentService: Halt signal channel closed");
+                            return;
+                        }
+                    }
+                },
                 _ = check_new_block_tick.tick() => {
+                    // Skip commitment processing if not running
+                    if !self.is_producing_commitments {
+                        debug!("CommitmentService: Skipping commitment processing (halted)");
+                        continue;
+                    }
+
                     let head_l2_height = self.ledger_db.get_head_l2_block_height().expect("Failed to fetch head L2 height").unwrap_or(0);
                     // No need to check commitment criteria if the start L2 block number did not change.
                     if head_l2_height <= last_l2_height {
