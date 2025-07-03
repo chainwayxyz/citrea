@@ -1,8 +1,8 @@
 # The Batch Proof Circuit
 
-This document describes the logic and structure of batch proof circuits, which generate zero-knowledge proofs to demonstrate that L2 state transitions are correct. The batch proof circuit processes L2 blocks and their transactions to validate state transitions, then submits the proof to the DA layer (Bitcoin). The circuit operates on logical groupings of L2 blocks called sequencer commitments, which serve as a mechanism for organizing and verifying batches of blocks together.
+This document describes the logic and structure of batch proof circuits, which generate Groth16 zero-knowledge proofs to demonstrate that L2 state transitions are correct. The batch proof circuit processes L2 blocks and their transactions to validate state transitions, then submits the proof to the DA layer (Bitcoin). The circuit operates on logical groupings of L2 blocks called [sequencer commitments](./sequencer-commitment.md), which serve as a mechanism for organizing and verifying batches of blocks together.
 
-The batch proof circuit's main use case is to provide cryptographic proof that the L2 state transitions are valid and consistent with the sequencer's commitments. These proofs are then used by the light client circuit to verify the overall chain state and provide the L2 state root to Citrea's Bitcoin Bridge, [Clementine](https://citrea.xyz/clementine_whitepaper.pdf).
+The batch proof circuit's main use case is to provide cryptographic proof that the L2 state transitions are valid and consistent with the sequencer's commitments. These Groth16 proofs are then used by the light client circuit to verify the overall chain state and provide the L2 state root to Citrea's Bitcoin Bridge, [Clementine](https://citrea.xyz/clementine_whitepaper.pdf).
 
 ## Batch Proof Circuit Input
 
@@ -14,9 +14,9 @@ The first part contains metadata and configuration for the batch proof:
 * **Initial state root**: The state root before processing the first sequencer commitment
 * **Previous sequencer commitment**: The commitment that precedes the first commitment in the batch (None for the first batch proof)
 * **Previous hash proof**: A merkle proof for the last header in the previous sequencer commitment, used to verify the `prev_hash` field of the first block
-* **Sequencer commitments**: The list of commitments being proven in this batch
-* **Short header proofs**: Proofs for verifying system transactions that update L1 state
-* **Cache prune L2 heights**: Heights at which the guest should prune log caches to avoid memory issues
+* **Sequencer commitments**: The list of sequencer commitments being proven in this batch ([see doc](./sequencer-commitment.md))
+* **Short header proofs**: Proofs for verifying system transactions that update L1 state ([see Short Header Proof Verification](#short-header-proof-verification))
+* **Cache prune L2 heights**: Heights at which the guest should prune log caches to avoid memory issues ([see Cache Optimization](#cache-optimization))
 * **Last L1 hash witness**: Witness needed to access the last L1 hash on the Bitcoin Light Client contract
 
 ### Part 2: Block Data
@@ -59,6 +59,7 @@ For each L2 block within a commitment:
    * Applies the L2 block using `StfBlueprint::apply_l2_block`
    * Processes all transactions within the block
    * Updates the state root and accumulates state differences
+   * All sov-txs must succeed; failing transactions are not allowed.
 
 3. **Merkle Root Verification**:
    * Calculates the merkle root of all L2 block hashes in the commitment
@@ -66,7 +67,7 @@ For each L2 block within a commitment:
 
 4. **Cache Management**:
    * Maintains cumulative state and offchain logs for witness optimization
-   * Prunes cache logs at specified heights to prevent memory overflow
+   * Prunes cache logs at specified heights to prevent memory overflow ([see Cache Optimization](#cache-optimization))
 
 ## Storage Witness System
 
@@ -74,6 +75,8 @@ The batch proof circuit uses a sophisticated storage witness system to efficient
 
 ### Witness Structure
 A witness contains storage key-value pairs and their corresponding JellyFish Merkle Tree (JMT) proofs. On the native side, the system reads from storage (RocksDB) and generates JMT proofs for key-value pairs, collecting them into the witness. In the ZK environment, this witness serves as the storage layer.
+
+In addition to key-value proofs, **JMT update proofs** are used to compute the new JMT root after each state transition. These update proofs show that the set of reads and writes performed during block execution result in the claimed new root, ensuring the integrity of the state transition.
 
 ### Cache Optimization
 The circuit maintains cumulative state and offchain logs to optimize witness usage:
@@ -84,6 +87,7 @@ The circuit maintains cumulative state and offchain logs to optimize witness usa
 ### Witness Verification
 In the ZK environment, whenever a storage key-value is read from the witness:
 * The corresponding JMT proof is also read and verified
+* JMT update proofs are used to verify that the state transition's initial root matches the final JMT state root
 * This ensures the ZK circuit can access storage key-values and prove they are correct
 * Prevents malicious input by verifying the integrity of all storage accesses
 
@@ -106,11 +110,11 @@ The circuit uses `ZkShortHeaderProofProviderService` which:
 * Verifies each proof against the system transaction parameters
 * Tracks the last queried hash for output generation
 
-## L1 Hash Verification
+## L1 Hash Commitment
 
-After processing all sequencer commitments, the circuit verifies the last L1 hash stored in the Bitcoin Light Client contract:
+After processing all sequencer commitments, the circuit commits to the last L1 hash stored in the Bitcoin Light Client contract:
 
-### Verification Logic
+### Commitment Logic
 The circuit checks if any L1 hashes were verified during processing:
 * If short header proofs were used, the last queried hash is used
 * Otherwise, the circuit reads the last L1 hash from the Bitcoin Light Client contract storage using the provided witness
@@ -121,20 +125,23 @@ The L1 hash is stored in the EVM storage of the Bitcoin Light Client contract:
 * Calculates the storage slot for the last L1 hash using keccak256
 * Reads the hash value using the provided witness and verifies the JMT proof
 
+### Why Commit to the L1 Hash?
+The batch proof circuit includes this commitment to the last L1 hash so that the light client circuit (LCP) can verify that the L2 chain continues to follow a valid L1 chain. The LCP circuit checks that the batch proof's committed L1 hash matches the expected L1 state, ensuring that the L2 state transitions are anchored to the correct L1 chain and preventing invalid or forked L2 histories from being accepted.
+
 ### Output Generation
-The verified L1 hash is included in the circuit output so that the light client circuit can verify that the batch proof is consistent with the latest L1 state.
+The committed L1 hash is included in the circuit output so that the light client circuit can verify that the batch proof is consistent with the latest L1 state.
 
 ## Batch Proof Circuit Output
 
 After successfully processing all sequencer commitments, the circuit outputs:
 
-* **State roots**: All state roots from initial state through the final state root of the batch proof
+* **State roots**: State roots at the end of the last blocks of each sequencer commitment (from the initial state through the final state root of the batch proof)
 * **Final L2 block hash**: Hash of the last L2 block processed
 * **State diff**: Cumulative state differences from all processed L2 blocks
 * **Last L2 height**: The highest L2 block height processed
 * **Sequencer commitment hashes**: Hashes of all processed sequencer commitments
 * **Sequencer commitment index range**: The range of commitment indices processed
-* **Last L1 hash on Bitcoin Light Client contract**: The verified L1 hash for light client verification
+* **Last L1 hash on Bitcoin Light Client contract**: The committed L1 hash for light client verification
 * **Previous commitment index and hash**: Information for linking with previous batch proofs
 
 ## Error Handling and Validation
@@ -154,7 +161,7 @@ The batch proof circuit is designed to work seamlessly with the light client cir
 
 * **Stateless design**: Each batch proof is independent and doesn't depend on previous proofs
 * **Linking information**: Output includes previous commitment details for light client linking
-* **L1 hash verification**: Provides verified L1 state for light client validation
+* **L1 hash commitment**: Provides committed L1 state for light client validation
 * **Method ID tracking**: Uses method IDs to ensure proof authenticity across different circuit versions
 
 The light client circuit uses the batch proof outputs to verify that the entire chain is propagating correctly and to provide the final L2 state root to the bridge contract.
