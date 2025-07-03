@@ -58,7 +58,9 @@ use crate::spec::short_proof::BitcoinHeaderShortProof;
 use crate::spec::transaction::TransactionWrapper;
 use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
-use crate::verifier::{BitcoinVerifier, WITNESS_COMMITMENT_PREFIX};
+use crate::verifier::{
+    BitcoinVerifier, MINIMUM_WITNESS_COMMITMENT_SIZE, WITNESS_COMMITMENT_PREFIX,
+};
 use crate::REVEAL_OUTPUT_AMOUNT;
 
 pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
@@ -1465,11 +1467,12 @@ fn calculate_witness_root(txdata: &[TransactionWrapper], tx_count: usize) -> [u8
         .enumerate()
         .map(|(i, t)| {
             if i == 0 {
-                let commitment_idx = t.output.iter().rev().position(|output| {
-                    output
-                        .script_pubkey
-                        .as_bytes()
-                        .starts_with(WITNESS_COMMITMENT_PREFIX)
+                let commitment_idx = t.output.iter().rposition(|output| {
+                    output.script_pubkey.as_bytes().len() >= MINIMUM_WITNESS_COMMITMENT_SIZE
+                        && output
+                            .script_pubkey
+                            .as_bytes()
+                            .starts_with(WITNESS_COMMITMENT_PREFIX)
                 });
                 // If non-segwit block, the coinbase tx should also use the txid instead of all zeros
                 match commitment_idx {
