@@ -58,7 +58,9 @@ use crate::spec::short_proof::BitcoinHeaderShortProof;
 use crate::spec::transaction::TransactionWrapper;
 use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
-use crate::verifier::{BitcoinVerifier, WITNESS_COMMITMENT_PREFIX};
+use crate::verifier::{
+    BitcoinVerifier, MINIMUM_WITNESS_COMMITMENT_SIZE, WITNESS_COMMITMENT_PREFIX,
+};
 use crate::REVEAL_OUTPUT_AMOUNT;
 
 pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
@@ -235,13 +237,13 @@ impl BitcoinService {
                                 )
                                 .await
                             {
-                            Ok(txids) => {
-                                let txid = txids.last().unwrap();
-                                let tx_id = TxidWrapper(*txid);
+                            Ok(txs) => {
+                                let txid = txs.last().unwrap().id;
+                                let tx_id = TxidWrapper(txid);
                                 info!(%txid, "Sent tx to BitcoinDA");
                                 let _ = request.notify.send(Ok(tx_id));
 
-                                if let Err(e) = self.monitoring.monitor_transaction_chain(txids).await {
+                                if let Err(e) = self.monitoring.monitor_transaction_chain(txs).await {
                                     error!(?e, "Failed to monitor tx chain");
                                 }
 
@@ -312,7 +314,7 @@ impl BitcoinService {
             .get_monitored_txs()
             .await
             .into_iter()
-            .filter(|(_, tx)| matches!(tx.status, TxStatus::Pending { .. }))
+            .filter(|(_, tx)| matches!(tx.status, TxStatus::InMempool { .. }))
             .map(|(_, monitored_tx)| monitored_tx.tx)
             .collect()
     }
@@ -322,7 +324,7 @@ impl BitcoinService {
         &self,
         tx_request: DaTxRequest,
         fee_sat_per_vbyte: u64,
-    ) -> Result<Vec<Txid>> {
+    ) -> Result<Vec<TxWithId>> {
         let network = self.network;
 
         let da_private_key = self.da_private_key.expect("No private key set");
@@ -472,7 +474,7 @@ impl BitcoinService {
         commit: Transaction,
         reveal: TxWithId,
         back_up_path: PathBuf,
-    ) -> Result<Vec<Txid>> {
+    ) -> Result<Vec<TxWithId>> {
         assert!(!commit_chunks.is_empty(), "Received empty chunks");
         assert_eq!(
             commit_chunks.len(),
@@ -482,11 +484,19 @@ impl BitcoinService {
 
         debug!("Sending chunked transaction");
 
-        let all_tx_map = commit_chunks
+        let all_txs: Vec<TxWithId> = commit_chunks
             .iter()
             .chain(reveal_chunks.iter())
             .chain([&commit, &reveal.tx].into_iter())
-            .map(|tx| (tx.compute_txid(), tx.clone()))
+            .map(|tx| TxWithId {
+                id: tx.compute_txid(),
+                tx: tx.clone(),
+            })
+            .collect();
+
+        let all_tx_map = all_txs
+            .iter()
+            .map(|tx| (tx.id, tx.tx.clone()))
             .collect::<HashMap<_, _>>();
 
         let mut raw_txs = Vec::with_capacity(all_tx_map.len());
@@ -577,7 +587,7 @@ impl BitcoinService {
             info!("Blob chunk aggregate tx sent. Hash: {last_txid}");
         }
 
-        Ok(txids)
+        Ok(all_txs)
     }
 
     pub(crate) async fn send_complete_transaction(
@@ -586,7 +596,7 @@ impl BitcoinService {
         reveal: TxWithId,
         back_up_path: PathBuf,
         back_up_name: &str,
-    ) -> Result<Vec<Txid>> {
+    ) -> Result<Vec<TxWithId>> {
         let signed_raw_commit_tx = self
             .client
             .sign_raw_transaction_with_wallet(&commit, None, None)
@@ -613,7 +623,14 @@ impl BitcoinService {
 
         let txids = self.send_raw_transactions(&raw_txs).await?;
         info!("Blob inscribe tx sent. Hash: {}", txids[1]);
-        Ok(txids)
+
+        Ok(vec![
+            TxWithId {
+                id: commit.compute_txid(),
+                tx: commit,
+            },
+            reveal,
+        ])
     }
 
     #[instrument(level = "trace", skip_all, ret)]
@@ -685,7 +702,7 @@ impl BitcoinService {
             }
         };
 
-        let TxStatus::Pending { .. } = tx.status else {
+        let TxStatus::InMempool { .. } = tx.status else {
             return Err(BitcoinServiceError::WrongStatusForBumping(tx.status));
         };
 
@@ -709,6 +726,9 @@ impl BitcoinService {
 
         let processed = self.client.finalize_psbt(&wallet_psbt.psbt, None).await?;
 
+        let Some(Ok(new_tx)) = processed.transaction() else {
+            return Err(BitcoinServiceError::PsbtFinalizationFailure);
+        };
         let Some(raw_hex) = processed.hex else {
             return Err(BitcoinServiceError::PsbtFinalizationFailure);
         };
@@ -721,7 +741,15 @@ impl BitcoinService {
         match method {
             BumpFeeMethod::Cpfp => {
                 self.monitoring
-                    .monitor_transaction(new_txid, Some(txid), None, MonitoredTxKind::Cpfp)
+                    .monitor_transaction(
+                        TxWithId {
+                            id: new_txid,
+                            tx: new_tx,
+                        },
+                        Some(txid),
+                        None,
+                        MonitoredTxKind::Cpfp,
+                    )
                     .await?;
                 self.monitoring.set_next_tx(&txid, new_txid).await;
             }
@@ -1465,11 +1493,12 @@ fn calculate_witness_root(txdata: &[TransactionWrapper], tx_count: usize) -> [u8
         .enumerate()
         .map(|(i, t)| {
             if i == 0 {
-                let commitment_idx = t.output.iter().rev().position(|output| {
-                    output
-                        .script_pubkey
-                        .as_bytes()
-                        .starts_with(WITNESS_COMMITMENT_PREFIX)
+                let commitment_idx = t.output.iter().rposition(|output| {
+                    output.script_pubkey.as_bytes().len() >= MINIMUM_WITNESS_COMMITMENT_SIZE
+                        && output
+                            .script_pubkey
+                            .as_bytes()
+                            .starts_with(WITNESS_COMMITMENT_PREFIX)
                 });
                 // If non-segwit block, the coinbase tx should also use the txid instead of all zeros
                 match commitment_idx {

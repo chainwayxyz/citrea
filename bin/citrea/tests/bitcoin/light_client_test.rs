@@ -1557,19 +1557,19 @@ impl TestCase for UnchainedBatchProofsTest {
             Some(fake_sequencer_commitment.serialize_and_calculate_sha_256()),
         );
 
-        let mut txids = bitcoin_da_service
+        let mut txs = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp1), 1)
             .await
             .unwrap();
 
-        txids.extend(
+        txs.extend(
             bitcoin_da_service
                 .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2), 1)
                 .await
                 .unwrap(),
         );
 
-        txids.extend(
+        txs.extend(
             bitcoin_da_service
                 .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp3), 1)
                 .await
@@ -1582,7 +1582,7 @@ impl TestCase for UnchainedBatchProofsTest {
                 .await?
                 .assume_checked()
                 .to_string(),
-            txids.into_iter().map(|txid| txid.to_string()).collect(),
+            txs.into_iter().map(|tx| tx.id.to_string()).collect(),
         )
         .await?;
 
@@ -2259,7 +2259,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
             None,
         );
 
-        let txids = batch_prover_bitcoin_da_service
+        let txs = batch_prover_bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp1), 1)
             .await
             .unwrap();
@@ -2271,7 +2271,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
                 .await?
                 .assume_checked()
                 .to_string(),
-            txids.into_iter().map(|txid| txid.to_string()).collect(),
+            txs.into_iter().map(|tx| tx.id.to_string()).collect(),
         )
         .await?;
 
@@ -2326,7 +2326,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
             None,
         );
 
-        let txids = batch_prover_bitcoin_da_service
+        let txs = batch_prover_bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp1), 1)
             .await
             .unwrap();
@@ -2338,7 +2338,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
                 .await?
                 .assume_checked()
                 .to_string(),
-            txids.into_iter().map(|txid| txid.to_string()).collect(),
+            txs.into_iter().map(|tx| tx.id.to_string()).collect(),
         )
         .await?;
 
@@ -2400,7 +2400,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
             Some(fake_sequencer_commitment.serialize_and_calculate_sha_256()),
         );
 
-        let txids = malicious_bitcoin_da_service
+        let txs = malicious_bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2.clone()), 1)
             .await
             .unwrap();
@@ -2412,7 +2412,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
                 .await?
                 .assume_checked()
                 .to_string(),
-            txids.into_iter().map(|txid| txid.to_string()).collect(),
+            txs.into_iter().map(|tx| tx.id.to_string()).collect(),
         )
         .await?;
 
@@ -2437,7 +2437,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
         assert_eq!(lcp_output.last_sequencer_commitment_index, U32::from(1));
 
         // Now send batch proof with the correct da pub key and expect it to transition
-        let txids = batch_prover_bitcoin_da_service
+        let txs = batch_prover_bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2.clone()), 1)
             .await
             .unwrap();
@@ -2449,7 +2449,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
                 .await?
                 .assume_checked()
                 .to_string(),
-            txids.into_iter().map(|txid| txid.to_string()).collect(),
+            txs.into_iter().map(|tx| tx.id.to_string()).collect(),
         )
         .await?;
 
