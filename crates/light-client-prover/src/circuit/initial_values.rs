@@ -1,13 +1,12 @@
 #[cfg(feature = "native")]
 use bitcoin_da::spec::BitcoinSpec;
+use non_empty_slice::NonEmptySlice;
 #[cfg(feature = "native")]
 use sov_mock_da::MockDaSpec;
 #[cfg(feature = "native")]
 use sov_modules_api::DaSpec;
 #[cfg(feature = "native")]
 use sov_rollup_interface::Network;
-
-use non_empty_slice::NonEmptySlice;
 
 /// Genesis root for the Light Client Prover's Jellyfish Merkle Tree.
 pub(crate) const LCP_JMT_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
@@ -70,8 +69,8 @@ pub mod mockda {
 
 /// Module containing initial values for the Bitcoin DA (Data Availability) specification.
 pub mod bitcoinda {
-    use super::non_empty_slice::NonEmptySlice;
     use super::decode_to_u32_array;
+    use super::non_empty_slice::NonEmptySlice;
 
     /// Genesis L2 root for the Bitcoin DA on Mainnet.
     pub const MAINNET_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
@@ -134,16 +133,18 @@ pub mod bitcoinda {
         NonEmptySlice::new(&[(0, [0; 8])]);
 
     /// Initial batch proof method IDs for the Bitcoin DA on Testnet.
-    pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> = NonEmptySlice::new(&[(
-        0,
-        decode_to_u32_array("0baedfda1cce68a982e96cc5f155699dadd95b6f47cb4efb45ef6b0bc510b1ba"),
-    )]);
+    pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> =
+        NonEmptySlice::new(&[(
+            0,
+            decode_to_u32_array("0baedfda1cce68a982e96cc5f155699dadd95b6f47cb4efb45ef6b0bc510b1ba"),
+        )]);
 
     /// Initial batch proof method IDs for the Bitcoin DA on Devnet.
-    pub const DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> = NonEmptySlice::new(&[(
-        0,
-        decode_to_u32_array("aba3ac6bc099b8669930c9a488f7c94d4e829d75800dbe77db115c830a27c246"),
-    )]);
+    pub const DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> =
+        NonEmptySlice::new(&[(
+            0,
+            decode_to_u32_array("aba3ac6bc099b8669930c9a488f7c94d4e829d75800dbe77db115c830a27c246"),
+        )]);
 
     /// Initial batch proof method IDs for the Bitcoin DA on Nightly.
     /// This method ID is set at compile time via the `BATCH_PROOF_METHOD_ID` environment variable.
@@ -156,11 +157,13 @@ pub mod bitcoinda {
         };
         NonEmptySlice::new(METHOD_IDS)
     };
-
     /// Initial batch proof method IDs for the Bitcoin DA on Test Network with Forks.
     /// This method ID is set at compile time via the `BATCH_PROOF_METHOD_ID` environment variable, paired with activation height 0.
     /// If the variable is not set, the method ID from the guest compilation is appended to the predefined method IDs.
-    pub const TEST_NETWORK_WITH_FORKS_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> = {
+    pub const TEST_NETWORK_WITH_FORKS_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(
+        u64,
+        [u32; 8],
+    )> = {
         const METHOD_IDS: &[(u64, [u32; 8])] = match option_env!("BATCH_PROOF_METHOD_ID") {
             Some(hex_method_id) => &[(0, decode_to_u32_array(hex_method_id))],
             None => &[
@@ -468,7 +471,7 @@ impl InitialValueProvider<BitcoinSpec> for Network {
 }
 
 /// Module for NonEmptySlice, so that it cannot be constructed like `NonEmptySlice(&[])`.
-pub mod non_empty_slice{
+pub mod non_empty_slice {
     /// A wrapper around a slice to ensure that it is never empty.
     pub struct NonEmptySlice<'a, T>(&'a [T]);
     impl<'a, T> NonEmptySlice<'a, T> {
@@ -500,11 +503,9 @@ pub mod non_empty_slice{
         assert_eq!(slice.to_vec(), vec![1, 2, 3]);
 
         // Test with an empty slice
-        let result = std::panic::catch_unwind(|| 
-            {
-                let _empty_slice: NonEmptySlice<u32> = NonEmptySlice::new(&[]);
-            }
-        );
+        let result = std::panic::catch_unwind(|| {
+            let _empty_slice: NonEmptySlice<u32> = NonEmptySlice::new(&[]);
+        });
         assert!(result.is_err());
     }
 }
