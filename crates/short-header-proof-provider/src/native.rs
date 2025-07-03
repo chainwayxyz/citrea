@@ -59,7 +59,14 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
                     && coinbase_depth == l1_update_info.coinbase_txid_merkle_proof_height;
 
                 if return_cond {
+                    let map_capacity = self.queried_and_verified_hashes.lock().capacity();
+                    let map_len = self.queried_and_verified_hashes.lock().len();
                     let mut queried_hashes_map = self.queried_and_verified_hashes.lock();
+                    if map_capacity == map_len {
+                        queried_hashes_map.try_reserve(1).map_err(|e| {
+                            ShortHeaderProofProviderError::VectorAllocationFailed(e.to_string())
+                        })?;
+                    }
                     let entry = queried_hashes_map.entry(l2_height);
                     match entry {
                         std::collections::hash_map::Entry::Occupied(mut occ) => {
@@ -69,13 +76,6 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
                             occ.get_mut().push(block_hash);
                         }
                         std::collections::hash_map::Entry::Vacant(vac) => {
-                            if queried_hashes_map.capacity() == queried_hashes_map.len() {
-                                queried_hashes_map.try_reserve(1).map_err(|e| {
-                                    ShortHeaderProofProviderError::VectorAllocationFailed(
-                                        e.to_string(),
-                                    )
-                                })?;
-                            }
                             let mut v: Vec<[u8; 32]> = Vec::new();
                             v.try_reserve_exact(1).map_err(|e| {
                                 ShortHeaderProofProviderError::VectorAllocationFailed(e.to_string())
