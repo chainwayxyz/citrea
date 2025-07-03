@@ -499,11 +499,8 @@ impl BitcoinService {
         let raw_txs: Vec<&Vec<u8>> = txs.iter().flat_map(|v| v.as_raw_txs()).collect();
 
         match self.test_mempool_accept(&raw_txs).await {
-            Ok(())
-            // Mempool rejection variants that are recoverable by queueing such as too many transactions in mempool or package too large
-            | Err(BitcoinServiceError::MempoolRejection(
-                MempoolRejection::PackageTooLarge | MempoolRejection::PackageTooManyTransactions | MempoolRejection::PackageMempoolLimits,
-            )) => Ok(()),
+            Ok(()) => Ok(()),
+            Err(BitcoinServiceError::MempoolRejection(e)) if e.is_recoverable() => Ok(()),
             e => e,
         }
     }
