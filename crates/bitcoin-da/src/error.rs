@@ -61,4 +61,13 @@ impl MempoolRejection {
             MempoolRejection::Other(reason.to_string())
         }
     }
+
+    pub fn is_recoverable(&self) -> bool {
+        match self {
+            Self::PackageTooLarge
+            | Self::PackageMempoolLimits
+            | Self::PackageTooManyTransactions => true,
+            _ => false,
+        }
+    }
 }
