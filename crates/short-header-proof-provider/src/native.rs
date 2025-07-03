@@ -77,7 +77,7 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
                                 })?;
                             }
                             let mut v: Vec<[u8; 32]> = Vec::new();
-                            v.try_reserve(1).map_err(|e| {
+                            v.try_reserve_exact(1).map_err(|e| {
                                 ShortHeaderProofProviderError::VectorAllocationFailed(e.to_string())
                             })?;
                             v.push(block_hash);
