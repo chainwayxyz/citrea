@@ -3,10 +3,10 @@ use alloy_eips::Typed2718;
 use alloy_primitives::{keccak256, U256};
 use alloy_sol_types::SolCall;
 use reth_primitives::{Recovered, TransactionSigned};
-use revm::context::result::{EVMError, ExecutionResult, ResultAndState};
+use revm::context::result::{EVMError, ExecutionResult, HaltReason, ResultAndState};
 use revm::context::{BlockEnv, Cfg, CfgEnv, ContextTr, JournalTr};
 use revm::handler::EvmTr;
-use revm::state::EvmState;
+use revm::state::{Account, EvmState};
 use revm::{self, Context, Database, DatabaseCommit, ExecuteEvm, Journal};
 use short_header_proof_provider::{ShortHeaderProofProviderError, SHORT_HEADER_PROOF_PROVIDER};
 use sov_modules_api::{native_error, native_trace, L2BlockModuleCallError, WorkingSet};
@@ -18,6 +18,7 @@ use super::db::AccountExistsProvider;
 use super::handler::{CitreaBuilder, CitreaChain, CitreaChainExt, CitreaContext};
 use super::system_contracts::BitcoinLightClientContract;
 use super::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
+use crate::handler::TxInfo;
 use crate::{Evm, EvmDb, SYSTEM_SIGNER};
 
 pub(crate) struct CitreaEvm<'a, DB: Database> {
@@ -107,12 +108,55 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context>(
             *should_be_end_of_sys_txs = true;
         }
 
-        // if tx is eip4844 error out
+        // if tx is eip4844 skip it
         if tx.is_eip4844() {
-            native_error!("EIP-4844 transaction is not supported");
-            return Err(L2BlockModuleCallError::EvmTxTypeNotSupported(
-                "EIP-4844".to_string(),
-            ));
+            native_error!("EIP-4844 transaction is not supported... skipping");
+            evm.evm.ctx().chain().set_current_tx_hash(tx.hash());
+            evm.evm.ctx().chain().set_tx_info(TxInfo {
+                l1_diff_size: 0,
+                l1_fee: U256::ZERO,
+            });
+
+            let context = evm.evm.ctx();
+
+            let (account_info, account_status) = {
+                // Get current account state from journal
+                let mut account = context.journal().load_account(tx.signer()).map_err(|e| {
+                    L2BlockModuleCallError::EvmTransactionExecutionError(e.to_string())
+                })?;
+
+                // Verify nonce matches
+                if account.info.nonce != tx.nonce() {
+                    return Err(L2BlockModuleCallError::EvmTransactionExecutionError(
+                        format!(
+                            "Invalid nonce. Expected {}, got {}",
+                            account.info.nonce,
+                            tx.nonce()
+                        ),
+                    ));
+                }
+
+                // Increment nonce and mark account as touched
+                account.info.nonce += 1;
+                account.mark_touch();
+                (account.info.clone(), account.status)
+            };
+
+            // Create state from current context and commit changes
+            let mut state = context.journal().state().clone();
+            let account_from_info = Account {
+                info: account_info,
+                storage: Default::default(),
+                status: account_status,
+            };
+            state.insert(tx.signer(), account_from_info);
+            evm.commit(state);
+
+            tx_results.push(ExecutionResult::Halt {
+                reason: HaltReason::NotActivated,
+                gas_used: 0,
+            });
+            continue;
         }
 
         let result_and_state = evm.transact(tx).map_err(|e| {

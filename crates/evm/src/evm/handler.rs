@@ -146,10 +146,12 @@ impl CitreaChainExt for CitreaChain {
     fn l1_fee_rate(&self) -> u128 {
         self.l1_fee_rate
     }
+
     #[cfg_attr(feature = "native", instrument(level = "trace", skip(self)))]
     fn set_current_tx_hash(&mut self, hash: &B256) {
         self.current_tx_hash.replace(hash.to_owned());
     }
+
     #[cfg_attr(feature = "native", instrument(level = "trace", skip(self)))]
     fn set_tx_info(&mut self, info: TxInfo) {
         let current_tx_hash = self.current_tx_hash.take();
@@ -159,6 +161,7 @@ impl CitreaChainExt for CitreaChain {
             native_error!("No hash set for the current tx in Citrea handler");
         }
     }
+
     fn get_tx_info(&self, tx_hash: &B256) -> Option<TxInfo> {
         self.tx_infos.get(tx_hash).copied()
     }
