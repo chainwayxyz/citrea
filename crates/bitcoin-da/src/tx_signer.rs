@@ -23,14 +23,18 @@ pub(crate) struct HexWithId {
 /// Pair of commit/reveal signed transactions
 #[derive(Debug)]
 pub(crate) struct SignedTxPair {
-    commit: Vec<u8>,
+    commit: HexWithId,
     reveal: HexWithId,
     pub kind: TransactionKind,
 }
 
 impl SignedTxPair {
     pub fn as_raw_txs(&self) -> [&Vec<u8>; 2] {
-        [&self.commit, &self.reveal.hex]
+        [&self.commit.hex, &self.reveal.hex]
+    }
+
+    pub fn as_txids(&self) -> [Txid; 2] {
+        [self.commit.id, self.reveal.id]
     }
 
     // Pre-computed reveal txid
@@ -113,7 +117,10 @@ impl TxSigner {
 
         let serialized_reveal_tx = encode::serialize(&reveal.tx);
         Ok(SignedTxPair {
-            commit: signed_raw_commit_tx.hex,
+            commit: HexWithId {
+                hex: signed_raw_commit_tx.hex,
+                id: commit.compute_txid(),
+            },
             reveal: HexWithId {
                 hex: serialized_reveal_tx,
                 id: reveal.id,
@@ -178,7 +185,10 @@ impl TxSigner {
 
             let serialized_reveal_tx = encode::serialize(&reveal);
             raw_txs.push(SignedTxPair {
-                commit: signed_raw_commit_tx.hex,
+                commit: HexWithId {
+                    hex: signed_raw_commit_tx.hex,
+                    id: commit.compute_txid(),
+                },
                 reveal: HexWithId {
                     hex: serialized_reveal_tx,
                     id: reveal.compute_txid(),
@@ -217,7 +227,10 @@ impl TxSigner {
         let serialized_reveal_tx = encode::serialize(&reveal.tx);
 
         raw_txs.push(SignedTxPair {
-            commit: signed_raw_commit_tx.hex,
+            commit: HexWithId {
+                hex: signed_raw_commit_tx.hex,
+                id: commit.compute_txid(),
+            },
             reveal: HexWithId {
                 hex: serialized_reveal_tx,
                 id: reveal.id,
