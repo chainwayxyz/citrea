@@ -971,7 +971,6 @@ fn test_change_upgrade_owner() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Tangerine,
-        
         l1_fee_rate,
         timestamp: 0,
     };
@@ -1006,7 +1005,6 @@ fn test_change_upgrade_owner() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Tangerine,
-        
         l1_fee_rate,
         timestamp: 0,
     };
@@ -1092,7 +1090,6 @@ fn test_wcbtc() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Tangerine,
-        
         l1_fee_rate,
         timestamp: 0,
     };
@@ -1163,7 +1160,6 @@ fn test_wcbtc() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Tangerine,
-        
         l1_fee_rate,
         timestamp: 0,
     };
@@ -1254,7 +1250,6 @@ fn test_system_tx_after_user_tx_should_error_out() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Tangerine,
-        
         l1_fee_rate: 1,
         timestamp: 0,
     };
@@ -1281,7 +1276,6 @@ fn test_system_tx_after_user_tx_should_error_out() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Tangerine,
-        
         l1_fee_rate,
         timestamp: 0,
     };
@@ -1367,7 +1361,6 @@ fn test_set_block_info_shp_not_found() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Tangerine,
-        
         l1_fee_rate,
         timestamp: 42,
     };
@@ -1479,7 +1472,6 @@ fn test_set_block_info_shp_verification_failed() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Tangerine,
-        
         l1_fee_rate,
         timestamp: 42,
     };
