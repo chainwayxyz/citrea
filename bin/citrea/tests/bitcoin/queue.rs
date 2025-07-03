@@ -82,10 +82,7 @@ impl DaTransactionQueueingTest {
         // Try to send when queue is already filled up.
         // This is to test that utxos is correctly selected and that it's doesn't hang on waiting for list of queued txids to be returned
         da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                1,
-            )
+            .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
             .await?;
 
         // We mine the first three proofs + the 1 chunk pair + the extra full proof and make sure that the remaining chunks and aggregate
