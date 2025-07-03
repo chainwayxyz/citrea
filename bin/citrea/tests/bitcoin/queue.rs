@@ -6,9 +6,7 @@ use bitcoin::hashes::Hash;
 use bitcoin_da::service::BitcoinService;
 use bitcoincore_rpc::RpcApi;
 use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
-use citrea_e2e::config::{
-    BatchProverConfig, BitcoinConfig, LightClientProverConfig, TestCaseConfig,
-};
+use citrea_e2e::config::{BitcoinConfig, LightClientProverConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
@@ -42,67 +40,81 @@ impl DaTransactionQueueingTest {
         commitment_1: &SequencerCommitment,
         commitment_1_state_root: [u8; 32],
     ) -> Result<()> {
-        for i in 1..=4 {
-            let state_diff_100kb = create_random_state_diff(100);
-            let l1_hash = da.get_block_hash(finalized_height).await?;
+        let state_diff_100kb = create_random_state_diff(100);
+        let l1_hash = da.get_block_hash(finalized_height).await?;
 
-            // Create a 100kb batch proof
-            let verifiable_100kb_batch_proof =
-                create_serialized_fake_receipt_batch_proof_with_state_roots(
-                    genesis_state_root,
-                    20,
-                    batch_proof_method_ids[0].method_id.into(),
-                    Some(state_diff_100kb.clone()),
-                    false,
-                    l1_hash.as_raw_hash().to_byte_array(),
-                    vec![commitment_1.clone()],
-                    vec![commitment_1_state_root],
-                    None,
-                );
+        // Create a 100kb batch proof
+        let verifiable_100kb_batch_proof =
+            create_serialized_fake_receipt_batch_proof_with_state_roots(
+                genesis_state_root,
+                20,
+                batch_proof_method_ids[0].method_id.into(),
+                Some(state_diff_100kb.clone()),
+                false,
+                l1_hash.as_raw_hash().to_byte_array(),
+                vec![commitment_1.clone()],
+                vec![commitment_1_state_root],
+                None,
+            );
 
+        for i in 1..=3 {
             da_service
                 .send_transaction_with_fee_rate(
                     DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
                     1,
                 )
                 .await?;
-
-            // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
-            if i == 4 {
-                // The three first proofs should hit the mempool + 1 chunk
-                da.wait_mempool_len(8 * 3 + 2, None).await?;
-                assert_eq!(da.get_raw_mempool().await?.len(), 26);
-                // We mine the first three proofs + the 1 chunk pair and make sure that the aggregate is properly queued and sent on next block when mempool size is freed
-
-                da.generate(1).await?;
-                // Assert that all chunks were mined and mempool space is freed
-                assert_eq!(da.get_raw_mempool().await?.len(), 0);
-
-                let height = da.get_block_count().await?;
-                let hash = da.get_block_hash(height).await?;
-                let block = da_service.get_block_by_hash(hash.into()).await?;
-                let (relevant_txs, _, _) = da_service.extract_relevant_blobs_with_proof(&block);
-
-                assert_eq!(relevant_txs.len(), 13);
-
-                // Remaining chunks and aggregate should now hit the mempool
-                da.wait_mempool_len(6, None).await?;
-
-                assert_eq!(da.get_raw_mempool().await?.len(), 6);
-                da.generate(1).await?;
-                assert_eq!(da.get_raw_mempool().await?.len(), 0);
-
-                let height = da.get_block_count().await?;
-                let hash = da.get_block_hash(height).await?;
-                let block = da_service.get_block_by_hash(hash.into()).await?;
-                let (relevant_txs, _, _) = da_service.extract_relevant_blobs_with_proof(&block);
-                assert_eq!(relevant_txs.len(), 3);
-            } else {
-                da.wait_mempool_len(8 * i, None).await?;
-            }
+            da.wait_mempool_len(8 * i, None).await?;
         }
 
+        da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
+                1,
+            )
+            .await?;
+
+        // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
+        // The three first proofs should hit the mempool + 1 chunk
+        da.wait_mempool_len(8 * 3 + 2, None).await?;
+        assert_eq!(da.get_raw_mempool().await?.len(), 26);
+        // We mine the first three proofs + the 1 chunk pair and make sure that the aggregate is properly queued and sent on next block when mempool size is freed
+
+        // Try to send when queue is already filled up.
+        da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
+                1,
+            )
+            .await?;
+
         da.generate(1).await?;
+        // Assert that all chunks were mined and mempool space is freed
+        assert_eq!(da.get_raw_mempool().await?.len(), 0);
+
+        let height = da.get_block_count().await?;
+        let hash = da.get_block_hash(height).await?;
+        let block = da_service.get_block_by_hash(hash.into()).await?;
+        let (relevant_txs, _, _) = da_service.extract_relevant_blobs_with_proof(&block);
+
+        assert_eq!(relevant_txs.len(), 13);
+
+        da.generate(1).await?;
+
+        // Remaining chunks and aggregate + extra queued proof should now hit the mempool
+        da.wait_mempool_len(8 + 6, None).await?;
+        assert_eq!(da.get_raw_mempool().await?.len(), 8 + 6);
+        da.generate(1).await?;
+        assert_eq!(da.get_raw_mempool().await?.len(), 0);
+
+        let height = da.get_block_count().await?;
+        let hash = da.get_block_hash(height).await?;
+        let block = da_service.get_block_by_hash(hash.into()).await?;
+        let (relevant_txs, _, _) = da_service.extract_relevant_blobs_with_proof(&block);
+        assert_eq!(relevant_txs.len(), 7);
+
+        da.generate(1).await?;
+
         Ok(())
     }
 
@@ -192,14 +204,6 @@ impl TestCase for DaTransactionQueueingTest {
                 "-limitdescendantcount=100", // Prevent test from hitting default descendant count limit of 25
                 "-fallbackfee=0.00001",
             ],
-            ..Default::default()
-        }
-    }
-
-    fn batch_prover_config() -> BatchProverConfig {
-        BatchProverConfig {
-            // prevent proving
-            proof_sampling_number: 999_999_999_999,
             ..Default::default()
         }
     }
