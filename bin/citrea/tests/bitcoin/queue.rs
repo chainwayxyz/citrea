@@ -78,9 +78,9 @@ impl DaTransactionQueueingTest {
         // The three first proofs should hit the mempool + 1 chunk
         da.wait_mempool_len(8 * 3 + 2, None).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 26);
-        // We mine the first three proofs + the 1 chunk pair and make sure that the aggregate is properly queued and sent on next block when mempool size is freed
 
         // Try to send when queue is already filled up.
+        // This is to test that utxos is correctly selected and that it's doesn't hang on waiting for list of queued txids to be returned
         da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
@@ -88,6 +88,8 @@ impl DaTransactionQueueingTest {
             )
             .await?;
 
+        // We mine the first three proofs + the 1 chunk pair + the extra full proof and make sure that the remaining chunks and aggregate
+        // and the extra proof is properly queued and sent on next block when mempool size is freed
         da.generate(1).await?;
         // Assert that all chunks were mined and mempool space is freed
         assert_eq!(da.get_raw_mempool().await?.len(), 0);
