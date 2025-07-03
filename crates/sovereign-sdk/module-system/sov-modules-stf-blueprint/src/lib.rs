@@ -514,10 +514,12 @@ where
                     "Initial state root must match the last header state root"
                 );
 
-                let index = (commitment.l2_end_block_number
-                    - prev_hash_proof.prev_sequencer_commitment_start)
-                    as usize;
-                let count = index + 1;
+                let index = commitment
+                    .l2_end_block_number
+                    .checked_sub(prev_hash_proof.prev_sequencer_commitment_start)
+                    .expect("Index underflow") as usize;
+
+                let count = index.checked_add(1).expect("Count overflow");
                 let last_header_hash = prev_hash_proof.last_header.compute_digest();
 
                 assert!(
