@@ -1,7 +1,7 @@
 #![no_main]
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
-use citrea_light_client_prover::circuit::initial_values::bitcoinda;
+use citrea_light_client_prover::circuit::initial_values::{bitcoinda, non_empty_slice::NonEmptySlice};
 use citrea_light_client_prover::circuit::LightClientProofCircuit;
 use citrea_primitives::REVEAL_TX_PREFIX;
 use citrea_risc0_adapter::guest::Risc0Guest;
@@ -30,7 +30,7 @@ const L2_GENESIS_ROOT: [u8; 32] = {
     }
 };
 
-const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
+const INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> = {
     match NETWORK {
         Network::Mainnet => bitcoinda::MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS,
         Network::Testnet => bitcoinda::TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS,
