@@ -1286,11 +1286,7 @@ fn test_ignore_eip4844_transactions() {
             .sign_default_transaction(TxKind::Call(Address::ZERO), vec![], 2, 0)
             .unwrap();
 
-        let transactions: Vec<RlpEvmTransaction> = vec![
-            regular_tx1.try_into().unwrap(),
-            blob_tx.try_into().unwrap(),
-            regular_tx2.try_into().unwrap(),
-        ];
+        let transactions: Vec<RlpEvmTransaction> = vec![regular_tx1, blob_tx, regular_tx2];
 
         let result = evm.call(
             CallMessage { txs: transactions },
@@ -1395,11 +1391,7 @@ fn test_ignore_eip4844_transactions() {
             .sign_blob_transaction(Address::ZERO, vec![B256::random()], 2)
             .unwrap();
 
-        let transactions: Vec<RlpEvmTransaction> = vec![
-            regular_tx1.try_into().unwrap(),
-            regular_tx2.try_into().unwrap(),
-            blob_tx.try_into().unwrap(),
-        ];
+        let transactions: Vec<RlpEvmTransaction> = vec![regular_tx1, regular_tx2, blob_tx];
 
         let result = evm2.call(
             CallMessage { txs: transactions },
