@@ -4,7 +4,7 @@ use sov_rollup_interface::da::BlobReaderTrait;
 
 use super::address::AddressWrapper;
 
-// BlobWithSender is a wrapper around BlobBuf to implement BlobReaderTrait
+/// BlobWithSender is a wrapper around BlobBuf to implement BlobReaderTrait
 #[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 pub struct BlobWithSender {
     pub hash: [u8; 32],

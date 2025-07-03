@@ -3,11 +3,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::spec::TransactionWrapper;
 
-// Set of proofs for inclusion of a transaction in a block
+/// Set of proofs for inclusion of a transaction in a block
 #[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct InclusionMultiProof {
+    /// Witness transaction ids for the proof of inclusion in the block.
     pub wtxids: Vec<[u8; 32]>,
+    /// The coinbase transaction that is used to prove the inclusion of the witness transactions.
     pub coinbase_tx: TransactionWrapper,
+    /// Merkle proof for the coinbase transaction in the block.
     pub coinbase_merkle_proof: Vec<[u8; 32]>,
 }
 

@@ -1,3 +1,5 @@
+//! This module contains functions to create transactions for the DA layer.
+
 use core::result::Result::Ok;
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -44,22 +46,36 @@ pub(crate) enum RawTxData {
 /// This is a list of txs we need to send to DA
 #[derive(Serialize, Clone)]
 pub enum DaTxs {
+    /// Complete proof.
     Complete {
-        commit: Transaction, // unsigned
+        /// Unsigned
+        commit: Transaction,
+        /// Signed
         reveal: TxWithId,
     },
+    /// Chunked proof.
     Chunked {
-        commit_chunks: Vec<Transaction>, // unsigned
+        /// Unsigned
+        commit_chunks: Vec<Transaction>,
+        /// Signed
         reveal_chunks: Vec<Transaction>,
-        commit: Transaction, // unsigned
+        /// Unsigned
+        commit: Transaction,
+        /// Signed
         reveal: TxWithId,
     },
+    /// BatchProof method id.
     BatchProofMethodId {
-        commit: Transaction, // unsigned
+        /// Unsigned
+        commit: Transaction,
+        /// Signed
         reveal: TxWithId,
     },
+    /// Sequencer commitment.
     SequencerCommitment {
-        commit: Transaction, // unsigned
+        /// Unsigned
+        commit: Transaction,
+        /// Signed
         reveal: TxWithId,
     },
 }
@@ -139,10 +155,10 @@ pub(crate) fn backup_chunked_txs(
     Ok(())
 }
 
-// Creates the light client transactions (commit and reveal).
-// Based on data type, the number of transactions may vary.
-// In the end, reveal txs will be mined with a nonce to have
-// wtxid start from the `reveal_tx_prefix`.
+/// Creates the light client transactions (commit and reveal).
+/// Based on data type, the number of transactions may vary.
+/// In the end, reveal txs will be mined with a nonce to have
+/// wtxid start from the `reveal_tx_prefix`.
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_transactions(
@@ -204,7 +220,7 @@ pub fn create_inscription_transactions(
     }
 }
 
-// Creates the inscription transactions Type 0 - Complete
+/// Creates the inscription transactions Type 0 - Complete
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_type_0(
@@ -373,7 +389,7 @@ pub fn create_inscription_type_0(
     }
 }
 
-// Creates the inscription transactions Type 1 - Chunked
+/// Creates the inscription transactions Type 1 - Chunked
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_type_1(
@@ -726,7 +742,7 @@ pub fn create_inscription_type_1(
     }
 }
 
-// Creates the inscription transactions Type 3 - BatchProofMethodId
+/// Creates the inscription transactions Type 3 - BatchProofMethodId
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_type_3(
@@ -897,7 +913,7 @@ pub fn create_inscription_type_3(
     }
 }
 
-// Creates the batch proof transactions Type 4 - SequencerCommitment
+/// Creates the batch proof transactions Type 4 - SequencerCommitment
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_type_4(

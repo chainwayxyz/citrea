@@ -11,7 +11,7 @@ use sov_rollup_interface::da::BlockHeaderTrait;
 use super::block_hash::BlockHashWrapper;
 use crate::helpers::calculate_double_sha256;
 
-// HeaderWrapper is a wrapper around BlockHash to implement BlockHeaderTrait
+/// HeaderWrapper is a wrapper around BlockHash to implement BlockHeaderTrait
 #[derive(
     Clone, Debug, PartialEq, Eq, Hash, BorshDeserialize, BorshSerialize, Serialize, Deserialize,
 )]

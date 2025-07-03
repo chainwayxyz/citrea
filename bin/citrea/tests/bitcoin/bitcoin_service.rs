@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -142,7 +143,7 @@ impl TestCase for BitcoinServiceTest {
                 .to_vec();
 
             let txs = get_relevant_blobs_from_txs(
-                block.txdata.iter().map(|tx| tx.inner().clone()).collect(),
+                block.txdata.iter().map(|tx| tx.deref().clone()).collect(),
                 REVEAL_TX_PREFIX,
             );
             assert_eq!(txs.len(), 4);

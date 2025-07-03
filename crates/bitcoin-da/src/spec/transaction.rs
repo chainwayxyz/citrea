@@ -1,6 +1,6 @@
 use core::ops::{Deref, DerefMut};
 
-use bitcoin::absolute::{LockTime, Time};
+use bitcoin::absolute::LockTime;
 use bitcoin::hashes::Hash;
 use bitcoin::transaction::Version;
 use bitcoin::{Amount, OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Witness};
@@ -12,21 +12,6 @@ use serde::{Deserialize, Serialize};
 #[repr(transparent)]
 #[serde(transparent)]
 pub struct TransactionWrapper(Transaction);
-
-impl TransactionWrapper {
-    pub fn empty() -> Self {
-        Self(Transaction {
-            version: bitcoin::transaction::Version(0),
-            lock_time: LockTime::Seconds(Time::MIN),
-            input: vec![],
-            output: vec![],
-        })
-    }
-
-    pub fn inner(&self) -> &Transaction {
-        &self.0
-    }
-}
 
 impl BorshSerialize for TransactionWrapper {
     #[inline]

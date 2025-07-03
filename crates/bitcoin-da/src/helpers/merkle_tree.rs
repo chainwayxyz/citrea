@@ -3,6 +3,7 @@
 ///
 use super::calculate_double_sha256;
 
+/// Bitcoin merkle tree.
 #[derive(Debug, Clone)]
 pub struct BitcoinMerkleTree {
     /// Inner nodes.
@@ -10,6 +11,7 @@ pub struct BitcoinMerkleTree {
 }
 
 impl BitcoinMerkleTree {
+    /// Compute merkle tree.
     pub fn new(transactions: Vec<[u8; 32]>) -> Self {
         if transactions.len() == 1 {
             // root is the coinbase txid
@@ -67,12 +69,13 @@ impl BitcoinMerkleTree {
         tree
     }
 
-    // Returns the Merkle root
+    /// Returns the Merkle root
     pub fn root(&self) -> [u8; 32] {
         self.nodes[self.nodes.len() - 1][0]
     }
 
     #[cfg(feature = "native")]
+    /// Get path by the index
     pub fn get_idx_path(&self, index: u32) -> Vec<[u8; 32]> {
         assert!(index < self.nodes[0].len() as u32, "Index out of bounds");
         let mut path = vec![];
@@ -92,6 +95,10 @@ impl BitcoinMerkleTree {
         path
     }
 
+    /// It recomputes the Merkle root using
+    /// - a leaf hash
+    /// - a Merkle proof (list of sibling hashes along the path)
+    /// - an index indicating left/right sibling order at each level
     pub fn calculate_root_with_merkle_proof(
         txid: [u8; 32],
         idx: u32,

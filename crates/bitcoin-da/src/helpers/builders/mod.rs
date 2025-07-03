@@ -482,7 +482,7 @@ pub fn sign_blob_with_private_key(blob: &[u8], private_key: &SecretKey) -> (Vec<
     )
 }
 
-pub fn calculate_sha256(input: &[u8]) -> [u8; 32] {
+fn calculate_sha256(input: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::default();
     hasher.update(input);
     hasher.finalize().into()

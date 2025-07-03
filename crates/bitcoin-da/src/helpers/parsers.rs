@@ -8,6 +8,8 @@ use bitcoin::{Opcode, Script, Transaction};
 use sha2::Digest;
 use thiserror::Error;
 
+/// ParsedTransaction is an enum that represents the different kinds of transactions
+/// that can be parsed from a Bitcoin transaction script.
 #[derive(Debug, Clone)]
 pub enum ParsedTransaction {
     /// Kind 0
@@ -24,46 +26,53 @@ pub enum ParsedTransaction {
     // ForcedTransaction(ForcedTransaction),
 }
 
+/// ParsedComplete is a transaction that contains the full body of a proof.
 #[derive(Debug, Clone)]
 pub struct ParsedComplete {
-    pub body: Vec<u8>,
-    pub signature: Vec<u8>,
-    pub public_key: Vec<u8>,
+    pub(crate) body: Vec<u8>,
+    pub(crate) signature: Vec<u8>,
+    pub(crate) public_key: Vec<u8>,
 }
 
+/// ParsedAggregate is a transaction that contains txids of chunks of data.
 #[derive(Debug, Clone)]
 pub struct ParsedAggregate {
-    pub body: Vec<u8>,
-    pub signature: Vec<u8>,
-    pub public_key: Vec<u8>,
+    pub(crate) body: Vec<u8>,
+    pub(crate) signature: Vec<u8>,
+    pub(crate) public_key: Vec<u8>,
 }
 
-// That's the only kind of transaction that does not have
-// a signature (and a nonce) because the signature and the nonce live
-// in the parent Aggregate transaction.
+/// That's the only kind of transaction that does not have
+/// a signature (and a nonce) because the signature and the nonce live
+/// in the parent Aggregate transaction.
 #[derive(Debug, Clone)]
 pub struct ParsedChunk {
-    pub body: Vec<u8>,
+    pub(crate) body: Vec<u8>,
 }
 
+/// ParsedSequencerCommitment is a transaction that contains the sequencer commitment.
 #[derive(Debug, Clone)]
 pub struct ParsedSequencerCommitment {
-    pub body: Vec<u8>,
-    pub signature: Vec<u8>,
-    pub public_key: Vec<u8>,
+    pub(crate) body: Vec<u8>,
+    pub(crate) signature: Vec<u8>,
+    pub(crate) public_key: Vec<u8>,
 }
 
+/// ParsedBatchProverMethodId is a transaction that contains the BatchProver method id.
 #[derive(Debug, Clone)]
 pub struct ParsedBatchProverMethodId {
-    pub body: Vec<u8>,
-    pub signature: Vec<u8>,
-    pub public_key: Vec<u8>,
+    pub(crate) body: Vec<u8>,
+    pub(crate) signature: Vec<u8>,
+    pub(crate) public_key: Vec<u8>,
 }
 
 /// To verify the signature of the inscription and get the hash of the body
 pub trait VerifyParsed {
+    /// Returns the public key used to verify the signature.
     fn public_key(&self) -> &[u8];
+    /// Returns the signature of the inscription.
     fn signature(&self) -> &[u8];
+    /// Returns the body of the inscription.
     fn body(&self) -> &[u8];
 
     /// Verifies the signature of the inscription and returns the hash of the body
@@ -130,18 +139,25 @@ impl VerifyParsed for ParsedBatchProverMethodId {
     }
 }
 
+/// Error type for the parser.
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum ParserError {
+    /// Invalid header length.
     #[error("Invalid header length")]
     InvalidHeaderLength,
+    /// Invalid header type.
     #[error("Invalid header type {0}")]
     InvalidHeaderType(NonZero<u16>),
+    /// No witness in tapscript.
     #[error("No witness in tapscript")]
     NonTapscriptWitness,
+    /// Unexpected end of script.
     #[error("Unexpected end of script")]
     UnexpectedEndOfScript,
+    /// Invalid opcode in the script.
     #[error("Invalid opcode in the script")]
     UnexpectedOpcode,
+    /// Some other script error.
     #[error("Script error: {0}")]
     ScriptError(String),
 }
@@ -152,6 +168,7 @@ impl From<ScriptError> for ParserError {
     }
 }
 
+/// Parses a relevant transaction from the script.
 pub fn parse_relevant_transaction(tx: &Transaction) -> Result<ParsedTransaction, ParserError> {
     let script = get_script(tx)?;
     let instructions = script.instructions().peekable();
@@ -498,6 +515,7 @@ mod body_parsers {
 }
 
 #[cfg(feature = "native")]
+/// Parses Bitcoin transaction from a hex-encoded transaction string.
 pub fn parse_hex_transaction(
     tx_hex: &str,
 ) -> Result<Transaction, bitcoin::consensus::encode::Error> {
