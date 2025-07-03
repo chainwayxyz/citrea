@@ -33,6 +33,7 @@ impl SignedTxPair {
         [&self.commit.hex, &self.reveal.hex]
     }
 
+    #[allow(unused)]
     pub fn as_txids(&self) -> [Txid; 2] {
         [self.commit.id, self.reveal.id]
     }
