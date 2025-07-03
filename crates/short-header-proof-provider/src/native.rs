@@ -69,7 +69,7 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
                             occ.get_mut().push(block_hash);
                         }
                         std::collections::hash_map::Entry::Vacant(vac) => {
-                            if queried_hashes_map.capacity() == 0 {
+                            if queried_hashes_map.capacity() == queried_hashes_map.len() {
                                 queried_hashes_map.try_reserve(1).map_err(|e| {
                                     ShortHeaderProofProviderError::VectorAllocationFailed(
                                         e.to_string(),
