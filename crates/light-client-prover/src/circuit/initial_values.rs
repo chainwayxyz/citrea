@@ -1,12 +1,13 @@
 #[cfg(feature = "native")]
 use bitcoin_da::spec::BitcoinSpec;
-use non_empty_slice::NonEmptySlice;
 #[cfg(feature = "native")]
 use sov_mock_da::MockDaSpec;
 #[cfg(feature = "native")]
 use sov_modules_api::DaSpec;
 #[cfg(feature = "native")]
 use sov_rollup_interface::Network;
+
+use self::non_empty_slice::NonEmptySlice;
 
 /// Genesis root for the Light Client Prover's Jellyfish Merkle Tree.
 pub(crate) const LCP_JMT_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
