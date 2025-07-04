@@ -65,7 +65,7 @@ impl MempoolRejection {
     }
 
     // Mempool rejection variants that are recoverable by re-trying on a new block and dependent on mempool state such as too many transactions in mempool or package too large
-    pub fn is_recoverable(&self) -> bool {
+    pub fn should_be_queued(&self) -> bool {
         matches!(
             self,
             Self::PackageTooLarge | Self::PackageMempoolLimits | Self::PackageTooManyTransactions

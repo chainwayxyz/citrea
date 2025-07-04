@@ -512,7 +512,7 @@ impl BitcoinService {
 
         match self.test_mempool_accept(&raw_txs).await {
             Ok(()) => Ok(()),
-            Err(BitcoinServiceError::MempoolRejection(e)) if e.is_recoverable() => Ok(()),
+            Err(BitcoinServiceError::MempoolRejection(e)) if e.should_be_queued() => Ok(()),
             e => e,
         }
     }
