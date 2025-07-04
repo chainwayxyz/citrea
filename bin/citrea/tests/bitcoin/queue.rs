@@ -3,6 +3,7 @@ use std::time::Duration;
 use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
+use bitcoin_da::error::BitcoinServiceError;
 use bitcoin_da::service::BitcoinService;
 use bitcoincore_rpc::RpcApi;
 use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
@@ -57,6 +58,7 @@ impl DaTransactionQueueingTest {
                 None,
             );
 
+        // Fill mempool
         for i in 1..=3 {
             da_service
                 .send_transaction_with_fee_rate(
@@ -79,15 +81,31 @@ impl DaTransactionQueueingTest {
         da.wait_mempool_len(8 * 3 + 2, None).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 26);
 
+        // Assert that all queued txs are monitored
+        let monitored_txs = da_service.monitoring.get_monitored_txs().await;
+        assert_eq!(monitored_txs.len(), 32);
+
         // Try to send when queue is already filled up.
         // This is to test that utxos is correctly selected and that it's doesn't hang on waiting for list of queued txids to be returned
-        da_service
-            .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
-            .await?;
+        let res = da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
+                1,
+            )
+            .await;
+        assert!(matches!(res, Err(BitcoinServiceError::QueueNotEmpty)));
 
-        // We mine the first three proofs + the 1 chunk pair + the extra full proof and make sure that the remaining chunks and aggregate
+        // Send transaction hangs until a new block is detected
+        tokio::select! {
+            _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {
+                da.generate(1).await?;
+            }
+            _ = da_service.send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone())) => {
+            }
+        }
+
+        // We mine the first three proofs + the 1 chunk pair nd make sure that the remaining chunks and aggregate
         // and the extra proof is properly queued and sent on next block when mempool size is freed
-        da.generate(1).await?;
         // Assert that all chunks were mined and mempool space is freed
         assert_eq!(da.get_raw_mempool().await?.len(), 0);
 
@@ -97,8 +115,6 @@ impl DaTransactionQueueingTest {
         let (relevant_txs, _, _) = da_service.extract_relevant_blobs_with_proof(&block);
 
         assert_eq!(relevant_txs.len(), 13);
-
-        da.generate(1).await?;
 
         // Remaining chunks and aggregate + extra queued proof should now hit the mempool
         da.wait_mempool_len(8 + 6, None).await?;

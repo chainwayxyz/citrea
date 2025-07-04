@@ -14,17 +14,18 @@ use crate::helpers::TransactionKind;
 
 pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
 
-#[derive(Debug)]
-pub(crate) struct HexWithId {
+#[derive(Debug, Clone)]
+pub(crate) struct SignedTxWithId {
     hex: Vec<u8>,
-    id: Txid,
+    pub tx: Transaction,
+    pub id: Txid,
 }
 
 /// Pair of commit/reveal signed transactions
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct SignedTxPair {
-    commit: HexWithId,
-    reveal: HexWithId,
+    pub commit: SignedTxWithId,
+    pub reveal: SignedTxWithId,
     pub kind: TransactionKind,
 }
 
@@ -33,9 +34,17 @@ impl SignedTxPair {
         [&self.commit.hex, &self.reveal.hex]
     }
 
-    #[allow(unused)]
-    pub fn as_txids(&self) -> [Txid; 2] {
-        [self.commit.id, self.reveal.id]
+    pub fn into_txs_with_id(self) -> [TxWithId; 2] {
+        [
+            TxWithId {
+                tx: self.commit.tx,
+                id: self.commit.id,
+            },
+            TxWithId {
+                tx: self.reveal.tx,
+                id: self.reveal.id,
+            },
+        ]
     }
 
     // Pre-computed reveal txid
@@ -118,13 +127,15 @@ impl TxSigner {
 
         let serialized_reveal_tx = encode::serialize(&reveal.tx);
         Ok(SignedTxPair {
-            commit: HexWithId {
+            commit: SignedTxWithId {
                 hex: signed_raw_commit_tx.hex,
                 id: commit.compute_txid(),
+                tx: commit,
             },
-            reveal: HexWithId {
+            reveal: SignedTxWithId {
                 hex: serialized_reveal_tx,
                 id: reveal.id,
+                tx: reveal.tx,
             },
             kind,
         })
@@ -146,11 +157,19 @@ impl TxSigner {
 
         trace!("Signing chunked transaction");
 
-        let all_tx_map = commit_chunks
+        let all_txs: Vec<TxWithId> = commit_chunks
             .iter()
             .chain(reveal_chunks.iter())
             .chain([&commit, &reveal.tx].into_iter())
-            .map(|tx| (tx.compute_txid(), tx.clone()))
+            .map(|tx| TxWithId {
+                id: tx.compute_txid(),
+                tx: tx.clone(),
+            })
+            .collect();
+
+        let all_tx_map = all_txs
+            .iter()
+            .map(|tx| (tx.id, tx.tx.clone()))
             .collect::<HashMap<_, _>>();
 
         let mut raw_txs = Vec::with_capacity(all_tx_map.len());
@@ -186,13 +205,15 @@ impl TxSigner {
 
             let serialized_reveal_tx = encode::serialize(&reveal);
             raw_txs.push(SignedTxPair {
-                commit: HexWithId {
+                commit: SignedTxWithId {
                     hex: signed_raw_commit_tx.hex,
                     id: commit.compute_txid(),
+                    tx: commit,
                 },
-                reveal: HexWithId {
+                reveal: SignedTxWithId {
                     hex: serialized_reveal_tx,
                     id: reveal.compute_txid(),
+                    tx: reveal,
                 },
                 kind: TransactionKind::Chunks,
             });
@@ -228,13 +249,15 @@ impl TxSigner {
         let serialized_reveal_tx = encode::serialize(&reveal.tx);
 
         raw_txs.push(SignedTxPair {
-            commit: HexWithId {
+            commit: SignedTxWithId {
                 hex: signed_raw_commit_tx.hex,
                 id: commit.compute_txid(),
+                tx: commit,
             },
-            reveal: HexWithId {
+            reveal: SignedTxWithId {
                 hex: serialized_reveal_tx,
                 id: reveal.id,
+                tx: reveal.tx,
             },
             kind: TransactionKind::Aggregate,
         });

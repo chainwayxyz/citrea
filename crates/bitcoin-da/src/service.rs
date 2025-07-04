@@ -41,6 +41,7 @@ use crate::error::{BitcoinServiceError, MempoolRejection};
 use crate::fee::{BumpFeeMethod, FeeService};
 use crate::helpers::backup::backup_txs_to_file;
 use crate::helpers::builders::body_builders::{create_light_client_transactions, DaTxs, RawTxData};
+use crate::helpers::builders::TxWithId;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
 use crate::helpers::{merkle_tree, TransactionKind};
@@ -56,7 +57,9 @@ use crate::spec::transaction::TransactionWrapper;
 use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
 use crate::tx_signer::{SignedTxPair, TxSigner};
-use crate::verifier::{BitcoinVerifier, WITNESS_COMMITMENT_PREFIX};
+use crate::verifier::{
+    BitcoinVerifier, MINIMUM_WITNESS_COMMITMENT_SIZE, WITNESS_COMMITMENT_PREFIX,
+};
 use crate::REVEAL_OUTPUT_AMOUNT;
 
 pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
@@ -229,6 +232,7 @@ impl BitcoinService {
                 request_opt = rx.recv() => {
                     if let Some(request) = request_opt {
                         trace!("A new request is received");
+
                         loop {
                             // Build and queue tx with retries:
                             let fee_sat_per_vbyte = match self.fee.get_fee_rate().await {
@@ -246,9 +250,9 @@ impl BitcoinService {
                                 )
                                 .await
                             {
-                                Ok(txids) => {
-                                    let txid = txids.last().unwrap();
-                                    let tx_id = TxidWrapper(*txid);
+                                Ok(txs) => {
+                                    let txid = txs.last().unwrap()[1].id;
+                                    let tx_id = TxidWrapper(txid);
                                     info!(%txid, "Sent tx to BitcoinDA");
                                     let _ = request.notify.send(Ok(tx_id));
 
@@ -261,6 +265,11 @@ impl BitcoinService {
                                     if let BitcoinServiceError::MempoolRejection(MempoolRejection::MinRelayFeeNotMet) = e {
                                         fee_rate_multiplier = self.fee.get_next_fee_rate_multiplier(fee_rate_multiplier);
                                     }
+
+                                    if let BitcoinServiceError::QueueNotEmpty = e {
+                                        let _ = self.process_transaction_queue().await;
+                                    }
+
                                     continue;
                                 }
                             }
@@ -277,11 +286,36 @@ impl BitcoinService {
         &self,
         tx_request: DaTxRequest,
         fee_sat_per_vbyte: u64,
-    ) -> Result<Vec<Txid>> {
-        self.queue_da_transaction_with_fee_rate(tx_request, fee_sat_per_vbyte)
+    ) -> Result<Vec<[TxWithId; 2]>> {
+        // Prevent sending tx to DA while transaction queue is not empty
+        if !self.tx_queue.lock().await.is_empty() {
+            return Err(BitcoinServiceError::QueueNotEmpty);
+        }
+
+        let da_txs = self
+            .create_da_transactions_with_fee_rate(tx_request, fee_sat_per_vbyte)
+            .await?;
+        let signed_txs = self.tx_signer.sign_da_txs(da_txs).await?;
+        self.test_mempool_accept_queue_tx(&signed_txs).await?;
+
+        // backup to file after mempool acceptance
+        backup_txs_to_file(&self.tx_backup_dir, &signed_txs)?;
+
+        let txs = signed_txs
+            .iter()
+            .map(|tx| tx.clone().into_txs_with_id())
+            .collect::<Vec<_>>();
+        self.monitoring
+            .monitor_transaction_chain(txs.clone())
             .await?;
 
-        self.process_transaction_queue().await
+        // Queue transactions
+        self.queue_transactions(signed_txs).await;
+
+        // Process transaction queue.
+        self.process_transaction_queue().await?;
+
+        Ok(txs)
     }
 
     /// Retrieves the most recent spendable UTXO from the transaction chain on startup.
@@ -331,7 +365,7 @@ impl BitcoinService {
             .get_monitored_txs()
             .await
             .into_iter()
-            .filter(|(_, tx)| matches!(tx.status, TxStatus::Pending { .. }))
+            .filter(|(_, tx)| matches!(tx.status, TxStatus::InMempool { .. }))
             .map(|(_, monitored_tx)| monitored_tx.tx)
             .collect()
     }
@@ -390,25 +424,6 @@ impl BitcoinService {
         .await??)
     }
 
-    #[instrument(level = "trace", fields(prev_utxo), ret, err, skip(self))]
-    pub async fn queue_da_transaction_with_fee_rate(
-        &self,
-        tx_request: DaTxRequest,
-        fee_sat_per_vbyte: u64,
-    ) -> Result<()> {
-        let da_txs = self
-            .create_da_transactions_with_fee_rate(tx_request, fee_sat_per_vbyte)
-            .await?;
-        let signed_txs = self.tx_signer.sign_da_txs(da_txs).await?;
-        self.test_mempool_accept_queue_tx(&signed_txs).await?;
-
-        // backup to file after mempool acceptance
-        backup_txs_to_file(&self.tx_backup_dir, &signed_txs)?;
-
-        self.queue_transactions(signed_txs).await;
-        Ok(())
-    }
-
     async fn queue_transactions(&self, txs: Vec<SignedTxPair>) {
         self.tx_queue.lock().await.extend(txs);
     }
@@ -420,7 +435,8 @@ impl BitcoinService {
 
         let mut txids = Vec::new();
         while let Some(tx) = queue.front() {
-            if self.test_mempool_accept(&tx.as_raw_txs()).await.is_err() {
+            if let Err(e) = self.test_mempool_accept(&tx.as_raw_txs()).await {
+                debug!(?e, "Rejected by mempool");
                 break;
             }
 
@@ -437,13 +453,9 @@ impl BitcoinService {
             }
         }
 
-        // Monitor successfully sent txs
-        if let Err(e) = self
-            .monitoring
-            .monitor_transaction_chain(txids.clone())
-            .await
-        {
-            error!(?e, "Failed to monitor tx chain");
+        // Update monitored tx status
+        if let Err(e) = self.monitoring.update_txs_status(&txids).await {
+            error!(?e, "Failed to update queued tx status");
         }
 
         Ok(txids)
@@ -540,7 +552,7 @@ impl BitcoinService {
             }
         };
 
-        let TxStatus::Pending { .. } = tx.status else {
+        let TxStatus::InMempool { .. } = tx.status else {
             return Err(BitcoinServiceError::WrongStatusForBumping(tx.status));
         };
 
@@ -564,6 +576,9 @@ impl BitcoinService {
 
         let processed = self.client.finalize_psbt(&wallet_psbt.psbt, None).await?;
 
+        let Some(Ok(new_tx)) = processed.transaction() else {
+            return Err(BitcoinServiceError::PsbtFinalizationFailure);
+        };
         let Some(raw_hex) = processed.hex else {
             return Err(BitcoinServiceError::PsbtFinalizationFailure);
         };
@@ -576,7 +591,15 @@ impl BitcoinService {
         match method {
             BumpFeeMethod::Cpfp => {
                 self.monitoring
-                    .monitor_transaction(new_txid, Some(txid), None, MonitoredTxKind::Cpfp)
+                    .monitor_transaction(
+                        TxWithId {
+                            id: new_txid,
+                            tx: new_tx,
+                        },
+                        Some(txid),
+                        None,
+                        MonitoredTxKind::Cpfp,
+                    )
                     .await?;
                 self.monitoring.set_next_tx(&txid, new_txid).await;
             }
@@ -1320,11 +1343,12 @@ fn calculate_witness_root(txdata: &[TransactionWrapper], tx_count: usize) -> [u8
         .enumerate()
         .map(|(i, t)| {
             if i == 0 {
-                let commitment_idx = t.output.iter().rev().position(|output| {
-                    output
-                        .script_pubkey
-                        .as_bytes()
-                        .starts_with(WITNESS_COMMITMENT_PREFIX)
+                let commitment_idx = t.output.iter().rposition(|output| {
+                    output.script_pubkey.as_bytes().len() >= MINIMUM_WITNESS_COMMITMENT_SIZE
+                        && output
+                            .script_pubkey
+                            .as_bytes()
+                            .starts_with(WITNESS_COMMITMENT_PREFIX)
                 });
                 // If non-segwit block, the coinbase tx should also use the txid instead of all zeros
                 match commitment_idx {

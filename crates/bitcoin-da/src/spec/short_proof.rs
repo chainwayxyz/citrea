@@ -8,7 +8,7 @@ use sov_rollup_interface::da::{
 use super::header::HeaderWrapper;
 use super::transaction::TransactionWrapper;
 use crate::helpers::{calculate_double_sha256, calculate_txid, merkle_tree};
-use crate::verifier::WITNESS_COMMITMENT_PREFIX;
+use crate::verifier::{MINIMUM_WITNESS_COMMITMENT_SIZE, WITNESS_COMMITMENT_PREFIX};
 
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Eq, PartialEq, Debug, Clone)]
 pub struct BitcoinHeaderShortProof {
@@ -63,11 +63,12 @@ impl VerifiableShortHeaderProof for BitcoinHeaderShortProof {
 
         // Then extract the wtxid root from the coinbase tx
         // and compare with self.header.txs_comitment()
-        let commitment_idx = self.coinbase_tx.output.iter().rev().position(|output| {
-            output
-                .script_pubkey
-                .as_bytes()
-                .starts_with(WITNESS_COMMITMENT_PREFIX)
+        let commitment_idx = self.coinbase_tx.output.iter().rposition(|output| {
+            output.script_pubkey.as_bytes().len() >= MINIMUM_WITNESS_COMMITMENT_SIZE
+                && output
+                    .script_pubkey
+                    .as_bytes()
+                    .starts_with(WITNESS_COMMITMENT_PREFIX)
         });
 
         match commitment_idx {
@@ -87,7 +88,6 @@ impl VerifiableShortHeaderProof for BitcoinHeaderShortProof {
             Some(idx) => {
                 // If post-segwit block, extract the commitment from the coinbase tx
                 // and compare with header.txs_commitment().
-                let idx = self.coinbase_tx.output.len() - idx - 1; // The index is reversed
                 let script_pubkey = self.coinbase_tx.output[idx].script_pubkey.as_bytes();
                 let input_witness_value = self.coinbase_tx.input[0].witness.iter().next().unwrap();
 

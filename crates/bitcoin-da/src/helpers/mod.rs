@@ -13,7 +13,7 @@ pub mod merkle_tree;
 pub mod parsers;
 
 /// Type represents a typed enum for transaction kind
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[repr(u16)]
 pub(crate) enum TransactionKind {
     /// This type of transaction includes full body (< 400kb)

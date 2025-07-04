@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use alloy_eips::eip2718::Encodable2718;
+use alloy_eips::BlockId;
 use alloy_primitives::{Bytes, B256};
 use alloy_rpc_types::Transaction;
 use citrea_common::rpc::utils::internal_rpc_error;
@@ -274,7 +275,7 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
 
         let tx_res = evm.get_call(
             dep_tx,
-            None,
+            Some(BlockId::pending()),
             None,
             None,
             &mut working_set,

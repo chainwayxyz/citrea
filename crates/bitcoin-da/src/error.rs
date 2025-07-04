@@ -27,6 +27,8 @@ pub enum BitcoinServiceError {
     RpcError(#[from] BitcoinRpcError),
     #[error("Cannot bump fee for TX with status: {0:?}. Transaction must be pending")]
     WrongStatusForBumping(TxStatus),
+    #[error("Cannot create DA transaction while da queue is not empty")]
+    QueueNotEmpty,
     #[error(transparent)]
     MempoolRejection(#[from] MempoolRejection),
     #[error(transparent)]
