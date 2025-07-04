@@ -602,6 +602,7 @@ impl BitcoinService {
                     )
                     .await?;
                 self.monitoring.set_next_tx(&txid, new_txid).await;
+                self.monitoring.update_txs_status(&[new_txid]).await?;
             }
             BumpFeeMethod::Rbf => self.monitoring.replace_txid(txid, new_txid).await?,
         };
