@@ -7,7 +7,8 @@ use citrea_batch_prover::prover::Prover;
 use citrea_batch_prover::L2Syncer as BatchProverL2Syncer;
 use citrea_common::backup::BackupManager;
 use citrea_common::{
-    BatchProverConfig, FullNodeConfig, InitParams, LightClientProverConfig, SequencerConfig,
+    BatchProverConfig, FullNodeConfig, InitParams, LightClientProverConfig, NodeType,
+    SequencerConfig,
 };
 use citrea_fullnode::da_block_handler::L1BlockHandler as FullNodeL1BlockHandler;
 use citrea_fullnode::L2Syncer as FullNodeL2Syncer;
@@ -19,7 +20,6 @@ use citrea_sequencer::CitreaSequencer;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use citrea_storage_ops::pruning::PrunerService;
 use citrea_storage_ops::rollback::Rollback;
-use citrea_storage_ops::types::StorageNodeType;
 use jsonrpsee::RpcModule;
 use reth_tasks::{TaskExecutor, TaskManager};
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
@@ -136,7 +136,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         &self,
         ledger_db: &LedgerDB,
         storage_manager: &ProverStorageManager,
-        node_type: StorageNodeType,
+        node_type: NodeType,
     ) -> Result<()> {
         let next_version = StateDB::new(storage_manager.get_state_db_handle()).next_version();
         let state_version = if next_version >= 2 {
@@ -261,7 +261,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let native_stf = StfBlueprint::new();
 
-        self.sync_ledger_and_state_db(&ledger_db, &storage_manager, StorageNodeType::FullNode)
+        self.sync_ledger_and_state_db(&ledger_db, &storage_manager, NodeType::FullNode)
             .await?;
         let init_params =
             self.init_chain(genesis_config, &native_stf, &ledger_db, &storage_manager)?;
@@ -316,7 +316,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let native_stf = StfBlueprint::new();
 
-        self.sync_ledger_and_state_db(&ledger_db, &storage_manager, StorageNodeType::BatchProver)
+        self.sync_ledger_and_state_db(&ledger_db, &storage_manager, NodeType::BatchProver)
             .await?;
         let init_params =
             self.init_chain(genesis_config, &native_stf, &ledger_db, &storage_manager)?;

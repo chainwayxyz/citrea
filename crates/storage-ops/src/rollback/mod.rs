@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use citrea_common::NodeType;
 use futures::future;
 use ledger::rollback_ledger;
 use native::rollback_native_db;
@@ -9,8 +10,6 @@ use sov_db::state_db::StateDB;
 use state::rollback_state_db;
 use tracing::info;
 use types::RollbackContext;
-
-use crate::types::StorageNodeType;
 
 mod ledger;
 mod native;
@@ -45,7 +44,7 @@ impl Rollback {
     /// Rollback the provided L2/L1 block combination.
     pub async fn execute(
         &self,
-        node_type: StorageNodeType,
+        node_type: NodeType,
         l2_target: Option<u64>,
         l1_target: Option<u64>,
         last_sequencer_commitment_index: Option<u32>,
@@ -76,10 +75,10 @@ impl Rollback {
         // If node is light client, the target version is the L1 height
         // as light client prover does not hold L2 state.
         let target_version = match node_type {
-            StorageNodeType::FullNode
-            | StorageNodeType::BatchProver
-            | StorageNodeType::Sequencer => l2_target.map(|l2| l2 + 1), // +1 because version = height + 1
-            StorageNodeType::LightClient => {
+            NodeType::FullNode | NodeType::BatchProver | NodeType::Sequencer => {
+                l2_target.map(|l2| l2 + 1)
+            } // +1 because version = height + 1
+            NodeType::LightClientProver => {
                 if let Some(l1_target) = l1_target {
                     // Get highest state version from the state DB
                     let state_db_last_version = StateDB::new(state_db.clone())

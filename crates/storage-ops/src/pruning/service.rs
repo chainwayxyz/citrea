@@ -1,10 +1,10 @@
+use citrea_common::NodeType;
 use reth_tasks::shutdown::GracefulShutdown;
 use tokio::select;
 use tokio::sync::broadcast;
 use tracing::{debug, error, instrument};
 
 use super::Pruner;
-use crate::types::StorageNodeType;
 
 pub struct PrunerService {
     pruner: Pruner,
@@ -28,7 +28,7 @@ impl PrunerService {
     }
 
     #[instrument(name = "PrunerService", skip(self))]
-    pub async fn run(mut self, node_type: StorageNodeType, mut shutdown_signal: GracefulShutdown) {
+    pub async fn run(mut self, node_type: NodeType, mut shutdown_signal: GracefulShutdown) {
         loop {
             select! {
                 biased;

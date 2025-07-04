@@ -1,34 +1,21 @@
 use std::sync::Arc;
 
+use citrea_common::config::PruningConfig;
+use citrea_common::NodeType;
 use futures::future;
 use ledger::prune_ledger;
 use native::prune_native_db;
-use serde::{Deserialize, Serialize};
 use sov_db::schema::tables::{LastPrunedBlock, LastPrunedL2Height};
 use tracing::info;
 
 use self::criteria::{Criteria, DistanceCriteria};
 pub use self::service::*;
-use crate::types::StorageNodeType;
 
 pub(crate) mod criteria;
 pub(crate) mod ledger;
 pub(crate) mod native;
 pub(crate) mod service;
 pub(crate) mod state;
-
-/// A configuration type to define the behaviour of the pruner.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct PruningConfig {
-    /// Defines the number of blocks from the tip of the chain to remove.
-    pub distance: u64,
-}
-
-impl Default for PruningConfig {
-    fn default() -> Self {
-        Self { distance: 256 }
-    }
-}
 
 pub struct Pruner {
     /// Access to ledger tables.
@@ -75,7 +62,7 @@ impl Pruner {
     }
 
     /// Prune everything
-    pub async fn prune(&self, node_type: StorageNodeType, up_to_block: u64) {
+    pub async fn prune(&self, node_type: NodeType, up_to_block: u64) {
         info!("Pruning up to L2 block: {}", up_to_block);
         let ledger_db = self.ledger_db.clone();
 

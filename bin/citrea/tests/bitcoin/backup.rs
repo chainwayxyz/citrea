@@ -131,7 +131,7 @@ impl TestCase for BackupSequencerTest {
         let backup_path = sequencer.config.base.dir.join("backup");
         let backup_info = create_backup(&client, Some(&backup_path)).await?;
 
-        assert_eq!(backup_info.node_kind, "sequencer");
+        assert_eq!(backup_info.node_type, "sequencer");
         assert_eq!(backup_info.backup_id, 1);
         assert!(backup_info.created_at > 0);
         assert_eq!(backup_info.backup_path, backup_path);
@@ -199,7 +199,7 @@ impl TestCase for BackupSequencerTest {
             .run(
                 "restore-backup",
                 &[
-                    "--node-kind",
+                    "--node-type",
                     "sequencer",
                     "--db-path",
                     sequencer.config.rollup.storage.path.to_str().unwrap(),
@@ -282,7 +282,7 @@ impl TestCase for BackupSequencerTest {
             .run(
                 "restore-backup",
                 &[
-                    "--node-kind",
+                    "--node-type",
                     "sequencer",
                     "--db-path",
                     sequencer.config.rollup.storage.path.to_str().unwrap(),
@@ -378,7 +378,7 @@ impl TestCase for BackupFullNodeTest {
         let backup_path = full_node.config.base.dir.join("backup");
         let create_backup_info = create_backup(&client, Some(&backup_path)).await?;
 
-        assert_eq!(create_backup_info.node_kind, "full-node");
+        assert_eq!(create_backup_info.node_type, "full-node");
         assert_eq!(create_backup_info.backup_id, 1);
         assert!(create_backup_info.created_at > 0);
         assert_eq!(create_backup_info.backup_path, backup_path);
@@ -425,7 +425,7 @@ impl TestCase for BackupFullNodeTest {
             .run(
                 "restore-backup",
                 &[
-                    "--node-kind",
+                    "--node-type",
                     "full-node",
                     "--db-path",
                     full_node.config.rollup.storage.path.to_str().unwrap(),
@@ -552,7 +552,7 @@ impl TestCase for BackupFullNodeTest {
             .run(
                 "restore-backup",
                 &[
-                    "--node-kind",
+                    "--node-type",
                     "full-node",
                     "--db-path",
                     full_node.config.rollup.storage.path.to_str().unwrap(),
@@ -672,7 +672,7 @@ impl TestCase for BackupBatchProverTest {
         let backup_path = batch_prover.config.base.dir.join("backup");
         let backup_info = create_backup(&client, Some(&backup_path)).await?;
 
-        assert_eq!(backup_info.node_kind, "batch-prover");
+        assert_eq!(backup_info.node_type, "batch-prover");
         assert_eq!(backup_info.backup_id, 1);
         assert!(backup_info.created_at > 0);
         assert_eq!(backup_info.backup_path, backup_path);
@@ -732,7 +732,7 @@ impl TestCase for BackupBatchProverTest {
             .run(
                 "restore-backup",
                 &[
-                    "--node-kind",
+                    "--node-type",
                     "batch-prover",
                     "--db-path",
                     batch_prover.config.rollup.storage.path.to_str().unwrap(),
@@ -860,7 +860,7 @@ impl TestCase for BackupBatchProverTest {
             .run(
                 "restore-backup",
                 &[
-                    "--node-kind",
+                    "--node-type",
                     "batch-prover",
                     "--db-path",
                     batch_prover.config.rollup.storage.path.to_str().unwrap(),
@@ -1003,7 +1003,7 @@ impl TestCase for BackupLightClientProverTest {
         let backup_path = light_client_prover.config.base.dir.join("backup");
         let backup_info = create_backup(&client, Some(&backup_path)).await?;
 
-        assert_eq!(backup_info.node_kind, "light-client-prover");
+        assert_eq!(backup_info.node_type, "light-client-prover");
         assert_eq!(backup_info.backup_id, 1);
         assert!(backup_info.created_at > 0);
         assert_eq!(backup_info.backup_path, backup_path);
@@ -1070,7 +1070,7 @@ impl TestCase for BackupLightClientProverTest {
             .run(
                 "restore-backup",
                 &[
-                    "--node-kind",
+                    "--node-type",
                     "light-client-prover",
                     "--db-path",
                     light_client_prover
@@ -1130,7 +1130,7 @@ impl TestCase for BackupLightClientProverTest {
                 "rollback",
                 &[
                     "--node-type",
-                    "light-client",
+                    "light-client-prover",
                     "--db-path",
                     light_client_prover
                         .config
@@ -1210,7 +1210,7 @@ impl TestCase for BackupLightClientProverTest {
             .run(
                 "restore-backup",
                 &[
-                    "--node-kind",
+                    "--node-type",
                     "light-client-prover",
                     "--db-path",
                     light_client_prover

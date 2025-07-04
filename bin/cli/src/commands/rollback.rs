@@ -8,11 +8,11 @@ use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::state_db::StateDB;
 use tracing::info;
 
-use super::StorageNodeTypeArg;
+use super::NodeTypeArg;
 use crate::commands::cfs_from_node_type;
 
 pub(crate) async fn rollback(
-    node_type: StorageNodeTypeArg,
+    node_type: NodeTypeArg,
     db_path: PathBuf,
     l2_target: Option<u64>,
     l1_target: Option<u64>,

@@ -2376,6 +2376,7 @@ dependencies = [
  "citrea-common",
  "citrea-storage-ops",
  "clap",
+ "derive_more 1.0.0",
  "sov-db",
  "tokio",
  "tracing",
@@ -2396,7 +2397,6 @@ dependencies = [
  "citrea-evm",
  "citrea-primitives",
  "citrea-stf",
- "citrea-storage-ops",
  "futures",
  "hex",
  "hyper",
@@ -2721,6 +2721,7 @@ name = "citrea-storage-ops"
 version = "0.7.2"
 dependencies = [
  "anyhow",
+ "citrea-common",
  "derive_more 1.0.0",
  "futures",
  "hex",
