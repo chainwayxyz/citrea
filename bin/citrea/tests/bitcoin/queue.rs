@@ -105,7 +105,7 @@ impl DaTransactionQueueingTest {
             }
         }
 
-        // We mine the first three proofs + the 1 chunk pair nd make sure that the remaining chunks and aggregate
+        // We mine the first three proofs + the 1 chunk pair and make sure that the remaining chunks and aggregate
         // and the extra proof is properly queued and sent on next block when mempool size is freed
         // Assert that all chunks were mined and mempool space is freed
         assert_eq!(da.get_raw_mempool().await?.len(), 0);
