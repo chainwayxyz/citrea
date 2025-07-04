@@ -25,9 +25,9 @@ The first commitment's L2 start height varies by network:
 - **Existing chains**: L2 start height is the Tangerine fork activation height
 
 The Tangerine fork activation height is determined by the network's fork configuration:
-- **Mainnet**: Tangerine activates at height 1 (defined in the fork configuration)
-- **Testnet**: Tangerine activates at height 9,057,000
-- **Devnet**: Tangerine activates at height 1 (effectively starting from height 1)
+- **Mainnet**: Tangerine activates at height 0, first commitment starts at height 1
+- **Testnet**: Tangerine activates at height 9,057,000, first commitment starts at height 9,057,000
+- **Devnet**: Tangerine activates at height 0, first commitment starts at height 1
 - **Nightly/Testing**: Uses the latest fork specification
 
 This design ensures that the first batch proof starts from the appropriate L2 height based on the network's state and fork progression.
