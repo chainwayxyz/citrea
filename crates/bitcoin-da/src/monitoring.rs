@@ -321,7 +321,7 @@ impl MonitoringService {
         });
         tracing::trace!("[restore_from_utxos] {unspent:?}");
 
-        let mut txids = Vec::new();
+        let mut txs = Vec::new();
         for tx in &unspent {
             let reveal_txid = tx.txid;
             let reveal_tx = self
@@ -346,7 +346,7 @@ impl MonitoringService {
                     .transaction()
                     .unwrap();
 
-                txids.push([
+                txs.push([
                     TxWithId {
                         id: commit_txid,
                         tx: commit_tx,
@@ -359,9 +359,10 @@ impl MonitoringService {
             }
         }
 
-        tracing::trace!("[restore_from_utxos] {txids:?}");
+        tracing::trace!("[restore_from_utxos] {txs:?}");
 
-        self.monitor_transaction_chain(txids).await
+        self.monitor_transaction_chain(txs).await?;
+        self.check_transactions().await
     }
 
     /// Run monitoring to keep track of TX status and chain re-orgs
@@ -480,7 +481,9 @@ impl MonitoringService {
         let tx = tx_result.transaction()?;
         self.total_size.fetch_add(tx.total_size(), Ordering::SeqCst);
 
-        let status = self.determine_tx_status(&tx_result).await?;
+        let status = self
+            .determine_tx_status(&tx_result, &monitored_tx.status)
+            .await?;
 
         let new_tx = MonitoredTx {
             tx,
@@ -570,7 +573,7 @@ impl MonitoringService {
             if let TxStatus::Confirmed { confirmations, .. } = tx.status {
                 if confirmations <= depth {
                     let tx_result = self.client.get_transaction(txid, None).await?;
-                    tx.status = self.determine_tx_status(&tx_result).await?;
+                    tx.status = self.determine_tx_status(&tx_result, &tx.status).await?;
 
                     if let TxStatus::InMempool { .. } = tx.status {
                         info!("Rebroadcasting tx {} {tx:?}", tx.tx.compute_txid());
@@ -591,12 +594,15 @@ impl MonitoringService {
         for (txid, monitored_tx) in txs.iter_mut() {
             match &monitored_tx.status {
                 // Check non-finalized TXs
-                TxStatus::InMempool { .. }
+                TxStatus::Queued
+                | TxStatus::InMempool { .. }
                 | TxStatus::Evicted { .. }
                 | TxStatus::Confirmed { .. }
                 | TxStatus::Replaced { .. } => {
                     let tx_result = self.client.get_transaction(txid, None).await?;
-                    let new_status = self.determine_tx_status(&tx_result).await?;
+                    let new_status = self
+                        .determine_tx_status(&tx_result, &monitored_tx.status)
+                        .await?;
 
                     monitored_tx.status = new_status;
                 }
@@ -609,7 +615,11 @@ impl MonitoringService {
         Ok(())
     }
 
-    async fn determine_tx_status(&self, tx_result: &GetTransactionResult) -> Result<TxStatus> {
+    async fn determine_tx_status(
+        &self,
+        tx_result: &GetTransactionResult,
+        current_status: &TxStatus,
+    ) -> Result<TxStatus> {
         let confirmations = tx_result.info.confirmations as u64;
         let status = if confirmations > 0 {
             let block_hash = tx_result
@@ -646,6 +656,10 @@ impl MonitoringService {
                     }
                 }
                 Err(_) => {
+                    if *current_status == TxStatus::Queued {
+                        return Ok(current_status.clone());
+                    }
+
                     tracing::info!("Tx {} was evicted from mempool.", tx_result.info.txid);
                     TxStatus::Evicted {
                         last_seen: get_timestamp()?,
@@ -701,7 +715,10 @@ impl MonitoringService {
                     let now = get_timestamp()?;
 
                     if now.saturating_sub(*last_seen) >= self.config.rebroadcast_delay {
-                        match self.attempt_rebroadcast(txid, &monitored_tx.tx).await {
+                        match self
+                            .attempt_rebroadcast(txid, &monitored_tx.tx, &monitored_tx.status)
+                            .await
+                        {
                             Ok(new_status) => {
                                 info!("Successfully rebroadcast tx {txid}");
                                 monitored_tx.status = new_status;
@@ -724,11 +741,16 @@ impl MonitoringService {
     }
 
     #[instrument(skip(self, tx))]
-    async fn attempt_rebroadcast(&self, txid: &Txid, tx: &Transaction) -> Result<TxStatus> {
+    async fn attempt_rebroadcast(
+        &self,
+        txid: &Txid,
+        tx: &Transaction,
+        current_status: &TxStatus,
+    ) -> Result<TxStatus> {
         let raw_tx_hex = bitcoin::consensus::encode::serialize_hex(tx);
         self.client.send_raw_transaction(raw_tx_hex).await?;
         let tx_result = self.client.get_transaction(txid, None).await?;
-        self.determine_tx_status(&tx_result).await
+        self.determine_tx_status(&tx_result, current_status).await
     }
 
     pub async fn get_tx_status(&self, txid: &Txid) -> Option<TxStatus> {
@@ -761,7 +783,7 @@ impl MonitoringService {
         for txid in txids {
             if let Some(entry) = monitored_txs.get_mut(txid) {
                 if let Ok(tx_result) = self.client.get_transaction(txid, None).await {
-                    entry.status = self.determine_tx_status(&tx_result).await?;
+                    entry.status = self.determine_tx_status(&tx_result, &entry.status).await?;
                     entry.last_checked = get_timestamp()?;
                     entry.address = tx_result
                         .details
