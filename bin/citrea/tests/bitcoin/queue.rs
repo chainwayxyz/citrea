@@ -176,7 +176,7 @@ impl DaTransactionQueueingTest {
 
         // Assert that all queued txs are monitored
         let monitored_txs = da_service.monitoring.get_monitored_txs().await;
-        assert_eq!(monitored_txs.len(), 24);
+        assert_eq!(monitored_txs.len(), 64);
 
         da.generate(1).await?;
         // Assert that all chunks were mined and mempool space is freed
