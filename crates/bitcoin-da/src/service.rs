@@ -65,6 +65,7 @@ pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
 
 const POLLING_INTERVAL: u64 = 10; // seconds
 
+/// Map sov Network to Bitcoin Network.
 pub fn network_to_bitcoin_network(network: &Network) -> bitcoin::Network {
     match network {
         Network::Mainnet => bitcoin::Network::Bitcoin,
@@ -74,21 +75,25 @@ pub fn network_to_bitcoin_network(network: &Network) -> bitcoin::Network {
     }
 }
 
-/// Runtime configuration for the DA service
+/// Runtime configuration for the DA service.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct BitcoinServiceConfig {
-    /// The URL of the Bitcoin node to connect to
+    /// The URL of the Bitcoin node to connect to.
     pub node_url: String,
+    /// Username to authenticate with the Bitcoin node.
     pub node_username: String,
+    /// Password to authenticate with the Bitcoin node.
     pub node_password: String,
 
-    // da private key of the sequencer
+    /// DA private key of the sequencer.
     pub da_private_key: Option<String>,
 
-    // absolute path to the directory where the txs will be written to
+    /// Absolute path to the directory where the txs will be written to.
     pub tx_backup_dir: String,
 
+    /// Monitoring configuration.
     pub monitoring: Option<MonitoringConfig>,
+    /// The URL of the mempool.space API.
     pub mempool_space_url: Option<String>,
 }
 
@@ -123,7 +128,7 @@ pub struct BitcoinService {
 
 impl BitcoinService {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    fn new(
         client: Arc<Client>,
         network: bitcoin::Network,
         network_constants: NetworkConstants,
@@ -150,7 +155,7 @@ impl BitcoinService {
         }
     }
 
-    // Create a new instance of the DA service from the given configuration.
+    /// Create a new instance of the DA service from the given configuration.
     #[allow(clippy::too_many_arguments)]
     pub async fn from_config(
         config: &BitcoinServiceConfig,
@@ -199,6 +204,7 @@ impl BitcoinService {
         ))
     }
 
+    /// Run the task to process the DA commands from the queue.
     #[instrument(name = "BitcoinDA", skip(self))]
     pub async fn run_da_queue(
         self: Arc<Self>,
@@ -317,6 +323,7 @@ impl BitcoinService {
             .collect()
     }
 
+    /// Sends a transaction to the Bitcoin network with a specified fee rate.
     #[instrument(level = "trace", fields(prev_utxo), ret, err, skip(self))]
     pub async fn send_transaction_with_fee_rate(
         &self,
@@ -661,6 +668,7 @@ impl BitcoinService {
         Ok(txids)
     }
 
+    /// Bumps the transaction fee using the specified bump method.
     pub async fn bump_fee(
         &self,
         txid: Option<Txid>,
@@ -1428,6 +1436,7 @@ pub fn get_relevant_blobs_from_txs(
     relevant_txs
 }
 
+/// Wrapper around Txid to be used in DaSpec.
 #[derive(PartialEq, Eq, PartialOrd, Ord, core::hash::Hash)]
 pub struct TxidWrapper(Txid);
 impl From<TxidWrapper> for [u8; 32] {

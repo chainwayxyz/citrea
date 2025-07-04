@@ -1,3 +1,5 @@
+//! Parsers for Bitcoin transactions related to Citrea rollup.
+
 use core::num::NonZero;
 
 use bitcoin::blockdata::script::Instruction;

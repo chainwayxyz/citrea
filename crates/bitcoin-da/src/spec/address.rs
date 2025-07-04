@@ -1,3 +1,5 @@
+//! Provides a wrapper to implement the BasicAddress trait.
+
 use core::fmt::{Display, Formatter};
 use core::str::FromStr;
 

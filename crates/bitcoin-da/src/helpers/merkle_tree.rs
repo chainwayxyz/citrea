@@ -1,6 +1,7 @@
-/// Code is taken from Clementine
-/// https://github.com/chainwayxyz/clementine/blob/b600ea18df72bdc60015ded01b78131b4c9121d7/operator/src/bitcoin_merkle.rs
-///
+//! Bitcoin merkle tree implementation.
+//! Code is taken from Clementine
+//! https://github.com/chainwayxyz/clementine/blob/b600ea18df72bdc60015ded01b78131b4c9121d7/operator/src/bitcoin_merkle.rs
+
 use super::calculate_double_sha256;
 
 /// Bitcoin merkle tree.

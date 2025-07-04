@@ -4,7 +4,6 @@ use alloy_primitives::{U32, U64};
 use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
-use bitcoin_da::service::get_relevant_blobs_from_txs;
 use bitcoincore_rpc::RpcApi;
 use borsh::BorshDeserialize;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
@@ -23,6 +22,7 @@ use sov_rollup_interface::rpc::SequencerCommitmentResponse;
 use tokio::time::sleep;
 
 use super::get_citrea_path;
+use crate::bitcoin::get_relevant_seqcoms_from_txs;
 
 pub async fn wait_for_sequencer_commitments(
     full_node: &FullNode,
@@ -271,7 +271,7 @@ impl SequencerSendCommitmentsToDaTest {
         let hash = da.get_block_hash(finalized_height).await?;
         let block = da.get_block(&hash).await?;
 
-        let mut blobs = get_relevant_blobs_from_txs(block.txdata, REVEAL_TX_PREFIX);
+        let mut blobs = get_relevant_seqcoms_from_txs(block.txdata, REVEAL_TX_PREFIX);
 
         assert_eq!(blobs.len(), 1);
 

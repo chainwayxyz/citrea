@@ -1,3 +1,6 @@
+//! This module provides a wrapper around Bitcoin transactions to implement
+//! borsh serialization and deserialization.
+
 use core::ops::{Deref, DerefMut};
 
 use bitcoin::absolute::LockTime;

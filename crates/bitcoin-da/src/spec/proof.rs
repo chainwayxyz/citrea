@@ -1,3 +1,5 @@
+//! Provides a proof for the inclusion of transactions in a block.
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
