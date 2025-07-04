@@ -96,6 +96,7 @@ impl DaTransactionQueueingTest {
         assert!(matches!(res, Err(BitcoinServiceError::QueueNotEmpty)));
 
         // Send transaction hangs until a new block is detected
+        // Tests that transactions properly waits for block notification
         tokio::select! {
             _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {
                 da.generate(1).await?;
@@ -172,6 +173,11 @@ impl DaTransactionQueueingTest {
 
         da.wait_mempool_len(18, None).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 18);
+
+        // Assert that all queued txs are monitored
+        let monitored_txs = da_service.monitoring.get_monitored_txs().await;
+        assert_eq!(monitored_txs.len(), 24);
+
         da.generate(1).await?;
         // Assert that all chunks were mined and mempool space is freed
         assert_eq!(da.get_raw_mempool().await?.len(), 0);
