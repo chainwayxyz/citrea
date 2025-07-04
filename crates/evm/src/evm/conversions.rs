@@ -1,7 +1,9 @@
 use alloy_consensus::constants::KECCAK_EMPTY;
 use alloy_consensus::Transaction;
 use alloy_eips::eip2718::Decodable2718;
-use alloy_primitives::{Bytes as RethBytes, U256};
+use alloy_primitives::Bytes as RethBytes;
+#[cfg(feature = "native")]
+use alloy_primitives::U256;
 use reth_primitives::{Recovered, TransactionSigned};
 use reth_primitives_traits::SignedTransaction;
 use revm::context::{TransactTo, TxEnv};

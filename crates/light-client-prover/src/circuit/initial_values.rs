@@ -7,6 +7,7 @@ use sov_modules_api::DaSpec;
 #[cfg(feature = "native")]
 use sov_rollup_interface::Network;
 
+#[cfg(feature = "native")]
 use self::non_empty_slice::NonEmptySlice;
 
 /// Genesis root for the Light Client Prover's Jellyfish Merkle Tree.
@@ -42,7 +43,7 @@ pub mod mockda {
     pub const INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> =
         NonEmptySlice::new(&[(0, citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID)]);
 
-    /// Public key of the batch prover in the mock DA.    
+    /// Public key of the batch prover in the mock DA.
     pub const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"03eedab888e45f3bdc3ec9918c491c11e5cf7af0a91f38b97fbc1e135ae4056601",
     ) {
