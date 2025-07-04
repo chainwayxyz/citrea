@@ -2374,7 +2374,6 @@ version = "0.7.2"
 dependencies = [
  "anyhow",
  "citrea-common",
- "citrea-primitives",
  "citrea-storage-ops",
  "clap",
  "derive_more 1.0.0",

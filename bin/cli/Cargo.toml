@@ -13,7 +13,6 @@ resolver = "2"
 [dependencies]
 # Citrea deps
 citrea-common = { path = "../../crates/common" }
-citrea-primitives = { path = "../../crates/primitives" }
 citrea-storage-ops = { path = "../../crates/storage-ops" }
 
 # Sovereign-SDK deps
