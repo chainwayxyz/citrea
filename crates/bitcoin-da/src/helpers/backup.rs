@@ -23,11 +23,21 @@ pub(crate) fn backup_txs_to_file(path: &Path, txs: &[SignedTxPair]) -> anyhow::R
         match &tx.kind {
             TransactionKind::Complete
             | TransactionKind::BatchProofMethodId
-            | TransactionKind::SequencerCommitment => backup_complete_txs(
-                path,
-                &tx.as_raw_txs(),
-                transaction_kind_to_backup_name(&tx.kind),
-            )?,
+            | TransactionKind::SequencerCommitment => {
+                if txs.len() != 2 {
+                    return Err(anyhow::anyhow!(
+                        "Expected exactly 2 transactions for {:?}, got {}",
+                        tx.kind,
+                        txs.len()
+                    ));
+                }
+
+                backup_complete_txs(
+                    path,
+                    &tx.as_raw_txs(),
+                    transaction_kind_to_backup_name(&tx.kind),
+                )?
+            }
             TransactionKind::Aggregate | TransactionKind::Chunks => backup_chunked_txs(path, txs)?,
             TransactionKind::Unknown(_) => unimplemented!(),
         }
