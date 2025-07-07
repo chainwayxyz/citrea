@@ -30,7 +30,7 @@ use sov_db::schema::types::L2HeightAndIndex;
 use sov_ledger_rpc::{HexHash, LedgerRpcClient};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, JobRpcResponse, LastVerifiedBatchProofResponse,
+    JobRpcResponse, LastVerifiedBatchProofResponse,
     SequencerCommitmentResponse, SequencerCommitmentRpcParam, VerifiedBatchProofResponse,
 };
 use uuid::Uuid;
@@ -595,14 +595,7 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
-    pub(crate) async fn ledger_get_batch_proofs_by_slot_height(
-        &self,
-        _height: u64,
-    ) -> Option<Vec<BatchProofResponse>> {
-        // This method has been disabled and now returns Method not found error
-        // Use ledger_get_verified_batch_proofs_by_slot_height instead
-        panic!("ledger_get_batch_proofs_by_slot_height has been disabled. Use ledger_get_verified_batch_proofs_by_slot_height instead")
-    }
+
 
     pub(crate) async fn ledger_get_verified_batch_proofs_by_slot_height(
         &self,

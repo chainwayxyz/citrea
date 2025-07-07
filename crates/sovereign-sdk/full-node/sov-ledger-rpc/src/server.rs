@@ -2,12 +2,12 @@
 
 use alloy_primitives::{U32, U64};
 use jsonrpsee::core::RpcResult;
-use jsonrpsee::types::{ErrorCode, ErrorObject, ErrorObjectOwned};
+use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, LastVerifiedBatchProofResponse, LedgerRpcProvider,
+    LastVerifiedBatchProofResponse, LedgerRpcProvider,
     SequencerCommitmentResponse, VerifiedBatchProofResponse,
 };
 
@@ -113,19 +113,7 @@ where
             .map_err(to_ledger_rpc_error)
     }
 
-    fn get_batch_proofs_by_slot_height(
-        &self,
-        _height: U64,
-    ) -> RpcResult<Option<Vec<BatchProofResponse>>> {
-        Err(ErrorObject::from(ErrorCode::MethodNotFound).to_owned())
-    }
 
-    fn get_batch_proofs_by_slot_hash(
-        &self,
-        _hash: HexHash,
-    ) -> RpcResult<Option<Vec<BatchProofResponse>>> {
-        Err(ErrorObject::from(ErrorCode::MethodNotFound).to_owned())
-    }
 
     fn get_verified_batch_proofs_by_slot_height(
         &self,
