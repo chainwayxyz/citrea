@@ -8,7 +8,7 @@ use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
 use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_NIP};
 use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::{SecretKey, XOnlyPublicKey};
-use bitcoin::{Address, Amount, Network, Transaction};
+use bitcoin::{Address, Amount, Network};
 use secp256k1::SECP256K1;
 use tracing::{trace, warn};
 
@@ -16,6 +16,8 @@ use super::{
     build_commit_transaction, build_reveal_transaction, build_taproot, build_witness,
     get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind,
 };
+use crate::helpers::builders::body_builders::DaTxs;
+use crate::helpers::builders::TxWithId;
 use crate::spec::utxo::UTXO;
 use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
@@ -31,11 +33,11 @@ pub fn test_create_single_chunk(
     reveal_fee_rate: u64,
     network: Network,
     reveal_tx_prefix: &[u8],
-) -> Result<(Transaction, Transaction), anyhow::Error> {
+) -> Result<DaTxs, anyhow::Error> {
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
-    let kind = TransactionKind::ChunkedPart;
+    let kind = TransactionKind::Chunks;
     let kind_bytes = kind.to_bytes();
 
     // start creating inscription content
@@ -144,7 +146,13 @@ pub fn test_create_single_chunk(
                     commit_tx_address
                 );
 
-                return Ok((unsigned_commit_tx, reveal_tx));
+                return Ok(DaTxs::Complete {
+                    commit: unsigned_commit_tx,
+                    reveal: TxWithId {
+                        id: reveal_tx.compute_txid(),
+                        tx: reveal_tx,
+                    },
+                });
             } else {
                 unsigned_commit_tx.output[0].value -= Amount::ONE_SAT;
                 unsigned_commit_tx.output[1].value += Amount::ONE_SAT;
@@ -173,13 +181,13 @@ pub fn test_create_single_aggregate(
     commit_fee_rate: u64,
     prev_utxo: Option<UTXO>,
     reveal_tx_prefix: &[u8],
-) -> Result<(Transaction, Transaction), anyhow::Error> {
+) -> Result<DaTxs, anyhow::Error> {
     // sign the body for authentication of the sequencer
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
     let (signature, signer_public_key) = sign_blob_with_private_key(&reveal_body, da_private_key);
 
-    let kind = TransactionKind::Chunked;
+    let kind = TransactionKind::Aggregate;
     let kind_bytes = kind.to_bytes();
 
     // start creating inscription content
@@ -296,7 +304,13 @@ pub fn test_create_single_aggregate(
                     commit_tx_address
                 );
 
-                return Ok((unsigned_commit_tx, reveal_tx));
+                return Ok(DaTxs::Complete {
+                    commit: unsigned_commit_tx,
+                    reveal: TxWithId {
+                        id: reveal_tx.compute_txid(),
+                        tx: reveal_tx,
+                    },
+                });
             } else {
                 unsigned_commit_tx.output[0].value -= Amount::ONE_SAT;
                 unsigned_commit_tx.output[1].value += Amount::ONE_SAT;

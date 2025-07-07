@@ -199,10 +199,10 @@ fn parse_transaction(
         TransactionKind::Complete => {
             body_parsers::parse_type_0_body(instructions).map(ParsedTransaction::Complete)
         }
-        TransactionKind::Chunked => {
+        TransactionKind::Aggregate => {
             body_parsers::parse_type_1_body(instructions).map(ParsedTransaction::Aggregate)
         }
-        TransactionKind::ChunkedPart => {
+        TransactionKind::Chunks => {
             body_parsers::parse_type_2_body(instructions).map(ParsedTransaction::Chunk)
         }
         TransactionKind::BatchProofMethodId => body_parsers::parse_type_3_body(instructions)

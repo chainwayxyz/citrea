@@ -1403,6 +1403,10 @@ impl TestCase for UnchainedBatchProofsTest {
         }
     }
 
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(164)
+    }
+
     async fn cleanup(self) -> Result<()> {
         self.task_manager
             .graceful_shutdown_with_timeout(Duration::from_secs(1));
@@ -1575,6 +1579,7 @@ impl TestCase for UnchainedBatchProofsTest {
                 .await
                 .unwrap(),
         );
+
         da.wait_mempool_len(6, None).await?;
 
         da.generate_block(
@@ -1582,7 +1587,9 @@ impl TestCase for UnchainedBatchProofsTest {
                 .await?
                 .assume_checked()
                 .to_string(),
-            txs.into_iter().map(|tx| tx.id.to_string()).collect(),
+            txs.into_iter()
+                .flat_map(|tx| [tx[0].id.to_string(), tx[1].id.to_string()])
+                .collect(),
         )
         .await?;
 
@@ -2271,7 +2278,9 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
                 .await?
                 .assume_checked()
                 .to_string(),
-            txs.into_iter().map(|tx| tx.id.to_string()).collect(),
+            txs.into_iter()
+                .flat_map(|tx| [tx[0].id.to_string(), tx[1].id.to_string()])
+                .collect(),
         )
         .await?;
 
@@ -2338,7 +2347,9 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
                 .await?
                 .assume_checked()
                 .to_string(),
-            txs.into_iter().map(|tx| tx.id.to_string()).collect(),
+            txs.into_iter()
+                .flat_map(|tx| [tx[0].id.to_string(), tx[1].id.to_string()])
+                .collect(),
         )
         .await?;
 
@@ -2412,7 +2423,9 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
                 .await?
                 .assume_checked()
                 .to_string(),
-            txs.into_iter().map(|tx| tx.id.to_string()).collect(),
+            txs.into_iter()
+                .flat_map(|tx| [tx[0].id.to_string(), tx[1].id.to_string()])
+                .collect(),
         )
         .await?;
 
@@ -2449,7 +2462,9 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
                 .await?
                 .assume_checked()
                 .to_string(),
-            txs.into_iter().map(|tx| tx.id.to_string()).collect(),
+            txs.into_iter()
+                .flat_map(|tx| [tx[0].id.to_string(), tx[1].id.to_string()])
+                .collect(),
         )
         .await?;
 

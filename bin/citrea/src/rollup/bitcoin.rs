@@ -126,7 +126,7 @@ impl RollupBlueprint for BitcoinRollup {
 
         let network = network_to_bitcoin_network(&chain_params.network);
         let network_constants = get_network_constants(&network);
-        let monitoring_service = MonitoringService::new(
+        let (monitoring_service, block_rx) = MonitoringService::new(
             client.clone(),
             da_config.monitoring.clone(),
             network_constants.finality_depth,
@@ -158,7 +158,7 @@ impl RollupBlueprint for BitcoinRollup {
             service.monitoring.restore().await?;
 
             task_executor.spawn_with_graceful_shutdown_signal(|tk| {
-                Arc::clone(&service).run_da_queue(rx, tk)
+                Arc::clone(&service).run_da_queue(rx, block_rx, tk)
             });
             task_executor
                 .spawn_with_graceful_shutdown_signal(|tk| Arc::clone(&service.monitoring).run(tk));

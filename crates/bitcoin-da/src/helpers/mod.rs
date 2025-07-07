@@ -5,19 +5,23 @@ use bitcoin::Transaction;
 use sha2::{Digest, Sha256};
 
 #[cfg(feature = "native")]
+pub mod backup;
+#[cfg(feature = "native")]
 pub mod builders;
+
 pub mod merkle_tree;
 pub mod parsers;
 
 /// Type represents a typed enum for transaction kind
+#[derive(Debug, Clone)]
 #[repr(u16)]
-enum TransactionKind {
+pub(crate) enum TransactionKind {
     /// This type of transaction includes full body (< 400kb)
     Complete = 0,
     /// This type of transaction includes txids of chunks (>= 400kb)
-    Chunked = 1,
+    Aggregate = 1,
     /// This type of transaction includes chunk parts of body (>= 400kb)
-    ChunkedPart = 2,
+    Chunks = 2,
     /// This type of transaction includes a new batch proof method_id
     BatchProofMethodId = 3,
     /// SequencerCommitment
@@ -32,8 +36,8 @@ impl TransactionKind {
     fn to_bytes(&self) -> Vec<u8> {
         match self {
             TransactionKind::Complete => 0u16.to_le_bytes().to_vec(),
-            TransactionKind::Chunked => 1u16.to_le_bytes().to_vec(),
-            TransactionKind::ChunkedPart => 2u16.to_le_bytes().to_vec(),
+            TransactionKind::Aggregate => 1u16.to_le_bytes().to_vec(),
+            TransactionKind::Chunks => 2u16.to_le_bytes().to_vec(),
             TransactionKind::BatchProofMethodId => 3u16.to_le_bytes().to_vec(),
             TransactionKind::SequencerCommitment => 4u16.to_le_bytes().to_vec(),
             TransactionKind::Unknown(n) => n.get().to_le_bytes().to_vec(),
@@ -47,8 +51,8 @@ impl TransactionKind {
         kind_bytes.copy_from_slice(bytes);
         match u16::from_le_bytes(kind_bytes) {
             0 => Some(TransactionKind::Complete),
-            1 => Some(TransactionKind::Chunked),
-            2 => Some(TransactionKind::ChunkedPart),
+            1 => Some(TransactionKind::Aggregate),
+            2 => Some(TransactionKind::Chunks),
             3 => Some(TransactionKind::BatchProofMethodId),
             4 => Some(TransactionKind::SequencerCommitment),
             n => Some(TransactionKind::Unknown(
