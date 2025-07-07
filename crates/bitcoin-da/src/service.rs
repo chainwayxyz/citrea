@@ -436,8 +436,13 @@ impl BitcoinService {
 
         let mut txids = Vec::new();
         while let Some(tx) = queue.front() {
+            info!(
+                "Processing transaction from queue. Commit: {} Reveal: {}",
+                tx.commit_txid(),
+                tx.reveal_txid()
+            );
             if let Err(e) = self.test_mempool_accept(&tx.as_raw_txs()).await {
-                debug!(?e, "Rejected by mempool");
+                warn!(?e, "Rejected by mempool");
                 break;
             }
 

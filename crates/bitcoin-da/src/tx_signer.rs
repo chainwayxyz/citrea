@@ -47,6 +47,11 @@ impl SignedTxPair {
         ]
     }
 
+    // Pre-computed commit txid
+    pub fn commit_txid(&self) -> Txid {
+        self.commit.id
+    }
+
     // Pre-computed reveal txid
     pub fn reveal_txid(&self) -> Txid {
         self.reveal.id
