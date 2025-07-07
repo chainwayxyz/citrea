@@ -252,6 +252,13 @@ impl DaVerifier for BitcoinVerifier {
         Ok(blobs)
     }
 
+    /// This function verifies the header chain of Bitcoin blocks
+    /// applying the rules of the specified network.
+    /// The rules may differ between networks such as Mainnet, Testnet, Devnet, etc.
+    /// It checks for common header chain rules first, then for the specific rules of the network.
+    ///
+    /// Returns the latest data availability state in case of success,
+    /// or an error if the verification fails.
     fn verify_header_chain(
         &self,
         latest_da_state: Option<&LatestDaState>,
@@ -295,6 +302,7 @@ impl DaVerifier for BitcoinVerifier {
 }
 
 impl BitcoinVerifier {
+    /// Verifies the header chain for the mainnet.
     fn verify_header_chain_mainnet(
         &self,
         latest_da_state: &LatestDaState,
@@ -354,6 +362,7 @@ impl BitcoinVerifier {
         })
     }
 
+    /// Verifies the header chain for the testnet4 network.
     fn verify_header_chain_testnet4(
         &self,
         latest_da_state: &LatestDaState,
@@ -421,6 +430,7 @@ impl BitcoinVerifier {
         })
     }
 
+    /// Verifies the header chain for the signet network.
     fn verify_header_chain_signet(
         &self,
         latest_da_state: &LatestDaState,
@@ -480,6 +490,7 @@ impl BitcoinVerifier {
         })
     }
 
+    /// Verifies the header chain for the regtest network.
     fn verify_header_chain_regtest(
         &self,
         latest_da_state: &LatestDaState,
@@ -511,6 +522,14 @@ impl BitcoinVerifier {
         })
     }
 
+    /// Verifies the common rules for Bitcoin block headers.
+    /// This includes:
+    /// 1. Verifying the block hash
+    /// 2. Ensuring block heights are consecutive
+    /// 3. Checking the previous block hash matches the latest DA state
+    /// 4. Validating the block bits
+    /// 5. Verifying the proof of work against the target hash
+    /// 6. Validating the timestamp against the median of the previous 11 timestamps
     fn verify_header_chain_common(
         &self,
         block_header: &HeaderWrapper,

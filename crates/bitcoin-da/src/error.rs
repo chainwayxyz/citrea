@@ -60,10 +60,10 @@ pub enum MempoolRejection {
     /// Sent package of txs resulted in too much unconfirmed tx data in mempool. (over 101 kvb)
     #[error("Transaction rejected: package-too-large")]
     PackageTooLarge,
-    /// Sent pacakge of txs resulted in too many transactions in mempool. (ascendant/descendant limit)
+    /// Sent package of txs resulted in too many transactions in mempool. (ascendant/descendant limit)
     #[error("Transaction rejected: package-too-many-transactions")]
     PackageTooManyTransactions,
-    /// Sent pacakge of txs resulted in too many transactions in mempool. (ascendant/descendant limit)
+    /// Sent package of txs resulted in too many transactions in mempool. (ascendant/descendant limit)
     #[error("Transaction rejected: package-mempool-limits")]
     PackageMempoolLimits,
     /// Other mempool rejection reason.
