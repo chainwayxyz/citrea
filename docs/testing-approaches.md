@@ -1,17 +1,3 @@
-# Outline:
-- Bitcoin E2E
-- Mock E2E
-- Etherjs/uniswap/web3_py
-
-- Evm tests:
-  - Precomppiles
-  - EF tests
-  - Call/fork/genesis
-  - Queries
-  - Sys txs
-- STF verifier tests
-- Unit tests
-
 ## Bitcoin E2E Tests
 
 Bitcoin end-to-end (E2E) tests are the main method for verifying Citrea’s functionality. Using Citrea’s E2E framework, `citrea-e2e`, these tests spawn Citrea nodes, namely sequencer, full node, batch prover, light client prover, that run with Bitcoin Regtest as the DA layer. This setup tests each node’s behaviour and flow, how nodes interact with each other, and how they interact with the Bitcoin network.
@@ -87,15 +73,20 @@ web3.py: Tests web3 module's methods
 - System contract tests (foundry)
 - EF tests (evm/src/tests/ef_tests)
 - ...
+- Call/fork/genesis
+- Queries
+- Sys txs
+- Precomppiles
 
-## STF verifier
+## State Transition Verifier Tests
+Located in the `citrea-stf` crate, these tests focus on the core logic of the batch proof circuit by verifying the state transitions of sequencer commitments. Most tests call the STF blueprint methods directly to validate their behaviour. `MockZkGuest` is used to simulate passing inputs from the host to the guest code.
 
-No DA involved, uses MockZkGuest
-
-- L1 hash related tests( reads and verification)
-- Valid/ invalid sequencer commitments, sequential(index, l2 height), previous comm, merkle root. (apply_l2_blocks_from_sequencer_commitments), 
-- Prev hash proof
-- sequencer pubkey
-- L2 block processing: non sequential(height, hash), timestamp, state root
+### Scope
+- **Last L1 hash**  
+  Checks that the last L1 hash can be read and verified correctly from the Bitcoin Light Client contract.
+- **Applying Sequencer Commitments**  
+  Tests that sequencer commitments are accepted only if they are sequential in L2 height, properly linked to the previous commitment, and include valid Merkle roots for the L2 block hashes.
+- **L2 block processing**  
+  Checks that L2 blocks are validated and applied correctly: block headers must have valid hashes, transaction Merkle roots must match, and sequencer signatures must be verified. The tests also confirm that blocks are applied in order, parent hashes match, timestamps increase as expected, and the limit of L2 blocks per L1 block is enforced.
 
 ## Light client tests
