@@ -61,12 +61,18 @@ Scope of the Mock E2E tests overlap with the Bitcoin E2E tests. They both verify
   Verifies sequencer operation, including L2 block production and commitment generation.
 - **System transactions**  
   Tests if system transactions are triggered and they are in the expected L2 blocks.
+- **EVM Tests**  
+  Tests Ethereum RPC methods, EVM precompile calls, subscriptions, tracing endpoints. Also sends test transactions to check L1 diff sizes, and gas price changes.
 
-## Etherjs/ uniswap/ web3py
+## Ether.js, Uniswap, web3.py Tests
+These tests verify Citrea's compatibility with popular Ethereum tooling and protocols by running real-world scenarios. A sequencer and full node are required to execute these tests.
 
-Uniswap: deploys erc 20 tokens/ uniswap contracts (factory, pair, router) and performs swap, liquidity adding etc.
-Etherjs: Tests integration with the ethers js
-web3.py: Tests web3 module's methods
+- **Uniswap**  
+  Deploys ERC20 tokens, Uniswap V2 Factory and Router contracts on Citrea. Creates trading pairs, adds liquidity, performs token swaps, and validates the resulting state changes.
+- **Ethers.js**  
+  Tests Ethereum JSON-RPC compatibility using the ethers.js library.
+- **web3.py**  
+  Tests Ethereum JSON-RPC compatibility using the web3.py library.
 
 ## EVM tests 
 
