@@ -9,7 +9,7 @@ use crate::monitoring::{MonitorError, TxStatus};
 #[derive(Error, Debug)]
 pub enum BitcoinServiceError {
     /// Fail to parse address.
-    #[error("Fail to parse address: {0}")]
+    #[error("Failed to parse address: {0}")]
     AddressParseError(#[from] ParseError),
     /// Invalid transaction.
     #[error("Invalid transaction: {0}")]
@@ -17,12 +17,6 @@ pub enum BitcoinServiceError {
     /// Task join error.
     #[error("Task join error: {0}")]
     JoinError(#[from] JoinError),
-    /// Minimum relay fee not met.
-    #[error("Transaction rejected: minimum relay fee not met")]
-    MinRelayFeeNotMet,
-    /// Transaction rejected by mempool.
-    #[error("Transaction rejected by mempool: {0}")]
-    MempoolRejection(String),
     /// There are no UTXOs.
     #[error("There are no UTXOs")]
     MissingUTXO,
@@ -44,7 +38,56 @@ pub enum BitcoinServiceError {
     /// Cannot bump fee for TX.
     #[error("Cannot bump fee for TX with status: {0:?}. Transaction must be pending")]
     WrongStatusForBumping(TxStatus),
+    /// Tx requeste when queue is not empty.
+    #[error("Cannot create DA transaction while da queue is not empty")]
+    QueueNotEmpty,
+    /// Transaction rejected by mempool.
+    #[error(transparent)]
+    MempoolRejection(#[from] MempoolRejection),
     /// Other error.
     #[error(transparent)]
     Other(#[from] anyhow::Error),
+}
+
+#[derive(Error, Debug)]
+pub enum MempoolRejection {
+    /// Minimum relay fee not met.
+    #[error("Transaction rejected: minimum relay fee not met")]
+    MinRelayFeeNotMet,
+    /// Sent package of txs resulted in too much unconfirmed tx data in mempool. (over 101 kvb)
+    #[error("Transaction rejected: package-too-large")]
+    PackageTooLarge,
+    /// Sent pacakge of txs resulted in too many transactions in mempool. (ascendant/descendant limit)
+    #[error("Transaction rejected: package-too-many-transactions")]
+    PackageTooManyTransactions,
+    /// Sent pacakge of txs resulted in too many transactions in mempool. (ascendant/descendant limit)
+    #[error("Transaction rejected: package-mempool-limits")]
+    PackageMempoolLimits,
+    /// Other mempool rejection reason.
+    #[error("Transaction rejected by mempool: {0}")]
+    Other(String),
+}
+
+impl MempoolRejection {
+    pub fn from_reason(reason: String) -> Self {
+        if reason.contains("min relay fee not met") {
+            MempoolRejection::MinRelayFeeNotMet
+        } else if reason.contains("package-too-large") {
+            MempoolRejection::PackageTooLarge
+        } else if reason.contains("package-too-many-transactions") {
+            MempoolRejection::PackageTooManyTransactions
+        } else if reason.contains("package-mempool-limits") {
+            MempoolRejection::PackageMempoolLimits
+        } else {
+            MempoolRejection::Other(reason.to_string())
+        }
+    }
+
+    // Mempool rejection variants that are recoverable by re-trying on a new block and dependent on mempool state such as too many transactions in mempool or package too large
+    pub fn should_be_queued(&self) -> bool {
+        matches!(
+            self,
+            Self::PackageTooLarge | Self::PackageMempoolLimits | Self::PackageTooManyTransactions
+        )
+    }
 }

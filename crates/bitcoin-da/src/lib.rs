@@ -5,6 +5,9 @@ pub mod spec;
 pub mod service;
 
 #[cfg(feature = "native")]
+pub mod tx_signer;
+
+#[cfg(feature = "native")]
 pub mod monitoring;
 
 #[cfg(feature = "native")]

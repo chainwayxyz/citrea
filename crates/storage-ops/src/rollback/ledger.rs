@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use citrea_common::NodeType;
 use sov_db::schema::tables::{
     BATCH_PROVER_LEDGER_TABLES, FULL_NODE_LEDGER_TABLES, LIGHT_CLIENT_PROVER_LEDGER_TABLES,
     SEQUENCER_LEDGER_TABLES,
@@ -13,30 +14,29 @@ use crate::rollback::node::fullnode::FullNodeLedgerRollback;
 use crate::rollback::node::light_client::LightClientLedgerRollback;
 use crate::rollback::node::sequencer::SequencerLedgerRollback;
 use crate::rollback::types::LedgerNodeRollback;
-use crate::types::StorageNodeType;
 
-pub fn rollback_ledger(node_type: StorageNodeType, ledger_db: Arc<DB>, context: RollbackContext) {
+pub fn rollback_ledger(node_type: NodeType, ledger_db: Arc<DB>, context: RollbackContext) {
     debug!(
         "Rolling back {}, down to L2 block {:?}, L1 block {:?}",
         node_type, context.l2_target, context.l1_target
     );
     let (tables, rollback_result) = match node_type {
-        StorageNodeType::Sequencer => {
+        NodeType::Sequencer => {
             let sequencer_rollback = SequencerLedgerRollback::new(ledger_db);
             (SEQUENCER_LEDGER_TABLES, sequencer_rollback.execute(context))
         }
-        StorageNodeType::FullNode => {
+        NodeType::FullNode => {
             let fullnode_rollback = FullNodeLedgerRollback::new(ledger_db);
             (FULL_NODE_LEDGER_TABLES, fullnode_rollback.execute(context))
         }
-        StorageNodeType::BatchProver => {
+        NodeType::BatchProver => {
             let batch_prover_rollback = BatchProverLedgerRollback::new(ledger_db);
             (
                 BATCH_PROVER_LEDGER_TABLES,
                 batch_prover_rollback.execute(context),
             )
         }
-        StorageNodeType::LightClient => {
+        NodeType::LightClientProver => {
             let light_client_rollback = LightClientLedgerRollback::new(ledger_db);
             (
                 LIGHT_CLIENT_PROVER_LEDGER_TABLES,

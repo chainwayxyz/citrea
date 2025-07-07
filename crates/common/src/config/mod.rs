@@ -3,7 +3,6 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use citrea_primitives::PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS;
-use citrea_storage_ops::pruning::PruningConfig;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
@@ -380,6 +379,19 @@ impl<'de> Deserialize<'de> for ProverGuestRunConfig {
             "prove-with-fakes" => Ok(ProverGuestRunConfig::ProveWithFakeProofs),
             _ => Err(serde::de::Error::custom("invalid prover guest run config")),
         }
+    }
+}
+
+/// A configuration type to define the behaviour of the pruner.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct PruningConfig {
+    /// Defines the number of blocks from the tip of the chain to remove.
+    pub distance: u64,
+}
+
+impl Default for PruningConfig {
+    fn default() -> Self {
+        Self { distance: 256 }
     }
 }
 

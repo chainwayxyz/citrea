@@ -3,6 +3,7 @@
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(all(feature = "native", feature = "std"))]
 use sov_keys::error::KeyError;
 use sov_keys::{PublicKey, Signature};
 use sov_rollup_interface::spec::SpecId;

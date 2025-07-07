@@ -1,6 +1,7 @@
 pub(crate) use backup::*;
-use citrea_storage_ops::types::StorageNodeType;
+use citrea_common::NodeType;
 use clap::ValueEnum;
+use derive_more::Display;
 pub(crate) use prune::*;
 pub(crate) use rollback::*;
 use sov_db::schema::tables::{
@@ -12,31 +13,31 @@ mod backup;
 mod prune;
 mod rollback;
 
-#[derive(Copy, Clone, ValueEnum)]
-pub enum StorageNodeTypeArg {
+#[derive(Copy, Clone, Display, ValueEnum)]
+pub enum NodeTypeArg {
     Sequencer,
     FullNode,
     BatchProver,
-    LightClient,
+    LightClientProver,
 }
 
-impl From<StorageNodeTypeArg> for StorageNodeType {
-    fn from(value: StorageNodeTypeArg) -> Self {
+impl From<NodeTypeArg> for NodeType {
+    fn from(value: NodeTypeArg) -> Self {
         match value {
-            StorageNodeTypeArg::Sequencer => StorageNodeType::Sequencer,
-            StorageNodeTypeArg::FullNode => StorageNodeType::FullNode,
-            StorageNodeTypeArg::BatchProver => StorageNodeType::BatchProver,
-            StorageNodeTypeArg::LightClient => StorageNodeType::LightClient,
+            NodeTypeArg::Sequencer => NodeType::Sequencer,
+            NodeTypeArg::FullNode => NodeType::FullNode,
+            NodeTypeArg::BatchProver => NodeType::BatchProver,
+            NodeTypeArg::LightClientProver => NodeType::LightClientProver,
         }
     }
 }
 
-pub(crate) fn cfs_from_node_type(node_type: StorageNodeTypeArg) -> Vec<String> {
+pub(crate) fn cfs_from_node_type(node_type: NodeTypeArg) -> Vec<String> {
     let cfs = match node_type {
-        StorageNodeTypeArg::Sequencer => SEQUENCER_LEDGER_TABLES,
-        StorageNodeTypeArg::FullNode => FULL_NODE_LEDGER_TABLES,
-        StorageNodeTypeArg::BatchProver => BATCH_PROVER_LEDGER_TABLES,
-        StorageNodeTypeArg::LightClient => LIGHT_CLIENT_PROVER_LEDGER_TABLES,
+        NodeTypeArg::Sequencer => SEQUENCER_LEDGER_TABLES,
+        NodeTypeArg::FullNode => FULL_NODE_LEDGER_TABLES,
+        NodeTypeArg::BatchProver => BATCH_PROVER_LEDGER_TABLES,
+        NodeTypeArg::LightClientProver => LIGHT_CLIENT_PROVER_LEDGER_TABLES,
     };
 
     cfs.iter().map(|x| x.to_string()).collect::<Vec<_>>()

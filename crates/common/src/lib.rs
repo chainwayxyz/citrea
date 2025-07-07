@@ -21,3 +21,22 @@ pub struct InitParams {
     /// The last known batch hash
     pub prev_l2_block_hash: L2BlockHash,
 }
+
+#[derive(Copy, Clone, Debug)]
+pub enum NodeType {
+    Sequencer,
+    FullNode,
+    BatchProver,
+    LightClientProver,
+}
+
+impl std::fmt::Display for NodeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NodeType::BatchProver => write!(f, "batch-prover"),
+            NodeType::Sequencer => write!(f, "sequencer"),
+            NodeType::FullNode => write!(f, "full-node"),
+            NodeType::LightClientProver => write!(f, "light-client-prover"),
+        }
+    }
+}

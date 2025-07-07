@@ -1,10 +1,10 @@
+use citrea_common::NodeType;
 use reth_tasks::shutdown::Shutdown;
 use tokio::select;
 use tokio::sync::mpsc::Receiver;
 use tracing::info;
 
 use super::Rollback;
-use crate::types::StorageNodeType;
 
 pub struct RollbackSignal {
     _current_l2_height: u64,
@@ -24,7 +24,7 @@ impl RollbackService {
     }
 
     /// Run service to rollback when instructed to
-    pub async fn run(mut self, node_type: StorageNodeType, mut shutdown_signal: Shutdown) {
+    pub async fn run(mut self, node_type: NodeType, mut shutdown_signal: Shutdown) {
         loop {
             select! {
                 biased;

@@ -4,8 +4,8 @@ use std::str::FromStr;
 
 use alloy_primitives::{Address, U256};
 use alloy_rpc_types::{BlockId, BlockNumberOrTag};
+use citrea_common::PruningConfig;
 /// Testing if the sequencer and full node can handle system transactions correctly (the full node should have the same system transactions as the sequencer)
-use citrea_storage_ops::pruning::PruningConfig;
 use futures::FutureExt;
 use sov_mock_da::{MockAddress, MockDaService};
 

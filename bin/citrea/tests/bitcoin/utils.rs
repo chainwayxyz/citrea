@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use alloy_primitives::U64;
 use anyhow::bail;
 use bitcoin_da::fee::FeeService;
-use bitcoin_da::monitoring::MonitoringService;
+use bitcoin_da::monitoring::{MonitoringConfig, MonitoringService};
 use bitcoin_da::network_constants::get_network_constants;
 use bitcoin_da::service::{network_to_bitcoin_network, BitcoinService, BitcoinServiceConfig};
 use bitcoin_da::spec::block::BitcoinBlock;
@@ -123,7 +123,13 @@ pub async fn spawn_bitcoin_da_service(
         node_password: da_config.rpc_password.clone(),
         da_private_key: Some(da_private_key),
         tx_backup_dir: test_dir.join("tx_backup_dir").display().to_string(),
-        monitoring: Default::default(),
+        monitoring: Some(MonitoringConfig {
+            check_interval: 1,
+            history_limit: 1_000,
+            max_history_size: 200_000_000,
+            max_rebroadcast_attempts: 5,
+            rebroadcast_delay: 1,
+        }),
         mempool_space_url: None,
     };
 
@@ -149,7 +155,7 @@ pub async fn spawn_bitcoin_da_service(
 
     let network = network_to_bitcoin_network(&chain_params.network);
     let network_constants = get_network_constants(&network);
-    let monitoring_service = MonitoringService::new(
+    let (monitoring_service, block_rx) = MonitoringService::new(
         client.clone(),
         da_config.monitoring.clone(),
         network_constants.finality_depth,
@@ -174,7 +180,8 @@ pub async fn spawn_bitcoin_da_service(
         .unwrap(),
     );
 
-    task_executor.spawn_with_graceful_shutdown_signal(|tk| service.clone().run_da_queue(rx, tk));
+    task_executor
+        .spawn_with_graceful_shutdown_signal(|tk| service.clone().run_da_queue(rx, block_rx, tk));
 
     service.monitoring.restore().await.unwrap();
     task_executor.spawn_with_graceful_shutdown_signal(|tk| Arc::clone(&service.monitoring).run(tk));

@@ -1,16 +1,12 @@
-use core::result::Result::Ok;
-
 use anyhow::Context;
 use bitcoin::hashes::Hash;
-use bitcoin::Txid;
 use sov_rollup_interface::da::{DaTxRequest, DataOnDa};
 
 use crate::error::BitcoinServiceError;
-use crate::helpers::builders::body_builders::RawTxData;
+use crate::helpers::builders::body_builders::{DaTxs, RawTxData};
 use crate::helpers::builders::test_utils::{
     test_create_single_aggregate, test_create_single_chunk,
 };
-use crate::helpers::builders::TxWithId;
 use crate::service::{split_proof, BitcoinService, Result};
 
 impl BitcoinService {
@@ -18,7 +14,7 @@ impl BitcoinService {
         &self,
         tx_request: DaTxRequest,
         fee_sat_per_vbyte: u64,
-    ) -> Result<Vec<Txid>> {
+    ) -> Result<()> {
         let network = self.network;
 
         let da_private_key = self.da_private_key.expect("No private key set");
@@ -54,7 +50,7 @@ impl BitcoinService {
                                 .context("Missing address")?
                                 .require_network(network)?;
 
-                            let (chunk_commit, chunk_reveal) = test_create_single_chunk(
+                            let da_txs = test_create_single_chunk(
                                 body,
                                 &da_private_key,
                                 prev_utxo,
@@ -66,31 +62,27 @@ impl BitcoinService {
                                 &reveal_light_client_prefix,
                             )?;
 
-                            reveal_chunks.push(chunk_reveal.clone());
+                            let (txid, wtxid) =
+                                if let DaTxs::Complete { ref reveal, .. } = da_txs {
+                                    Some((
+                                        reveal.id.to_byte_array(),
+                                        reveal.tx.compute_wtxid().to_byte_array(),
+                                    ))
+                                } else {
+                                    None
+                                }
+                                .unwrap();
+
+                            let signed_txs = self.tx_signer.sign_da_txs(da_txs).await?;
+
+                            reveal_chunks.push((txid, wtxid));
+
                             // Send chunks as if they were complete txs separate from each other
-                            txids.extend(
-                                self.send_complete_transaction(
-                                    chunk_commit,
-                                    TxWithId {
-                                        id: chunk_reveal.compute_txid(),
-                                        tx: chunk_reveal,
-                                    },
-                                    self.tx_backup_dir.clone(),
-                                    "complete_zk_proof",
-                                )
-                                .await?,
-                            );
+                            txids.extend(self.send_signed_transaction(&signed_txs[0]).await?);
                         }
                         // Now send the aggregate data
-                        let (reveal_tx_ids, reveal_wtx_ids): (Vec<_>, Vec<_>) = reveal_chunks
-                            .iter()
-                            .map(|tx| {
-                                (
-                                    tx.compute_txid().to_byte_array(),
-                                    tx.compute_wtxid().to_byte_array(),
-                                )
-                            })
-                            .collect();
+                        let (reveal_tx_ids, reveal_wtx_ids): (Vec<_>, Vec<_>) =
+                            reveal_chunks.iter().map(|tx| (tx.0, tx.1)).collect();
                         let aggregate = DataOnDa::Aggregate(reveal_tx_ids, reveal_wtx_ids);
                         // To sign the list of tx ids we assume they form a contiguous list of bytes
                         let reveal_body: Vec<u8> =
@@ -111,7 +103,7 @@ impl BitcoinService {
                             .context("Missing address")?
                             .require_network(network)?;
 
-                        let (aggr_commit, aggr_reveal) = test_create_single_aggregate(
+                        let da_txs = test_create_single_aggregate(
                             reveal_body,
                             &da_private_key,
                             utxos,
@@ -123,18 +115,9 @@ impl BitcoinService {
                             &self.reveal_tx_prefix,
                         )?;
 
-                        txids.extend(
-                            self.send_complete_transaction(
-                                aggr_commit,
-                                TxWithId {
-                                    id: aggr_reveal.compute_txid(),
-                                    tx: aggr_reveal,
-                                },
-                                self.tx_backup_dir.clone(),
-                                "complete_zk_proof",
-                            )
-                            .await?,
-                        );
+                        let signed_txs = self.tx_signer.sign_da_txs(da_txs).await?;
+
+                        txids.extend(self.send_signed_transaction(&signed_txs[0]).await?);
                     }
                     _ => {
                         return Err(BitcoinServiceError::InvalidTransaction(
@@ -150,6 +133,6 @@ impl BitcoinService {
             }
         }
 
-        Ok(vec![])
+        Ok(())
     }
 }

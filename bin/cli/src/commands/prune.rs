@@ -1,18 +1,19 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use citrea_storage_ops::pruning::{Pruner, PruningConfig};
+use citrea_common::PruningConfig;
+use citrea_storage_ops::pruning::Pruner;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::state_db::StateDB;
 use tracing::{debug, info};
 
-use super::StorageNodeTypeArg;
+use super::NodeTypeArg;
 use crate::commands::cfs_from_node_type;
 
 pub(crate) async fn prune(
-    node_type: StorageNodeTypeArg,
+    node_type: NodeTypeArg,
     db_path: PathBuf,
     distance: u64,
 ) -> anyhow::Result<()> {
