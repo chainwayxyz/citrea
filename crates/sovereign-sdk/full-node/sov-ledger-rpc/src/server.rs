@@ -2,7 +2,7 @@
 
 use alloy_primitives::{U32, U64};
 use jsonrpsee::core::RpcResult;
-use jsonrpsee::types::ErrorObjectOwned;
+use jsonrpsee::types::{ErrorCode, ErrorObject, ErrorObjectOwned};
 use jsonrpsee::RpcModule;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
@@ -115,28 +115,16 @@ where
 
     fn get_batch_proofs_by_slot_height(
         &self,
-        height: U64,
+        _height: U64,
     ) -> RpcResult<Option<Vec<BatchProofResponse>>> {
-        self.ledger
-            .get_batch_proof_data_by_l1_height(height.to())
-            .map_err(to_ledger_rpc_error)
+        Err(ErrorObject::from(ErrorCode::MethodNotFound).to_owned())
     }
 
     fn get_batch_proofs_by_slot_hash(
         &self,
-        hash: HexHash,
+        _hash: HexHash,
     ) -> RpcResult<Option<Vec<BatchProofResponse>>> {
-        let Some(height) = self
-            .ledger
-            .get_slot_number_by_hash(hash.0)
-            .map_err(to_ledger_rpc_error)?
-        else {
-            return Ok(None);
-        };
-
-        self.ledger
-            .get_batch_proof_data_by_l1_height(height)
-            .map_err(to_ledger_rpc_error)
+        Err(ErrorObject::from(ErrorCode::MethodNotFound).to_owned())
     }
 
     fn get_verified_batch_proofs_by_slot_height(

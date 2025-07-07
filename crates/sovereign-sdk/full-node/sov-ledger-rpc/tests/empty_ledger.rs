@@ -52,15 +52,16 @@ async fn getters_succeed() {
         .await
         .unwrap();
 
-    rpc_client
+    // These methods should now return "Method not found" errors
+    let result = rpc_client
         .get_batch_proofs_by_slot_height(U64::from(0))
-        .await
-        .unwrap();
+        .await;
+    assert!(result.is_err());
 
-    rpc_client
+    let result = rpc_client
         .get_batch_proofs_by_slot_hash(hash)
-        .await
-        .unwrap();
+        .await;
+    assert!(result.is_err());
 
     rpc_client.get_head_l2_block_height().await.unwrap();
 
@@ -72,4 +73,41 @@ async fn getters_succeed() {
         .unwrap();
 
     rpc_client.get_last_verified_batch_proof().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn disabled_methods_return_method_not_found() {
+    use jsonrpsee::core::Error as JsonrpseeError;
+    
+    let (_server_handle, addr) = rpc_server().await;
+    let rpc_client = rpc_client(addr).await;
+    let hash = HexHash([0; 32]);
+
+    // Test getBatchProofsBySlotHeight returns method not found (-32601)
+    let result = rpc_client
+        .get_batch_proofs_by_slot_height(U64::from(0))
+        .await;
+    
+    assert!(result.is_err());
+    match result.unwrap_err() {
+        JsonrpseeError::Call(error_object) => {
+            assert_eq!(error_object.code(), -32601);
+            assert_eq!(error_object.message(), "Method not found");
+        }
+        _ => panic!("Expected a Call error with method not found"),
+    }
+
+    // Test getBatchProofsBySlotHash returns method not found (-32601)
+    let result = rpc_client
+        .get_batch_proofs_by_slot_hash(hash)
+        .await;
+    
+    assert!(result.is_err());
+    match result.unwrap_err() {
+        JsonrpseeError::Call(error_object) => {
+            assert_eq!(error_object.code(), -32601);
+            assert_eq!(error_object.message(), "Method not found");
+        }
+        _ => panic!("Expected a Call error with method not found"),
+    }
 }
