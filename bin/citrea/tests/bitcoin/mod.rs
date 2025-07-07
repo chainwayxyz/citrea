@@ -9,6 +9,7 @@ pub mod backup;
 pub mod bitcoin_service;
 pub mod bitcoin_test;
 pub mod bitcoin_verifier;
+#[cfg(feature = "testing")]
 pub mod da_queue;
 pub mod fork;
 #[cfg(feature = "testing")]
