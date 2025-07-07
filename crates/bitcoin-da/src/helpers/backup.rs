@@ -24,7 +24,7 @@ pub(crate) fn backup_txs_to_file(path: &Path, txs: &[SignedTxPair]) -> anyhow::R
             TransactionKind::Complete
             | TransactionKind::BatchProofMethodId
             | TransactionKind::SequencerCommitment => {
-                if txs.len() != 2 {
+                if txs.len() != 1 {
                     return Err(anyhow::anyhow!(
                         "Expected exactly 2 transactions for {:?}, got {}",
                         tx.kind,
