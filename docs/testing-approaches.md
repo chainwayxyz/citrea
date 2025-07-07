@@ -19,8 +19,7 @@ Bitcoin end-to-end (E2E) tests are the main method for verifying Citrea’s func
 ### Writing tests with Citrea E2E:
 
 #### Implementing the TestCase Trait
-The `TestCaseRunner` of `citrea-e2e` expects each test to provide a struct that implements the `TestCase` trait. This trait defines how to configure the test environment and run the test logic. 
-By overriding the trait’s methods, you can customize the test setup—such as configuring which nodes to spawn, setting environment variables for each node, defining the Bitcoin regtest parameters, and more. Additionally, you can include custom logic for initialization and cleanup steps.
+The TestCaseRunner of citrea-e2e expects each test to provide a struct that implements the TestCase trait. This trait defines how to configure the test environment and run the test logic. By overriding the trait’s methods, the test setup can be customized—such as configuring which nodes to spawn, setting environment variables for each node, defining the Bitcoin regtest parameters, and more. Additionally, custom logic for initialization and cleanup steps can be included.
 
 The run_test method contains the core test logic and must be implemented. Within this method, the TestFramework allows you to interact with nodes via RPC endpoints, send transactions to both the DA layer and L2, trigger commitments and proofs, and perform state assertions.
 
