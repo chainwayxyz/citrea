@@ -19,39 +19,14 @@ Bitcoin end-to-end (E2E) tests are the main method for verifying Citrea’s func
 ### Writing tests with Citrea E2E:
 
 #### Implementing the TestCase Trait
-The TestCaseRunner in citrea-e2e expects each test to provide a struct that implements the `TestCase` trait. This trait defines how to configure the test environment and run the test logic. 
+The `TestCaseRunner` of `citrea-e2e` expects each test to provide a struct that implements the `TestCase` trait. This trait defines how to configure the test environment and run the test logic. 
+By overriding the trait’s methods, you can customize the test setup—such as configuring which nodes to spawn, setting environment variables for each node, defining the Bitcoin regtest parameters, and more. Additionally, you can include custom logic for initialization and cleanup steps.
 
-#### Configuration methods 
-These methods can be overridden to customize the test setup:  
-
-* `test_config`: Returns a `TestCaseConfig` that defines how many Bitcoin nodes and Citrea nodes to spawn, plus options like the genesis directory.
-
-* `test_env`: Returns a `TestCaseEnv` with environment variables for each node process.
-
-* `bitcoin_config`: Returns a `BitcoinConfig` for the Bitcoin Regtest setup (e.g., RPC auth, ports, data directory).
-
-* `scan_l1_start_height`: Optionally sets the starting L1 block height for the full node and the batch prover.
-
-* `throttle_config`: Optionally returns a `ThrottleConfig` to throttle CPU and memory usage for Docker.
-
-* `sequencer_config`, `batch_prover_config`, and `light_client_prover_config` return node-specific configs. Rollup configs of each node are derived from the test_config.  
-#### Test flow methods:
-
-* `setup`: Optional method for any custom initialization logic. Runs after nodes are spawned and wallets are funded, but before `run_test` starts.
-
-* `run_test`: **Required** async method with the main test logic. `TestFramework` can be used to send transactions, check state, and verify behaviours.
-
-* `cleanup`: Optional method for cleanup after the test. Runs after nodes shut down.
+The run_test method contains the core test logic and must be implemented. Within this method, the TestFramework allows you to interact with nodes via RPC endpoints, send transactions to both the DA layer and L2, trigger commitments and proofs, and perform state assertions.
 
 #### Using TestCaseRunner  
 Once a struct that implements the TestCase trait is defined, it can be run with the `TestCaseRunner`. The runner handles setting up the test framework, preparing nodes, funding wallets, connecting services, and executing the test logic.  
-To build a `TestCaseRunner`, the test case struct is passed to `TestCaseRunner::new`. Binary paths can be specified using the `set_citrea_path`, `set_citrea_cli_path`, and `set_bitcoin_path` methods. If these are not set, the framework looks(?) to the following environment variables: 
-```
-CITREA_E2E_TEST_BINARY
-CITREA_CLI_E2E_TEST_BINARY
-BITCOIN_E2E_TEST_BINARY
-CLEMENTINE_E2E_TEST_BINARY 
-```  
+To build a `TestCaseRunner`, the test case struct is passed to `TestCaseRunner::new`. Binary paths can be specified using the `set_citrea_path`, `set_citrea_cli_path`, and `set_bitcoin_path` methods. If these are not set, the framework searches the binary paths from the environment.
 
 The `TestCaseRunner::run()` method runs the full test lifecycle: it sets up the framework and nodes, prepares wallets and connections, executes the setup and `run_test` methods, and handles cleanup and log dumping automatically — even if the test panics during execution.
 
@@ -75,10 +50,23 @@ Bitcoin end-to-end tests verify critical interactions with the Bitcoin DA layer 
 
 ## Mock E2E
 
-Mock DA layer: auto block production, 1 blob per block
-spawn tasks instead of running seperate processes
+MockE2E tests are an alternative to full end-to-end tests. They use the Mock DA as the rollup’s DA layer and run tasks with the `TaskExecutor` instead of spawning separate binary processes, making them a quick and light-weight way to write and run tests.
 
-- L2 block rule enforcer
+### Mock DA
+
+The `DaService` and `DaVerifier` traits for the Mock DA are implemented by `MockDaService` and `MockDaVerifier`, respectively. `MockDaService` manages access to mock blobs stored in a database. It supports producing one blob per block and automatically creates a new block whenever a transaction is submitted. It can also simulate reorgs by executing forks, either instantly or at a specified block height.
+
+`MockDaVerifier` always validates inclusion and completeness proofs and extracts the transactions from the completeness proof. It verifies the header chain by ensuring that each block header’s height is consecutive with the current DA state and that its previous hash correctly references the latest DA state.
+
+### Scope of Mock E2E tests
+
+Scope of the Mock E2E tests overlap with the Bitcoin E2E tests. They both verify node behaviours, commitment and batch proof flows. Additionally Mock E2E tests cover:
+
+- **L2 Block Rule Enforcer**
+  Verifies that sequencer stops block production when the L2 block per L1 block limit is reached, and resumes when there is a new L1 block.
+- **ASD**
+
+  
 - mempool behaviour, tx acceptance and ordering
 - all flow, l2 block execution, offchain storage
 - RPCs: ledger_getL2, batchProver_prove
