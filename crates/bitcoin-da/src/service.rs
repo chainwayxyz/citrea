@@ -288,6 +288,7 @@ impl BitcoinService {
         fee_sat_per_vbyte: u64,
     ) -> Result<Vec<[TxWithId; 2]>> {
         // Prevent sending tx to DA while transaction queue is not empty
+        // otherwise, the tx that will be built may use the same UTXO as the one in the queue
         if !self.tx_queue.lock().await.is_empty() {
             return Err(BitcoinServiceError::QueueNotEmpty);
         }
