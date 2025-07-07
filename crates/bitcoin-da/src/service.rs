@@ -24,7 +24,7 @@ use citrea_common::utils::read_env;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::MAX_TX_BODY_SIZE;
 use lru::LruCache;
-use metrics::histogram;
+use metrics::gauge;
 use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaSpec, DaTxRequest, DataOnDa, SequencerCommitment};
@@ -473,11 +473,11 @@ impl BitcoinService {
                 info!("Blob inscribe tx sent. Hash: {}", tx.reveal_txid())
             }
             TransactionKind::Chunks => {
-                histogram!("da_transaction_size").record(raw_txs_size_sum);
+                gauge!("da_transaction_size").record(raw_txs_size_sum);
                 info!("Blob chunk inscribe tx sent. Hash: {}", tx.reveal_txid())
             }
             TransactionKind::Aggregate => {
-                histogram!("da_transaction_size").record(raw_txs_size_sum);
+                gauge!("da_transaction_size").record(raw_txs_size_sum);
                 info!("Blob chunk aggregate tx sent. Hash: {}", tx.reveal_txid())
             }
             TransactionKind::Unknown(_) => unimplemented!(),
@@ -586,7 +586,7 @@ impl BitcoinService {
         self.client.test_mempool_accept(&[&raw_hex]).await?;
 
         let new_txid = self.client.send_raw_transaction(&raw_hex).await?;
-        histogram!("da_transaction_size").record(raw_hex.len() as f64);
+        gauge!("da_transaction_size").record(raw_hex.len() as f64);
 
         match method {
             BumpFeeMethod::Cpfp => {
