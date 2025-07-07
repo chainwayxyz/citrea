@@ -474,11 +474,11 @@ impl BitcoinService {
                 info!("Blob inscribe tx sent. Hash: {}", tx.reveal_txid())
             }
             TransactionKind::Chunks => {
-                gauge!("da_transaction_size").record(raw_txs_size_sum);
+                gauge!("da_transaction_size").set(raw_txs_size_sum);
                 info!("Blob chunk inscribe tx sent. Hash: {}", tx.reveal_txid())
             }
             TransactionKind::Aggregate => {
-                gauge!("da_transaction_size").record(raw_txs_size_sum);
+                gauge!("da_transaction_size").set(raw_txs_size_sum);
                 info!("Blob chunk aggregate tx sent. Hash: {}", tx.reveal_txid())
             }
             TransactionKind::Unknown(_) => unimplemented!(),
@@ -587,7 +587,7 @@ impl BitcoinService {
         self.client.test_mempool_accept(&[&raw_hex]).await?;
 
         let new_txid = self.client.send_raw_transaction(&raw_hex).await?;
-        gauge!("da_transaction_size").record(raw_hex.len() as f64);
+        gauge!("da_transaction_size").set(raw_hex.len() as f64);
 
         match method {
             BumpFeeMethod::Cpfp => {
