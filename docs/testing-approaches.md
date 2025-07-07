@@ -55,7 +55,7 @@ MockE2E tests are an alternative to full end-to-end tests. They use the Mock DA 
 
 The `DaService` and `DaVerifier` traits for the Mock DA are implemented by `MockDaService` and `MockDaVerifier`, respectively. `MockDaService` manages access to mock blobs stored in a database. It supports producing one blob per block and automatically creates a new block whenever a transaction is submitted. It can also simulate reorgs by executing forks, either instantly or at a specified block height.
 
-`MockDaVerifier` always validates inclusion and completeness proofs and extracts the transactions from the completeness proof. It verifies the header chain by ensuring that each block header’s height is consecutive with the current DA state and that its previous hash correctly references the latest DA state.
+`MockDaVerifier` acts as the verifier for the Mock DA layer but does not perform real proof verification. Instead, it always accepts inclusion and completeness proofs as valid and directly returns the transactions contained in the completeness proof. For the header chain, it checks that each block header’s height is consecutive with the current DA state and that the prev_hash correctly references the latest DA state.
 
 ### Scope of Mock E2E tests
 
