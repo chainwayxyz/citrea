@@ -33,7 +33,7 @@ The `TestCaseRunner::run()` method runs the full test lifecycle: it sets up the 
 Bitcoin end-to-end tests verify critical interactions with the Bitcoin DA layer and the correct flow of each Citrea node. The main areas covered include:
 
 - **Backup and rollback operations**  
-  Rollbacks, backup creation, and backup restoration are performed and validated for each node type using citrea-cli.  
+  Backup creation and restoration are tested and validated for each node type using citrea-cli. Rollback operations are also executed on the full node with citrea-cli.
 - **Bitcoin Service and Verifier**  
   These tests check that the Bitcoin Service processes blocks correctly, extracts relevant blobs, and prepares inclusion and completeness proofs. They also verify that the Verifier validates these proofs accurately against the corresponding Bitcoin block headers.  
 - **Fork Activation and Features**  
@@ -62,19 +62,26 @@ The `DaService` and `DaVerifier` traits for the Mock DA are implemented by `Mock
 Scope of the Mock E2E tests overlap with the Bitcoin E2E tests. They both verify node behaviours, commitment and batch proof flows. Additionally Mock E2E tests cover:
 
 - **L2 Block Rule Enforcer**
+
   Verifies that sequencer stops block production when the L2 block per L1 block limit is reached, and resumes when there is a new L1 block.
-- **ASD**
+- **Pruning**
 
-  
-- mempool behaviour, tx acceptance and ordering
-- all flow, l2 block execution, offchain storage
-- RPCs: ledger_getL2, batchProver_prove
-- Pruning
-- Full node/sequencer/prover restart
-- Rollback of different nodes
-- Sequencer comm. service/ 
-- system txs
+  Starts the nodes with a set pruning distance, generates L2 blocks, and verifies that the state DB and native DB are pruned by asserting RPC calls fail as expected.
+- **Mempool behaviour**
 
+  Tests mempool rejection, and the order of the valid transactions in the block.
+- **Reopening nodes**
+
+  Tests for closing down and reopening nodes with the same data to make sure the nodes can continue from where they left off.
+- **Rollback Operations**
+
+  Tests rollback functionality across different node types (full node, sequencer, and batch prover) and validates that full node and batch prover can properly resync after rollback execution.
+- **Sequencer behaviour**
+
+  Verifies sequencer operation, including L2 block production and commitment generation.
+- **System transactions**
+
+  Tests if system transactions are triggered and they are in the expected L2 blocks.
 
 ## Etherjs/ uniswap/ web3py
 
