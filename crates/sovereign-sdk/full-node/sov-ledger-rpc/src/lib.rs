@@ -5,8 +5,7 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
-    VerifiedBatchProofResponse,
+    LastVerifiedBatchProofResponse, SequencerCommitmentResponse, VerifiedBatchProofResponse,
 };
 
 #[cfg(feature = "server")]
@@ -91,8 +90,6 @@ pub trait LedgerRpc {
         &self,
         hash: HexHash,
     ) -> RpcResult<Option<Vec<SequencerCommitmentResponse>>>;
-
-
 
     /// Gets the height pf most recent committed l2 block.
     #[method(name = "getHeadL2Block")]

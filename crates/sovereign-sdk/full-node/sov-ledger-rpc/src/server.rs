@@ -7,8 +7,8 @@ use jsonrpsee::RpcModule;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    LastVerifiedBatchProofResponse, LedgerRpcProvider,
-    SequencerCommitmentResponse, VerifiedBatchProofResponse,
+    LastVerifiedBatchProofResponse, LedgerRpcProvider, SequencerCommitmentResponse,
+    VerifiedBatchProofResponse,
 };
 
 use crate::{HexHash, HexStateRoot, LedgerRpcServer};
@@ -112,8 +112,6 @@ where
             .get_sequencer_commitments_on_slot_by_number(height)
             .map_err(to_ledger_rpc_error)
     }
-
-
 
     fn get_verified_batch_proofs_by_slot_height(
         &self,

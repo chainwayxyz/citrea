@@ -30,8 +30,8 @@ use sov_db::schema::types::L2HeightAndIndex;
 use sov_ledger_rpc::{HexHash, LedgerRpcClient};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    JobRpcResponse, LastVerifiedBatchProofResponse,
-    SequencerCommitmentResponse, SequencerCommitmentRpcParam, VerifiedBatchProofResponse,
+    JobRpcResponse, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
+    SequencerCommitmentRpcParam, VerifiedBatchProofResponse,
 };
 use uuid::Uuid;
 
@@ -594,8 +594,6 @@ impl TestClient {
             .await
             .map_err(|e| e.into())
     }
-
-
 
     pub(crate) async fn ledger_get_verified_batch_proofs_by_slot_height(
         &self,

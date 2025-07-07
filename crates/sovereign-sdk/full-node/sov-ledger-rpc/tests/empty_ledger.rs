@@ -63,5 +63,3 @@ async fn getters_succeed() {
 
     rpc_client.get_last_verified_batch_proof().await.unwrap();
 }
-
-
