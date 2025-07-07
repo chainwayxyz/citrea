@@ -1,3 +1,5 @@
+//! This module provides utility functions for testing Bitcoin DA.
+
 use core::result::Result::Ok;
 
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
@@ -21,7 +23,9 @@ use crate::helpers::builders::TxWithId;
 use crate::spec::utxo::UTXO;
 use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
-// Returns (chunk commit tx, chunk reveal tx)
+/// Creates a single chunk transaction for testing purposes as if
+/// it was of a Complete kind.
+/// Returns (chunk commit tx, chunk reveal tx)
 #[allow(clippy::too_many_arguments)]
 pub fn test_create_single_chunk(
     body: Vec<u8>,
@@ -170,6 +174,8 @@ pub fn test_create_single_chunk(
     }
 }
 
+/// Creates a single aggregate transaction for testing purposes as if
+/// it was of a Complete kind.
 #[allow(clippy::too_many_arguments)]
 pub fn test_create_single_aggregate(
     reveal_body: Vec<u8>,

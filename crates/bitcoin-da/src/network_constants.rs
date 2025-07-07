@@ -1,3 +1,5 @@
+//! This module defines constants and initial states for different Bitcoin networks used in the DA layer.
+
 use crypto_bigint::U256;
 use sov_rollup_interface::da::LatestDaState;
 

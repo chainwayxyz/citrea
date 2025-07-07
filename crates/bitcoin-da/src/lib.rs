@@ -1,3 +1,7 @@
+#![warn(missing_docs)]
+
+//! TODO
+
 pub mod helpers;
 pub mod spec;
 

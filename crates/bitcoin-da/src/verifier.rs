@@ -1,3 +1,5 @@
+//! This module provides the Bitcoin DA verifier implementation.
+
 use crypto_bigint::{Encoding, U256};
 use itertools::Itertools;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, LatestDaState};

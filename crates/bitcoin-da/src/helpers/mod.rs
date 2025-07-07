@@ -1,3 +1,6 @@
+//! This module provides helper functions and types for the Bitcoin DA crate.
+//! It includes transaction kind definitions, transaction builders, parsers, and Merkle tree utilities.
+
 use core::num::NonZero;
 
 use bitcoin::consensus::Encodable;

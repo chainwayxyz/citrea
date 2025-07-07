@@ -1,3 +1,5 @@
+//! This module provides the error types for the Bitcoin DA service.
+
 use bitcoin::address::ParseError;
 use bitcoincore_rpc::Error as BitcoinRpcError;
 use thiserror::Error;
@@ -49,6 +51,7 @@ pub enum BitcoinServiceError {
     Other(#[from] anyhow::Error),
 }
 
+/// Error type for mempool rejections via testmempoolaccept method.
 #[derive(Error, Debug)]
 pub enum MempoolRejection {
     /// Minimum relay fee not met.
@@ -69,6 +72,7 @@ pub enum MempoolRejection {
 }
 
 impl MempoolRejection {
+    /// Creates the error from a bitcoin rpc reason string.
     pub fn from_reason(reason: String) -> Self {
         if reason.contains("min relay fee not met") {
             MempoolRejection::MinRelayFeeNotMet
@@ -83,7 +87,7 @@ impl MempoolRejection {
         }
     }
 
-    // Mempool rejection variants that are recoverable by re-trying on a new block and dependent on mempool state such as too many transactions in mempool or package too large
+    /// Mempool rejection variants that are recoverable by re-trying on a new block and dependent on mempool state such as too many transactions in mempool or package too large
     pub fn should_be_queued(&self) -> bool {
         matches!(
             self,

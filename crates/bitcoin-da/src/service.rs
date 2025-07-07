@@ -1,3 +1,5 @@
+//! This module provides the Bitcoin DA service implementation.
+
 // fix clippy for tracing::instrument
 #![allow(clippy::blocks_in_conditions)]
 
@@ -122,6 +124,7 @@ pub struct BitcoinService {
     pub(crate) reveal_tx_prefix: Vec<u8>,
     inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
     pub(crate) tx_backup_dir: PathBuf,
+    /// Monitoring service for tracking transaction status.
     pub monitoring: Arc<MonitoringService>,
     fee: FeeService,
     l1_block_hash_to_height: Arc<Mutex<LruCache<BlockHash, usize>>>,
@@ -1287,38 +1290,6 @@ impl DaService for BitcoinService {
         }
         sequencer_commitments
     }
-}
-
-pub fn get_relevant_blobs_from_txs(
-    txs: Vec<Transaction>,
-    reveal_wtxid_prefix: &[u8],
-) -> Vec<BlobWithSender> {
-    let mut relevant_txs = Vec::new();
-
-    for tx in txs {
-        if !tx
-            .compute_wtxid()
-            .to_byte_array()
-            .as_slice()
-            .starts_with(reveal_wtxid_prefix)
-        {
-            continue;
-        }
-
-        if let Ok(ParsedTransaction::SequencerCommitment(seq_comm)) =
-            parse_relevant_transaction(&tx)
-        {
-            if let Some(hash) = seq_comm.get_sig_verified_hash() {
-                let relevant_tx =
-                    BlobWithSender::new(seq_comm.body, seq_comm.public_key, hash, None);
-
-                relevant_txs.push(relevant_tx);
-            }
-        } else {
-            // ignore
-        }
-    }
-    relevant_txs
 }
 
 /// Wrapper around Txid to be used in DaSpec.

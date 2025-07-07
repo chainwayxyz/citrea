@@ -1,3 +1,5 @@
+//! Backup DaTxs to disk.
+
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;

@@ -1,5 +1,7 @@
+//! This module provides a service for managing Bitcoin transaction fees.
+
 // fix clippy for tracing::instrument
-#![allow(clippy::blocks_in_conditions)]
+// #![allow(clippy::blocks_in_conditions)]
 
 use core::result::Result::Ok;
 use std::collections::HashMap;
@@ -23,13 +25,21 @@ const BASE_FEE_RATE_MULTIPLIER: f64 = 1.0;
 const FEE_RATE_MULTIPLIER_FACTOR: f64 = 1.1;
 const MAX_FEE_RATE_MULTIPLIER: f64 = 2.0;
 
+/// Type alias for a Partially Signed Bitcoin Transaction (PSBT).
 pub type Psbt = String;
 
+/// Method to bump the fee of a transaction.
+/// It can be done using Child Pays for Parent (CPFP) or Replace-by-Fee (RBF).
 pub enum BumpFeeMethod {
+    /// Child Pays for Parent (CPFP) method.
     Cpfp,
+    /// Replace-by-Fee (RBF) method.
     Rbf,
 }
 
+/// Service for managing Bitcoin transaction fees.
+/// It provides methods to get the current fee rate, bump transaction fees,
+/// and handle fee-related operations.
 #[derive(Debug)]
 pub struct FeeService {
     client: Arc<Client>,
@@ -38,6 +48,7 @@ pub struct FeeService {
 }
 
 impl FeeService {
+    /// Create a new instance of `FeeService`.
     pub fn new(
         client: Arc<Client>,
         network: bitcoin::Network,
@@ -52,6 +63,8 @@ impl FeeService {
         }
     }
 
+    /// Get the fee rate in sat/vB from the mempool space or via the Bitcoin Core client.
+    /// If the network is regtest or testnet, it returns a default value of 1 sat/vB.
     #[instrument(level = "trace", skip_all, ret)]
     pub async fn get_fee_rate(&self) -> Result<u64> {
         match self.get_fee_rate_as_sat_vb().await {
@@ -68,6 +81,7 @@ impl FeeService {
         }
     }
 
+    /// Get the fee rate in sat/vB from the mempool space or via the Bitcoin Core client.
     #[instrument(level = "trace", skip_all, ret)]
     pub async fn get_fee_rate_as_sat_vb(&self) -> Result<u64> {
         // If network is regtest or signet, mempool space is not available
@@ -79,10 +93,10 @@ impl FeeService {
                     self.client.estimate_smart_fee(1, None).await?.fee_rate
                 }
             };
-        let sat_vkb = smart_fee.map_or(1000, |rate| rate.to_sat());
+        let sat_vb = smart_fee.map_or(1, |rate| rate.to_sat() / 1000);
 
-        tracing::debug!("Fee rate: {} sat/vb", sat_vkb / 1000);
-        Ok(sat_vkb / 1000)
+        tracing::debug!("Fee rate: {} sat/vb", sat_vb);
+        Ok(sat_vb)
     }
 
     /// Bump TX fee via cpfp.
@@ -158,10 +172,14 @@ impl FeeService {
         Ok(funded_psbt)
     }
 
+    /// Get the base fee rate multiplier.
+    /// This is used to calculate the next fee rate multiplier based on the current one.
     pub fn base_fee_rate_multiplier(&self) -> f64 {
         BASE_FEE_RATE_MULTIPLIER
     }
 
+    /// Get the next fee rate multiplier based on the current multiplier.
+    /// It multiplies the current multiplier by a factor.
     pub fn get_next_fee_rate_multiplier(&self, multiplier: f64) -> f64 {
         (multiplier * FEE_RATE_MULTIPLIER_FACTOR).min(MAX_FEE_RATE_MULTIPLIER)
     }
