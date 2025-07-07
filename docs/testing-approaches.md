@@ -1,8 +1,12 @@
+# Testing
+
+Citrea employs a comprehensive testing strategy to ensure reliability, correctness, and compatibility across all components of the rollup infrastructure. This multi-layered approach includes end-to-end tests with Bitcoin integration, lightweight mock DA tests, EVM compatibility verification, and state transition validation.
+
 ## Bitcoin E2E Tests
 
 Bitcoin end-to-end (E2E) tests are the main method for verifying Citrea’s functionality. Using Citrea’s E2E framework, `citrea-e2e`, these tests spawn Citrea nodes, namely sequencer, full node, batch prover, light client prover, that run with Bitcoin Regtest as the DA layer. This setup tests each node’s behaviour and flow, how nodes interact with each other, and how they interact with the Bitcoin network.
 
-### Writing tests with Citrea E2E:
+### Writing tests with Citrea E2E
 
 #### Implementing the TestCase Trait
 The TestCaseRunner of citrea-e2e expects each test to provide a struct that implements the TestCase trait. This trait defines how to configure the test environment and run the test logic. By overriding the trait’s methods, the test setup can be customized—such as configuring which nodes to spawn, setting environment variables for each node, defining the Bitcoin regtest parameters, and more. Additionally, custom logic for initialization and cleanup steps can be included.
@@ -88,11 +92,10 @@ These tests verify Citrea's compatibility with popular Ethereum tooling and prot
 Located in the `citrea-stf` crate, these tests focus on the core logic of the batch proof circuit by verifying the state transitions of sequencer commitments. Most tests call the STF blueprint methods directly to validate their behaviour. `MockZkGuest` is used to simulate passing inputs from the host to the guest code.
 
 ### Scope
-- **Last L1 hash**  
+- **Last L1 hash checks**  
   Checks that the last L1 hash can be read and verified correctly from the Bitcoin Light Client contract.
 - **Applying Sequencer Commitments**  
   Tests that sequencer commitments are accepted only if they are sequential in L2 height, properly linked to the previous commitment, and include valid Merkle roots for the L2 block hashes.
 - **L2 block processing**  
   Checks that L2 blocks are validated and applied correctly: block headers must have valid hashes, transaction Merkle roots must match, and sequencer signatures must be verified. The tests also confirm that blocks are applied in order, parent hashes match, timestamps increase as expected, and the limit of L2 blocks per L1 block is enforced.
-
-## Light client tests
+  
