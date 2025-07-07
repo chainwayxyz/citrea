@@ -559,7 +559,7 @@ pub async fn wait_for_prover_l1_height_proofs(
     loop {
         debug!("Waiting for prover batch proofs at height {}", num);
         let proofs = prover_client
-            .ledger_get_batch_proofs_by_slot_height(num)
+            .ledger_get_verified_batch_proofs_by_slot_height(num)
             .await;
         if proofs.is_some() {
             break;

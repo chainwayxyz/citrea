@@ -597,12 +597,11 @@ impl TestClient {
 
     pub(crate) async fn ledger_get_batch_proofs_by_slot_height(
         &self,
-        height: u64,
+        _height: u64,
     ) -> Option<Vec<BatchProofResponse>> {
-        self.http_client
-            .get_batch_proofs_by_slot_height(U64::from(height))
-            .await
-            .unwrap()
+        // This method has been disabled and now returns Method not found error
+        // Use ledger_get_verified_batch_proofs_by_slot_height instead
+        panic!("ledger_get_batch_proofs_by_slot_height has been disabled. Use ledger_get_verified_batch_proofs_by_slot_height instead")
     }
 
     pub(crate) async fn ledger_get_verified_batch_proofs_by_slot_height(
