@@ -10,13 +10,13 @@ Bitcoin end-to-end (E2E) tests are the main method for verifying Citrea’s func
 
 #### Implementing the TestCase Trait
 
-The TestCaseRunner of citrea-e2e expects each test to provide a struct that implements the TestCase trait. This trait defines how to configure the test environment and run the test logic. By overriding the trait’s methods, the test setup can be customized, such as configuring which nodes to spawn, setting environment variables for each node, defining the Bitcoin regtest parameters, and more. Additionally, custom logic for initialization and cleanup steps can be included.
+The TestCaseRunner of `citrea-e2e` expects each test to provide a struct that implements the `TestCase` trait. This trait defines how to configure the test environment and run the test logic. By overriding the trait’s methods, the test setup can be customized, such as configuring which nodes to spawn, setting environment variables for each node, defining the Bitcoin regtest parameters, and more. Additionally, custom logic for initialization and cleanup steps can be included.
 
-The run_test method contains the core test logic and must be implemented. Within this method, the TestFramework allows you to interact with nodes via RPC endpoints, send transactions to both the DA layer and L2, trigger commitments and proofs, and perform state assertions.
+The run_test method contains the core test logic and must be implemented. Within this method, the `TestFramework` allows interaction with nodes via RPC endpoints, sending transactions to both the DA layer and L2, triggering commitments and proofs, and performing state assertions.
 
 #### Using TestCaseRunner
 
-Once a struct that implements the TestCase trait is defined, it can be run with the `TestCaseRunner`. The runner handles setting up the test framework, preparing nodes, funding wallets, connecting services, and executing the test logic.  
+Once a struct that implements the `TestCase` trait is defined, it can be run with the `TestCaseRunner`. The runner handles setting up the test framework, preparing nodes, funding wallets, connecting services, and executing the test logic.  
 To build a `TestCaseRunner`, the test case struct is passed to `TestCaseRunner::new`. Binary paths can be specified using the `set_citrea_path`, `set_citrea_cli_path`, and `set_bitcoin_path` methods. If these are not set, the framework searches the binary paths from the environment.
 
 The `TestCaseRunner::run()` method runs the full test lifecycle: it sets up the framework and nodes, prepares wallets and connections, executes the setup and `run_test` methods, and handles cleanup and log dumping automatically — even if the test panics during execution.
@@ -26,7 +26,7 @@ The `TestCaseRunner::run()` method runs the full test lifecycle: it sets up the 
 Bitcoin end-to-end tests verify critical interactions with the Bitcoin DA layer and the correct flow of each Citrea node. The main areas covered include:
 
 - **Backup and rollback operations**  
-  Backup creation and restoration are tested and validated for each node type using citrea-cli. Rollback operations are also executed on the full node with citrea-cli.  
+  Backup creation and restoration are tested and validated for each node type using citrea-cli. Rollback operations are also executed on the full node with `citrea-cli`.  
 - **Bitcoin Service and Verifier**  
   These tests check that the Bitcoin Service processes blocks correctly, extracts relevant blobs, and prepares inclusion and completeness proofs. They also verify that the Verifier validates these proofs accurately against the corresponding Bitcoin block headers.  
 - **Fork Activation and Features**  
@@ -42,13 +42,13 @@ Bitcoin end-to-end tests verify critical interactions with the Bitcoin DA layer 
 
 ## Mock E2E
 
-Mock E2E tests are an alternative to full end-to-end tests. They use the Mock DA as the rollup’s DA layer and run tasks with the `TaskExecutor` instead of spawning separate binary processes, making them a quick and lightweight way to write and run tests.
+Mock end-to-end tests are an alternative to Bitcoin end-to-end tests. They use the Mock DA as the rollup’s DA layer and run tasks with the `TaskExecutor` instead of spawning separate binary processes, making them a quick and lightweight way to write and run tests.
 
 ### Mock DA
 
 The `DaService` and `DaVerifier` traits for the Mock DA are implemented by `MockDaService` and `MockDaVerifier`, respectively. `MockDaService` manages access to mock blobs stored in a database. It supports producing one blob per block and automatically creates a new block whenever a transaction is submitted. It can also simulate reorgs by executing forks, either instantly or at a specified block height.
 
-`MockDaVerifier` acts as the verifier for the Mock DA layer but does not perform real proof verification. Instead, it always accepts inclusion and completeness proofs as valid and directly returns the transactions contained in the completeness proof. For the header chain, it checks that each block header’s height is consecutive with the current DA state and that the prev\_hash correctly references the latest DA state.
+`MockDaVerifier` acts as the verifier for the Mock DA layer but does not perform real proof verification. Instead, it always accepts inclusion and completeness proofs as valid and directly returns the transactions contained in the completeness proof. For the header chain, it checks that each block header’s height is consecutive with the current DA state and that the `prev_hash` correctly references the latest DA state.
 
 ### Scope of Mock E2E tests
 
