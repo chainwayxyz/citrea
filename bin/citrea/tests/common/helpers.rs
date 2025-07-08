@@ -327,21 +327,19 @@ pub async fn start_rollup(
             None => StartVariant::FromBlock(light_client_prover_config.initial_da_height),
         };
 
-        let (mut rollup, l1_block_handler, rpc_module) =
-            CitreaRollupBlueprint::create_light_client_prover(
-                &mock_demo_rollup,
-                network.expect("should be some"),
-                light_client_prover_config,
-                rollup_config.clone(),
-                da_service,
-                ledger_db,
-                storage_manager,
-                rpc_module,
-                backup_manager,
-            )
-            .instrument(span.clone())
-            .await
-            .unwrap();
+        let (l1_block_handler, rpc_module) = CitreaRollupBlueprint::create_light_client_prover(
+            &mock_demo_rollup,
+            network.expect("should be some"),
+            light_client_prover_config,
+            da_service,
+            ledger_db,
+            storage_manager,
+            rpc_module,
+            backup_manager,
+        )
+        .instrument(span.clone())
+        .await
+        .unwrap();
 
         start_rpc_server(
             rollup_config.rpc.clone(),
@@ -360,10 +358,6 @@ pub async fn start_rollup(
                     .await
             },
         );
-
-        task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
-            rollup.run(shutdown_signal).instrument(span).await.unwrap();
-        });
     } else {
         let span = info_span!("FullNode");
 

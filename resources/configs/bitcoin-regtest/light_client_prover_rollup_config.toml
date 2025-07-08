@@ -22,8 +22,3 @@ db_max_open_files = 5000
 bind_host = "127.0.0.1"
 bind_port = 12346
 enable_subscriptions = false
-
-[runner]
-sequencer_client_url = "http://0.0.0.0:12345"
-include_tx_body = false
-scan_l1_start_height = 1

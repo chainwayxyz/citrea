@@ -14,7 +14,6 @@ use citrea_fullnode::da_block_handler::L1BlockHandler as FullNodeL1BlockHandler;
 use citrea_fullnode::L2Syncer as FullNodeL2Syncer;
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientProverL1BlockHandler;
-use citrea_light_client_prover::runner::CitreaLightClientProver;
 use citrea_primitives::forks::get_forks;
 use citrea_sequencer::CitreaSequencer;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
@@ -369,22 +368,18 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         &self,
         network: Network,
         prover_config: LightClientProverConfig,
-        rollup_config: FullNodeConfig<Self::DaConfig>,
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         ledger_db: LedgerDB,
         storage_manager: ProverStorageManager,
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
     ) -> Result<(
-        CitreaLightClientProver,
         LightClientProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         RpcModule<()>,
     )>
     where
         Network: InitialValueProvider<Self::DaSpec>,
     {
-        let runner_config = rollup_config.runner.expect("Runner config is missing");
-
         let prover_service = Arc::new(
             self.create_prover_service(
                 prover_config.proving_mode,
@@ -402,7 +397,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         citrea_light_client_prover::build_services(
             network,
             prover_config,
-            runner_config,
             storage_manager,
             ledger_db,
             da_service,

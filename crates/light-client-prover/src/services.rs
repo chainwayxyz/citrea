@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use citrea_common::backup::BackupManager;
-use citrea_common::{LightClientProverConfig, RunnerConfig};
+use citrea_common::LightClientProverConfig;
 use jsonrpsee::RpcModule;
 use prover_services::ParallelProverService;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
@@ -17,7 +17,6 @@ use sov_rollup_interface::Network;
 use crate::circuit::initial_values::InitialValueProvider;
 use crate::da_block_handler::L1BlockHandler;
 use crate::rpc;
-use crate::runner::CitreaLightClientProver;
 
 /// Builds and initializes all light client prover services
 ///
@@ -48,7 +47,6 @@ use crate::runner::CitreaLightClientProver;
 pub fn build_services<Vm, Da, DB>(
     network: Network,
     prover_config: LightClientProverConfig,
-    runner_config: RunnerConfig,
     storage_manager: ProverStorageManager,
     ledger_db: DB,
     da_service: Arc<Da>,
@@ -57,11 +55,7 @@ pub fn build_services<Vm, Da, DB>(
     light_client_prover_elfs: HashMap<SpecId, Vec<u8>>,
     rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
-) -> Result<(
-    CitreaLightClientProver,
-    L1BlockHandler<Vm, Da, DB>,
-    RpcModule<()>,
-)>
+) -> Result<(L1BlockHandler<Vm, Da, DB>, RpcModule<()>)>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
@@ -84,7 +78,5 @@ where
         backup_manager,
     );
 
-    let prover = CitreaLightClientProver::new(runner_config)?;
-
-    Ok((prover, l1_block_handler, rpc_module))
+    Ok((l1_block_handler, rpc_module))
 }

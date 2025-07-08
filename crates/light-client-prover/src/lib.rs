@@ -23,8 +23,6 @@ pub mod metrics;
 #[cfg(feature = "native")]
 pub mod rpc;
 #[cfg(feature = "native")]
-pub mod runner;
-#[cfg(feature = "native")]
 mod services;
 
 /// Light client prover tests

@@ -128,7 +128,7 @@ pub struct FullNodeConfig<BitcoinServiceConfig> {
     /// Currently rollup config runner only supports storage path parameter
     pub storage: StorageConfig,
     /// Runner own configuration.
-    pub runner: Option<RunnerConfig>, // optional bc sequencer doesn't need it
+    pub runner: Option<RunnerConfig>, // optional bc sequencer and lcp doesn't need it
     /// Data Availability service configuration.
     pub da: BitcoinServiceConfig,
     /// Important pubkeys
