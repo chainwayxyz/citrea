@@ -16,7 +16,7 @@ impl BlobReaderTrait for MockBlob {
         self.address.clone()
     }
 
-    fn wtxid(&self) -> Option<[u8; 32]> {
+    fn wtxid(&self) -> [u8; 32] {
         self.wtxid
     }
 
