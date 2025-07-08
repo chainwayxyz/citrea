@@ -10,9 +10,9 @@ Bitcoin end-to-end (E2E) tests are the main method for verifying Citrea’s func
 
 #### Implementing the TestCase Trait
 
-The TestCaseRunner of `citrea-e2e` expects each test to provide a struct that implements the `TestCase` trait. This trait defines how to configure the test environment and run the test logic. By overriding the trait’s methods, the test setup can be customized, such as configuring which nodes to spawn, setting environment variables for each node, defining the Bitcoin regtest parameters, and more. Additionally, custom logic for initialization and cleanup steps can be included.
+The `TestCaseRunner` of `citrea-e2e` expects each test to provide a struct that implements the `TestCase` trait. This trait defines how to configure the test environment and run the test logic. By overriding the trait’s methods, the test setup can be customized, such as configuring which nodes to spawn, setting environment variables for each node, and defining the Bitcoin regtest parameters. Additionally, custom logic for initialization and cleanup steps can be included.
 
-The run_test method contains the core test logic and must be implemented. Within this method, the `TestFramework` allows interaction with nodes via RPC endpoints, sending transactions to both the DA layer and L2, triggering commitments and proofs, and performing state assertions.
+The `run_test` method contains the core test logic and must be implemented. Within this method, the `TestFramework` allows interaction with nodes via RPC endpoints, sending transactions to both the DA layer and L2, triggering commitments and proofs, and performing state assertions.
 
 #### Using TestCaseRunner
 
@@ -26,7 +26,7 @@ The `TestCaseRunner::run()` method runs the full test lifecycle: it sets up the 
 Bitcoin end-to-end tests verify critical interactions with the Bitcoin DA layer and the correct flow of each Citrea node. The main areas covered include:
 
 - **Backup and rollback operations**  
-  Backup creation and restoration are tested and validated for each node type using citrea-cli. Rollback operations are also executed on the full node with `citrea-cli`.  
+  Backup creation and restoration are tested and validated for each node type using `citrea-cli`. Rollback operations are also executed on the full node with `citrea-cli`.  
 - **Bitcoin Service and Verifier**  
   These tests check that the Bitcoin Service processes blocks correctly, extracts relevant blobs, and prepares inclusion and completeness proofs. They also verify that the Verifier validates these proofs accurately against the corresponding Bitcoin block headers.  
 - **Fork Activation and Features**  
@@ -87,7 +87,7 @@ These tests verify Citrea's compatibility with popular Ethereum tooling and prot
 EVM tests ensure the correctness and compatibility of Citrea's Ethereum Virtual Machine implementation. These tests cover a wide range of functionalities, including:
 
 - **System Contract Tests**: Validates the behavior of Citrea’s system contracts — including fee vaults, the bridge contract, Bitcoin light client, and WBTC contracts — using Forge tests.  
-- **Ethereum Foundation Tests**: Runs a subset of the official Ethereum Foundation test suite, with the test runner located under crates/evm/src/tests/ef_tests.  
+- **Ethereum Foundation Tests**: Runs a subset of the official Ethereum Foundation test suite, with the test runner located under `crates/evm/src/tests/ef_tests`.  
 - **Call, Fork, and Genesis Tests**: Checks contract calls and receipts, fork-specific functionality, and verifies the EVM’s genesis state when initialized with a given configuration.  
 - **Query Tests**: Tests Ethereum JSON-RPC methods for retrieving block and transaction data, estimating gas, and filtering events.  
 - **System Transactions**: Verifies system transactions, including bridge deposits and withdrawals, and the correct setting of block information in the Bitcoin Light Client.
