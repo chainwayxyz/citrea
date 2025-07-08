@@ -272,7 +272,7 @@ impl TestCase for DaTransactionQueueingTest {
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(finalized_height)
+            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
             .await?;
         let lcp_output = lcp.unwrap().light_client_proof_output;
 

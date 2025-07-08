@@ -988,7 +988,7 @@ impl TestCase for BackupLightClientProverTest {
         let first_proof = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(batch_proof_l1_height)
+            .get_light_client_proof_by_l1_height(U64::from(batch_proof_l1_height))
             .await?;
 
         assert!(first_proof.is_some());
@@ -1053,7 +1053,7 @@ impl TestCase for BackupLightClientProverTest {
         let second_proof = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(second_proof_l1_height)
+            .get_light_client_proof_by_l1_height(U64::from(second_proof_l1_height))
             .await?
             .unwrap();
 
@@ -1097,7 +1097,7 @@ impl TestCase for BackupLightClientProverTest {
         let restored_proof = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(second_proof_l1_height)
+            .get_light_client_proof_by_l1_height(U64::from(second_proof_l1_height))
             .await?
             .unwrap();
 
@@ -1158,7 +1158,7 @@ impl TestCase for BackupLightClientProverTest {
         let rollback_proof = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(second_proof_l1_height)
+            .get_light_client_proof_by_l1_height(U64::from(second_proof_l1_height))
             .await?
             .unwrap();
 
@@ -1200,7 +1200,7 @@ impl TestCase for BackupLightClientProverTest {
         let third_proof = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(third_proof_l1_height)
+            .get_light_client_proof_by_l1_height(U64::from(third_proof_l1_height))
             .await?
             .unwrap();
 
@@ -1237,7 +1237,7 @@ impl TestCase for BackupLightClientProverTest {
         let final_proof = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(third_proof_l1_height)
+            .get_light_client_proof_by_l1_height(U64::from(third_proof_l1_height))
             .await?
             .unwrap();
 
@@ -1253,7 +1253,7 @@ impl TestCase for BackupLightClientProverTest {
         assert!(light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(third_proof_l1_height)
+            .get_light_client_proof_by_l1_height(U64::from(third_proof_l1_height))
             .await?
             .is_some());
 

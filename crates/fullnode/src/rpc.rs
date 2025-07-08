@@ -10,6 +10,7 @@
 
 use std::sync::Arc;
 
+use alloy_primitives::U64;
 use citrea_common::rpc::utils::internal_rpc_error;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
@@ -102,7 +103,7 @@ pub trait FullNodeRpc {
     #[method(name = "getL2StatusHeightsByL1Height")]
     async fn get_l2_status_heights_by_l1_height(
         &self,
-        l1_height: u64,
+        l1_height: U64,
     ) -> RpcResult<L2StatusHeightsByL1Height>;
 }
 
@@ -151,12 +152,12 @@ where
 
     async fn get_l2_status_heights_by_l1_height(
         &self,
-        l1_height: u64,
+        l1_height: U64,
     ) -> RpcResult<L2StatusHeightsByL1Height> {
         let (committed, proven) = self
             .context
             .ledger
-            .get_l2_status_heights_by_l1_height(l1_height)
+            .get_l2_status_heights_by_l1_height(l1_height.to())
             .map_err(|e| {
                 internal_rpc_error(format!("Failed to get L2 status heights by L1 height: {e}"))
             })?;

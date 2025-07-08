@@ -1060,7 +1060,7 @@ impl TestCase for SubmitFakeProofRpcTest {
         let lcp_output = light_client
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(finalized_height)
+            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
             .await?
             .unwrap()
             .light_client_proof_output;
@@ -1110,7 +1110,7 @@ impl TestCase for SubmitFakeProofRpcTest {
         let lcp_output = light_client
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(finalized_height)
+            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
             .await?
             .unwrap()
             .light_client_proof_output;
@@ -1141,7 +1141,7 @@ impl TestCase for SubmitFakeProofRpcTest {
         let lcp_output = light_client
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(finalized_height)
+            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
             .await?
             .unwrap()
             .light_client_proof_output;
