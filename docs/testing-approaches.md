@@ -17,9 +17,27 @@ The `run_test` method contains the core test logic and must be implemented. With
 #### Using TestCaseRunner
 
 Once a struct that implements the `TestCase` trait is defined, it can be run with the `TestCaseRunner`. The runner handles setting up the test framework, preparing nodes, funding wallets, connecting services, and executing the test logic.  
-To build a `TestCaseRunner`, the test case struct is passed to `TestCaseRunner::new`. Binary paths can be specified using the `set_citrea_path`, `set_citrea_cli_path`, and `set_bitcoin_path` methods. If these are not set, the framework searches the binary paths from the environment.
+
+To build a `TestCaseRunner`, the test case struct is passed to `TestCaseRunner::new`. Executable paths can be specified with the following environment variables, or the calling the corresponding functions on top of the runner:
+
+- `CITREA_E2E_TEST_BINARY`  
+  Sets the path to the Citrea binary. This can be overridden with `set_citrea_path`.
+- `CITREA_CLI_E2E_TEST_BINARY`  
+  Sets the path to the Citrea CLI binary. This can be overridden with `set_citrea_cli_path`.
 
 The `TestCaseRunner::run()` method runs the full test lifecycle: it sets up the framework and nodes, prepares wallets and connections, executes the setup and `run_test` methods, and handles cleanup and log dumping automatically — even if the test panics during execution.
+
+#### Execution environment
+
+By default, `citrea-e2e` runs Bitcoin nodes in Docker, and Citrea nodes with the executable. This behaviour can be changed with the boolean environment variables:
+
+- `TEST_BITCOIN_DOCKER`  
+  If set to true, runs Bitcoin nodes in Docker using a predefined image. If set to false, runs the `bitcoind` executable from the system.
+
+- `TEST_CITREA_DOCKER`  
+  If set to true, runs Citrea nodes in Docker using the image specified by `CITREA_DOCKER_IMAGE` (or a predefined image if not set). If set to false, runs the Citrea executable from the specified path.
+
+In order for full nodes and light client provers to verify mock proofs in the tests, `RISC0_DEV_MODE` should be set to true. For Batch prover node and Light client prover node, `PARALLEL_PROOF_LIMIT` variable can be overridden to change its default value of 1 set by the `citrea-e2e`.
 
 ### Scope of Bitcoin E2E tests
 
