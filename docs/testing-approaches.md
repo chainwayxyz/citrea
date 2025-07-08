@@ -1,6 +1,6 @@
-# Testing
+# Testing in Citrea
 
-Citrea employs a comprehensive testing strategy to ensure reliability, correctness, and compatibility across all components of the rollup infrastructure. This multi-layered approach includes end-to-end tests with Bitcoin integration, lightweight mock DA tests, EVM compatibility verification, and state transition validation.
+Citrea employs a comprehensive testing strategy to ensure correctness, and compatibility across all components of the rollup infrastructure. This multi-layered approach includes end-to-end tests with Bitcoin integration, lightweight mock DA tests, EVM compatibility verification, and state transition validation.
 
 ## Bitcoin E2E Tests
 
@@ -66,7 +66,7 @@ Scope of the Mock E2E tests overlap with the Bitcoin E2E tests. They both verify
 - **System transactions**  
   Tests if system transactions are triggered and they are in the expected L2 blocks.
 - **EVM Tests**  
-  Tests Ethereum RPC methods, EVM precompile calls, subscriptions, tracing endpoints. Also sends test transactions to check L1 diff sizes, and gas price changes.
+  Tests Ethereum RPC methods, precompile calls, subscriptions, tracing endpoints. Also sends test transactions to check L1 diff sizes, and gas price changes.
 
 ## Ether.js, Uniswap, web3.py Tests
 These tests verify Citrea's compatibility with popular Ethereum tooling and protocols by running real-world scenarios. A sequencer and full node are required to execute these tests.
@@ -78,15 +78,15 @@ These tests verify Citrea's compatibility with popular Ethereum tooling and prot
 - **web3.py**  
   Tests Ethereum JSON-RPC compatibility using the web3.py library.
 
-## EVM tests 
+## EVM Tests
 
-- System contract tests (foundry)
-- EF tests (evm/src/tests/ef_tests)
-- ...
-- Call/fork/genesis
-- Queries
-- Sys txs
-- Precomppiles
+EVM tests ensure the correctness and compatibility of Citrea's Ethereum Virtual Machine implementation. These tests cover a wide range of functionalities, including:
+
+- **System Contract Tests**: Validates the behavior of Citrea's system contracts, namely fee vaults, bridge contract, bitcoin light client, and WBTC contracts, using Forge tests
+- **Ethereum Foundation Tests**: Runs a subset of the Ethereum Foundation tests, runner module is under `crates/evm/src/tests/ef_tests`.
+- **Call, Fork, and Genesis Tests**: Verify contract calls, check reciepts, fork-specific features, and the genesis state of the EVM when initiliazed with a certain config.
+- **Query Tests**: Test Ethereum JSON-RPC methods, such as retrieving block and transaction data, gas estimation, and event filtering.
+- **System Transactions**: Validate system transactions, including bridge operations for deposits and withdrawals, and setting block info in Bitcoin Light Client.
 
 ## State Transition Verifier Tests
 Located in the `citrea-stf` crate, these tests focus on the core logic of the batch proof circuit by verifying the state transitions of sequencer commitments. Most tests call the STF blueprint methods directly to validate their behaviour. `MockZkGuest` is used to simulate passing inputs from the host to the guest code.
