@@ -1,4 +1,4 @@
-use citrea_primitives::forks::get_tangerine_activation_height_non_zero;
+use citrea_common::utils::get_tangerine_activation_height_non_zero;
 use sov_db::ledger_db::SequencerLedgerOps;
 
 /// Loads the next commitment index and starting height from the ledger database
