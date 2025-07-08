@@ -52,16 +52,6 @@ async fn getters_succeed() {
         .await
         .unwrap();
 
-    rpc_client
-        .get_batch_proofs_by_slot_height(U64::from(0))
-        .await
-        .unwrap();
-
-    rpc_client
-        .get_batch_proofs_by_slot_hash(hash)
-        .await
-        .unwrap();
-
     rpc_client.get_head_l2_block_height().await.unwrap();
 
     rpc_client.get_head_l2_block().await.unwrap();

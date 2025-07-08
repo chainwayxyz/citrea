@@ -7,8 +7,8 @@ use jsonrpsee::RpcModule;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, LastVerifiedBatchProofResponse, LedgerRpcProvider,
-    SequencerCommitmentResponse, VerifiedBatchProofResponse,
+    LastVerifiedBatchProofResponse, LedgerRpcProvider, SequencerCommitmentResponse,
+    VerifiedBatchProofResponse,
 };
 
 use crate::{HexHash, HexStateRoot, LedgerRpcServer};
@@ -110,32 +110,6 @@ where
 
         self.ledger
             .get_sequencer_commitments_on_slot_by_number(height)
-            .map_err(to_ledger_rpc_error)
-    }
-
-    fn get_batch_proofs_by_slot_height(
-        &self,
-        height: U64,
-    ) -> RpcResult<Option<Vec<BatchProofResponse>>> {
-        self.ledger
-            .get_batch_proof_data_by_l1_height(height.to())
-            .map_err(to_ledger_rpc_error)
-    }
-
-    fn get_batch_proofs_by_slot_hash(
-        &self,
-        hash: HexHash,
-    ) -> RpcResult<Option<Vec<BatchProofResponse>>> {
-        let Some(height) = self
-            .ledger
-            .get_slot_number_by_hash(hash.0)
-            .map_err(to_ledger_rpc_error)?
-        else {
-            return Ok(None);
-        };
-
-        self.ledger
-            .get_batch_proof_data_by_l1_height(height)
             .map_err(to_ledger_rpc_error)
     }
 

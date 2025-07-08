@@ -5,8 +5,7 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
-    VerifiedBatchProofResponse,
+    LastVerifiedBatchProofResponse, SequencerCommitmentResponse, VerifiedBatchProofResponse,
 };
 
 #[cfg(feature = "server")]
@@ -91,22 +90,6 @@ pub trait LedgerRpc {
         &self,
         hash: HexHash,
     ) -> RpcResult<Option<Vec<SequencerCommitmentResponse>>>;
-
-    /// Gets proof by slot height.
-    #[method(name = "getBatchProofsBySlotHeight")]
-    #[blocking]
-    fn get_batch_proofs_by_slot_height(
-        &self,
-        height: U64,
-    ) -> RpcResult<Option<Vec<BatchProofResponse>>>;
-
-    /// Gets proof by slot hash.
-    #[method(name = "getBatchProofsBySlotHash")]
-    #[blocking]
-    fn get_batch_proofs_by_slot_hash(
-        &self,
-        hash: HexHash,
-    ) -> RpcResult<Option<Vec<BatchProofResponse>>>;
 
     /// Gets the height pf most recent committed l2 block.
     #[method(name = "getHeadL2Block")]
