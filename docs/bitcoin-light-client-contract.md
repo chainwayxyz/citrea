@@ -24,7 +24,7 @@ The contract stores essential information for each Bitcoin block relayed to it:
 ### State Updates
 
 -   **`initializeBlockNumber(uint256 _blockNumber)`**: A one-time function called at genesis to set the starting Bitcoin block number.
--   **`setBlockInfo(bytes32 _blockHash, bytes32 _witnessRoot, uint256 _coinbaseDepth)`**: Called by the `SYSTEM_CALLER` to add data for a new Bitcoin block. The contract automatically increments its internal block counter, ensuring blocks are added sequentially.
+-   **`setBlockInfo(bytes32 _blockHash, bytes32 _witnessRoot, uint256 _coinbaseDepth)`**: Called by the `SYSTEM_CALLER` to add data for a new Bitcoin block. 
 
 ### Verification
 
