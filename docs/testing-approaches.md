@@ -71,7 +71,7 @@ The scope of the Mock E2E tests overlaps with the Bitcoin E2E tests. They both v
 - **EVM Tests**  
   Tests Ethereum RPC methods, precompile calls, subscriptions, and tracing endpoints, and verifies L1 diff sizes and gas price changes through test transactions.
 
-## Ether.js, Uniswap, web3.py Tests
+## Ethers.js, Uniswap, web3.py Tests
 
 These tests verify Citrea's compatibility with popular Ethereum tooling and protocols by running real-world scenarios. A sequencer and a full node are required to execute these tests.
 
