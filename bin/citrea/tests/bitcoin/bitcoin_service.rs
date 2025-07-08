@@ -1,11 +1,11 @@
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::str::FromStr;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
-use bitcoin_da::service::get_relevant_blobs_from_txs;
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
@@ -18,8 +18,8 @@ use sov_rollup_interface::da::{BlobReaderTrait, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::Network;
 
-use crate::bitcoin::get_citrea_path;
 use crate::bitcoin::utils::{generate_mock_txs, get_default_service, SEQUENCER_DA_PRIVATE_KEY};
+use crate::bitcoin::{get_citrea_path, get_relevant_seqcoms_from_txs};
 
 struct BitcoinServiceTest {
     task_manager: TaskManager,
@@ -92,10 +92,10 @@ impl TestCase for BitcoinServiceTest {
 
             // Since only one of the transactions has a malformed sender, we have to find the
             // tx that is not malformed, and get its public key
-            pubkey = if txs[0].sender == txs[1].sender || txs[0].sender == txs[2].sender {
-                txs[0].sender.0.clone()
+            pubkey = if txs[0].sender() == txs[1].sender() || txs[0].sender() == txs[2].sender() {
+                txs[0].sender()
             } else {
-                txs[1].sender.0.clone()
+                txs[1].sender()
             };
 
             // Ensure that the produced outputs are verifiable by the verifier
@@ -108,7 +108,7 @@ impl TestCase for BitcoinServiceTest {
         // Extract relevant sequencer commitments
         {
             let commitments: Vec<_> = service
-                .extract_relevant_sequencer_commitments(&block, &pubkey)
+                .extract_relevant_sequencer_commitments(&block, pubkey.as_ref())
                 .into_iter()
                 .map(|(_, commitment)| commitment)
                 .collect();
@@ -118,7 +118,7 @@ impl TestCase for BitcoinServiceTest {
         // Extract relevant zk proofs
         {
             let proofs: Vec<_> = service
-                .extract_relevant_zk_proofs(&block, &pubkey)
+                .extract_relevant_zk_proofs(&block, pubkey.as_ref())
                 .await
                 .into_iter()
                 .map(|(_, proof)| proof)
@@ -141,15 +141,15 @@ impl TestCase for BitcoinServiceTest {
                 .serialize()
                 .to_vec();
 
-            let txs = get_relevant_blobs_from_txs(
-                block.txdata.iter().map(|tx| tx.inner().clone()).collect(),
+            let txs = get_relevant_seqcoms_from_txs(
+                block.txdata.iter().map(|tx| tx.deref().clone()).collect(),
                 REVEAL_TX_PREFIX,
             );
             assert_eq!(txs.len(), 4);
 
             // Count the number of transactions occurring per public key
             let tx_count_of_pubkey = txs.into_iter().fold(HashMap::new(), |mut acc, tx| {
-                *acc.entry(tx.sender.0).or_insert(0) += 1;
+                *acc.entry(tx.sender().0).or_insert(0) += 1;
                 acc
             });
             // 3 valid sequencer commitments

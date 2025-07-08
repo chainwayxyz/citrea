@@ -1,5 +1,10 @@
 use std::path::PathBuf;
 
+use bitcoin::hashes::Hash;
+use bitcoin::Transaction;
+use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
+use bitcoin_da::spec::blob::BlobWithSender;
+
 pub mod batch_prover_test;
 pub mod light_client_test;
 pub mod rollback;
@@ -51,4 +56,40 @@ pub(super) fn get_citrea_cli_path() -> PathBuf {
         },
         PathBuf::from,
     )
+}
+
+fn get_relevant_seqcoms_from_txs(
+    txs: Vec<Transaction>,
+    reveal_wtxid_prefix: &[u8],
+) -> Vec<BlobWithSender> {
+    let mut relevant_txs = Vec::new();
+
+    for tx in txs {
+        if !tx
+            .compute_wtxid()
+            .to_byte_array()
+            .as_slice()
+            .starts_with(reveal_wtxid_prefix)
+        {
+            continue;
+        }
+
+        if let Ok(ParsedTransaction::SequencerCommitment(seq_comm)) =
+            parse_relevant_transaction(&tx)
+        {
+            if let Some(hash) = seq_comm.get_sig_verified_hash() {
+                let relevant_tx = BlobWithSender::new(
+                    seq_comm.body().to_vec(),
+                    seq_comm.public_key().to_vec(),
+                    hash,
+                    None,
+                );
+
+                relevant_txs.push(relevant_tx);
+            }
+        } else {
+            // ignore
+        }
+    }
+    relevant_txs
 }

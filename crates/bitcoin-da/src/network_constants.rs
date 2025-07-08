@@ -1,6 +1,9 @@
+//! This module defines constants and initial states for different Bitcoin networks used in the DA layer.
+
 use crypto_bigint::U256;
 use sov_rollup_interface::da::LatestDaState;
 
+/// Mainnet constants.
 pub const MAINNET_CONSTANTS: NetworkConstants = NetworkConstants {
     max_bits: 0x1D00FFFF,
     max_target: U256::from_be_hex(
@@ -9,6 +12,7 @@ pub const MAINNET_CONSTANTS: NetworkConstants = NetworkConstants {
     // TODO: TBD before mainnet
     finality_depth: 8,
 };
+/// Testnet4 constants.
 pub const TESTNET4_CONSTANTS: NetworkConstants = NetworkConstants {
     max_bits: 0x1D00FFFF,
     max_target: U256::from_be_hex(
@@ -16,6 +20,7 @@ pub const TESTNET4_CONSTANTS: NetworkConstants = NetworkConstants {
     ),
     finality_depth: 100,
 };
+/// Signet constants.
 pub const SIGNET_CONSTANTS: NetworkConstants = NetworkConstants {
     max_bits: 0x1E0377AE,
     max_target: U256::from_be_hex(
@@ -23,6 +28,7 @@ pub const SIGNET_CONSTANTS: NetworkConstants = NetworkConstants {
     ),
     finality_depth: 5,
 };
+/// Regtest constants.
 pub const REGTEST_CONSTANTS: NetworkConstants = NetworkConstants {
     max_bits: 0x207FFFFF,
     max_target: U256::from_be_hex(
@@ -31,6 +37,7 @@ pub const REGTEST_CONSTANTS: NetworkConstants = NetworkConstants {
     finality_depth: 5,
 };
 
+/// Returns the network constants for the given Bitcoin network.
 pub fn get_network_constants(network: &bitcoin::Network) -> NetworkConstants {
     match network {
         bitcoin::Network::Bitcoin => MAINNET_CONSTANTS,
@@ -41,6 +48,7 @@ pub fn get_network_constants(network: &bitcoin::Network) -> NetworkConstants {
     }
 }
 
+/// Specific constants for different Bitcoin networks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NetworkConstants {
     /// Maximum bits of the chain
@@ -51,6 +59,7 @@ pub struct NetworkConstants {
     pub finality_depth: u64,
 }
 
+/// Initial mainnet state.
 pub const INITIAL_MAINNET_STATE: LatestDaState = LatestDaState {
     block_hash: [0; 32],
     block_height: 0,
@@ -60,6 +69,7 @@ pub const INITIAL_MAINNET_STATE: LatestDaState = LatestDaState {
     prev_11_timestamps: [0; 11],
 };
 
+/// Initial regtest state.
 pub const INITIAL_TESTNET4_STATE: LatestDaState = LatestDaState {
     block_hash: [
         177, 30, 245, 240, 148, 228, 201, 10, 169, 117, 171, 23, 153, 213, 126, 0, 82, 34, 206,
@@ -78,6 +88,7 @@ pub const INITIAL_TESTNET4_STATE: LatestDaState = LatestDaState {
     ],
 };
 
+/// Initial signet state.
 pub const INITIAL_SIGNET_STATE: LatestDaState = LatestDaState {
     block_hash: [
         245, 79, 209, 136, 168, 232, 39, 32, 63, 156, 16, 98, 53, 39, 221, 58, 154, 156, 163, 63,

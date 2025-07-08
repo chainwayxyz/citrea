@@ -48,6 +48,7 @@ alloy-primitives = { workspace = true }
 alloy-sol-types = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+bitcoin = { workspace = true }
 bitcoincore-rpc = { workspace = true }
 borsh = { workspace = true, features = ["bytes"] }
 clap = { workspace = true }

@@ -1,3 +1,5 @@
+//! Backup DaTxs to disk.
+
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -18,6 +20,7 @@ fn transaction_kind_to_backup_name(kind: &TransactionKind) -> &str {
     }
 }
 
+/// Save DaTxs on disk.
 pub(crate) fn backup_txs_to_file(path: &Path, txs: &[SignedTxPair]) -> anyhow::Result<()> {
     if let Some(tx) = txs.first() {
         match &tx.kind {
@@ -45,6 +48,7 @@ pub(crate) fn backup_txs_to_file(path: &Path, txs: &[SignedTxPair]) -> anyhow::R
     Ok(())
 }
 
+/// Save DaTxs::Complete on disk.
 fn backup_complete_txs(path: &Path, raw_txs: &[&Vec<u8>; 2], name: &str) -> anyhow::Result<()> {
     let commit_tx: Transaction = consensus::deserialize(raw_txs[0])?;
     let reveal_tx: Transaction = consensus::deserialize(raw_txs[1])?;
@@ -67,6 +71,7 @@ fn backup_complete_txs(path: &Path, raw_txs: &[&Vec<u8>; 2], name: &str) -> anyh
     Ok(())
 }
 
+/// Save DaTxs::Chunked on disk.
 fn backup_chunked_txs(path: &Path, txs: &[SignedTxPair]) -> anyhow::Result<()> {
     let last_pair = txs
         .last()

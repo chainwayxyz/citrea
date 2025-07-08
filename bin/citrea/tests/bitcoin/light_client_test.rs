@@ -6,7 +6,7 @@ use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
-use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
+use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::BitcoinVerifier;
 use bitcoincore_rpc::{Client, RpcApi};
@@ -2838,7 +2838,7 @@ struct UndecompressableBlobTest {
 impl UndecompressableBlobTest {
     fn verify_complete_is_non_decompressable(tx: &bitcoin::Transaction) -> bool {
         if let Ok(ParsedTransaction::Complete(complete)) = parse_relevant_transaction(tx) {
-            let Ok(data) = DataOnDa::try_from_slice(&complete.body) else {
+            let Ok(data) = DataOnDa::try_from_slice(complete.body()) else {
                 panic!("Failed to parse complete data");
             };
 
@@ -2856,7 +2856,7 @@ impl UndecompressableBlobTest {
 
         for tx in &block.txdata {
             if let Ok(ParsedTransaction::Aggregate(aggregate)) = parse_relevant_transaction(tx) {
-                complete_proof.extend_from_slice(&aggregate.body);
+                complete_proof.extend_from_slice(aggregate.body());
             }
         }
 

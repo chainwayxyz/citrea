@@ -1,22 +1,22 @@
+//! Provides an implementation of the BlobReaderTrait for Bitcoin.
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::BlobReaderTrait;
 
 use super::address::AddressWrapper;
 
-// BlobWithSender is a wrapper around BlobBuf to implement BlobReaderTrait
+/// BlobWithSender is a wrapper around BlobBuf to implement BlobReaderTrait
 #[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 pub struct BlobWithSender {
-    pub hash: [u8; 32],
-
-    pub sender: AddressWrapper,
-
-    pub blob: Vec<u8>,
-
-    pub wtxid: Option<[u8; 32]>,
+    pub(crate) hash: [u8; 32],
+    pub(crate) sender: AddressWrapper,
+    pub(crate) blob: Vec<u8>,
+    pub(crate) wtxid: Option<[u8; 32]>,
 }
 
 impl BlobWithSender {
+    /// Creates a new BlobWithSender.
     pub fn new(blob: Vec<u8>, sender: Vec<u8>, hash: [u8; 32], wtxid: Option<[u8; 32]>) -> Self {
         Self {
             blob,

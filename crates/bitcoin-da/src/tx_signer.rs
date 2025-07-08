@@ -1,3 +1,5 @@
+//! This module provides functionality for signing Bitcoin transactions.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
