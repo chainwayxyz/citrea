@@ -65,7 +65,7 @@ Code related to the L1 fees can be found in `crates/evm/src/evm/handler.rs`
 EIP-4844 transaction cannot be included in L2 blocks. `BLOBBASEFEE` always returns 1.
 
 ### System Transactions
-System transactions are transactions that are done by the system signer `0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD`. These transactions are put inside the L2 blocks by the seqeuencer and they are not charged any fees.
+System transactions are transactions that are done by the system signer `0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD`. These transactions are put inside the L2 blocks by the sequencer and they are not charged any fees.
 
 Currently, there are 4 types of system transactions.
 
