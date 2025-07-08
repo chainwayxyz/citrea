@@ -1,8 +1,5 @@
 //! This module provides a service for managing Bitcoin transaction fees.
 
-// fix clippy for tracing::instrument
-// #![allow(clippy::blocks_in_conditions)]
-
 use core::result::Result::Ok;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -93,10 +90,10 @@ impl FeeService {
                     self.client.estimate_smart_fee(1, None).await?.fee_rate
                 }
             };
-        let sat_vb = smart_fee.map_or(1, |rate| rate.to_sat() / 1000);
+        let sat_vkb = smart_fee.map_or(1000, |rate| rate.to_sat());
 
-        tracing::debug!("Fee rate: {} sat/vb", sat_vb);
-        Ok(sat_vb)
+        tracing::debug!("Fee rate: {} sat/vb", sat_vkb / 1000);
+        Ok(sat_vkb / 1000)
     }
 
     /// Bump TX fee via cpfp.
