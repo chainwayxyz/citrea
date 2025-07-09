@@ -1,7 +1,6 @@
-# Full Node Finality Tracking 
-(reference other docs!!!)
+# Full Node Finality Tracking
 
-Citrea full nodes process L1 blocks to extract and verify sequencer commitments and batch proofs, which determine L2 finality.
+Citrea Full nodes process L1 blocks to extract and verify sequencer commitments and batch proofs, which determine L2 finality.
 
 A sequence of continuous sequencer commitments up to an L2 block height marks that height as "committed". If there are valid batch proofs covering every sequencer commitment in that chain, the final L2 block in that sequence is marked as "proven".
 
@@ -34,25 +33,25 @@ For each finalized L1 block, the full node uses the Bitcoin DA service to extrac
    - If there are unproven commitments before the proof’s L2 range, the proof is stored as pending.
 
    - If all checks pass, the proof is stored, and the proven L2 height is advanced for the L1 block being processed.  
-3. Processing pending commitments
+3. **Processing pending commitments**
 
 Sequencer commitments that are pending due to missing previous commitments or unsynced L2 blocks are processed again in order. They are processed in order by index, since each commitment must build on the previous one.
 
-4. Processing pending proofs
+4. **Processing pending proofs**
 
-ending proofs with unresolved dependencies — such as unsynced L2 ranges or unprocessed referenced commitments — are also re-attempted. These proofs are processed in order based on their referenced commitment index range
+Pending proofs with unresolved dependencies — such as unsynced L2 ranges or unprocessed referenced commitments — are also re-attempted. These proofs are processed in order based on their referenced commitment index range
 
 ## Querying committed and finalized blocks
 
 The full node exposes the following RPC endpoints to query L2 finality based on the last processed L1 block:
 
-- `citrea_getLastCommittedL2Height`
+- `citrea_getLastCommittedL2Height`     
     Returns the most recent committed L2 height and its corresponding sequencer commitment index.
 
-- `citrea_getLastProvenL2Height`
+- `citrea_getLastProvenL2Height`    
     Returns the most recent proven L2 height and the corresponding sequencer commitment index that has been proven.
 
-- `citrea_getL2StatusHeightsByL1Height`
+- `citrea_getL2StatusHeightsByL1Height`     
     Given an L1 block height, returns the committed and proven L2 heights along with their sequencer commitment indices.
 
 Additionally, you can use the `safe` and `finalized` tags when calling Ethereum RPC methods that accept a block ID or tag. The `safe` tag resolves to the last committed L2 block, while `finalized` refers to the last proven L2 block. Example RPC endpoints include `eth_getBlockByNumber`, `eth_getBlockReceipts`, `eth_getBalance` and more.
