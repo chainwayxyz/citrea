@@ -18,7 +18,7 @@ For each finalized L1 block, the full node uses the Bitcoin DA service to extrac
    - The L2 start height is determined from the previous sequencer commitment. If the previous commitment is missing, the current one is stored as pending.  
    - If the full node is not yet synced up to the end of the commitment’s L2 range, the commitment is stored as pending.  
    - The Merkle root is verified by reconstructing it from the L2 block hashes; if it does not match, L1 block processing is halted.  
-   - If all checks pass, the commitment is stored, and the committed L2 height is advanced for the L1 block being processed
+   - If all checks pass, the commitment is stored, and the committed L2 height is advanced for the L1 block being processed.
 
 2. **Processing batch proofs**  
    For each proof:  
@@ -39,7 +39,7 @@ Sequencer commitments that are pending due to missing previous commitments or un
 
 4. **Processing pending proofs**
 
-Pending proofs with unresolved dependencies — such as unsynced L2 ranges or unprocessed referenced commitments — are also re-attempted. These proofs are processed in order based on their referenced commitment index range
+Pending proofs with unresolved dependencies — such as unsynced L2 ranges or unprocessed referenced commitments — are also re-attempted. These proofs are processed in order based on their referenced commitment index range.
 
 ## Querying committed and finalized blocks
 
