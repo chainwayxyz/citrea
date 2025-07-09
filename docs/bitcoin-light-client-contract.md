@@ -6,6 +6,12 @@ This document provides an overview of the `BitcoinLightClient.sol` smart contrac
 
 `BitcoinLightClient.sol` is a system contract deployed on Citrea. Its primary responsibility is to maintain a record of Bitcoin block headers and provide functions to verify the inclusion of transactions within those blocks. This is crucial for the security and functionality of the Citrea-Bitcoin bridge, as it allows the bridge contract to confirm that deposits have been finalized on the Bitcoin network.
 
+The Bitcoin Light Client contract's `setBlockInfo` function is called by the system signer (as described in [eth-mainnet-evm-differences.md](./eth-mainnet-evm-differences.md)). Even though these system transactions are put into L2 blocks by the sequencer, all Citrea actors verify the updates:
+- Citrea full nodes verify that the updates to the system contract is valid by cross-checking the provided hashes, WTXID merkle roots and merkle tree depths with their Bitcoin full nodes. 
+- The batch proof circuit verifies the updates to the Bitcoin Light Client contract by providing "short header proofs" as inputs. Short header proofs are proofs that attest to a certain Bitcoin block height, hash, and coinbase transaction. 
+- The Light Client Proof circuit, for any given batch proof, checks that the last L1 hash on the Bitcoin Light Client contract belongs to the Bitcoin header chain that is known by the circuit. Thanks to these verifications, incorrect updates to the Bitcoin Light Client contract is reject on L2 and on the L1. 
+For further information on this topic, please see [batch-proof-circuit.md](./batch-proof-circuit.md#short-header-proof-verification) and [light-client-circuit.md](./light-client-circuit.md#processing-complete-proofs), `crates/short-header-proof-provider` and `crates/bitcoin-da/src/spec/short_proof.rs`
+
 ## Core Concepts
 
 ### Block Header Storage
