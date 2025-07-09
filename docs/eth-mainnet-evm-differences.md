@@ -11,7 +11,7 @@ Due to the costs of KZG verification in ZK circuits, this precompile was removed
 ### Schnorr Verify Precompile
 Under `crates/evm/src/evm/precompiles` the schnorr verifier precompile can be found. This precompile is used in Citrea's canonical bridge operations, however, the precompile is open for calls from any other smart contract.
 
-The precompile lives at `0x0200`
+The precompile lives at `0x0000000000000000000000000000000000000200`.
 
 ### `secp256r1` Precompile
 Citrea implements [RIP-7212](https://github.com/ethereum/RIPs/blob/master/RIPS/rip-7212.md).
@@ -46,7 +46,7 @@ For more information on the Bitcoin Light Client Contract and  Bridge Contract, 
 ## Blocks, Fees & Transactions
 
 ### Gas limit
-Citrea blocks have 10 million gas limit.
+Citrea blocks have 10 million gas limit, except for tests where we have different amount of gas set in different tests.
 
 ### Block times
 Citrea blocks are produced every 2 seconds. The timing of the blocks are controlled by the sequencer and are not guaranteed to meet the 2 second interval.
