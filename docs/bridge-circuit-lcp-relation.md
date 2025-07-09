@@ -33,8 +33,8 @@ Citrea uses the **Clementine bridge** to treat BTC as a native asset. This bridg
 
 4. **Finalization**  
     Inside the `deposit` function:
-    - The witness is extracted → script → recipient (Citrea address)
-    - If validation passes, **cBTC is minted** to the recipient’s Citrea account.
+    - In the deposit function firstly witness is extracted, from witness,  the script and from the script the recipient address (depositor Citrea address) is extracted.
+    - If validations are successful the **cBTC is minted** to the recipient’s Citrea account.
 
 ---
 
