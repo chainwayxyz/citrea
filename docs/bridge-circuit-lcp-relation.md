@@ -44,8 +44,8 @@ When the user wants to exit Citrea:
 
 1. The user sends a **Burn transaction**, burning their 10 cBTC on Citrea.
     a. Burning has to be done against the bridge contract, not all burning works(like sending funds to 0x0...000 will not be the same)
-2. The rollup includes this transaction in a future batch.
-3. Once Citrea finalizes and checkpoints the batch on Bitcoin, the user can withdraw the original BTC.
+2. The rollup includes this transaction in a future block.
+3. Once Citrea finalizes and checkpoints the block on Bitcoin in a batch proof, the user can withdraw the original BTC.
 
 For a deeper dive into this flow, refer to the [Bridge Contract documentation](./bridge-contract.md).
 
