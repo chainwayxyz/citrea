@@ -75,6 +75,7 @@ The **Bridge Circuit** within Clementine handles proof validation for both depos
     - The deposit slot
   - These keys, along with the L2 height, are used in an `eth_getProof` RPC call to Citrea to retrieve the **storage proofs**.
 
-4. **Circuit Execution**
+4. **Bridge Circuit Execution**
 - The storage proofs are converted to [`EIP1186StorageProof`](https://eips.ethereum.org/EIPS/eip-1186) format.
 - The Bridge Circuit verifies their inclusion using Merkle proofs.
+- This storage proof verifies that there was in fact a withdrawal
