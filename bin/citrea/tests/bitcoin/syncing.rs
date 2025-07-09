@@ -30,7 +30,9 @@ impl TestCase for DelayedSyncTest {
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_ref().unwrap();
-        let full_node = f.full_node.as_ref().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
+        // Stop full node so it doesn't sync
+        full_node.wait_until_stopped().await?;
 
         let seq_test_client = make_test_client(SocketAddr::new(
             sequencer.config.rpc_bind_host().parse()?,
@@ -48,6 +50,9 @@ impl TestCase for DelayedSyncTest {
         }
 
         sequencer.wait_for_l2_height(10, None).await?;
+
+        // Restart full node to trigger delayed sync
+        full_node.start(None, None).await?;
         full_node.wait_for_l2_height(10, None).await?;
 
         // Compare block 10 between sequencer and full node
