@@ -54,4 +54,4 @@ The full node exposes the following RPC endpoints to query L2 finality based on 
 - `citrea_getL2StatusHeightsByL1Height`     
     Given an L1 block height, returns the committed and proven L2 heights along with their sequencer commitment indices.
 
-Additionally, you can use the `safe` and `finalized` tags when calling Ethereum RPC methods that accept a block ID or tag. The `safe` tag resolves to the last committed L2 block, while `finalized` refers to the last proven L2 block. Example RPC endpoints include `eth_getBlockByNumber`, `eth_getBlockReceipts`, `eth_getBalance` and more.
+Additionally, you can use the `safe` and `finalized` tags when calling Ethereum RPC methods that accept a block ID or tag. The `safe` tag resolves to the last committed L2 block, while `finalized` refers to the last proven L2 block. Example RPC endpoints include `eth_getBlockByNumber`, `eth_getBlockReceipts`, `eth_getBalance`, and more.
