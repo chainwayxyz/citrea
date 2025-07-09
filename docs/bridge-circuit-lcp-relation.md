@@ -43,6 +43,7 @@ Citrea uses the **Clementine bridge** to treat BTC as a native asset. This bridg
 When the user wants to exit Citrea:
 
 1. The user sends a **Burn transaction**, burning their 10 cBTC on Citrea.
+    a. Burning has to be done against the bridge contract, not all burning works(like sending funds to 0x0...000 will not be the same)
 2. The rollup includes this transaction in a future batch.
 3. Once Citrea finalizes and checkpoints the batch on Bitcoin, the user can withdraw the original BTC.
 
