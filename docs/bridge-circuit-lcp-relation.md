@@ -2,7 +2,7 @@
 
 > **Before reading this document**, it is highly recommended to review the [Clementine Whitepaper](https://citrea.xyz/clementine_whitepaper.pdf) and other relevant Citrea documentation. This document assumes a comprehensive understanding of the system and builds on concepts discussed elsewhere.
 
-Citrea uses the **Clementine bridge** to treat BTC as a native asset. This bridge enables:
+Through the **Clementine bridge** Citrea has BTC as it's native asset. This bridge enables:
 
 - **Depositing BTC** → to receive **cBTC** in Citrea (Peg-In)
 - **Withdrawing BTC** → by **burning cBTC** in Citrea (Peg-Out)
