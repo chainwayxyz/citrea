@@ -24,6 +24,7 @@ pub mod sequencer_commitments;
 pub mod sequencer_test;
 pub mod syncing;
 pub mod tangerine_related;
+pub mod taproot_key_spend;
 pub mod tx_chain;
 pub mod tx_propagation;
 
