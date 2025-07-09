@@ -69,14 +69,16 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	$(MAKE) install-risc0
 	rustup target add thumbv6m-none-eabi
 	rustup component add llvm-tools-preview
-	$(MAKE) install-sp1
+	# $(MAKE) install-sp1
 
 install-risc0:
 	curl -L https://risczero.com/install | bash && \
 	([ -f $$HOME/.bashrc ] && source $$HOME/.bashrc || true) && \
 	([ -f $$HOME/.zshrc ] && source $$HOME/.zshrc || true) && \
-	rzup install && \
-	rzup install rust 1.85.0
+	rzup install cargo-risczero 2.1.0 && \
+	rzup install cpp && \
+	rzup install r0vm 2.1.0 && \
+	rzup install rust 1.85.0 && \
 
 install-sp1: ## Install necessary SP1 toolchain
 	curl -L https://sp1.succinct.xyz | bash
