@@ -1,3 +1,5 @@
+//! This module provides utility functions for testing Bitcoin DA.
+
 use core::result::Result::Ok;
 
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
@@ -13,7 +15,7 @@ use secp256k1::SECP256K1;
 use tracing::{trace, warn};
 
 use super::{
-    build_commit_transaction, build_reveal_transaction, build_taproot, build_witness,
+    build_commit_transaction, build_control_block, build_reveal_transaction, build_witness,
     get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind,
 };
 use crate::helpers::builders::body_builders::DaTxs;
@@ -21,7 +23,9 @@ use crate::helpers::builders::TxWithId;
 use crate::spec::utxo::UTXO;
 use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
-// Returns (chunk commit tx, chunk reveal tx)
+/// Creates a single chunk transaction for testing purposes as if
+/// it was of a Complete kind.
+/// Returns (chunk commit tx, chunk reveal tx)
 #[allow(clippy::too_many_arguments)]
 pub fn test_create_single_chunk(
     body: Vec<u8>,
@@ -44,7 +48,7 @@ pub fn test_create_single_chunk(
     let mut reveal_script_builder = script::Builder::new()
         .push_x_only_key(&public_key)
         .push_opcode(OP_CHECKSIGVERIFY)
-        .push_slice(PushBytesBuf::try_from(kind_bytes).expect("Cannot push header"))
+        .push_slice(PushBytesBuf::from(kind_bytes))
         .push_opcode(OP_FALSE)
         .push_opcode(OP_IF);
     // push body in chunks of 520 bytes
@@ -78,7 +82,7 @@ pub fn test_create_single_chunk(
         let reveal_script = reveal_script_builder.into_script();
 
         let (control_block, merkle_root, tapscript_hash) =
-            build_taproot(&reveal_script, public_key, SECP256K1);
+            build_control_block(&reveal_script, public_key, SECP256K1);
 
         // create commit tx address
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
@@ -170,6 +174,8 @@ pub fn test_create_single_chunk(
     }
 }
 
+/// Creates a single aggregate transaction for testing purposes as if
+/// it was of a Complete kind.
 #[allow(clippy::too_many_arguments)]
 pub fn test_create_single_aggregate(
     reveal_body: Vec<u8>,
@@ -194,7 +200,7 @@ pub fn test_create_single_aggregate(
     let mut reveal_script_builder = script::Builder::new()
         .push_x_only_key(&public_key)
         .push_opcode(OP_CHECKSIGVERIFY)
-        .push_slice(PushBytesBuf::try_from(kind_bytes).expect("Cannot push header"))
+        .push_slice(PushBytesBuf::from(kind_bytes))
         .push_opcode(OP_FALSE)
         .push_opcode(OP_IF)
         .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
@@ -236,7 +242,7 @@ pub fn test_create_single_aggregate(
         let reveal_script = reveal_script_builder.into_script();
 
         let (control_block, merkle_root, tapscript_hash) =
-            build_taproot(&reveal_script, public_key, SECP256K1);
+            build_control_block(&reveal_script, public_key, SECP256K1);
 
         // create commit tx address
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);

@@ -1,3 +1,5 @@
+//! This module provides a monitoring service for Bitcoin transactions.
+
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -28,71 +30,96 @@ use crate::spec::utxo::UTXO;
 type BlockHeight = u64;
 type Result<T> = std::result::Result<T, MonitorError>;
 
-fn get_timestamp() -> anyhow::Result<u64> {
-    Ok(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs())
+/// Return UNIX timestamp in seconds
+fn get_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Cannot fail because there is always a UNIX epoch")
+        .as_secs()
 }
 
+/// Transaction status in the monitoring service.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TxStatus {
-    // Queued tx, not already broadcasted
+    /// Queued tx, not already broadcasted
     Queued,
-    // Tx in mempool
+    /// Tx in mempool
     #[serde(rename_all = "camelCase")]
     InMempool {
+        /// Base fee rate.
         base_fee: u64,
+        /// Timestamp.
         timestamp: u64,
     },
-    // Tx confirmed but below finality_depth
+    /// Tx confirmed but below finality_depth
     #[serde(rename_all = "camelCase")]
     Confirmed {
+        /// Block hash where the tx was confirmed.
         block_hash: BlockHash,
+        /// Block height where the tx was confirmed.
         block_height: u64,
+        /// Number of confirmations.
         confirmations: u64,
     },
-    // Tx confirmed above finality_depth
+    /// Tx confirmed above finality_depth
     #[serde(rename_all = "camelCase")]
     Finalized {
+        /// Block hash where the tx was confirmed.
         block_hash: BlockHash,
+        /// Block height where the tx was confirmed.
         block_height: u64,
+        /// Number of confirmations.
         confirmations: u64,
     },
-    // Tx replaced by RBF
+    /// Tx replaced by RBF
     #[serde(rename_all = "camelCase")]
     Replaced {
+        /// Txid of the transaction that replaced this one.
         by_txid: Txid,
     },
-    // Tx that was previously in mempool and not found anymore
+    /// Tx that was previously in mempool and not found anymore
     #[serde(rename_all = "camelCase")]
     Evicted {
+        /// Last seen timestamp.
         last_seen: u64,
+        /// Number of rebroadcast attempts.
         rebroadcast_attempts: u32,
+        /// Last error message.
         last_error: Option<String>,
     },
 }
 
+/// The kind of transaction being monitored.
 #[derive(Debug, Clone, Copy)]
 pub enum MonitoredTxKind {
+    /// Commit transaction, the first in a commit/reveal pair
     Commit,
+    /// Reveal transaction, the second in a commit/reveal pair
     Reveal,
+    /// Child-pays-for-parent transaction
     Cpfp,
 }
 
+/// A type for a monitored transaction with its metadata.
 #[derive(Debug, Clone)]
 pub struct MonitoredTx {
-    pub tx: Transaction,
-    pub txid: Txid,
+    pub(crate) tx: Transaction,
+    pub(crate) txid: Txid,
     address: Option<Address<NetworkUnchecked>>,
-    pub initial_broadcast: u64,
-    pub initial_height: BlockHeight,
+    pub(crate) initial_broadcast: u64,
+    pub(crate) initial_height: BlockHeight,
     last_checked: u64,
-    pub status: TxStatus,
-    pub prev_txid: Option<Txid>, // Previous tx in chain
-    pub next_txid: Option<Txid>, // Next tx in chain
-    pub kind: MonitoredTxKind,
+    pub(crate) status: TxStatus,
+    /// Previous tx in the chain
+    pub(crate) prev_txid: Option<Txid>,
+    /// Next tx in the chain
+    pub(crate) next_txid: Option<Txid>,
+    pub(crate) kind: MonitoredTxKind,
 }
 
 impl MonitoredTx {
+    /// Return the UTXOs for this transaction if it's not replaced or evicted.
     pub fn to_utxos(&self) -> Option<Vec<UTXO>> {
         let confirmations = match self.status {
             TxStatus::Queued | TxStatus::InMempool { .. } => 0,
@@ -121,6 +148,7 @@ impl MonitoredTx {
     }
 }
 
+/// The state of the blockchain.
 #[derive(Debug, Clone)]
 pub struct ChainState {
     current_height: BlockHeight,
@@ -138,24 +166,34 @@ impl Default for ChainState {
     }
 }
 
+/// Error types for the monitoring service.
 #[derive(Error, Debug)]
 pub enum MonitorError {
+    /// Already monitored.
     #[error("Transaction already monitored")]
     AlreadyMonitored,
+    /// Transaction not found.
     #[error("Transaction not found")]
     TxNotFound,
-    #[error("BlockHash not found")]
-    BlockHashNotFound,
+    /// BlockHash not set.
+    #[error("BlockHash not set")]
+    BlockHashNotSet,
+    /// Previous transaction is not monitored.
     #[error("Previous transaction not monitored: {0}")]
     PrevTxNotMonitored(Txid),
+    /// Invalid transaction chain, odd number of transactions.
     #[error("Invalid tx chain, odd number of txs")]
     OddNumberOfTxs,
+    /// Transaction rebroadcast failed.
     #[error("Transaction rebroadcast failed: {0}")]
     RebroadcastFailed(String),
+    /// RPC error.
     #[error(transparent)]
     BitcoinRpcError(#[from] bitcoincore_rpc::Error),
     #[error(transparent)]
+    /// Bitcoin encoding error.
     BitcoinEncodeError(#[from] bitcoin::consensus::encode::Error),
+    /// Other errors.
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
@@ -182,16 +220,22 @@ mod monitoring_defaults {
     }
 }
 
+/// Configuration for the monitoring service.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct MonitoringConfig {
+    /// Interval in seconds to check the chain state and transactions.
     #[serde(default = "monitoring_defaults::check_interval")]
     pub check_interval: u64,
+    /// Limit on the number of historical transactions to keep track of.
     #[serde(default = "monitoring_defaults::history_limit")]
     pub history_limit: usize,
+    /// Maximum size of the history in bytes.
     #[serde(default = "monitoring_defaults::max_history_size")]
     pub max_history_size: usize,
+    /// Maximum number of rebroadcast attempts for evicted txs.
     #[serde(default = "monitoring_defaults::max_rebroadcast_attempts")]
     pub max_rebroadcast_attempts: u32,
+    /// Delay between rebroadcast attempts.
     #[serde(default = "monitoring_defaults::rebroadcast_delay")]
     pub rebroadcast_delay: u64,
 }
@@ -244,6 +288,9 @@ impl FromEnv for MonitoringConfig {
     }
 }
 
+/// Monitoring service for tracking transaction status and chain re-orgs.
+/// It monitors commit/reveal transaction pairs, handles rebroadcasting of evicted transactions,
+/// and maintains the chain state based on recent blocks.
 #[derive(Debug)]
 pub struct MonitoringService {
     client: Arc<Client>,
@@ -252,14 +299,15 @@ pub struct MonitoringService {
     config: MonitoringConfig,
     // Last tx in queue
     last_tx: Mutex<Option<Txid>>,
-    // Keep track of total monitored transaction size
-    // Only takes into account inner tx field from MonitoredTx
+    /// Keep track of total monitored transaction size
+    /// Only takes into account inner tx field from MonitoredTx
     total_size: AtomicUsize,
     finality_depth: u64,
     block_tx: UnboundedSender<u64>,
 }
 
 impl MonitoringService {
+    /// Creates a new instance of the MonitoringService
     pub fn new(
         client: Arc<Client>,
         config: Option<MonitoringConfig>,
@@ -282,6 +330,7 @@ impl MonitoringService {
         )
     }
 
+    /// Restores the chain state and transaction monitoring from UTXOs
     pub async fn restore(&self) -> Result<()> {
         self.initialize_chainstate().await?;
         self.restore_from_utxos().await
@@ -416,6 +465,7 @@ impl MonitoringService {
         Ok(())
     }
 
+    /// Add a transaction to the monitoring service.
     #[instrument(skip(self))]
     pub async fn monitor_transaction(
         &self,
@@ -449,9 +499,9 @@ impl MonitoringService {
             tx: tx.tx,
             txid,
             address: None,
-            initial_broadcast: get_timestamp()?,
+            initial_broadcast: get_timestamp(),
             initial_height: current_height,
-            last_checked: get_timestamp()?,
+            last_checked: get_timestamp(),
             status,
             prev_txid,
             next_txid,
@@ -465,7 +515,7 @@ impl MonitoringService {
         Ok(())
     }
 
-    // Replace a TX with a new RBF tx
+    /// Replace a TX with a new RBF tx.
     #[instrument(skip(self))]
     pub async fn replace_txid(&self, prev_txid: Txid, new_txid: Txid) -> Result<()> {
         let monitored_tx = self
@@ -492,9 +542,9 @@ impl MonitoringService {
                 .details
                 .first()
                 .and_then(|detail| detail.address.clone()),
-            initial_broadcast: get_timestamp()?,
+            initial_broadcast: get_timestamp(),
             initial_height: current_height,
-            last_checked: get_timestamp()?,
+            last_checked: get_timestamp(),
             status,
             kind: monitored_tx.kind,
             prev_txid: monitored_tx.prev_txid,
@@ -609,7 +659,7 @@ impl MonitoringService {
                 _ => {}
             }
 
-            monitored_tx.last_checked = get_timestamp()?;
+            monitored_tx.last_checked = get_timestamp();
         }
 
         Ok(())
@@ -625,7 +675,7 @@ impl MonitoringService {
             let block_hash = tx_result
                 .info
                 .blockhash
-                .ok_or(MonitorError::BlockHashNotFound)?;
+                .ok_or(MonitorError::BlockHashNotSet)?;
             let block_height = self
                 .client
                 .get_block_info(&block_hash)
@@ -652,7 +702,7 @@ impl MonitoringService {
                     let base_fee = entry.fees.base.to_sat();
                     TxStatus::InMempool {
                         base_fee,
-                        timestamp: get_timestamp()?,
+                        timestamp: get_timestamp(),
                     }
                 }
                 Err(_) => {
@@ -662,7 +712,7 @@ impl MonitoringService {
 
                     tracing::info!("Tx {} was evicted from mempool.", tx_result.info.txid);
                     TxStatus::Evicted {
-                        last_seen: get_timestamp()?,
+                        last_seen: get_timestamp(),
                         rebroadcast_attempts: 0,
                         last_error: None,
                     }
@@ -712,7 +762,7 @@ impl MonitoringService {
             } = &monitored_tx.status
             {
                 if *rebroadcast_attempts < self.config.max_rebroadcast_attempts {
-                    let now = get_timestamp()?;
+                    let now = get_timestamp();
 
                     if now.saturating_sub(*last_seen) >= self.config.rebroadcast_delay {
                         match self
@@ -753,24 +803,29 @@ impl MonitoringService {
         self.determine_tx_status(&tx_result, current_status).await
     }
 
+    /// Get the status of a monitored transaction by its Txid
     pub async fn get_tx_status(&self, txid: &Txid) -> Option<TxStatus> {
         self.get_monitored_tx(txid).await.map(|tx| tx.status)
     }
 
+    /// Get a monitored transaction by its Txid
     pub async fn get_monitored_tx(&self, txid: &Txid) -> Option<MonitoredTx> {
         self.monitored_txs.read().await.get(txid).cloned()
     }
 
+    /// Get all monitored transactions.
     pub async fn get_monitored_txs(&self) -> HashMap<Txid, MonitoredTx> {
         self.monitored_txs.read().await.clone()
     }
 
+    /// Get the last monitored transaction.
     pub async fn get_last_tx(&self) -> Option<(Txid, MonitoredTx)> {
         let last_txid = (*self.last_tx.lock().await)?;
         let tx = self.monitored_txs.read().await.get(&last_txid)?.to_owned();
         Some((last_txid, tx))
     }
 
+    /// Set the next_txid for a given transaction.
     pub async fn set_next_tx(&self, txid: &Txid, next_txid: Txid) {
         let mut monitored_txs = self.monitored_txs.write().await;
         if let Some(parent) = monitored_txs.get_mut(txid) {
@@ -778,13 +833,14 @@ impl MonitoringService {
         }
     }
 
+    /// Fetch and update the status of multiple transactions.
     pub async fn update_txs_status(&self, txids: &[Txid]) -> Result<()> {
         let mut monitored_txs = self.monitored_txs.write().await;
         for txid in txids {
             if let Some(entry) = monitored_txs.get_mut(txid) {
                 if let Ok(tx_result) = self.client.get_transaction(txid, None).await {
                     entry.status = self.determine_tx_status(&tx_result, &entry.status).await?;
-                    entry.last_checked = get_timestamp()?;
+                    entry.last_checked = get_timestamp();
                     entry.address = tx_result
                         .details
                         .first()

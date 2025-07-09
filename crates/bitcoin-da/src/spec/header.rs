@@ -1,3 +1,7 @@
+//! This module defines the HeaderWrapper struct, which is a wrapper around the Bitcoin block header.
+//! It implements the BlockHeaderTrait from the sov_rollup_interface crate, allowing it to be
+//! used as a block header in the context of a sovereign rollup.
+
 use core::ops::Deref;
 
 use bitcoin::block::{Header as BitcoinHeader, Version};
@@ -11,14 +15,14 @@ use sov_rollup_interface::da::BlockHeaderTrait;
 use super::block_hash::BlockHashWrapper;
 use crate::helpers::calculate_double_sha256;
 
-// HeaderWrapper is a wrapper around BlockHash to implement BlockHeaderTrait
+/// HeaderWrapper is a wrapper around BlockHash to implement BlockHeaderTrait
 #[derive(
     Clone, Debug, PartialEq, Eq, Hash, BorshDeserialize, BorshSerialize, Serialize, Deserialize,
 )]
 pub struct HeaderWrapper {
     pub(crate) header: BitcoinHeaderWrapper,
-    pub tx_count: u32,
-    pub height: u64,
+    pub(crate) tx_count: u32,
+    pub(crate) height: u64,
     pub(crate) txs_commitment: [u8; 32],
     pub(crate) precomputed_hash: BlockHashWrapper,
 }
@@ -60,6 +64,7 @@ impl BlockHeaderTrait for HeaderWrapper {
 }
 
 impl HeaderWrapper {
+    /// Creates a new HeaderWrapper.
     pub fn new(
         header: BitcoinHeader,
         tx_count: u32,
@@ -75,6 +80,12 @@ impl HeaderWrapper {
         }
     }
 
+    /// Returns the number of transactions in the block.
+    pub fn tx_count(&self) -> u32 {
+        self.tx_count
+    }
+
+    /// Returns the block hash of the block.
     pub fn block_hash(&self) -> BlockHash {
         let mut enc = [0; BitcoinHeader::SIZE];
         self.header
@@ -83,16 +94,18 @@ impl HeaderWrapper {
         BlockHash::from_raw_hash(Hash::from_byte_array(calculate_double_sha256(&enc)))
     }
 
+    /// Returns the merkle root of the block.
     pub fn merkle_root(&self) -> [u8; 32] {
         self.header.merkle_root.to_byte_array()
     }
 
+    /// Returns the inner BitcoinHeader.
     pub fn inner(&self) -> &BitcoinHeader {
         &self.header.0
     }
 }
 
-/// BitcoinHeaderWrapper is a wrapper around BitcoinHeaderWrapper to implement borsh serde
+/// BitcoinHeaderWrapper is a wrapper around BitcoinHeader to implement borsh serde
 #[derive(Clone, PartialEq, Eq, Debug, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(transparent)]

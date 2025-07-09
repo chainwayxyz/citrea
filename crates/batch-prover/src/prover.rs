@@ -6,10 +6,10 @@ use std::collections::{hash_map, HashMap, VecDeque};
 use std::sync::Arc;
 
 use anyhow::Context;
-use citrea_common::utils::merge_state_diffs;
+use citrea_common::utils::{get_tangerine_activation_height_non_zero, merge_state_diffs};
 use citrea_common::{BatchProverConfig, ProverGuestRunConfig};
 use citrea_primitives::compression::compress_blob;
-use citrea_primitives::forks::{fork_from_block_number, get_tangerine_activation_height_non_zero};
+use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::{MAX_TX_BODY_SIZE, MAX_WITNESS_CACHE_SIZE};
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use futures::stream::FuturesUnordered;

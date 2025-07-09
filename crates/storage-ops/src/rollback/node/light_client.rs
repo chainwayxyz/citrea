@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use sov_db::schema::tables::{LightClientProofBySlotNumber, ProverLastScannedSlot};
 use sov_db::schema::types::SlotNumber;
-use sov_schema_db::{ScanDirection, DB};
+use sov_schema_db::{ScanDirection, SchemaBatch, DB};
 
 use crate::increment_table_counter;
 use crate::rollback::types::{LedgerNodeRollback, Result, RollbackContext, RollbackResult};
@@ -21,6 +21,7 @@ impl LightClientLedgerRollback {
         l1_target: u64,
         mut rollback_result: RollbackResult,
     ) -> Result {
+        let mut batch = SchemaBatch::new();
         let mut proof_by_slot_number = self
             .ledger_db
             .iter_with_direction::<LightClientProofBySlotNumber>(
@@ -40,11 +41,11 @@ impl LightClientLedgerRollback {
                 break;
             }
 
-            self.ledger_db
-                .delete::<LightClientProofBySlotNumber>(&slot_height)?;
+            batch.delete::<LightClientProofBySlotNumber>(&slot_height)?;
             increment_table_counter!("LightClientProofBySlotNumber", rollback_result);
         }
 
+        self.ledger_db.write_schemas(batch)?;
         Ok(rollback_result)
     }
 }

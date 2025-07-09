@@ -7,7 +7,7 @@ use sov_db::schema::tables::{
     ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber,
 };
 use sov_db::schema::types::{L2BlockNumber, L2HeightStatus, SlotNumber};
-use sov_schema_db::{ScanDirection, DB};
+use sov_schema_db::{ScanDirection, SchemaBatch, DB};
 
 use crate::increment_table_counter;
 use crate::rollback::types::{LedgerNodeRollback, Result, RollbackContext, RollbackResult};
@@ -22,6 +22,7 @@ impl FullNodeLedgerRollback {
     }
 
     fn rollback_l2(&self, l2_target: u64, mut rollback_result: RollbackResult) -> Result {
+        let mut batch = SchemaBatch::new();
         // Begin rollback for L2 tables
         let mut l2_blocks = self
             .ledger_db
@@ -37,13 +38,14 @@ impl FullNodeLedgerRollback {
                 break;
             }
 
-            self.ledger_db.delete::<L2BlockByNumber>(&l2_block_number)?;
+            batch.delete::<L2BlockByNumber>(&l2_block_number)?;
             increment_table_counter!("L2BlockByNumber", rollback_result);
 
-            self.ledger_db.delete::<L2BlockByHash>(&l2_block_hash)?;
+            batch.delete::<L2BlockByHash>(&l2_block_hash)?;
             increment_table_counter!("L2BlockByHash", rollback_result);
         }
 
+        self.ledger_db.write_schemas(batch)?;
         Ok(rollback_result)
     }
 
@@ -52,6 +54,7 @@ impl FullNodeLedgerRollback {
         last_sequencer_commitment_index: u32,
         mut rollback_result: RollbackResult,
     ) -> Result {
+        let mut batch = SchemaBatch::new();
         let mut comm_iter = self
             .ledger_db
             .iter_with_direction::<SequencerCommitmentByIndex>(
@@ -66,21 +69,20 @@ impl FullNodeLedgerRollback {
                 break;
             }
 
-            self.ledger_db
-                .delete::<SequencerCommitmentByIndex>(&comm_idx)?;
+            batch.delete::<SequencerCommitmentByIndex>(&comm_idx)?;
             increment_table_counter!("SequencerCommitmentByIndex", rollback_result);
 
-            self.ledger_db
-                .delete::<PendingSequencerCommitments>(&comm_idx)?;
+            batch.delete::<PendingSequencerCommitments>(&comm_idx)?;
             increment_table_counter!("PendingSequencerCommitments", rollback_result);
         }
 
+        self.ledger_db.write_schemas(batch)?;
         Ok(rollback_result)
     }
 
     fn rollback_slots(&self, l1_target: u64, mut rollback_result: RollbackResult) -> Result {
+        let mut batch = SchemaBatch::new();
         let l1_cache = self.construct_l1_cache()?;
-
         let mut commitments_by_number = self.ledger_db.iter_with_direction::<CommitmentsByNumber>(
             Default::default(),
             ScanDirection::Backward,
@@ -101,22 +103,19 @@ impl FullNodeLedgerRollback {
 
             let iter_end = last_deleted_slot.unwrap_or(slot_height.0);
             for i in slot_height.0..=iter_end {
-                self.ledger_db.delete::<L2RangeByL1Height>(&SlotNumber(i))?;
+                batch.delete::<L2RangeByL1Height>(&SlotNumber(i))?;
                 increment_table_counter!("L2RangeByL1Height", rollback_result);
 
-                self.ledger_db
-                    .delete::<CommitmentsByNumber>(&SlotNumber(i))?;
+                batch.delete::<CommitmentsByNumber>(&SlotNumber(i))?;
                 increment_table_counter!("CommitmentsByNumber", rollback_result);
 
-                self.ledger_db
-                    .delete::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(i))?;
+                batch.delete::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(i))?;
                 increment_table_counter!("VerifiedBatchProofsBySlotNumber", rollback_result);
 
                 if let Some(slot_hash) = l1_cache.get(&i) {
-                    self.ledger_db
-                        .delete::<ShortHeaderProofBySlotHash>(slot_hash)?;
+                    batch.delete::<ShortHeaderProofBySlotHash>(slot_hash)?;
                     increment_table_counter!("ShortHeaderProofBySlotHash", rollback_result);
-                    self.ledger_db.delete::<SlotByHash>(slot_hash)?;
+                    batch.delete::<SlotByHash>(slot_hash)?;
                     increment_table_counter!("SlotByHash", rollback_result);
                 }
             }
@@ -124,6 +123,7 @@ impl FullNodeLedgerRollback {
             last_deleted_slot = Some(slot_height.0);
         }
 
+        self.ledger_db.write_schemas(batch)?;
         Ok(rollback_result)
     }
 
@@ -132,17 +132,19 @@ impl FullNodeLedgerRollback {
         l1_target: u64,
         mut rollback_result: RollbackResult,
     ) -> Result {
+        let mut batch = SchemaBatch::new();
+
         let last_scanned_l1_height = self.ledger_db.get::<ProverLastScannedSlot>(&())?;
         let last_scanned_l1_height = last_scanned_l1_height.unwrap_or_default();
         for l1_height in (l1_target..=last_scanned_l1_height.0).rev() {
-            self.ledger_db
-                .delete::<L2StatusHeights>(&(L2HeightStatus::Committed, l1_height))?;
+            batch.delete::<L2StatusHeights>(&(L2HeightStatus::Committed, l1_height))?;
             increment_table_counter!("L2StatusHeights", rollback_result);
 
-            self.ledger_db
-                .delete::<L2StatusHeights>(&(L2HeightStatus::Proven, l1_height))?;
+            batch.delete::<L2StatusHeights>(&(L2HeightStatus::Proven, l1_height))?;
             increment_table_counter!("L2StatusHeights", rollback_result);
         }
+
+        self.ledger_db.write_schemas(batch)?;
 
         Ok(rollback_result)
     }
@@ -167,6 +169,8 @@ impl FullNodeLedgerRollback {
     }
 
     fn clear_pending_proofs(&self, l1_target: u64, mut rollback_result: RollbackResult) -> Result {
+        let mut batch = SchemaBatch::new();
+
         // ledger_db.drop_cf requires a mutable ref to DB so we just iterate.
         let pending_proofs = self
             .ledger_db
@@ -180,9 +184,11 @@ impl FullNodeLedgerRollback {
                 continue;
             }
 
-            self.ledger_db.delete::<PendingProofs>(&pending_proof.key)?;
+            batch.delete::<PendingProofs>(&pending_proof.key)?;
             increment_table_counter!("PendingProofs", rollback_result);
         }
+
+        self.ledger_db.write_schemas(batch)?;
 
         Ok(rollback_result)
     }
@@ -192,6 +198,8 @@ impl FullNodeLedgerRollback {
         l1_target: u64,
         mut rollback_result: RollbackResult,
     ) -> Result {
+        let mut batch = SchemaBatch::new();
+
         let pending_sequencer_commitments = self
             .ledger_db
             .iter_with_direction::<PendingSequencerCommitments>(
@@ -204,11 +212,12 @@ impl FullNodeLedgerRollback {
             if commitment_l1_height <= l1_target {
                 continue;
             }
-            self.ledger_db
-                .delete::<PendingSequencerCommitments>(&sequencer_commitment.key)?;
+            batch.delete::<PendingSequencerCommitments>(&sequencer_commitment.key)?;
 
             increment_table_counter!("PendingSequencerCommitments", rollback_result);
         }
+
+        self.ledger_db.write_schemas(batch)?;
         Ok(rollback_result)
     }
 }

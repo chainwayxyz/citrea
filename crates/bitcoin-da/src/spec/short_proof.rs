@@ -1,3 +1,7 @@
+//! This module provides the implementation of the Bitcoin short header proof.
+//! It's a proof that can verify the inclusion of the coinbase transaction
+//! in the block's merkle tree, and the validity of the header itself.
+
 use bitcoin::hashes::Hash;
 use bitcoin::script;
 use sov_rollup_interface::da::{
@@ -10,6 +14,7 @@ use super::transaction::TransactionWrapper;
 use crate::helpers::{calculate_double_sha256, calculate_txid, merkle_tree};
 use crate::verifier::{MINIMUM_WITNESS_COMMITMENT_SIZE, WITNESS_COMMITMENT_PREFIX};
 
+/// The implementation of the Bitcoin short header proof.
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Eq, PartialEq, Debug, Clone)]
 pub struct BitcoinHeaderShortProof {
     pub(crate) header: HeaderWrapper,
@@ -18,6 +23,7 @@ pub struct BitcoinHeaderShortProof {
 }
 
 impl BitcoinHeaderShortProof {
+    /// Creates a new BitcoinHeaderShortProof.
     pub fn new(
         header: HeaderWrapper,
         coinbase_tx: TransactionWrapper,

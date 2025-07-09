@@ -2,7 +2,7 @@
 //! It allows for efficient processing of commitments by creating partitions that can be handled independently.
 //! The partitioning is based on several factors such as index gaps, spec changes, state diffs, and more.
 
-use citrea_primitives::forks::get_tangerine_activation_height_non_zero;
+use citrea_common::utils::get_tangerine_activation_height_non_zero;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_rollup_interface::da::SequencerCommitment;

@@ -1,3 +1,5 @@
+//! This module provides the Bitcoin DA verifier implementation.
+
 use crypto_bigint::{Encoding, U256};
 use itertools::Itertools;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, LatestDaState};
@@ -13,7 +15,9 @@ use crate::spec::blob::BlobWithSender;
 use crate::spec::header::HeaderWrapper;
 use crate::spec::BitcoinSpec;
 
+/// The minimum size in bytes of the witness commitment in a block's coinbase transaction.
 pub const MINIMUM_WITNESS_COMMITMENT_SIZE: usize = 38;
+/// A magic constant used to signal a valid SegWit commitment.
 pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
 
 /// An epoch should be two weeks (represented as number of seconds)
@@ -26,26 +30,44 @@ const EXPECTED_EPOCH_TIMESPAN_SIGNET: u32 = EXPECTED_EPOCH_TIMESPAN / 60;
 /// Number of blocks per epoch
 const BLOCKS_PER_EPOCH: u64 = 2016;
 
+/// The Bitcoin verifier is responsible for verifying the integrity of Bitcoin blocks
+/// and Citrea transactions within those blocks.
 #[derive(Debug)]
 pub struct BitcoinVerifier {
+    /// The prefix of wtxids
     reveal_tx_prefix: Vec<u8>,
 }
 
+/// Validation errors that can occur during the verification of a Bitcoin block.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ValidationError {
+    /// The block is invalid.
     InvalidBlock,
+    /// The segwit commitment in the coinbase transaction is invalid.
     InvalidSegWitCommitment,
+    /// The relevant transaction is not present in the completeness proof.
     RelevantTxNotInProof,
+    /// The txid commitment in the block header does not match the inclusion proof.
     IncorrectTxidCommitment,
+    /// The witness commitment is incorrect.
     IncorrectWitnessCommitment,
+    /// The block hash is invalid.
     InvalidBlockHash,
+    /// The block heights are not consecutive.
     NonConsecutiveBlockHeight,
+    /// The witness commitment structure is invalid.
     InvalidWitnessCommitmentStructure,
+    /// The previous block hash does not match the expected value.
     InvalidPrevBlockHash,
+    /// The block bits are invalid.
     InvalidBlockBits,
+    /// The target hash is invalid.
     InvalidTargetHash,
+    /// The timestamp in the block header is invalid.
     InvalidTimestamp,
+    /// The block header's inclusion tx count does not match the number of transactions in the inclusion proof.
     HeaderInclusionTxCountMismatch,
+    /// Failed to deserialize complete chunks.
     FailedToDeserializeCompleteChunks,
 }
 
@@ -230,6 +252,13 @@ impl DaVerifier for BitcoinVerifier {
         Ok(blobs)
     }
 
+    /// This function verifies the header chain of Bitcoin blocks
+    /// applying the rules of the specified network.
+    /// The rules may differ between networks such as Mainnet, Testnet, Devnet, etc.
+    /// It checks for common header chain rules first, then for the specific rules of the network.
+    ///
+    /// Returns the latest data availability state in case of success,
+    /// or an error if the verification fails.
     fn verify_header_chain(
         &self,
         latest_da_state: Option<&LatestDaState>,
@@ -273,6 +302,7 @@ impl DaVerifier for BitcoinVerifier {
 }
 
 impl BitcoinVerifier {
+    /// Verifies the header chain for the mainnet.
     fn verify_header_chain_mainnet(
         &self,
         latest_da_state: &LatestDaState,
@@ -332,6 +362,7 @@ impl BitcoinVerifier {
         })
     }
 
+    /// Verifies the header chain for the testnet4 network.
     fn verify_header_chain_testnet4(
         &self,
         latest_da_state: &LatestDaState,
@@ -399,6 +430,7 @@ impl BitcoinVerifier {
         })
     }
 
+    /// Verifies the header chain for the signet network.
     fn verify_header_chain_signet(
         &self,
         latest_da_state: &LatestDaState,
@@ -458,6 +490,7 @@ impl BitcoinVerifier {
         })
     }
 
+    /// Verifies the header chain for the regtest network.
     fn verify_header_chain_regtest(
         &self,
         latest_da_state: &LatestDaState,
@@ -489,6 +522,14 @@ impl BitcoinVerifier {
         })
     }
 
+    /// Verifies the common rules for Bitcoin block headers.
+    /// This includes:
+    /// 1. Verifying the block hash
+    /// 2. Ensuring block heights are consecutive
+    /// 3. Checking the previous block hash matches the latest DA state
+    /// 4. Validating the block bits
+    /// 5. Verifying the proof of work against the target hash
+    /// 6. Validating the timestamp against the median of the previous 11 timestamps
     fn verify_header_chain_common(
         &self,
         block_header: &HeaderWrapper,

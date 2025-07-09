@@ -1,3 +1,5 @@
+//! Parsers for Bitcoin transactions related to Citrea rollup.
+
 use core::num::NonZero;
 
 use bitcoin::blockdata::script::Instruction;
@@ -8,6 +10,8 @@ use bitcoin::{Opcode, Script, Transaction};
 use sha2::Digest;
 use thiserror::Error;
 
+/// ParsedTransaction is an enum that represents the different kinds of transactions
+/// that can be parsed from a Bitcoin transaction script.
 #[derive(Debug, Clone)]
 pub enum ParsedTransaction {
     /// Kind 0
@@ -24,46 +28,57 @@ pub enum ParsedTransaction {
     // ForcedTransaction(ForcedTransaction),
 }
 
+/// ParsedComplete is a transaction that contains the full body of a proof.
 #[derive(Debug, Clone)]
 pub struct ParsedComplete {
-    pub body: Vec<u8>,
-    pub signature: Vec<u8>,
-    pub public_key: Vec<u8>,
+    pub(crate) body: Vec<u8>,
+    pub(crate) signature: Vec<u8>,
+    pub(crate) public_key: Vec<u8>,
 }
 
+/// ParsedAggregate is a transaction that contains txids of chunks of data.
 #[derive(Debug, Clone)]
 pub struct ParsedAggregate {
-    pub body: Vec<u8>,
-    pub signature: Vec<u8>,
-    pub public_key: Vec<u8>,
+    pub(crate) body: Vec<u8>,
+    pub(crate) signature: Vec<u8>,
+    pub(crate) public_key: Vec<u8>,
 }
 
+/// That's the only kind of transaction that does not have
+/// a signature (and a nonce) because the signature and the nonce live
+/// in the parent Aggregate transaction.
 #[derive(Debug, Clone)]
 pub struct ParsedChunk {
-    pub body: Vec<u8>,
+    pub(crate) body: Vec<u8>,
 }
 
+/// ParsedSequencerCommitment is a transaction that contains the sequencer commitment.
 #[derive(Debug, Clone)]
 pub struct ParsedSequencerCommitment {
-    pub body: Vec<u8>,
-    pub signature: Vec<u8>,
-    pub public_key: Vec<u8>,
+    pub(crate) body: Vec<u8>,
+    pub(crate) signature: Vec<u8>,
+    pub(crate) public_key: Vec<u8>,
 }
 
+/// ParsedBatchProverMethodId is a transaction that contains the BatchProver method id.
 #[derive(Debug, Clone)]
 pub struct ParsedBatchProverMethodId {
-    pub body: Vec<u8>,
-    pub signature: Vec<u8>,
-    pub public_key: Vec<u8>,
+    pub(crate) body: Vec<u8>,
+    pub(crate) signature: Vec<u8>,
+    pub(crate) public_key: Vec<u8>,
 }
 
 /// To verify the signature of the inscription and get the hash of the body
 pub trait VerifyParsed {
+    /// Returns the public key used to verify the signature.
     fn public_key(&self) -> &[u8];
+    /// Returns the signature of the inscription.
     fn signature(&self) -> &[u8];
+    /// Returns the body of the inscription.
     fn body(&self) -> &[u8];
 
     /// Verifies the signature of the inscription and returns the hash of the body
+    /// Returns None if the signature is unparsable or doesn't belong to the body.
     fn get_sig_verified_hash(&self) -> Option<[u8; 32]> {
         if let Ok(key) = k256::ecdsa::VerifyingKey::from_sec1_bytes(self.public_key()) {
             use k256::ecdsa::signature::DigestVerifier;
@@ -114,18 +129,6 @@ impl VerifyParsed for ParsedSequencerCommitment {
     }
 }
 
-impl VerifyParsed for ParsedChunk {
-    fn public_key(&self) -> &[u8] {
-        unimplemented!("public_key call Should not be used with chunks")
-    }
-    fn signature(&self) -> &[u8] {
-        unimplemented!("signature call Should not be used with chunks")
-    }
-    fn body(&self) -> &[u8] {
-        &self.body
-    }
-}
-
 impl VerifyParsed for ParsedBatchProverMethodId {
     fn public_key(&self) -> &[u8] {
         &self.public_key
@@ -138,18 +141,25 @@ impl VerifyParsed for ParsedBatchProverMethodId {
     }
 }
 
+/// Error type for the parser.
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum ParserError {
+    /// Invalid header length.
     #[error("Invalid header length")]
     InvalidHeaderLength,
+    /// Invalid header type.
     #[error("Invalid header type {0}")]
     InvalidHeaderType(NonZero<u16>),
+    /// No witness in tapscript.
     #[error("No witness in tapscript")]
     NonTapscriptWitness,
+    /// Unexpected end of script.
     #[error("Unexpected end of script")]
     UnexpectedEndOfScript,
+    /// Invalid opcode in the script.
     #[error("Invalid opcode in the script")]
     UnexpectedOpcode,
+    /// Some other script error.
     #[error("Script error: {0}")]
     ScriptError(String),
 }
@@ -160,6 +170,7 @@ impl From<ScriptError> for ParserError {
     }
 }
 
+/// Parses a relevant transaction from the script.
 pub fn parse_relevant_transaction(tx: &Transaction) -> Result<ParsedTransaction, ParserError> {
     let script = get_script(tx)?;
     let instructions = script.instructions().peekable();
@@ -213,6 +224,7 @@ fn parse_transaction(
     }
 }
 
+/// Read next instruction or return Err(EOF).
 fn read_instr<'a>(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'a>, ParserError>>,
 ) -> Result<Instruction<'a>, ParserError> {
@@ -222,6 +234,7 @@ fn read_instr<'a>(
     Ok(instr)
 }
 
+/// Read next instruction expecting it to be PushBytes.
 fn read_push_bytes<'a>(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'a>, ParserError>>,
 ) -> Result<&'a StructPushBytes, ParserError> {
@@ -232,6 +245,7 @@ fn read_push_bytes<'a>(
     }
 }
 
+/// Read next instruction expecting it to be Opcode (non-push opcode).
 fn read_opcode(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
 ) -> Result<Opcode, ParserError> {
@@ -242,6 +256,7 @@ fn read_opcode(
     Ok(op)
 }
 
+/// The implementation of parsers for a specific type.
 mod body_parsers {
     use bitcoin::opcodes::all::{OP_ENDIF, OP_IF, OP_NIP};
     use bitcoin::script::Instruction;
@@ -252,7 +267,7 @@ mod body_parsers {
         ParsedChunk, ParsedComplete, ParsedSequencerCommitment, ParserError,
     };
 
-    // Parse transaction body of Type0
+    /// Parse transaction body of Type0
     pub(super) fn parse_type_0_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
     ) -> Result<ParsedComplete, ParserError> {
@@ -311,7 +326,7 @@ mod body_parsers {
         })
     }
 
-    // Parse transaction body of Type1
+    /// Parse transaction body of Type1
     pub(super) fn parse_type_1_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
     ) -> Result<ParsedAggregate, ParserError> {
@@ -365,7 +380,7 @@ mod body_parsers {
         })
     }
 
-    // Parse transaction body of Type2
+    /// Parse transaction body of Type2
     pub(super) fn parse_type_2_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
     ) -> Result<ParsedChunk, ParserError> {
@@ -414,7 +429,7 @@ mod body_parsers {
         Ok(ParsedChunk { body })
     }
 
-    // Parse transaction body of Type3
+    /// Parse transaction body of Type3
     pub(super) fn parse_type_3_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
     ) -> Result<ParsedBatchProverMethodId, ParserError> {
@@ -457,7 +472,7 @@ mod body_parsers {
         })
     }
 
-    // Parse transaction body of Type4
+    /// Parse transaction body of Type4
     pub(super) fn parse_type_4_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
     ) -> Result<ParsedSequencerCommitment, ParserError> {
@@ -502,6 +517,7 @@ mod body_parsers {
 }
 
 #[cfg(feature = "native")]
+/// Parses Bitcoin transaction from a hex-encoded transaction string.
 pub fn parse_hex_transaction(
     tx_hex: &str,
 ) -> Result<Transaction, bitcoin::consensus::encode::Error> {
@@ -534,7 +550,7 @@ mod tests {
         let reveal_script_builder = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
             .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(kind.to_bytes()).expect("Cannot push header"))
+            .push_slice(PushBytesBuf::from(kind.to_bytes()))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature
@@ -573,7 +589,7 @@ mod tests {
         let reveal_script_builder = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
             .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(kind.to_bytes()).expect("Cannot push header"));
+            .push_slice(PushBytesBuf::from(kind.to_bytes()));
 
         let reveal_script = reveal_script_builder.into_script();
 
@@ -607,7 +623,7 @@ mod tests {
         let reveal_script = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
             .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(kind.to_bytes()).expect("Cannot push header"))
+            .push_slice(PushBytesBuf::from(kind.to_bytes()))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature
@@ -640,7 +656,7 @@ mod tests {
         let reveal_script = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
             .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(kind.to_bytes()).expect("Cannot push header"))
+            .push_slice(PushBytesBuf::from(kind.to_bytes()))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature
@@ -676,7 +692,7 @@ mod tests {
         let reveal_script = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
             .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(kind.to_bytes()).expect("Cannot push header"))
+            .push_slice(PushBytesBuf::from(kind.to_bytes()))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature

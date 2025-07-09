@@ -5,7 +5,7 @@ use sov_db::schema::tables::{
     SequencerCommitmentByIndex, StateDiffByBlockNumber,
 };
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
-use sov_schema_db::{ScanDirection, DB};
+use sov_schema_db::{ScanDirection, SchemaBatch, DB};
 
 use crate::increment_table_counter;
 use crate::rollback::types::{LedgerNodeRollback, Result, RollbackContext, RollbackResult};
@@ -20,6 +20,7 @@ impl SequencerLedgerRollback {
     }
 
     fn rollback_l2(&self, l2_target: u64, mut rollback_result: RollbackResult) -> Result {
+        let mut batch = SchemaBatch::new();
         // Begin rollback for L2 tables
         let mut l2_blocks = self
             .ledger_db
@@ -35,17 +36,17 @@ impl SequencerLedgerRollback {
                 break;
             }
 
-            self.ledger_db.delete::<L2BlockByNumber>(&l2_block_number)?;
+            batch.delete::<L2BlockByNumber>(&l2_block_number)?;
             increment_table_counter!("L2BlockByNumber", rollback_result);
 
-            self.ledger_db.delete::<L2BlockByHash>(&l2_block_hash)?;
+            batch.delete::<L2BlockByHash>(&l2_block_hash)?;
             increment_table_counter!("L2BlockByHash", rollback_result);
 
-            self.ledger_db
-                .delete::<StateDiffByBlockNumber>(&l2_block_number)?;
+            batch.delete::<StateDiffByBlockNumber>(&l2_block_number)?;
             increment_table_counter!("StateDiffByBlockNumber", rollback_result);
         }
 
+        self.ledger_db.write_schemas(batch)?;
         Ok(rollback_result)
     }
 
@@ -54,6 +55,7 @@ impl SequencerLedgerRollback {
         last_sequencer_commitment_index: u32,
         mut rollback_result: RollbackResult,
     ) -> Result {
+        let mut batch = SchemaBatch::new();
         let mut comm_iter = self
             .ledger_db
             .iter_with_direction::<SequencerCommitmentByIndex>(
@@ -68,15 +70,16 @@ impl SequencerLedgerRollback {
                 break;
             }
 
-            self.ledger_db
-                .delete::<SequencerCommitmentByIndex>(&comm_idx)?;
+            batch.delete::<SequencerCommitmentByIndex>(&comm_idx)?;
             increment_table_counter!("SequencerCommitmentByIndex", rollback_result);
         }
 
+        self.ledger_db.write_schemas(batch)?;
         Ok(rollback_result)
     }
 
     fn rollback_slots(&self, l1_target: u64, mut rollback_result: RollbackResult) -> Result {
+        let mut batch = SchemaBatch::new();
         let mut commitments_by_number = self.ledger_db.iter_with_direction::<CommitmentsByNumber>(
             Default::default(),
             ScanDirection::Backward,
@@ -97,16 +100,16 @@ impl SequencerLedgerRollback {
 
             let iter_end = last_deleted_slot.unwrap_or(slot_height.0);
             for i in slot_height.0..=iter_end {
-                self.ledger_db.delete::<L2RangeByL1Height>(&SlotNumber(i))?;
+                batch.delete::<L2RangeByL1Height>(&SlotNumber(i))?;
                 increment_table_counter!("L2RangeByL1Height", rollback_result);
 
-                self.ledger_db
-                    .delete::<CommitmentsByNumber>(&SlotNumber(i))?;
+                batch.delete::<CommitmentsByNumber>(&SlotNumber(i))?;
                 increment_table_counter!("CommitmentsByNumber", rollback_result);
             }
             last_deleted_slot = Some(slot_height.0);
         }
 
+        self.ledger_db.write_schemas(batch)?;
         Ok(rollback_result)
     }
 }

@@ -1,3 +1,5 @@
+//! This module provides the Bitcoin DA service implementation.
+
 // fix clippy for tracing::instrument
 #![allow(clippy::blocks_in_conditions)]
 
@@ -40,7 +42,7 @@ use tracing::{debug, error, info, instrument, trace, warn};
 use crate::error::{BitcoinServiceError, MempoolRejection};
 use crate::fee::{BumpFeeMethod, FeeService};
 use crate::helpers::backup::backup_txs_to_file;
-use crate::helpers::builders::body_builders::{create_light_client_transactions, DaTxs, RawTxData};
+use crate::helpers::builders::body_builders::{create_inscription_transactions, DaTxs, RawTxData};
 use crate::helpers::builders::TxWithId;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
@@ -66,6 +68,7 @@ pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
 
 const POLLING_INTERVAL: u64 = 10; // seconds
 
+/// Map sov Network to Bitcoin Network.
 pub fn network_to_bitcoin_network(network: &Network) -> bitcoin::Network {
     match network {
         Network::Mainnet => bitcoin::Network::Bitcoin,
@@ -75,21 +78,25 @@ pub fn network_to_bitcoin_network(network: &Network) -> bitcoin::Network {
     }
 }
 
-/// Runtime configuration for the DA service
+/// Runtime configuration for the DA service.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct BitcoinServiceConfig {
-    /// The URL of the Bitcoin node to connect to
+    /// The URL of the Bitcoin node to connect to.
     pub node_url: String,
+    /// Username to authenticate with the Bitcoin node.
     pub node_username: String,
+    /// Password to authenticate with the Bitcoin node.
     pub node_password: String,
 
-    // da private key of the sequencer
+    /// DA private key of the sequencer.
     pub da_private_key: Option<String>,
 
-    // absolute path to the directory where the txs will be written to
+    /// Absolute path to the directory where the txs will be written to.
     pub tx_backup_dir: String,
 
+    /// Monitoring configuration.
     pub monitoring: Option<MonitoringConfig>,
+    /// The URL of the mempool.space API.
     pub mempool_space_url: Option<String>,
 }
 
@@ -117,6 +124,7 @@ pub struct BitcoinService {
     pub(crate) reveal_tx_prefix: Vec<u8>,
     inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
     pub(crate) tx_backup_dir: PathBuf,
+    /// Monitoring service for tracking transaction status.
     pub monitoring: Arc<MonitoringService>,
     fee: FeeService,
     l1_block_hash_to_height: Arc<Mutex<LruCache<BlockHash, usize>>>,
@@ -126,7 +134,7 @@ pub struct BitcoinService {
 
 impl BitcoinService {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    fn new(
         client: Arc<Client>,
         network: bitcoin::Network,
         network_constants: NetworkConstants,
@@ -155,7 +163,7 @@ impl BitcoinService {
         }
     }
 
-    // Create a new instance of the DA service from the given configuration.
+    /// Create a new instance of the DA service from the given configuration.
     #[allow(clippy::too_many_arguments)]
     pub async fn from_config(
         config: &BitcoinServiceConfig,
@@ -204,6 +212,7 @@ impl BitcoinService {
         ))
     }
 
+    /// Run the task to process the DA commands from the queue.
     #[instrument(name = "BitcoinDA", skip(self))]
     pub async fn run_da_queue(
         self: Arc<Self>,
@@ -371,6 +380,7 @@ impl BitcoinService {
             .collect()
     }
 
+    /// Sends a transaction to the Bitcoin network with a specified fee rate.
     #[instrument(level = "trace", fields(prev_utxo), ret, err, skip(self))]
     async fn create_da_transactions_with_fee_rate(
         &self,
@@ -410,7 +420,7 @@ impl BitcoinService {
         Ok(tokio::task::spawn_blocking(move || {
             // Since this is CPU bound work, we use spawn_blocking
             // to release the tokio runtime execution
-            create_light_client_transactions(
+            create_inscription_transactions(
                 data,
                 da_private_key,
                 prev_utxo,
@@ -534,6 +544,7 @@ impl BitcoinService {
         Ok(txids)
     }
 
+    /// Bumps the transaction fee using the specified bump method.
     pub async fn bump_fee(
         &self,
         txid: Option<Txid>,
@@ -616,19 +627,23 @@ impl BitcoinService {
         Ok(new_txid)
     }
 
+    /// A Chunk is valid if:
+    /// - It comes from previous L1 blocks
+    /// - It comes from the same L1 block
+    ///    and its tx appears before its Aggregate tx.
     async fn verify_chunk_order(
         &self,
         block_height: u64,
         tx_id: &Txid,
         chunk_id: &Txid,
-        chunk_index: usize,
+        aggregate_idx: usize,
         tx_block_hash: Option<BlockHash>,
         chunks: &HashMap<Txid, usize>,
     ) -> anyhow::Result<()> {
         // If chunk exists, it means it is in the same block as the aggregate
         // Check the order
         if let Some(chunk_idx) = chunks.get(chunk_id) {
-            if *chunk_idx >= chunk_index {
+            if *chunk_idx >= aggregate_idx {
                 // This means the chunk comes after the aggregate in the same block
                 // This is not a valid case because lcp expects all chunks to come before their aggregate
                 return Err(anyhow!(
@@ -753,7 +768,7 @@ impl DaService for BitcoinService {
         Ok(block)
     }
 
-    // Fetch the [`DaSpec::BlockHeader`] of the last finalized block.
+    /// Fetch the [`DaSpec::BlockHeader`] of the last finalized block.
     #[instrument(level = "trace", skip(self), err)]
     async fn get_last_finalized_block_header(
         &self,
@@ -789,6 +804,10 @@ impl DaService for BitcoinService {
             .map_err(|_| anyhow!("Failed to parse complete chunks"))
     }
 
+    /// Extract zk proofs.
+    /// If a proof is stored in an Aggregate (doesn't fit into one tx),
+    ///  then the proof is reconstructed from its chunks.
+    /// Returns a list of proofs in the order the order of tx they appear in the block.
     async fn extract_relevant_zk_proofs(
         &self,
         block: &Self::FilteredBlock,
@@ -860,7 +879,7 @@ impl DaService for BitcoinService {
 
         // collect aggregated txs from chunks
         let mut aggregates = Vec::new();
-        'aggregate: for (i, tx_id, aggregate) in aggregate_idxs {
+        'aggregate: for (aggregate_idx, tx_id, aggregate) in aggregate_idxs {
             let mut body = Vec::new();
             let Ok(data) = DataOnDa::try_from_slice(&aggregate.body) else {
                 warn!("{tx_id}: Failed to parse aggregate");
@@ -902,7 +921,7 @@ impl DaService for BitcoinService {
                         block.header.height,
                         &tx_id,
                         &chunk_id,
-                        i,
+                        aggregate_idx,
                         tx_raw.blockhash,
                         &chunks,
                     )
@@ -955,7 +974,7 @@ impl DaService for BitcoinService {
                 continue 'aggregate;
             };
 
-            aggregates.push((i, zk_proof));
+            aggregates.push((aggregate_idx, zk_proof));
         }
 
         let mut proofs: Vec<_> = completes.into_iter().chain(aggregates).collect();
@@ -1273,38 +1292,7 @@ impl DaService for BitcoinService {
     }
 }
 
-pub fn get_relevant_blobs_from_txs(
-    txs: Vec<Transaction>,
-    reveal_wtxid_prefix: &[u8],
-) -> Vec<BlobWithSender> {
-    let mut relevant_txs = Vec::new();
-
-    for tx in txs {
-        if !tx
-            .compute_wtxid()
-            .to_byte_array()
-            .as_slice()
-            .starts_with(reveal_wtxid_prefix)
-        {
-            continue;
-        }
-
-        if let Ok(ParsedTransaction::SequencerCommitment(seq_comm)) =
-            parse_relevant_transaction(&tx)
-        {
-            if let Some(hash) = seq_comm.get_sig_verified_hash() {
-                let relevant_tx =
-                    BlobWithSender::new(seq_comm.body, seq_comm.public_key, hash, None);
-
-                relevant_txs.push(relevant_tx);
-            }
-        } else {
-            // ignore
-        }
-    }
-    relevant_txs
-}
-
+/// Wrapper around Txid to be used in DaSpec.
 #[derive(PartialEq, Eq, PartialOrd, Ord, core::hash::Hash)]
 pub struct TxidWrapper(Txid);
 impl From<TxidWrapper> for [u8; 32] {
@@ -1338,6 +1326,7 @@ pub(crate) fn split_proof(zk_proof: Proof) -> anyhow::Result<RawTxData> {
     }
 }
 
+/// Compute the witness merkle root of txs.
 fn calculate_witness_root(txdata: &[TransactionWrapper], tx_count: usize) -> [u8; 32] {
     // If there is only one transaction in the block, the witness root is all zeros
     // So the merkle root is all zeros as well

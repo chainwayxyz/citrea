@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::anyhow;
+use citrea_common::utils::get_tangerine_activation_height_non_zero;
 use citrea_evm::{get_last_l1_height_in_light_client, Evm};
-use citrea_primitives::forks::get_tangerine_activation_height_non_zero;
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::DefaultContext;
 use reth_tasks::shutdown::GracefulShutdown;

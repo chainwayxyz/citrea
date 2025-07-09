@@ -1,3 +1,4 @@
+//! A stream of Bitcoin block headers.
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -10,6 +11,10 @@ use sov_rollup_interface::services::da::DaService;
 
 use crate::service::BitcoinService;
 
+/// A stream that emits the latest Bitcoin block headers
+/// while checking for new headers at a periodic interval.
+/// This struct implements the `Stream` trait, which is required
+/// for the DaService implementation.
 #[pin_project]
 pub struct BitcoinHeaderStream {
     #[pin]
@@ -19,6 +24,7 @@ pub struct BitcoinHeaderStream {
 }
 
 impl BitcoinHeaderStream {
+    /// Creates a new `BitcoinHeaderStream`.
     pub fn new(service: Arc<BitcoinService>, interval: Duration) -> Self {
         Self {
             service,

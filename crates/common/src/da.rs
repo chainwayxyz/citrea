@@ -114,6 +114,7 @@ pub async fn get_da_block_at_height<Da: DaService>(
     Ok(l1_block)
 }
 
+/// Extract SequencerCommitment's from L1 block ordered by their seqcom.index.
 pub fn extract_sequencer_commitments<Da>(
     da_service: Arc<Da>,
     l1_block: &Da::FilteredBlock,
@@ -136,7 +137,7 @@ where
     sequencer_commitments
 }
 
-// Extract proofs and commitments and return them sorted by tx index
+/// Extract proofs and commitments and return them sorted by tx index
 pub async fn extract_zk_proofs_and_sequencer_commitments<Da: DaService>(
     da_service: Arc<Da>,
     l1_block: &Da::FilteredBlock,

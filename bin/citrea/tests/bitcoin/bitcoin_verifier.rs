@@ -725,8 +725,8 @@ impl BitcoinVerifierTest {
 
         let malicious_header = HeaderWrapper::new(
             new_header,
-            block.header.tx_count,
-            block.header.height,
+            block.header.tx_count(),
+            block.header.height(),
             block.header.txs_commitment().to_byte_array(),
         );
 

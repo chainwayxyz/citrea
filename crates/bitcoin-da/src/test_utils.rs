@@ -1,3 +1,5 @@
+//! This module provides the implementation for sending separate chunk transactions with a specified fee rate.
+
 use anyhow::Context;
 use bitcoin::hashes::Hash;
 use sov_rollup_interface::da::{DaTxRequest, DataOnDa};
@@ -10,6 +12,7 @@ use crate::helpers::builders::test_utils::{
 use crate::service::{split_proof, BitcoinService, Result};
 
 impl BitcoinService {
+    /// Sends chunks and aggregate as if they are of a Complete kind.
     pub async fn test_send_separate_chunk_transaction_with_fee_rate(
         &self,
         tx_request: DaTxRequest,

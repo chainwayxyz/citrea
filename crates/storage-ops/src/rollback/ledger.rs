@@ -6,7 +6,7 @@ use sov_db::schema::tables::{
     SEQUENCER_LEDGER_TABLES,
 };
 use sov_schema_db::DB;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use super::types::RollbackContext;
 use crate::rollback::node::batch_prover::BatchProverLedgerRollback;
@@ -57,7 +57,7 @@ pub fn rollback_ledger(node_type: NodeType, ledger_db: Arc<DB>, context: Rollbac
         if let Some(table_result) = rollback_result.processed_tables.get(table) {
             info!("Deleted {} records from {}", table_result, table);
         } else {
-            error!(
+            warn!(
                 "Table {} was not rolled back, advise to look into this ASAP",
                 table
             );
