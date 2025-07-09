@@ -37,7 +37,7 @@ By default, `citrea-e2e` runs Bitcoin nodes in Docker, and Citrea nodes with the
 - `TEST_CITREA_DOCKER`  
   If set to true, runs Citrea nodes in Docker using the image specified by `CITREA_DOCKER_IMAGE` (or a predefined image if not set). If set to false, it runs the Citrea executable from the specified path.
 
-In order for full nodes and light client provers to verify mock proofs in the tests, `RISC0_DEV_MODE` should be set to true. For the Batch prover node and the Light client prover node, the `PARALLEL_PROOF_LIMIT` variable can be overridden to change its default value of 1 set by the `citrea-e2e`.
+Additionally, for Full nodes and Light Client Prover nodes to verify mock proofs in the tests, `RISC0_DEV_MODE` should be set to true.
 
 ### Scope of Bitcoin E2E tests
 
@@ -61,6 +61,8 @@ Bitcoin end-to-end tests verify critical interactions with the Bitcoin DA layer 
 ## Mock E2E
 
 Mock end-to-end tests are an alternative to Bitcoin end-to-end tests. They use the Mock DA as the rollup’s DA layer and run tasks with the `TaskExecutor` instead of spawning separate binary processes, making them a quick and lightweight way to write and run tests.
+
+**Note**: When running tests that include Batch Prover nodes, `PARALLEL_PROOF_LIMIT` environment variable must be set.
 
 ### Mock DA
 
