@@ -1,6 +1,6 @@
 # Full Node Finality Tracking
 
-Citrea Full nodes process L1 blocks to extract and verify sequencer commitments and batch proofs, which determine L2 finality.
+Citrea Full nodes process L1 blocks to extract and verify [sequencer commitments](./sequencer-commitment.md) and [batch proofs](./batch-proof-circuit.md), which determine L2 finality.
 
 A sequence of continuous sequencer commitments up to an L2 block height marks that height as "committed". If there are valid batch proofs covering every sequencer commitment in that chain, the final L2 block in that sequence is marked as "proven".
 
@@ -24,7 +24,7 @@ For each finalized L1 block, the full node uses the Bitcoin DA service to extrac
    For each proof:  
      
    - The batch proof output is extracted, and the proof is verified against the correct fork's code commitment. If verification fails, proof is skipped.  
-   - If the full node does not know the last L1 hash on the Bitcoin Light Client, proof is skipped.  
+   - If the full node does not know the last L1 hash on the [Bitcoin Light Client](./bitcoin-light-client-contract.md), proof is skipped.  
    - If the proof does not advance the proven height, it is discarded.  
    - If any of the sequencer commitments referenced by the proof are pending, the proof is stored as pending.
 
