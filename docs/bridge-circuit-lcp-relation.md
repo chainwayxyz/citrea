@@ -21,7 +21,7 @@ Citrea uses the **Clementine bridge** to treat BTC as a native asset. This bridg
 
 2. **MoveToVault Submission & Light Client Interaction**  
    When the MoveToVault transaction is posted on Bitcoin, it reveals the recipient’s Citrea address.  
-   Citrea runs a **Bitcoin light client**, which will be used to verify this transaction’s inclusion.
+   Citrea runs a system contract called [**Bitcoin light client**](./bitcoin-light-client-contract.md), which will be used to verify this transaction’s inclusion.
 
 3. **System Transaction Generation via RPC**  
    Clementine’s aggregator sends the deposit data to the Citrea Sequencer using the RPC call:
