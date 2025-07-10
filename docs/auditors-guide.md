@@ -2,14 +2,20 @@
 
 ## Overview of the Project
 
-What it is:
+Citrea is a ZK rollup that uses Bitcoin as its data availability and settlement layer. 
 
-Core components: sequencer, full node, batch prover, light client prover
+There is 4 types of nodes that make up the Citrea rollup:
+- Sequencer
+- Full node
+- Batch prover
+- Light client prover
 
-Diagram(s)
-- Transaction submission and inclusion
-- blocks & commitments & batch proofs & lcp
-- 
+See [node-types.md](./node-types.md) for explanation on node types.
+
+Citrea's DA and settlement on Bitcoin is achieved through sequencer commitments and batch proofs. The sequencer commitments are bitcoin transactions that commit to the latest state of the rollup. Batch proofs are Bitcoin transactions that contain Risc0 Groth16 proofs that prove Citrea state goes from A to B when L2 blocks that were committed to by these sequencer commitments are executed. See [sequencer-commitment.md](./sequencer-commitment.md) and [batch-proof-circuit.md](./batch-proof-circuit.md).
+
+These commitments and proofs are read from Bitcoin by full nodes and the light client proof circuit. Full nodes are used by users to access the latest state of the rollup and track the finality of L2 blocks, the light client proof is used by our Bitcoin bridge [Clementine](https://citrea.xyz/clementine_whitepaper.pdf) to resolve disputes (operator challenges). For more detail on full node finality tracking see [finality-tracking.md](./finality-tracking.md); for more detail on the light client proof circuit see [light-client-circuit.md](./light-client-circuit.md). 
+
 
 ## Crates
 
@@ -19,7 +25,7 @@ Diagram(s)
 
 - `crates/batch-prover`: Prover node type for the batch proof circuit. (See [batch-proof-circuit.md](./batch-proof-circuit.md) and [node-types.md](./node-types.md#3-batch-prover)).
 
-- `crates/bitcoin-da`: Enables using Bitcoin for Data Availavbility, both for nodes and ZK circuits.
+- `crates/bitcoin-da`: Enables using Bitcoin for Data Availavbility, both for nodes and ZK circuits, uses taproot commit + reveal scheme like Ordinals protocol to inscribe data.
 
 - `crates/citrea-stf`: Defines the runtime and the main batch proof circuit function. Connects `sov-modules` with the runtime hooks.
 
@@ -58,7 +64,7 @@ You may notice the usage of "node-level" and "circuit-level" code.
 
 **Node-level code** refers to code that's never inside the ZK circuit. This can be RPC related code, or database management.
 
-You will notice throughout the repo "native" feature flag is widely used. The purpose of the fetaure flag is to distinguish between circuit-level and node-level code. For instance, `crates/bitcoin-da/src/service.rs` falls under "native" feature flag of the `bitcoin-da` crate because it defines transaction building and interaction with Bitcoin nodes through RPC APIs, which is not something that can be or will be used inside the ZK circuits.
+You will notice throughout the repo "native" feature flag is widely used inside the repo. The purpose of the fetaure flag is to distinguish between circuit-level and node-level code. For instance, `crates/bitcoin-da/src/service.rs` falls under "native" feature flag of the `bitcoin-da` crate because it defines transaction building and interaction with Bitcoin nodes through RPC APIs, which is not something that can be or will be used inside the ZK circuits.
 
 ## Build and Run
 If you don't have Rust installed, follow [this link](https://www.rust-lang.org/tools/install) to install Rust on your machine.
@@ -78,3 +84,8 @@ make test
 ```
 
 ## Security Assumptions
+
+
+
+## What can be important
+
