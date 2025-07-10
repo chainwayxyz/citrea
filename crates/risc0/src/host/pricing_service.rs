@@ -22,6 +22,12 @@ pub struct PricingService {
     base_url: String,
 }
 
+impl Default for PricingService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PricingService {
     /// Create a new instance of `PricingService`
     /// Reads the base URL from the `PRICING_SERVICE_URL` environment variable

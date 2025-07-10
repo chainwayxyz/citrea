@@ -1,7 +1,7 @@
+use std::cmp;
 use std::str::FromStr;
 use std::time::Duration;
 
-use alloy_primitives::utils::parse_ether;
 use anyhow::Context;
 use boundless_market::alloy::primitives::U256;
 use boundless_market::client::{Client, ClientBuilder, ClientError};
@@ -24,11 +24,13 @@ use url::Url;
 use uuid::Uuid;
 
 use super::config::{get_boundless_builtin_storage_provider, BoundlessConfig};
+use crate::host::pricing_service::{PriceResponse, PricingService};
 
 #[derive(Clone)]
 pub struct BoundlessProver {
     pub client: Client,
     pub ledger_db: LedgerDB,
+    pub pricing_service: PricingService,
 }
 
 impl BoundlessProver {
@@ -45,7 +47,11 @@ impl BoundlessProver {
             client.storage_provider.is_some(),
             "a storage provider is required to upload the zkVM guest ELF"
         );
-        Self { client, ledger_db }
+        Self {
+            client,
+            ledger_db,
+            pricing_service: PricingService::new(),
+        }
     }
 
     async fn boundless_client() -> anyhow::Result<Client> {
@@ -133,19 +139,22 @@ impl BoundlessProver {
         })
         .await??;
 
+        let PriceResponse {
+            min_price,
+            max_price,
+            lock_timeout,
+            max_possible_price,
+        } = self.pricing_service.get_price(mcycles_count).await?;
+
         let request = self.build_proof_request(
             image_id,
             journal.digest(),
             image_url,
             input_url,
-            // TODO: https://github.com/chainwayxyz/citrea/issues/2397
-            // These magic values are just placeholders which will be replaced with values that will be
-            // fetched from a third party pricing api we are working on
-            parse_ether("0.000001")?,
-            parse_ether("0.001")?,
+            U256::from(cmp::min(min_price, max_possible_price)),
+            U256::from(cmp::min(max_price, max_possible_price)),
             mcycles_count,
-            // This value will be fetched from the api as well
-            43200,
+            lock_timeout,
         );
 
         // Start boundless proving session
