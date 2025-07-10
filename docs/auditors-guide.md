@@ -32,11 +32,11 @@ These commitments and proofs are read from Bitcoin by full nodes and the light c
 
 ## Security Assumptions
 
-There are is only a single trusted entity in the Citrea rollup, the sequencer, and we trust it for 2 things:
+There is only a single trusted entity in the Citrea rollup, the sequencer, and we trust it for 3 things:
 
 - It won't intentionally send incorrect sequencer commitments that halts the Light Client Proof circuit progression.
 - It won't charge unfair L1 fee rates.
-- It won't use [system transactions](./eth-mainnet-evm-differences.md#system-transactions) anything other than [Bitcoin Light Client contract updates](./bitcoin-light-client-contract.md) and [Bridge deposits](./bridge-contract.md).
+- It won't use [system transactions](./eth-mainnet-evm-differences.md#system-transactions) for anything other than [Bitcoin Light Client contract updates](./bitcoin-light-client-contract.md) and [Bridge deposits](./bridge-contract.md).
 
 The batch prover on the other hand is semi-trusted. The batch proof circuit makes sure the prover can't cheat but for now we've decided to have a single prover so batch proofs are signature checked. 
 
