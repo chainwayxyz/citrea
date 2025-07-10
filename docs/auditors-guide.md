@@ -25,7 +25,7 @@ These commitments and proofs are read from Bitcoin by full nodes and the light c
 
 ### Not so obvious
 - Split in Light Client Proofs
-  - The [Light Client Proof circuit](./light-client-circuit.md) is designed to be deterministic: a Bitcoin block will always yield the same Citrea state upon successfull proving. Any behaviour that breaks this assumption can be used to attack Bridge operators.
+  - The [Light Client Proof circuit](./light-client-circuit.md) is designed to be deterministic: a Bitcoin block will always yield the same Citrea state upon successful proving. Any behaviour that breaks this assumption can be used to attack Bridge operators.
 - Breaking the Batch Proof
   - Any diversion between "native" L2 block execution vs. ["circuit" L2 block execution](./batch-proof-circuit.md)
 
@@ -49,13 +49,13 @@ The batch prover on the other hand is semi-trusted. The batch proof circuit make
 
 - `crates/batch-prover`: Prover node type for the batch proof circuit. (See [batch-proof-circuit.md](./batch-proof-circuit.md) and [node-types.md](./node-types.md#3-batch-prover)).
 
-- `crates/bitcoin-da`: Enables using Bitcoin for Data Availavbility, both for nodes and ZK circuits, uses taproot commit + reveal scheme like Ordinals protocol to inscribe data.
+- `crates/bitcoin-da`: Enables using Bitcoin for Data Availability, both for nodes and ZK circuits, uses taproot commit + reveal scheme like Ordinals protocol to inscribe data.
 
 - `crates/citrea-stf`: Defines the runtime and the main batch proof circuit function. Connects `sov-modules` with the runtime hooks.
 
 - `crates/common`: Utility functions used by nodee-level code.
 
-- `crates/ethereum-rpc`: Fee, syncing, tracing and subscription RPCs for EVM compatability is defined here.
+- `crates/ethereum-rpc`: Fee, syncing, tracing and subscription RPCs for EVM compatibility is defined here.
 
 - `crates/evm`: Citrea's EVM implementation.
     - System contracts under `crates/evm/src/evm/system_contracts`.
@@ -80,7 +80,7 @@ The batch prover on the other hand is semi-trusted. The batch proof circuit make
 
 - `crates/storage-ops`: Database operations like pruning and rollback.
 
-- `guests/risc0`: Batch proof and light client proof circuit targets. These are seperated from other crates to allow for more flexible compilation.
+- `guests/risc0`: Batch proof and light client proof circuit targets. These are separated from other crates to allow for more flexible compilation.
 
 You may notice the usage of "node-level" and "circuit-level" code.
 
@@ -88,7 +88,7 @@ You may notice the usage of "node-level" and "circuit-level" code.
 
 **Node-level code** refers to code that's never inside the ZK circuit. This can be RPC related code, or database management.
 
-You will notice throughout the repo "native" feature flag is widely used inside the repo. The purpose of the fetaure flag is to distinguish between circuit-level and node-level code. For instance, `crates/bitcoin-da/src/service.rs` falls under "native" feature flag of the `bitcoin-da` crate because it defines transaction building and interaction with Bitcoin nodes through RPC APIs, which is not something that can be or will be used inside the ZK circuits.
+You will notice throughout the repo "native" feature flag is widely used inside the repo. The purpose of the feature flag is to distinguish between circuit-level and node-level code. For instance, `crates/bitcoin-da/src/service.rs` falls under "native" feature flag of the `bitcoin-da` crate because it defines transaction building and interaction with Bitcoin nodes through RPC APIs, which is not something that can be or will be used inside the ZK circuits.
 
 ## Build and Run
 If you don't have Rust installed, follow [this link](https://www.rust-lang.org/tools/install) to install Rust on your machine.

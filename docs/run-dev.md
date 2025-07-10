@@ -124,7 +124,7 @@ make clean-node
 #### Notes
 If you want to run both the sequencer and the batch prover, it's a good idea to create different bitcoin wallets for each.
 
-Then the wallets can be used seperately by modifying rollup_config.toml files for both nodes like so:
+Then the wallets can be used separately by modifying rollup_config.toml files for both nodes like so:
 
 ```toml
 # sequencer_rollup_config.toml
@@ -144,7 +144,7 @@ Both wallets should be funded by running
 bitcoin-cli -regtest -rpcwallet=wallet-name -generate 201
 ```
 
-If your testing of the local network requires mining sequencer commitments and batch proofs, run in a seperate terminal:
+If your testing of the local network requires mining sequencer commitments and batch proofs, run in a separate terminal:
 
 ```sh
 bitcoin-cli -regtest -generate
