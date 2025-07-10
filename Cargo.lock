@@ -3806,6 +3806,7 @@ dependencies = [
  "citrea-common",
  "hex",
  "metrics 0.23.0",
+ "reqwest",
  "risc0-zkp",
  "risc0-zkvm",
  "rzup",

@@ -22,6 +22,7 @@ boundless-market = { workspace = true, optional = true, default-features = false
 citrea-common = { path = "../common", optional = true }
 hex = { workspace = true, optional = true }
 metrics = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
 risc0-zkp = { workspace = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 rzup = { workspace = true, optional = true }
@@ -45,6 +46,7 @@ native = [
   "dep:metrics",
   "dep:hex",
   "dep:tokio",
+  "dep:reqwest",
   "dep:rzup",
   "dep:uuid",
   "risc0-zkvm/bonsai",

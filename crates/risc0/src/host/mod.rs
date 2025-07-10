@@ -4,6 +4,7 @@ mod bonsai;
 mod boundless;
 mod config;
 mod local;
+mod pricing_service;
 
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
