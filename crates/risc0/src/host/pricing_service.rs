@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 
 /// Response structure for the pricing API
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PriceResponse {
     pub min_price: u64,
     pub max_price: u64,
@@ -20,12 +20,6 @@ pub struct PriceResponse {
 pub struct PricingService {
     client: Client,
     base_url: String,
-}
-
-impl Default for PricingService {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl PricingService {
