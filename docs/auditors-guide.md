@@ -69,7 +69,7 @@ Run below command to install prerequisites:
 make install-dev-tools
 ```
 
-To launch a local Citrea network, please follow [run-dev.md](./run-dev.md)
+To launch a local Citrea network, please follow [run-dev.md](./run-dev.md). This local network will have `anvil` default addresses funded with `U256::MAX`. Additionally, you can edit `evm.json` file under `resources/genesis/bitcoin-regtest/evm.json` or `resources/genesis/mock/evm.json` to fund any address you want.
 
 To run tests, run below command:
 
