@@ -6,6 +6,7 @@ A sequence of continuous sequencer commitments up to an L2 block height marks th
 
 L2 block finality is defined relative to each L1 block height: at the end of an L1 block, a specific L2 block is marked as committed and another as proven. The committed height is always less than or equal to the proven height.
 
+The Full nodes imitate how the [Light Client Proof](./light-client-circuit.md) tracks the latest state of the rollup. As of now, there are minor differences between the two, and these are tracked on [#2212](https://github.com/chainwayxyz/citrea/issues/2212)
 ## Processing L1 blocks
 
 For each finalized L1 block, the full node uses the Bitcoin DA service to extract batch proofs and sequencer commitments. They are processed in the following order:
