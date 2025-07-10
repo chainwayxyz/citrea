@@ -109,3 +109,5 @@ make test
 
 
 ## Known issues
+- Non-addressed findings under reports in `audits/`.
+- Anything in this [tracking issue](https://github.com/chainwayxyz/citrea/issues/2212).
