@@ -14,6 +14,7 @@ pub mod backup;
 pub mod bitcoin_service;
 pub mod bitcoin_test;
 pub mod bitcoin_verifier;
+#[cfg(feature = "testing")]
 pub mod da_queue;
 pub mod fork;
 #[cfg(feature = "testing")]
@@ -65,12 +66,9 @@ fn get_relevant_seqcoms_from_txs(
     let mut relevant_txs = Vec::new();
 
     for tx in txs {
-        if !tx
-            .compute_wtxid()
-            .to_byte_array()
-            .as_slice()
-            .starts_with(reveal_wtxid_prefix)
-        {
+        let wtxid = tx.compute_wtxid().to_byte_array();
+
+        if !wtxid.starts_with(reveal_wtxid_prefix) {
             continue;
         }
 
@@ -82,7 +80,7 @@ fn get_relevant_seqcoms_from_txs(
                     seq_comm.body().to_vec(),
                     seq_comm.public_key().to_vec(),
                     hash,
-                    None,
+                    wtxid,
                 );
 
                 relevant_txs.push(relevant_tx);

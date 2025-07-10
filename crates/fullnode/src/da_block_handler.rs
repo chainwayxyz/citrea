@@ -849,7 +849,7 @@ where
     /// * `proof_is_pending` - Out parameter indicating if verification is pending
     ///
     /// # Returns
-    /// The L1 block height where the commitment was found
+    /// The L2 end block number of the commitment
     fn verify_sequencer_commitment_hash_by_index(
         &self,
         idx: u32,

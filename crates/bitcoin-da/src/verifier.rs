@@ -125,7 +125,7 @@ impl DaVerifier for BitcoinVerifier {
                                 complete.body,
                                 complete.public_key,
                                 hash,
-                                Some(*wtxid),
+                                *wtxid,
                             ))
                         }
                     }
@@ -135,7 +135,7 @@ impl DaVerifier for BitcoinVerifier {
                                 aggregate.body,
                                 aggregate.public_key,
                                 hash,
-                                Some(*wtxid),
+                                *wtxid,
                             ))
                         }
                     }
@@ -145,7 +145,7 @@ impl DaVerifier for BitcoinVerifier {
                             // chunk sender and hash irrelevant
                             vec![],
                             [0; 32],
-                            Some(*wtxid),
+                            *wtxid,
                         ));
                     }
                     ParsedTransaction::BatchProverMethodId(method_id) => {
@@ -154,7 +154,7 @@ impl DaVerifier for BitcoinVerifier {
                                 method_id.body,
                                 method_id.public_key,
                                 hash,
-                                Some(*wtxid),
+                                *wtxid,
                             ))
                         }
                     }
@@ -164,7 +164,7 @@ impl DaVerifier for BitcoinVerifier {
                                 seq_comm.body,
                                 seq_comm.public_key,
                                 hash,
-                                Some(*wtxid),
+                                *wtxid,
                             ));
                         }
                     }

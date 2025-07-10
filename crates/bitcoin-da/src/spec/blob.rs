@@ -12,12 +12,12 @@ pub struct BlobWithSender {
     pub(crate) hash: [u8; 32],
     pub(crate) sender: AddressWrapper,
     pub(crate) blob: Vec<u8>,
-    pub(crate) wtxid: Option<[u8; 32]>,
+    pub(crate) wtxid: [u8; 32],
 }
 
 impl BlobWithSender {
     /// Creates a new BlobWithSender.
-    pub fn new(blob: Vec<u8>, sender: Vec<u8>, hash: [u8; 32], wtxid: Option<[u8; 32]>) -> Self {
+    pub fn new(blob: Vec<u8>, sender: Vec<u8>, hash: [u8; 32], wtxid: [u8; 32]) -> Self {
         Self {
             blob,
             sender: AddressWrapper(sender),
@@ -34,7 +34,7 @@ impl BlobReaderTrait for BlobWithSender {
         self.sender.clone()
     }
 
-    fn wtxid(&self) -> Option<[u8; 32]> {
+    fn wtxid(&self) -> [u8; 32] {
         self.wtxid
     }
 

@@ -181,7 +181,7 @@ pub struct MockDaVerifier {}
 pub struct MockBlob {
     pub(crate) address: MockAddress,
     pub(crate) hash: [u8; 32],
-    pub(crate) wtxid: Option<[u8; 32]>,
+    pub(crate) wtxid: [u8; 32],
     /// Actual data from the blob. Public for testing purposes.
     pub data: CountedBufReader<Bytes>,
     // Data for the aggregated ZK proof.
@@ -190,12 +190,7 @@ pub struct MockBlob {
 
 impl MockBlob {
     /// Creates a new mock blob with the given data, claiming to have been published by the provided address.
-    pub fn new(
-        data: Vec<u8>,
-        address: MockAddress,
-        hash: [u8; 32],
-        wtxid: Option<[u8; 32]>,
-    ) -> Self {
+    pub fn new(data: Vec<u8>, address: MockAddress, hash: [u8; 32], wtxid: [u8; 32]) -> Self {
         // to make less changes after we got rid of BlobReaderTrait::verified_data and advance stuff
         // let's keep MockDa as is but advance directly here.
         let len = data.len();
@@ -217,7 +212,7 @@ impl MockBlob {
         zk_proofs_data: Vec<u8>,
         address: MockAddress,
         hash: [u8; 32],
-        wtxid: Option<[u8; 32]>,
+        wtxid: [u8; 32],
     ) -> Self {
         // to make less changes after we got rid of BlobReaderTrait::verified_data and advance stuff
         // let's keep MockDa as is but advance directly here.

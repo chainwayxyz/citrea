@@ -4,6 +4,7 @@
 //! specifically getting light client proofs by L1 height, and getting batch proof method IDs.
 use std::sync::Arc;
 
+use alloy_primitives::U64;
 use citrea_common::rpc::utils::internal_rpc_error;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
@@ -78,7 +79,7 @@ pub trait LightClientProverRpc {
     #[method(name = "getLightClientProofByL1Height")]
     async fn get_light_client_proof_by_l1_height(
         &self,
-        l1_height: u64,
+        l1_height: U64,
     ) -> RpcResult<Option<LightClientProofResponse>>;
 
     /// Gets the current method ids saved light client provers jmt state
@@ -117,12 +118,12 @@ where
 {
     async fn get_light_client_proof_by_l1_height(
         &self,
-        l1_height: u64,
+        l1_height: U64,
     ) -> RpcResult<Option<LightClientProofResponse>> {
         let proof = self
             .context
             .ledger
-            .get_light_client_proof_data_by_l1_height(l1_height)
+            .get_light_client_proof_data_by_l1_height(l1_height.to())
             .map_err(internal_rpc_error)?;
         let res = proof.map(LightClientProofResponse::from);
         Ok(res)

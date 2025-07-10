@@ -38,7 +38,12 @@ pub(crate) fn create_mock_sequencer_commitment_blob(
 
     let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
 
-    let blob = MockBlob::new(da_data_ser, MockAddress::new([45u8; 32]), [0u8; 32], None);
+    let blob = MockBlob::new(
+        da_data_ser,
+        MockAddress::new([45u8; 32]),
+        [0u8; 32],
+        [42; 32],
+    );
     blob.full_data();
 
     blob
@@ -104,7 +109,7 @@ pub(crate) fn create_mock_batch_proof(
         da_data_ser,
         MockAddress::new(batch_prover_da_pubkey),
         [0u8; 32],
-        None,
+        [42; 32],
     );
     blob.full_data();
 
@@ -196,7 +201,7 @@ pub(crate) fn create_new_method_id_tx(
 
     let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
 
-    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], None);
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
     blob.full_data();
 
     blob

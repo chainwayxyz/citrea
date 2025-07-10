@@ -1092,7 +1092,7 @@ impl DaService for BitcoinService {
                                 complete.body,
                                 complete.public_key,
                                 hash,
-                                Some(wtxid.to_byte_array()),
+                                wtxid.to_byte_array(),
                             );
                             relevant_txs.push(relevant_tx);
                         }
@@ -1103,18 +1103,14 @@ impl DaService for BitcoinService {
                                 aggregate.body,
                                 aggregate.public_key,
                                 hash,
-                                Some(wtxid.to_byte_array()),
+                                wtxid.to_byte_array(),
                             );
                             relevant_txs.push(relevant_tx);
                         }
                     }
                     ParsedTransaction::Chunk(chunk) => {
-                        let relevant_tx = BlobWithSender::new(
-                            chunk.body,
-                            vec![],
-                            [0; 32],
-                            Some(wtxid.to_byte_array()),
-                        );
+                        let relevant_tx =
+                            BlobWithSender::new(chunk.body, vec![], [0; 32], wtxid.to_byte_array());
                         relevant_txs.push(relevant_tx);
                     }
                     ParsedTransaction::BatchProverMethodId(method_id) => {
@@ -1123,7 +1119,7 @@ impl DaService for BitcoinService {
                                 method_id.body,
                                 method_id.public_key,
                                 hash,
-                                Some(wtxid.to_byte_array()),
+                                wtxid.to_byte_array(),
                             );
                             relevant_txs.push(relevant_tx);
                         }
@@ -1134,7 +1130,7 @@ impl DaService for BitcoinService {
                                 seq_comm.body,
                                 seq_comm.public_key,
                                 hash,
-                                Some(wtxid.to_byte_array()),
+                                wtxid.to_byte_array(),
                             );
 
                             relevant_txs.push(relevant_tx);

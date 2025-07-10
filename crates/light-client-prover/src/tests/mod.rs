@@ -1306,7 +1306,7 @@ fn test_light_client_circuit_verify_chunks() {
         chunk1_serialized.clone(),
         MockAddress::new([9u8; 32]),
         [0u8; 32],
-        Some([1; 32]),
+        [1; 32],
     );
     blob1.full_data();
 
@@ -1318,7 +1318,7 @@ fn test_light_client_circuit_verify_chunks() {
         chunk2_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
-        Some([2; 32]),
+        [2; 32],
     );
 
     blob2.full_data();
@@ -1331,21 +1331,13 @@ fn test_light_client_circuit_verify_chunks() {
         chunk3_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
-        Some([3; 32]),
+        [3; 32],
     );
     blob3.full_data();
 
     let aggregate_da_data = DataOnDa::Aggregate(
-        vec![
-            blob1.wtxid().unwrap(),
-            blob2.wtxid().unwrap(),
-            blob3.wtxid().unwrap(),
-        ],
-        vec![
-            blob1.wtxid().unwrap(),
-            blob2.wtxid().unwrap(),
-            blob3.wtxid().unwrap(),
-        ],
+        vec![blob1.wtxid(), blob2.wtxid(), blob3.wtxid()],
+        vec![blob1.wtxid(), blob2.wtxid(), blob3.wtxid()],
     );
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
@@ -1354,7 +1346,7 @@ fn test_light_client_circuit_verify_chunks() {
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
-        Some([4; 32]),
+        [4; 32],
     );
     blob4.full_data();
 
@@ -1438,7 +1430,7 @@ fn test_missing_chunk() {
         chunk1_serialized.clone(),
         MockAddress::new([9u8; 32]),
         [0u8; 32],
-        Some([1; 32]),
+        [1; 32],
     );
     blob1.full_data();
 
@@ -1450,7 +1442,7 @@ fn test_missing_chunk() {
         chunk2_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
-        Some([2; 32]),
+        [2; 32],
     );
 
     blob2.full_data();
@@ -1463,21 +1455,13 @@ fn test_missing_chunk() {
         chunk3_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
-        Some([3; 32]),
+        [3; 32],
     );
     blob3.full_data();
 
     let aggregate_da_data = DataOnDa::Aggregate(
-        vec![
-            blob1.wtxid().unwrap(),
-            blob2.wtxid().unwrap(),
-            blob3.wtxid().unwrap(),
-        ],
-        vec![
-            blob1.wtxid().unwrap(),
-            blob2.wtxid().unwrap(),
-            blob3.wtxid().unwrap(),
-        ],
+        vec![blob1.wtxid(), blob2.wtxid(), blob3.wtxid()],
+        vec![blob1.wtxid(), blob2.wtxid(), blob3.wtxid()],
     );
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
@@ -1486,7 +1470,7 @@ fn test_missing_chunk() {
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
-        Some([4; 32]),
+        [4; 32],
     );
     blob4.full_data();
 
@@ -1566,7 +1550,7 @@ fn test_malicious_aggregate_should_not_work() {
         chunk1_serialized.clone(),
         MockAddress::new([9u8; 32]),
         [0u8; 32],
-        Some([1; 32]),
+        [1; 32],
     );
     blob1.full_data();
 
@@ -1578,7 +1562,7 @@ fn test_malicious_aggregate_should_not_work() {
         chunk2_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
-        Some([2; 32]),
+        [2; 32],
     );
 
     blob2.full_data();
@@ -1619,8 +1603,8 @@ fn test_malicious_aggregate_should_not_work() {
     assert_eq!(output.last_sequencer_commitment_index, 0);
 
     let malicious_aggregate_da_data = DataOnDa::Aggregate(
-        vec![blob1.wtxid().unwrap(), blob2.wtxid().unwrap()],
-        vec![blob1.wtxid().unwrap(), blob2.wtxid().unwrap()],
+        vec![blob1.wtxid(), blob2.wtxid()],
+        vec![blob1.wtxid(), blob2.wtxid()],
     );
     let malicious_aggregate_serialized =
         borsh::to_vec(&malicious_aggregate_da_data).expect("should serialize");
@@ -1630,7 +1614,7 @@ fn test_malicious_aggregate_should_not_work() {
         malicious_aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
-        Some([99; 32]),
+        [99; 32],
     );
     malicious_blob.full_data();
 
@@ -1680,21 +1664,13 @@ fn test_malicious_aggregate_should_not_work() {
         chunk3_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
-        Some([3; 32]),
+        [3; 32],
     );
     blob3.full_data();
 
     let aggregate_da_data = DataOnDa::Aggregate(
-        vec![
-            blob1.wtxid().unwrap(),
-            blob2.wtxid().unwrap(),
-            blob3.wtxid().unwrap(),
-        ],
-        vec![
-            blob1.wtxid().unwrap(),
-            blob2.wtxid().unwrap(),
-            blob3.wtxid().unwrap(),
-        ],
+        vec![blob1.wtxid(), blob2.wtxid(), blob3.wtxid()],
+        vec![blob1.wtxid(), blob2.wtxid(), blob3.wtxid()],
     );
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
@@ -1703,7 +1679,7 @@ fn test_malicious_aggregate_should_not_work() {
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
-        Some([4; 32]),
+        [4; 32],
     );
     blob4.full_data();
 
@@ -1932,7 +1908,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
         commitment_serialized.clone(),
         MockAddress::new(sequencer_da_pub_key),
         [0u8; 32],
-        Some([1; 32]),
+        [1; 32],
     );
     blob1.full_data();
 
@@ -1982,7 +1958,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
         commitment_serialized.clone(),
         MockAddress::new(sequencer_da_pub_key),
         [1u8; 32],
-        Some([2; 32]),
+        [2; 32],
     );
     blob2.full_data();
 
@@ -2058,7 +2034,7 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
         commitment_serialized.clone(),
         MockAddress::new(sequencer_da_pub_key),
         [0u8; 32],
-        Some([1; 32]),
+        [1; 32],
     );
     blob1.full_data();
 
@@ -2108,7 +2084,7 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
         commitment_serialized.clone(),
         MockAddress::new([54u8; 32]),
         [1u8; 32],
-        Some([2; 32]),
+        [2; 32],
     );
     blob2.full_data();
 

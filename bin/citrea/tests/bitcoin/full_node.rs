@@ -727,7 +727,7 @@ impl TestCase for L2StatusTest {
         assert_eq!(initial_proven_height, None);
 
         let initial_heights_by_l1 = full_node_http_client
-            .get_l2_status_heights_by_l1_height(0)
+            .get_l2_status_heights_by_l1_height(U64::from(0))
             .await?;
         assert_eq!(initial_heights_by_l1.committed.height, 0);
         assert_eq!(initial_heights_by_l1.proven.height, 0);
@@ -758,7 +758,7 @@ impl TestCase for L2StatusTest {
         assert!(proven_height.is_none());
 
         let status_at_commitment_l1_height = full_node_http_client
-            .get_l2_status_heights_by_l1_height(commitment_l1_height)
+            .get_l2_status_heights_by_l1_height(U64::from(commitment_l1_height))
             .await?;
         assert_eq!(
             status_at_commitment_l1_height.committed.height,
@@ -795,7 +795,7 @@ impl TestCase for L2StatusTest {
         let status_at_proof_l1_height = full_node
             .client
             .http_client()
-            .get_l2_status_heights_by_l1_height(batch_proof_l1_height)
+            .get_l2_status_heights_by_l1_height(U64::from(batch_proof_l1_height))
             .await?;
         assert_eq!(
             status_at_proof_l1_height.committed.height,
@@ -841,13 +841,13 @@ impl TestCase for L2StatusTest {
         let status = full_node
             .client
             .http_client()
-            .get_l2_status_heights_by_l1_height(future_l1_height)
+            .get_l2_status_heights_by_l1_height(U64::from(future_l1_height))
             .await?;
         assert_eq!(status.committed.height, max_l2_blocks_per_commitment * 2);
         assert_eq!(status.proven.height, max_l2_blocks_per_commitment);
 
         let status_at_commitment_l1_height = full_node_http_client
-            .get_l2_status_heights_by_l1_height(commitment_l1_height)
+            .get_l2_status_heights_by_l1_height(U64::from(commitment_l1_height))
             .await?;
         assert_eq!(
             status_at_commitment_l1_height.committed.height,
@@ -889,7 +889,7 @@ impl TestCase for L2StatusTest {
         let status_after_rollback = full_node
             .client
             .http_client()
-            .get_l2_status_heights_by_l1_height(0)
+            .get_l2_status_heights_by_l1_height(U64::from(0))
             .await?;
         assert_eq!(status_after_rollback.committed.height, 0);
         assert_eq!(status_after_rollback.proven.height, 0);
@@ -1398,7 +1398,7 @@ impl TestCase for OutOfRangeProofTest {
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(finalized_height)
+            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
             .await?;
         let lcp_output = lcp.unwrap().light_client_proof_output;
 
@@ -1861,7 +1861,7 @@ impl TestCase for OutOfRangeProofTest {
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(proof_l1_height)
+            .get_light_client_proof_by_l1_height(U64::from(proof_l1_height))
             .await?
             .unwrap();
         assert_eq!(
@@ -1918,7 +1918,7 @@ impl TestCase for OutOfRangeProofTest {
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(proof_l1_height)
+            .get_light_client_proof_by_l1_height(U64::from(proof_l1_height))
             .await?
             .unwrap();
         assert_eq!(
@@ -2015,7 +2015,7 @@ impl TestCase for OverlappingProofRangesTest {
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(finalized_height)
+            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
             .await?;
         let lcp_output = lcp.unwrap().light_client_proof_output;
 
@@ -2398,7 +2398,7 @@ impl TestCase for OverlappingProofRangesTest {
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(proof_a_l1_height)
+            .get_light_client_proof_by_l1_height(U64::from(proof_a_l1_height))
             .await?
             .unwrap();
         assert_eq!(
@@ -2483,7 +2483,7 @@ impl TestCase for OverlappingProofRangesTest {
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(proof_b_l1_height)
+            .get_light_client_proof_by_l1_height(U64::from(proof_b_l1_height))
             .await?
             .unwrap();
         assert_eq!(
@@ -2894,7 +2894,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(finalized_height)
+            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
             .await?
             .unwrap();
         assert_eq!(
@@ -3042,7 +3042,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(finalized_height)
+            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
             .await?;
         let lcp_output = lcp.unwrap().light_client_proof_output;
 
@@ -3279,7 +3279,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(finalized_height)
+            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
             .await?;
         let lcp_output = lcp.unwrap().light_client_proof_output;
         assert_eq!(
@@ -3397,7 +3397,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(finalized_height)
+            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
             .await?;
         let lcp_output = lcp.unwrap().light_client_proof_output;
         assert_eq!(
@@ -3520,7 +3520,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(finalized_height)
+            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
             .await?;
         let lcp_output = lcp.unwrap().light_client_proof_output;
         assert_eq!(
@@ -3639,7 +3639,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
         let lcp = light_client_prover
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(finalized_height)
+            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
             .await?;
         let lcp_output = lcp.unwrap().light_client_proof_output;
         assert_eq!(

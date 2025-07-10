@@ -414,11 +414,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 DataOnDa::Chunk(chunk) => {
                     log!("Found chunk");
 
-                    ChunkAccessor::<S>::insert(
-                        blob.wtxid().expect("Chunk should have wtxid"),
-                        chunk,
-                        &mut working_set,
-                    );
+                    ChunkAccessor::<S>::insert(blob.wtxid(), chunk, &mut working_set);
                 }
                 DataOnDa::Complete(proof) => {
                     log!("Found complete proof");

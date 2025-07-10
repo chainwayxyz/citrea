@@ -318,7 +318,7 @@ pub trait BlobReaderTrait:
     fn sender(&self) -> Self::Address;
 
     /// Returns the witness transaction ID of the blob as it appears on the DA layer
-    fn wtxid(&self) -> Option<[u8; 32]>;
+    fn wtxid(&self) -> [u8; 32];
 
     /// Returns the full data of the blob
     fn full_data(&self) -> &[u8];

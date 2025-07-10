@@ -150,8 +150,8 @@ mod tests {
             header: MockBlockHeader::from_height(at_height),
             is_valid: true,
             blobs: vec![
-                MockBlob::new(vec![2; 44], MockAddress::new([1; 32]), [2; 32], None),
-                MockBlob::new(vec![3; 12], MockAddress::new([2; 32]), [5; 32], None),
+                MockBlob::new(vec![2; 44], MockAddress::new([1; 32]), [2; 32], [3; 32]),
+                MockBlob::new(vec![3; 12], MockAddress::new([2; 32]), [5; 32], [3; 32]),
             ],
         }
     }
