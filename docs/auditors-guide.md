@@ -16,6 +16,30 @@ Citrea's DA and settlement on Bitcoin is achieved through sequencer commitments 
 
 These commitments and proofs are read from Bitcoin by full nodes and the light client proof circuit. Full nodes are used by users to access the latest state of the rollup and track the finality of L2 blocks, the light client proof is used by our Bitcoin bridge [Clementine](https://citrea.xyz/clementine_whitepaper.pdf) to resolve disputes (operator challenges). For more detail on full node finality tracking see [finality-tracking.md](./finality-tracking.md); for more detail on the light client proof circuit see [light-client-circuit.md](./light-client-circuit.md). 
 
+## What to look out for
+
+### Obvious
+- Loss or freezing of user funds
+- Halting the chain (either L2 level or L1 level -- Light Client Proofs)
+- Tricking the bridge smart contract with a Bitcoin transaction as if it’s coming from Clementine. (Wrongful cBTC minting)
+
+### Not so obvious
+- Split in Light Client Proofs
+  - The [Light Client Proof circuit](./light-client-circuit.md) is designed to be deterministic: a Bitcoin block will always yield the same Citrea state upon successfull proving. Any behaviour that breaks this assumption can be used to attack Bridge operators.
+- Breaking the Batch Proof
+  - Any diversion between "native" L2 block execution vs. ["circuit" L2 block execution](./batch-proof-circuit.md)
+
+
+## Security Assumptions
+
+There are is only a single trusted entity in the Citrea rollup, the sequencer, and we trust it for 2 things:
+
+- It won't intentionally send incorrect sequencer commitments that halts the Light Client Proof circuit progression.
+- It won't charge unfair L1 fee rates.
+- It won't use [system transactions](./eth-mainnet-evm-differences.md#system-transactions) anything other than [Bitcoin Light Client contract updates](./bitcoin-light-client-contract.md) and [Bridge deposits](./bridge-contract.md).
+
+The batch prover on the other hand is semi-trusted. The batch proof circuit makes sure the prover can't cheat but for now we've decided to have a single prover so batch proofs are signature checked. 
+
 
 ## Crates
 
@@ -83,9 +107,5 @@ To run tests, run below command:
 make test
 ```
 
-## Security Assumptions
 
-
-
-## What can be important
-
+## Known issues
