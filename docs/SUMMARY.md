@@ -15,6 +15,7 @@
 
 # Finality Related
 
+- [Data Availability](da.md)
 - [Sequencer Commitment](sequencer-commitment.md)
 - [Batch Proof Circuit](batch-proof-circuit.md)
 - [Light Client Circuit](light-client-circuit.md)
