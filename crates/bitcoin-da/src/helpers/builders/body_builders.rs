@@ -574,7 +574,7 @@ pub fn create_inscription_type_1(
             build_control_block(&reveal_script, public_key, SECP256K1);
 
         if let Some(root) = merkle_root {
-            info!("Taproot merkle root for inscription - Chunked: {}", root);
+            info!("Taproot merkle root for inscription - Aggregate: {}", root);
         }
 
         // create commit tx address
