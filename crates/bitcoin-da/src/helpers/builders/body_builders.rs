@@ -213,7 +213,7 @@ pub fn create_inscription_type_0(
             build_control_block(&reveal_script, public_key, SECP256K1);
 
         if let Some(root) = merkle_root {
-            info!("Taproot merkle root for inscription: {}", root);
+            info!("Taproot merkle root for inscription - Complete: {}", root);
         }
 
         // create commit tx address
@@ -381,6 +381,10 @@ pub fn create_inscription_type_1(
 
             let (control_block, merkle_root, tapscript_hash) =
                 build_control_block(&reveal_script, public_key, SECP256K1);
+
+            if let Some(root) = merkle_root {
+                info!("Taproot merkle root for inscription - Chunked: {}", root);
+            }
 
             // create commit tx address
             let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
@@ -569,6 +573,10 @@ pub fn create_inscription_type_1(
         let (control_block, merkle_root, tapscript_hash) =
             build_control_block(&reveal_script, public_key, SECP256K1);
 
+        if let Some(root) = merkle_root {
+            info!("Taproot merkle root for inscription - Chunked: {}", root);
+        }
+
         // create commit tx address
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
@@ -740,6 +748,13 @@ pub fn create_inscription_type_3(
         let (control_block, merkle_root, tapscript_hash) =
             build_control_block(&reveal_script, public_key, SECP256K1);
 
+        if let Some(root) = merkle_root {
+            info!(
+                "Taproot merkle root for inscription - BatchProofMethodId: {}",
+                root
+            );
+        }
+
         // create commit tx address
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
@@ -907,6 +922,10 @@ pub fn create_inscription_type_4(
 
         let (control_block, merkle_root, tapscript_hash) =
             build_control_block(&reveal_script, public_key, SECP256K1);
+
+        if let Some(root) = merkle_root {
+            info!("Taproot merkle root for inscription - Commitment: {}", root);
+        }
 
         // create commit tx address
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
