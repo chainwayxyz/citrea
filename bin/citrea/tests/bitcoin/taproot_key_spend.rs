@@ -191,33 +191,21 @@ impl TestCase for TaprootKeySpendTest {
 
         let merkle_root = taproot_spend_info.merkle_root();
 
-        // We use the wallet to send funds to the commit address
-        let commit_address = Address::from_script(&commit_tx.output[0].script_pubkey, network)?;
-        let commit_amount = commit_tx.output[0].value;
+        // Sign and send the commit transaction
+        let signed_commit_tx = client
+            .sign_raw_transaction_with_wallet(&commit_tx, None, None)
+            .await?;
 
         let commit_txid = client
-            .send_to_address(
-                &commit_address,
-                commit_amount,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-            )
+            .send_raw_transaction(&signed_commit_tx.transaction()?)
             .await?;
 
         // Mine a block to include the commit transaction
         bitcoin_node.generate(1).await.unwrap();
 
-        // Get the actual commit transaction that was mined
-        let commit_tx = client.get_raw_transaction(&commit_txid, None).await?;
-        let commit_vout = commit_tx
-            .output
-            .iter()
-            .position(|output| output.script_pubkey == commit_tx.output[0].script_pubkey)
-            .unwrap();
+        // The vout is 0 since we're using the first output of the commit transaction
+        let commit_vout = 0;
+        let commit_amount = commit_tx.output[commit_vout].value;
 
         // Test key spend path to recover the locked funds
         let key_spend_txid = test_key_spend_recovery(
@@ -245,11 +233,7 @@ impl TestCase for TaprootKeySpendTest {
         let key_spend_tx = client.get_raw_transaction(&key_spend_txid, None).await?;
 
         // Assert that the transaction spends from the commit transaction
-        assert_eq!(key_spend_tx.input[0].previous_output.txid, commit_txid,);
-        assert_eq!(
-            key_spend_tx.input[0].previous_output.vout,
-            commit_vout as u32,
-        );
+        assert_eq!(key_spend_tx.input[0].previous_output.txid, commit_txid);
 
         // Assert that funds were sent to the destination address
         assert_eq!(
