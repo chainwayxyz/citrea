@@ -2,7 +2,7 @@
 
 Data Availability (DA) is a crucial layer in the Citrea architecture that ensures the integrity and availability of data across the network. It serves as a foundational component that guarantees that all necessary data for transaction validation and state transitions is accessible to all participants, including sequencer, batch/light client provers, full nodes, l1 syncer, and others. This layer is essential for maintaining trust and reliability in the system, and it ensures that all nodes can independently verify the state of the blockchain.
 
-# Data structure
+## Data structure
 
 We use a taproot commit + reveal scheme like Ordinals protocol to inscribe data. The main property of the reveal transactions is that their `wtxid`s start from a specific prefix.
 
@@ -24,13 +24,13 @@ There are 4 transaction types:
 
 The format of the bodies is different for each type.
 
-## Complete Batch Proof
+### Complete Batch Proof
 
 ```
 OP_FALSE
 OP_IF
 OP_PUSHDATA(signature)
-OP_PUSHDATA(sequencer_public_key)
+OP_PUSHDATA(batch_prover_public_key)
 OP_PUSHDATA(1; - up to 520-bytes chunk of blob)
 ...
 OP_PUSHDATA(N; - up to 520-bytes chunk of blob)
@@ -41,13 +41,13 @@ OP_NIP
 
 Where `blob` is `borsh(DataOnDa::Complete(compress(Proof)))`, `signature` is the signature of the `blob`.
 
-## Aggregate Batch Proof
+### Aggregate Batch Proof
 
 ```
 OP_FALSE
 OP_IF
 OP_PUSHDATA(signature)
-OP_PUSHDATA(sequencer_public_key)
+OP_PUSHDATA(batch_prover_public_key)
 OP_PUSHDATA(1; - up to 520-bytes chunk of blob)
 ...
 OP_PUSHDATA(N; - up to 520-bytes chunk of blob)
@@ -58,7 +58,7 @@ OP_NIP
 
 Where `blob` is `borsh(DataOnDa::Aggregate([chunk1_txid, chunk2_txid..], [chunk1_wtxid, chunk2_wtxid..]))`, `signature` is the signature of the `blob`, not the proof itself.
 
-## Chunks for Aggregate Batch Proof
+### Chunks for Aggregate Batch Proof
 
 ```
 OP_FALSE
@@ -83,13 +83,13 @@ for chunk in chunk_bodies:
     create commit/reveal transaction...
 ```
 
-## Batch Proof MethodId
+### Batch Proof MethodId
 
 ```
 OP_FALSE
 OP_IF
 OP_PUSHDATA(signature)
-OP_PUSHDATA(sequencer_public_key)
+OP_PUSHDATA(batch_prover_public_key)
 OP_PUSHDATA(up to 520-bytes chunk of blob)
 OP_ENDIF
 OP_PUSHDATA(8 random bytes [nonce, nonce > 15 to avoid script parsing issues ])
@@ -109,7 +109,7 @@ struct BatchProofMethodId {
 }
 ```
 
-## Sequencer Commitment
+### Sequencer Commitment
 
 ```
 OP_FALSE
@@ -137,13 +137,13 @@ struct SequencerCommitment {
 }
 ```
 
-# MAX_TX_BODY_SIZE
+## MAX_TX_BODY_SIZE
 
 It is a special constant that defines the maximum size of the transaction body that can be included in a reveal transaction. This is calculated specifically to `397000` bytes, so that we can fit a transaction into Bitcoin limit of `400000` bytes, which is the maximum size of a transaction that can be included in a block. The rest `3000` bytes are reserved for the transaction header and other Script operations like OP_PUSHDATA overhead, OP_NIP, and others.
 
 It tests we set it to `39700` bytes in order to test our code with a smaller `Proof` that is split into `Chunks`.
 
-# WTXID Prefix
+## WTXID Prefix
 
 In order to find our data in the Bitcoin blockchain, we use the `reveal_tx_prefix`.
 It is a prefix of the wtxid of the reveal transaction.
