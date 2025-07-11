@@ -16,7 +16,7 @@ use metrics::histogram;
 use secp256k1::SECP256K1;
 use serde::Serialize;
 use sov_rollup_interface::da::DataOnDa;
-use tracing::{instrument, trace, warn};
+use tracing::{info, instrument, trace, warn};
 
 use super::{
     build_commit_transaction, build_control_block, build_reveal_transaction, build_witness,
@@ -211,6 +211,10 @@ pub fn create_inscription_type_0(
 
         let (control_block, merkle_root, tapscript_hash) =
             build_control_block(&reveal_script, public_key, SECP256K1);
+
+        if let Some(root) = merkle_root {
+            info!("Taproot merkle root for inscription: {}", root);
+        }
 
         // create commit tx address
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
