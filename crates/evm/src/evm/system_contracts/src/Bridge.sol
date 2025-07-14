@@ -208,7 +208,7 @@ contract Bridge is Ownable2StepUpgradeable {
         }
     }
 
-    /// @notice Accepts 1 cBTC from the sender and inserts this withdrawal request of 1 BTC on Bitcoin into the withdrawals array so that later on can be processed by the operator 
+    /// @notice Accepts `depositAmount` cBTC from the sender and inserts this withdrawal request of `depositAmount` BTC on Bitcoin into the withdrawals array so that later on can be processed by the operator 
     /// @param txId The txId of the withdrawal transaction on Bitcoin
     /// @param outputId The outputId of the output in the withdrawal transaction
     function withdraw(bytes32 txId, bytes4 outputId) public payable {
