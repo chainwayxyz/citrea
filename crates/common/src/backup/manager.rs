@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -13,6 +13,7 @@ use tokio::sync::{Mutex, MutexGuard, Semaphore};
 use tracing::{info, warn};
 
 use super::utils::{get_backup_engine, restore_from_backup, validate_backup};
+use crate::backup::metadata::{self, BackupMetadata};
 use crate::NodeType;
 
 /// Configuration for database backups
@@ -48,7 +49,7 @@ pub struct BackupManager {
     /// Lock to hold during l2 block processing
     l2_processing_lock: Mutex<()>,
     /// Semaphore to ensure backup creation is sequential
-    create_backup_sempahore: Semaphore,
+    create_backup_semaphore: Semaphore,
     /// Backup configuration. Holds required and optional dirs.
     pub config: BackupConfig,
 }
@@ -68,13 +69,6 @@ pub struct CreateBackupInfo {
     pub created_at: u64,
     /// Backup id
     pub backup_id: u32,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct BackupMetadata {
-    version: u32,
-    node_type: NodeType,
-    backups: BTreeMap<u32, u64>, // backup_id -> l1_block_height if node_type is light client prover, otherwise l2_block_height
 }
 
 impl BackupManager {
@@ -99,7 +93,7 @@ impl BackupManager {
             l1_processing_lock: Mutex::new(()),
             l2_processing_lock: Mutex::new(()),
             config,
-            create_backup_sempahore: Semaphore::new(1),
+            create_backup_semaphore: Semaphore::new(1),
         }
     }
 
@@ -155,7 +149,7 @@ impl BackupManager {
         path: Option<PathBuf>,
         ledger_db: &LedgerDB,
     ) -> anyhow::Result<CreateBackupInfo> {
-        let _permit = self.create_backup_sempahore.acquire().await?;
+        let _permit = self.create_backup_semaphore.acquire().await?;
 
         let backup_path = path
             .as_ref()
@@ -234,42 +228,9 @@ impl BackupManager {
             info
         );
 
-        self.set_metadata(&backup_path, &info).await?;
+        metadata::set_metadata(&backup_path, &info, self.node_type).await?;
 
         Ok(info)
-    }
-
-    async fn set_metadata<P: AsRef<Path>>(
-        &self,
-        backup_path: P,
-        info: &CreateBackupInfo,
-    ) -> anyhow::Result<()> {
-        let metadata_path = backup_path.as_ref().join(".metadata");
-        let mut metadata = if metadata_path.exists() {
-            let content = tokio::fs::read_to_string(&metadata_path).await?;
-            serde_json::from_str(&content)?
-        } else {
-            BackupMetadata {
-                node_type: self.node_type,
-                backups: BTreeMap::new(),
-                version: 0,
-            }
-        };
-        let block_height = {
-            match self.node_type {
-                NodeType::Sequencer | NodeType::FullNode | NodeType::BatchProver => {
-                    info.l2_block_height.unwrap_or(0)
-                }
-                NodeType::LightClientProver => {
-                    // Light client prover does not have L2 blocks, so we use L1 height
-                    info.l1_block_height.unwrap_or(0)
-                }
-            }
-        };
-        metadata.backups.insert(info.backup_id, block_height);
-        let metadata_json = serde_json::to_string_pretty(&metadata)?;
-        tokio::fs::write(metadata_path, metadata_json).await?;
-        Ok(())
     }
 
     /// Atomically restore databases from a backup at backup_path.
@@ -430,6 +391,8 @@ impl BackupManager {
         num_to_keep: Option<u32>,
         backup_id: Option<u32>,
     ) -> anyhow::Result<()> {
+        let _permit = self.create_backup_semaphore.acquire().await?;
+
         if !backup_path.exists() {
             bail!("Backup directory does not exist: {:?}", backup_path);
         }
@@ -449,7 +412,7 @@ impl BackupManager {
                 let metadata: BackupMetadata = serde_json::from_str(&content)?;
 
                 if metadata.backups.len() <= keep as usize {
-                    info!(
+                    warn!(
                         "No backups to purge: {} backups exist, requested to keep {}",
                         metadata.backups.len(),
                         keep
@@ -470,72 +433,54 @@ impl BackupManager {
             _ => bail!("Only one of backup_id or num_to_keep must be specified"),
         };
 
+        metadata::backup_metadata_file(&backup_path).await?;
+        metadata::update_metadata_after_purge(&backup_path, backup_id).await?;
+
+        match self.delete_backups(&backup_path, backup_id).await {
+            Ok(()) => {
+                let _ = metadata::remove_metadata_backup(&backup_path).await;
+                info!(
+                    "Backup purge process completed successfully in {:.2}s",
+                    start_time.elapsed().as_secs_f32(),
+                );
+                Ok(())
+            }
+            Err(e) => {
+                metadata::restore_metadata_backup(&backup_path)
+                    .await
+                    .context("Failed to restore metadata backup after deletion failure")?;
+                Err(e)
+            }
+        }
+    }
+
+    async fn delete_backups(&self, backup_path: &PathBuf, backup_id: u32) -> anyhow::Result<()> {
         for dir in &self.config.backup_dirs {
             let path = backup_path.join(dir);
-            info!("Purging backups in {dir}");
+            info!("Deleting physical backups in {dir}");
 
             let mut engine = get_backup_engine(&path)?;
             let backup_info = engine.get_backup_info();
 
-            let ids_to_purge: Vec<u32> = backup_info
+            let num_to_purge = backup_info
                 .iter()
                 .filter(|info| info.backup_id < backup_id)
-                .map(|info| info.backup_id)
-                .collect();
+                .count();
 
-            let num_backups_to_keep = backup_info.len() - ids_to_purge.len();
+            if num_to_purge == 0 {
+                info!("No backups to purge in {dir}");
+                continue;
+            }
 
-            info!("Purging and keeping {num_backups_to_keep} backups in {dir}");
-            engine.purge_old_backups(num_backups_to_keep)?;
+            let num_backups_to_keep = backup_info.len() - num_to_purge;
 
-            info!("Successfully purged backups in {dir}",);
+            info!("Deleting {num_to_purge} backups and keeping {num_backups_to_keep} in {dir}");
+            engine
+                .purge_old_backups(num_backups_to_keep)
+                .with_context(|| format!("Failed to purge backups in directory {dir}"))?;
+
+            info!("Successfully deleted backups in {dir}");
         }
-
-        if let Err(e) = Self::update_metadata_after_purge(backup_path, backup_id).await {
-            warn!("Failed to update metadata file: {}", e);
-        }
-
-        info!(
-            "Backup purge process completed successfully in {:.2}s",
-            start_time.elapsed().as_secs_f32(),
-        );
-
         Ok(())
-    }
-
-    async fn update_metadata_after_purge<P: AsRef<Path>>(
-        backup_path: P,
-        backup_id: u32,
-    ) -> anyhow::Result<()> {
-        let metadata_path = backup_path.as_ref().join(".metadata");
-
-        if !metadata_path.exists() {
-            bail!("Metadata file not found")
-        }
-
-        let content = tokio::fs::read_to_string(&metadata_path).await?;
-        let mut metadata: BackupMetadata = serde_json::from_str(&content)?;
-
-        metadata.backups.retain(|&id, _| id >= backup_id);
-
-        let metadata_json = serde_json::to_string_pretty(&metadata)?;
-        tokio::fs::write(metadata_path, metadata_json).await?;
-
-        Ok(())
-    }
-
-    pub async fn backup_kind_from_metadata<P: AsRef<Path>>(
-        backup_path: P,
-    ) -> anyhow::Result<NodeType> {
-        let metadata_path = backup_path.as_ref().join(".metadata");
-
-        if !metadata_path.exists() {
-            bail!("Metadata file not found")
-        }
-
-        let content = tokio::fs::read_to_string(&metadata_path).await?;
-        let metadata: BackupMetadata = serde_json::from_str(&content)?;
-
-        Ok(metadata.node_type)
     }
 }

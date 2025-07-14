@@ -155,7 +155,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt -y install wget
-          RELEASE="${{ github.ref_name}}"
+          RELEASE="${{ github.ref_name }}"
 
           BINARY_URL="https://github.com/chainwayxyz/citrea/releases/download/${RELEASE}/citrea-${RELEASE}-linux-amd64"
           echo "Downloading binary from ${BINARY_URL}"

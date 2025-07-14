@@ -37,6 +37,7 @@
 //! ├── state/        # Required - stores state database
 //! ├── native-db/    # Required - stores native database
 mod manager;
+pub mod metadata;
 mod rpc;
 mod utils;
 
