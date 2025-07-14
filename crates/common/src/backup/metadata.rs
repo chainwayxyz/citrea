@@ -1,13 +1,12 @@
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-};
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
 use anyhow::{bail, ensure, Context};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, trace};
 
-use crate::{backup::CreateBackupInfo, NodeType};
+use crate::backup::CreateBackupInfo;
+use crate::NodeType;
 
 pub(crate) const METADATA_FILE: &str = ".metadata";
 const BACKUP_EXTENSION: &str = "bak";
