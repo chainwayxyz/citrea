@@ -18,7 +18,7 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
 
-use crate::bitcoin::utils::{create_and_fund_wallet, finalize_funds, PROVER_DA_PRIVATE_KEY};
+use crate::bitcoin::utils::PROVER_DA_PRIVATE_KEY;
 
 /// Test key spend path to recover funds from a commit transaction
 /// This shows that recovering funds if the reveal transaction fails is possible
@@ -112,10 +112,6 @@ impl TestCase for TaprootKeySpendTest {
             &bitcoin::key::UntweakedKeypair::from_secret_key(SECP256K1, &private_key),
         )
         .0;
-
-        let test_wallet = "taproot_key_spend_test_wallet".to_string();
-        create_and_fund_wallet(test_wallet.clone(), bitcoin_node).await;
-        finalize_funds(bitcoin_node).await;
 
         let unspent_list = client.list_unspent(None, None, None, None, None).await?;
 

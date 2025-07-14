@@ -282,7 +282,7 @@ pub async fn wait_for_prover_job_count(
 }
 
 /// Creates and funds a wallet. Funds are not finalized until `finalize_funds` is called.
-pub async fn create_and_fund_wallet(wallet: String, da_node: &BitcoinNode) {
+async fn create_and_fund_wallet(wallet: String, da_node: &BitcoinNode) {
     da_node
         .client()
         .create_wallet(&wallet, None, None, None, None)
@@ -293,7 +293,7 @@ pub async fn create_and_fund_wallet(wallet: String, da_node: &BitcoinNode) {
 }
 
 /// Generates 100 blocks and finalizes funds
-pub async fn finalize_funds(da_node: &BitcoinNode) {
+async fn finalize_funds(da_node: &BitcoinNode) {
     da_node.generate(100).await.unwrap();
 }
 
