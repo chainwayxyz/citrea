@@ -1,3 +1,4 @@
+use citrea_common::RpcConfig;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::Spec;
@@ -10,18 +11,20 @@ pub fn register_rpc<Da, RT>(
     storage: ProverStorage,
     ledger_db: &LedgerDB,
     _sequencer: <DefaultContext as Spec>::Address,
+    rpc_config: RpcConfig,
 ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>
 where
     Da: DaService,
     RT: RuntimeTrait<DefaultContext, <Da as DaService>::Spec> + Send + Sync + 'static,
 {
     // runtime rpc.
-    let mut rpc_methods = RT::rpc_methods(storage);
+    let mut rpc_methods = RT::rpc_methods(storage, ledger_db.clone());
 
     // ledger rpc.
     {
         rpc_methods.merge(sov_ledger_rpc::server::create_rpc_module::<LedgerDB>(
             ledger_db.clone(),
+            rpc_config.into(),
         ))?;
     }
 

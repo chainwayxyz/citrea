@@ -1,10 +1,9 @@
 use std::net::SocketAddr;
 
-use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
-use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
+use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::SequencerConfig;
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -26,11 +25,8 @@ impl TestCase for BasicSequencerTest {
             anyhow::bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };
 
-        let Some(da) = f.bitcoin_nodes.get(0) else {
-            bail!("bitcoind not running. Test cannot run with bitcoind runnign as DA")
-        };
-
         sequencer.client.send_publish_batch_request().await?;
+        sequencer.client.wait_for_l2_block(1, None).await?;
 
         let head_batch0 = sequencer
             .client
@@ -41,10 +37,8 @@ impl TestCase for BasicSequencerTest {
         assert_eq!(head_batch0.header.height.to::<u64>(), 1);
 
         sequencer.client.send_publish_batch_request().await?;
+        sequencer.client.wait_for_l2_block(2, None).await?;
 
-        da.generate(1).await?;
-
-        sequencer.client.wait_for_l2_block(1, None).await?;
         let head_batch1 = sequencer
             .client
             .http_client()
@@ -79,7 +73,7 @@ struct SequencerMissedDaBlocksTest;
 impl TestCase for SequencerMissedDaBlocksTest {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_l2_blocks_per_commitment: 1000,
+            max_l2_blocks_per_commitment: 1000,
             ..Default::default()
         }
     }
@@ -94,7 +88,9 @@ impl TestCase for SequencerMissedDaBlocksTest {
         ))
         .await?;
 
-        let init_da_height = da.get_finalized_height(Some(FINALITY_DEPTH)).await?;
+        let init_da_height = da
+            .get_finalized_height(Some(DEFAULT_FINALITY_DEPTH))
+            .await?;
 
         // Create initial DA blocks
         da.generate(3).await?;

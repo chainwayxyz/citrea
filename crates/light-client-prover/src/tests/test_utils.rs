@@ -5,38 +5,88 @@ use std::sync::Arc;
 use rand::{thread_rng, Rng};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
-use sov_modules_api::Zkvm;
+use sov_modules_api::{WorkingSet, Zkvm};
+use sov_modules_core::Storage;
 use sov_prover_storage_manager::{Config, ProverStorage, ProverStorageManager};
-use sov_rollup_interface::da::{BatchProofMethodId, BlobReaderTrait, DaVerifier, DataOnDa};
+use sov_rollup_interface::da::{
+    BatchProofMethodId, BlobReaderTrait, DaVerifier, DataOnDa, SequencerCommitment,
+};
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 
+use crate::circuit::accessors::ChunkAccessor;
 use crate::circuit::LightClientProofCircuit;
+
+pub(crate) fn create_mock_sequencer_commitment(
+    index: u32,
+    l2_end: u64,
+    merkle_root: [u8; 32],
+) -> SequencerCommitment {
+    SequencerCommitment {
+        index,
+        l2_end_block_number: l2_end,
+        merkle_root,
+    }
+}
+
+pub(crate) fn create_mock_sequencer_commitment_blob(
+    sequencer_commitment: SequencerCommitment,
+) -> MockBlob {
+    let da_data = DataOnDa::SequencerCommitment(sequencer_commitment);
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+
+    let blob = MockBlob::new(
+        da_data_ser,
+        MockAddress::new([45u8; 32]),
+        [0u8; 32],
+        [42; 32],
+    );
+    blob.full_data();
+
+    blob
+}
 
 pub(crate) fn create_mock_batch_proof(
     initial_state_root: [u8; 32],
-    final_state_root: [u8; 32],
     last_l2_height: u64,
     is_valid: bool,
     last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
+    sequencer_commitments: Vec<SequencerCommitment>,
+    prev_commitment_hash: Option<[u8; 32]>,
+    batch_prover_da_pubkey: [u8; 32],
 ) -> MockBlob {
     let batch_proof_method_id = MockCodeCommitment([0u8; 32]);
 
-    //TODO: FIXME The new added values are all wrong
+    let commitment_hashes: Vec<[u8; 32]> = sequencer_commitments
+        .iter()
+        .map(|c| c.serialize_and_calculate_sha_256())
+        .collect();
+    let prev_index = if sequencer_commitments[0].index <= 1 {
+        None
+    } else {
+        Some(sequencer_commitments[0].index - 1)
+    };
+    let mut state_roots = vec![initial_state_root];
+
+    // For the sake of easiness of impl tests, we can use merkle root as state root
+    state_roots.extend(sequencer_commitments.iter().map(|c| c.merkle_root));
+
     let bp = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
-        initial_state_root,
-        final_state_root,
+        state_roots,
         final_l2_block_hash: [4; 32],
         state_diff: BTreeMap::new(),
         last_l2_height,
-        // TODO: Update this
-        sequencer_commitment_hashes: vec![],
+        sequencer_commitment_hashes: commitment_hashes,
         last_l1_hash_on_bitcoin_light_client_contract,
-        sequencer_commitment_index_range: (0, 0),
-        previous_commitment_index: None,
-        previous_commitment_hash: None,
+        sequencer_commitment_index_range: (
+            sequencer_commitments[0].index,
+            sequencer_commitments[sequencer_commitments.len() - 1].index,
+        ),
+        previous_commitment_index: prev_index,
+        previous_commitment_hash: prev_commitment_hash,
     });
 
     let bp_serialized = borsh::to_vec(&bp).expect("should serialize");
@@ -55,7 +105,12 @@ pub(crate) fn create_mock_batch_proof(
     let da_data = DataOnDa::Complete(mock_serialized);
     let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
 
-    let blob = MockBlob::new(da_data_ser, MockAddress::new([9u8; 32]), [0u8; 32], None);
+    let blob = MockBlob::new(
+        da_data_ser,
+        MockAddress::new(batch_prover_da_pubkey),
+        [0u8; 32],
+        [42; 32],
+    );
     blob.full_data();
 
     blob
@@ -63,27 +118,43 @@ pub(crate) fn create_mock_batch_proof(
 
 pub(crate) fn create_serialized_mock_proof(
     initial_state_root: [u8; 32],
-    final_state_root: [u8; 32],
     last_l2_height: u64,
     is_valid: bool,
     state_diff: Option<CumulativeStateDiff>,
     last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
+    sequencer_commitments: Vec<SequencerCommitment>,
+    prev_commitment_hash: Option<[u8; 32]>,
 ) -> Vec<u8> {
     let batch_proof_method_id = MockCodeCommitment([0u8; 32]);
 
-    //TODO: FIXME The new added values are all wrong
+    let commitment_hashes: Vec<[u8; 32]> = sequencer_commitments
+        .iter()
+        .map(|c| c.serialize_and_calculate_sha_256())
+        .collect();
+    let prev_index = if sequencer_commitments[0].index == 1 {
+        None
+    } else {
+        Some(sequencer_commitments[0].index - 1)
+    };
+
+    let mut state_roots = vec![initial_state_root];
+
+    // For the sake of easiness of impl tests, we can use merkle root as state root
+    state_roots.extend(sequencer_commitments.iter().map(|c| c.merkle_root));
+
     let bp = BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
-        initial_state_root,
-        final_state_root,
+        state_roots,
         final_l2_block_hash: [4; 32],
         state_diff: state_diff.unwrap_or_default(),
         last_l2_height,
-        // TODO: Update this
-        sequencer_commitment_hashes: vec![],
+        sequencer_commitment_hashes: commitment_hashes,
         last_l1_hash_on_bitcoin_light_client_contract,
-        sequencer_commitment_index_range: (0, 0),
-        previous_commitment_index: None,
-        previous_commitment_hash: None,
+        sequencer_commitment_index_range: (
+            sequencer_commitments[0].index,
+            sequencer_commitments[sequencer_commitments.len() - 1].index,
+        ),
+        previous_commitment_index: prev_index,
+        previous_commitment_hash: prev_commitment_hash,
     });
 
     let bp_serialized = borsh::to_vec(&bp).expect("should serialize");
@@ -105,10 +176,17 @@ pub(crate) fn create_prev_lcp_serialized(
     is_valid: bool,
 ) -> Vec<u8> {
     let serialized = borsh::to_vec(&output).expect("should serialize");
-    match is_valid {
+    let mock_journal = match is_valid {
         true => borsh::to_vec(&MockJournal::Verifiable(serialized)).unwrap(),
         false => borsh::to_vec(&MockJournal::Unverifiable(serialized)).unwrap(),
-    }
+    };
+    let mock_proof = MockProof {
+        program_id: output.light_client_proof_method_id.into(),
+        is_valid,
+        log: mock_journal,
+    };
+
+    mock_proof.encode_to_vec()
 }
 
 pub(crate) fn create_new_method_id_tx(
@@ -123,7 +201,7 @@ pub(crate) fn create_new_method_id_tx(
 
     let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
 
-    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], None);
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
     blob.full_data();
 
     blob
@@ -198,16 +276,17 @@ impl NativeCircuitRunner {
         l2_genesis_state_root: [u8; 32],
         inital_batch_proof_method_ids: Vec<(u64, [u32; 8])>,
         batch_prover_da_pub_key: &[u8],
+        sequencer_da_pub_key: &[u8],
         method_id_upgrade_authority: &[u8],
     ) -> LightClientCircuitInput<MockDaSpec> {
         let prover_storage = self
             .prover_storage_manager
             .create_storage_for_next_l2_height();
 
-        let prev_lcp_output = input
-            .previous_light_client_proof_journal
-            .clone()
-            .map(|j| MockZkvm::deserialize_output(&j).unwrap());
+        let prev_lcp_output = input.previous_light_client_proof.clone().map(|proof| {
+            let journal = MockZkvm::extract_raw_output(&proof).unwrap();
+            MockZkvm::deserialize_output(&journal).unwrap()
+        });
 
         let da_verifier = MockDaVerifier {};
 
@@ -229,6 +308,7 @@ impl NativeCircuitRunner {
             l2_genesis_state_root,
             inital_batch_proof_method_ids,
             batch_prover_da_pub_key,
+            sequencer_da_pub_key,
             method_id_upgrade_authority,
         );
 
@@ -237,5 +317,32 @@ impl NativeCircuitRunner {
         input.witness = res.witness;
 
         input
+    }
+
+    /// Used for a single test case
+    pub fn insert_random_chunk(&self) {
+        let prover_storage = self
+            .prover_storage_manager
+            .create_storage_for_next_l2_height();
+
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+
+        let mut rng = thread_rng();
+        let mut wtxid = [0u8; 32];
+        let mut chunk = vec![0u8; 1024];
+
+        rng.fill(&mut wtxid);
+        rng.fill(&mut chunk[..]);
+
+        ChunkAccessor::insert(wtxid, chunk, &mut working_set);
+
+        let (read_write_log, mut witness) = working_set.checkpoint().freeze();
+
+        let (_, jmt_state_update, _) = prover_storage
+            .compute_state_update(&read_write_log, &mut witness, false)
+            .unwrap();
+
+        prover_storage.commit(&jmt_state_update, &Default::default(), &Default::default());
+        self.prover_storage_manager.finalize_storage(prover_storage);
     }
 }

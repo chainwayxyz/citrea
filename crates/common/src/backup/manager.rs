@@ -13,6 +13,7 @@ use tokio::sync::{Mutex, MutexGuard, Semaphore};
 use tracing::{info, warn};
 
 use super::utils::{get_backup_engine, restore_from_backup, validate_backup};
+use crate::NodeType;
 
 /// Configuration for database backups
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,7 +38,7 @@ impl BackupConfig {
 /// with L1/L2 block processing.
 pub struct BackupManager {
     /// Node kind
-    node_kind: String,
+    node_type: NodeType,
     /// Optional base path used for backups. Can be overridden via RPC
     base_path: Option<PathBuf>,
     /// Map of path to backupable database
@@ -56,9 +57,11 @@ pub struct BackupManager {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateBackupInfo {
     /// Node kind
-    pub node_kind: String,
+    pub node_type: String,
     /// L2 block height when backup was created
-    pub block_height: u64,
+    pub l2_block_height: Option<u64>,
+    /// Last scanned L1 block height when backup was created
+    pub l1_block_height: Option<u64>,
     /// Full path to the backup directory
     pub backup_path: PathBuf,
     /// Unix timestamp when backup was created
@@ -70,27 +73,27 @@ pub struct CreateBackupInfo {
 #[derive(Debug, Serialize, Deserialize)]
 struct BackupMetadata {
     version: u32,
-    node_kind: String,
-    backups: BTreeMap<u32, u64>, // backup_id -> block_height
+    node_type: NodeType,
+    backups: BTreeMap<u32, u64>, // backup_id -> l1_block_height if node_type is light client prover, otherwise l2_block_height
 }
 
 impl BackupManager {
     /// Creates a new BackupManager instance.
     ///
     /// # Arguments
-    /// * `node_kind` - The citrea node kind associated with the BackupManager
+    /// * `node_type` - The citrea node kind associated with the BackupManager
     /// * `base_path` - Optional base_path which will be used for creating backups.
     /// * `config` - Optional config to override required/optional directories
     pub fn new(
         // Todo Wait on https://github.com/chainwayxyz/citrea/pull/1714 and RollupClient enum
-        node_kind: String,
+        node_type: NodeType,
         base_path: Option<PathBuf>,
         config: Option<BackupConfig>,
     ) -> Self {
         let config = config.unwrap_or_else(BackupConfig::new);
 
         Self {
-            node_kind,
+            node_type,
             base_path,
             databases: RwLock::new(HashMap::new()),
             l1_processing_lock: Mutex::new(()),
@@ -131,7 +134,7 @@ impl BackupManager {
     ) -> anyhow::Result<()> {
         ensure!(
             self.config.backup_dirs.contains(&path),
-            "Unexpect database identifier"
+            "Unexpected database identifier"
         );
         self.databases.write().unwrap().insert(path, db);
         Ok(())
@@ -162,7 +165,16 @@ impl BackupManager {
         let l1_lock = self.l1_processing_lock.lock().await;
         let l2_lock = self.l2_processing_lock.lock().await;
 
-        let l2_height = ledger_db.get_head_l2_block_height()?.unwrap_or_default();
+        let (l1_block_height, l2_block_height) = match self.node_type {
+            NodeType::Sequencer | NodeType::FullNode | NodeType::BatchProver => (
+                ledger_db.get_last_scanned_l1_height()?.map(|h| h.0),
+                ledger_db.get_head_l2_block_height()?,
+            ),
+            NodeType::LightClientProver => {
+                // Light client prover does not have L2 blocks, so we use L1 height
+                (ledger_db.get_last_scanned_l1_height()?.map(|h| h.0), None)
+            }
+        };
 
         let start_time = Instant::now();
         info!("Starting database backup process...");
@@ -170,7 +182,7 @@ impl BackupManager {
         let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
         info!(
             "Creating {} backup at path {}",
-            self.node_kind,
+            self.node_type,
             backup_path.display()
         );
 
@@ -208,8 +220,9 @@ impl BackupManager {
             .backup_id;
 
         let info = CreateBackupInfo {
-            node_kind: self.node_kind.to_string(),
-            block_height: l2_height,
+            node_type: self.node_type.to_string(),
+            l2_block_height,
+            l1_block_height,
             backup_path: backup_path.to_path_buf(),
             created_at: timestamp,
             backup_id,
@@ -237,12 +250,23 @@ impl BackupManager {
             serde_json::from_str(&content)?
         } else {
             BackupMetadata {
-                node_kind: self.node_kind.to_string(),
+                node_type: self.node_type,
                 backups: BTreeMap::new(),
                 version: 0,
             }
         };
-        metadata.backups.insert(info.backup_id, info.block_height);
+        let block_height = {
+            match self.node_type {
+                NodeType::Sequencer | NodeType::FullNode | NodeType::BatchProver => {
+                    info.l2_block_height.unwrap_or(0)
+                }
+                NodeType::LightClientProver => {
+                    // Light client prover does not have L2 blocks, so we use L1 height
+                    info.l1_block_height.unwrap_or(0)
+                }
+            }
+        };
+        metadata.backups.insert(info.backup_id, block_height);
         let metadata_json = serde_json::to_string_pretty(&metadata)?;
         tokio::fs::write(metadata_path, metadata_json).await?;
         Ok(())
@@ -502,7 +526,7 @@ impl BackupManager {
 
     pub async fn backup_kind_from_metadata<P: AsRef<Path>>(
         backup_path: P,
-    ) -> anyhow::Result<String> {
+    ) -> anyhow::Result<NodeType> {
         let metadata_path = backup_path.as_ref().join(".metadata");
 
         if !metadata_path.exists() {
@@ -512,6 +536,6 @@ impl BackupManager {
         let content = tokio::fs::read_to_string(&metadata_path).await?;
         let metadata: BackupMetadata = serde_json::from_str(&content)?;
 
-        Ok(metadata.node_kind)
+        Ok(metadata.node_type)
     }
 }

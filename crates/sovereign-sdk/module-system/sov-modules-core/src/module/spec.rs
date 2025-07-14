@@ -3,8 +3,8 @@
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use digest::typenum::U32;
-use digest::Digest;
+#[cfg(all(feature = "native", feature = "std"))]
+use sov_keys::error::KeyError;
 use sov_keys::{PublicKey, Signature};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::RollupAddress;
@@ -58,19 +58,16 @@ pub trait Spec: BorshDeserialize + BorshSerialize {
 
     /// The public key used for digital signatures
     #[cfg(all(feature = "native", feature = "std"))]
-    type PublicKey: PublicKey + ::schemars::JsonSchema + alloc::str::FromStr<Err = anyhow::Error>;
+    type PublicKey: PublicKey + ::schemars::JsonSchema + alloc::str::FromStr<Err = KeyError>;
 
     /// The public key used for digital signatures
     #[cfg(not(all(feature = "native", feature = "std")))]
     type PublicKey: PublicKey;
 
-    /// The hasher preferred by the rollup, such as Sha256 or Poseidon.
-    type Hasher: Digest<OutputSize = U32>;
-
     /// The digital signature scheme used by the rollup
     #[cfg(all(feature = "native", feature = "std"))]
     type Signature: Signature<PublicKey = Self::PublicKey>
-        + alloc::str::FromStr<Err = anyhow::Error>
+        + alloc::str::FromStr<Err = KeyError>
         + serde::Serialize
         + for<'a> serde::Deserialize<'a>
         + schemars::JsonSchema;

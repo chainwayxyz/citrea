@@ -43,12 +43,14 @@ pub struct BatchProofMethodId {
     pub activation_l2_height: u64,
 }
 
+/// SequencerCommitment's are ordered by their index
 impl core::cmp::PartialOrd for SequencerCommitment {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        Some(self.cmp(other))
+        Some(self.index.cmp(&other.index))
     }
 }
 
+/// SequencerCommitment's are ordered by their index
 impl core::cmp::Ord for SequencerCommitment {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.index.cmp(&other.index)
@@ -79,14 +81,6 @@ pub enum DataOnDa {
     BatchProofMethodId(BatchProofMethodId),
     /// Sequencer commitment
     SequencerCommitment(SequencerCommitment),
-}
-
-impl DataOnDa {
-    /// Implement parsing of ::Complete variant according to possible changes
-    ///  of format on DA.
-    pub fn borsh_parse_complete(body: &[u8]) -> borsh::io::Result<Self> {
-        Self::try_from_slice(body)
-    }
 }
 
 /// A specification for the types used by a DA layer.
@@ -132,7 +126,7 @@ pub trait DaSpec:
 
     /// A verifiable proof that upon verification, returns the hash of the header,
     /// the transaction commitment from the header, and the txid merkle proof height of the coinbase transaction.
-    type ShortHeaderProof: VerifableShortHeaderProof
+    type ShortHeaderProof: VerifiableShortHeaderProof
         + BorshDeserialize
         + BorshSerialize
         + Send
@@ -162,7 +156,7 @@ pub struct L1UpdateSystemTransactionInfo {
     pub block_height: u64,
 }
 /// A trait for a verifiable short header proof
-pub trait VerifableShortHeaderProof {
+pub trait VerifiableShortHeaderProof {
     /// Verifies the proof and returns the header hash, transaction commitment and coinbase transaction txid merkle proof
     /// height.
     ///
@@ -170,7 +164,7 @@ pub trait VerifableShortHeaderProof {
     /// are valid.
     ///
     /// These proofs will be used inside the batch proofs, and the hash is going to be committed to the output of the
-    /// proof. It will be upto the verifier to check if the hash is correct.
+    /// proof. It will be up to the verifier to check if the hash is correct.
     ///
     /// In the light client proof, the circuit will extract the `l1_hashes` output and will check that the hashes are
     /// included in the header chain.
@@ -263,7 +257,7 @@ pub struct CountedBufReader<B: bytes::Buf> {
 }
 
 impl<B: bytes::Buf> CountedBufReader<B> {
-    /// Creates a new buffer reader with counter from an objet that implements the buffer trait
+    /// Creates a new buffer reader with counter from an object that implements the buffer trait
     pub fn new(inner: B) -> Self {
         let buf_size = inner.remaining();
         CountedBufReader {
@@ -323,23 +317,11 @@ pub trait BlobReaderTrait:
     /// Returns the address (on the DA layer) of the entity which submitted the blob transaction
     fn sender(&self) -> Self::Address;
 
-    /// Returns the hash of the blob as it appears on the DA layer
-    fn hash(&self) -> [u8; 32];
-
     /// Returns the witness transaction ID of the blob as it appears on the DA layer
-    fn wtxid(&self) -> Option<[u8; 32]>;
+    fn wtxid(&self) -> [u8; 32];
 
     /// Returns the full data of the blob
     fn full_data(&self) -> &[u8];
-
-    /// Returns the total number of bytes in the blob. Note that this may be unequal to `verified_data.len()`.
-    fn total_len(&self) -> usize;
-
-    /// Weird method to serialize blob as v1. Should be removed when a better way is introduced in the future.
-    fn serialize_v1(&self) -> borsh::io::Result<Vec<u8>>;
-
-    /// Serialize the blob as v2 (pre Fork 2)
-    fn serialize_v2(&self) -> borsh::io::Result<Vec<u8>>;
 }
 
 /// Trait with collection of trait bounds for a block hash.

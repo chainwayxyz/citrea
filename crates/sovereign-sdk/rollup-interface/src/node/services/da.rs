@@ -80,14 +80,14 @@ pub trait DaService: Send + Sync + 'static {
         &self,
         block: &Self::FilteredBlock,
         prover_da_pub_key: &[u8],
-    ) -> Vec<Proof>;
+    ) -> Vec<(usize, Proof)>;
 
     /// Extract SequencerCommitment's from the block
     fn extract_relevant_sequencer_commitments(
         &self,
         block: &Self::FilteredBlock,
         sequencer_da_pub_key: &[u8],
-    ) -> Vec<SequencerCommitment>;
+    ) -> Vec<(usize, SequencerCommitment)>;
 
     /// Extract the relevant transactions from a block, along with a proof that the extraction has been done correctly.
     /// For example, this method might return all of the blob transactions in rollup's namespace on Celestia,
@@ -103,7 +103,7 @@ pub trait DaService: Send + Sync + 'static {
         <Self::Spec as DaSpec>::CompletenessProof,
     );
 
-    /// Decompress and deserialize the chunks into a single complete proof.
+    /// Decompress chunks.
     fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error>;
 
     /// Send a transaction directly to the DA layer.

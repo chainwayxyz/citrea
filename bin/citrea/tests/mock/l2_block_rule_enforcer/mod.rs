@@ -10,7 +10,7 @@ use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
     wait_for_l2_block, NodeMode,
 };
-use crate::common::{make_test_client, TEST_SEND_NO_COMMITMENT_MIN_L2_BLOCKS_PER_COMMITMENT};
+use crate::common::{make_test_client, TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT};
 
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
 #[tokio::test(flavor = "multi_thread")]
@@ -33,24 +33,22 @@ async fn too_many_l2_block_per_l1_block() {
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MIN_L2_BLOCKS_PER_COMMITMENT,
+        max_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
         ..Default::default()
     };
-    tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(
-                "../../resources/test-data/integration-tests-low-max-l2-blocks-per-l1",
-            ),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let _task_manager = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(
+            "../../resources/test-data/integration-tests-low-max-l2-blocks-per-l1",
+        ),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
     let seq_port = seq_port_rx.await.unwrap();
     let test_client = make_test_client(seq_port).await.unwrap();
     let max_l2_blocks_per_l1 = test_client.get_max_l2_blocks_per_l1().await;

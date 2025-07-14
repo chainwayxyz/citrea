@@ -1,3 +1,5 @@
+//! Provides a wrapper to implement the BasicAddress trait.
+
 use core::fmt::{Display, Formatter};
 use core::str::FromStr;
 
@@ -6,7 +8,7 @@ use hex::FromHexError;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::BasicAddress;
 
-// AddressWrapper is a wrapper around Vec<u8> to implement AddressTrait
+/// AddressWrapper is a wrapper around Vec<u8> to implement AddressTrait
 #[derive(
     Debug, PartialEq, Clone, Eq, Serialize, Deserialize, BorshDeserialize, BorshSerialize, Hash,
 )]

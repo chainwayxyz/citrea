@@ -1,3 +1,7 @@
+//! Data Availability (DA) block handling for the light client prover
+//!
+//! This module handles the processing of DA layer blocks for light client proof generation
+//! and maintaining the light client state.
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
@@ -7,6 +11,7 @@ use citrea_common::da::sync_l1;
 use citrea_common::LightClientProverConfig;
 use citrea_primitives::forks::fork_from_block_number;
 use prover_services::{ParallelProverService, ProofData};
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::light_client_proof::StoredLightClientProofOutput;
 use sov_db::schema::types::SlotNumber;
@@ -22,18 +27,24 @@ use sov_rollup_interface::Network;
 use tokio::select;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
-use tokio_util::sync::CancellationToken;
-use tracing::error;
+use tracing::{error, instrument};
 
 use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
 use crate::metrics::LIGHT_CLIENT_METRICS;
 
+/// Variant to specify how to start processing L1 blocks
 pub enum StartVariant {
+    /// Resume from the last scanned L1 block height, the following L1 block will be the next one to process.
     LastScanned(u64),
+    /// Start processing from an initial L1 block height
     FromBlock(u64),
 }
 
+/// Handler for processing L1 blocks and the relevant transactions within them.
+///
+/// This component is responsible for processing finalized L1 blocks, running the light client proof circuit logic per L1 block,
+/// keeping track of the light client state, and generating proofs light client proofs.
 pub struct L1BlockHandler<Vm, Da, DB>
 where
     Da: DaService,
@@ -41,17 +52,29 @@ where
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
     Network: InitialValueProvider<Da::Spec>,
 {
+    /// The Citrea network this handler is running on
     network: Network,
+    /// Prover configuration
     _prover_config: LightClientProverConfig,
+    /// Prover service to submit proof data and handle proving sessions
     prover_service: Arc<ParallelProverService<Da, Vm>>,
+    /// Manager for light client prover storage
     storage_manager: ProverStorageManager,
+    /// Database for ledger operations
     ledger_db: DB,
+    /// Data availability service instance
     da_service: Arc<Da>,
+    /// Code commitments for light client proof circuit
     light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
+    /// ELF binaries for light client proof circuit
     light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
+    /// Cache for L1 block data
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+    /// Queue of L1 blocks waiting to be processed
     queued_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
+    /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
+    /// Light client proof circuit logic
     circuit: LightClientProofCircuit<ProverStorage, Da::Spec, Vm>,
 }
 
@@ -62,6 +85,17 @@ where
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
     Network: InitialValueProvider<Da::Spec>,
 {
+    /// Creates a new instance of the L1BlockHandler
+    /// # Arguments
+    /// * `network` - The Citrea network this handler is running on
+    /// * `prover_config` - Prover configuration
+    /// * `prover_service` - Prover service to submit proof data and handle proving sessions
+    /// * `storage_manager` - Manager for light client prover storage
+    /// * `ledger_db` - Database for ledger operations
+    /// * `da_service` - Data availability service instance
+    /// * `light_client_proof_code_commitments` - Code commitments for light client proof circuit
+    /// * `light_client_proof_elfs` - ELF binaries for light client proof circuit
+    /// * `backup_manager` - Manager for backup operations
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         network: Network,
@@ -90,10 +124,20 @@ where
         }
     }
 
+    /// Starts the L1 block handler to process L1 blocks and generate proofs.
+    ///
+    /// This method continuously:
+    /// 1. Syncs new L1 blocks from the DA layer
+    /// 2. Processes queued blocks to generate light client proofs and move the light client state forward
+    ///
+    /// # Arguments
+    /// * `last_l1_height_scanned` - `StartVariant` to start syncing from
+    /// * `shutdown_signal` - Signal to gracefully shut down
+    #[instrument(name = "L1BlockHandler", skip_all)]
     pub async fn run(
         mut self,
         last_l1_height_scanned: StartVariant,
-        cancellation_token: CancellationToken,
+        mut shutdown_signal: GracefulShutdown,
     ) {
         // if self.prover_config.enable_recovery {
         //     if let Err(e) = self.check_and_recover_ongoing_proving_sessions().await {
@@ -125,7 +169,7 @@ where
         loop {
             select! {
                 biased;
-                _ = cancellation_token.cancelled() => {
+                _ = &mut shutdown_signal => {
                     return;
                 }
                 _ = &mut l1_sync_worker => {},
@@ -139,6 +183,7 @@ where
         }
     }
 
+    /// Processes L1 blocks waiting in the queue.
     async fn process_queued_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
         loop {
             let Some(l1_block) = self.queued_l1_blocks.lock().await.front().cloned() else {
@@ -151,6 +196,15 @@ where
         Ok(())
     }
 
+    /// Processes a single L1 block.
+    ///
+    /// # Arguments
+    /// * `l1_block` - The L1 block to process
+    ///
+    /// This method:
+    /// 1. Runs the L1 block of the light client proof circuit to generate a witness, and gets the updates to the JMT state.
+    /// 2. Prepares the light client circuit input and calls `Self::prove` to generate a proof for the L1 block.
+    /// 3. Asserts that the state update's state root matches the one in the circuit output, and finalizes the storage.
     async fn process_l1_block(&mut self, l1_block: Da::FilteredBlock) -> anyhow::Result<()> {
         let l1_hash = l1_block.header().hash().into();
         let l1_height = l1_block.header().height();
@@ -164,34 +218,23 @@ where
             self.da_service.extract_relevant_blobs_with_proof(&l1_block);
 
         let previous_l1_height = l1_height - 1;
-        let (assumption, light_client_proof_journal, l2_last_height, light_client_proof_output) =
-            match self
-                .ledger_db
-                .get_light_client_proof_data_by_l1_height(previous_l1_height)?
-            {
-                Some(data) => {
-                    let db_output = data.light_client_proof_output;
-                    let output = LightClientCircuitOutput::from(db_output);
-
-                    // TODO: instead of serializing the output
-                    // we should just store and push the serialized proof as outputted from the circuit
-                    // that way modifications are less error prone
-                    (
-                        Some(data.proof),
-                        Some(borsh::to_vec(&output)?),
-                        output.last_l2_height,
-                        Some(output),
-                    )
-                }
-                None => {
-                    // first time proving a light client proof
-                    tracing::warn!(
-                        "Creating initial light client proof on L1 block #{}",
-                        l1_height
-                    );
-                    (None, None, 0, None)
-                }
-            };
+        let (previous_lcp_proof, l2_last_height, previous_lcp_output) = match self
+            .ledger_db
+            .get_light_client_proof_data_by_l1_height(previous_l1_height)?
+        {
+            Some(data) => {
+                let output = LightClientCircuitOutput::from(data.light_client_proof_output);
+                (Some(data.proof), output.last_l2_height, Some(output))
+            }
+            None => {
+                // first time proving a light client proof
+                tracing::warn!(
+                    "Creating initial light client proof on L1 block #{}",
+                    l1_height
+                );
+                (None, 0, None)
+            }
+        };
 
         let storage = self.storage_manager.create_storage_for_next_l2_height();
 
@@ -199,12 +242,13 @@ where
         let result = self.circuit.run_l1_block(
             storage,
             Default::default(),
-            da_data.clone(),
+            da_data,
             l1_block.header().clone(),
-            light_client_proof_output,
+            previous_lcp_output,
             self.network.get_l2_genesis_root(),
-            self.network.initial_batch_proof_method_ids(),
+            self.network.initial_batch_proof_method_ids().to_vec(),
             &self.network.batch_prover_da_public_key(),
+            &self.network.sequencer_da_public_key(),
             &self.network.method_id_upgrade_authority_da_public_key(),
         );
 
@@ -226,19 +270,11 @@ where
             completeness_proof,
             da_block_header: l1_block.header().clone(),
             light_client_proof_method_id: light_client_proof_code_commitment.clone().into(),
-            previous_light_client_proof_journal: light_client_proof_journal,
+            previous_light_client_proof: previous_lcp_proof,
             witness: result.witness,
         };
 
-        let proof = self
-            .prove(
-                light_client_elf,
-                circuit_input,
-                // light client proofs are succinct, we can make use of assumption APIs
-                // if assumption is None, pass empty vector
-                assumption.map(|a| vec![a]).unwrap_or_default(),
-            )
-            .await?;
+        let proof = self.prove(light_client_elf, circuit_input, vec![]).await?;
 
         let circuit_output = Vm::extract_output::<LightClientCircuitOutput>(&proof)
             .expect("Should deserialize valid proof");
@@ -247,6 +283,8 @@ where
             "Generated proof for L1 block: {l1_height} output={:?}",
             circuit_output
         );
+
+        assert_eq!(circuit_output.lcp_state_root, result.lcp_state_root);
 
         // Only save after the proof is generated
         self.storage_manager.finalize_storage(result.change_set);
@@ -268,20 +306,26 @@ where
         Ok(())
     }
 
+    /// This method submits the circuit input and ELF binary to the prover service
+    /// to generates a proof for the light client circuit.
+    /// # Arguments
+    /// * `light_client_elf` - The ELF binary for the light client proof circuit
+    /// * `circuit_input` - The input for the light client circuit
+    /// * `assumptions` - Assumptions used in the proving process
+    ///
+    /// # Returns
+    /// A proof, in bytes, for the light client circuit.
     async fn prove(
         &self,
         light_client_elf: Vec<u8>,
         circuit_input: LightClientCircuitInput<<Da as DaService>::Spec>,
         assumptions: Vec<Vec<u8>>,
     ) -> Result<Proof, anyhow::Error> {
-        let prover_service = self.prover_service.as_ref();
         let data = ProofData {
             input: borsh::to_vec(&circuit_input)?,
             assumptions,
             elf: light_client_elf,
         };
-
-        let proof = prover_service.prove(data, ReceiptType::Succinct).await;
-        Ok(proof)
+        self.prover_service.prove(data, ReceiptType::Groth16).await
     }
 }

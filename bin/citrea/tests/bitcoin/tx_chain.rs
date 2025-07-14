@@ -1,10 +1,9 @@
 use async_trait::async_trait;
 use bitcoin::{Amount, Transaction};
 use bitcoin_da::rpc::DaRpcClient;
-use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoin_da::REVEAL_OUTPUT_AMOUNT;
 use bitcoincore_rpc::RpcApi;
-use citrea_e2e::bitcoin::BitcoinNode;
+use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
 use citrea_e2e::config::{BitcoinConfig, SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::Sequencer;
@@ -49,9 +48,9 @@ impl TestCase for TestSequencerTransactionChaining {
         let sequencer = f.sequencer.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -81,7 +80,7 @@ impl TestCase for TestSequencerTransactionChaining {
         assert!(tx2.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         // Generate seqcommitment txs and make sure second batch is chained from first batch
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -144,10 +143,10 @@ impl TestSequencerTransactionChaining {
 
         sequencer.restart(None, None).await?;
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         // Generate seqcommitment txs restart and make sure third batch is chained from prev_tx
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -195,10 +194,10 @@ impl TestSequencerTransactionChaining {
         let mempool = da.get_raw_mempool().await?;
         assert_eq!(mempool.len(), 0);
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         // Generate seqcommitment txs and check that they are chained from prev_tx
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -208,7 +207,7 @@ impl TestSequencerTransactionChaining {
         // Restart before generating a block to check `get_prev_utxo` prioritisting UTXO from mempool
         sequencer.restart(None, None).await?;
 
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -290,7 +289,13 @@ impl TestSequencerTransactionChaining {
         // Assert that sequencer has odd number of utxo
         let seq_unspent = sequencer
             .da
-            .list_unspent(None, Some(FINALITY_DEPTH as usize), None, None, None)
+            .list_unspent(
+                None,
+                Some(DEFAULT_FINALITY_DEPTH as usize),
+                None,
+                None,
+                None,
+            )
             .await?;
         assert_eq!(seq_unspent.len(), 3);
 
@@ -309,10 +314,10 @@ impl TestSequencerTransactionChaining {
 
         assert_eq!(last_monitored_tx.unwrap().txid, prev_tx.compute_txid());
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         // Generate seqcommitment txs restart and make sure third batch is chained from prev_tx
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -363,7 +368,7 @@ impl TestSequencerTransactionChaining {
         )
         .await?;
 
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -380,15 +385,15 @@ impl TestSequencerTransactionChaining {
         let monitored_txs = sequencer
             .client
             .http_client()
-            .da_get_monitored_transactions()
+            .da_list_monitored_transactions(false)
             .await?;
 
         assert_eq!(monitored_txs.len(), 2);
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         // Generate seqcommitment txs restart and make sure third batch is chained from tx2
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -463,7 +468,7 @@ impl TestCase for TestProverTransactionChaining {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_l2_blocks_per_commitment: FINALITY_DEPTH * 2,
+            max_l2_blocks_per_commitment: DEFAULT_FINALITY_DEPTH * 2,
             ..Default::default()
         }
     }
@@ -477,16 +482,16 @@ impl TestCase for TestProverTransactionChaining {
         let batch_prover = f.batch_prover.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
         batch_prover
@@ -522,14 +527,14 @@ impl TestCase for TestProverTransactionChaining {
         assert!(tx2.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         // // Do another round and make sure second batch is chained from first batch
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
         batch_prover
@@ -567,14 +572,14 @@ impl TestCase for TestProverTransactionChaining {
         batch_prover.restart(None, None).await?;
 
         // // Do another round post restart and make sure third batch is chained from second batch
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
         batch_prover

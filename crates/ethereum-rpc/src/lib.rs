@@ -5,12 +5,14 @@ mod trace;
 
 use std::sync::Arc;
 
-use alloy_network::AnyNetwork;
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
-use alloy_rpc_types::{EIP1186AccountProofResponse, EIP1186StorageProof, FeeHistory, Index};
+use alloy_rpc_types::{
+    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter, Index, SyncInfo,
+    SyncStatus as EthSyncStatus, Transaction,
+};
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
-use citrea_evm::{Evm, Filter};
+use citrea_evm::{generate_eth_proof, Evm};
 use citrea_sequencer::SequencerRpcClient;
 pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
@@ -20,15 +22,13 @@ use jsonrpsee::http_client::HttpClientBuilder;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, RpcModule};
-use reth_primitives::{BlockId, BlockNumberOrTag, KECCAK_EMPTY};
-use reth_rpc_eth_api::RpcTransaction;
 use reth_rpc_eth_types::EthApiError;
 use serde_json::{json, Value};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::{StateMapAccessor, WorkingSet};
+use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use sov_state::storage::NativeStorage;
 use tokio::join;
@@ -151,7 +151,11 @@ pub trait EthereumRpc {
         &self,
         hash: B256,
         mempool_only: Option<bool>,
-    ) -> RpcResult<Option<RpcTransaction<AnyNetwork>>>;
+    ) -> RpcResult<Option<Transaction>>;
+
+    /// Gets sync status (full node only).
+    #[method(name = "eth_syncing")]
+    async fn eth_syncing(&self) -> RpcResult<EthSyncStatus>;
 
     /// Gets sync status (full node only).
     #[method(name = "citrea_syncStatus")]
@@ -184,6 +188,7 @@ where
     Da: DaService,
 {
     ethereum: Arc<Ethereum<C, Da>>,
+    starting_l2_height: U64,
 }
 
 impl<C, Da> EthereumRpcServerImpl<C, Da>
@@ -191,8 +196,11 @@ where
     C: sov_modules_api::Context,
     Da: DaService,
 {
-    pub fn new(ethereum: Arc<Ethereum<C, Da>>) -> Self {
-        Self { ethereum }
+    pub fn new(ethereum: Arc<Ethereum<C, Da>>, starting_l2_height: U64) -> Self {
+        Self {
+            ethereum,
+            starting_l2_height,
+        }
     }
 }
 
@@ -261,15 +269,18 @@ where
         keys: Vec<JsonStorageKey>,
         block_id: Option<BlockId>,
     ) -> RpcResult<EIP1186AccountProofResponse> {
-        use sov_state::storage::{StateCodec, StorageKey};
-
         let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
 
         let evm = Evm::<C>::default();
 
-        let block_id_internal = evm.block_number_from_state(block_id, &mut working_set)?;
+        let block_id_internal =
+            evm.block_number_from_state(block_id, &mut working_set, &self.ethereum.ledger_db)?;
 
-        evm.set_state_to_end_of_evm_block_by_block_id(block_id, &mut working_set)?;
+        evm.set_state_to_end_of_evm_block_by_block_id(
+            block_id,
+            &mut working_set,
+            &self.ethereum.ledger_db,
+        )?;
 
         let version = if block_id == Some(BlockId::Number(BlockNumberOrTag::Pending)) {
             // if pending it will already be last block + 1
@@ -280,121 +291,8 @@ where
                 .ok_or_else(|| EthApiError::EvmCustom("Block id overflow".into()))?
         };
 
-        let root_hash = working_set
-            .get_root_hash(version)
-            .map_err(|_| EthApiError::EvmCustom("Root hash not found".into()))?;
-
-        let account = evm
-            .account_info(&address, &mut working_set)
-            .unwrap_or_default();
-        let balance = account.balance;
-        let nonce = account.nonce;
-        let code_hash = account.code_hash.unwrap_or(KECCAK_EMPTY);
-
-        fn generate_account_proof<C>(
-            evm: &Evm<C>,
-            account: &Address,
-            version: u64,
-            working_set: &mut WorkingSet<C::Storage>,
-        ) -> Vec<Bytes>
-        where
-            C: sov_modules_api::Context,
-            C::Storage: NativeStorage,
-        {
-            let index_key = StorageKey::new(
-                evm.account_idxs.prefix(),
-                account,
-                evm.account_idxs.codec().key_codec(),
-            );
-            let index_proof = working_set.get_with_proof(index_key, version);
-            let index_proof_exists = index_proof.value.is_some();
-            let index_proof =
-                borsh::to_vec(&index_proof.proof).expect("Serialization shouldn't fail");
-            let index_proof = Bytes::from(index_proof);
-
-            if index_proof_exists {
-                // we have to generate another proof for idx -> account
-                let index = evm
-                    .account_idxs
-                    .get(account, working_set)
-                    .expect("Account index exists");
-                let index_bytes = Bytes::from_iter(index.to_le_bytes());
-
-                let account_key = StorageKey::new(
-                    evm.accounts.prefix(),
-                    &index,
-                    evm.accounts.codec().key_codec(),
-                );
-
-                let account_proof = working_set.get_with_proof(account_key, version);
-                let account_exists = if account_proof.value.is_some() {
-                    Bytes::from("y")
-                } else {
-                    Bytes::from("n")
-                };
-                let account_proof =
-                    borsh::to_vec(&account_proof.proof).expect("Serialization shouldn't fail");
-                let account_proof = Bytes::from(account_proof);
-                vec![index_proof, index_bytes, account_proof, account_exists]
-            } else {
-                let index_exists = Bytes::from("n");
-
-                vec![index_proof, index_exists]
-            }
-        }
-
-        fn generate_storage_proof<C>(
-            evm: &Evm<C>,
-            account: &Address,
-            key: &U256,
-            version: u64,
-            working_set: &mut WorkingSet<C::Storage>,
-        ) -> EIP1186StorageProof
-        where
-            C: sov_modules_api::Context,
-            C::Storage: NativeStorage,
-        {
-            let kaddr = Evm::<C>::get_storage_address(account, key);
-            let storage_key = StorageKey::new(
-                evm.storage.prefix(),
-                &kaddr,
-                evm.storage.codec().key_codec(),
-            );
-            let value = evm.storage_get(account, key, working_set);
-            let proof = working_set.get_with_proof(storage_key, version);
-            let value_exists = if proof.value.is_some() {
-                Bytes::from("y")
-            } else {
-                Bytes::from("n")
-            };
-            let value_proof = borsh::to_vec(&proof.proof).expect("Serialization shouldn't fail");
-            let value_proof = Bytes::from(value_proof);
-            EIP1186StorageProof {
-                key: JsonStorageKey(key.to_le_bytes().into()),
-                value: value.unwrap_or_default(),
-                proof: vec![value_proof, value_exists],
-            }
-        }
-
-        let account_proof = generate_account_proof(&evm, &address, version, &mut working_set);
-
-        let mut storage_proof = vec![];
-        for key in keys {
-            let key: U256 = key.0.into();
-
-            let proof = generate_storage_proof(&evm, &address, &key, version, &mut working_set);
-            storage_proof.push(proof);
-        }
-
-        Ok(EIP1186AccountProofResponse {
-            address,
-            balance,
-            nonce,
-            code_hash,
-            storage_hash: root_hash.into(),
-            account_proof,
-            storage_proof,
-        })
+        let proof = generate_eth_proof(&evm, address, keys, version, &mut working_set);
+        Ok(proof)
     }
 
     fn debug_trace_block_by_hash(
@@ -530,7 +428,7 @@ where
         &self,
         hash: B256,
         mempool_only: Option<bool>,
-    ) -> RpcResult<Option<RpcTransaction<AnyNetwork>>> {
+    ) -> RpcResult<Option<Transaction>> {
         match mempool_only {
             Some(true) => {
                 match self
@@ -573,6 +471,37 @@ where
                 }
             }
         }
+    }
+
+    async fn eth_syncing(&self) -> RpcResult<EthSyncStatus> {
+        let highest_block = self
+            .ethereum
+            .sequencer_client
+            .as_ref()
+            .unwrap()
+            .get_head_l2_block_height()
+            .await
+            .map_err(|e| to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e))?;
+
+        let head_l2_block = match self.ethereum.ledger_db.get_head_l2_block() {
+            Ok(Some((height, _))) => height.0,
+            Ok(None) => 0u64,
+            Err(e) => return Err(to_jsonrpsee_error_object("LEDGER_DB_ERROR", e)),
+        };
+
+        let sync_status = if head_l2_block == highest_block.saturating_to::<u64>() {
+            EthSyncStatus::None
+        } else {
+            EthSyncStatus::Info(Box::new(SyncInfo {
+                starting_block: U256::from(self.starting_l2_height),
+                current_block: U256::from(head_l2_block),
+                highest_block: U256::from(highest_block),
+                warp_chunks_amount: None,
+                warp_chunks_processed: None,
+                stages: None,
+            }))
+        };
+        Ok(sync_status)
     }
 
     async fn citrea_sync_status(&self) -> RpcResult<SyncStatus> {
@@ -702,6 +631,11 @@ where
     C::Storage: NativeStorage,
     Da: DaService,
 {
+    let head_l2_block = match ledger_db.get_head_l2_block().unwrap() {
+        Some((height, _)) => height.0,
+        None => 0u64,
+    };
+
     // Unpack config
     let EthRpcConfig {
         gas_price_oracle_config,
@@ -722,7 +656,7 @@ where
         sequencer_client_url.map(|url| HttpClientBuilder::default().build(url).unwrap()),
         l2_block_rx,
     ));
-    let server = EthereumRpcServerImpl::new(ethereum);
+    let server = EthereumRpcServerImpl::new(ethereum, U64::from(head_l2_block));
 
     let mut module = EthereumRpcServer::into_rpc(server);
 

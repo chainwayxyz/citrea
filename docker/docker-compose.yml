@@ -49,6 +49,7 @@ services:
       - RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION=10
       - SEQUENCER_CLIENT_URL=https://rpc.testnet.citrea.xyz
       - INCLUDE_TX_BODY=false
+      - SCAN_L1_START_HEIGHT=45496
       - SYNC_BLOCKS_COUNT=10
       - RUST_LOG=info
       - JSON_LOGS=1

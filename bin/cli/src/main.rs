@@ -1,32 +1,12 @@
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand, ValueEnum};
-use commands::StorageNodeTypeArg;
+use clap::{Parser, Subcommand};
+use commands::NodeTypeArg;
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
 mod commands;
-
-#[derive(Clone, Debug, ValueEnum)]
-#[value(rename_all = "kebab-case")]
-enum NodeKind {
-    BatchProver,
-    Sequencer,
-    FullNode,
-    LightClientProver,
-}
-
-impl std::fmt::Display for NodeKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            NodeKind::BatchProver => write!(f, "batch-prover"),
-            NodeKind::Sequencer => write!(f, "sequencer"),
-            NodeKind::FullNode => write!(f, "full-node"),
-            NodeKind::LightClientProver => write!(f, "light-client-prover"),
-        }
-    }
-}
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -41,7 +21,7 @@ enum Commands {
     /// Prune old DB entries
     Prune {
         #[arg(long)]
-        node_type: StorageNodeTypeArg,
+        node_type: NodeTypeArg,
         /// The path of the database to prune
         #[arg(long)]
         db_path: PathBuf,
@@ -52,25 +32,25 @@ enum Commands {
     /// Rollback the most recent N blocks
     Rollback {
         #[arg(long)]
-        node_type: StorageNodeTypeArg,
+        node_type: NodeTypeArg,
         /// The path of the database to prune
         #[arg(long)]
         db_path: PathBuf,
         /// The target L2 block number to rollback to (non-inclusive)
         #[arg(long)]
-        l2_target: u64,
+        l2_target: Option<u64>,
         /// The target L1 block number to rollback to (non-inclusive)
         #[arg(long)]
-        l1_target: u64,
+        l1_target: Option<u64>,
         /// The target sequencer commitment index to rollback to
         #[arg(long)]
-        sequencer_commitment_index: u32,
+        sequencer_commitment_index: Option<u32>,
     },
     /// Restore DBs from backup
     RestoreBackup {
         /// The node kind
         #[arg(long)]
-        node_kind: NodeKind,
+        node_type: NodeTypeArg,
         /// The path of the databases to restore to
         #[arg(long)]
         db_path: PathBuf,
@@ -127,6 +107,10 @@ async fn main() -> anyhow::Result<()> {
             l1_target,
             sequencer_commitment_index,
         } => {
+            if l2_target.is_none() && l1_target.is_none() && sequencer_commitment_index.is_none() {
+                println!("Missing L2/L1 target or sequencer commitment");
+                return Ok(());
+            }
             commands::rollback(
                 node_type,
                 db_path.clone(),
@@ -139,11 +123,10 @@ async fn main() -> anyhow::Result<()> {
         Commands::RestoreBackup {
             db_path,
             backup_path,
-            node_kind,
+            node_type,
             backup_id,
         } => {
-            commands::restore_backup(node_kind.to_string(), db_path, backup_path, backup_id)
-                .await?;
+            commands::restore_backup(node_type.into(), db_path, backup_path, backup_id).await?;
         }
         Commands::PurgeBackup {
             backup_path,

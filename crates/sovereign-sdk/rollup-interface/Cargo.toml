@@ -25,6 +25,7 @@ faster-hex = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 hex = { workspace = true, optional = true, features = ["default"] }
 jmt = { workspace = true }
+uuid = { workspace = true, optional = true }
 risc0-zkp = { workspace = true, optional = true }
 serde = { workspace = true, features = ["default", "rc"] }
 sha2 = { workspace = true }
@@ -50,5 +51,6 @@ native = [
   "async-trait",
   "thiserror",
   "hex",
+  "uuid",
 ]
 testing = []

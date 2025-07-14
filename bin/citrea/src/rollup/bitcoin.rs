@@ -2,31 +2,34 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bitcoin_da::fee::FeeService;
+use bitcoin_da::monitoring::MonitoringService;
+use bitcoin_da::network_constants::get_network_constants;
 use bitcoin_da::rpc::create_rpc_module as create_da_rpc_module;
-use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper};
+use bitcoin_da::service::{
+    network_to_bitcoin_network, BitcoinService, BitcoinServiceConfig, TxidWrapper,
+};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
+use bitcoincore_rpc::{Auth, Client};
 use citrea_common::backup::{create_backup_rpc_module, BackupManager};
 use citrea_common::config::ProverGuestRunConfig;
-use citrea_common::rpc::register_healthcheck_rpc;
-use citrea_common::tasks::manager::{TaskManager, TaskType};
-use citrea_common::FullNodeConfig;
+use citrea_common::{FullNodeConfig, RpcConfig};
 use citrea_primitives::forks::use_network_forks;
 use citrea_primitives::REVEAL_TX_PREFIX;
-use citrea_risc0_adapter::host::Risc0BonsaiHost;
+use citrea_risc0_adapter::host::Risc0Host;
 // use citrea_sp1::host::SP1Host;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::CitreaRuntime;
 use prover_services::{ParallelProverService, ProofGenMode};
+use reth_tasks::TaskExecutor;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Address, SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::services::da::TxRequestWithNotifier;
 use sov_state::ProverStorage;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
 use tracing::instrument;
 
@@ -50,7 +53,7 @@ impl RollupBlueprint for BitcoinRollup {
     type DaSpec = BitcoinSpec;
     type DaConfig = BitcoinServiceConfig;
     type DaVerifier = BitcoinVerifier;
-    type Vm = Risc0BonsaiHost;
+    type Vm = Risc0Host;
 
     fn new(network: Network) -> Self {
         use_network_forks(network);
@@ -63,9 +66,8 @@ impl RollupBlueprint for BitcoinRollup {
         storage: ProverStorage,
         ledger_db: &LedgerDB,
         da_service: &Arc<Self::DaService>,
-        sequencer_client_url: Option<String>,
-        l2_block_rx: Option<broadcast::Receiver<u64>>,
         backup_manager: &Arc<BackupManager>,
+        rpc_config: RpcConfig,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // unused inside register RPC
         let sov_sequencer = Address::new([0; 32]);
@@ -73,18 +75,7 @@ impl RollupBlueprint for BitcoinRollup {
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
             Self::DaService,
             CitreaRuntime<DefaultContext, Self::DaSpec>,
-        >(storage.clone(), ledger_db, sov_sequencer)?;
-
-        crate::eth::register_ethereum::<Self::DaService>(
-            da_service.clone(),
-            storage,
-            ledger_db.clone(),
-            &mut rpc_methods,
-            sequencer_client_url,
-            l2_block_rx,
-        )?;
-
-        register_healthcheck_rpc(&mut rpc_methods, ledger_db.clone())?;
+        >(storage.clone(), ledger_db, sov_sequencer, rpc_config)?;
 
         let backup_methods = create_backup_rpc_module(ledger_db.clone(), backup_manager.clone());
         rpc_methods.merge(backup_methods)?;
@@ -112,51 +103,68 @@ impl RollupBlueprint for BitcoinRollup {
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         require_wallet_check: bool,
-        task_manager: &mut TaskManager<()>,
+        task_executor: TaskExecutor,
+        network: Network,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
         let (tx, rx) = unbounded_channel::<TxRequestWithNotifier<TxidWrapper>>();
 
-        let bitcoin_service = if require_wallet_check {
-            BitcoinService::new_with_wallet_check(
-                rollup_config.da.clone(),
-                RollupParams {
-                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-                },
-                tx,
-            )
-            .await?
-        } else {
-            BitcoinService::new_without_wallet_check(
-                rollup_config.da.clone(),
-                RollupParams {
-                    reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-                },
-                tx,
-            )
-            .await?
+        let chain_params = RollupParams {
+            reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
+            network,
         };
-        let service = Arc::new(bitcoin_service);
+        let da_config = &rollup_config.da;
+        let client = Arc::new(
+            Client::new(
+                &da_config.node_url,
+                Auth::UserPass(
+                    da_config.node_username.clone(),
+                    da_config.node_password.clone(),
+                ),
+            )
+            .await?,
+        );
+
+        let network = network_to_bitcoin_network(&chain_params.network);
+        let network_constants = get_network_constants(&network);
+        let (monitoring_service, block_rx) = MonitoringService::new(
+            client.clone(),
+            da_config.monitoring.clone(),
+            network_constants.finality_depth,
+        );
+        let monitoring_service = Arc::new(monitoring_service);
+
+        let fee_service =
+            FeeService::new(client.clone(), network, da_config.mempool_space_url.clone());
+
+        let service = Arc::new(
+            BitcoinService::from_config(
+                da_config,
+                chain_params,
+                client.clone(),
+                network,
+                network_constants,
+                monitoring_service,
+                fee_service,
+                require_wallet_check,
+                tx,
+            )
+            .await?,
+        );
+
         // until forced transactions are implemented,
         // require_wallet_check is set false for full nodes.
         if require_wallet_check {
             // run only for sequencer and prover
             service.monitoring.restore().await?;
 
-            task_manager.spawn(TaskType::Secondary, |tk| {
-                Arc::clone(&service).run_da_queue(rx, tk)
+            task_executor.spawn_with_graceful_shutdown_signal(|tk| {
+                Arc::clone(&service).run_da_queue(rx, block_rx, tk)
             });
-            task_manager.spawn(TaskType::Secondary, |tk| {
-                Arc::clone(&service.monitoring).run(tk)
-            });
+            task_executor
+                .spawn_with_graceful_shutdown_signal(|tk| Arc::clone(&service.monitoring).run(tk));
         }
 
         Ok(service)
-    }
-
-    fn create_da_verifier(&self) -> Self::DaVerifier {
-        BitcoinVerifier::new(RollupParams {
-            reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
-        })
     }
 
     fn get_batch_proof_elfs(&self) -> HashMap<SpecId, Vec<u8>> {
@@ -264,7 +272,7 @@ impl RollupBlueprint for BitcoinRollup {
         proof_sampling_number: usize,
         is_light_client_prover: bool,
     ) -> ParallelProverService<Self::DaService, Self::Vm> {
-        let vm = Risc0BonsaiHost::new(ledger_db.clone(), self.network);
+        let vm = Risc0Host::new(ledger_db.clone(), self.network);
         // let vm = SP1Host::new(
         //     include_bytes!("../guests/sp1/batch-prover-bitcoin/elf/zkvm-elf"),
         //     ledger_db.clone(),

@@ -23,8 +23,10 @@ sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", def
 sov-modules-core = { path = "../sovereign-sdk/module-system/sov-modules-core", default-features = false }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
+sov-state = { path = "../sovereign-sdk/module-system/sov-state", optional = true, features = ["native"] }
 
 # 3rd-party deps
+alloy-primitives = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 borsh = { workspace = true }
@@ -35,8 +37,8 @@ jsonrpsee = { workspace = true, optional = true, features = ["http-client", "ser
 metrics = { workspace = true, optional = true }
 metrics-derive = { workspace = true, optional = true }
 once_cell = { workspace = true, default-features = true, optional = true }
+reth-tasks = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
-tokio-util = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -44,6 +46,7 @@ rand = { workspace = true }
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["testing"] }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 tempfile = { workspace = true }
 
@@ -64,7 +67,10 @@ native = [
   "dep:metrics",
   "dep:metrics-derive",
   "dep:once_cell",
+  "dep:reth-tasks",
   "dep:tokio",
-  "dep:tokio-util",
   "dep:tracing",
+  "dep:alloy-primitives",
+  "sov-rollup-interface/native",
+  "dep:sov-state",
 ]

@@ -83,13 +83,13 @@ pub trait KeyCodec<S: Schema>: KeyEncoder<S> + KeyDecoder<S> {}
 
 impl<T, S: Schema> KeyCodec<S> for T where T: KeyEncoder<S> + KeyDecoder<S> {}
 
-/// Implementors of this trait can be used to encode keys in the given [`Schema`].
+/// Implementers of this trait can be used to encode keys in the given [`Schema`].
 pub trait KeyEncoder<S: Schema> {
     /// Converts `self` to bytes to be stored in RocksDB.
     fn encode_key(&self) -> Result<Vec<u8>>;
 }
 
-/// Implementors of this trait can be used to decode keys in the given [`Schema`].
+/// Implementers of this trait can be used to decode keys in the given [`Schema`].
 pub trait KeyDecoder<S: Schema>: Sized {
     /// Converts bytes fetched from RocksDB to `Self`.
     fn decode_key(data: &[u8]) -> Result<Self>;
@@ -103,7 +103,7 @@ pub trait ValueCodec<S: Schema>: Sized {
     fn decode_value(data: &[u8]) -> Result<Self>;
 }
 
-/// A utility macro to define [`Schema`] implementors. You must specify the
+/// A utility macro to define [`Schema`] implementers. You must specify the
 /// [`Schema`] implementor's name, the key type, the value type, and the column
 /// family name.
 ///

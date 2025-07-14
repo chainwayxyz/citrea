@@ -3,7 +3,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
     BlobReaderTrait, DaSpec, DaVerifier, DecompressError, L1UpdateSystemTransactionInfo,
-    LatestDaState, ShortHeaderProofVerificationError, VerifableShortHeaderProof,
+    LatestDaState, ShortHeaderProofVerificationError, VerifiableShortHeaderProof,
 };
 use sov_rollup_interface::Network;
 
@@ -16,28 +16,12 @@ impl BlobReaderTrait for MockBlob {
         self.address.clone()
     }
 
-    fn hash(&self) -> [u8; 32] {
-        self.hash
-    }
-
-    fn wtxid(&self) -> Option<[u8; 32]> {
+    fn wtxid(&self) -> [u8; 32] {
         self.wtxid
     }
 
     fn full_data(&self) -> &[u8] {
         self.data.accumulator()
-    }
-
-    fn total_len(&self) -> usize {
-        self.data.total_len()
-    }
-
-    fn serialize_v1(&self) -> borsh::io::Result<Vec<u8>> {
-        borsh::to_vec(self)
-    }
-
-    fn serialize_v2(&self) -> borsh::io::Result<Vec<u8>> {
-        borsh::to_vec(self)
     }
 }
 
@@ -73,7 +57,7 @@ pub struct MockShortHeaderProof {
     pub height: u64,
 }
 
-impl VerifableShortHeaderProof for MockShortHeaderProof {
+impl VerifiableShortHeaderProof for MockShortHeaderProof {
     fn verify(&self) -> Result<L1UpdateSystemTransactionInfo, ShortHeaderProofVerificationError> {
         Ok(L1UpdateSystemTransactionInfo {
             header_hash: self.header_hash,

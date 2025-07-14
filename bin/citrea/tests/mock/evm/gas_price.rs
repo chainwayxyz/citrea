@@ -1,20 +1,21 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use alloy::eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 use alloy_primitives::U256;
+use alloy_rpc_types::BlockNumberOrTag;
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::BlockNumberOrTag;
 
 use super::init_test_rollup;
 use crate::common::client::TestClient;
 use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
 };
-use crate::common::TEST_DATA_GENESIS_PATH;
+use crate::common::{TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
@@ -33,9 +34,12 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
         NodeMode::SequencerNode,
         None,
     );
-    let sequencer_config = SequencerConfig::default();
+    let sequencer_config = SequencerConfig {
+        max_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
+        ..Default::default()
+    };
 
-    let rollup_task = tokio::spawn(async {
+    let rollup_task =
         // Don't provide a prover since the EVM is not currently provable
         start_rollup(
             port_tx,
@@ -48,13 +52,12 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
             false,
         )
         .await;
-    });
 
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
     let test_client = init_test_rollup(port).await;
     execute(&test_client, port).await.unwrap();
-    rollup_task.abort();
+    rollup_task.graceful_shutdown();
     Ok(())
 }
 
@@ -132,7 +135,7 @@ async fn execute(
 
     let block = client.eth_get_block_by_number(None).await;
     assert!(
-        block.header.gas_used as u64 <= reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
+        block.header.gas_used <= ETHEREUM_BLOCK_GAS_LIMIT_30M,
         "Block has gas limit"
     );
     assert!(

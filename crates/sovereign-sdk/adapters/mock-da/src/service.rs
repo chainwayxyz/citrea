@@ -217,7 +217,7 @@ impl MockDaService {
             zkp_proof,
             self.sequencer_da_address.clone(),
             data_hash,
-            None,
+            [0; 32],
         );
         let header = MockBlockHeader {
             prev_hash: previous_block_hash,
@@ -292,7 +292,7 @@ impl MockDaService {
             let mut planned_fork_guard = self.planned_fork.lock().unwrap();
             if planned_fork_guard
                 .as_ref()
-                .map_or(false, |x| x.trigger_at_height == height)
+                .is_some_and(|x| x.trigger_at_height == height)
             {
                 Some(planned_fork_guard.take().unwrap())
             } else {
@@ -417,11 +417,11 @@ impl DaService for MockDaService {
         &self,
         block: &Self::FilteredBlock,
         _prover_da_pub_key: &[u8],
-    ) -> Vec<Proof> {
+    ) -> Vec<(usize, Proof)> {
         let mut res = vec![];
-        for b in block.blobs.clone() {
+        for (idx, b) in block.blobs.clone().into_iter().enumerate() {
             if let Ok(DataOnDa::Complete(proof)) = DataOnDa::try_from_slice(b.full_data()) {
-                res.push(proof);
+                res.push((idx, proof));
             } else {
                 // ignore
             }
@@ -433,13 +433,13 @@ impl DaService for MockDaService {
         &self,
         block: &Self::FilteredBlock,
         _sequencer_da_pub_key: &[u8],
-    ) -> Vec<SequencerCommitment> {
+    ) -> Vec<(usize, SequencerCommitment)> {
         let mut res = vec![];
-        for b in block.blobs.clone() {
+        for (idx, b) in block.blobs.clone().into_iter().enumerate() {
             if let Ok(DataOnDa::SequencerCommitment(seq_com)) =
                 DataOnDa::try_from_slice(b.full_data())
             {
-                res.push(seq_com);
+                res.push((idx, seq_com));
             }
         }
         res

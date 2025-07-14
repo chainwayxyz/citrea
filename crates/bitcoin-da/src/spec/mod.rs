@@ -1,8 +1,11 @@
+//! This module defines the Bitcoin DaSpec and its associated types.
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_primitives::compression::decompress_blob;
 use serde::{Deserialize, Serialize};
 use short_proof::BitcoinHeaderShortProof;
 use sov_rollup_interface::da::{DaSpec, DecompressError};
+use sov_rollup_interface::Network;
 
 use self::address::AddressWrapper;
 use self::blob::BlobWithSender;
@@ -23,11 +26,16 @@ pub mod short_proof;
 pub mod transaction;
 pub mod utxo;
 
+/// BitcoinSpec is the specification for the Bitcoin DaSpec.
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct BitcoinSpec;
 
+/// RollupParams contains the parameters for the Bitcoin rollup.
 pub struct RollupParams {
+    /// The prefix used for wtxid prefix.
     pub reveal_tx_prefix: Vec<u8>,
+    /// The network this rollup is operating on (e.g., Mainnet, Testnet).
+    pub network: Network,
 }
 
 impl DaSpec for BitcoinSpec {
@@ -48,7 +56,6 @@ impl DaSpec for BitcoinSpec {
     type ShortHeaderProof = BitcoinHeaderShortProof;
 
     fn decompress_chunks(complete_chunks: &[u8]) -> Result<Vec<u8>, DecompressError> {
-        let blob = decompress_blob(complete_chunks).map_err(|_| DecompressError)?;
-        borsh::from_slice(blob.as_slice()).map_err(|_| DecompressError)
+        decompress_blob(complete_chunks).map_err(|_| DecompressError)
     }
 }

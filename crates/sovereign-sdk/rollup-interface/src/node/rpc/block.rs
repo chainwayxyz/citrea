@@ -27,6 +27,7 @@ pub struct L2HeaderResponse {
     /// Sequencer's block timestamp.
     pub timestamp: U64,
     /// Tx merkle root.
+    #[serde(with = "hex::serde")]
     pub tx_merkle_root: [u8; 32],
 }
 

@@ -4,10 +4,12 @@ use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::Path;
 
-use alloy_consensus::Header;
+use alloy_consensus::{Header, EMPTY_OMMER_ROOT_HASH};
+use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
+use alloy_primitives::B256;
 use alloy_rlp::{Decodable, Encodable};
 use rayon::iter::{ParallelBridge, ParallelIterator};
-use reth_primitives::{SealedBlock, EMPTY_OMMER_ROOT_HASH};
+use reth_primitives::{Block as RethBlock, SealedBlock};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
@@ -119,7 +121,7 @@ impl Case for BlockchainTestCase {
         // Iterate through test cases, filtering by the network type to exclude specific forks.
         self.tests
             .values()
-            .filter(|case| case.network <= ForkSpec::Cancun || case.network == ForkSpec::Unknown)
+            .filter(|case| case.network == ForkSpec::Prague)
             .par_bridge()
             .try_for_each(|case| {
                 let mut evm_config = EvmConfig::default();
@@ -150,8 +152,8 @@ impl Case for BlockchainTestCase {
                     excess_blob_gas: case.genesis_block_header.excess_blob_gas.map(|b| b.to()),
                     // EIP-4788 related field
                     // unrelated for rollups
-                    parent_beacon_block_root: None,
-                    requests_root: None,
+                    parent_beacon_block_root: Some(B256::ZERO),
+                    requests_hash: Some(EMPTY_REQUESTS_HASH),
                 };
 
                 let block = Block {
@@ -170,7 +172,7 @@ impl Case for BlockchainTestCase {
                     ));
                 }
 
-                let (mut evm, _, mut storage) = get_evm_with_storage(&evm_config);
+                let (mut evm, _, mut storage, _) = get_evm_with_storage(&evm_config);
                 let mut l2_height = 2;
 
                 let mut working_set = WorkingSet::new(storage.clone());
@@ -196,12 +198,12 @@ impl Case for BlockchainTestCase {
 
                 let root = case.genesis_block_header.state_root;
 
-                let current_spec = SovSpecId::Fork2;
+                let current_spec = SovSpecId::Tangerine;
                 // Decode and insert blocks, creating a chain of blocks for the test case.
                 for block in case.blocks.iter() {
-                    let decoded = SealedBlock::decode(&mut block.rlp.as_ref())?;
+                    let decoded = SealedBlock::<RethBlock>::decode(&mut block.rlp.as_ref())?;
                     let txs = decoded
-                        .body
+                        .body()
                         .transactions
                         .iter()
                         .map(|t| {
@@ -244,12 +246,9 @@ impl Case for BlockchainTestCase {
                             }
                         }
                     }
-                    (None, Some(expected_state_root)) => {
-                        // Insert state hashes into the provider based on the expected state root.
-                        assert_eq!(
-                            *evm.head.get(&mut working_set).unwrap().header.state_root,
-                            **expected_state_root
-                        );
+                    (None, Some(_expected_state_root)) => {
+                        // Skip root only tests as our state tree is different
+                        return Err(Error::Skipped);
                     }
                     _ => return Err(Error::MissingPostState),
                 }
@@ -274,29 +273,29 @@ pub fn should_skip(path: &Path) -> bool {
         name,
         // funky test with `bigint 0x00` value in json :) not possible to happen on mainnet and require
         // custom json parser. https://github.com/ethereum/tests/issues/971
-        | "ValueOverflow.json"
-        | "ValueOverflowParis.json"
+        // | "ValueOverflow.json"
+        // | "ValueOverflowParis.json"
 
-        // txbyte is of type 02 and we dont parse tx bytes for this test to fail.
-        | "typeTwoBerlin.json"
+        // // txbyte is of type 02 and we dont parse tx bytes for this test to fail.
+        // | "typeTwoBerlin.json"
 
-        // Test checks if nonce overflows. We are handling this correctly but we are not parsing
-        // exception in testsuite There are more nonce overflow tests that are in internal
-        // call/create, and those tests are passing and are enabled.
-        | "CreateTransactionHighNonce.json"
+        // // Test checks if nonce overflows. We are handling this correctly but we are not parsing
+        // // exception in testsuite There are more nonce overflow tests that are in internal
+        // // call/create, and those tests are passing and are enabled.
+        // | "CreateTransactionHighNonce.json"
 
-        // Test check if gas price overflows, we handle this correctly but does not match tests specific
-        // exception.
-        | "HighGasPrice.json"
+        // // Test check if gas price overflows, we handle this correctly but does not match tests specific
+        // // exception.
+        // | "HighGasPrice.json"
         | "HighGasPriceParis.json"
 
-        // Skip test where basefee/accesslist/difficulty is present but it shouldn't be supported in
-        // London/Berlin/TheMerge. https://github.com/ethereum/tests/blob/5b7e1ab3ffaf026d99d20b17bb30f533a2c80c8b/GeneralStateTests/stExample/eip1559.json#L130
-        // It is expected to not execute these tests.
-        | "accessListExample.json"
-        | "basefeeExample.json"
-        | "eip1559.json"
-        | "mergeTest.json"
+        // // Skip test where basefee/accesslist/difficulty is present but it shouldn't be supported in
+        // // London/Berlin/TheMerge. https://github.com/ethereum/tests/blob/5b7e1ab3ffaf026d99d20b17bb30f533a2c80c8b/GeneralStateTests/stExample/eip1559.json#L130
+        // // It is expected to not execute these tests.
+        // | "accessListExample.json"
+        // | "basefeeExample.json"
+        // | "eip1559.json"
+        // | "mergeTest.json"
 
         // These tests are passing, but they take a lot of time to execute so we are going to skip them.
         | "loopExp.json"

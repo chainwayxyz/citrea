@@ -1,11 +1,15 @@
 use std::collections::HashMap;
 
+use alloy_consensus::constants::{
+    EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, EMPTY_WITHDRAWALS, KECCAK_EMPTY,
+};
 use alloy_consensus::Header;
 use alloy_eips::eip1559::BaseFeeParams;
+use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::{keccak256, Address, Bloom, Bytes, B256, U256};
-use reth_primitives::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
-use reth_primitives::KECCAK_EMPTY;
-use revm::primitives::Bytecode;
+use citrea_primitives::forks::fork_from_block_number;
+use revm::primitives::hardfork::SpecId;
+use revm::state::Bytecode;
 use serde::{Deserialize, Deserializer};
 use sov_modules_api::prelude::*;
 use sov_modules_api::WorkingSet;
@@ -15,7 +19,7 @@ use crate::evm::primitive_types::Block;
 use crate::evm::{AccountInfo, EvmChainConfig};
 #[cfg(all(test, feature = "native"))]
 use crate::tests::DEFAULT_CHAIN_ID;
-use crate::Evm;
+use crate::{citrea_spec_id_to_evm_spec_id, Evm};
 
 /// Evm account.
 #[derive(Clone, Debug, serde::Serialize, Eq, PartialEq)]
@@ -138,14 +142,15 @@ pub struct EvmConfig {
 #[cfg(all(test, feature = "native"))]
 impl Default for EvmConfig {
     fn default() -> Self {
+        use alloy_eips::eip1559::{ETHEREUM_BLOCK_GAS_LIMIT_30M, INITIAL_BASE_FEE};
         Self {
             data: vec![],
             chain_id: DEFAULT_CHAIN_ID,
             limit_contract_code_size: None,
             // spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
             coinbase: Address::ZERO,
-            starting_base_fee: reth_primitives::constants::EIP1559_INITIAL_BASE_FEE,
-            block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
+            starting_base_fee: INITIAL_BASE_FEE,
+            block_gas_limit: ETHEREUM_BLOCK_GAS_LIMIT_30M,
             base_fee_params: BaseFeeParams::ethereum(),
             timestamp: 0,
             extra_data: Bytes::default(),
@@ -199,6 +204,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         self.cfg.set(&chain_cfg, working_set);
 
+        let citrea_spec = fork_from_block_number(0);
+
+        let evm_spec = citrea_spec_id_to_evm_spec_id(citrea_spec.spec_id);
+
         let header = Header {
             parent_hash: B256::default(),
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
@@ -220,11 +229,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // EIP-4844 related fields
             blob_gas_used: Some(0),
             excess_blob_gas: Some(0),
+            withdrawals_root: Some(EMPTY_WITHDRAWALS),
             // EIP-4788 related field
             // unrelated for rollups
-            parent_beacon_block_root: None,
-            requests_root: None,
-            withdrawals_root: None,
+            parent_beacon_block_root: Some(B256::ZERO),
+            requests_hash: if let SpecId::PRAGUE = evm_spec {
+                Some(EMPTY_REQUESTS_HASH)
+            } else {
+                None
+            },
         };
 
         let block = Block {

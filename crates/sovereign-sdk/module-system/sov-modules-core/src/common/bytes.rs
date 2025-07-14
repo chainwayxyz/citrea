@@ -150,7 +150,7 @@ impl ModulePrefix {
     /// Returns the hash of the combined prefix.
     pub fn hash<C: Context>(&self) -> [u8; 32] {
         let combined_prefix = self.combine_prefix();
-        let mut hasher = C::Hasher::new();
+        let mut hasher = sha2::Sha256::new();
         hasher.update(combined_prefix);
         hasher.finalize().into()
     }

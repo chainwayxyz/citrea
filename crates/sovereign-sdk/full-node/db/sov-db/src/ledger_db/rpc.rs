@@ -7,15 +7,10 @@ use sov_rollup_interface::rpc::{
 };
 
 use crate::schema::tables::{
-    CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2BlockStatus, SlotByHash,
+    CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, SequencerCommitmentByIndex, SlotByHash,
     VerifiedBatchProofsBySlotNumber,
 };
 use crate::schema::types::{L2BlockNumber, SlotNumber};
-
-/// The maximum number of batches that can be requested in a single RPC range query
-const MAX_BATCHES_PER_REQUEST: u64 = 20;
-/// The maximum number of l2 blocks that can be requested in a single RPC range query
-const MAX_L2_BLOCK_PER_REQUEST: u64 = 20;
 
 fn check_if_l2_block_pruned(ledger_db: &LedgerDB, l2_height: u64) -> Result<(), anyhow::Error> {
     let last_pruned_l2_height = ledger_db.get_last_pruned_l2_height()?;
@@ -63,19 +58,16 @@ impl LedgerRpcProvider for LedgerDB {
         self.get_l2_block(&L2BlockIdentifier::Number(number))
     }
 
-    fn get_l2_blocks(
+    fn get_l2_blocks_range(
         &self,
-        l2_block_ids: &[L2BlockIdentifier],
+        start: u64,
+        end: u64,
     ) -> Result<Vec<Option<L2BlockResponse>>, anyhow::Error> {
-        anyhow::ensure!(
-            l2_block_ids.len() <= MAX_L2_BLOCK_PER_REQUEST as usize,
-            "requested too many l2 blocks. Requested: {}. Max: {}",
-            l2_block_ids.len(),
-            MAX_BATCHES_PER_REQUEST
-        );
+        anyhow::ensure!(start <= end, "start must be <= end");
 
+        let l2_block_ids: Vec<_> = (start..=end).map(L2BlockIdentifier::Number).collect();
         let mut out = Vec::with_capacity(l2_block_ids.len());
-        for l2_block_id in l2_block_ids {
+        for l2_block_id in &l2_block_ids {
             if let Some(l2_block) = self.get_l2_block(l2_block_id)? {
                 out.push(Some(l2_block));
             } else {
@@ -83,48 +75,6 @@ impl LedgerRpcProvider for LedgerDB {
             }
         }
         Ok(out)
-    }
-
-    fn get_l2_blocks_range(
-        &self,
-        start: u64,
-        end: u64,
-    ) -> Result<Vec<Option<L2BlockResponse>>, anyhow::Error> {
-        anyhow::ensure!(start <= end, "start must be <= end");
-        anyhow::ensure!(
-            end - start < MAX_BATCHES_PER_REQUEST,
-            "requested batch range too large. Max: {}",
-            MAX_BATCHES_PER_REQUEST
-        );
-        let ids: Vec<_> = (start..=end).map(L2BlockIdentifier::Number).collect();
-        self.get_l2_blocks(&ids)
-    }
-
-    fn get_l2_block_status(
-        &self,
-        l2_height: u64,
-    ) -> Result<sov_rollup_interface::rpc::L2BlockStatus, anyhow::Error> {
-        check_if_l2_block_pruned(self, l2_height)?;
-
-        if self
-            .db
-            .get::<L2BlockByNumber>(&L2BlockNumber(l2_height))
-            .ok()
-            .flatten()
-            .is_none()
-        {
-            return Err(anyhow::anyhow!(
-                "L2 block at height {} not processed yet.",
-                l2_height
-            ));
-        }
-
-        let status = self.db.get::<L2BlockStatus>(&L2BlockNumber(l2_height))?;
-
-        match status {
-            Some(status) => Ok(status),
-            None => Ok(sov_rollup_interface::rpc::L2BlockStatus::Trusted),
-        }
     }
 
     fn get_l2_genesis_state_root(&self) -> Result<Option<Vec<u8>>, anyhow::Error> {
@@ -143,7 +93,7 @@ impl LedgerRpcProvider for LedgerDB {
             Some(commitments) => Ok(Some(
                 commitments
                     .into_iter()
-                    .map(|commitment| sequencer_commitment_to_response(commitment, height))
+                    .map(sequencer_commitment_to_response)
                     .collect(),
             )),
             None => Ok(None),
@@ -223,6 +173,16 @@ impl LedgerRpcProvider for LedgerDB {
     fn get_head_l2_block_height(&self) -> Result<u64, anyhow::Error> {
         let head_l2_height = Self::last_version_written(&self.db, L2BlockByNumber)?.unwrap_or(0);
         Ok(head_l2_height)
+    }
+
+    fn get_sequencer_commitment_by_index(
+        &self,
+        index: u32,
+    ) -> Result<Option<SequencerCommitmentResponse>, anyhow::Error> {
+        self.db
+            .get::<SequencerCommitmentByIndex>(&index)?
+            .map(|commitment| Ok(sequencer_commitment_to_response(commitment)))
+            .transpose()
     }
 }
 

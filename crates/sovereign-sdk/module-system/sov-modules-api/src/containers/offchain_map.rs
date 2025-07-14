@@ -53,7 +53,7 @@ impl<K, V, Codec> OffchainStateMap<K, V, Codec> {
     }
 }
 
-impl<'a, K, V, Codec, S> StateMapAccessor<K, V, Codec, OffchainWorkingSet<'a, S>>
+impl<K, V, Codec, S> StateMapAccessor<K, V, Codec, OffchainWorkingSet<'_, S>>
     for OffchainStateMap<K, V, Codec>
 where
     Codec: StateCodec,

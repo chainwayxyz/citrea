@@ -1,8 +1,10 @@
+use core::error::Error;
 #[cfg(feature = "native")]
 use std::collections::HashMap;
 
-use alloy_primitives::{keccak256, Address, B256};
-use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode, U256};
+use alloy_primitives::{keccak256, Address, B256, U256};
+use revm::context::DBErrorMarker;
+use revm::state::{AccountInfo as ReVmAccountInfo, Bytecode};
 use revm::Database;
 use sov_modules_api::{StateMapAccessor, WorkingSet};
 
@@ -14,13 +16,20 @@ use crate::Evm;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum DBError {
     CodeHashMismatch,
+    UnknownCodeHash,
 }
+
+impl DBErrorMarker for DBError {}
+impl Error for DBError {}
 
 impl std::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::CodeHashMismatch => {
                 write!(f, "Code does not match provided hash")
+            }
+            Self::UnknownCodeHash => {
+                write!(f, "Code hash is unknown")
             }
         }
     }
@@ -38,9 +47,7 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
 
     #[cfg(feature = "native")]
     pub(crate) fn override_block_hash(&mut self, number: u64, hash: B256) {
-        self.evm
-            .latest_block_hashes
-            .set(&number, &hash, self.working_set);
+        self.evm.blockhash_set(number, &hash, self.working_set);
     }
 
     #[cfg(feature = "native")]
@@ -65,7 +72,7 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
     }
 }
 
-impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
+impl<C: sov_modules_api::Context> Database for EvmDb<'_, C> {
     type Error = DBError;
 
     fn basic(&mut self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
@@ -94,7 +101,7 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
         )? {
             Ok(code)
         } else {
-            Ok(Default::default())
+            Err(DBError::UnknownCodeHash)
         }
     }
 
@@ -111,13 +118,36 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
         // no need to check block number ranges
         // revm already checks it
 
-        let block_hash = self
+        Ok(self
             .evm
-            .latest_block_hashes
-            .get(&number, self.working_set)
-            .unwrap_or(B256::ZERO);
+            .blockhash_get(number, self.working_set)
+            .expect("Block hash does not exist for range checked by revm"))
+    }
+}
 
-        Ok(block_hash)
+/// A trait to check if an account is newly created.
+/// This is useful when calculating diff size for a transactions
+pub trait AccountExistsProvider {
+    /// Check if an account is newly created
+    /// By querying `Evm::account_exists`
+    fn is_first_time_committing_address(&mut self, address: &Address) -> bool;
+}
+
+impl<C: sov_modules_api::Context> AccountExistsProvider for EvmDb<'_, C> {
+    fn is_first_time_committing_address(&mut self, address: &Address) -> bool {
+        // As the diff size is calculated in `Handler::output` before `DataBase::commit`,
+        // We wouldn't have them in the account indices map
+        // So this can tell us if the account is newly created
+        !self.evm.account_exists(address, self.working_set)
+    }
+}
+
+impl<C: sov_modules_api::Context> AccountExistsProvider for &mut EvmDb<'_, C> {
+    fn is_first_time_committing_address(&mut self, address: &Address) -> bool {
+        // As the diff size is calculated in `Handler::output` before `DataBase::commit`,
+        // We wouldn't have them in the account indices map
+        // So this can tell us if the account is newly created
+        !self.evm.account_exists(address, self.working_set)
     }
 }
 
@@ -126,10 +156,10 @@ pub mod immutable {
     use std::cell::RefCell;
 
     use alloy_primitives::{Address, B256, U256};
-    use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode};
+    use revm::state::{AccountInfo as ReVmAccountInfo, Bytecode};
     use revm::{Database, DatabaseRef};
 
-    use super::{DBError, EvmDb};
+    use super::{AccountExistsProvider, DBError, EvmDb};
 
     pub(crate) struct EvmDbRef<'a, 'b, C: sov_modules_api::Context> {
         pub(crate) evm_db: RefCell<&'b mut EvmDb<'a, C>>,
@@ -143,7 +173,7 @@ pub mod immutable {
         }
     }
 
-    impl<'a, 'b, C: sov_modules_api::Context> Database for EvmDbRef<'a, 'b, C> {
+    impl<C: sov_modules_api::Context> Database for EvmDbRef<'_, '_, C> {
         type Error = DBError;
 
         fn basic(&mut self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
@@ -163,7 +193,7 @@ pub mod immutable {
         }
     }
 
-    impl<'a, 'b, C: sov_modules_api::Context> revm::DatabaseRef for EvmDbRef<'a, 'b, C> {
+    impl<C: sov_modules_api::Context> revm::DatabaseRef for EvmDbRef<'_, '_, C> {
         type Error = DBError;
 
         fn basic_ref(&self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
@@ -180,6 +210,21 @@ pub mod immutable {
 
         fn block_hash_ref(&self, number: u64) -> Result<B256, Self::Error> {
             self.evm_db.borrow_mut().block_hash(number)
+        }
+    }
+
+    // FIXME: https://github.com/paradigmxyz/revm-inspectors/pull/278
+    impl<C: sov_modules_api::Context> revm::DatabaseCommit for EvmDbRef<'_, '_, C> {
+        fn commit(&mut self, _changes: revm::primitives::HashMap<Address, revm::state::Account>) {
+            // do nothing
+        }
+    }
+
+    impl<C: sov_modules_api::Context> AccountExistsProvider for &mut EvmDbRef<'_, '_, C> {
+        fn is_first_time_committing_address(&mut self, address: &Address) -> bool {
+            self.evm_db
+                .borrow_mut()
+                .is_first_time_committing_address(address)
         }
     }
 }

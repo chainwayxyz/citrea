@@ -7,6 +7,7 @@ use sov_mock_da::{MockAddress, MockDaService, MockHash};
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
 use tokio::sync::oneshot;
+use uuid::Uuid;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_successful_prover_execution() {
@@ -17,12 +18,14 @@ async fn test_successful_prover_execution() {
     ));
 
     let TestProver {
-        prover_service, vm, ..
+        prover_service,
+        mut vm,
+        ..
     } = make_new_prover(1, da_service);
 
     let header_hash = MockHash::from([0; 32]);
     // Spawn mock proving in the background
-    let rx = start_proof(&prover_service, header_hash).await;
+    let (id, rx) = start_proof(&prover_service, header_hash).await;
 
     // Signal finish to 1st proof
     assert!(vm.finish_next_proof());
@@ -33,7 +36,7 @@ async fn test_successful_prover_execution() {
     let hash_from_proof = extract_output_header(&proof);
     assert_eq!(hash_from_proof, header_hash);
 
-    prover_service.submit_proof(proof).await.unwrap();
+    prover_service.submit_proof(proof, id).await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -46,15 +49,17 @@ async fn test_parallel_proofs_equal_to_limit() {
 
     // Parallel proof limit is 2
     let TestProver {
-        prover_service, vm, ..
+        prover_service,
+        mut vm,
+        ..
     } = make_new_prover(2, da_service);
 
     // 1st proof
     let header_hash_1 = MockHash::from([0; 32]);
-    let rx_1 = start_proof(&prover_service, header_hash_1).await;
+    let (_id, rx_1) = start_proof(&prover_service, header_hash_1).await;
     // 2nd proof
     let header_hash_2 = MockHash::from([1; 32]);
-    let rx_2 = start_proof(&prover_service, header_hash_2).await;
+    let (_id, rx_2) = start_proof(&prover_service, header_hash_2).await;
 
     // Signal finish to 1st proof
     assert!(vm.finish_next_proof());
@@ -86,18 +91,20 @@ async fn test_parallel_proofs_higher_than_limit() {
 
     // Parallel proof limit is 3
     let TestProver {
-        prover_service, vm, ..
+        prover_service,
+        mut vm,
+        ..
     } = make_new_prover(3, da_service);
 
     // 1st proof
     let header_hash_1 = MockHash::from([0; 32]);
-    let rx_1 = start_proof(&prover_service, header_hash_1).await;
+    let (_id, rx_1) = start_proof(&prover_service, header_hash_1).await;
     // 2nd proof
     let header_hash_2 = MockHash::from([1; 32]);
-    let rx_2 = start_proof(&prover_service, header_hash_2).await;
+    let (_id, rx_2) = start_proof(&prover_service, header_hash_2).await;
     // 3rd proof
     let header_hash_3 = MockHash::from([2; 32]);
-    let rx_3 = start_proof(&prover_service, header_hash_3).await;
+    let (_id, rx_3) = start_proof(&prover_service, header_hash_3).await;
     // 4th proof should not start and timeout
     let header_hash_4 = MockHash::from([3; 32]);
     let timeout = tokio::time::timeout(
@@ -112,7 +119,7 @@ async fn test_parallel_proofs_higher_than_limit() {
     let proof_1 = rx_1.await.unwrap();
 
     // 4th proof should now be able to start
-    let rx_4 = start_proof(&prover_service, header_hash_4).await;
+    let (_id, rx_4) = start_proof(&prover_service, header_hash_4).await;
 
     // Signal finish to 2nd proof
     assert!(vm.finish_next_proof());
@@ -179,8 +186,9 @@ fn extract_output_header(proof: &Vec<u8>) -> MockHash {
 async fn start_proof(
     prover_service: &ParallelProverService<MockDaService, MockZkvm>,
     header_hash: MockHash,
-) -> oneshot::Receiver<Proof> {
+) -> (Uuid, oneshot::Receiver<Proof>) {
     // Spawn mock proving in the background
+    let id = Uuid::now_v7();
     let rx = prover_service
         .start_proving(
             ProofData {
@@ -189,11 +197,13 @@ async fn start_proof(
                 elf: vec![],
             },
             ReceiptType::Groth16,
+            id,
         )
-        .await;
+        .await
+        .unwrap();
 
     // Ensure inner proving task is initialized
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    rx
+    (id, rx)
 }

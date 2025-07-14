@@ -16,3 +16,14 @@ macro_rules! log_result_or_error {
         }
     }};
 }
+
+#[macro_export]
+macro_rules! increment_table_counter {
+    ($table: literal, $result:expr) => {
+        $result
+            .processed_tables
+            .entry($table)
+            .and_modify(|v| *v += 1)
+            .or_insert(1);
+    };
+}

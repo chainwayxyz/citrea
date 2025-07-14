@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
-use alloy_rpc_types::AnyNetworkBlock;
-use citrea_evm::{log_matches_filter, Evm, Filter, LogResponse};
+use alloy_rpc_types::{Block, BlockNumHash, BlockNumberOrTag, Filter, FilteredParams, Log};
+use alloy_serde::WithOtherFields;
+use citrea_evm::Evm;
 use futures::future;
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
-use reth_primitives::BlockNumberOrTag;
+use reth_rpc_eth_types::logs_utils::log_matches_filter;
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::WorkingSet;
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio::task::JoinHandle;
@@ -20,6 +22,7 @@ pub(crate) struct SubscriptionManager {
 impl SubscriptionManager {
     pub(crate) fn new<C: sov_modules_api::Context>(
         storage: C::Storage,
+        ledger_db: LedgerDB,
         l2_block_rx: broadcast::Receiver<u64>,
     ) -> Self {
         let (new_heads_tx, new_heads_rx) = mpsc::channel(16);
@@ -33,6 +36,7 @@ impl SubscriptionManager {
         // and send the corresponding ethereum block to subscribers
         let l2_block_handle = tokio::spawn(l2_block_event_handler::<C>(
             storage,
+            ledger_db,
             l2_block_rx,
             new_heads_tx.clone(),
             logs_tx.clone(),
@@ -77,7 +81,7 @@ impl Drop for SubscriptionManager {
 }
 
 pub async fn new_heads_notifier(
-    mut rx: mpsc::Receiver<AnyNetworkBlock>,
+    mut rx: mpsc::Receiver<WithOtherFields<Block>>,
     head_subscriptions: Arc<RwLock<Vec<SubscriptionSink>>>,
 ) {
     while let Some(block) = rx.recv().await {
@@ -100,7 +104,7 @@ pub async fn new_heads_notifier(
 }
 
 pub async fn logs_notifier(
-    mut rx: mpsc::Receiver<Vec<LogResponse>>,
+    mut rx: mpsc::Receiver<Vec<Log>>,
     logs_subscriptions: Arc<RwLock<Vec<(Filter, SubscriptionSink)>>>,
 ) {
     while let Some(logs) = rx.recv().await {
@@ -109,11 +113,15 @@ pub async fn logs_notifier(
         let mut send_tasks = vec![];
         for log in logs {
             for (filter, subscription) in subscriptions.iter() {
+                let num_hash = BlockNumHash::new(
+                    *log.block_number.as_ref().unwrap(),
+                    *log.block_hash.as_ref().unwrap(),
+                );
+
                 if log_matches_filter(
-                    &log.clone().try_into().unwrap(),
-                    filter,
-                    log.block_hash.as_ref().unwrap(),
-                    &log.block_number.as_ref().unwrap().to::<u64>(),
+                    num_hash,
+                    &log.inner,
+                    &FilteredParams::new(Some(filter.clone())),
                 ) {
                     let msg = SubscriptionMessage::new(
                         subscription.method_name(),
@@ -133,9 +141,10 @@ pub async fn logs_notifier(
 
 pub async fn l2_block_event_handler<C: sov_modules_api::Context>(
     storage: C::Storage,
+    ledger_db: LedgerDB,
     mut l2_block_rx: broadcast::Receiver<u64>,
-    new_heads_tx: mpsc::Sender<AnyNetworkBlock>,
-    logs_tx: mpsc::Sender<Vec<LogResponse>>,
+    new_heads_tx: mpsc::Sender<WithOtherFields<Block>>,
+    logs_tx: mpsc::Sender<Vec<Log>>,
 ) {
     let evm = Evm::<C>::default();
     while let Ok(height) = l2_block_rx.recv().await {
@@ -145,6 +154,7 @@ pub async fn l2_block_event_handler<C: sov_modules_api::Context>(
                 Some(BlockNumberOrTag::Number(height)),
                 None,
                 &mut working_set,
+                &ledger_db,
             )
             .expect("Error querying block from evm")
             .expect("Received signal but evm block is not found");

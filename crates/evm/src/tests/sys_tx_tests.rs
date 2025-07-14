@@ -1,13 +1,17 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use alloy_eips::eip2718::Encodable2718;
+use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
+use alloy_eips::{BlockNumberOrTag, Encodable2718};
 use alloy_primitives::{address, b256, hex, FixedBytes, LogData, TxKind, U64};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
-use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::{BlockNumberOrTag, Log};
+use jsonrpsee::core::RpcResult;
+use reth_primitives::Log;
 use revm::primitives::{Bytes, KECCAK_EMPTY, U256};
-use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
+use short_header_proof_provider::{
+    ShortHeaderProofProvider, ShortHeaderProofProviderError, SHORT_HEADER_PROOF_PROVIDER,
+};
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
@@ -18,17 +22,17 @@ use sov_state::ProverStorage;
 
 use super::utils::commit;
 use crate::call::CallMessage;
-use crate::evm::primitive_types::Receipt;
+use crate::evm::primitive_types::CitreaReceiptWithBloom;
 use crate::evm::system_contracts::BitcoinLightClient;
 use crate::handler::L1_FEE_OVERHEAD;
-use crate::smart_contracts::{BlockHashContract, LogsContract};
+use crate::smart_contracts::{BlockHashContract, LogsContract, SimpleStorageContract};
 use crate::system_contracts::{BridgeWrapper, ProxyAdmin, WCBTC};
 use crate::system_events::{create_system_transactions, SystemEvent};
 use crate::tests::get_test_seq_pub_key;
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
     config_push_contracts, create_contract_message, create_contract_message_with_fee,
-    get_evm_config_starting_base_fee, get_fork_fn_only_fork2, publish_event_message,
+    get_evm_config_starting_base_fee, get_fork_fn_latest, publish_event_message,
     TestingShortHeaderProofProviderService,
 };
 use crate::{
@@ -113,6 +117,27 @@ fn set_block_info_system_tx(
     RlpEvmTransaction { rlp: buf }
 }
 
+fn get_block_hash(
+    evm: &Evm<DefaultContext>,
+    working_set: &mut WorkingSet<ProverStorage>,
+    ledger_db: &LedgerDB,
+    block_number: u64,
+) -> RpcResult<Bytes> {
+    evm.get_call_inner(
+        TransactionRequest {
+            to: Some(TxKind::Call(BitcoinLightClient::address())),
+            input: TransactionInput::new(BitcoinLightClient::get_block_hash(block_number)),
+            ..Default::default()
+        },
+        None,
+        None,
+        None,
+        working_set,
+        ledger_db,
+        get_fork_fn_latest(),
+    )
+}
+
 fn deposit_system_tx(
     deposit_data: Vec<u8>,
     evm: &Evm<DefaultContext>,
@@ -138,7 +163,7 @@ fn deposit_system_tx(
 fn test_sys_bitcoin_light_client() {
     let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingShortHeaderProofProviderService));
 
-    let (mut config, dev_signer, _) =
+    let (mut config, dev_signer, _, ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("10000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
@@ -150,7 +175,7 @@ fn test_sys_bitcoin_light_client() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 42,
@@ -161,7 +186,7 @@ fn test_sys_bitcoin_light_client() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
         let txs = initial_system_txs(1, [1; 32], [2; 32], 0, &evm, &mut working_set);
 
@@ -176,18 +201,18 @@ fn test_sys_bitcoin_light_client() {
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
-            Receipt { // BitcoinLightClient::initializeBlockNumber(U256)
+            CitreaReceiptWithBloom { // BitcoinLightClient::initializeBlockNumber(U256)
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 50714,
                     logs: vec![]
-                },
+                }.into(),
                 gas_used: 50714,
                 log_index_start: 0,
-                l1_diff_size: 19,
+                l1_diff_size: 46,
             },
-            Receipt { // BitcoinLightClient::setBlockInfo(U256, U256)
+            CitreaReceiptWithBloom { // BitcoinLightClient::setBlockInfo(U256, U256)
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
@@ -201,16 +226,16 @@ fn test_sys_bitcoin_light_client() {
                             ).unwrap(),
                         }
                     ]
-                },
+                }.into(),
                 gas_used: 83322,
                 log_index_start: 0,
-                l1_diff_size: 49,
+                l1_diff_size: 74,
             },
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 303148,
+                    cumulative_gas_used: 326605,
                     logs: vec![
                         Log {
                             address: BridgeWrapper::address(),
@@ -223,14 +248,22 @@ fn test_sys_bitcoin_light_client() {
                             address: BridgeWrapper::address(),
                             data: LogData::new(
                                 vec![b256!("80bd1fdfe157286ce420ee763f91748455b249605748e5df12dad9844402bafc")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"))
+                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002d4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"))
+                            ).unwrap(),
+                        },
+                        Log {
+                            address: BridgeWrapper::address(),
+                            data: LogData::new(
+                                vec![b256!("79250b96878fd457364d1c1b77a660973c4f4ab67bda5e2fdb42caaa4d515f9d")],
+                                Bytes::from_static(&hex!("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000003100000000000000000000000000000000000007"))
                             ).unwrap(),
                         }
+
                     ]
-                },
-                gas_used: 169112,
+                }.into(),
+                gas_used: 192569,
                 log_index_start: 1,
-                l1_diff_size: 93,
+                l1_diff_size: 160,
             }
         ]
     );
@@ -241,6 +274,7 @@ fn test_sys_bitcoin_light_client() {
             BlockNumberOrTag::Number(1),
             U64::from(0),
             &mut working_set,
+            &ledger_db,
         )
         .unwrap()
         .unwrap();
@@ -252,20 +286,7 @@ fn test_sys_bitcoin_light_client() {
     assert_eq!(system_account.balance, U256::from(0));
     assert_eq!(system_account.nonce, 3);
 
-    let hash = evm
-        .get_call_inner(
-            TransactionRequest {
-                to: Some(TxKind::Call(BitcoinLightClient::address())),
-                input: TransactionInput::new(BitcoinLightClient::get_block_hash(1)),
-                ..Default::default()
-            },
-            None,
-            None,
-            None,
-            &mut working_set,
-            get_fork_fn_only_fork2(),
-        )
-        .unwrap();
+    let block_hash = get_block_hash(&evm, &mut working_set, &ledger_db, 1).unwrap();
 
     let merkle_root = evm
         .get_call_inner(
@@ -278,11 +299,12 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
 
-    assert_eq!(hash.as_ref(), &[1u8; 32]);
+    assert_eq!(block_hash.as_ref(), &[1u8; 32]);
     assert_eq!(merkle_root.as_ref(), &[2u8; 32]);
 
     l2_height += 1;
@@ -290,7 +312,7 @@ fn test_sys_bitcoin_light_client() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 42,
@@ -301,7 +323,7 @@ fn test_sys_bitcoin_light_client() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
         let set_block_info_tx =
             set_block_info_system_tx([2; 32], [3; 32], 0, &evm, &mut working_set);
@@ -339,7 +361,7 @@ fn test_sys_bitcoin_light_client() {
 
     assert_eq!(receipts,
         [
-            Receipt { // BitcoinLightClient::setBlockInfo(U256, U256)
+            CitreaReceiptWithBloom { // BitcoinLightClient::setBlockInfo(U256, U256)
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
@@ -353,21 +375,21 @@ fn test_sys_bitcoin_light_client() {
                             ).unwrap(),
                         }
                     ]
-                },
+                }.into(),
                 gas_used: 83322,
                 log_index_start: 0,
-                l1_diff_size: 49,
+                l1_diff_size: 74,
             },
-            Receipt {
+            CitreaReceiptWithBloom {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
                     cumulative_gas_used: 197557,
                     logs: vec![]
-                },
+                }.into(),
                 gas_used: 114235,
                 log_index_start: 1,
-                l1_diff_size: 23,
+                l1_diff_size: 38,
             },
         ]
     );
@@ -375,22 +397,9 @@ fn test_sys_bitcoin_light_client() {
     let l1_fee_vault = evm.account_info(&L1_FEE_VAULT, &mut working_set).unwrap();
 
     assert_eq!(base_fee_vault.balance, U256::from(114235u64 * 10000000));
-    assert_eq!(l1_fee_vault.balance, U256::from(23 + L1_FEE_OVERHEAD));
+    assert_eq!(l1_fee_vault.balance, U256::from(36 + L1_FEE_OVERHEAD));
 
-    let hash = evm
-        .get_call_inner(
-            TransactionRequest {
-                to: Some(TxKind::Call(BitcoinLightClient::address())),
-                input: TransactionInput::new(BitcoinLightClient::get_block_hash(2)),
-                ..Default::default()
-            },
-            None,
-            None,
-            None,
-            &mut working_set,
-            get_fork_fn_only_fork2(),
-        )
-        .unwrap();
+    let block_hash = get_block_hash(&evm, &mut working_set, &ledger_db, 2).unwrap();
 
     let merkle_root = evm
         .get_call_inner(
@@ -403,11 +412,12 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
 
-    assert_eq!(hash.as_ref(), &[2u8; 32]);
+    assert_eq!(block_hash.as_ref(), &[2u8; 32]);
     assert_eq!(merkle_root.as_ref(), &[3u8; 32]);
 }
 
@@ -417,9 +427,9 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 
     // This test also tests evm checking gas usage and not just the tx gas limit when including txs in block after checking available block limit
     // For example txs below have 1_000_000 gas limit, the block used to stuck at 29_030_000 gas usage but now can utilize the whole block gas limit
-    let (mut config, dev_signer, contract_addr) = get_evm_config_starting_base_fee(
+    let (mut config, dev_signer, contract_addr, ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("100000000000000000000").unwrap(),
-        Some(ETHEREUM_BLOCK_GAS_LIMIT),
+        Some(ETHEREUM_BLOCK_GAS_LIMIT_30M),
         1,
     );
 
@@ -430,12 +440,12 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     let mut l2_height = 1;
 
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate: 1,
         timestamp: 0,
@@ -462,7 +472,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -470,7 +480,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
         let sys_tx = set_block_info_system_tx([2; 32], [3; 32], 0, &evm, &mut working_set);
 
@@ -481,7 +491,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         )
         .unwrap();
 
-        let pending_cumulative_from_sum: u128 = evm
+        let pending_cumulative_from_sum: u64 = evm
             .pending_transactions
             .iter()
             .map(|tx| tx.receipt.gas_used)
@@ -495,10 +505,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
             .cumulative_gas_used();
 
         // sanity check
-        assert_eq!(
-            pending_cumulative_from_sum,
-            pending_cumulative_gas_used as u128
-        );
+        assert_eq!(pending_cumulative_from_sum, pending_cumulative_gas_used);
 
         let sys_tx_gas_usage = pending_cumulative_gas_used;
         assert_eq!(sys_tx_gas_usage, 83322);
@@ -544,7 +551,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -552,7 +559,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
         let sys_tx = set_block_info_system_tx([2; 32], [3; 32], 0, &evm, &mut working_set);
 
@@ -563,7 +570,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         )
         .unwrap();
 
-        let pending_cumulative_from_sum: u128 = evm
+        let pending_cumulative_from_sum: u64 = evm
             .pending_transactions
             .iter()
             .map(|tx| tx.receipt.gas_used)
@@ -577,10 +584,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
             .cumulative_gas_used();
 
         // sanity check
-        assert_eq!(
-            pending_cumulative_from_sum,
-            pending_cumulative_gas_used as u128
-        );
+        assert_eq!(pending_cumulative_from_sum, pending_cumulative_gas_used);
 
         let sys_tx_gas_usage = pending_cumulative_gas_used;
         assert_eq!(sys_tx_gas_usage, 83322);
@@ -618,11 +622,16 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     let block = evm
-        .get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set)
+        .get_block_by_number(
+            Some(BlockNumberOrTag::Latest),
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
         .unwrap()
         .unwrap();
 
-    assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT);
+    assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT_30M);
     assert!(block.header.gas_used <= block.header.gas_limit);
 
     // In total there should only be 1134 transactions 1 is system tx others are contract calls
@@ -636,7 +645,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 fn test_bridge() {
     let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingShortHeaderProofProviderService));
 
-    let (mut config, _, _) =
+    let (mut config, _, _, _ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
@@ -644,14 +653,14 @@ fn test_bridge() {
     let (mut evm, mut working_set) = get_evm_sys_tx_test(&config);
 
     let l1_fee_rate = 1;
-    let mut l2_height = 1;
+    let l2_height = 1;
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
-    let l2_block_info = HookL2BlockInfo {
+    let mut l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate: 1,
         timestamp: 0,
@@ -660,11 +669,11 @@ fn test_bridge() {
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let txs = initial_system_txs(
-            2,
+            1,
             [2; 32],
             [
-                35, 6, 15, 121, 7, 142, 70, 109, 219, 14, 211, 34, 120, 157, 121, 127, 164, 53, 23,
-                80, 188, 45, 73, 146, 108, 41, 125, 77, 133, 86, 235, 104,
+                45, 18, 209, 218, 192, 109, 64, 187, 243, 100, 190, 145, 29, 157, 194, 207, 7, 83,
+                142, 33, 24, 200, 143, 219, 164, 87, 165, 229, 250, 89, 200, 81,
             ],
             3,
             &evm,
@@ -678,83 +687,141 @@ fn test_bridge() {
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    l2_height += 1;
-
-    let l2_block_info = HookL2BlockInfo {
-        l2_height,
-        pre_state_root: [11u8; 32],
-        current_spec: SpecId::Fork2,
-        sequencer_pub_key: get_test_seq_pub_key(),
-        l1_fee_rate: 1,
-        timestamp: 0,
-    };
+    l2_block_info.l2_height += 1;
 
     let deposit_data = vec![
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 32, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 96, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 2, 224, 204, 23, 198, 67, 76, 190, 7, 61, 173, 244, 62, 139, 152, 64, 162, 89, 110,
+        195, 10, 248, 79, 246, 187, 240, 58, 254, 186, 77, 93, 107, 212, 45, 3, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 1, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 1, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 1, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 1, 145, 22, 58, 104, 30,
-        248, 81, 242, 63, 79, 72, 216, 243, 241, 44, 60, 88, 230, 44, 206, 194, 243, 103, 224, 237,
-        31, 108, 29, 207, 112, 110, 94, 1, 0, 0, 0, 0, 253, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 42, 1, 47, 49, 117, 146, 18, 34, 197, 17, 245, 179, 130, 153, 102, 133,
+        178, 91, 105, 76, 240, 13, 48, 141, 230, 16, 135, 178, 94, 179, 2, 204, 70, 253, 0, 0, 0,
+        0, 0, 253, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 87, 2, 248, 199, 154, 59, 0, 0, 0, 0, 34, 81,
-        32, 180, 253, 103, 250, 242, 234, 221, 209, 124, 86, 77, 184, 249, 147, 86, 132, 180, 238,
-        191, 207, 88, 164, 131, 206, 164, 3, 244, 185, 120, 165, 30, 115, 74, 1, 0, 0, 0, 0, 0, 0,
-        34, 0, 32, 74, 232, 21, 114, 240, 110, 27, 136, 253, 92, 237, 122, 26, 0, 9, 69, 67, 46,
-        131, 225, 85, 30, 111, 114, 30, 233, 192, 11, 140, 195, 50, 96, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 57, 2, 16, 201, 154, 59, 0, 0, 0, 0, 34, 81, 32, 64, 184, 126, 105, 224, 59, 85, 53, 99,
+        122, 111, 204, 62, 228, 254, 233, 120, 229, 121, 68, 38, 28, 6, 183, 28, 136, 164, 125, 45,
+        97, 225, 179, 240, 0, 0, 0, 0, 0, 0, 0, 4, 81, 2, 78, 115, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 207, 3,
+        64, 200, 171, 89, 52, 97, 127, 229, 62, 2, 84, 51, 69, 136, 10, 253, 15, 173, 2, 75, 196,
+        4, 85, 112, 227, 31, 194, 91, 243, 166, 109, 139, 52, 174, 74, 41, 236, 52, 150, 61, 196,
+        40, 168, 130, 248, 254, 60, 157, 150, 202, 139, 248, 244, 31, 45, 221, 137, 17, 15, 32,
+        215, 102, 85, 242, 117, 74, 32, 59, 72, 255, 180, 55, 194, 238, 8, 206, 184, 185, 187, 158,
+        85, 85, 192, 2, 251, 48, 76, 17, 46, 126, 18, 51, 254, 35, 63, 42, 61, 252, 29, 172, 0, 99,
+        6, 99, 105, 116, 114, 101, 97, 20, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 8, 0, 0, 0, 0, 59, 154, 202, 0, 104, 65, 193, 147, 199, 55, 141, 150, 81, 138, 117, 68,
+        136, 33, 196, 247, 200, 244, 186, 231, 206, 96, 248, 4, 208, 61, 31, 6, 40, 221, 93, 208,
+        245, 222, 81, 98, 226, 172, 170, 78, 181, 220, 193, 212, 191, 179, 45, 158, 18, 212, 68,
+        134, 19, 120, 212, 162, 204, 253, 125, 139, 169, 125, 73, 112, 190, 9, 107, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 207, 3, 64, 161, 192, 181, 26, 246, 26, 75, 97, 75, 195, 25, 148, 167, 73, 18, 169, 134,
-        223, 209, 191, 199, 220, 243, 38, 223, 51, 57, 71, 136, 182, 41, 246, 233, 200, 87, 9, 234,
-        172, 247, 185, 237, 10, 63, 152, 75, 134, 182, 168, 7, 69, 187, 91, 93, 123, 216, 163, 176,
-        231, 145, 122, 34, 105, 83, 11, 74, 32, 159, 179, 169, 97, 216, 177, 244, 236, 28, 170, 34,
-        12, 106, 80, 184, 21, 254, 188, 11, 104, 157, 223, 11, 157, 223, 191, 153, 203, 116, 71,
-        158, 65, 172, 0, 99, 6, 99, 105, 116, 114, 101, 97, 20, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1, 1, 1, 1, 8, 0, 0, 0, 0, 59, 154, 202, 0, 104, 65, 192, 147, 199, 55, 141,
-        150, 81, 138, 117, 68, 136, 33, 196, 247, 200, 244, 186, 231, 206, 96, 248, 4, 208, 61, 31,
-        6, 40, 221, 93, 208, 245, 222, 81, 37, 229, 146, 81, 60, 96, 31, 142, 155, 205, 125, 11,
-        153, 65, 84, 235, 108, 14, 51, 249, 43, 190, 34, 128, 62, 188, 105, 97, 131, 159, 232, 139,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 96, 188, 220, 18, 179, 65, 54, 53,
-        162, 189, 161, 197, 39, 81, 59, 20, 229, 165, 93, 101, 210, 169, 210, 96, 211, 140, 243,
-        192, 109, 227, 37, 32, 132, 152, 138, 124, 199, 15, 227, 162, 158, 170, 41, 163, 87, 12,
-        45, 65, 82, 173, 194, 121, 81, 159, 172, 64, 111, 49, 209, 54, 230, 132, 109, 96, 16, 58,
-        248, 121, 131, 161, 31, 16, 228, 37, 59, 51, 252, 102, 244, 110, 239, 88, 105, 90, 152,
-        229, 212, 121, 74, 52, 180, 88, 100, 172, 192, 227, 205,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 96, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 96, 126, 59, 251, 116, 0, 159,
+        250, 168, 116, 54, 229, 175, 66, 41, 23, 139, 201, 255, 106, 138, 44, 94, 114, 104, 84,
+        145, 43, 19, 109, 210, 20, 33, 80, 102, 172, 3, 222, 173, 177, 164, 105, 77, 36, 24, 157,
+        139, 180, 96, 125, 128, 203, 116, 218, 92, 229, 153, 149, 231, 242, 197, 28, 10, 169, 223,
+        118, 97, 221, 190, 55, 170, 80, 89, 40, 45, 129, 143, 81, 68, 106, 64, 213, 188, 251, 90,
+        242, 70, 131, 243, 87, 215, 240, 250, 174, 10, 26, 146,
     ];
 
+    // call deposit
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
+        let deposit_data = deposit_data.clone();
         let txs = vec![deposit_system_tx(deposit_data, &evm, &mut working_set)];
-        // deploy logs contract
         evm.call(CallMessage { txs }, &context, &mut working_set)
             .unwrap();
     }
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
+    l2_block_info.l2_height += 1;
+
     let recipient_address = address!("0101010101010101010101010101010101010101");
     let recipient_account = evm
         .account_info(&recipient_address, &mut working_set)
         .unwrap();
-
+    // deposit should succeed
     assert_eq!(
         recipient_account.balance,
         U256::from_str("0x8ac7230489e80000").unwrap(),
     );
+
+    // call deposit 2nd time with the exact same deposit data should fail
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let deposit_data = deposit_data.clone();
+        let txs = vec![deposit_system_tx(deposit_data, &evm, &mut working_set)];
+        assert!(matches!(
+            evm.call(CallMessage { txs }, &context, &mut working_set),
+            Err(L2BlockModuleCallError::EvmSystemTransactionNotSuccessful),
+        ));
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    l2_block_info.l2_height += 1;
+
+    // call deposit with 2 inputs should fail
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        // malform the input number from 2 as expected number of inputs is 1
+        let mut deposit_data = deposit_data.clone();
+
+        deposit_data[0] = 2;
+
+        let txs = vec![deposit_system_tx(deposit_data, &evm, &mut working_set)];
+        assert!(matches!(
+            evm.call(CallMessage { txs }, &context, &mut working_set),
+            Err(L2BlockModuleCallError::EvmSystemTransactionNotSuccessful),
+        ));
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    l2_block_info.l2_height += 1;
+
+    // call deposit with wrong tx nonce
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let deposit_data = deposit_data.clone();
+
+        let sys_tx = SystemEvent::BridgeDeposit(deposit_data);
+        let sys_signer_nonce = evm
+            .account_info(&SYSTEM_SIGNER, &mut working_set)
+            .unwrap_or_default()
+            .nonce;
+        // create tx with wrong nonce
+        let txs = create_system_transactions(vec![sys_tx], sys_signer_nonce + 1, 1);
+
+        let mut buf = vec![];
+        txs[0].encode_2718(&mut buf);
+
+        let tx = RlpEvmTransaction { rlp: buf };
+
+        assert_eq!(
+            evm.call(CallMessage { txs: vec![tx] }, &context, &mut working_set)
+                .unwrap_err(),
+            L2BlockModuleCallError::EvmTransactionExecutionError(
+                "transaction validation error: nonce 5 too high, expected 4".to_string()
+            )
+        );
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 }
 
 #[test]
 fn test_upgrade_light_client() {
     // initialize_logging(tracing::Level::INFO);
-    let (mut config, _, _) = get_evm_config_starting_base_fee(
+    let (mut config, _, _, ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("1000000000000000000000").unwrap(),
         None,
         1,
@@ -796,12 +863,12 @@ fn test_upgrade_light_client() {
     let l2_height = 2;
 
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -833,24 +900,11 @@ fn test_upgrade_light_client() {
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    let hash = evm
-        .get_call_inner(
-            TransactionRequest {
-                to: Some(TxKind::Call(BitcoinLightClient::address())),
-                input: TransactionInput::new(BitcoinLightClient::get_block_hash(0)),
-                ..Default::default()
-            },
-            None,
-            None,
-            None,
-            &mut working_set,
-            get_fork_fn_only_fork2(),
-        )
-        .unwrap();
+    let block_hash = get_block_hash(&evm, &mut working_set, &ledger_db, 0).unwrap();
 
     // Assert if hash is equal to 0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead
     assert_eq!(
-        hash,
+        block_hash,
         alloy_primitives::Bytes::from_str(
             "0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
         )
@@ -860,7 +914,7 @@ fn test_upgrade_light_client() {
 
 #[test]
 fn test_change_upgrade_owner() {
-    let (mut config, _, _) = get_evm_config_starting_base_fee(
+    let (mut config, _, _, ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("1000000000000000000000").unwrap(),
         None,
         1,
@@ -919,12 +973,12 @@ fn test_change_upgrade_owner() {
     let l1_fee_rate = 1;
     let mut l2_height = 2;
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -954,12 +1008,12 @@ fn test_change_upgrade_owner() {
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
-    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1004,7 +1058,8 @@ fn test_change_upgrade_owner() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -1013,24 +1068,11 @@ fn test_change_upgrade_owner() {
         new_contract_owner.address().to_vec()
     );
 
-    let hash = evm
-        .get_call_inner(
-            TransactionRequest {
-                to: Some(TxKind::Call(BitcoinLightClient::address())),
-                input: TransactionInput::new(BitcoinLightClient::get_block_hash(0)),
-                ..Default::default()
-            },
-            None,
-            None,
-            None,
-            &mut working_set,
-            get_fork_fn_only_fork2(),
-        )
-        .unwrap();
+    let block_hash = get_block_hash(&evm, &mut working_set, &ledger_db, 0).unwrap();
 
     // Assert if hash is equal to 0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead
     assert_eq!(
-        hash,
+        block_hash,
         alloy_primitives::Bytes::from_str(
             "0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
         )
@@ -1040,7 +1082,7 @@ fn test_change_upgrade_owner() {
 
 #[test]
 fn test_wcbtc() {
-    let (mut config, signer, _) = get_evm_config_starting_base_fee(
+    let (mut config, signer, _, ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("1000000000000000000000").unwrap(),
         None,
         1,
@@ -1052,12 +1094,12 @@ fn test_wcbtc() {
     let l1_fee_rate = 1;
     let mut l2_height = 2;
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1105,7 +1147,8 @@ fn test_wcbtc() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -1123,11 +1166,11 @@ fn test_wcbtc() {
     assert!(signer_new_balance <= signer_old_balance - U256::from(deposit_amount));
 
     l2_height += 1;
-    let context = C::new(sender_address, l2_height, SpecId::Fork2, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Fork2,
+        current_spec: SpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1165,7 +1208,8 @@ fn test_wcbtc() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -1185,10 +1229,327 @@ const BRIDGE_INITIALIZE_PARAMS: &[u8; 256] = &[
     96, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 192, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 138, 199, 35,
     4, 137, 232, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 45, 74, 32, 159, 179, 169, 97, 216, 177, 244, 236, 28, 170, 34, 12, 106, 80,
-    184, 21, 254, 188, 11, 104, 157, 223, 11, 157, 223, 191, 153, 203, 116, 71, 158, 65, 172, 0,
-    99, 6, 99, 105, 116, 114, 101, 97, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    10, 8, 0, 0, 0, 0, 59, 154, 202, 0, 104, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 45, 74, 32, 59, 72, 255, 180, 55, 194, 238, 8, 206, 184, 185, 187, 158, 85,
+    85, 192, 2, 251, 48, 76, 17, 46, 126, 18, 51, 254, 35, 63, 42, 61, 252, 29, 172, 0, 99, 6, 99,
+    105, 116, 114, 101, 97, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 8, 0,
+    0, 0, 0, 59, 154, 202, 0, 104, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0,
 ];
+
+#[test]
+fn test_system_tx_after_user_tx_should_error_out() {
+    let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingShortHeaderProofProviderService));
+
+    // This test also tests evm checking gas usage and not just the tx gas limit when including txs in block after checking available block limit
+    // For example txs below have 1_000_000 gas limit, the block used to stuck at 29_030_000 gas usage but now can utilize the whole block gas limit
+    let (mut config, dev_signer, contract_addr, _ledger_db) = get_evm_config_starting_base_fee(
+        U256::from_str("100000000000000000000").unwrap(),
+        Some(ETHEREUM_BLOCK_GAS_LIMIT_30M),
+        1,
+    );
+
+    config_push_contracts(&mut config, None);
+
+    let (mut evm, mut working_set) = get_evm_sys_tx_test(&config);
+    let l1_fee_rate = 0;
+    let mut l2_height = 1;
+
+    let sender_address = generate_address::<C>("sender");
+    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SpecId::Tangerine,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate: 1,
+        timestamp: 0,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let mut txs = initial_system_txs(1, [1; 32], [2; 32], 0, &evm, &mut working_set);
+        txs.push(create_contract_message(
+            &dev_signer,
+            0,
+            SimpleStorageContract::default(),
+        ));
+        // deploy logs contract
+        evm.call(CallMessage { txs }, &context, &mut working_set)
+            .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    let mut working_set = working_set.checkpoint().to_revertable();
+    l2_height += 1;
+
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SpecId::Tangerine,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    let cont = SimpleStorageContract::default();
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+        let call_tx = dev_signer
+            .sign_default_transaction(
+                TxKind::Call(contract_addr),
+                cont.set_call_data(5).to_vec(),
+                1,
+                0,
+            )
+            .unwrap();
+        let sys_tx = set_block_info_system_tx([2; 32], [3; 32], 0, &evm, &mut working_set);
+
+        let res = evm.call(
+            CallMessage {
+                txs: vec![call_tx, sys_tx],
+            },
+            &context,
+            &mut working_set,
+        );
+        matches!(
+            res,
+            Err(L2BlockModuleCallError::EvmSystemTransactionPlacedAfterUserTx)
+        );
+    }
+}
+
+#[test]
+fn test_set_block_info_shp_not_found() {
+    pub struct TestingSHPNotFound;
+
+    impl ShortHeaderProofProvider for TestingSHPNotFound {
+        fn get_and_verify_short_header_proof_by_l1_hash(
+            &self,
+            _l1_hash: [u8; 32],
+            _prev_l1_hash: [u8; 32],
+            l1_height: u64,
+            _txs_commitment: [u8; 32],
+            _coinbase_depth: u8,
+            _l2_height: u64,
+        ) -> Result<bool, short_header_proof_provider::ShortHeaderProofProviderError> {
+            if l1_height == 1 {
+                Ok(true)
+            } else {
+                Err(short_header_proof_provider::ShortHeaderProofProviderError::ShortHeaderProofNotFound)
+            }
+        }
+
+        fn clear_queried_hashes(&self) {
+            todo!()
+        }
+
+        fn take_queried_hashes(
+            &self,
+            _l2_range: std::ops::RangeInclusive<u64>,
+        ) -> Result<Vec<[u8; 32]>, ShortHeaderProofProviderError> {
+            todo!()
+        }
+
+        fn take_last_queried_hash(&self) -> Option<[u8; 32]> {
+            todo!()
+        }
+    }
+
+    let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingSHPNotFound));
+
+    let (mut config, _dev_signer, _, ledger_db) =
+        get_evm_config_starting_base_fee(U256::from_str("10000000000000").unwrap(), None, 1);
+
+    config_push_contracts(&mut config, None);
+    let (mut evm, mut working_set) = get_evm_sys_tx_test(&config);
+
+    let l1_fee_rate = 1;
+    let mut l2_height = 1;
+
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SpecId::Tangerine,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 42,
+    };
+
+    // New L1 block #1
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+
+        let txs = initial_system_txs(1, [1; 32], [2; 32], 0, &evm, &mut working_set);
+
+        evm.call(CallMessage { txs }, &context, &mut working_set)
+            .unwrap();
+    }
+
+    let block_hash = get_block_hash(&evm, &mut working_set, &ledger_db, 1).unwrap();
+
+    // Assert if block_hash is equal to 0x0101010101010101010101010101010101010101010101010101010101010101
+    assert_eq!(
+        block_hash,
+        alloy_primitives::Bytes::from_str(
+            "0x0101010101010101010101010101010101010101010101010101010101010101"
+        )
+        .unwrap()
+    );
+
+    // New L1 block #2
+    l2_height += 1;
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+
+        let set_block_info_tx =
+            set_block_info_system_tx([2; 32], [3; 32], 0, &evm, &mut working_set);
+
+        let err = evm
+            .call(
+                CallMessage {
+                    txs: vec![set_block_info_tx],
+                },
+                &context,
+                &mut working_set,
+            )
+            .unwrap_err();
+        assert_eq!(L2BlockModuleCallError::ShortHeaderProofNotFound, err);
+    }
+
+    let block_hash = get_block_hash(&evm, &mut working_set, &ledger_db, 2).unwrap();
+
+    // Assert that block_hash for block 2 wasn't set
+    assert_eq!(
+        block_hash,
+        alloy_primitives::Bytes::from_str(
+            "0x0000000000000000000000000000000000000000000000000000000000000000"
+        )
+        .unwrap()
+    );
+}
+
+#[test]
+fn test_set_block_info_shp_verification_failed() {
+    pub struct TestingSHPVerificationFailed;
+
+    impl ShortHeaderProofProvider for TestingSHPVerificationFailed {
+        fn get_and_verify_short_header_proof_by_l1_hash(
+            &self,
+            _l1_hash: [u8; 32],
+            _prev_l1_hash: [u8; 32],
+            l1_height: u64,
+            _txs_commitment: [u8; 32],
+            _coinbase_depth: u8,
+            _l2_height: u64,
+        ) -> Result<bool, short_header_proof_provider::ShortHeaderProofProviderError> {
+            Ok(l1_height == 1)
+        }
+
+        fn clear_queried_hashes(&self) {
+            todo!()
+        }
+
+        fn take_queried_hashes(
+            &self,
+            _l2_range: std::ops::RangeInclusive<u64>,
+        ) -> Result<Vec<[u8; 32]>, ShortHeaderProofProviderError> {
+            todo!()
+        }
+
+        fn take_last_queried_hash(&self) -> Option<[u8; 32]> {
+            todo!()
+        }
+    }
+
+    let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingSHPVerificationFailed));
+
+    let (mut config, _dev_signer, _, ledger_db) =
+        get_evm_config_starting_base_fee(U256::from_str("10000000000000").unwrap(), None, 1);
+
+    config_push_contracts(&mut config, None);
+    let (mut evm, mut working_set) = get_evm_sys_tx_test(&config);
+
+    let l1_fee_rate = 1;
+    let mut l2_height = 1;
+
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SpecId::Tangerine,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 42,
+    };
+
+    // New L1 block #1
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+
+        let txs = initial_system_txs(1, [1; 32], [2; 32], 0, &evm, &mut working_set);
+
+        evm.call(CallMessage { txs }, &context, &mut working_set)
+            .unwrap();
+    }
+
+    let block_hash = get_block_hash(&evm, &mut working_set, &ledger_db, 1).unwrap();
+
+    // Assert if block_hash is equal to 0x0101010101010101010101010101010101010101010101010101010101010101
+    assert_eq!(
+        block_hash,
+        alloy_primitives::Bytes::from_str(
+            "0x0101010101010101010101010101010101010101010101010101010101010101"
+        )
+        .unwrap()
+    );
+
+    // New L1 block #2
+    l2_height += 1;
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+
+        let set_block_info_tx =
+            set_block_info_system_tx([2; 32], [3; 32], 0, &evm, &mut working_set);
+
+        let err = evm
+            .call(
+                CallMessage {
+                    txs: vec![set_block_info_tx],
+                },
+                &context,
+                &mut working_set,
+            )
+            .unwrap_err();
+        assert_eq!(
+            L2BlockModuleCallError::ShortHeaderProofVerificationError,
+            err
+        );
+    }
+
+    let block_hash = get_block_hash(&evm, &mut working_set, &ledger_db, 2).unwrap();
+
+    // Assert that block_hash for block 2 wasn't set
+    assert_eq!(
+        block_hash,
+        alloy_primitives::Bytes::from_str(
+            "0x0000000000000000000000000000000000000000000000000000000000000000"
+        )
+        .unwrap()
+    );
+}

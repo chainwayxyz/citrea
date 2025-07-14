@@ -1,12 +1,13 @@
 mod basic_queries;
 mod estimate_gas_tests;
-mod evm_call_tests;
+mod eth_call_tests;
 mod log_tests;
 
 use std::str::FromStr;
 
 use alloy_primitives::{address, Address, Bytes};
 use revm::primitives::{KECCAK_EMPTY, U256};
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
@@ -40,7 +41,8 @@ fn init_evm(
     WorkingSet<<C as Spec>::Storage>,
     Storage,
     TestSigner,
-    u64,
+    u64, // l2_height
+    LedgerDB,
 ) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
@@ -56,7 +58,7 @@ fn init_evm(
         ..Default::default()
     };
 
-    let (mut evm, mut working_set, prover_storage) = get_evm_with_storage(&config);
+    let (mut evm, mut working_set, prover_storage, ledger_db) = get_evm_with_storage(&config);
 
     let l1_fee_rate = 1;
     let mut l2_height = 1;
@@ -186,13 +188,24 @@ fn init_evm(
     l2_height += 1;
 
     let working_set = WorkingSet::new(prover_storage.clone());
-
-    (evm, working_set, prover_storage, dev_signer, l2_height)
+    (
+        evm,
+        working_set,
+        prover_storage,
+        dev_signer,
+        l2_height,
+        ledger_db,
+    )
 }
 
 pub fn init_evm_single_block(
     spec_id: SovSpecId,
-) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, TestSigner) {
+) -> (
+    Evm<C>,
+    WorkingSet<<C as Spec>::Storage>,
+    TestSigner,
+    LedgerDB,
+) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let config = EvmConfig {
@@ -217,7 +230,7 @@ pub fn init_evm_single_block(
         ..Default::default()
     };
 
-    let (mut evm, mut working_set, prover_storage) = get_evm_with_storage(&config);
+    let (mut evm, mut working_set, prover_storage, ledger_db) = get_evm_with_storage(&config);
 
     // let contract_addr: Address = Address::from_slice(
     //     hex::decode("819c5497b157177315e1204f52e588b393771719")
@@ -260,12 +273,16 @@ pub fn init_evm_single_block(
     commit(working_set, prover_storage.clone());
 
     let working_set = WorkingSet::new(prover_storage);
-
-    (evm, working_set, dev_signer)
+    (evm, working_set, dev_signer, ledger_db)
 }
 
-pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, TestSigner, u64)
-{
+pub fn init_evm_with_caller_contract() -> (
+    Evm<C>,
+    WorkingSet<<C as Spec>::Storage>,
+    TestSigner,
+    u64,
+    LedgerDB,
+) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let config = EvmConfig {
@@ -280,7 +297,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
         ..Default::default()
     };
 
-    let (mut evm, mut working_set, prover_storage) = get_evm_with_storage(&config);
+    let (mut evm, mut working_set, prover_storage, ledger_db) = get_evm_with_storage(&config);
 
     let contract_addr: Address = Address::from_slice(
         hex::decode("819c5497b157177315e1204f52e588b393771719")
@@ -301,7 +318,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [0u8; 32],
-        current_spec: SovSpecId::Fork2,
+        current_spec: SovSpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -311,7 +328,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer, 0, SimpleStorageContract::default()),
@@ -337,7 +354,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [2u8; 32],
-        current_spec: SovSpecId::Fork2,
+        current_spec: SovSpecId::Tangerine,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -347,7 +364,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork2, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![create_contract_transaction(
             &dev_signer,
@@ -370,6 +387,5 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
     l2_height += 1;
 
     let working_set = WorkingSet::new(prover_storage);
-
-    (evm, working_set, dev_signer, l2_height)
+    (evm, working_set, dev_signer, l2_height, ledger_db)
 }

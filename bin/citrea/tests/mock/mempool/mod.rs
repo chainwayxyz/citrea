@@ -4,10 +4,10 @@ use std::str::FromStr;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 use alloy_primitives::Address;
+use alloy_rpc_types::BlockNumberOrTag;
 use citrea_common::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::BlockNumberOrTag;
-use tokio::task::JoinHandle;
+use reth_tasks::TaskManager;
 
 use crate::common::client::{TestClient, MAX_FEE_PER_GAS};
 use crate::common::helpers::{
@@ -18,7 +18,7 @@ use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
 async fn initialize_test(
     sequencer_path: PathBuf,
     db_path: PathBuf,
-) -> (JoinHandle<()>, Box<TestClient>) {
+) -> (TaskManager, Box<TestClient>) {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let rollup_config = create_default_rollup_config(
@@ -30,19 +30,17 @@ async fn initialize_test(
     );
     let sequencer_config = SequencerConfig::default();
 
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let test_client = make_test_client(seq_port).await.unwrap();
@@ -77,7 +75,7 @@ async fn test_same_nonce_tx_should_panic() {
 
     assert!(res.unwrap_err().to_string().contains("already known"));
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
 }
 
 ///  Transaction with nonce lower than account's nonce on state should not be accepted by mempool.
@@ -106,7 +104,7 @@ async fn test_nonce_too_low() {
     let res = test_client.send_eth(addr, None, None, Some(0), 0u128).await;
     assert!(res.unwrap_err().to_string().contains("already known"));
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
 }
 
 /// Transaction with nonce higher than account's nonce should be accepted by the mempool
@@ -147,7 +145,7 @@ async fn test_nonce_too_high() {
     // assert the block does not contain the tx with nonce too high
     let block_transactions = block.transactions.as_hashes().unwrap();
     assert!(!block_transactions.contains(tx_hash2.tx_hash()));
-    seq_task.abort();
+    seq_task.graceful_shutdown();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -259,7 +257,7 @@ async fn test_order_by_fee() {
     assert!(block_transactions[0] == *tx_hash_rich.tx_hash());
     assert!(block_transactions[1] == *tx_hash_poor.tx_hash());
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
 }
 
 /// Send a transaction that pays less base fee then required.
@@ -290,7 +288,7 @@ async fn test_tx_with_low_base_fee() {
             poor_addr,
             Some(1),
             // normally base fee is 875 000 000
-            Some(1_000_001),
+            Some(10_000_000),
             None,
             5_000_000_000_000_000_000u128,
         )
@@ -306,9 +304,21 @@ async fn test_tx_with_low_base_fee() {
     let block_transactions: Vec<_> = block.transactions.hashes().clone().collect();
     assert!(!block_transactions.contains(tx_hash_low_fee.tx_hash()));
 
-    // TODO: also check if tx is in the mempool after https://github.com/chainwayxyz/citrea/issues/83
+    let err = test_client
+        .send_eth(
+            poor_addr,
+            Some(1),
+            // normally base fee is 875 000 000
+            Some(1_000_000), // if lower than min allowed, mempool should reject it
+            None,
+            5_000_000_000_000_000_000u128,
+        )
+        .await
+        .unwrap_err();
 
-    seq_task.abort();
+    assert!(err.to_string().contains("transaction underpriced"));
+
+    seq_task.graceful_shutdown();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -387,11 +397,11 @@ async fn test_same_nonce_tx_replacement() {
         .to_string()
         .contains("replacement transaction underpriced"));
 
-    // Replacement success with 10% fee bump - does not work
+    // Replacement success with 9% fee bump - does not work
     let err = test_client
         .send_eth(
             addr,
-            Some(110), // 10% increase
+            Some(109), // 9% increase
             Some(MAX_FEE_PER_GAS + 1000000000),
             Some(0),
             0u128,
@@ -406,8 +416,8 @@ async fn test_same_nonce_tx_replacement() {
     let err = test_client
         .send_eth(
             addr,
-            Some(111),                         // 11% increase
-            Some(MAX_FEE_PER_GAS + 100000000), // Not increasing more than 10 percent - should fail.
+            Some(111),                        // 11% increase
+            Some(MAX_FEE_PER_GAS + 99999999), // Not increasing more than 10 percent - should fail.
             Some(0),
             0u128,
         )
@@ -422,8 +432,8 @@ async fn test_same_nonce_tx_replacement() {
     let tx_hash_11_bump = test_client
         .send_eth(
             addr,
-            Some(111),                          // 11% increase
-            Some(MAX_FEE_PER_GAS + 1000000000), // More than 10 percent - should succeed.
+            Some(110),                          // 10% increase
+            Some(MAX_FEE_PER_GAS + 1000000000), // 10 percent - should succeed.
             Some(0),
             0u128,
         )
@@ -472,5 +482,5 @@ async fn test_same_nonce_tx_replacement() {
     assert!(!block_transactions.contains(tx_hash_25_bump.tx_hash()));
     assert!(block_transactions.contains(tx_hash_ultra_bump.tx_hash()));
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
 }

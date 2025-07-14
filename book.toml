@@ -1,0 +1,12 @@
+[book]
+authors = ["Chainway Labs <info@chainway.xyz>"]
+language = "en"
+src = "docs"
+title = "Citrea Documentation"
+
+[build]
+build-dir = "docs/book"
+
+[output.html]
+git-repository-url = "https://github.com/chainwayxyz/citrea/tree/nightly/docs"
+edit-url-template = "https://github.com/chainwayxyz/citrea/tree/nightly/docs/{path}"

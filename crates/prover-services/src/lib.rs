@@ -1,3 +1,7 @@
+//! This crate contains the parallel proving services for the zkVM.
+//! The main entry point is the `ParallelProverService` struct, which is capable of invoking the zkVM proving sessions in parallel.
+//! It is useful for managing multiple proof sessions with a limited number of parallel slots.
+
 mod parallel;
 pub use parallel::*;
 
@@ -32,6 +36,7 @@ pub type Assumptions = Vec<Vec<u8>>;
 pub type Elf = Vec<u8>;
 
 /// Data used for generating a proof.
+#[derive(Debug)]
 pub struct ProofData {
     /// The input data to be processed
     pub input: Input,

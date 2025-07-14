@@ -7,13 +7,18 @@ pub const REVEAL_TX_PREFIX: &[u8] = &[2, 2];
 pub const TEST_PRIVATE_KEY: &str =
     "1212121212121212121212121212121212121212121212121212121212121212";
 
-pub const MIN_BASE_FEE_PER_GAS: u128 = 10_000_000; // 0.01 gwei
+pub const MIN_BASE_FEE_PER_GAS: u64 = 10_000_000; // 0.01 gwei
 
 /// Maximum size of a bitcoin transaction body in bytes
 #[cfg(feature = "testing")]
-pub const MAX_TXBODY_SIZE: usize = 39700;
+pub const MAX_TX_BODY_SIZE: usize = 39700;
 #[cfg(not(feature = "testing"))]
-pub const MAX_TXBODY_SIZE: usize = 397000;
+pub const MAX_TX_BODY_SIZE: usize = 397000;
+
+#[cfg(feature = "testing")]
+pub const MAX_WITNESS_CACHE_SIZE: usize = 6 * 1024 * 1024;
+#[cfg(not(feature = "testing"))]
+pub const MAX_WITNESS_CACHE_SIZE: usize = 512 * 1024 * 1024;
 
 /// SHA-256 hash of "citrea" string
 /// Used as the default tx merkle root when the block has no transactions
@@ -22,7 +27,7 @@ pub const EMPTY_TX_ROOT: [u8; 32] = [
     0x6b, 0x23, 0xf9, 0x62, 0xa9, 0x03, 0x2e, 0xfe, 0x78, 0x58, 0xcd, 0x84, 0x01, 0x38, 0xaa, 0x27,
 ];
 
-pub const PRE_FORK2_BRIDGE_INITIALIZE_PARAMS: &[u8] = &[
+pub const PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS: &[u8] = &[
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     96, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 192, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 138, 199, 35,
@@ -34,3 +39,12 @@ pub const PRE_FORK2_BRIDGE_INITIALIZE_PARAMS: &[u8] = &[
     10, 8, 0, 0, 0, 0, 59, 154, 202, 0, 104, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0,
 ];
+
+/// Maximum size of a decompressed blob in bytes.
+/// This is set to 1 MB for testing and 100 MB for production to allow larger blobs in real scenarios.
+/// This limit is enforced during decompression to prevent excessive memory usage
+/// and potential denial of service attacks like decompression bombs.
+#[cfg(feature = "testing")]
+pub const MAX_DECOMPRESSED_BLOB_SIZE: usize = 1024 * 1024; // 1 MB
+#[cfg(not(feature = "testing"))]
+pub const MAX_DECOMPRESSED_BLOB_SIZE: usize = 1024 * 1024 * 100; // 100 MB

@@ -15,7 +15,11 @@ use tracing::{debug, error, info};
 
 use crate::cache::L1BlockCache;
 
-#[allow(clippy::mut_range_bound)]
+pub enum ProofOrCommitment {
+    Proof(Proof),
+    Commitment(SequencerCommitment),
+}
+
 pub async fn sync_l1<Da>(
     mut start_from: u64,
     da_service: Arc<Da>,
@@ -42,7 +46,8 @@ pub async fn sync_l1<Da>(
 
         let highest_finalized_l1_height = last_finalized_l1_block_header.height();
 
-        for block_number in start_from..=highest_finalized_l1_height {
+        let start_height = start_from;
+        for block_number in start_height..=highest_finalized_l1_height {
             let l1_block =
                 match get_da_block_at_height(&da_service, block_number, l1_block_cache.clone())
                     .await
@@ -59,15 +64,12 @@ pub async fn sync_l1<Da>(
             let mut queue = block_queue.lock().await;
 
             if queue.len() < 10 {
-                queue.push_back(l1_block.clone());
+                queue.push_back(l1_block);
             } else {
                 debug!("Block queue is full, will try later...");
                 break;
             }
 
-            // we know this won't change the for loop range
-            // however, for the next time for loop is run in the outer loop,
-            // we will start from where we left off
             start_from = block_number + 1;
 
             // If the send above does not succeed, we don't set new values
@@ -112,6 +114,7 @@ pub async fn get_da_block_at_height<Da: DaService>(
     Ok(l1_block)
 }
 
+/// Extract SequencerCommitment's from L1 block ordered by their seqcom.index.
 pub fn extract_sequencer_commitments<Da>(
     da_service: Arc<Da>,
     l1_block: &Da::FilteredBlock,
@@ -120,23 +123,41 @@ pub fn extract_sequencer_commitments<Da>(
 where
     Da: DaService,
 {
-    let mut sequencer_commitments = da_service
+    let mut sequencer_commitments: Vec<_> = da_service
         .as_ref()
-        .extract_relevant_sequencer_commitments(l1_block, sequencer_da_pub_key);
+        .extract_relevant_sequencer_commitments(l1_block, sequencer_da_pub_key)
+        .into_iter()
+        .map(|(_, commitment)| commitment)
+        .collect();
 
     // Make sure all sequencer commitments are stored in ascending order.
-    // We sort before checking ranges to prevent substraction errors.
+    // We sort before checking ranges to prevent subtraction errors.
     sequencer_commitments.sort();
 
     sequencer_commitments
 }
 
-pub async fn extract_zk_proofs<Da: DaService>(
+/// Extract proofs and commitments and return them sorted by tx index
+pub async fn extract_zk_proofs_and_sequencer_commitments<Da: DaService>(
     da_service: Arc<Da>,
     l1_block: &Da::FilteredBlock,
     prover_da_pub_key: &[u8],
-) -> Vec<Proof> {
-    da_service
+    sequencer_da_pub_key: &[u8],
+) -> Vec<ProofOrCommitment> {
+    let proofs = da_service
         .extract_relevant_zk_proofs(l1_block, prover_da_pub_key)
         .await
+        .into_iter()
+        .map(|(idx, proof)| (idx, ProofOrCommitment::Proof(proof)));
+
+    let commitments = da_service
+        .as_ref()
+        .extract_relevant_sequencer_commitments(l1_block, sequencer_da_pub_key)
+        .into_iter()
+        .map(|(idx, commitment)| (idx, ProofOrCommitment::Commitment(commitment)));
+
+    let mut results: Vec<_> = proofs.chain(commitments).collect();
+    results.sort_by_key(|(idx, _)| *idx);
+
+    results.into_iter().map(|(_, v)| v).collect()
 }

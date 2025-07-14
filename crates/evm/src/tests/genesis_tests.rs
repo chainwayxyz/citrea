@@ -1,9 +1,11 @@
-use alloy_eips::eip1559::BaseFeeParams;
+use alloy_consensus::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, EMPTY_WITHDRAWALS};
+use alloy_consensus::EMPTY_OMMER_ROOT_HASH;
+use alloy_eips::eip1559::{BaseFeeParams, ETHEREUM_BLOCK_GAS_LIMIT_30M};
+use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::hex_literal::hex;
 use alloy_primitives::{Address, Bloom, Bytes, B256, B64, U256};
 use lazy_static::lazy_static;
-use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, ETHEREUM_BLOCK_GAS_LIMIT};
-use reth_primitives::{Header, SealedHeader, EMPTY_OMMER_ROOT_HASH};
+use reth_primitives::{Header, SealedHeader};
 use sov_modules_api::prelude::*;
 
 use crate::evm::primitive_types::SealedBlock;
@@ -20,7 +22,7 @@ lazy_static! {
 #[test]
 fn genesis_data() {
     let config = get_evm_test_config();
-    let (evm, mut working_set, _spec_id) = get_evm(&config);
+    let (evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
 
     let account = &config.data[0];
 
@@ -35,7 +37,13 @@ fn genesis_data() {
         .unwrap();
 
     let contract_storage1 = evm
-        .get_storage_at(contract.address, U256::from(0), None, &mut working_set)
+        .get_storage_at(
+            contract.address,
+            U256::from(0),
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
         .unwrap();
 
     let contract_storage2 = evm
@@ -47,6 +55,7 @@ fn genesis_data() {
             ),
             None,
             &mut working_set,
+            &ledger_db,
         )
         .unwrap();
 
@@ -88,14 +97,14 @@ fn genesis_data() {
 
 #[test]
 fn genesis_cfg() {
-    let (evm, mut working_set, _spec_id) = get_evm(&get_evm_test_config());
+    let (evm, mut working_set, _spec_id, _ledger_db) = get_evm(&get_evm_test_config());
 
     let cfg = evm.cfg.get(&mut working_set).unwrap();
     assert_eq!(
         cfg,
         EvmChainConfig {
             chain_id: 1000,
-            block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
+            block_gas_limit: ETHEREUM_BLOCK_GAS_LIMIT_30M,
             coinbase: Address::from([3u8; 20]),
             limit_contract_code_size: Some(5000),
             base_fee_params: BaseFeeParams::ethereum(),
@@ -105,7 +114,7 @@ fn genesis_cfg() {
 
 #[test]
 fn genesis_block() {
-    let (evm, mut working_set, _spec_id) = get_evm(&get_evm_test_config());
+    let (evm, mut working_set, _spec_id, _ledger_db) = get_evm(&get_evm_test_config());
 
     let mut accessory_state = working_set.accessory_state();
 
@@ -123,7 +132,7 @@ fn genesis_block() {
                     logs_bloom: Bloom::default(),
                     difficulty: U256::ZERO,
                     number: 0,
-                    gas_limit: ETHEREUM_BLOCK_GAS_LIMIT,
+                    gas_limit: ETHEREUM_BLOCK_GAS_LIMIT_30M,
                     gas_used: 0,
                     timestamp: 0,
                     extra_data: Bytes::default(),
@@ -132,11 +141,11 @@ fn genesis_block() {
                     base_fee_per_gas: Some(1000000000),
                     ommers_hash: EMPTY_OMMER_ROOT_HASH,
                     beneficiary: *BENEFICIARY,
-                    withdrawals_root: None,
+                    withdrawals_root: Some(EMPTY_WITHDRAWALS),
                     blob_gas_used: Some(0),
                     excess_blob_gas: Some(0),
-                    parent_beacon_block_root: None,
-                    requests_root: None,
+                    parent_beacon_block_root: Some(B256::ZERO),
+                    requests_hash: Some(EMPTY_REQUESTS_HASH),
                 },
                 *GENESIS_HASH
             ),
@@ -148,7 +157,7 @@ fn genesis_block() {
 
 #[test]
 fn genesis_head() {
-    let (evm, mut working_set, _spec_id) = get_evm(&get_evm_test_config());
+    let (evm, mut working_set, _spec_id, _ledger_db) = get_evm(&get_evm_test_config());
     let head = evm.head.get(&mut working_set).unwrap();
     assert_eq!(head.header.parent_hash, *GENESIS_HASH);
     let genesis_block = evm
@@ -166,7 +175,7 @@ fn genesis_head() {
             logs_bloom: Bloom::default(),
             difficulty: U256::ZERO,
             number: 0,
-            gas_limit: ETHEREUM_BLOCK_GAS_LIMIT,
+            gas_limit: ETHEREUM_BLOCK_GAS_LIMIT_30M,
             gas_used: 0,
             timestamp: 0,
             extra_data: Bytes::default(),
@@ -175,11 +184,11 @@ fn genesis_head() {
             base_fee_per_gas: Some(1000000000),
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: *BENEFICIARY,
-            withdrawals_root: None,
+            withdrawals_root: Some(EMPTY_WITHDRAWALS),
             blob_gas_used: Some(0),
             excess_blob_gas: Some(0),
-            parent_beacon_block_root: None,
-            requests_root: None,
+            parent_beacon_block_root: Some(B256::ZERO),
+            requests_hash: Some(EMPTY_REQUESTS_HASH),
         }
     );
 

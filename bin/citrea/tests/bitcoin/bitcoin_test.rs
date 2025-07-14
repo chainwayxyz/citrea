@@ -1,20 +1,19 @@
 use std::time::Duration;
 
-use alloy_primitives::U64;
 use anyhow::bail;
 use async_trait::async_trait;
-use bitcoin::Txid;
+use bitcoin::hashes::Hash;
+use bitcoin::{Amount, Txid};
 use bitcoin_da::monitoring::TxStatus;
 use bitcoin_da::rpc::DaRpcClient;
-use bitcoin_da::service::FINALITY_DEPTH;
-use bitcoincore_rpc::RpcApi;
-use citrea_e2e::bitcoin::BitcoinNode;
-use citrea_e2e::config::TestCaseConfig;
+use bitcoincore_rpc::{Client, RpcApi};
+use citrea_batch_prover::rpc::BatchProverRpcClient;
+use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
+use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
-use sov_ledger_rpc::LedgerRpcClient;
 use tokio::time::sleep;
 
 use super::get_citrea_path;
@@ -40,17 +39,17 @@ impl TestCase for BitcoinReorgTest {
         let sequencer = f.sequencer.as_ref().unwrap();
         let batch_prover = f.batch_prover.as_ref().unwrap();
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         // Disconnect nodes before generating commitment
         f.bitcoin_nodes.disconnect_nodes().await?;
 
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
         sequencer
-            .wait_for_l2_height(min_l2_blocks_per_commitment, None)
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
             .await?;
 
         // Wait for the sequencer commitments to hit the mempool
@@ -79,7 +78,7 @@ impl TestCase for BitcoinReorgTest {
         f.bitcoin_nodes.connect_nodes().await?;
         f.bitcoin_nodes.wait_for_sync(None).await?;
 
-        // Assert that re-org occured
+        // Assert that re-org occurred
         let new_hash = da0.get_block_hash(original_chain_height).await?;
         assert_ne!(original_chain_hash, new_hash, "Re-org did not occur");
 
@@ -100,7 +99,7 @@ impl TestCase for BitcoinReorgTest {
             .http_client()
             .da_get_tx_status(mempool0[0])
             .await?;
-        assert!(matches!(tx_status, Some(TxStatus::Pending { .. })));
+        assert!(matches!(tx_status, Some(TxStatus::InMempool { .. })));
 
         // Wait for re-org monitoring
         tokio::time::sleep(Duration::from_secs(20)).await;
@@ -115,7 +114,7 @@ impl TestCase for BitcoinReorgTest {
         let block = da0.get_block(&hash).await?;
         assert_eq!(block.txdata.len(), 3); // Coinbase + seq commit/reveal txs
 
-        da1.generate(FINALITY_DEPTH - 1).await?;
+        da1.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
         let finalized_height = da1.get_finalized_height(None).await?;
 
         batch_prover
@@ -129,7 +128,7 @@ impl TestCase for BitcoinReorgTest {
         let original_commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(U64::from(finalized_height))
+            .get_commitment_indices_by_l1(finalized_height)
             .await?
             .unwrap_or_default();
 
@@ -155,9 +154,9 @@ impl TestCase for DaMonitoringTest {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -182,7 +181,21 @@ impl TestCase for DaMonitoringTest {
             .http_client()
             .da_get_tx_status(mempool0[0])
             .await?;
-        assert!(matches!(tx_status, Some(TxStatus::Pending { .. })));
+        assert!(matches!(tx_status, Some(TxStatus::InMempool { .. })));
+
+        let monitored_tx = sequencer
+            .client
+            .http_client()
+            .da_get_monitored_transaction(pending_txs[0].txid, false)
+            .await?;
+        assert_eq!(pending_txs[0], monitored_tx.unwrap());
+
+        let non_monitored_tx = sequencer
+            .client
+            .http_client()
+            .da_get_monitored_transaction(Txid::all_zeros(), false)
+            .await?;
+        assert!(non_monitored_tx.is_none());
 
         da.generate(1).await?;
 
@@ -194,7 +207,7 @@ impl TestCase for DaMonitoringTest {
             .await?;
         assert!(matches!(tx_status, Some(TxStatus::Confirmed { .. })));
 
-        da.generate(FINALITY_DEPTH).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         sleep(Duration::from_secs(1)).await;
         let tx_status = sequencer
@@ -204,7 +217,7 @@ impl TestCase for DaMonitoringTest {
             .await?;
         assert!(matches!(tx_status, Some(TxStatus::Finalized { .. })));
 
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -263,9 +276,9 @@ impl TestCase for CpfpFeeBumpingTest {
         let batch_prover = f.batch_prover.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).unwrap();
 
-        let min_l2_blocks_per_commitment = sequencer.min_l2_blocks_per_commitment();
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
         // Generate seqcommitments
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -321,7 +334,7 @@ impl TestCase for CpfpFeeBumpingTest {
             &[reveal_tx.prev_txid.unwrap(), *parent_txid, cpfp_txid]
         );
 
-        da.generate(FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
         batch_prover
@@ -331,7 +344,7 @@ impl TestCase for CpfpFeeBumpingTest {
         let commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(U64::from(finalized_height))
+            .get_commitment_indices_by_l1(finalized_height)
             .await?
             .unwrap();
 
@@ -342,7 +355,7 @@ impl TestCase for CpfpFeeBumpingTest {
         da.generate(1).await?;
 
         // Generate another seqcommitments to assert that it spends from cpfp output
-        for _ in 0..min_l2_blocks_per_commitment {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -440,7 +453,7 @@ impl CpfpFeeBumpingTest {
         let cpfp_entry = da.get_mempool_entry(cpfp_txid).await?;
         let cpfp_fee_rate = cpfp_entry.fees.base.to_sat() as f64 / cpfp_entry.vsize as f64;
 
-        // Verify the child tx has higher fee rate to accomodate for child + parent
+        // Verify the child tx has higher fee rate to accommodate for child + parent
         assert!(cpfp_fee_rate >= target_fee_rate);
 
         // Verify that child spends from reveal tx and keeps a correct tx chain
@@ -471,6 +484,93 @@ impl CpfpFeeBumpingTest {
 #[tokio::test]
 async fn test_cpfp_fee_bump() -> Result<()> {
     TestCaseRunner::new(CpfpFeeBumpingTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+struct MinRelayFeeTest;
+
+impl MinRelayFeeTest {
+    async fn drain_wallet(
+        &self,
+        da: &BitcoinNode,
+        client: &Client,
+        amount_to_keep: Amount,
+    ) -> Result<()> {
+        let balance = da.get_balance(None, None).await?;
+
+        let amount_to_send = balance - amount_to_keep;
+
+        if amount_to_send <= Amount::ZERO {
+            return Ok(());
+        }
+
+        let drain_address = da.get_new_address(None, None).await?.assume_checked();
+
+        client
+            .send_to_address(
+                &drain_address,
+                amount_to_send,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await?;
+        da.generate(1).await?;
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl TestCase for MinRelayFeeTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_sequencer: true,
+            with_batch_prover: false,
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec!["-fallbackfee=0.00001", "-minrelaytxfee=0.00002"],
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
+
+        self.drain_wallet(da, &sequencer.da, Amount::from_sat(8000))
+            .await?;
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        // Generate seqcommitments
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(2, None).await?;
+
+        // Assert that we hit MinRelayFeeNotMet error but recover and end up sending the tx by increasing fee_rate_multiplier
+        let sequencer_stdout =
+            std::fs::read_to_string(sequencer.config.base.dir.join("stdout.log"))?;
+        assert!(sequencer_stdout.contains("MinRelayFeeNotMet"));
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_min_relay_fee_handling() -> Result<()> {
+    TestCaseRunner::new(MinRelayFeeTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await

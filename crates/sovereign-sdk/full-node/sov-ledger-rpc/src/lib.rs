@@ -1,12 +1,11 @@
 #![forbid(unsafe_code)]
 
-use alloy_primitives::U64;
+use alloy_primitives::{U32, U64};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, L2BlockStatus, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
-    VerifiedBatchProofResponse,
+    LastVerifiedBatchProofResponse, SequencerCommitmentResponse, VerifiedBatchProofResponse,
 };
 
 #[cfg(feature = "server")]
@@ -63,11 +62,6 @@ pub trait LedgerRpc {
     #[blocking]
     fn get_l2_block_range(&self, start: U64, end: U64) -> RpcResult<Vec<Option<L2BlockResponse>>>;
 
-    /// Gets a single event by number.
-    #[method(name = "getL2BlockStatus")]
-    #[blocking]
-    fn get_l2_block_status(&self, l2_block_receipt: U64) -> RpcResult<L2BlockStatus>;
-
     /// Gets the L2 genesis state root.
     #[method(name = "getL2GenesisStateRoot")]
     #[blocking]
@@ -81,6 +75,14 @@ pub trait LedgerRpc {
         height: U64,
     ) -> RpcResult<Option<Vec<SequencerCommitmentResponse>>>;
 
+    /// Gets the commitment by index.
+    #[method(name = "getSequencerCommitmentByIndex")]
+    #[blocking]
+    fn get_sequencer_commitment_by_index(
+        &self,
+        index: U32,
+    ) -> RpcResult<Option<SequencerCommitmentResponse>>;
+
     /// Gets the commitments in the DA slot with the given hash.
     #[method(name = "getSequencerCommitmentsOnSlotByHash")]
     #[blocking]
@@ -88,22 +90,6 @@ pub trait LedgerRpc {
         &self,
         hash: HexHash,
     ) -> RpcResult<Option<Vec<SequencerCommitmentResponse>>>;
-
-    /// Gets proof by slot height.
-    #[method(name = "getBatchProofsBySlotHeight")]
-    #[blocking]
-    fn get_batch_proofs_by_slot_height(
-        &self,
-        height: U64,
-    ) -> RpcResult<Option<Vec<BatchProofResponse>>>;
-
-    /// Gets proof by slot hash.
-    #[method(name = "getBatchProofsBySlotHash")]
-    #[blocking]
-    fn get_batch_proofs_by_slot_hash(
-        &self,
-        hash: HexHash,
-    ) -> RpcResult<Option<Vec<BatchProofResponse>>>;
 
     /// Gets the height pf most recent committed l2 block.
     #[method(name = "getHeadL2Block")]

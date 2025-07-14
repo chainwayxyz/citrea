@@ -1,34 +1,41 @@
+use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::Arc;
 
-use rocksdb::WriteBatch;
+use rocksdb::{ReadOptions, WriteBatch};
 use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
-use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
+use sov_schema_db::{ScanDirection, Schema, SchemaBatch, SeekKeyEncoder, DB};
 use tracing::instrument;
+use uuid::Uuid;
 
 use crate::rocks_db_config::RocksdbConfig;
 #[cfg(test)]
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
-    CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, L2BlockByHash, L2BlockByNumber,
-    L2BlockStatus, L2GenesisStateRoot, L2RangeByL1Height, LastPrunedBlock,
-    LastSequencerCommitmentSent, LastStateDiff, LightClientProofBySlotNumber, MempoolTxs,
-    PendingProvingSessions, PendingSequencerCommitment, ProofsBySlotNumberV2,
-    ProverLastScannedSlot, ProverStateDiffs, SequencerCommitmentByIndex,
-    ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber,
+    ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot,
+    L2RangeByL1Height, L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs,
+    PendingBonsaiSessionByJobId, PendingL1SubmissionJobs, PendingProofs,
+    PendingSequencerCommitment, PendingSequencerCommitments, ProofByJobId, ProofsBySlotNumberV2,
+    ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
+    ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
+    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
 };
+use crate::schema::types::job_status::JobStatus;
 use crate::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
-use crate::schema::types::{L2BlockNumber, L2HeightRange, SlotNumber};
+use crate::schema::types::{
+    BonsaiSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber,
+};
 
 /// Implementation of database migrator
 pub mod migrations;
@@ -141,6 +148,16 @@ impl LedgerDB {
         }
     }
 
+    fn put_l2_block(
+        &self,
+        l2_block: &StoredL2Block,
+        schema_batch: &mut SchemaBatch,
+    ) -> Result<(), anyhow::Error> {
+        let l2_block_number = L2BlockNumber(l2_block.height);
+        schema_batch.put::<L2BlockByNumber>(&l2_block_number, l2_block)?;
+        schema_batch.put::<L2BlockByHash>(&l2_block.hash, &l2_block_number)
+    }
+
     /// Write raw rocksdb WriteBatch
     pub fn write(&self, batch: WriteBatch) -> anyhow::Result<()> {
         self.db.write(batch)
@@ -161,17 +178,6 @@ impl SharedLedgerOps for LedgerDB {
     /// Returns the inner DB instance
     fn inner(&self) -> Arc<DB> {
         self.db.clone()
-    }
-
-    #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
-    fn put_l2_block(
-        &self,
-        l2_block: &StoredL2Block,
-        l2_block_number: &L2BlockNumber,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<(), anyhow::Error> {
-        schema_batch.put::<L2BlockByNumber>(l2_block_number, l2_block)?;
-        schema_batch.put::<L2BlockByHash>(&l2_block.hash, l2_block_number)
     }
 
     /// Commits a l2 block to the database by inserting its transactions and batches before
@@ -218,11 +224,7 @@ impl SharedLedgerOps for LedgerDB {
             timestamp: l2_block.timestamp(),
             tx_merkle_root: l2_block.tx_merkle_root(),
         };
-        self.put_l2_block(
-            &l2_block_to_store,
-            &L2BlockNumber(height),
-            &mut schema_batch,
-        )?;
+        self.put_l2_block(&l2_block_to_store, &mut schema_batch)?;
 
         self.db.write_schemas(schema_batch)?;
 
@@ -243,12 +245,7 @@ impl SharedLedgerOps for LedgerDB {
             None => (l2_height, l2_height),
         };
 
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch.put::<L2RangeByL1Height>(&l1_height, &new_range)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db.put::<L2RangeByL1Height>(&l1_height, &new_range)
     }
 
     #[instrument(level = "trace", skip(self), err, ret)]
@@ -279,32 +276,6 @@ impl SharedLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error> {
         self.db.get::<SlotByHash>(&hash).map(|v| v.map(|a| a.0))
-    }
-
-    /// Saves a l2 block status for a given L1 height
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn put_l2_block_status(
-        &self,
-        height: L2BlockNumber,
-        status: sov_rollup_interface::rpc::L2BlockStatus,
-    ) -> Result<(), anyhow::Error> {
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch.put::<L2BlockStatus>(&height, &status)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
-    }
-
-    /// Saves a l2 block status for a given L1 height
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_l2_block_status(
-        &self,
-        height: L2BlockNumber,
-    ) -> Result<Option<sov_rollup_interface::rpc::L2BlockStatus>, anyhow::Error> {
-        let status = self.db.get::<L2BlockStatus>(&height)?;
-
-        Ok(status)
     }
 
     /// Gets the commitments in the da slot with given height if any
@@ -340,12 +311,7 @@ impl SharedLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip_all, err, ret)]
     fn set_l2_genesis_state_root(&self, state_root: &StorageRootHash) -> anyhow::Result<()> {
         let buf = bincode::serialize(state_root)?;
-        let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<L2GenesisStateRoot>(&(), &buf)?;
-
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db.put::<L2GenesisStateRoot>(&(), &buf)
     }
 
     /// Get the state root by L2 height
@@ -405,28 +371,17 @@ impl SharedLedgerOps for LedgerDB {
         self.db.get::<L2BlockByNumber>(number)
     }
 
-    /// Get the most recent committed batch
-    /// Returns last sequencer commitment.
+    /// Returns the commitment with highest index.
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_last_commitment(&self) -> anyhow::Result<Option<SequencerCommitment>> {
-        let index = self.db.get::<LastSequencerCommitmentSent>(&())?;
-        match index {
-            Some(index) => self.db.get::<SequencerCommitmentByIndex>(&index),
-            None => Ok(None),
+        let mut iter = self.db.iter::<SequencerCommitmentByIndex>()?;
+        iter.seek_to_last();
+
+        match iter.next() {
+            Some(Ok(item)) => Ok(Some(item.value)),
+            Some(Err(e)) => Err(e),
+            _ => Ok(None),
         }
-    }
-
-    /// Used by the nodes to record that it has committed a soft confirmations on a given L2 height.
-    /// For a sequencer, the last commitment is set when the block is produced.
-    /// For a full node the last commitment is set when a commitment is read from a finalized DA layer block.
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn set_last_commitment(&self, seqcomm: &SequencerCommitment) -> Result<(), anyhow::Error> {
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch.put::<LastSequencerCommitmentSent>(&(), &seqcomm.index)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
     }
 
     /// Get the last scanned slot by the prover
@@ -439,12 +394,7 @@ impl SharedLedgerOps for LedgerDB {
     /// Called by the prover.
     #[instrument(level = "trace", skip(self), err, ret)]
     fn set_last_scanned_l1_height(&self, l1_height: SlotNumber) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch.put::<ProverLastScannedSlot>(&(), &l1_height)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db.put::<ProverLastScannedSlot>(&(), &l1_height)
     }
 
     #[instrument(level = "trace", skip(self), err, ret)]
@@ -455,12 +405,7 @@ impl SharedLedgerOps for LedgerDB {
     /// Set the last pruned L2 block number
     #[instrument(level = "trace", skip(self), err, ret)]
     fn set_last_pruned_l2_height(&self, l2_height: u64) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch.put::<LastPrunedBlock>(&(), &l2_height)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db.put::<LastPrunedBlock>(&(), &l2_height)
     }
 
     /// Gets all executed migrations.
@@ -498,15 +443,21 @@ impl SharedLedgerOps for LedgerDB {
     }
 
     fn put_commitment_by_index(&self, commitment: &SequencerCommitment) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<SequencerCommitmentByIndex>(&commitment.index, commitment)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        self.db
+            .put::<SequencerCommitmentByIndex>(&commitment.index, commitment)
     }
 
     fn get_commitment_by_index(&self, index: u32) -> anyhow::Result<Option<SequencerCommitment>> {
         self.db.get::<SequencerCommitmentByIndex>(&index)
+    }
+
+    fn get_commitment_by_range(
+        &self,
+        range: std::ops::RangeInclusive<u32>,
+    ) -> anyhow::Result<Vec<SequencerCommitment>> {
+        let start = *range.start();
+        let end = range.end() + 1;
+        self.get_data_range::<SequencerCommitmentByIndex, _, _>(&(start..end))
     }
 }
 
@@ -536,43 +487,6 @@ impl LightClientProverLedgerOps for LedgerDB {
 }
 
 impl BatchProverLedgerOps for LedgerDB {
-    /// Stores proof related data on disk, accessible via l1 slot height
-    #[instrument(level = "trace", skip(self, proof, proof_output), err, ret)]
-    fn insert_batch_proof_data_by_l1_height(
-        &self,
-        l1_height: u64,
-        l1_tx_id: [u8; 32],
-        proof: Proof,
-        proof_output: StoredBatchProofOutput,
-    ) -> anyhow::Result<()> {
-        let data_to_store = StoredBatchProof {
-            l1_tx_id,
-            proof,
-            proof_output,
-        };
-        let proofs = self
-            .db
-            .get::<ProofsBySlotNumberV2>(&SlotNumber(l1_height))?;
-        match proofs {
-            Some(mut proofs) => {
-                proofs.push(data_to_store);
-                self.db
-                    .put::<ProofsBySlotNumberV2>(&SlotNumber(l1_height), &proofs)
-            }
-            None => self
-                .db
-                .put::<ProofsBySlotNumberV2>(&SlotNumber(l1_height), &vec![data_to_store]),
-        }
-    }
-
-    #[instrument(level = "trace", skip(self), err)]
-    fn get_proofs_by_l1_height(
-        &self,
-        l1_height: u64,
-    ) -> anyhow::Result<Option<Vec<StoredBatchProof>>> {
-        self.db.get::<ProofsBySlotNumberV2>(&SlotNumber(l1_height))
-    }
-
     fn set_l2_state_diff(
         &self,
         l2_height: L2BlockNumber,
@@ -591,59 +505,197 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn clear_pending_proving_sessions(&self) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-        let mut iter = self.db.iter::<PendingProvingSessions>()?;
+    fn put_prover_pending_commitment(&self, index: u32) -> anyhow::Result<()> {
+        self.db.put::<ProverPendingCommitments>(&index, &())
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_prover_pending_commitments(&self) -> anyhow::Result<Vec<SequencerCommitment>> {
+        let mut iter = self.db.iter::<ProverPendingCommitments>()?;
         iter.seek_to_first();
 
-        for item in iter {
-            let item = item?;
-            schema_batch.delete::<PendingProvingSessions>(&item.key)?;
+        let mut commitments = vec![];
+        for el in iter {
+            let (index, _) = el?.into_tuple();
+
+            let commitment = self
+                .db
+                .get::<SequencerCommitmentByIndex>(&index)?
+                .expect("Pending commitment must exist");
+
+            commitments.push(commitment);
         }
 
-        self.db.write_schemas(schema_batch)?;
+        commitments.sort_unstable();
 
-        Ok(())
+        Ok(commitments)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn delete_prover_pending_commitments(&self, indices: Vec<u32>) -> anyhow::Result<()> {
+        self.db.delete_batch::<ProverPendingCommitments>(indices)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn put_commitment_index_by_l1(&self, l1_height: SlotNumber, index: u32) -> anyhow::Result<()> {
+        let mut indices = self
+            .db
+            .get::<CommitmentIndicesByL1>(&l1_height)?
+            .unwrap_or_default();
+        indices.push(index);
+        self.db.put::<CommitmentIndicesByL1>(&l1_height, &indices)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn insert_new_proving_job(
+        &self,
+        id: Uuid,
+        commitment_indices: &Vec<u32>,
+    ) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<CommitmentIndicesByJobId>(&id, commitment_indices)?;
+        for index in commitment_indices {
+            schema_batch.put::<JobIdOfCommitment>(index, &id)?;
+        }
+
+        self.db.write_schemas(schema_batch)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_commitment_indices_by_job_id(&self, id: Uuid) -> anyhow::Result<Option<Vec<u32>>> {
+        self.db.get::<CommitmentIndicesByJobId>(&id)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_job_id_by_commitment_index(&self, index: u32) -> anyhow::Result<Option<Uuid>> {
+        self.db.get::<JobIdOfCommitment>(&index)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn put_proof_by_job_id(
+        &self,
+        id: Uuid,
+        proof: Proof,
+        output: StoredBatchProofOutput,
+    ) -> anyhow::Result<()> {
+        let stored_proof = StoredBatchProof {
+            l1_tx_id: None,
+            proof,
+            proof_output: output,
+        };
+
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<PendingL1SubmissionJobs>(&id, &())?;
+        schema_batch.put::<ProofByJobId>(&id, &stored_proof)?;
+
+        self.db.write_schemas(schema_batch)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn finalize_proving_job(&self, id: Uuid, l1_tx_id: [u8; 32]) -> anyhow::Result<()> {
+        let mut stored_proof = self.db.get::<ProofByJobId>(&id)?.expect("Proof must exist");
+        assert_eq!(
+            stored_proof.l1_tx_id, None,
+            "Proof l1 tx id must not be set"
+        );
+
+        stored_proof.l1_tx_id = Some(l1_tx_id);
+
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.delete::<PendingL1SubmissionJobs>(&id)?;
+        schema_batch.put::<ProofByJobId>(&id, &stored_proof)?;
+
+        self.db.write_schemas(schema_batch)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_proof_by_job_id(&self, id: Uuid) -> anyhow::Result<Option<StoredBatchProof>> {
+        self.db.get::<ProofByJobId>(&id)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_pending_l1_submission_jobs(&self) -> anyhow::Result<Vec<Uuid>> {
+        let mut iter = self.db.iter::<PendingL1SubmissionJobs>()?;
+        iter.seek_to_first();
+
+        let mut jobs = vec![];
+        for el in iter {
+            jobs.push(el?.into_tuple().0);
+        }
+
+        Ok(jobs)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_latest_jobs(&self, count: usize) -> anyhow::Result<Vec<(Uuid, JobStatus)>> {
+        let mut read_opts = ReadOptions::default();
+        // Do not fill the cache with garbage data just to read ids
+        read_opts.fill_cache(false);
+
+        let mut iter = self
+            .db
+            .iter_with_direction::<CommitmentIndicesByJobId>(read_opts, ScanDirection::Backward)?;
+        iter.seek_to_last();
+
+        let mut jobs = Vec::with_capacity(count);
+        for el in iter {
+            if jobs.len() == count {
+                break;
+            }
+            let job_id = el?.key;
+            let status = self.job_status(job_id);
+            jobs.push((job_id, status));
+        }
+
+        Ok(jobs)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_prover_commitment_indices_by_l1(
+        &self,
+        l1_height: SlotNumber,
+    ) -> anyhow::Result<Option<Vec<u32>>> {
+        self.db.get::<CommitmentIndicesByL1>(&l1_height)
+    }
+
+    #[instrument(level = "trace", skip(self))]
+    fn job_status(&self, id: Uuid) -> JobStatus {
+        if let Some(el) = self.db.get::<ProofByJobId>(&id).unwrap() {
+            if el.l1_tx_id.is_some() {
+                JobStatus::Finished
+            } else {
+                JobStatus::Sending
+            }
+        } else {
+            JobStatus::Proving
+        }
     }
 }
 
-impl ProvingServiceLedgerOps for LedgerDB {
+impl BonsaiLedgerOps for LedgerDB {
     /// Gets all pending sessions and step numbers
     #[instrument(level = "trace", skip(self), err)]
-    fn get_pending_proving_sessions(&self) -> anyhow::Result<Vec<Vec<u8>>> {
-        let mut iter = self.db.iter::<PendingProvingSessions>()?;
+    fn get_pending_bonsai_sessions(&self) -> anyhow::Result<Vec<(Uuid, BonsaiSession)>> {
+        let mut iter = self.db.iter::<PendingBonsaiSessionByJobId>()?;
         iter.seek_to_first();
 
-        let sessions = iter
-            .map(|item| item.map(|item| (item.key)))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(sessions)
+        iter.map(|item| item.map(|item| item.into_tuple()))
+            .collect()
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn add_pending_proving_session(&self, session: Vec<u8>) -> anyhow::Result<()> {
-        self.db.put::<PendingProvingSessions>(&session, &())
+    fn upsert_pending_bonsai_session(
+        &self,
+        job_id: Uuid,
+        session: BonsaiSession,
+    ) -> anyhow::Result<()> {
+        self.db
+            .put::<PendingBonsaiSessionByJobId>(&job_id, &session)
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn remove_pending_proving_session(&self, session: Vec<u8>) -> anyhow::Result<()> {
-        self.db.delete::<PendingProvingSessions>(&session)
-    }
-
-    #[instrument(level = "trace", skip(self), err)]
-    fn clear_pending_proving_sessions(&self) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-        let mut iter = self.db.iter::<PendingProvingSessions>()?;
-        iter.seek_to_first();
-
-        for item in iter {
-            let item = item?;
-            schema_batch.delete::<PendingProvingSessions>(&item.key)?;
-        }
-
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+    fn remove_pending_bonsai_session(&self, job_id: Uuid) -> anyhow::Result<()> {
+        self.db.delete::<PendingBonsaiSessionByJobId>(&job_id)
     }
 }
 
@@ -695,31 +747,41 @@ impl SequencerLedgerOps for LedgerDB {
         }
     }
 
-    /// Sets the latest state diff
+    /// Sets the state diff by block number
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn set_state_diff(&self, state_diff: &StateDiff) -> anyhow::Result<()> {
+    fn set_state_diff(
+        &self,
+        l2_height: L2BlockNumber,
+        state_diff: &StateDiff,
+    ) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<LastStateDiff>(&(), state_diff)?;
+        schema_batch.put::<StateDiffByBlockNumber>(&l2_height, state_diff)?;
 
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
     }
 
-    /// Gets the latest state diff
+    /// Sets the state diff by block number
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_state_diff(&self) -> Result<StateDiff, anyhow::Error> {
-        self.db
-            .get::<LastStateDiff>(&())
-            .map(|diff| diff.unwrap_or_default())
+    fn delete_state_diff_by_range(
+        &self,
+        l2_height_range: RangeInclusive<L2BlockNumber>,
+    ) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        for l2_height in l2_height_range.start().0..=l2_height_range.end().0 {
+            schema_batch.delete::<StateDiffByBlockNumber>(&L2BlockNumber(l2_height))?;
+        }
+
+        self.db.write_schemas(schema_batch)
     }
 
-    // TODO Rewrite to properly get da_slot_height
-    /// Get the most recent commitment's l1 height
+    /// Gets the state diff by block number
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_l1_height_of_last_commitment(&self) -> anyhow::Result<Option<SlotNumber>> {
-        // TODO: https://github.com/chainwayxyz/citrea/issues/1998
-        Ok(None)
+    fn get_state_diff(&self, l2_height: L2BlockNumber) -> Result<StateDiff, anyhow::Error> {
+        self.db
+            .get::<StateDiffByBlockNumber>(&l2_height)
+            .map(|diff| diff.unwrap_or_default())
     }
 
     fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> anyhow::Result<()> {
@@ -794,6 +856,134 @@ impl NodeLedgerOps for LedgerDB {
         height: u64,
     ) -> anyhow::Result<Option<Vec<SequencerCommitment>>> {
         self.db.get::<CommitmentsByNumber>(&SlotNumber(height))
+    }
+
+    fn get_highest_l2_height_for_status(
+        &self,
+        status: L2HeightStatus,
+        l1_height: Option<u64>,
+    ) -> anyhow::Result<Option<L2HeightAndIndex>> {
+        let mut iter = self
+            .db
+            .iter_with_direction::<L2StatusHeights>(Default::default(), ScanDirection::Backward)?;
+        iter.seek_for_prev(&(status, l1_height.unwrap_or(u64::MAX)))?;
+
+        match iter.next() {
+            Some(Ok(item)) if item.key.0 == status => {
+                let ((_, _), val) = item.into_tuple();
+                Ok(Some(val))
+            }
+            Some(Err(e)) => Err(e),
+            _ => Ok(None),
+        }
+    }
+
+    fn set_l2_height_status(
+        &self,
+        status: L2HeightStatus,
+        l1_height: u64,
+        val: L2HeightAndIndex,
+    ) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<L2StatusHeights>(&(status, l1_height), &val)?;
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
+    }
+
+    fn store_pending_commitment(
+        &self,
+        commitment: SequencerCommitment,
+        found_in_l1_height: u64,
+    ) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<PendingSequencerCommitments>(
+            &commitment.index,
+            &(commitment.clone(), found_in_l1_height),
+        )?;
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    fn get_pending_commitment_by_index(
+        &self,
+        index: u32,
+    ) -> anyhow::Result<Option<(SequencerCommitment, u64)>> {
+        self.db.get::<PendingSequencerCommitments>(&index)
+    }
+
+    fn get_pending_commitments(&self) -> anyhow::Result<Vec<(u32, SequencerCommitment, u64)>> {
+        let mut pending = Vec::new();
+        let mut iter = self.db.iter::<PendingSequencerCommitments>()?;
+        iter.seek_to_first();
+
+        while let Some(Ok(item)) = iter.next() {
+            let (index, (commitment, l1_height)) = item.into_tuple();
+            pending.push((index, commitment, l1_height));
+        }
+
+        // Sort by index to make sure we process pending commitments in order
+        pending.sort_by_key(|(index, _, _)| *index);
+
+        Ok(pending)
+    }
+
+    fn remove_pending_commitment(&self, index: u32) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.delete::<PendingSequencerCommitments>(&index)?;
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
+    }
+
+    fn store_pending_proof(
+        &self,
+        min_commitment_index: u32,
+        max_commitment_index: u32,
+        proof: Proof,
+        found_in_l1_height: u64,
+    ) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<PendingProofs>(
+            &(min_commitment_index, max_commitment_index),
+            &(proof, found_in_l1_height),
+        )?;
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
+    }
+
+    fn get_pending_proofs(&self) -> anyhow::Result<Vec<((u32, u32), Proof, u64)>> {
+        let mut pending = Vec::new();
+        let mut iter = self.db.iter::<PendingProofs>()?;
+        iter.seek_to_first();
+
+        while let Some(Ok(item)) = iter.next() {
+            let (index_range, (proof, found_in_l1_height)) = item.into_tuple();
+            pending.push((index_range, proof, found_in_l1_height));
+        }
+
+        // Sort by min commitment index to ensure we process in order
+        pending.sort_by_key(|((min_index, _), _, _)| *min_index);
+
+        Ok(pending)
+    }
+
+    fn remove_pending_proof(&self, min_index: u32, max_index: u32) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.delete::<PendingProofs>(&(min_index, max_index))?;
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
+    }
+
+    fn get_l2_status_heights_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<(Option<L2HeightAndIndex>, Option<L2HeightAndIndex>)> {
+        let committed_height =
+            self.get_highest_l2_height_for_status(L2HeightStatus::Committed, Some(l1_height))?;
+        let proven_height =
+            self.get_highest_l2_height_for_status(L2HeightStatus::Proven, Some(l1_height))?;
+
+        Ok((committed_height, proven_height))
     }
 }
 

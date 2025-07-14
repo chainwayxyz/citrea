@@ -5,11 +5,12 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use alloy::consensus::{Signed, TxEip1559, TxEnvelope};
+use alloy::network::TransactionResponse;
 use alloy_primitives::Address;
 use alloy_rlp::Decodable;
+use alloy_rpc_types::BlockNumberOrTag;
 use citrea_common::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::BlockNumberOrTag;
 use sov_db::ledger_db::migrations::copy_db_dir_recursive;
 use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps};
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -54,19 +55,17 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
         NodeMode::SequencerNode,
         None,
     );
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(config1),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(config1),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
 
@@ -81,19 +80,17 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
         NodeMode::FullNode(seq_port),
         None,
     );
-    let full_node_task = tokio::spawn(async {
-        start_rollup(
-            full_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            None,
-            None,
-            false,
-        )
-        .await;
-    });
+    let full_node_task = start_rollup(
+        full_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let full_node_port = full_node_port_rx.await.unwrap();
 
@@ -113,20 +110,20 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
     // This makes the process a bit more deterministic on the test's end.
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&full_node_test_client, 5, None).await;
-    // Allow for the L2 block to be commited and stored
+    // Allow for the L2 block to be committed and stored
     // Otherwise, the L2 block height might be registered but it hasn't
     // been processed inside the EVM yet.
     sleep(Duration::from_secs(1)).await;
     assert_eq!(full_node_test_client.eth_block_number().await, 5);
 
     // assume sequencer craashed
-    seq_task.abort();
+    seq_task.graceful_shutdown();
 
     let commitments = wait_for_commitment(&da_service, 2, Some(Duration::from_secs(60))).await;
     assert_eq!(commitments.len(), 1);
     assert_eq!(commitments[0].l2_end_block_number, 4);
 
-    full_node_task.abort();
+    full_node_task.graceful_shutdown();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -144,19 +141,17 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
         None,
     );
     // Start the full node as sequencer
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(config1),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(config1),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
 
@@ -176,7 +171,7 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
     assert_eq!(commitments.len(), 1);
     assert_eq!(commitments[0].l2_end_block_number, 8);
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
 
     Ok(())
 }
@@ -217,19 +212,17 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
         NodeMode::SequencerNode,
         None,
     );
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(config1),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(config1),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
 
@@ -256,11 +249,11 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
         .await
         .unwrap();
 
-    assert_eq!(tx_1.hash, *tx_hash);
-    assert_eq!(tx_2.hash, *tx_hash2);
+    assert_eq!(tx_1.tx_hash(), *tx_hash);
+    assert_eq!(tx_2.tx_hash(), *tx_hash2);
 
     // crash and reopen and check if the txs are in the mempool
-    seq_task.abort();
+    seq_task.graceful_shutdown();
 
     // Copy data into a separate directory since the original sequencer
     // directory is locked by a LOCK file.
@@ -311,19 +304,17 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
         NodeMode::SequencerNode,
         None,
     );
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(config1),
-            None,
-            true,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(config1),
+        None,
+        true,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
 
@@ -362,7 +353,7 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
         .await
         .is_none());
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
 
     // Copy data into a separate directory since the original sequencer
     // directory is locked by a LOCK file.
@@ -415,23 +406,21 @@ async fn test_l2_block_save() -> Result<(), anyhow::Error> {
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_l2_blocks_per_commitment: config.seq_min_l2_blocks,
+        max_l2_blocks_per_commitment: config.seq_max_l2_blocks,
         deposit_mempool_fetch_limit: config.deposit_mempool_fetch_limit,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = init_test_rollup(seq_port).await;
@@ -445,19 +434,17 @@ async fn test_l2_block_save() -> Result<(), anyhow::Error> {
         NodeMode::FullNode(seq_port),
         None,
     );
-    let full_node_task = tokio::spawn(async {
-        start_rollup(
-            full_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            None,
-            None,
-            false,
-        )
-        .await;
-    });
+    let full_node_task = start_rollup(
+        full_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let full_node_port = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_port).await?;
@@ -471,19 +458,17 @@ async fn test_l2_block_save() -> Result<(), anyhow::Error> {
         NodeMode::FullNode(full_node_port),
         None,
     );
-    let full_node_task_2 = tokio::spawn(async {
-        start_rollup(
-            full_node_port_tx_2,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            None,
-            None,
-            false,
-        )
-        .await;
-    });
+    let full_node_task_2 = start_rollup(
+        full_node_port_tx_2,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let full_node_port_2 = full_node_port_rx_2.await.unwrap();
     let full_node_test_client_2 = make_test_client(full_node_port_2).await?;
@@ -513,9 +498,9 @@ async fn test_l2_block_save() -> Result<(), anyhow::Error> {
     assert_eq!(seq_block.header.hash, full_node_block.header.hash);
     assert_eq!(full_node_block.header.hash, full_node_block_2.header.hash);
 
-    seq_task.abort();
-    full_node_task.abort();
-    full_node_task_2.abort();
+    seq_task.graceful_shutdown();
+    full_node_task.graceful_shutdown();
+    full_node_task_2.graceful_shutdown();
 
     Ok(())
 }

@@ -48,6 +48,7 @@ impl ExposeRpcMacro {
         let rpc_storage_struct = quote! {
             struct RpcStorage #impl_generics #where_clause {
                 storage: #context_type::Storage,
+                ledger_db: crate::LedgerDB,
                 // Function pointers are always Send + Sync, regardless of
                 // whether the return type is. The alternative would be to
                 // `unsafe impl Send/Sync` for `RpcStorage`, but this seems
@@ -60,6 +61,7 @@ impl ExposeRpcMacro {
                 fn clone(&self) -> Self {
                     Self {
                         storage: self.storage.clone(),
+                        ledger_db: self.ledger_db.clone(),
                         _phantom: ::std::marker::PhantomData,
                     }
                  }
@@ -108,6 +110,12 @@ impl ExposeRpcMacro {
                     {
                         ::sov_modules_api::WorkingSet::new(self.storage.clone())
                     }
+
+                    /// Get LedgerDB
+                    fn get_ledger_db(&self) -> &crate::LedgerDB
+                    {
+                        &self.ledger_db
+                    }
                 }
             };
 
@@ -116,10 +124,11 @@ impl ExposeRpcMacro {
 
         let get_rpc_methods: proc_macro2::TokenStream = quote! {
             /// Returns a [`jsonrpsee::RpcModule`] with all the rpc methods exposed by the module
-            pub fn get_rpc_methods #impl_generics (storage: <#context_type as ::sov_modules_api::Spec>::Storage) -> ::jsonrpsee::RpcModule<()> #where_clause {
+            pub fn get_rpc_methods #impl_generics (storage: <#context_type as ::sov_modules_api::Spec>::Storage, ledger_db: crate::LedgerDB) -> ::jsonrpsee::RpcModule<()> #where_clause {
                 let mut module = ::jsonrpsee::RpcModule::new(());
                 let r = RpcStorage:: #ty_generics  {
                     storage: storage.clone(),
+                    ledger_db,
                     _phantom: ::std::marker::PhantomData
                 };
 

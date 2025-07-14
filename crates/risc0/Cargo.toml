@@ -14,23 +14,33 @@ description = "An adapter allowing Citrea to use risc0 proving system"
 [dependencies]
 anyhow = { workspace = true, optional = true }
 bincode = { workspace = true }
+bonsai-sdk = { workspace = true, optional = true }
 borsh = { workspace = true }
+hex = { workspace = true, optional = true }
 metrics = { workspace = true, optional = true }
 risc0-zkp = { workspace = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
+rzup = { workspace = true, optional = true }
 serde = { workspace = true }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 thiserror = { workspace = true }
+tokio = { workspace = true, optional = true }
 tracing = { workspace = true }
+uuid = { workspace = true, optional = true }
 
 [features]
 default = []
 testing = []
 native = [
   "dep:anyhow",
+  "dep:bonsai-sdk",
   "dep:sov-db",
   "dep:metrics",
+  "dep:hex",
+  "dep:tokio",
+  "dep:rzup",
+  "dep:uuid",
   "risc0-zkvm/bonsai",
   "risc0-zkvm/client",
   "sov-rollup-interface/native",

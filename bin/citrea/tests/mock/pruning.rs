@@ -3,10 +3,10 @@ use std::panic::AssertUnwindSafe;
 use std::str::FromStr;
 
 use alloy_primitives::{Address, U256};
+use alloy_rpc_types::{BlockId, BlockNumberOrTag};
+use citrea_common::PruningConfig;
 /// Testing if the sequencer and full node can handle system transactions correctly (the full node should have the same system transactions as the sequencer)
-use citrea_storage_ops::pruning::PruningConfig;
 use futures::FutureExt;
-use reth_primitives::{BlockId, BlockNumberOrTag};
 use sov_mock_da::{MockAddress, MockDaService};
 
 use super::{initialize_test, TestConfig};
@@ -134,8 +134,8 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
         .unwrap();
     assert_eq!(balance, U256::from(100000000000000000000u128));
 
-    seq_task.abort();
-    full_node_task.abort();
+    seq_task.graceful_shutdown();
+    full_node_task.graceful_shutdown();
 
     Ok(())
 }
@@ -216,9 +216,9 @@ async fn test_native_db_pruning() -> Result<(), anyhow::Error> {
     .await;
     assert!(check_block_by_number_result.is_err());
 
-    let get_block_receipts_result = AssertUnwindSafe(full_node_test_client.eth_get_block_receipts(
-        reth_primitives::BlockId::Number(BlockNumberOrTag::Number(1)),
-    ))
+    let get_block_receipts_result = AssertUnwindSafe(
+        full_node_test_client.eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Number(1))),
+    )
     .catch_unwind()
     .await;
     assert!(get_block_receipts_result.is_err());
@@ -249,9 +249,9 @@ async fn test_native_db_pruning() -> Result<(), anyhow::Error> {
     .await;
     assert!(check_block_by_number_result.is_err());
 
-    let get_block_receipts_result = AssertUnwindSafe(full_node_test_client.eth_get_block_receipts(
-        reth_primitives::BlockId::Number(BlockNumberOrTag::Number(20)),
-    ))
+    let get_block_receipts_result = AssertUnwindSafe(
+        full_node_test_client.eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Number(20))),
+    )
     .catch_unwind()
     .await;
     assert!(get_block_receipts_result.is_err());
@@ -284,9 +284,7 @@ async fn test_native_db_pruning() -> Result<(), anyhow::Error> {
         .await;
 
     let receipts = full_node_test_client
-        .eth_get_block_receipts(reth_primitives::BlockId::Number(BlockNumberOrTag::Number(
-            21,
-        )))
+        .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Number(21)))
         .await;
     assert!(!receipts.is_empty());
 
@@ -339,9 +337,9 @@ async fn test_native_db_pruning() -> Result<(), anyhow::Error> {
     .await;
     assert!(check_block_by_number_result.is_err());
 
-    let get_block_receipts_result = AssertUnwindSafe(full_node_test_client.eth_get_block_receipts(
-        reth_primitives::BlockId::Number(BlockNumberOrTag::Number(40)),
-    ))
+    let get_block_receipts_result = AssertUnwindSafe(
+        full_node_test_client.eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Number(40))),
+    )
     .catch_unwind()
     .await;
     assert!(get_block_receipts_result.is_err());
@@ -372,9 +370,9 @@ async fn test_native_db_pruning() -> Result<(), anyhow::Error> {
     .await;
     assert!(check_block_by_number_result.is_err());
 
-    let get_block_receipts_result = AssertUnwindSafe(full_node_test_client.eth_get_block_receipts(
-        reth_primitives::BlockId::Number(BlockNumberOrTag::Number(60)),
-    ))
+    let get_block_receipts_result = AssertUnwindSafe(
+        full_node_test_client.eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Number(60))),
+    )
     .catch_unwind()
     .await;
     assert!(get_block_receipts_result.is_err());
@@ -407,9 +405,7 @@ async fn test_native_db_pruning() -> Result<(), anyhow::Error> {
         .await;
 
     let receipts = full_node_test_client
-        .eth_get_block_receipts(reth_primitives::BlockId::Number(BlockNumberOrTag::Number(
-            61,
-        )))
+        .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Number(61)))
         .await;
     assert!(!receipts.is_empty());
 
@@ -418,8 +414,8 @@ async fn test_native_db_pruning() -> Result<(), anyhow::Error> {
         .await;
     assert!(tx.is_some());
 
-    seq_task.abort();
-    full_node_task.abort();
+    seq_task.graceful_shutdown();
+    full_node_task.graceful_shutdown();
 
     Ok(())
 }

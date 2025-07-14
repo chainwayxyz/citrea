@@ -1,7 +1,7 @@
 #![no_main]
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
-use citrea_light_client_prover::circuit::initial_values::bitcoinda;
+use citrea_light_client_prover::circuit::initial_values::{bitcoinda, non_empty_slice::NonEmptySlice};
 use citrea_light_client_prover::circuit::LightClientProofCircuit;
 use citrea_primitives::REVEAL_TX_PREFIX;
 use citrea_risc0_adapter::guest::Risc0Guest;
@@ -30,7 +30,7 @@ const L2_GENESIS_ROOT: [u8; 32] = {
     }
 };
 
-const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
+const INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> = {
     match NETWORK {
         Network::Mainnet => bitcoinda::MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS,
         Network::Testnet => bitcoinda::TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS,
@@ -39,6 +39,16 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
         Network::TestNetworkWithForks => {
             bitcoinda::TEST_NETWORK_WITH_FORKS_INITIAL_BATCH_PROOF_METHOD_IDS
         }
+    }
+};
+
+const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
+    match NETWORK {
+        Network::Mainnet => bitcoinda::MAINNET_SEQUENCER_DA_PUBLIC_KEY,
+        Network::Testnet => bitcoinda::TESTNET_SEQUENCER_DA_PUBLIC_KEY,
+        Network::Devnet => bitcoinda::DEVNET_SEQUENCER_DA_PUBLIC_KEY,
+        Network::Nightly => bitcoinda::NIGHTLY_SEQUENCER_DA_PUBLIC_KEY,
+        Network::TestNetworkWithForks => bitcoinda::TEST_NETWORK_WITH_FORKS_SEQUENCER_DA_PUBLIC_KEY,
     }
 };
 
@@ -73,6 +83,7 @@ pub fn main() {
 
     let da_verifier = BitcoinVerifier::new(RollupParams {
         reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
+        network: NETWORK,
     });
 
     let input = guest.read_from_host();
@@ -88,6 +99,7 @@ pub fn main() {
             L2_GENESIS_ROOT,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &BATCH_PROVER_DA_PUBLIC_KEY,
+            &SEQUENCER_DA_PUBLIC_KEY,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
         )
         .unwrap();

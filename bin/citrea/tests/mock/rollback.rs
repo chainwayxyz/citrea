@@ -7,19 +7,18 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use alloy_primitives::{Address, U256};
-use citrea_common::tasks::manager::TaskManager;
-use citrea_common::{BatchProverConfig, SequencerConfig};
+use alloy_rpc_types::{BlockId, BlockNumberOrTag};
+use citrea_common::{BatchProverConfig, NodeType, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
-use citrea_storage_ops::pruning::types::StorageNodeType;
 use citrea_storage_ops::rollback::Rollback;
 use futures::FutureExt;
-use reth_primitives::{BlockId, BlockNumberOrTag};
+use reth_tasks::TaskManager;
 use sov_db::ledger_db::migrations::copy_db_dir_recursive;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::tables::{
-    ProofsBySlotNumberV2, VerifiedBatchProofsBySlotNumber, BATCH_PROVER_LEDGER_TABLES,
+    CommitmentIndicesByL1, VerifiedBatchProofsBySlotNumber, BATCH_PROVER_LEDGER_TABLES,
     FULL_NODE_LEDGER_TABLES, SEQUENCER_LEDGER_TABLES,
 };
 use sov_db::schema::types::SlotNumber;
@@ -52,9 +51,9 @@ async fn start_sequencer(
     sequencer_db_dir: &Path,
     da_db_dir: &Path,
     restart: bool,
-) -> (TaskManager<()>, Box<TestClient>, SocketAddr) {
+) -> (TaskManager, Box<TestClient>, SocketAddr) {
     let sequencer_config = SequencerConfig {
-        min_l2_blocks_per_commitment: 10,
+        max_l2_blocks_per_commitment: 10,
         test_mode: true,
         ..Default::default()
     };
@@ -94,7 +93,7 @@ async fn start_full_node(
     da_db_dir: &Path,
     seq_port: SocketAddr,
     restart: bool,
-) -> (TaskManager<()>, Box<TestClient>) {
+) -> (TaskManager, Box<TestClient>) {
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
     let rollup_config = create_default_rollup_config(
         true,
@@ -129,7 +128,7 @@ async fn start_batch_prover(
     da_db_dir: &Path,
     seq_port: SocketAddr,
     restart: bool,
-) -> (TaskManager<()>, Box<TestClient>) {
+) -> (TaskManager, Box<TestClient>) {
     let (batch_prover_port_tx, batch_prover_port_rx) = tokio::sync::oneshot::channel();
     let rollup_config = create_default_rollup_config(
         true,
@@ -165,7 +164,7 @@ async fn start_batch_prover(
 }
 
 async fn rollback_node(
-    node_type: StorageNodeType,
+    node_type: NodeType,
     tables: &[&str],
     old_path: &Path,
     new_path: &Path,
@@ -181,10 +180,9 @@ async fn rollback_node(
     rollback
         .execute(
             node_type,
-            50,
-            rollback_l2_height,
-            rollback_l1_height,
-            commitment_index,
+            Some(rollback_l2_height),
+            Some(rollback_l1_height),
+            Some(commitment_index),
         )
         .await
         .unwrap();
@@ -310,7 +308,7 @@ async fn test_sequencer_rollback() -> Result<(), anyhow::Error> {
         U256::from(50000000000000000000u128)
     );
 
-    seq_task_manager.abort().await;
+    seq_task_manager.graceful_shutdown();
 
     // rollback 10 L2 blocks
     let rollback_l2_height = 30;
@@ -320,7 +318,7 @@ async fn test_sequencer_rollback() -> Result<(), anyhow::Error> {
     let rollback_index = 1;
     let new_sequencer_db_dir = storage_dir.path().join("sequencer2").to_path_buf();
     rollback_node(
-        StorageNodeType::Sequencer,
+        NodeType::Sequencer,
         SEQUENCER_LEDGER_TABLES,
         &sequencer_db_dir,
         &new_sequencer_db_dir,
@@ -336,7 +334,7 @@ async fn test_sequencer_rollback() -> Result<(), anyhow::Error> {
 
     assert_dbs(&seq_test_client, addr, None, 30, 30000000000000000000).await;
 
-    seq_task_manager.abort().await;
+    seq_task_manager.graceful_shutdown();
 
     Ok(())
 }
@@ -399,8 +397,8 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
         U256::from(50000000000000000000u128)
     );
 
-    seq_task_manager.abort().await;
-    full_node_task_manager.abort().await;
+    seq_task_manager.graceful_shutdown();
+    full_node_task_manager.graceful_shutdown();
 
     //------------------
     // Rollback
@@ -414,7 +412,7 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
 
     let new_sequencer_db_dir = storage_dir.path().join("sequencer2").to_path_buf();
     rollback_node(
-        StorageNodeType::Sequencer,
+        NodeType::Sequencer,
         SEQUENCER_LEDGER_TABLES,
         &sequencer_db_dir,
         &new_sequencer_db_dir,
@@ -430,7 +428,7 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
     //------------------
     let new_full_node_db_dir = storage_dir.path().join("full-node2").to_path_buf();
     rollback_node(
-        StorageNodeType::FullNode,
+        NodeType::FullNode,
         FULL_NODE_LEDGER_TABLES,
         &full_node_db_dir,
         &new_full_node_db_dir,
@@ -477,14 +475,14 @@ async fn test_fullnode_rollback() -> Result<(), anyhow::Error> {
     wait_for_l2_block(&seq_test_client, 40, None).await;
     wait_for_l2_block(&full_node_test_client, 40, None).await;
 
-    seq_task_manager.abort().await;
-    full_node_task_manager.abort().await;
+    seq_task_manager.graceful_shutdown();
+    full_node_task_manager.graceful_shutdown();
 
     Ok(())
 }
 
 /// Trigger rollback DB data.
-/// This test makes sure that a rollback on fullnode withour rolling back sequencer
+/// This test makes sure that a rollback on fullnode without rolling back sequencer
 /// enables fullnode to sync from the rollback point up until latest sequencer block.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_fullnode_rollback_without_sequencer_rollback() -> Result<(), anyhow::Error> {
@@ -522,8 +520,8 @@ async fn test_fullnode_rollback_without_sequencer_rollback() -> Result<(), anyho
     wait_for_l2_block(&seq_test_client, 50, None).await;
     wait_for_l2_block(&full_node_test_client, 50, None).await;
 
-    seq_task_manager.abort().await;
-    full_node_task_manager.abort().await;
+    seq_task_manager.graceful_shutdown();
+    full_node_task_manager.graceful_shutdown();
 
     //------------------
     // Rollback
@@ -537,7 +535,7 @@ async fn test_fullnode_rollback_without_sequencer_rollback() -> Result<(), anyho
 
     let new_full_node_db_dir = storage_dir.path().join("full-node2").to_path_buf();
     rollback_node(
-        StorageNodeType::FullNode,
+        NodeType::FullNode,
         FULL_NODE_LEDGER_TABLES,
         &full_node_db_dir,
         &new_full_node_db_dir,
@@ -587,8 +585,8 @@ async fn test_fullnode_rollback_without_sequencer_rollback() -> Result<(), anyho
         full_node_l2_block.header.state_root
     );
 
-    seq_task_manager.abort().await;
-    full_node_task_manager.abort().await;
+    seq_task_manager.graceful_shutdown();
+    full_node_task_manager.graceful_shutdown();
 
     Ok(())
 }
@@ -667,9 +665,9 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
         U256::from(50000000000000000000u128)
     );
 
-    seq_task_manager.abort().await;
-    full_node_task_manager.abort().await;
-    batch_prover_task_manager.abort().await;
+    seq_task_manager.graceful_shutdown();
+    full_node_task_manager.graceful_shutdown();
+    batch_prover_task_manager.graceful_shutdown();
 
     //------------------
     // Assert fullnode state
@@ -717,7 +715,7 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
     //------------------
     let new_sequencer_db_dir = storage_dir.path().join("sequencer3").to_path_buf();
     rollback_node(
-        StorageNodeType::Sequencer,
+        NodeType::Sequencer,
         SEQUENCER_LEDGER_TABLES,
         &sequencer_db_dir,
         &new_sequencer_db_dir,
@@ -729,7 +727,7 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
     .unwrap();
 
     rollback_node(
-        StorageNodeType::FullNode,
+        NodeType::FullNode,
         FULL_NODE_LEDGER_TABLES,
         &full_node_db_dir,
         &new_full_node_db_dir,
@@ -741,7 +739,7 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
     .unwrap();
 
     rollback_node(
-        StorageNodeType::BatchProver,
+        NodeType::BatchProver,
         BATCH_PROVER_LEDGER_TABLES,
         &batch_prover_db_dir,
         &new_batch_prover_db_dir,
@@ -792,11 +790,11 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
         instantiate_dbs(&new_batch_prover_db_dir, BATCH_PROVER_LEDGER_TABLES).unwrap();
     let bp_ledger_db = bp_ledger_db.inner();
     assert!(bp_ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(8))
+        .get::<CommitmentIndicesByL1>(&SlotNumber(8))
         .unwrap()
         .is_some());
     assert!(bp_ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(10))
+        .get::<CommitmentIndicesByL1>(&SlotNumber(10))
         .unwrap()
         .is_none());
 
@@ -846,9 +844,9 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
     wait_for_l2_block(&full_node_test_client, 40, None).await;
     wait_for_l2_block(&batch_prover_test_client, 40, None).await;
 
-    seq_task_manager.abort().await;
-    full_node_task_manager.abort().await;
-    batch_prover_task_manager.abort().await;
+    seq_task_manager.graceful_shutdown();
+    full_node_task_manager.graceful_shutdown();
+    batch_prover_task_manager.graceful_shutdown();
 
     Ok(())
 }

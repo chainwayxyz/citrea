@@ -1,8 +1,8 @@
 use std::time::Duration;
 
+use alloy_rpc_types::BlockNumberOrTag;
 use citrea_common::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::BlockNumberOrTag;
 
 use super::init_test_rollup;
 use crate::common::helpers::{
@@ -27,7 +27,7 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
         None,
     );
     let sequencer_config = SequencerConfig::default();
-    let seq_task = tokio::spawn(async {
+    let seq_task =
         // Don't provide a prover since the EVM is not currently provable
         start_rollup(
             port_tx,
@@ -40,7 +40,6 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
             false,
         )
         .await;
-    });
 
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
@@ -66,6 +65,6 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
     // Base fee should at most be 0.01 gwei
     assert_eq!(block.header.base_fee_per_gas.unwrap(), 10000000);
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
     Ok(())
 }

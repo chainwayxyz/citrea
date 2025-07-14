@@ -21,6 +21,7 @@ sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
 # 3rd-party deps
 anyhow = { workspace = true }
 clap = { workspace = true }
+derive_more = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

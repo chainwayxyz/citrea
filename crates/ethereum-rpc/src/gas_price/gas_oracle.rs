@@ -4,16 +4,19 @@
 
 // Adopted from: https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/gas_oracle.rs
 
+use alloy_network::eip2718::Typed2718;
 use alloy_network::AnyNetwork;
 use alloy_primitives::{B256, U256};
-use alloy_rpc_types::{BlockTransactions, FeeHistory};
+use alloy_rpc_types::{
+    BlockNumberOrTag, BlockTransactions, FeeHistory, Transaction, TransactionTrait,
+};
 use citrea_evm::{Evm, SYSTEM_SIGNER};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use parking_lot::Mutex;
-use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_api::RpcTransaction;
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use serde::{Deserialize, Serialize};
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::WorkingSet;
 use tracing::warn;
 
@@ -106,6 +109,8 @@ pub struct GasPriceOracle<C: sov_modules_api::Context> {
     last_price: Mutex<GasPriceOracleResult>,
     /// Fee history cache with lifetime
     fee_history_cache: Mutex<FeeHistoryCache<C>>,
+    /// LedgerDb
+    ledger_db: LedgerDB,
 }
 
 impl<C: sov_modules_api::Context> GasPriceOracle<C> {
@@ -114,6 +119,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         provider: Evm<C>,
         mut oracle_config: GasPriceOracleConfig,
         fee_history_config: FeeHistoryCacheConfig,
+        ledger_db: LedgerDB,
     ) -> Self {
         // sanitize the percentile to be less than 100
         if oracle_config.percentile > 100 {
@@ -123,7 +129,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
 
         let max_header_history = oracle_config.max_header_history as u32;
 
-        let block_cache = BlockCache::new(max_header_history, provider.clone());
+        let block_cache = BlockCache::new(max_header_history, provider.clone(), ledger_db.clone());
         let fee_history_cache = FeeHistoryCache::new(fee_history_config, block_cache);
 
         Self {
@@ -131,6 +137,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
             oracle_config,
             last_price: Default::default(),
             fee_history_cache: Mutex::new(fee_history_cache),
+            ledger_db,
         }
     }
 
@@ -162,9 +169,9 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
             block_count = max_fee_history
         }
 
-        let end_block = self
-            .provider
-            .block_number_for_id(&newest_block, working_set)?;
+        let end_block =
+            self.provider
+                .block_number_for_id(&newest_block, working_set, &self.ledger_db)?;
 
         // need to add 1 to the end block to get the correct (inclusive) range
         let end_block_plus = end_block + 1;
@@ -221,12 +228,15 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
             }
         }
         let last_entry = fee_entries.last().expect("is not empty");
-        base_fee_per_gas.push(calculate_next_block_base_fee(
-            last_entry.gas_used,
-            last_entry.gas_limit,
-            last_entry.base_fee_per_gas,
-            self.provider.get_chain_config(working_set).base_fee_params,
-        ));
+        base_fee_per_gas.push(
+            calculate_next_block_base_fee(
+                last_entry.gas_used,
+                last_entry.gas_limit,
+                last_entry.base_fee_per_gas,
+                self.provider.get_chain_config(working_set).base_fee_params,
+            )
+            .into(),
+        );
 
         Ok(FeeHistory {
             base_fee_per_gas,
@@ -242,7 +252,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
     pub fn suggest_tip_cap(&self, working_set: &mut WorkingSet<C::Storage>) -> EthResult<u128> {
         let header = &self
             .provider
-            .get_block_by_number(None, None, working_set)
+            .get_block_by_number(None, None, working_set, &self.ledger_db)
             .unwrap()
             .unwrap()
             .header;
@@ -362,8 +372,8 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
                 }
 
                 // check if coinbase
-                let sender = tx.from;
-                sender != block.header.miner && sender != SYSTEM_SIGNER
+                let sender = tx.inner.signer();
+                sender != block.header.beneficiary && sender != SYSTEM_SIGNER
             })
             // map all values to effective_gas_tip because we will be returning those values
             // anyways
@@ -429,31 +439,16 @@ impl Default for GasPriceOracleResult {
 }
 
 // Adopted from: https://github.com/paradigmxyz/reth/blob/main/crates/primitives/src/transaction/mod.rs#L297
-pub(crate) fn effective_gas_tip(
-    transaction: &RpcTransaction<AnyNetwork>,
-    base_fee: Option<u128>,
-) -> Option<u128> {
-    let priority_fee_or_price = match transaction.transaction_type {
-        Some(tx_type) => {
-            if tx_type == 2 {
-                transaction.max_priority_fee_per_gas.unwrap()
-            } else {
-                transaction.gas_price.unwrap()
-            }
-        }
-        _ => transaction.gas_price.unwrap(),
+pub(crate) fn effective_gas_tip(transaction: &Transaction, base_fee: Option<u128>) -> Option<u128> {
+    let priority_fee_or_price = match transaction.ty() {
+        2 => transaction.max_priority_fee_per_gas().unwrap(),
+        _ => transaction.gas_price().unwrap(),
     };
 
     if let Some(base_fee) = base_fee {
-        let max_fee_per_gas = match transaction.transaction_type {
-            Some(tx_type) => {
-                if tx_type == 2 {
-                    transaction.max_priority_fee_per_gas.unwrap()
-                } else {
-                    transaction.gas_price.unwrap()
-                }
-            }
-            _ => transaction.gas_price.unwrap(),
+        let max_fee_per_gas = match transaction.ty() {
+            2 => transaction.max_priority_fee_per_gas().unwrap(),
+            _ => transaction.gas_price().unwrap(),
         };
 
         if max_fee_per_gas < base_fee {
@@ -469,7 +464,7 @@ pub(crate) fn effective_gas_tip(
 
 #[cfg(test)]
 mod tests {
-    use reth_primitives::constants::GWEI_TO_WEI;
+    use alloy_consensus::constants::GWEI_TO_WEI;
 
     use super::*;
 

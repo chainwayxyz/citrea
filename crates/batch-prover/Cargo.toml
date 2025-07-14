@@ -31,6 +31,8 @@ alloy-primitives = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 backoff = { workspace = true }
+base64 = { workspace = true }
+bincode = { workspace = true }
 borsh = { workspace = true }
 faster-hex = { workspace = true }
 futures = { workspace = true }
@@ -43,10 +45,20 @@ once_cell = { workspace = true, default-features = true }
 parking_lot = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
+reth-tasks = { workspace = true }
+risc0-zkvm = { workspace = true }
 rs_merkle = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
-tokio-util = { workspace = true }
 tower = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+citrea-primitives = { path = "../primitives", features = ["testing"] }
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
+sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
+sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
+
+tempfile = { workspace = true }

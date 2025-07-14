@@ -10,10 +10,10 @@ use crate::zk::StorageRootHash;
 /// the state of the rollup has transitioned from `initial_state_root` to `final_state_root`
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct BatchProofCircuitOutputV3 {
-    /// The state of the rollup before the transition
-    pub initial_state_root: StorageRootHash,
-    /// The state of the rollup after the transition
-    pub final_state_root: StorageRootHash,
+    /// All of the state roots of commitments from initial state (previous commitments state root) to the last sequencer commitment
+    /// First is initial state root, last is the final state root of batch proof
+    /// If there is no previous commitment the first element of the vector will be genesis state root
+    pub state_roots: Vec<StorageRootHash>,
     /// The hash of the last l2 block in the state transition
     /// This will be [0; 32] for pre fork 1 proofs
     pub final_l2_block_hash: [u8; 32],

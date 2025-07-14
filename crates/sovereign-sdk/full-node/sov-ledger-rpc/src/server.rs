@@ -1,30 +1,46 @@
 //! A JSON-RPC server implementation for any [`LedgerRpcProvider`].
 
-use alloy_primitives::U64;
+use alloy_primitives::{U32, U64};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, L2BlockStatus, LastVerifiedBatchProofResponse, LedgerRpcProvider,
-    SequencerCommitmentResponse, VerifiedBatchProofResponse,
+    LastVerifiedBatchProofResponse, LedgerRpcProvider, SequencerCommitmentResponse,
+    VerifiedBatchProofResponse,
 };
 
 use crate::{HexHash, HexStateRoot, LedgerRpcServer};
 
 const LEDGER_RPC_ERROR: &str = "LEDGER_RPC_ERROR";
 
+/// LedgerRpcServerConfig
+#[derive(Clone, Debug)]
+pub struct LedgerRpcServerConfig {
+    /// The maximum number of l2 blocks that can be requested in a single RPC range query
+    pub max_l2_blocks_per_request: u32,
+}
+
+impl Default for LedgerRpcServerConfig {
+    fn default() -> Self {
+        Self {
+            max_l2_blocks_per_request: 20,
+        }
+    }
+}
+
 fn to_ledger_rpc_error(err: impl ToString) -> ErrorObjectOwned {
     to_jsonrpsee_error_object(LEDGER_RPC_ERROR, err)
 }
 pub struct LedgerRpcServerImpl<T> {
     ledger: T,
+    config: LedgerRpcServerConfig,
 }
 
 impl<T> LedgerRpcServerImpl<T> {
-    pub fn new(ledger: T) -> Self {
-        Self { ledger }
+    pub fn new(ledger: T, config: LedgerRpcServerConfig) -> Self {
+        Self { ledger, config }
     }
 }
 
@@ -45,14 +61,15 @@ where
     }
 
     fn get_l2_block_range(&self, start: U64, end: U64) -> RpcResult<Vec<Option<L2BlockResponse>>> {
+        if (end - start).to::<u32>() > self.config.max_l2_blocks_per_request {
+            return Err(to_ledger_rpc_error(format!(
+                "requested batch range too large. Max: {}",
+                self.config.max_l2_blocks_per_request
+            )));
+        }
+
         self.ledger
             .get_l2_blocks_range(start.to(), end.to())
-            .map_err(to_ledger_rpc_error)
-    }
-
-    fn get_l2_block_status(&self, l2_block_receipt: U64) -> RpcResult<L2BlockStatus> {
-        self.ledger
-            .get_l2_block_status(l2_block_receipt.to())
             .map_err(to_ledger_rpc_error)
     }
 
@@ -96,32 +113,6 @@ where
             .map_err(to_ledger_rpc_error)
     }
 
-    fn get_batch_proofs_by_slot_height(
-        &self,
-        height: U64,
-    ) -> RpcResult<Option<Vec<BatchProofResponse>>> {
-        self.ledger
-            .get_batch_proof_data_by_l1_height(height.to())
-            .map_err(to_ledger_rpc_error)
-    }
-
-    fn get_batch_proofs_by_slot_hash(
-        &self,
-        hash: HexHash,
-    ) -> RpcResult<Option<Vec<BatchProofResponse>>> {
-        let Some(height) = self
-            .ledger
-            .get_slot_number_by_hash(hash.0)
-            .map_err(to_ledger_rpc_error)?
-        else {
-            return Ok(None);
-        };
-
-        self.ledger
-            .get_batch_proof_data_by_l1_height(height)
-            .map_err(to_ledger_rpc_error)
-    }
-
     fn get_verified_batch_proofs_by_slot_height(
         &self,
         height: U64,
@@ -147,12 +138,24 @@ where
             .map(U64::from)
             .map_err(to_ledger_rpc_error)
     }
+
+    fn get_sequencer_commitment_by_index(
+        &self,
+        index: U32,
+    ) -> RpcResult<Option<SequencerCommitmentResponse>> {
+        self.ledger
+            .get_sequencer_commitment_by_index(index.to())
+            .map_err(to_ledger_rpc_error)
+    }
 }
 
-pub fn create_rpc_module<T>(ledger: T) -> RpcModule<LedgerRpcServerImpl<T>>
+pub fn create_rpc_module<T>(
+    ledger: T,
+    config: LedgerRpcServerConfig,
+) -> RpcModule<LedgerRpcServerImpl<T>>
 where
     T: LedgerRpcProvider + Send + Sync + 'static,
 {
-    let server = LedgerRpcServerImpl::new(ledger);
+    let server = LedgerRpcServerImpl::new(ledger, config);
     LedgerRpcServer::into_rpc(server)
 }

@@ -22,8 +22,6 @@ contract BitcoinLightClient is IBitcoinLightClient {
     mapping(bytes32 => bytes32) public witnessRoots;
     mapping(bytes32 => uint256) public coinbaseDepths;
 
-    // Kept for backwards compatibility
-    event BlockInfoAddedOld(uint256 blockNumber, bytes32 blockHash, bytes32 merkleRoot);
     event BlockInfoAdded(uint256 blockNumber, bytes32 blockHash, bytes32 merkleRoot, uint256 coinbaseDepth);
 
     modifier onlySystem() {

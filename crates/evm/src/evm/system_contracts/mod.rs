@@ -107,7 +107,7 @@ sol! {
     #[sol(abi)]
     #[allow(missing_docs)]
     ProxyAdminContract,
-    "./src/evm/system_contracts/out/ProxyAdmin.sol/ProxyAdmin.json"
+    "./src/evm/system_contracts/out/ProxyAdmin.sol/ProxyAdmin.default.json"
 }
 
 /// ProxyAdmin wrapper.
@@ -152,7 +152,6 @@ sol!(
 );
 
 /// WCBTC wrapper.
-
 pub struct WCBTC {}
 
 impl WCBTC {

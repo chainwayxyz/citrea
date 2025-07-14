@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use borsh::BorshDeserialize;
+use parking_lot::Mutex;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_modules_api::DaSpec;
-use sov_rollup_interface::da::VerifableShortHeaderProof;
+use sov_rollup_interface::da::VerifiableShortHeaderProof;
 
 use super::{ShortHeaderProofProvider, ShortHeaderProofProviderError};
 
@@ -58,12 +59,29 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
                     && coinbase_depth == l1_update_info.coinbase_txid_merkle_proof_height;
 
                 if return_cond {
-                    self.queried_and_verified_hashes
-                        .lock()
-                        .expect("Should lock queried and verified hashes")
-                        .entry(l2_height)
-                        .and_modify(|f| f.push(block_hash))
-                        .or_insert(vec![block_hash]);
+                    let mut queried_hashes_map = self.queried_and_verified_hashes.lock();
+                    if queried_hashes_map.capacity() == queried_hashes_map.len() {
+                        queried_hashes_map.try_reserve(1).map_err(|e| {
+                            ShortHeaderProofProviderError::VectorAllocationFailed(e.to_string())
+                        })?;
+                    }
+                    let entry = queried_hashes_map.entry(l2_height);
+                    match entry {
+                        std::collections::hash_map::Entry::Occupied(mut occ) => {
+                            occ.get_mut().try_reserve(1).map_err(|e| {
+                                ShortHeaderProofProviderError::VectorAllocationFailed(e.to_string())
+                            })?;
+                            occ.get_mut().push(block_hash);
+                        }
+                        std::collections::hash_map::Entry::Vacant(vac) => {
+                            let mut v: Vec<[u8; 32]> = Vec::new();
+                            v.try_reserve_exact(1).map_err(|e| {
+                                ShortHeaderProofProviderError::VectorAllocationFailed(e.to_string())
+                            })?;
+                            v.push(block_hash);
+                            vac.insert(v);
+                        }
+                    }
                 }
 
                 return Ok(return_cond);
@@ -74,18 +92,24 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
     }
 
     fn clear_queried_hashes(&self) {
-        self.queried_and_verified_hashes.lock().unwrap().clear();
+        self.queried_and_verified_hashes.lock().clear();
     }
 
-    fn take_queried_hashes(&self, l2_range: RangeInclusive<u64>) -> Vec<[u8; 32]> {
-        let queried_and_verified_hashes = self.queried_and_verified_hashes.lock().unwrap();
+    fn take_queried_hashes(
+        &self,
+        l2_range: RangeInclusive<u64>,
+    ) -> Result<Vec<[u8; 32]>, ShortHeaderProofProviderError> {
+        let queried_and_verified_hashes = self.queried_and_verified_hashes.lock();
         let mut hashes = Vec::new();
         for l2_height in l2_range {
-            if let Some(hash) = queried_and_verified_hashes.get(&l2_height) {
-                hashes.extend(hash.clone());
+            if let Some(queried_hashes) = queried_and_verified_hashes.get(&l2_height) {
+                hashes.try_reserve(queried_hashes.len()).map_err(|e| {
+                    ShortHeaderProofProviderError::VectorAllocationFailed(e.to_string())
+                })?;
+                hashes.extend(queried_hashes.clone());
             }
         }
-        hashes
+        Ok(hashes)
     }
 
     fn take_last_queried_hash(&self) -> Option<[u8; 32]> {

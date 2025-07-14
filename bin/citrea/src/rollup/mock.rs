@@ -4,22 +4,20 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use citrea_common::backup::{create_backup_rpc_module, BackupManager};
 use citrea_common::config::ProverGuestRunConfig;
-use citrea_common::rpc::register_healthcheck_rpc;
-use citrea_common::tasks::manager::TaskManager;
-use citrea_common::FullNodeConfig;
+use citrea_common::{FullNodeConfig, RpcConfig};
 use citrea_primitives::forks::use_network_forks;
 // use citrea_sp1::host::SP1Host;
-use citrea_risc0_adapter::host::Risc0BonsaiHost;
+use citrea_risc0_adapter::host::Risc0Host;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::CitreaRuntime;
 use prover_services::{ParallelProverService, ProofGenMode};
+use reth_tasks::TaskExecutor;
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Address, Spec, SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
-use tokio::sync::broadcast;
 
 use crate::guests::{BATCH_PROOF_LATEST_MOCK_GUESTS, LIGHT_CLIENT_LATEST_MOCK_GUESTS};
 use crate::{CitreaRollupBlueprint, Network};
@@ -37,7 +35,7 @@ impl RollupBlueprint for MockDemoRollup {
     type DaSpec = MockDaSpec;
     type DaConfig = MockDaConfig;
     type DaVerifier = MockDaVerifier;
-    type Vm = Risc0BonsaiHost;
+    type Vm = Risc0Host;
 
     fn new(network: Network) -> Self {
         use_network_forks(network);
@@ -48,10 +46,9 @@ impl RollupBlueprint for MockDemoRollup {
         &self,
         storage: <DefaultContext as Spec>::Storage,
         ledger_db: &LedgerDB,
-        da_service: &Arc<Self::DaService>,
-        sequencer_client_url: Option<String>,
-        l2_block_rx: Option<broadcast::Receiver<u64>>,
+        _da_service: &Arc<Self::DaService>,
         backup_manager: &Arc<BackupManager>,
+        rpc_config: RpcConfig,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // TODO set the sequencer address
         let sequencer = Address::new([0; 32]);
@@ -59,18 +56,8 @@ impl RollupBlueprint for MockDemoRollup {
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
             Self::DaService,
             CitreaRuntime<DefaultContext, Self::DaSpec>,
-        >(storage.clone(), ledger_db, sequencer)?;
+        >(storage.clone(), ledger_db, sequencer, rpc_config)?;
 
-        crate::eth::register_ethereum::<Self::DaService>(
-            da_service.clone(),
-            storage,
-            ledger_db.clone(),
-            &mut rpc_methods,
-            sequencer_client_url,
-            l2_block_rx,
-        )?;
-
-        register_healthcheck_rpc(&mut rpc_methods, ledger_db.clone())?;
         let backup_methods = create_backup_rpc_module(ledger_db.clone(), backup_manager.clone());
         rpc_methods.merge(backup_methods)?;
 
@@ -81,16 +68,13 @@ impl RollupBlueprint for MockDemoRollup {
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         _require_wallet_check: bool,
-        _task_manager: &mut TaskManager<()>,
+        _task_manager: TaskExecutor,
+        _network: Network,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
         Ok(Arc::new(MockDaService::new(
             rollup_config.da.sender_address.clone(),
             &rollup_config.da.db_path,
         )))
-    }
-
-    fn create_da_verifier(&self) -> Self::DaVerifier {
-        Default::default()
     }
 
     fn get_batch_proof_elfs(&self) -> HashMap<SpecId, Vec<u8>> {
@@ -133,7 +117,7 @@ impl RollupBlueprint for MockDemoRollup {
         proof_sampling_number: usize,
         is_light_client_prover: bool,
     ) -> ParallelProverService<Self::DaService, Self::Vm> {
-        let vm = Risc0BonsaiHost::new(ledger_db.clone(), self.network);
+        let vm = Risc0Host::new(ledger_db.clone(), self.network);
 
         let proof_mode = match proving_mode {
             ProverGuestRunConfig::Skip => ProofGenMode::Skip,

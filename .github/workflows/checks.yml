@@ -63,7 +63,7 @@ env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
-  TEST_BITCOIN_DOCKER: "bitcoin/bitcoin:28.0"
+  TEST_BITCOIN_DOCKER: "bitcoin/bitcoin:29.0"
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -74,8 +74,8 @@ concurrency:
   cancel-in-progress: ${{ (github.ref != 'refs/heads/nightly') && (github.ref != 'refs/heads/devnet-freeze') && (github.ref != 'refs/heads/main') }}
 
 jobs:
-  build-test:
-    name: build-tests
+  build:
+    name: build
     runs-on: ubicloud-standard-30
     timeout-minutes: 60
     if: github.event.pull_request.draft == false
@@ -101,13 +101,14 @@ jobs:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
       - name: Build citrea
-        run: make build-test
+        run: make build
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: citrea-test-build
+          name: citrea-build
           path: |
             target/debug/citrea
+            target/debug/citrea-cli
             target/debug/**/methods.rs
           retention-days: 1
 
@@ -158,10 +159,10 @@ jobs:
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Toolchain
+      - name: Install nightly toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2024-07-27
+          toolchain: nightly
           override: true
       - name: Install risc0
         uses: ./.github/actions/install-risc0
@@ -191,12 +192,11 @@ jobs:
   coverage:
     needs:
       - docker-setup
-      - build-test
     runs-on: ubicloud-standard-30
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.81.0
+      - uses: dtolnay/rust-toolchain@1.85.0
         with:
           components: llvm-tools-preview
       - name: Rust Cache
@@ -221,25 +221,20 @@ jobs:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.TEST_BITCOIN_DOCKER }}
       - name: Load Docker image
+        continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: citrea-test-build
-          path: target/debug
-      - name: Make citrea executable
-        run: chmod +x target/debug/citrea
       - name: Run coverage
-        run: make coverage-ci
+        run: make coverage
         env:
           RUST_BACKTRACE: 1
           TEST_BITCOIN_DOCKER: 1
           RISC0_DEV_MODE: 1 # This is needed to generate mock proofs and verify them
-          CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
           PARALLEL_PROOF_LIMIT: 1
           TEST_OUT_DIR: ${{ runner.temp }}/coverage
+          CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/llvm-cov-target/debug/citrea
+          CITREA_CLI_E2E_TEST_BINARY: ${{ github.workspace }}/target/llvm-cov-target/debug/citrea-cli
       - name: Upload e2e test dir
-        if: failure() || cancelled()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-test-dir-coverage
@@ -253,7 +248,7 @@ jobs:
 
   uniswap:
     runs-on: ubicloud-standard-2
-    needs: build-test
+    needs: build
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -263,7 +258,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: citrea-test-build
+          name: citrea-build
           path: target/debug
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
@@ -295,7 +290,7 @@ jobs:
 
   web3_py:
     runs-on: ubicloud-standard-2
-    needs: build-test
+    needs: build
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -306,7 +301,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: citrea-test-build
+          name: citrea-build
           path: target/debug
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
@@ -324,7 +319,7 @@ jobs:
 
   ethers_js:
     runs-on: ubicloud-standard-2
-    needs: build-test
+    needs: build
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -334,7 +329,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: citrea-test-build
+          name: citrea-build
           path: target/debug
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
@@ -355,7 +350,6 @@ jobs:
   nextest:
     needs:
       - docker-setup
-      - build-test
     name: nextest
     runs-on: ubicloud-standard-30
     timeout-minutes: 60
@@ -369,7 +363,7 @@ jobs:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
-        uses: dtolnay/rust-toolchain@1.81.0
+        uses: dtolnay/rust-toolchain@1.85.0
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
       - name: Setup env
@@ -392,25 +386,20 @@ jobs:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.TEST_BITCOIN_DOCKER }}
       - name: Load Docker image
+        continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: citrea-test-build
-          path: target/debug
-      - name: Make citrea executable
-        run: chmod +x target/debug/citrea
       - name: Run nextest
-        run: make test-ci
+        run: make test
         env:
           RUST_BACKTRACE: 1
           RISC0_DEV_MODE: 1 # This is needed to generate mock proofs and verify them
           TEST_BITCOIN_DOCKER: 1
-          CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
           PARALLEL_PROOF_LIMIT: 1
           TEST_OUT_DIR: ${{ runner.temp }}/test
+          CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
+          CITREA_CLI_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea-cli
       - name: Upload e2e test dir
-        if: failure() || cancelled()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-test-dir-test
@@ -419,7 +408,6 @@ jobs:
   system-contracts:
     strategy:
       fail-fast: true
-
     name: Foundry project
     runs-on: ubicloud-standard-2
     if: github.event.pull_request.draft == false
@@ -448,7 +436,6 @@ jobs:
   check_genesis_files:
     strategy:
       fail-fast: true
-
     name: Check Genesis Files
     runs-on: ubicloud-standard-2
     if: github.event.pull_request.draft == false
@@ -480,6 +467,7 @@ jobs:
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
+        continue-on-error: true
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -487,12 +475,14 @@ jobs:
       - name: Cache Docker images
         id: cache-docker
         uses: actions/cache@v4
+        continue-on-error: true
         with:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.TEST_BITCOIN_DOCKER }}
 
       - name: Pull Docker image
         if: steps.cache-docker.outputs.cache-hit != 'true'
+        continue-on-error: true
         run: |
           docker pull ${{ env.TEST_BITCOIN_DOCKER }}
           mkdir -p /tmp/docker
@@ -500,5 +490,25 @@ jobs:
 
       - name: Load Docker image from cache
         if: steps.cache-docker.outputs.cache-hit == 'true'
+        continue-on-error: true
         run: |
           docker load < /tmp/docker/bitcoin.tar
+
+  codespell:
+    name: codespell
+    runs-on: ubicloud-standard-2
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install codespell
+        run: pip install codespell
+
+      - name: Run codespell
+        run: |
+          codespell --skip="*.lock,./target,./crates/evm/ethereum-tests," -I="codespell_ignore.txt"

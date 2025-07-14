@@ -8,6 +8,9 @@ use sov_modules_api::{
 };
 use sov_state::ZkStorage;
 
+#[derive(Clone)]
+struct LedgerDB {}
+
 pub trait TestSpec {
     type Data: Data;
 }
@@ -120,7 +123,7 @@ fn main() {
         <RT as EncodeCall<my_module::QueryModule<C, u32>>>::encode_call(message);
     let module = RT::decode_call(&serialized_message).unwrap();
     let sender = Address::try_from([11; 32].as_ref()).unwrap();
-    let context = C::new(sender, 1, SpecId::Fork2, 0);
+    let context = C::new(sender, 1, SpecId::Tangerine, 0);
 
     let _ = runtime
         .dispatch_call(module, working_set, &context)

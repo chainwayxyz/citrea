@@ -3,31 +3,43 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use alloy::consensus::constants::KECCAK_EMPTY;
+use alloy::hex::FromHex;
+use alloy::network::TransactionResponse;
+use alloy::signers::local::PrivateKeySigner;
+use alloy::signers::SignerSync;
 // use citrea::initialize_logging;
-use alloy_primitives::{Address, Bytes, U256};
-use alloy_rpc_types::EIP1186AccountProofResponse;
-use citrea_common::SequencerConfig;
-use citrea_evm::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
+use alloy_primitives::{Address, Bytes, U256, U64};
+use alloy_rpc_types::{
+    Authorization, BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, TransactionRequest,
+};
+use citrea_common::{BatchProverConfig, SequencerConfig};
+use citrea_evm::smart_contracts::{
+    CallerContract, LogsContract, SimpleStorageContract, TestContract,
+};
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::{BlockId, BlockNumberOrTag};
 use sha2::Digest;
-use sov_rollup_interface::{Network, CITREA_VERSION};
+use sov_mock_da::{MockAddress, MockDaService};
+use sov_rollup_interface::CITREA_VERSION;
 use sov_state::KeyHash;
 use tokio::time::sleep;
 
 // use sov_demo_rollup::initialize_logging;
 use crate::common::client::TestClient;
 use crate::common::helpers::{
-    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment,
+    wait_for_l1_block, wait_for_l2_block, wait_for_proof, wait_for_prover_job,
+    wait_for_prover_l1_height, NodeMode,
 };
 use crate::common::{
-    make_test_client, TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MIN_L2_BLOCKS_PER_COMMITMENT,
+    make_test_client, TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
 };
 
 mod archival_state;
+mod diff_sizes;
 mod fee;
 mod gas_price;
+mod precompiles;
 mod subscription;
 mod tracing;
 
@@ -49,19 +61,17 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
         None,
     );
     let sequener_config = SequencerConfig::default();
-    let rollup_task = tokio::spawn(async {
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequener_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let rollup_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequener_config),
+        None,
+        false,
+    )
+    .await;
 
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
@@ -86,7 +96,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
         "0x47173285a8d7341e5e972fc677286384f802f8ef42a5ec5f03bbfa254cb01fad".to_string()
     );
 
-    rollup_task.abort();
+    rollup_task.graceful_shutdown();
     Ok(())
 }
 
@@ -108,27 +118,25 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MIN_L2_BLOCKS_PER_COMMITMENT,
+        max_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
         ..Default::default()
     };
-    let rollup_task = tokio::spawn(async {
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let rollup_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
     send_tx_test_to_eth(port).await.unwrap();
-    rollup_task.abort();
+    rollup_task.graceful_shutdown();
     Ok(())
 }
 
@@ -154,19 +162,17 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
     );
     let sequencer_config = SequencerConfig::default();
 
-    let rollup_task = tokio::spawn(async {
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let rollup_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
@@ -175,7 +181,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
 
     test_getlogs(&test_client).await.unwrap();
 
-    rollup_task.abort();
+    rollup_task.graceful_shutdown();
     Ok(())
 }
 
@@ -195,22 +201,20 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_l2_blocks_per_commitment: 123456,
+        max_l2_blocks_per_commitment: 123456,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir("../../resources/genesis/mock-dockerized/"),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir("../../resources/genesis/mock/"),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await?;
@@ -251,7 +255,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
             .unwrap()
     );
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
     Ok(())
 }
 
@@ -332,9 +336,15 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
 
     for storage_proof in &acc_proof.storage_proof {
         let kaddr = {
+            // See `Evm::get_storage_address` for how the storage address is calculated
             let mut hasher: sha2::Sha256 =
                 sha2::Digest::new_with_prefix(account_address.as_slice());
-            hasher.update(storage_proof.key.0.as_slice());
+            #[allow(clippy::unnecessary_fallible_conversions)]
+            hasher.update(
+                U256::try_from(storage_proof.key.as_b256())
+                    .unwrap()
+                    .as_le_slice(),
+            );
             let arr = hasher.finalize();
             U256::from_le_slice(&arr)
         };
@@ -361,7 +371,8 @@ fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address
     }
 }
 
-async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::test(flavor = "multi_thread")]
+async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
     // citrea::initialize_logging(::tracing::Level::INFO);
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
@@ -377,22 +388,20 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
         None,
     );
     let sequencer_config = SequencerConfig {
-        min_l2_blocks_per_commitment: 123456,
+        max_l2_blocks_per_commitment: 123456,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async move {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir("../../resources/genesis/mock-dockerized/"),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            Some(network),
-            false,
-        )
-        .await;
-    });
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir("../../resources/genesis/mock/"),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await?;
@@ -451,7 +460,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
     {
         check_proof(&acc_proof_latest, contract_address);
         for storage_proof in &acc_proof_latest.storage_proof {
-            if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
+            if U256::from_le_slice(storage_proof.key.as_b256().as_slice()) == contract_field {
                 // A sanity check to verify we deal with the same value.
                 // This check is not actually required, it's for test purposes only
                 assert_eq!(storage_proof.value, storage_value);
@@ -486,7 +495,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
     {
         check_proof(&acc_proof_1, contract_address);
         for storage_proof in &acc_proof_1.storage_proof {
-            if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
+            if U256::from_le_slice(storage_proof.key.as_b256().as_slice()) == contract_field {
                 // A sanity check to verify we deal with the same value.
                 // This check is not actually required, it's for test purposes only
                 assert_eq!(storage_proof.value, storage_value);
@@ -500,7 +509,7 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
         assert_ne!(acc_proof_1, acc_proof_2);
         check_proof(&acc_proof_2, contract_address);
         for storage_proof in &acc_proof_2.storage_proof {
-            if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
+            if U256::from_le_slice(storage_proof.key.as_b256().as_slice()) == contract_field {
                 // A sanity check to verify we deal with the same value.
                 // This check is not actually required, it's for test purposes only
                 assert_eq!(storage_proof.value, storage_value);
@@ -513,13 +522,8 @@ async fn test_eth_get_proof_on(network: Network) -> Result<(), Box<dyn std::erro
         assert_eq!(acc_proof_latest, acc_proof_2);
     }
 
-    seq_task.abort();
+    seq_task.graceful_shutdown();
     Ok(())
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_eth_get_proof_devnet() -> Result<(), Box<dyn std::error::Error>> {
-    test_eth_get_proof_on(Network::Devnet).await
 }
 
 #[allow(clippy::borrowed_box)]
@@ -565,13 +569,16 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
 
     assert_eq!(logs.len(), 1);
     assert_eq!(
-        hex::encode(logs[0].topics[0]).to_string(),
+        hex::encode(logs[0].topics()[0]).to_string(),
         "a9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7"
     );
 
     let sepolia_log_data = "\"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000\"".to_string();
     let len = sepolia_log_data.len();
-    assert_eq!(sepolia_log_data[1..len - 1], logs[0].data.to_string());
+    assert_eq!(
+        sepolia_log_data[1..len - 1],
+        logs[0].data().data.to_string()
+    );
 
     // Deploy another contract
     let contract_address2 = {
@@ -619,8 +626,8 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
     let logs = client.eth_get_logs(address_and_range_filter).await;
     assert_eq!(logs.len(), 2);
     // make sure the address is the old one and not the new one
-    assert_eq!(logs[0].address, contract_address);
-    assert_eq!(logs[1].address, contract_address);
+    assert_eq!(logs[0].address(), contract_address);
+    assert_eq!(logs[1].address(), contract_address);
 
     Ok(())
 }
@@ -697,7 +704,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     let tx_by_hash = client
         .eth_get_tx_by_block_hash_and_index(second_block.header.hash, U256::from(0))
         .await;
-    assert_eq!(tx_by_hash.hash, tx_hash);
+    assert_eq!(tx_by_hash.tx_hash(), tx_hash);
 
     // Assert getTransactionByBlockNumberAndIndex
     let tx_by_number = client
@@ -706,8 +713,8 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     let tx_by_number_tag = client
         .eth_get_tx_by_block_number_and_index(BlockNumberOrTag::Latest, U256::from(0))
         .await;
-    assert_eq!(tx_by_number.hash, tx_hash);
-    assert_eq!(tx_by_number_tag.hash, tx_hash);
+    assert_eq!(tx_by_number.tx_hash(), tx_hash);
+    assert_eq!(tx_by_number_tag.tx_hash(), tx_hash);
 
     let get_arg: U256 = client
         .contract_call(contract_address, contract.get_call_data(), None)
@@ -841,4 +848,684 @@ pub async fn init_test_rollup(rpc_address: SocketAddr) -> Box<TestClient> {
     assert_eq!(latest_block, earliest_block);
     assert_eq!(latest_block.header.number, 0);
     test_client
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn eip7702_tx_test() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging(::tracing::Level::INFO);
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+    let sequencer_config = SequencerConfig {
+        max_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
+        ..Default::default()
+    };
+    let rollup_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
+
+    // Wait for rollup task to start:
+    let port = port_rx.await.unwrap();
+    let test_client = init_test_rollup(port).await;
+
+    test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 1, None).await;
+
+    // in a single block, deploy simple storage contract, make eip7702 tx that delegates to the contract
+    // then call the contract to set a value and get it back over eip7702 tx
+
+    let contract = SimpleStorageContract::default();
+
+    let _deploy_tx = test_client
+        .deploy_contract(contract.byte_code(), None)
+        .await
+        .unwrap();
+
+    let contract_address = test_client.from_addr.create(0);
+
+    // random signer for authorization list
+    let delegating_signer = PrivateKeySigner::random();
+
+    let authorization = Authorization {
+        chain_id: U256::from(test_client.chain_id),
+        address: contract_address,
+        nonce: 0,
+    };
+
+    let signature = delegating_signer.sign_hash_sync(&authorization.signature_hash())?;
+    let signed_authorization = authorization.into_signed(signature);
+
+    let set_code_tx = test_client
+        .send_eip7702_transaction(Address::ZERO, vec![], None, vec![signed_authorization])
+        .await
+        .unwrap();
+
+    test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 2, None).await;
+
+    let single_auth_receipt = test_client
+        .eth_get_transaction_receipt(*set_code_tx.tx_hash())
+        .await
+        .unwrap();
+
+    let receipts = test_client
+        .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest))
+        .await;
+
+    assert_eq!(receipts.len(), 2);
+
+    // all successful
+    assert!(receipts.iter().all(|r| r.inner.inner.status()));
+
+    // if we don't do this in a separate block, gas estimation is off since the delegation is not done yet
+    // this also shows estimate gas works
+    let _set_storage_tx = test_client
+        .contract_transaction(
+            delegating_signer.address(),
+            contract.set_call_data(11),
+            None,
+        )
+        .await;
+
+    test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 3, None).await;
+
+    let receipts = test_client
+        .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest))
+        .await;
+
+    assert_eq!(receipts.len(), 1);
+
+    // all successful
+    assert!(receipts.iter().all(|r| r.inner.inner.status()));
+
+    assert_eq!(
+        test_client
+            .eth_get_code(delegating_signer.address(), None)
+            .await
+            .unwrap(),
+        Into::<Bytes>::into(
+            [
+                Bytes::from_hex("0xef0100").unwrap(),
+                Bytes::from(contract_address.to_vec())
+            ]
+            .concat()
+        )
+    );
+
+    // this also shows eth_call works
+    let get_storage_tx: U256 = test_client
+        .contract_call(delegating_signer.address(), contract.get_call_data(), None)
+        .await
+        .unwrap();
+
+    assert_eq!(get_storage_tx, U256::from(11));
+
+    // now let's try a failing auth
+    // followed by a clear delegation tx
+    {
+        let auth = Authorization {
+            chain_id: U256::from(test_client.chain_id),
+            address: contract_address,
+            nonce: 0, // wrong nonce
+        };
+
+        let signature = delegating_signer.sign_hash_sync(&auth.signature_hash())?;
+        let signed_auth_wrong_nonce = auth.into_signed(signature);
+
+        let auth = Authorization {
+            chain_id: U256::from(test_client.chain_id),
+            address: Address::ZERO,
+            nonce: 1,
+        };
+
+        let signature = delegating_signer.sign_hash_sync(&auth.signature_hash())?;
+        let signed_auth_clear_delegation = auth.into_signed(signature);
+
+        let wrong_nonce_and_clear_code_tx = test_client
+            .send_eip7702_transaction(
+                Address::ZERO,
+                vec![],
+                None,
+                vec![signed_auth_wrong_nonce, signed_auth_clear_delegation],
+            )
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&test_client, 4, None).await;
+
+        let signed_auth_clear_delegation_tx_receipt = test_client
+            .eth_get_transaction_receipt(*wrong_nonce_and_clear_code_tx.tx_hash())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            test_client
+                .eth_get_transaction_count(delegating_signer.address(), None)
+                .await
+                .unwrap(),
+            2
+        );
+
+        assert_eq!(
+            test_client
+                .eth_get_code(delegating_signer.address(), None)
+                .await
+                .unwrap(),
+            Bytes::new()
+        );
+
+        // we expect the second eip7702 tx to have
+        // smaller diff size than the first one
+        // since the first auth in second set code tx
+        // is discarded due to nonce check, there is only one
+        // state change on the authority and as code_hash is cleared and set to None
+        // the state diff is smaller
+        assert!(
+            U64::from_str(
+                signed_auth_clear_delegation_tx_receipt
+                    .other
+                    .get("l1DiffSize")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            )
+            .unwrap()
+                < U64::from_str(
+                    single_auth_receipt
+                        .other
+                        .get("l1DiffSize")
+                        .unwrap()
+                        .as_str()
+                        .unwrap()
+                )
+                .unwrap()
+        );
+
+        let auth = Authorization {
+            chain_id: U256::from(test_client.chain_id),
+            address: contract_address,
+            nonce: 2,
+        };
+
+        let signature = delegating_signer.sign_hash_sync(&auth.signature_hash())?;
+        let signed_auth = auth.into_signed(signature);
+
+        let set_code_tx = test_client
+            .send_eip7702_transaction(Address::ZERO, vec![], None, vec![signed_auth])
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&test_client, 5, None).await;
+
+        let last_receipt = test_client
+            .eth_get_transaction_receipt(*set_code_tx.tx_hash())
+            .await
+            .unwrap();
+
+        // remove L1_FEE_OVERHEAD = 2
+        // compressed diff sizes are:
+        // ((53 + 1 * 85) * 32 // 100) = 44 uncompressed
+        // 21 compressed
+        // ((53 + 1 * 85) * 32 // 100 + 1 * 32) = 76 uncompressed
+        // 36 compressed diff size
+        // difference of 32 bytes is the first time adding authority account info
+        // to state
+        // setting back should yield same diff - creation of the authority
+        assert_eq!(
+            U64::from_str(
+                last_receipt
+                    .other
+                    .get("l1DiffSize")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            )
+            .unwrap()
+                + U64::from(15),
+            U64::from_str(
+                single_auth_receipt
+                    .other
+                    .get("l1DiffSize")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            )
+            .unwrap()
+        );
+    }
+
+    // combine access list with eip7702 tx
+    {
+        // random signer for authorization list
+        let new_signer = PrivateKeySigner::random();
+
+        let authorization = Authorization {
+            chain_id: U256::ZERO, // let's also show chain id 0 works
+            address: contract_address,
+            nonce: 0,
+        };
+
+        let signature = new_signer.sign_hash_sync(&authorization.signature_hash())?;
+        let signed_authorization = authorization.into_signed(signature);
+
+        let _set_code_tx = test_client
+            .send_eip7702_transaction(
+                new_signer.address(),
+                SimpleStorageContract::default().set_call_data(100),
+                None,
+                vec![signed_authorization],
+            )
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&test_client, 6, None).await;
+
+        assert_eq!(
+            test_client
+                .contract_call::<U256>(new_signer.address(), contract.get_call_data(), None)
+                .await
+                .unwrap(),
+            U256::from(100)
+        );
+
+        assert_eq!(
+            test_client
+                .eth_get_code(new_signer.address(), None)
+                .await
+                .unwrap(),
+            Into::<Bytes>::into(
+                [
+                    Bytes::from_hex("0xef0100").unwrap(),
+                    Bytes::from(contract_address.to_vec())
+                ]
+                .concat()
+            )
+        );
+
+        // deploy caller contract
+        let caller_contract = CallerContract::default();
+
+        let deploy_tx = test_client
+            .deploy_contract(caller_contract.byte_code(), None)
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&test_client, 7, None).await;
+
+        let caller_contract_address = deploy_tx
+            .get_receipt()
+            .await
+            .unwrap()
+            .contract_address
+            .unwrap();
+
+        let tx_req = TransactionRequest::default()
+            .from(test_client.from_addr)
+            .to(caller_contract_address)
+            .input(
+                caller_contract
+                    .call_set_call_data(new_signer.address(), 500)
+                    .into(),
+            );
+
+        let gas = test_client.eth_estimate_gas(tx_req.clone()).await.unwrap();
+
+        let access_list = test_client
+            .eth_create_access_list(tx_req.clone())
+            .await
+            .unwrap()
+            .access_list;
+
+        let tx_req = tx_req.access_list(access_list);
+
+        let gas_with_access_list = test_client.eth_estimate_gas(tx_req.clone()).await.unwrap();
+
+        assert!(gas > gas_with_access_list);
+    }
+
+    // show multiple authorizations in a single tx have bigger diff size
+    {
+        let mut signed_auths = vec![];
+
+        for _ in 0..5 {
+            let signer = PrivateKeySigner::random();
+
+            let auth = Authorization {
+                chain_id: U256::from(test_client.chain_id),
+                address: contract_address,
+                nonce: 0,
+            };
+
+            let signature = signer.sign_hash_sync(&auth.signature_hash())?;
+            signed_auths.push(auth.into_signed(signature));
+        }
+
+        let set_for_multiple_tx = test_client
+            .send_eip7702_transaction(Address::ZERO, vec![], None, signed_auths)
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&test_client, 8, None).await;
+
+        let multiple_receipt = test_client
+            .eth_get_transaction_receipt(*set_for_multiple_tx.tx_hash())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            // ((53 + 5 * 85) * 32 // 100 + 5 * 32) * 48 // 100 + 2
+            // 151
+            U64::from_str(
+                multiple_receipt
+                    .other
+                    .get("l1DiffSize")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            )
+            .unwrap(),
+            // ((53 + 1 * 85) * 32 // 100 + 1 * 32) * 48 // 100 + 2
+            // 38
+            U64::from_str(
+                single_auth_receipt
+                    .other
+                    .get("l1DiffSize")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            )
+            .unwrap()
+                + U64::from(113)
+        )
+    }
+
+    rollup_task.graceful_shutdown();
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_safe_finalized_tags() {
+    //citrea::initialize_logging(tracing::Level::INFO);
+
+    // Helper function to compare safe and finalized blocks with expected heights
+    // Asserts that the height of the blocks we get by safe and finalized tags match the last committed and proven heights.
+    // Asserts that the blocks we get by safe and finalized tags matches the block at expected heights.
+    // Also checks that for the test address, the nonce at the safe and finalized blocks matches the expected nonce at those heights.
+    async fn compare_with_numbered_params(
+        test_client: &TestClient,
+        expected_safe_block_height: u64,
+        expected_finalized_block_height: u64,
+        test_address: alloy_primitives::Address,
+    ) {
+        let safe_block = test_client
+            .eth_get_block_by_number(Some(BlockNumberOrTag::Safe))
+            .await;
+        let finalized_block = test_client
+            .eth_get_block_by_number(Some(BlockNumberOrTag::Finalized))
+            .await;
+
+        // Check if the safe and finalized blocks match the committed and proven heights
+        let committed_height = test_client.get_last_committed_l2_height().await;
+        assert_eq!(
+            committed_height.unwrap_or_default().height,
+            safe_block.header.number
+        ); // use unwrap_or_default to handle the no commitment case
+        let proven_height = test_client.get_last_proven_l2_height().await;
+        assert_eq!(
+            proven_height.unwrap_or_default().height,
+            finalized_block.header.number
+        ); // use unwrap_or_default to handle the no proof case
+
+        // Check if the safe and finalized blocks match the blocks at expected heights
+        let expected_safe_block = test_client
+            .eth_get_block_by_number(Some(BlockNumberOrTag::Number(expected_safe_block_height)))
+            .await;
+        let expected_finalized_block = test_client
+            .eth_get_block_by_number(Some(BlockNumberOrTag::Number(
+                expected_finalized_block_height,
+            )))
+            .await;
+        assert_eq!(safe_block, expected_safe_block);
+        assert_eq!(finalized_block, expected_finalized_block);
+
+        // To test set_state_to_end_of_evm_block_by_block_id
+        let expected_safe_block_nonce = test_client
+            .eth_get_transaction_count(
+                test_address,
+                Some(BlockId::Number(BlockNumberOrTag::Number(
+                    expected_safe_block_height,
+                ))),
+            )
+            .await
+            .unwrap();
+        let expected_finalized_block_nonce = test_client
+            .eth_get_transaction_count(
+                test_address,
+                Some(BlockId::Number(BlockNumberOrTag::Number(
+                    expected_finalized_block_height,
+                ))),
+            )
+            .await
+            .unwrap();
+        println!(
+            "Expected safe block nonce: {}, expected finalized block nonce: {}",
+            expected_safe_block_nonce, expected_finalized_block_nonce
+        );
+
+        let safe_block_nonce = test_client
+            .eth_get_transaction_count(test_address, Some(BlockId::Number(BlockNumberOrTag::Safe)))
+            .await
+            .unwrap();
+        let finalized_block_nonce = test_client
+            .eth_get_transaction_count(
+                test_address,
+                Some(BlockId::Number(BlockNumberOrTag::Finalized)),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(finalized_block_nonce, expected_finalized_block_nonce);
+        assert_eq!(safe_block_nonce, expected_safe_block_nonce);
+    }
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let prover_db_dir = storage_dir.path().join("prover").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+    let sequencer_config = SequencerConfig::default();
+
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let test_client = make_test_client(seq_port).await.unwrap();
+
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
+
+    let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_config = create_default_rollup_config(
+        true,
+        &prover_db_dir,
+        &da_db_dir,
+        NodeMode::Prover(seq_port),
+        None,
+    );
+
+    let prover_node_task = start_rollup(
+        prover_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        Some(BatchProverConfig {
+            proving_mode: citrea_common::ProverGuestRunConfig::Execute,
+            // Make it impossible for proving to happen
+            proof_sampling_number: 1_000_000,
+            enable_recovery: true,
+        }),
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
+
+    let prover_node_port = prover_node_port_rx.await.unwrap();
+
+    let prover_client = make_test_client(prover_node_port).await.unwrap();
+
+    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_config = create_default_rollup_config(
+        true,
+        &fullnode_db_dir,
+        &da_db_dir,
+        NodeMode::FullNode(seq_port),
+        None,
+    );
+    let full_node_task = start_rollup(
+        full_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        None,
+        None,
+        false,
+    )
+    .await;
+
+    let full_node_port = full_node_port_rx.await.unwrap();
+    let full_node_client = make_test_client(full_node_port).await.unwrap();
+
+    let tx_sender = test_client.from_addr;
+
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+
+    da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 2, None).await;
+
+    wait_for_l2_block(&full_node_client, 2, None).await;
+    // No commitment yet, so safe and finalized blocks should be the same, and equal to 0
+    compare_with_numbered_params(&full_node_client, 0, 0, tx_sender).await;
+
+    // send the first transaction to increase the nonce
+    let _ = test_client
+        .send_eth(Address::random(), None, None, None, 1_000_000)
+        .await
+        .unwrap();
+
+    test_client.send_publish_batch_request().await;
+    test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&full_node_client, 4, None).await;
+
+    // wait for commitment at block 3, mockda produces block when it receives a transaction, hence 3
+    let commitments = wait_for_commitment(&da_service, 3, None).await;
+    assert_eq!(commitments.len(), 1);
+    assert_eq!(commitments[0].l2_end_block_number, 4);
+
+    // wait for prover to see commitment, since sampling is too high, proving won't be triggered here
+    wait_for_prover_l1_height(&prover_client, 3, None)
+        .await
+        .unwrap();
+    wait_for_prover_l1_height(&full_node_client, 3, None)
+        .await
+        .unwrap();
+
+    // Full node sees the commitment with l2 end height 4
+    // So the safe block should be 4, and finalized block should be 0
+    // since no proof was produced yet
+    compare_with_numbered_params(&full_node_client, 4, 0, tx_sender).await;
+
+    // Trigger proving via the RPC endpoint
+    let job_ids = prover_client.batch_prover_prove(None).await;
+    assert_eq!(job_ids.len(), 1);
+    let job_id = job_ids[0];
+
+    // wait here until we see from prover's rpc that it finished proving
+    wait_for_prover_job(&prover_client, job_id, None)
+        .await
+        .unwrap();
+    wait_for_proof(&full_node_client, 4, None).await;
+
+    let proofs = full_node_client
+        .ledger_get_verified_batch_proofs_by_slot_height(4)
+        .await
+        .unwrap();
+    assert_eq!(proofs.len(), 1);
+    let proof = &proofs[0];
+    assert_eq!(proof.proof_output.last_l2_height.to::<u64>(), 4);
+
+    // Now that the full node has the proof, finalized block should be 4
+    // and safe block should be 4 as well since there is no new commitment
+    compare_with_numbered_params(&full_node_client, 4, 4, tx_sender).await;
+
+    // send a second transaction to increase the nonce
+    let _ = test_client
+        .send_eth(Address::random(), None, None, None, 1_000_000)
+        .await
+        .unwrap();
+    for _ in 0..4 {
+        // publish a batch, this will create a new commitment
+        test_client.send_publish_batch_request().await;
+    }
+    let commitments = wait_for_commitment(&da_service, 5, None).await;
+    assert_eq!(commitments.len(), 1);
+    assert_eq!(commitments[0].l2_end_block_number, 8);
+
+    wait_for_prover_l1_height(&full_node_client, 5, None)
+        .await
+        .unwrap();
+    // As we have a new commitment with l2 end block 8, the safe block should be 8,
+    // and finalized block should be 4, since we haven't proven the new commitment yet
+    compare_with_numbered_params(&full_node_client, 8, 4, tx_sender).await;
+
+    seq_task.graceful_shutdown();
+    prover_node_task.graceful_shutdown();
+    full_node_task.graceful_shutdown();
 }

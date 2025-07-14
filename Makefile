@@ -1,7 +1,6 @@
 # The release tag of https://github.com/ethereum/tests to use for EF tests
-EF_TESTS_URL := https://github.com/chainwayxyz/ef-tests/archive/develop.tar.gz
+EF_TESTS_URL := https://github.com/ethereum/tests/archive/refs/tags/v16.0.tar.gz
 EF_TESTS_DIR := crates/evm/ethereum-tests
-CITREA_E2E_TEST_BINARY := $(CURDIR)/target/debug/citrea
 PARALLEL_PROOF_LIMIT := 1
 TEST_FEATURES := --features testing
 BATCH_OUT_PATH := resources/guests/risc0/
@@ -11,10 +10,6 @@ LIGHT_OUT_PATH := resources/guests/risc0/
 help: ## Display this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-.PHONY: build-risc0-docker
-build-risc0-docker:
-	$(MAKE) -C guests/risc0 batch-proof-bitcoin-docker OUT_PATH=$(BATCH_OUT_PATH)
-	$(MAKE) -C guests/risc0 light-client-bitcoin-docker OUT_PATH=$(LIGHT_OUT_PATH)
 
 .PHONY: build-sp1
 build-sp1:
@@ -24,12 +19,8 @@ build-sp1:
 build: ## Build the project
 	@cargo build
 
-.PHONY: build-test
-build-test: $(EF_TESTS_DIR) ## Build the project
-	@cargo build --locked $(TEST_FEATURES)
-
-build-reproducible: build-risc0-docker build-sp1 ## Build the project in release mode with reproducible guest builds
-	@cargo build --release --locked
+build-reproducible: build-sp1 ## Build the project in release mode with reproducible guest builds
+	REPR_GUEST_BUILD=1 cargo build --release --locked
 
 build-release: ## Build the project in release mode
 	@cargo build --release --locked
@@ -52,19 +43,18 @@ clean-docker:
 
 clean-all: clean clean-node clean-txs
 
-test-legacy: ## Runs test suite with output from tests printed
-	@cargo test -- --nocapture -Zunstable-options --report-time
+test-nocapture: ## Runs test suite with output from tests printed
+	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo nextest run --no-capture --retries 0 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
-test-ci:
+test: $(EF_TESTS_DIR) ## Runs test suite using nextest
 	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo nextest run -j15 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
-coverage-ci:
-	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo llvm-cov --locked --lcov --output-path lcov.info nextest -j10 --workspace --all-features 
-
-test: build-test ## Runs test suite using next test
-	$(MAKE) test-ci -- $(filter-out $@,$(MAKECMDGOALS))
-
-coverage: build-test coverage-ci ## Coverage in lcov format
+coverage: $(EF_TESTS_DIR) ## Coverage in lcov format
+	CITREA_CLI_E2E_TEST_BINARY=$(CURDIR)/target/llvm-cov-target/debug/citrea-cli \
+	CITREA_E2E_TEST_BINARY=$(CURDIR)/target/llvm-cov-target/debug/citrea \
+	RISC0_DEV_MODE=1 \
+	PARALLEL_PROOF_LIMIT=1 \
+	cargo llvm-cov --locked --lcov --output-path lcov.info nextest -j10 --workspace --all-features
 
 coverage-html: ## Coverage in HTML format
 	cargo llvm-cov --locked --all-features --html nextest --workspace --all-features
@@ -79,12 +69,16 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	$(MAKE) install-risc0
 	rustup target add thumbv6m-none-eabi
 	rustup component add llvm-tools-preview
-	$(MAKE) install-sp1
+	# $(MAKE) install-sp1
 
 install-risc0:
-	cargo install --version 1.7.0 cargo-binstall
-	cargo binstall --no-confirm cargo-risczero@1.2.5
-	cargo risczero install --version r0.1.81.0
+	curl -L https://risczero.com/install | bash && \
+	([ -f $$HOME/.bashrc ] && source $$HOME/.bashrc || true) && \
+	([ -f $$HOME/.zshrc ] && source $$HOME/.zshrc || true) && \
+	rzup install cargo-risczero 2.1.0 && \
+	rzup install cpp && \
+	rzup install r0vm 2.1.0 && \
+	rzup install rust 1.85.0 && \
 
 install-sp1: ## Install necessary SP1 toolchain
 	curl -L https://sp1.succinct.xyz | bash
@@ -99,8 +93,8 @@ lint:  ## cargo check and clippy. Skip clippy on guest code since it's not suppo
 
 lint-fix:  ## dprint fmt, cargo fmt, fix and clippy. Skip clippy on guest code since it's not supported by risc0
 	dprint fmt
-	cargo fix --allow-dirty
-	SKIP_GUEST_BUILD=1 cargo clippy --fix --allow-dirty
+	cargo fix --allow-dirty --all-features
+	SKIP_GUEST_BUILD=1 cargo clippy --fix --allow-dirty --all-features
 	cargo +nightly fmt --all
 
 check-features: ## Checks that project compiles with all combinations of features.

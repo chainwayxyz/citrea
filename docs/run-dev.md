@@ -43,7 +43,7 @@ Run on local Bitcoin network.
 Run Bitcoin Regtest:
 
 ```sh
-bitcoind -regtest -txindex=1 -addresstype=bech32m
+bitcoind -regtest -txindex=1 -addresstype=bech32m -fallbackfee=0.0001
 ```
 
 Or using docker:
@@ -105,7 +105,7 @@ _Optional_: Run batch prover:
 ./target/debug/citrea --dev --da-layer bitcoin --rollup-config-path resources/configs/bitcoin-regtest/batch_prover_rollup_config.toml --batch-prover resources/configs/bitcoin-regtest/batch_prover_config.toml --genesis-paths resources/genesis/bitcoin-regtest
 ```
 
-If you want to test proofs, make sure to set `proof_sampling_number` in `resources/configs/bitcoin-regtest/batch_prover_config.toml` to 0, and you can lower the `min_l2_blocks_per_commitment` to a number between 5-50, as higher numbers than that takes too long even if you run the prover in execute mode.
+If you want to test proofs, make sure to set `proof_sampling_number` in `resources/configs/bitcoin-regtest/batch_prover_config.toml` to 0, and you can set the `max_l2_blocks_per_commitment` to a number between 5-50, as higher numbers than that takes too long even if you run the prover in execute mode.
 
 To publish blocks on Bitcoin Regtest, run the sequencer with `test_mode` in sequencer config set to false and blocks will be published every two seconds.
 
@@ -121,6 +121,35 @@ To delete sequencer or full nodes databases run:
 make clean-node
 ```
 
+#### Notes
+If you want to run both the sequencer and the batch prover, it's a good idea to create different bitcoin wallets for each.
+
+Then the wallets can be used separately by modifying rollup_config.toml files for both nodes like so:
+
+```toml
+# sequencer_rollup_config.toml
+[da]
+# node_url = "HOST:PORT/wallet-name"
+node_url = "0.0.0.0:18433/sequencer-wallet"
+
+# batch_prover_rollup_config.toml
+[da]
+# node_url = "HOST:PORT/wallet-name"
+node_url = "0.0.0.0:18433/batch-prover-wallet"
+```
+
+Both wallets should be funded by running
+
+```sh
+bitcoin-cli -regtest -rpcwallet=wallet-name -generate 201
+```
+
+If your testing of the local network requires mining sequencer commitments and batch proofs, run in a separate terminal:
+
+```sh
+bitcoin-cli -regtest -generate
+```
+
 ## Testing
 
 To run tests:
@@ -129,4 +158,10 @@ To run tests:
 make test
 ```
 
-This will run [`cargo nextest`](https://nexte.st).
+This will run [`cargo nextest`](https://nexte.st), which will run all Rust tests inside the repo. As our e2e tests use docker, docker engine should be on when this is ran. 
+
+To run smart contract tests:
+```sh
+cd crates/evm/src/evm/system_contracts
+forge test
+```

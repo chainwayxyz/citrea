@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.7.2 (2025-05-2)
+Release for bridge smart contract upgrade and various bug fixes.
+
+Node operators need to rescan L1:
+
+```sh
+# use citrea-cli v0.7.2
+citrea-cli --rollback --node-type fullnode --db-path path/to/db --l2-target 9999999999 --l1-target 74247 --sequencer-commitment-index 0
+
+citrea-cli clear-pending --db-path path/to/dbs 
+```
+
+
+## v0.7.1 (2025-05-2)
+Release for risc0 v2.0.2 fix for heap corruption bug.
+
+Node operators need to rescan L1:
+
+```sh
+# use citrea-cli v0.7.1
+citrea-cli --rollback --node-type fullnode --db-path path/to/db --l2-target 9999999999 --l1-target 74247 --sequencer-commitment-index 0
+
+citrea-cli clear-pending --db-path path/to/dbs 
+```
+
+## v0.7.0 (2025-04-18)
+Release for Citrea Tangerine upgrade. Full nodes needs to be resynced.
+- EVM Pectra support (except eip-2935)
+- p256r1 precompile.
+- Schnorr Verify precompile.
+- Rewrite of EVM storage layout, resulting smaller state diffs.
+- Rewrite of L2 block and transaction structures.
+- Increased block gas limit to 10 million gas.
+- Constant sized light client proof.
+
+
 ## v0.6.1 (2025-1-21)
 - Fix LedgerDB migration process ([#1730](https://github.com/chainwayxyz/citrea/pull/1730))
 
@@ -9,7 +45,7 @@ Citrea Kumquat upgrade will go live on testnet at block 5546000, activating many
   - BLOBBASEFEE returns 1 always as blob transactions are not supported.
   - KZG precompile is not activated.
 - Offchain smart contracts.
-  - Smart contract bytecodes are not commited to the state any more, reducing transaction costs when deploying smart contracts.
+  - Smart contract bytecodes are not committed to the state any more, reducing transaction costs when deploying smart contracts.
 - Reduced diff size estimation by accounting for brotli compression discount, resulting in lower transaction costs for all transactions.
 - Light client proofs are activated.
   - Succinct ZK proofs for any actor to know Citrea's final state trustlessly by verifying a single ZK proof.
@@ -24,7 +60,7 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 
 ## v0.5.5 (2024-12-9)
 - 100 wei constant priority fee suggestion from nodes. ([#1561](https://github.com/chainwayxyz/citrea/pull/1561))
-- Sequencer checks compressed diff size of a commitment before commiting. ([#1349](https://github.com/chainwayxyz/citrea/pull/1349) and [#1557](https://github.com/chainwayxyz/citrea/pull/1557))
+- Sequencer checks compressed diff size of a commitment before committing. ([#1349](https://github.com/chainwayxyz/citrea/pull/1349) and [#1557](https://github.com/chainwayxyz/citrea/pull/1557))
 - `prover_prove` RPC method now available. ([#1335](https://github.com/chainwayxyz/citrea/pull/1335))
 - Prover can now prove locally. ([#1326](https://github.com/chainwayxyz/citrea/pull/1326))
 - Prover, sequencer and node configs can now be passed through environment variables. ([#1320](https://github.com/chainwayxyz/citrea/pull/1320))

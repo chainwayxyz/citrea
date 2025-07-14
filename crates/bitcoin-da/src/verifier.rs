@@ -1,4 +1,5 @@
-use citrea_primitives::compression::decompress_blob;
+//! This module provides the Bitcoin DA verifier implementation.
+
 use crypto_bigint::{Encoding, U256};
 use itertools::Itertools;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, LatestDaState};
@@ -14,41 +15,59 @@ use crate::spec::blob::BlobWithSender;
 use crate::spec::header::HeaderWrapper;
 use crate::spec::BitcoinSpec;
 
+/// The minimum size in bytes of the witness commitment in a block's coinbase transaction.
+pub const MINIMUM_WITNESS_COMMITMENT_SIZE: usize = 38;
+/// A magic constant used to signal a valid SegWit commitment.
 pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
 
 /// An epoch should be two weeks (represented as number of seconds)
-/// seconds/minute * minutes/hour * hours/day * 14 days
 const EXPECTED_EPOCH_TIMESPAN: u32 = 60 * 60 * 24 * 14;
+
+/// While the regular expected epoch timespan is 14 days (10 minutes per block),
+/// in our custom signet it is ~5.5 hours (10 seconds per block)
+const EXPECTED_EPOCH_TIMESPAN_SIGNET: u32 = EXPECTED_EPOCH_TIMESPAN / 60;
 
 /// Number of blocks per epoch
 const BLOCKS_PER_EPOCH: u64 = 2016;
 
+/// The Bitcoin verifier is responsible for verifying the integrity of Bitcoin blocks
+/// and Citrea transactions within those blocks.
 #[derive(Debug)]
 pub struct BitcoinVerifier {
+    /// The prefix of wtxids
     reveal_tx_prefix: Vec<u8>,
 }
 
+/// Validation errors that can occur during the verification of a Bitcoin block.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ValidationError {
+    /// The block is invalid.
     InvalidBlock,
-    NonMatchingScript,
+    /// The segwit commitment in the coinbase transaction is invalid.
     InvalidSegWitCommitment,
-    ValidBlobNotFoundInBlobs,
-    BlobWasTamperedWith,
-    IncorrectSenderInBlob,
-    BlobContentWasModified,
-    IncorrectCompletenessProof,
+    /// The relevant transaction is not present in the completeness proof.
     RelevantTxNotInProof,
-    IncorrectInclusionProof,
-    FailedToCalculateMerkleRoot,
-    RelevantTxNotFoundInBlock,
+    /// The txid commitment in the block header does not match the inclusion proof.
+    IncorrectTxidCommitment,
+    /// The witness commitment is incorrect.
+    IncorrectWitnessCommitment,
+    /// The block hash is invalid.
     InvalidBlockHash,
+    /// The block heights are not consecutive.
     NonConsecutiveBlockHeight,
+    /// The witness commitment structure is invalid.
+    InvalidWitnessCommitmentStructure,
+    /// The previous block hash does not match the expected value.
     InvalidPrevBlockHash,
+    /// The block bits are invalid.
     InvalidBlockBits,
+    /// The target hash is invalid.
     InvalidTargetHash,
+    /// The timestamp in the block header is invalid.
     InvalidTimestamp,
+    /// The block header's inclusion tx count does not match the number of transactions in the inclusion proof.
     HeaderInclusionTxCountMismatch,
+    /// Failed to deserialize complete chunks.
     FailedToDeserializeCompleteChunks,
 }
 
@@ -99,15 +118,14 @@ impl DaVerifier for BitcoinVerifier {
                 match parsed_tx {
                     ParsedTransaction::Complete(complete) => {
                         if let Some(hash) = complete.get_sig_verified_hash() {
-                            let Ok(blob) = decompress_blob(&complete.body) else {
-                                continue;
-                            };
+                            // complete.body is compressed, but we'll leave the compression to
+                            // circuit logic
 
                             blobs.push(BlobWithSender::new(
-                                blob,
+                                complete.body,
                                 complete.public_key,
                                 hash,
-                                Some(*wtxid),
+                                *wtxid,
                             ))
                         }
                     }
@@ -117,7 +135,7 @@ impl DaVerifier for BitcoinVerifier {
                                 aggregate.body,
                                 aggregate.public_key,
                                 hash,
-                                Some(*wtxid),
+                                *wtxid,
                             ))
                         }
                     }
@@ -127,7 +145,7 @@ impl DaVerifier for BitcoinVerifier {
                             // chunk sender and hash irrelevant
                             vec![],
                             [0; 32],
-                            Some(*wtxid),
+                            *wtxid,
                         ));
                     }
                     ParsedTransaction::BatchProverMethodId(method_id) => {
@@ -136,7 +154,7 @@ impl DaVerifier for BitcoinVerifier {
                                 method_id.body,
                                 method_id.public_key,
                                 hash,
-                                Some(*wtxid),
+                                *wtxid,
                             ))
                         }
                     }
@@ -146,7 +164,7 @@ impl DaVerifier for BitcoinVerifier {
                                 seq_comm.body,
                                 seq_comm.public_key,
                                 hash,
-                                Some(*wtxid),
+                                *wtxid,
                             ));
                         }
                     }
@@ -164,13 +182,15 @@ impl DaVerifier for BitcoinVerifier {
         let coinbase_tx = &inclusion_proof.coinbase_tx;
         // If there are more than one scriptPubKey matching the pattern,
         // the one with highest output index is assumed to be the commitment.
-        // That  is why the iterator is reversed.
-        let commitment_idx = coinbase_tx.output.iter().rev().position(|output| {
-            output
-                .script_pubkey
-                .as_bytes()
-                .starts_with(WITNESS_COMMITMENT_PREFIX)
+        // Use rposition to match the output with the highest index matching the size and prefix requirements
+        let commitment_idx = coinbase_tx.output.iter().rposition(|output| {
+            output.script_pubkey.as_bytes().len() >= MINIMUM_WITNESS_COMMITMENT_SIZE
+                && output
+                    .script_pubkey
+                    .as_bytes()
+                    .starts_with(WITNESS_COMMITMENT_PREFIX)
         });
+
         match commitment_idx {
             // If commitment does not exist
             None => {
@@ -186,11 +206,15 @@ impl DaVerifier for BitcoinVerifier {
                     return Err(ValidationError::InvalidBlock);
                 }
             }
-            Some(mut commitment_idx) => {
+            Some(commitment_idx) => {
                 let merkle_root =
                     merkle_tree::BitcoinMerkleTree::new(inclusion_proof.wtxids).root();
 
-                let input_witness_value = coinbase_tx.input[0].witness.iter().next().unwrap();
+                let input_witness_value = coinbase_tx.input[0]
+                    .witness
+                    .iter()
+                    .next()
+                    .ok_or(ValidationError::InvalidWitnessCommitmentStructure)?;
 
                 let mut vec_merkle = Vec::with_capacity(input_witness_value.len() + 32);
 
@@ -203,10 +227,9 @@ impl DaVerifier for BitcoinVerifier {
                 // check if the commitment is correct
                 // on signet there is an additional commitment after the segwit commitment
                 // so we check only the first 32 bytes after commitment header (bytes [2, 5])
-                commitment_idx = coinbase_tx.output.len() - commitment_idx - 1; // The index is reversed
                 let script_pubkey = coinbase_tx.output[commitment_idx].script_pubkey.as_bytes();
                 if script_pubkey[6..38] != commitment {
-                    return Err(ValidationError::IncorrectInclusionProof);
+                    return Err(ValidationError::IncorrectWitnessCommitment);
                 }
 
                 if merkle_root != block_header.txs_commitment {
@@ -223,12 +246,19 @@ impl DaVerifier for BitcoinVerifier {
 
         // Check that the tx root in the block header matches the tx root in the inclusion proof.
         if block_header.merkle_root() != claimed_root {
-            return Err(ValidationError::IncorrectInclusionProof);
+            return Err(ValidationError::IncorrectTxidCommitment);
         }
 
         Ok(blobs)
     }
 
+    /// This function verifies the header chain of Bitcoin blocks
+    /// applying the rules of the specified network.
+    /// The rules may differ between networks such as Mainnet, Testnet, Devnet, etc.
+    /// It checks for common header chain rules first, then for the specific rules of the network.
+    ///
+    /// Returns the latest data availability state in case of success,
+    /// or an error if the verification fails.
     fn verify_header_chain(
         &self,
         latest_da_state: Option<&LatestDaState>,
@@ -272,6 +302,7 @@ impl DaVerifier for BitcoinVerifier {
 }
 
 impl BitcoinVerifier {
+    /// Verifies the header chain for the mainnet.
     fn verify_header_chain_mainnet(
         &self,
         latest_da_state: &LatestDaState,
@@ -310,6 +341,7 @@ impl BitcoinVerifier {
                 block_header.time().secs() as u32,
                 block_header.bits(),
                 network_constants.max_target,
+                EXPECTED_EPOCH_TIMESPAN,
             );
             target_to_bits(&next_target)
         } else {
@@ -330,6 +362,7 @@ impl BitcoinVerifier {
         })
     }
 
+    /// Verifies the header chain for the testnet4 network.
     fn verify_header_chain_testnet4(
         &self,
         latest_da_state: &LatestDaState,
@@ -376,6 +409,7 @@ impl BitcoinVerifier {
                 // to be equal to current block bits anyway.
                 latest_da_state.current_target_bits,
                 network_constants.max_target,
+                EXPECTED_EPOCH_TIMESPAN,
             );
             target_to_bits(&next_target)
         } else {
@@ -396,6 +430,7 @@ impl BitcoinVerifier {
         })
     }
 
+    /// Verifies the header chain for the signet network.
     fn verify_header_chain_signet(
         &self,
         latest_da_state: &LatestDaState,
@@ -434,6 +469,7 @@ impl BitcoinVerifier {
                 block_header.time().secs() as u32,
                 block_header.bits(),
                 network_constants.max_target,
+                EXPECTED_EPOCH_TIMESPAN_SIGNET,
             );
             target_to_bits(&next_target)
         } else {
@@ -454,6 +490,7 @@ impl BitcoinVerifier {
         })
     }
 
+    /// Verifies the header chain for the regtest network.
     fn verify_header_chain_regtest(
         &self,
         latest_da_state: &LatestDaState,
@@ -485,6 +522,14 @@ impl BitcoinVerifier {
         })
     }
 
+    /// Verifies the common rules for Bitcoin block headers.
+    /// This includes:
+    /// 1. Verifying the block hash
+    /// 2. Ensuring block heights are consecutive
+    /// 3. Checking the previous block hash matches the latest DA state
+    /// 4. Validating the block bits
+    /// 5. Verifying the proof of work against the target hash
+    /// 6. Validating the timestamp against the median of the previous 11 timestamps
     fn verify_header_chain_common(
         &self,
         block_header: &HeaderWrapper,
@@ -603,19 +648,20 @@ fn calculate_new_difficulty(
     last_timestamp: u32,
     current_target_bits: u32,
     max_target: U256,
+    expected_epoch_timespan: u32,
 ) -> [u8; 32] {
     // Step 1: Calculate the actual timespan of the epoch
     let mut actual_timespan = last_timestamp - epoch_start_time;
-    if actual_timespan < EXPECTED_EPOCH_TIMESPAN / 4 {
-        actual_timespan = EXPECTED_EPOCH_TIMESPAN / 4;
-    } else if actual_timespan > EXPECTED_EPOCH_TIMESPAN * 4 {
-        actual_timespan = EXPECTED_EPOCH_TIMESPAN * 4;
+    if actual_timespan < expected_epoch_timespan / 4 {
+        actual_timespan = expected_epoch_timespan / 4;
+    } else if actual_timespan > expected_epoch_timespan * 4 {
+        actual_timespan = expected_epoch_timespan * 4;
     }
     // Step 2: Calculate the new target
     let new_target_bytes = bits_to_target(current_target_bits);
     let mut new_target = U256::from_be_bytes(new_target_bytes)
         .wrapping_mul(&U256::from(actual_timespan))
-        .wrapping_div(&U256::from(EXPECTED_EPOCH_TIMESPAN));
+        .wrapping_div(&U256::from(expected_epoch_timespan));
     // Step 3: Clamp the new target to the maximum target
     if new_target > max_target {
         new_target = max_target;
@@ -630,16 +676,21 @@ mod tests {
     use std::io::{BufRead, BufReader};
     use std::ops::Deref;
 
+    use bitcoin::hashes::Hash;
+    use bitcoin::CompactTarget;
     use borsh::BorshDeserialize;
     use sov_rollup_interface::da::{DaVerifier, LatestDaState};
+    use sov_rollup_interface::Network;
 
-    use super::BitcoinVerifier;
+    use super::{BitcoinVerifier, ValidationError};
     use crate::spec::header::{BitcoinHeaderWrapper, HeaderWrapper};
     use crate::spec::RollupParams;
+    use crate::verifier::bits_to_target;
 
     fn get_verifier() -> BitcoinVerifier {
         BitcoinVerifier::new(RollupParams {
             reveal_tx_prefix: vec![],
+            network: Network::Nightly,
         })
     }
 
@@ -736,7 +787,7 @@ mod tests {
         block_hash.reverse();
         // Initial da height 40309 state
         // Even though target is as below, this block has its next blocks produced in more than 20 minutes,
-        // causing their bits to be resetted.
+        // causing their bits to be reset.
         let mut da_state = LatestDaState {
             block_hash,
             block_height: 40309,
@@ -763,5 +814,83 @@ mod tests {
                 .verify_header_chain_testnet4(&da_state, &header)
                 .expect("Header chain verification should not fail");
         }
+    }
+
+    #[test]
+    fn test_verify_header_chain_common_sad_paths() {
+        let verifier = get_verifier();
+
+        // mainnet block 872918
+        let header_hex = "00000020eefac07c86494826bb8876e4e9156cc94ab0509e106d0000000000000000000049aa89bafff85ba60886976cf8203b75baf951d52ed2a5af6e8769e0df1528a436b94d6770c0021730278e2d";
+        let header_bytes = hex::decode(header_hex).unwrap();
+        let inner_header = BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
+
+        // initial da height 872917 state
+        let da_state = LatestDaState {
+            block_hash: inner_header.prev_blockhash.as_raw_hash().to_byte_array(),
+            block_height: 872917,
+            total_work: [0; 32],
+            current_target_bits: 0x1702c070,
+            epoch_start_time: 1731962532,
+            prev_11_timestamps: [
+                1733145689, 1733146032, 1733139284, 1733139502, 1733140945, 1733141528, 1733141580,
+                1733142637, 1733142783, 1733143675, 1733144344,
+            ],
+        };
+
+        let target = bits_to_target(0x1702c070);
+        let expected_bits = 0x1702c070;
+
+        // invalid block hash
+        let mut header = HeaderWrapper::new(*inner_header, 0, 872918, [0; 32]);
+        header.precomputed_hash = [1; 32].into();
+        let result = verifier.verify_header_chain_common(&header, &da_state, target, expected_bits);
+        assert_eq!(result, Err(ValidationError::InvalidBlockHash));
+
+        // non-consecutive block height
+        let header = HeaderWrapper::new(*inner_header, 0, 872920, [0; 32]);
+        let result = verifier.verify_header_chain_common(&header, &da_state, target, expected_bits);
+        assert_eq!(result, Err(ValidationError::NonConsecutiveBlockHeight));
+
+        // invalid prev block hash
+        let mut bad_state = da_state.clone();
+        bad_state.block_hash = [1; 32];
+        let header = HeaderWrapper::new(*inner_header, 0, 872918, [0; 32]);
+        let result =
+            verifier.verify_header_chain_common(&header, &bad_state, target, expected_bits);
+        assert_eq!(result, Err(ValidationError::InvalidPrevBlockHash));
+
+        // invalid bits
+        let wrong_bits = 0x1702c071;
+        let header = HeaderWrapper::new(*inner_header, 0, 872918, [0; 32]);
+        let result = verifier.verify_header_chain_common(&header, &da_state, target, wrong_bits);
+        assert_eq!(result, Err(ValidationError::InvalidBlockBits));
+
+        // invalid target hash
+        let mut bad_header = *inner_header;
+        // make target more strict by lowering the mantissa
+        bad_header.bits = CompactTarget::from_consensus(0x1702c060);
+        let header = HeaderWrapper::new(
+            bad_header,
+            0,
+            872918,
+            bad_header.block_hash().to_byte_array(),
+        );
+        let strict_target = bits_to_target(0x1702c060);
+        let result =
+            verifier.verify_header_chain_common(&header, &da_state, strict_target, 0x1702c060);
+        assert_eq!(result, Err(ValidationError::InvalidTargetHash));
+
+        // invalid timestamp
+        let mut bad_state = da_state.clone();
+        // increase all timestamps to make the median higher than the block's time
+        bad_state.prev_11_timestamps = [
+            1833146000, 1833146100, 1833146200, 1833146300, 1833146400, 1833146500, 1833146600,
+            1833146700, 1833146800, 1833146900, 1833147000,
+        ];
+        let header = HeaderWrapper::new(*inner_header, 0, 872918, [0; 32]);
+        let result =
+            verifier.verify_header_chain_common(&header, &bad_state, target, expected_bits);
+        assert_eq!(result, Err(ValidationError::InvalidTimestamp));
     }
 }

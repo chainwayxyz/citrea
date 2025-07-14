@@ -3,29 +3,37 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
 
+use alloy::eips::eip2930::AccessListWithGasUsed;
+use alloy::eips::eip7702::SignedAuthorization;
+use alloy::network::{AnyTransactionReceipt, TransactionBuilder7702};
 use alloy::providers::network::{Ethereum, EthereumWallet};
 use alloy::providers::{PendingTransactionBuilder, Provider as AlloyProvider, ProviderBuilder};
-use alloy::rpc::types::eth::{Block, Transaction, TransactionReceipt, TransactionRequest};
+use alloy::rpc::types::eth::{Block, Transaction, TransactionRequest};
+use alloy::serde::WithOtherFields;
 use alloy::signers::local::PrivateKeySigner;
-use alloy::transports::http::{Http, HyperClient};
-use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U64};
+use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U32, U64};
 // use reth_rpc_types::TransactionReceipt;
-use alloy_rpc_types::{AnyNetworkBlock, EIP1186AccountProofResponse};
-use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
-use citrea_batch_prover::GroupCommitments;
-use citrea_evm::{Filter, LogResponse};
+use alloy_rpc_types::SyncStatus as EthSyncStatus;
+use alloy_rpc_types::{BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, Filter, Log};
+use alloy_rpc_types_trace::geth::{
+    GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
+};
+use citrea_batch_prover::rpc::{BatchProverRpcClient, ProvingJobResponse};
+use citrea_batch_prover::PartitionMode;
+use citrea_evm::EstimatedDiffSize;
 use ethereum_rpc::SyncStatus;
 use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
-use reth_primitives::{BlockId, BlockNumberOrTag};
+use sov_db::schema::types::L2HeightAndIndex;
 use sov_ledger_rpc::{HexHash, LedgerRpcClient};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, L2BlockStatus, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
-    VerifiedBatchProofResponse,
+    JobRpcResponse, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
+    SequencerCommitmentRpcParam, VerifiedBatchProofResponse,
 };
+use uuid::Uuid;
 
 pub const SEND_ETH_GAS: u64 = 21001;
 pub const MAX_FEE_PER_GAS: u128 = 1000000001;
@@ -34,7 +42,7 @@ pub struct TestClient {
     pub(crate) chain_id: u64,
     pub(crate) from_addr: Address,
     //client: SignerMiddleware<Provider<Http>, PrivateKeySigner>,
-    client: Box<dyn AlloyProvider<Http<HyperClient>>>,
+    pub(crate) client: Box<dyn AlloyProvider<Ethereum>>,
     http_client: HttpClient,
     ws_client: WsClient,
     current_nonce: AtomicU64,
@@ -51,12 +59,13 @@ impl TestClient {
         let http_host = format!("http://localhost:{}", rpc_addr.port());
         let ws_host = format!("ws://localhost:{}", rpc_addr.port());
 
-        let provider = ProviderBuilder::new()
-            // .with_recommended_fillers()
+        let provider = ProviderBuilder::default()
             .with_chain_id(chain_id)
+            // .with_recommended_fillers()
             .wallet(EthereumWallet::from(key))
             .on_hyper_http(http_host.parse().unwrap());
-        let client: Box<dyn AlloyProvider<Http<HyperClient>>> = Box::new(provider);
+
+        let client: Box<dyn AlloyProvider<Ethereum>> = Box::new(provider);
 
         let http_client = HttpClientBuilder::default()
             .request_timeout(Duration::from_secs(120))
@@ -117,10 +126,7 @@ impl TestClient {
         &self,
         byte_code: Vec<u8>,
         nonce: Option<u64>,
-    ) -> Result<
-        PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum>,
-        Box<dyn std::error::Error>,
-    > {
+    ) -> Result<PendingTransactionBuilder<Ethereum>, Box<dyn std::error::Error>> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
@@ -130,7 +136,7 @@ impl TestClient {
             .from(self.from_addr)
             .input(byte_code.into());
         req.to = Some(TxKind::Create);
-        let gas = self.client.estimate_gas(&req).await.unwrap();
+        let gas = self.client.estimate_gas(req.clone()).await.unwrap();
 
         let req = req
             .gas_limit(gas)
@@ -156,14 +162,14 @@ impl TestClient {
             .from(self.from_addr)
             .input(byte_code.into())
             .nonce(nonce);
-        let gas = self.client.estimate_gas(&req).await.unwrap();
+        let gas = self.client.estimate_gas(req.clone()).await.unwrap();
 
         let req = req
             .gas_limit(gas)
             .max_priority_fee_per_gas(10)
             .max_fee_per_gas(MAX_FEE_PER_GAS);
 
-        let receipt_req = self.client.call(&req).await?;
+        let receipt_req = self.client.call(req).await?;
 
         Ok(receipt_req)
     }
@@ -173,7 +179,7 @@ impl TestClient {
         contract_address: Address,
         data: Vec<u8>,
         nonce: Option<u64>,
-    ) -> PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum> {
+    ) -> PendingTransactionBuilder<Ethereum> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
@@ -183,7 +189,7 @@ impl TestClient {
             .to(contract_address)
             .input(data.into());
 
-        let gas = self.client.estimate_gas(&req).await.unwrap();
+        let gas = self.client.estimate_gas(req.clone()).await.unwrap();
 
         let req = req
             .gas_limit(gas)
@@ -203,7 +209,7 @@ impl TestClient {
         max_fee_per_gas: u64,
         value: Option<u64>,
         nonce: Option<u64>,
-    ) -> PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum> {
+    ) -> PendingTransactionBuilder<Ethereum> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
@@ -214,7 +220,7 @@ impl TestClient {
             .input(data.into())
             .value(value.map(U256::from).unwrap_or_default());
 
-        let gas = self.client.estimate_gas(&req).await.unwrap();
+        let gas = self.client.estimate_gas(req.clone()).await.unwrap();
 
         let req = req
             .gas_limit(gas)
@@ -236,7 +242,7 @@ impl TestClient {
             .to(contract_address)
             .input(data.into());
 
-        let receipt_req = self.client.call(&req).await?;
+        let receipt_req = self.client.call(req).await?;
 
         T::from_str(&receipt_req.to_string()).map_err(|_| "Failed to parse bytes".into())
     }
@@ -248,7 +254,7 @@ impl TestClient {
         max_fee_per_gas: Option<u128>,
         nonce: Option<u64>,
         value: u128,
-    ) -> Result<PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum>, anyhow::Error> {
+    ) -> Result<PendingTransactionBuilder<Ethereum>, anyhow::Error> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
@@ -269,6 +275,38 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
+    pub(crate) async fn send_eip7702_transaction(
+        &self,
+        to_addr: Address,
+        data: Vec<u8>,
+        nonce: Option<u64>,
+        authorization_list: Vec<SignedAuthorization>,
+    ) -> Result<PendingTransactionBuilder<Ethereum>, anyhow::Error> {
+        let nonce = match nonce {
+            Some(nonce) => nonce,
+            None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
+        };
+
+        let req = TransactionRequest::default()
+            .from(self.from_addr)
+            .to(to_addr)
+            .input(data.into())
+            .nonce(nonce)
+            .with_authorization_list(authorization_list);
+
+        let gas = self.client.estimate_gas(req.clone()).await?;
+
+        let req = req
+            .gas_limit(gas)
+            .max_priority_fee_per_gas(10)
+            .max_fee_per_gas(MAX_FEE_PER_GAS);
+
+        self.client
+            .send_transaction(req)
+            .await
+            .map_err(|e| e.into())
+    }
+
     pub(crate) async fn send_eth_with_gas(
         &self,
         to_addr: Address,
@@ -276,7 +314,7 @@ impl TestClient {
         max_fee_per_gas: Option<u128>,
         gas: u64,
         value: u128,
-    ) -> Result<PendingTransactionBuilder<'_, Http<HyperClient>, Ethereum>, anyhow::Error> {
+    ) -> Result<PendingTransactionBuilder<Ethereum>, anyhow::Error> {
         let nonce = self.current_nonce.fetch_add(1, Ordering::Relaxed);
 
         let req = TransactionRequest::default()
@@ -339,7 +377,7 @@ impl TestClient {
         &self,
         address: Address,
         block_id: Option<BlockId>,
-    ) -> Result<Bytes, Box<dyn std::error::Error>> {
+    ) -> anyhow::Result<Bytes> {
         self.http_client
             .request("eth_getCode", rpc_params![address, block_id])
             .await
@@ -405,7 +443,7 @@ impl TestClient {
     pub(crate) async fn eth_get_block_by_number_with_detail(
         &self,
         block_number: Option<BlockNumberOrTag>,
-    ) -> AnyNetworkBlock {
+    ) -> WithOtherFields<Block> {
         self.http_client
             .request("eth_getBlockByNumber", rpc_params![block_number, true])
             .await
@@ -430,7 +468,7 @@ impl TestClient {
     pub(crate) async fn eth_get_block_receipts(
         &self,
         block_number_or_hash: BlockId,
-    ) -> Vec<TransactionReceipt> {
+    ) -> Vec<AnyTransactionReceipt> {
         self.http_client
             .request("eth_getBlockReceipts", rpc_params![block_number_or_hash])
             .await
@@ -440,7 +478,7 @@ impl TestClient {
     pub(crate) async fn eth_get_transaction_receipt(
         &self,
         tx_hash: TxHash,
-    ) -> Option<TransactionReceipt> {
+    ) -> Option<AnyTransactionReceipt> {
         self.http_client
             .request("eth_getTransactionReceipt", rpc_params![tx_hash])
             .await
@@ -477,12 +515,12 @@ impl TestClient {
 
     /// params is a tuple of (fromBlock, toBlock, address, topics, blockHash)
     /// any of these params are optional
-    pub(crate) async fn eth_get_logs<P>(&self, params: P) -> Vec<LogResponse>
+    pub(crate) async fn eth_get_logs<P>(&self, params: P) -> Vec<Log>
     where
         P: serde::Serialize,
     {
         let rpc_params = rpc_params!(params);
-        let eth_logs: Vec<LogResponse> = self
+        let eth_logs: Vec<Log> = self
             .http_client
             .request("eth_getLogs", rpc_params)
             .await
@@ -502,25 +540,41 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
-    #[allow(clippy::extra_unused_type_parameters)]
-    pub(crate) async fn ledger_get_l2_block_by_number<DaSpec: sov_rollup_interface::da::DaSpec>(
+    pub(crate) async fn eth_create_access_list(
         &self,
-        num: u64,
-    ) -> Option<L2BlockResponse> {
+        tx: TransactionRequest,
+    ) -> Result<AccessListWithGasUsed, Box<dyn std::error::Error>> {
+        self.http_client
+            .request("eth_createAccessList", rpc_params![tx])
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn eth_estimate_diff_size(
+        &self,
+        tx: TransactionRequest,
+    ) -> Result<EstimatedDiffSize, Box<dyn std::error::Error>> {
+        self.http_client
+            .request("eth_estimateDiffSize", rpc_params![tx])
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn eth_estimate_gas(
+        &self,
+        tx: TransactionRequest,
+    ) -> Result<U256, Box<dyn std::error::Error>> {
+        self.http_client
+            .request("eth_estimateGas", rpc_params![tx])
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn ledger_get_l2_block_by_number(&self, num: u64) -> Option<L2BlockResponse> {
         self.http_client
             .get_l2_block_by_number(U64::from(num))
             .await
             .unwrap()
-    }
-
-    pub(crate) async fn ledger_get_l2_block_status(
-        &self,
-        l2_block_receipt: u64,
-    ) -> Result<L2BlockStatus, Box<dyn std::error::Error>> {
-        Ok(self
-            .http_client
-            .get_l2_block_status(U64::from(l2_block_receipt))
-            .await?)
     }
 
     pub(crate) async fn ledger_get_last_scanned_l1_height(&self) -> u64 {
@@ -539,16 +593,6 @@ impl TestClient {
             .get_sequencer_commitments_on_slot_by_number(U64::from(height))
             .await
             .map_err(|e| e.into())
-    }
-
-    pub(crate) async fn ledger_get_batch_proofs_by_slot_height(
-        &self,
-        height: u64,
-    ) -> Option<Vec<BatchProofResponse>> {
-        self.http_client
-            .get_batch_proofs_by_slot_height(U64::from(height))
-            .await
-            .unwrap()
     }
 
     pub(crate) async fn ledger_get_verified_batch_proofs_by_slot_height(
@@ -617,6 +661,18 @@ impl TestClient {
             .unwrap()
     }
 
+    pub(crate) async fn debug_trace_call(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        opts: Option<GethDebugTracingCallOptions>,
+    ) -> GethTrace {
+        self.http_client
+            .request("debug_traceCall", rpc_params![request, block_id, opts])
+            .await
+            .unwrap()
+    }
+
     pub(crate) async fn debug_trace_block_by_number(
         &self,
         block_number: BlockNumberOrTag,
@@ -672,7 +728,7 @@ impl TestClient {
         traces.into_iter().flatten().collect()
     }
 
-    pub(crate) async fn subscribe_new_heads(&self) -> mpsc::Receiver<AnyNetworkBlock> {
+    pub(crate) async fn subscribe_new_heads(&self) -> mpsc::Receiver<WithOtherFields<Block>> {
         let (tx, rx) = mpsc::channel();
         let mut subscription = self
             .ws_client
@@ -692,7 +748,7 @@ impl TestClient {
         rx
     }
 
-    pub(crate) async fn subscribe_logs(&self, filter: Filter) -> mpsc::Receiver<LogResponse> {
+    pub(crate) async fn subscribe_logs(&self, filter: Filter) -> mpsc::Receiver<Log> {
         let (tx, rx) = mpsc::channel();
         let mut subscription = self
             .ws_client
@@ -726,6 +782,13 @@ impl TestClient {
         block_number.saturating_to()
     }
 
+    pub(crate) async fn eth_syncing(&self) -> EthSyncStatus {
+        self.http_client
+            .request("eth_syncing", rpc_params![])
+            .await
+            .unwrap()
+    }
+
     pub(crate) async fn citrea_sync_status(&self) -> SyncStatus {
         self.http_client
             .request("citrea_syncStatus", rpc_params![])
@@ -733,18 +796,89 @@ impl TestClient {
             .unwrap()
     }
 
-    pub(crate) async fn batch_prover_prove(
-        &self,
-        l1_height: u64,
-        group_commitments: Option<GroupCommitments>,
-    ) {
+    pub(crate) async fn get_last_committed_l2_height(&self) -> Option<L2HeightAndIndex> {
         self.http_client
-            .request(
-                "batchProver_prove",
-                rpc_params![l1_height, group_commitments],
-            )
+            .request("citrea_getLastCommittedL2Height", rpc_params![])
             .await
             .unwrap()
+    }
+
+    pub(crate) async fn get_last_proven_l2_height(&self) -> Option<L2HeightAndIndex> {
+        self.http_client
+            .request("citrea_getLastProvenL2Height", rpc_params![])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn batch_prover_set_commitments(
+        &self,
+        commitments: Vec<SequencerCommitmentRpcParam>,
+    ) {
+        self.http_client.set_commitments(commitments).await.unwrap()
+    }
+
+    pub(crate) async fn batch_prover_prove(&self, mode: Option<PartitionMode>) -> Vec<Uuid> {
+        self.http_client
+            .prove(mode.unwrap_or(PartitionMode::Normal))
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn batch_prover_pause_proving(&self) {
+        self.http_client.pause_proving().await.unwrap()
+    }
+
+    pub(crate) async fn get_proving_job(&self, id: Uuid) -> Option<JobRpcResponse> {
+        self.http_client.get_proving_job(id).await.unwrap()
+    }
+
+    pub(crate) async fn get_proving_jobs(&self, count: usize) -> Vec<ProvingJobResponse> {
+        self.http_client.get_proving_jobs(count).await.unwrap()
+    }
+
+    pub(crate) async fn batch_prover_get_commitments_by_l1(
+        &self,
+        l1_height: u64,
+    ) -> Option<Vec<SequencerCommitmentResponse>> {
+        let indices = self
+            .http_client
+            .get_commitment_indices_by_l1(l1_height)
+            .await
+            .unwrap()?;
+        let mut commitments = Vec::with_capacity(indices.len());
+        for index in indices {
+            let commitment = self
+                .http_client
+                .get_sequencer_commitment_by_index(U32::from(index))
+                .await
+                .unwrap()
+                .unwrap();
+            commitments.push(commitment);
+        }
+
+        Some(commitments)
+    }
+
+    /// Halt sequencer commitments
+    pub(crate) async fn sequencer_halt_commitments(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let _: () = self
+            .http_client
+            .request("citrea_haltCommitments", rpc_params![])
+            .await?;
+        Ok(())
+    }
+
+    /// Resume sequencer commitments
+    pub(crate) async fn sequencer_resume_commitments(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let _: () = self
+            .http_client
+            .request("citrea_resumeCommitments", rpc_params![])
+            .await?;
+        Ok(())
     }
 }
 

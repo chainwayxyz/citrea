@@ -1,13 +1,12 @@
-use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use alloy_eips::eip2930::{AccessList, AccessListItem, AccessListWithGasUsed};
+use alloy_eips::{BlockId, BlockNumberOrTag};
+use alloy_network::{AnyTransactionReceipt, TransactionResponse};
 use alloy_primitives::{address, b256, Address, TxKind, B256, U256, U64};
-use alloy_rpc_types::{
-    AnyNetworkBlock, AnyTransactionReceipt, TransactionInput, TransactionRequest,
-};
-use alloy_serde::OtherFields;
-use reth_primitives::{BlockId, BlockNumberOrTag};
+use alloy_rpc_types::{TransactionInput, TransactionRequest};
+use alloy_rpc_types_eth::Block as AlloyRpcBlock;
+use alloy_serde::WithOtherFields;
 use reth_rpc_eth_types::EthApiError;
 use serde_json::json;
 use sov_modules_api::fork::Fork;
@@ -15,23 +14,24 @@ use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::smart_contracts::{CallerContract, SimpleStorageContract};
 use crate::tests::queries::{init_evm, init_evm_with_caller_contract};
-use crate::tests::utils::get_fork_fn_only_fork2;
+use crate::tests::utils::get_fork_fn_latest;
 use crate::EstimatedDiffSize;
 
 #[test]
 fn get_block_by_hash_test() {
     // make a block
-    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Fork2);
+    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SovSpecId::Tangerine);
 
-    let result = evm.get_block_by_hash([5u8; 32].into(), Some(false), &mut working_set);
+    let result = evm.get_block_by_hash([5u8; 32].into(), Some(false), &mut working_set, &ledger_db);
 
     assert_eq!(result, Ok(None));
 
     let third_block = evm
         .get_block_by_hash(
-            b256!("8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d"),
+            b256!("e6066b2feeda57a112b5343057a48f2c19377994073cc72e425e23bd59a65306"),
             None,
             &mut working_set,
+            &ledger_db,
         )
         .unwrap()
         .unwrap();
@@ -43,12 +43,13 @@ fn get_block_by_hash_test() {
 #[test]
 fn get_block_by_number_test() {
     // make a block
-    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Fork2);
+    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SovSpecId::Tangerine);
 
     let result = evm.get_block_by_number(
         Some(BlockNumberOrTag::Number(1000)),
         Some(false),
         &mut working_set,
+        &ledger_db,
     );
 
     assert_eq!(result, Ok(None));
@@ -59,6 +60,7 @@ fn get_block_by_number_test() {
             Some(BlockNumberOrTag::Number(2)),
             Some(false),
             &mut working_set,
+            &ledger_db,
         )
         .unwrap()
         .unwrap();
@@ -69,11 +71,12 @@ fn get_block_by_number_test() {
 #[test]
 fn get_block_receipts_test() {
     // make a block
-    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Fork2);
+    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SovSpecId::Tangerine);
 
     let result = evm.get_block_receipts(
         BlockId::Number(BlockNumberOrTag::Number(1000)),
         &mut working_set,
+        &ledger_db,
     );
 
     // AnyTransactionReceipt doesn't impl Eq or PartialEq
@@ -82,7 +85,11 @@ fn get_block_receipts_test() {
     assert!(result.is_ok());
     assert!(result.unwrap().is_none());
 
-    let result = evm.get_block_receipts(BlockId::from(B256::from([5u8; 32])), &mut working_set);
+    let result = evm.get_block_receipts(
+        BlockId::from(B256::from([5u8; 32])),
+        &mut working_set,
+        &ledger_db,
+    );
 
     assert!(result.is_ok());
     assert!(result.unwrap().is_none());
@@ -91,6 +98,7 @@ fn get_block_receipts_test() {
         .get_block_receipts(
             BlockId::Number(BlockNumberOrTag::Number(2)),
             &mut working_set,
+            &ledger_db,
         )
         .unwrap()
         .unwrap();
@@ -100,7 +108,7 @@ fn get_block_receipts_test() {
 
 #[test]
 fn get_transaction_by_block_hash_and_index_test() {
-    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Fork2);
+    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SovSpecId::Tangerine);
 
     let result = evm.get_transaction_by_block_hash_and_index(
         [0u8; 32].into(),
@@ -115,6 +123,7 @@ fn get_transaction_by_block_hash_and_index_test() {
             Some(BlockNumberOrTag::Number(2)),
             Some(false),
             &mut working_set,
+            &ledger_db,
         )
         .unwrap()
         .unwrap()
@@ -137,18 +146,19 @@ fn get_transaction_by_block_hash_and_index_test() {
         let result =
             evm.get_transaction_by_block_hash_and_index(hash, U64::from(i), &mut working_set);
 
-        assert_eq!(result.unwrap().unwrap().hash, *tx_hash);
+        assert_eq!(result.unwrap().unwrap().tx_hash(), *tx_hash);
     }
 }
 
 #[test]
 fn get_transaction_by_block_number_and_index_test() {
-    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Fork2);
+    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SovSpecId::Tangerine);
 
     let result = evm.get_transaction_by_block_number_and_index(
         BlockNumberOrTag::Number(100),
         U64::from(0),
         &mut working_set,
+        &ledger_db,
     );
 
     assert_eq!(result, Ok(None));
@@ -158,6 +168,7 @@ fn get_transaction_by_block_number_and_index_test() {
         BlockNumberOrTag::Number(1),
         U64::from(6),
         &mut working_set,
+        &ledger_db,
     );
 
     assert_eq!(result, Ok(None));
@@ -168,6 +179,7 @@ fn get_transaction_by_block_number_and_index_test() {
             BlockNumberOrTag::Number(1),
             U64::from(i),
             &mut working_set,
+            &ledger_db,
         );
 
         assert!(result.unwrap().is_some());
@@ -184,79 +196,113 @@ fn get_transaction_by_block_number_and_index_test() {
             BlockNumberOrTag::Number(2),
             U64::from(i),
             &mut working_set,
+            &ledger_db,
         );
 
-        assert_eq!(result.unwrap().unwrap().hash, *tx_hash);
+        assert_eq!(result.unwrap().unwrap().tx_hash(), *tx_hash);
     }
 }
 
 #[test]
 fn get_block_transaction_count_by_hash_test() {
-    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Fork2);
+    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SovSpecId::Tangerine);
 
-    let result =
-        evm.eth_get_block_transaction_count_by_hash(B256::from([0u8; 32]), &mut working_set);
+    let result = evm.eth_get_block_transaction_count_by_hash(
+        B256::from([0u8; 32]),
+        &mut working_set,
+        &ledger_db,
+    );
     // Non-existent blockhash should return None
     assert_eq!(result, Ok(None));
 
     let block_hash_1 = evm
-        .get_block_by_number(Some(BlockNumberOrTag::Number(1)), None, &mut working_set)
+        .get_block_by_number(
+            Some(BlockNumberOrTag::Number(1)),
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
         .unwrap()
         .unwrap()
         .header
         .hash;
 
-    let result = evm.eth_get_block_transaction_count_by_hash(block_hash_1, &mut working_set);
+    let result =
+        evm.eth_get_block_transaction_count_by_hash(block_hash_1, &mut working_set, &ledger_db);
 
     assert_eq!(result, Ok(Some(U256::from(3))));
 
     let block_hash_2 = evm
-        .get_block_by_number(Some(BlockNumberOrTag::Number(2)), None, &mut working_set)
+        .get_block_by_number(
+            Some(BlockNumberOrTag::Number(2)),
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
         .unwrap()
         .unwrap()
         .header
         .hash;
 
-    let result = evm.eth_get_block_transaction_count_by_hash(block_hash_2, &mut working_set);
+    let result =
+        evm.eth_get_block_transaction_count_by_hash(block_hash_2, &mut working_set, &ledger_db);
     assert_eq!(result, Ok(Some(U256::from(4))));
 
     let block_hash_3 = evm
-        .get_block_by_number(Some(BlockNumberOrTag::Number(3)), None, &mut working_set)
+        .get_block_by_number(
+            Some(BlockNumberOrTag::Number(3)),
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
         .unwrap()
         .unwrap()
         .header
         .hash;
 
-    let result = evm.eth_get_block_transaction_count_by_hash(block_hash_3, &mut working_set);
+    let result =
+        evm.eth_get_block_transaction_count_by_hash(block_hash_3, &mut working_set, &ledger_db);
 
     assert_eq!(result, Ok(Some(U256::from(2))));
 }
 
 #[test]
 fn get_block_transaction_count_by_number_test() {
-    let (evm, mut working_set, _, _, _) = init_evm(SovSpecId::Fork2);
+    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SovSpecId::Tangerine);
 
-    let result = evm
-        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(5), &mut working_set);
+    let result = evm.eth_get_block_transaction_count_by_number(
+        BlockNumberOrTag::Number(5),
+        &mut working_set,
+        &ledger_db,
+    );
     // Non-existent block number should return None
     assert_eq!(result, Ok(None));
 
-    let result = evm
-        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(1), &mut working_set);
+    let result = evm.eth_get_block_transaction_count_by_number(
+        BlockNumberOrTag::Number(1),
+        &mut working_set,
+        &ledger_db,
+    );
     assert_eq!(result, Ok(Some(U256::from(3))));
 
-    let result = evm
-        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(2), &mut working_set);
+    let result = evm.eth_get_block_transaction_count_by_number(
+        BlockNumberOrTag::Number(2),
+        &mut working_set,
+        &ledger_db,
+    );
     assert_eq!(result, Ok(Some(U256::from(4))));
 
-    let result = evm
-        .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(3), &mut working_set);
+    let result = evm.eth_get_block_transaction_count_by_number(
+        BlockNumberOrTag::Number(3),
+        &mut working_set,
+        &ledger_db,
+    );
     assert_eq!(result, Ok(Some(U256::from(2))));
 }
 
 #[test]
 fn call_test() {
-    let (evm, mut working_set, _, signer, _) = init_evm(SovSpecId::Fork2);
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SovSpecId::Tangerine);
 
     let fail_result = evm.get_call_inner(
         TransactionRequest {
@@ -283,7 +329,8 @@ fn call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert_eq!(
@@ -296,7 +343,12 @@ fn call_test() {
     let call_data = contract.get_call_data();
 
     let block_hash_3 = evm
-        .get_block_by_number(Some(BlockNumberOrTag::Number(3)), None, &mut working_set)
+        .get_block_by_number(
+            Some(BlockNumberOrTag::Number(3)),
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
         .unwrap()
         .unwrap()
         .header
@@ -327,7 +379,8 @@ fn call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     let nonce_too_low_result = evm.get_call_inner(
@@ -355,7 +408,8 @@ fn call_test() {
         None,
         None,
         &mut working_set,
-        get_fork_fn_only_fork2(),
+        &ledger_db,
+        get_fork_fn_latest(),
     );
 
     assert_eq!(call_with_hash_nonce_too_low_result, nonce_too_low_result);
@@ -363,7 +417,12 @@ fn call_test() {
     working_set.unset_archival_version();
 
     let latest_block_hash = evm
-        .get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set)
+        .get_block_by_number(
+            Some(BlockNumberOrTag::Latest),
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
         .unwrap()
         .unwrap()
         .header
@@ -396,7 +455,8 @@ fn call_test() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -427,7 +487,8 @@ fn call_test() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -465,7 +526,8 @@ fn call_test() {
             None,
             None,
             &mut working_set,
-            get_fork_fn_only_fork2(),
+            &ledger_db,
+            get_fork_fn_latest(),
         )
         .unwrap();
 
@@ -479,11 +541,11 @@ fn call_test() {
     // https://github.com/chainwayxyz/citrea/issues/134
 }
 
-fn check_against_third_block(block: &AnyNetworkBlock) {
+fn check_against_third_block(block: &WithOtherFields<AlloyRpcBlock>) {
     // details = false
-    let inner_block = serde_json::from_value::<AnyNetworkBlock>(json!({
-        "hash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
-        "parentHash": "0xc2e4cc89bc3817503ec7a406b462c1b38cb7243bd4118ee29a088ac0caa38a6a",
+    let inner_block = serde_json::from_value::<WithOtherFields<AlloyRpcBlock>>(json!({
+        "hash": "0xe6066b2feeda57a112b5343057a48f2c19377994073cc72e425e23bd59a65306",
+        "parentHash": "0x1a570d30bfe3df0b2f48805ef9784e67c376d9c3a0b5e2d243155baae99eab4b",
         "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
         "miner": "0x0000000000000000000000000000000000000000",
         "stateRoot": "0x6464646464646464646464646464646464646464646464646464646464646464",
@@ -495,10 +557,12 @@ fn check_against_third_block(block: &AnyNetworkBlock) {
         "gasLimit": "0x1c9c380",
         "gasUsed": "0x19c14",
         "timestamp": "0x18",
-        "totalDifficulty": "0x0",
         "extraData": "0x",
         "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "nonce": "0x0000000000000000",
+        "withdrawalsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+        "requestsHash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "parentBeaconBlockRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "baseFeePerGas": "0x2dbf4076",
         "blobGasUsed": "0x0",
         "excessBlobGas": "0x0",
@@ -509,14 +573,11 @@ fn check_against_third_block(block: &AnyNetworkBlock) {
           "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
           "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6"
         ],
-        "size": "0x54e",
+        "size": "0x610",
         "l1FeeRate": "0x1"
       })).unwrap();
 
-    let mut rich_block: AnyNetworkBlock = AnyNetworkBlock {
-        inner: inner_block.inner,
-        other: OtherFields::new(BTreeMap::new()),
-    };
+    let mut rich_block = WithOtherFields::new(inner_block.inner);
 
     rich_block
         .other
@@ -539,7 +600,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
                 "0x6d91615c65c0e8f861b0fbfce2d9897fb942293e341eda10c91a6912c4f32668"
                 ],
                 "data": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000",
-                "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
+                "blockHash": "0xe6066b2feeda57a112b5343057a48f2c19377994073cc72e425e23bd59a65306",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "transactionHash": "0x2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99",
@@ -554,7 +615,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
                 "0x000000000000000000000000819c5497b157177315e1204f52e588b393771719"
                 ],
                 "data": "0x",
-                "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
+                "blockHash": "0xe6066b2feeda57a112b5343057a48f2c19377994073cc72e425e23bd59a65306",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "transactionHash": "0x2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99",
@@ -567,14 +628,14 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
             "type": "0x2",
             "transactionHash": "0x2ff3a833e99d5a97e26f912c2e855f95e2dda542c89131fea0d189889d384d99",
             "transactionIndex": "0x0",
-            "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
+            "blockHash": "0xe6066b2feeda57a112b5343057a48f2c19377994073cc72e425e23bd59a65306",
             "blockNumber": "0x2",
             "gasUsed": "0x6720",
             "effectiveGasPrice": "0x2dbf4076",
             "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
             "to": "0x819c5497b157177315e1204f52e588b393771719",
             "contractAddress": null,
-            "l1DiffSize": "0x4",
+            "l1DiffSize": "0x9",
             "l1FeeRate": "0x1"
         },
         {
@@ -590,7 +651,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
                 "0x63b901bb1c5ce387d96b2fa4dea95d718cf56095f6c1c7539385849cc23324e1"
                 ],
                 "data": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000",
-                "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
+                "blockHash": "0xe6066b2feeda57a112b5343057a48f2c19377994073cc72e425e23bd59a65306",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "transactionHash": "0xa69485c543cd51dc1856619f3ddb179416af040da2835a10405c856cd5fb41b8",
@@ -605,7 +666,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
                 "0x000000000000000000000000819c5497b157177315e1204f52e588b393771719"
                 ],
                 "data": "0x",
-                "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
+                "blockHash": "0xe6066b2feeda57a112b5343057a48f2c19377994073cc72e425e23bd59a65306",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "transactionHash": "0xa69485c543cd51dc1856619f3ddb179416af040da2835a10405c856cd5fb41b8",
@@ -618,14 +679,14 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
             "type": "0x2",
             "transactionHash": "0xa69485c543cd51dc1856619f3ddb179416af040da2835a10405c856cd5fb41b8",
             "transactionIndex": "0x1",
-            "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
+            "blockHash": "0xe6066b2feeda57a112b5343057a48f2c19377994073cc72e425e23bd59a65306",
             "blockNumber": "0x2",
             "gasUsed": "0x66fc",
             "effectiveGasPrice": "0x2dbf4076",
             "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
             "to": "0x819c5497b157177315e1204f52e588b393771719",
             "contractAddress": null,
-            "l1DiffSize": "0x4",
+            "l1DiffSize": "0x9",
             "l1FeeRate": "0x1"
         },
         {
@@ -641,7 +702,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
                 "0x5188fc8ba319bea37b8a074fdec21db88eef23191a849074ae8d6df8b2a32364"
                 ],
                 "data": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000",
-                "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
+                "blockHash": "0xe6066b2feeda57a112b5343057a48f2c19377994073cc72e425e23bd59a65306",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "transactionHash": "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
@@ -656,7 +717,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
                 "0x000000000000000000000000819c5497b157177315e1204f52e588b393771719"
                 ],
                 "data": "0x",
-                "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
+                "blockHash": "0xe6066b2feeda57a112b5343057a48f2c19377994073cc72e425e23bd59a65306",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "transactionHash": "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
@@ -669,14 +730,14 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
             "type": "0x2",
             "transactionHash": "0x17fa953338b32b30795ccb62f050f1c9bcdd48f4793fb2d6d34290b444841271",
             "transactionIndex": "0x2",
-            "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
+            "blockHash": "0xe6066b2feeda57a112b5343057a48f2c19377994073cc72e425e23bd59a65306",
             "blockNumber": "0x2",
             "gasUsed": "0x66fc",
             "effectiveGasPrice": "0x2dbf4076",
             "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
             "to": "0x819c5497b157177315e1204f52e588b393771719",
             "contractAddress": null,
-            "l1DiffSize": "0x4",
+            "l1DiffSize": "0x9",
             "l1FeeRate": "0x1"
         },
         {
@@ -692,7 +753,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
                 "0x29d61b64fc4b3d3e07e2692f6bc997236f115e546fae45393595f0cb0acbc4a0"
                 ],
                 "data": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000",
-                "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
+                "blockHash": "0xe6066b2feeda57a112b5343057a48f2c19377994073cc72e425e23bd59a65306",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "transactionHash": "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6",
@@ -707,7 +768,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
                 "0x000000000000000000000000819c5497b157177315e1204f52e588b393771719"
                 ],
                 "data": "0x",
-                "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
+                "blockHash": "0xe6066b2feeda57a112b5343057a48f2c19377994073cc72e425e23bd59a65306",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "transactionHash": "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6",
@@ -720,14 +781,14 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
             "type": "0x2",
             "transactionHash": "0xd7e5b2bce65678b5e1a4430b1320b18a258fd5412e20bd5734f446124a9894e6",
             "transactionIndex": "0x3",
-            "blockHash": "0x8f0ee081996d2cb0821202255f7826868138980fac46f470ca7dc4e7fc0c7c0d",
+            "blockHash": "0xe6066b2feeda57a112b5343057a48f2c19377994073cc72e425e23bd59a65306",
             "blockNumber": "0x2",
             "gasUsed": "0x66fc",
             "effectiveGasPrice": "0x2dbf4076",
             "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
             "to": "0x819c5497b157177315e1204f52e588b393771719",
             "contractAddress": null,
-            "l1DiffSize": "0x4",
+            "l1DiffSize": "0x9",
             "l1FeeRate": "0x1"
         }
         ])).unwrap();
@@ -740,9 +801,9 @@ fn test_queries_with_forks() {
     // 0x819c5497b157177315e1204f52e588b393771719 -- Storage contract
     // 0x5ccda3e6d071a059f00d4f3f25a1adc244eb5c93 -- Caller contract
 
-    let (evm, mut working_set, signer, _l2_height) = init_evm_with_caller_contract();
+    let (evm, mut working_set, signer, _l2_height, ledger_db) = init_evm_with_caller_contract();
 
-    let fork_fn = |_: u64| Fork::new(SovSpecId::Fork2, 3);
+    let fork_fn = |_: u64| Fork::new(SovSpecId::Tangerine, 3);
 
     let caller = CallerContract::default();
     let input_data = caller.call_set_call_data(
@@ -775,6 +836,7 @@ fn test_queries_with_forks() {
         tx_req_contract_call.clone(),
         None,
         &mut working_set,
+        &ledger_db,
         fork_fn,
     );
     assert_eq!(no_access_list.clone().unwrap(), U256::from(30860));
@@ -784,6 +846,7 @@ fn test_queries_with_forks() {
             tx_req_contract_call.clone(),
             None,
             &mut working_set,
+            &ledger_db,
             fork_fn,
         )
         .unwrap();
@@ -791,7 +854,7 @@ fn test_queries_with_forks() {
         diff_size,
         EstimatedDiffSize {
             gas: U64::from(30859),
-            l1_diff_size: U64::from(19),
+            l1_diff_size: U64::from(30),
         }
     );
 
@@ -800,6 +863,7 @@ fn test_queries_with_forks() {
             tx_req_contract_call.clone(),
             None,
             &mut working_set,
+            &ledger_db,
             fork_fn,
         )
         .unwrap();
@@ -820,7 +884,12 @@ fn test_queries_with_forks() {
         ..tx_req_contract_call.clone()
     };
 
-    let with_access_list =
-        evm.eth_estimate_gas_inner(tx_req_with_access_list, None, &mut working_set, fork_fn);
+    let with_access_list = evm.eth_estimate_gas_inner(
+        tx_req_with_access_list,
+        None,
+        &mut working_set,
+        &ledger_db,
+        fork_fn,
+    );
     assert_eq!(with_access_list.unwrap(), U256::from(30558));
 }
