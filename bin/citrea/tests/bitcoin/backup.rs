@@ -32,7 +32,7 @@ async fn create_backup(
     Ok(client
         .request(
             "backup_create",
-            rpc_params![path, Some(API_KEY.to_string())],
+            rpc_params![path, None::<u32>, Some(API_KEY.to_string())],
         )
         .await?)
 }
