@@ -454,7 +454,7 @@ impl BackupManager {
         }
     }
 
-    async fn delete_backups(&self, backup_path: &PathBuf, backup_id: u32) -> anyhow::Result<()> {
+    async fn delete_backups(&self, backup_path: &Path, backup_id: u32) -> anyhow::Result<()> {
         for dir in &self.config.backup_dirs {
             let path = backup_path.join(dir);
             info!("Deleting physical backups in {dir}");

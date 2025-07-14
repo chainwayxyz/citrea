@@ -18,7 +18,7 @@ pub struct BackupMetadata {
     pub backups: BTreeMap<u32, u64>, // backup_id -> l1_block_height if node_type is light client prover, otherwise l2_block_height
 }
 
-pub(crate) async fn backup_metadata_file(backup_path: &PathBuf) -> anyhow::Result<PathBuf> {
+pub(crate) async fn backup_metadata_file(backup_path: &Path) -> anyhow::Result<PathBuf> {
     let metadata_path = backup_path.join(METADATA_FILE);
     let backup_metadata_path = metadata_path.with_extension(BACKUP_EXTENSION);
 
@@ -56,7 +56,7 @@ pub(crate) async fn update_metadata_after_purge<P: AsRef<Path>>(
     Ok(())
 }
 
-pub(crate) async fn restore_metadata_backup(backup_path: &PathBuf) -> anyhow::Result<()> {
+pub(crate) async fn restore_metadata_backup(backup_path: &Path) -> anyhow::Result<()> {
     let metadata_path = backup_path.join(METADATA_FILE);
     let backup_metadata_path = metadata_path.with_extension(BACKUP_EXTENSION);
 
@@ -68,7 +68,7 @@ pub(crate) async fn restore_metadata_backup(backup_path: &PathBuf) -> anyhow::Re
     Ok(())
 }
 
-pub(crate) async fn remove_metadata_backup(backup_path: &PathBuf) -> anyhow::Result<()> {
+pub(crate) async fn remove_metadata_backup(backup_path: &Path) -> anyhow::Result<()> {
     let backup_metadata_path = backup_path
         .join(METADATA_FILE)
         .with_extension(BACKUP_EXTENSION);
