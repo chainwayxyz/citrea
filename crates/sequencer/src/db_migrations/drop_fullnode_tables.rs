@@ -21,6 +21,7 @@ impl LedgerMigration for DropFullnodeTables {
             "VerifiedBatchProofsBySlotNumber",
             "ProverLastScannedSlot",
             "SlotByHash",
+            "PendingSequencerCommitments",
             "ShortHeaderProofBySlotHash",
             "CommitmentMerkleRoots",
             "L2StatusHeights",
