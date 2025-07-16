@@ -6810,7 +6810,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "borsh",
- "futures",
  "rand 0.8.5",
  "sov-mock-da",
  "sov-mock-zkvm",
@@ -9990,7 +9989,6 @@ dependencies = [
  "async-trait",
  "borsh",
  "bytes",
- "futures",
  "hex",
  "rusqlite",
  "serde",
@@ -9999,7 +9997,6 @@ dependencies = [
  "sov-rollup-interface",
  "tempfile",
  "tokio",
- "tokio-stream",
  "tracing",
 ]
 
@@ -10157,7 +10154,6 @@ dependencies = [
  "bytes",
  "digest 0.10.7",
  "faster-hex",
- "futures",
  "hex",
  "jmt",
  "risc0-zkp",
