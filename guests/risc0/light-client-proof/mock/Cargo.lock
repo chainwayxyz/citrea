@@ -631,6 +631,7 @@ name = "citrea-light-client-prover"
 version = "0.7.2"
 dependencies = [
  "borsh",
+ "citrea-primitives",
  "citrea-risc0-batch-proof",
  "const-hex",
  "constmuck",
