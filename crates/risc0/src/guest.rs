@@ -1,8 +1,8 @@
 //! This module implements the `ZkvmGuest` trait for the RISC0 VM.
 use borsh::{BorshDeserialize, BorshSerialize};
+use risc0_zkvm::guest::env;
 use risc0_zkvm::guest::env::Write;
-use risc0_zkvm::Digest;
-use risc0_zkvm::{guest::env, VerifierContext};
+use risc0_zkvm::{Digest, VerifierContext};
 use sov_rollup_interface::zk::{Zkvm, ZkvmGuest};
 
 use crate::receipt_from_proof;
