@@ -1210,7 +1210,6 @@ dependencies = [
  "borsh",
  "citrea-primitives",
  "k256",
- "once_cell",
  "reth-primitives",
  "reth-primitives-traits",
  "revm",
@@ -3661,7 +3660,6 @@ name = "short-header-proof-provider"
 version = "0.7.2"
 dependencies = [
  "borsh",
- "once_cell",
  "sov-modules-api",
  "sov-rollup-interface",
  "thiserror 2.0.12",

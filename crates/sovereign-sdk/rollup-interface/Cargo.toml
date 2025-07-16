@@ -22,7 +22,6 @@ borsh = { workspace = true, features = ["default", "bytes", "rc"] }
 bytes = { workspace = true, default-features = true }
 digest = { workspace = true, features = ["default"] }
 faster-hex = { workspace = true, optional = true }
-futures = { workspace = true, optional = true }
 hex = { workspace = true, optional = true, features = ["default"] }
 jmt = { workspace = true }
 uuid = { workspace = true, optional = true }
@@ -44,7 +43,6 @@ default = []
 native = [
   "alloy-primitives",
   "tokio",
-  "futures",
   "tracing",
   "risc0-zkp",
   "faster-hex",

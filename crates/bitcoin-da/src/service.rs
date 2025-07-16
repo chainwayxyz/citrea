@@ -52,7 +52,6 @@ use crate::network_constants::NetworkConstants;
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
 use crate::spec::header::HeaderWrapper;
-use crate::spec::header_stream::BitcoinHeaderStream;
 use crate::spec::proof::InclusionMultiProof;
 use crate::spec::short_proof::BitcoinHeaderShortProof;
 use crate::spec::transaction::TransactionWrapper;
@@ -727,8 +726,6 @@ impl DaService for BitcoinService {
     type Verifier = BitcoinVerifier;
 
     type FilteredBlock = BitcoinBlock;
-
-    type HeaderStream = BitcoinHeaderStream;
 
     type TransactionId = TxidWrapper;
 

@@ -3,7 +3,6 @@ use alloy_consensus::EMPTY_OMMER_ROOT_HASH;
 use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::hex_literal::hex;
 use alloy_primitives::{Address, Bloom, Bytes, B256, B64, U256};
-use lazy_static::lazy_static;
 use rand::Rng;
 use reth_primitives::{Header, TransactionSigned};
 use revm::context::BlockEnv;
@@ -20,10 +19,6 @@ use crate::tests::genesis_tests::BENEFICIARY;
 use crate::tests::utils::{get_evm, get_evm_test_config, GENESIS_STATE_ROOT};
 use crate::tests::{get_test_seq_pub_key, DEFAULT_CHAIN_ID};
 use crate::PendingTransaction;
-
-lazy_static! {
-    pub(crate) static ref DA_ROOT_HASH: B256 = B256::from([5u8; 32]);
-}
 
 #[test]
 fn begin_l2_block_hook_creates_pending_block() {

@@ -1,12 +1,9 @@
 use std::path::Path;
-use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll};
 use std::time::Duration;
 
 use async_trait::async_trait;
 use borsh::BorshDeserialize;
-use pin_project::pin_project;
 use sha2::Digest;
 use sov_rollup_interface::da::{
     BlobReaderTrait, BlockHeaderTrait, DaSpec, DaTxRequest, DataOnDa, SequencerCommitment, Time,
@@ -279,13 +276,6 @@ impl MockDaService {
         Ok(blobs.into_iter().map(|b| b.zk_proofs_data).collect())
     }
 
-    /// Subscribe to finalized headers (old API)
-    #[cfg(test)]
-    async fn subscribe_finalized_header(&self) -> anyhow::Result<MockDaBlockHeaderStream> {
-        let receiver = self.finalized_header_sender.subscribe();
-        Ok(MockDaBlockHeaderStream::new(receiver))
-    }
-
     /// Executes planned fork if it is planned at given height
     async fn planned_fork_handler(&self, height: u64) -> anyhow::Result<()> {
         let planned_fork_now = {
@@ -307,39 +297,11 @@ impl MockDaService {
     }
 }
 
-#[pin_project]
-/// Stream of finalized headers
-pub struct MockDaBlockHeaderStream {
-    #[pin]
-    inner: tokio_stream::wrappers::BroadcastStream<MockBlockHeader>,
-}
-
-impl MockDaBlockHeaderStream {
-    /// Create new stream of finalized headers
-    pub fn new(receiver: broadcast::Receiver<MockBlockHeader>) -> Self {
-        Self {
-            inner: tokio_stream::wrappers::BroadcastStream::new(receiver),
-        }
-    }
-}
-
-impl futures::Stream for MockDaBlockHeaderStream {
-    type Item = Result<MockBlockHeader, anyhow::Error>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.project(); // Requires the pin-project crate or similar functionality
-        this.inner
-            .poll_next(cx)
-            .map(|opt| opt.map(|res| res.map_err(Into::into)))
-    }
-}
-
 #[async_trait]
 impl DaService for MockDaService {
     type Spec = MockDaSpec;
     type Verifier = MockDaVerifier;
     type FilteredBlock = MockBlock;
-    type HeaderStream = MockDaBlockHeaderStream;
     type TransactionId = MockHash;
     type Error = anyhow::Error;
 
@@ -566,9 +528,7 @@ fn block_hash(
 
 #[cfg(test)]
 mod tests {
-    use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait};
-    use tokio::task::JoinHandle;
-    use tokio_stream::StreamExt;
+    use sov_rollup_interface::da::BlockHeaderTrait;
 
     use super::*;
 
@@ -597,184 +557,8 @@ mod tests {
         }
     }
 
-    async fn get_finalized_headers_collector(
-        da: &mut MockDaService,
-        expected_num_headers: usize,
-    ) -> JoinHandle<Vec<MockBlockHeader>> {
-        let mut receiver: MockDaBlockHeaderStream = da.subscribe_finalized_header().await.unwrap();
-        // All finalized headers should be pushed by that time
-        // This prevents test for freezing in case of a bug
-        // But we need to wait longer, as `MockDa
-        let timeout_duration = Duration::from_millis(1000);
-        tokio::spawn(async move {
-            let mut received = Vec::with_capacity(expected_num_headers);
-            for _ in 0..expected_num_headers {
-                match time::timeout(timeout_duration, receiver.next()).await {
-                    Ok(Some(Ok(header))) => received.push(header),
-                    _ => break,
-                }
-            }
-            received
-        })
-    }
-
-    // Checks that last finalized height is always less than last submitted by blocks_to_finalization
-    fn validate_get_finalized_header_response(
-        submit_height: u64,
-        blocks_to_finalization: u64,
-        response: anyhow::Result<MockBlockHeader>,
-    ) {
-        let finalized_header = response.unwrap();
-        if let Some(expected_finalized_height) = submit_height.checked_sub(blocks_to_finalization) {
-            assert_eq!(expected_finalized_height, finalized_header.height());
-        } else {
-            assert_eq!(GENESIS_HEADER, finalized_header);
-        }
-    }
-
-    async fn test_push_and_read(finalization: u64, num_blocks: usize) {
-        let db_path = tempfile::tempdir().unwrap();
-        let mut da = MockDaService::with_finality(
-            MockAddress::new([1; 32]),
-            finalization as u32,
-            db_path.path(),
-        );
-        da.blocks.lock().await.delete_all_rows();
-        da.wait_attempts = 2;
-        let number_of_finalized_blocks = num_blocks - finalization as usize;
-        let collector_handle =
-            get_finalized_headers_collector(&mut da, number_of_finalized_blocks).await;
-
-        for i in 0..num_blocks {
-            let proof = vec![i as u8; i + 1];
-            let published_blob = DaTxRequest::ZKProof(proof.clone());
-            let height = (i + 1) as u64;
-
-            da.send_transaction(published_blob.clone()).await.unwrap();
-
-            let mut block = da.get_block_at(height).await.unwrap();
-
-            assert_eq!(height, block.header.height());
-            assert_eq!(1, block.blobs.len());
-            let blob = &mut block.blobs[0];
-            let retrieved_data = blob.full_data().to_vec();
-            let retrieved_data = DataOnDa::try_from_slice(&retrieved_data).unwrap();
-            let DataOnDa::Complete(retrieved_proof) = retrieved_data else {
-                panic!("unexpected type");
-            };
-            assert_eq!(proof, retrieved_proof);
-
-            let last_finalized_block_response = da.get_last_finalized_block_header().await;
-            validate_get_finalized_header_response(
-                height,
-                finalization,
-                last_finalized_block_response,
-            );
-        }
-
-        let received = collector_handle.await.unwrap();
-        let heights: Vec<u64> = received.iter().map(|h| h.height()).collect();
-        let expected_heights: Vec<u64> = (1..=number_of_finalized_blocks as u64).collect();
-        assert_eq!(expected_heights, heights);
-    }
-
-    async fn test_push_many_then_read(finalization: u64, num_blocks: usize) {
-        let db_path = tempfile::tempdir().unwrap();
-        let mut da = MockDaService::with_finality(
-            MockAddress::new([1; 32]),
-            finalization as u32,
-            db_path.path(),
-        );
-        da.blocks.lock().await.delete_all_rows();
-
-        da.wait_attempts = 2;
-        let number_of_finalized_blocks = num_blocks - finalization as usize;
-        let collector_handle =
-            get_finalized_headers_collector(&mut da, number_of_finalized_blocks).await;
-
-        let blobs: Vec<Vec<u8>> = (0..num_blocks).map(|i| vec![i as u8; i + 1]).collect();
-
-        // Submitting blobs first
-        for (i, blob) in blobs.iter().enumerate() {
-            let height = (i + 1) as u64;
-            // Send transaction should pass
-            da.send_transaction(DaTxRequest::ZKProof(blob.to_owned()))
-                .await
-                .unwrap();
-            let last_finalized_block_response = da.get_last_finalized_block_header().await;
-            validate_get_finalized_header_response(
-                height,
-                finalization,
-                last_finalized_block_response,
-            );
-
-            let head_block_header = da.get_head_block_header().await.unwrap();
-            assert_eq!(height, head_block_header.height());
-        }
-
-        // Starts from 0
-        let expected_head_height = num_blocks as u64;
-        let expected_finalized_height = expected_head_height - finalization;
-
-        // Then read
-        for (i, blob) in blobs.into_iter().enumerate() {
-            let i = (i + 1) as u64;
-
-            let fetched_block = da.get_block_at(i).await.unwrap();
-            assert_eq!(i, fetched_block.header().height());
-
-            let last_finalized_header = da.get_last_finalized_block_header().await.unwrap();
-            assert_eq!(expected_finalized_height, last_finalized_header.height());
-
-            let proof = blob;
-            let retrieved_data = fetched_block.blobs[0].full_data();
-            let retrieved_data = DataOnDa::try_from_slice(retrieved_data).unwrap();
-            let DataOnDa::Complete(retrieved_proof) = retrieved_data else {
-                panic!("unexpected type");
-            };
-            assert_eq!(proof, retrieved_proof);
-
-            let head_block_header = da.get_head_block_header().await.unwrap();
-            assert_eq!(expected_head_height, head_block_header.height());
-        }
-
-        let received = collector_handle.await.unwrap();
-        let finalized_heights: Vec<u64> = received.iter().map(|h| h.height()).collect();
-        let expected_finalized_heights: Vec<u64> =
-            (1..=number_of_finalized_blocks as u64).collect();
-        assert_eq!(expected_finalized_heights, finalized_heights);
-    }
-
-    mod instant_finality {
-        use super::*;
-        #[tokio::test]
-        /// Pushing a blob and immediately reading it
-        async fn push_pull_single_thread() {
-            test_push_and_read(0, 10).await;
-        }
-
-        #[tokio::test]
-        async fn push_many_then_read() {
-            test_push_many_then_read(0, 10).await;
-        }
-    }
-
     mod non_instant_finality {
         use super::*;
-
-        #[tokio::test]
-        async fn push_pull_single_thread() {
-            test_push_and_read(1, 10).await;
-            test_push_and_read(3, 10).await;
-            test_push_and_read(5, 10).await;
-        }
-
-        #[tokio::test]
-        async fn push_many_then_read() {
-            test_push_many_then_read(1, 10).await;
-            test_push_many_then_read(3, 10).await;
-            test_push_many_then_read(5, 10).await;
-        }
 
         #[tokio::test]
         async fn read_multiple_times() {

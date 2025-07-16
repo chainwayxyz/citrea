@@ -3,9 +3,10 @@
 //! This module defines metrics that track various aspects of fullnode operation,
 //! including block processing times and current block numbers.
 
+use std::sync::LazyLock;
+
 use metrics::{Gauge, Histogram};
 use metrics_derive::Metrics;
-use once_cell::sync::Lazy;
 
 /// Collection of metrics for monitoring fullnode performance and state
 #[derive(Metrics)]
@@ -32,7 +33,7 @@ pub struct FullnodeMetrics {
 ///
 /// This static variable provides access to all fullnode metrics through a lazy-initialized
 /// singleton pattern. The metrics are automatically described and initialized on first access.
-pub static FULLNODE_METRICS: Lazy<FullnodeMetrics> = Lazy::new(|| {
+pub static FULLNODE_METRICS: LazyLock<FullnodeMetrics> = LazyLock::new(|| {
     FullnodeMetrics::describe();
     FullnodeMetrics::default()
 });

@@ -3,10 +3,10 @@ mod native;
 mod zk;
 
 use std::ops::RangeInclusive;
+use std::sync::OnceLock;
 
 #[cfg(feature = "native")]
 pub use native::*;
-use once_cell::sync::OnceCell;
 use thiserror::Error;
 pub use zk::*;
 
@@ -47,5 +47,5 @@ pub trait ShortHeaderProofProvider: Send + Sync {
     fn take_last_queried_hash(&self) -> Option<[u8; 32]>;
 }
 
-pub static SHORT_HEADER_PROOF_PROVIDER: OnceCell<Box<dyn ShortHeaderProofProvider>> =
-    OnceCell::new();
+pub static SHORT_HEADER_PROOF_PROVIDER: OnceLock<Box<dyn ShortHeaderProofProvider>> =
+    OnceLock::new();

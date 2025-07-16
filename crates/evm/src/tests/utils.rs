@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::LazyLock;
 
 use alloy_consensus::constants::KECCAK_EMPTY;
 use alloy_eips::eip1559::{BaseFeeParams, ETHEREUM_BLOCK_GAS_LIMIT_30M};
 use alloy_primitives::hex_literal::hex;
 use alloy_primitives::{address, Address, Bytes, TxKind, B256, U256};
-use lazy_static::lazy_static;
 use short_header_proof_provider::ShortHeaderProofProvider;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -24,14 +24,16 @@ use crate::{AccountData, Evm, EvmConfig, RlpEvmTransaction, PRIORITY_FEE_VAULT};
 
 type C = DefaultContext;
 
-lazy_static! {
-    pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
+pub(crate) static GENESIS_HASH: LazyLock<B256> = LazyLock::new(|| {
+    B256::from(hex!(
         "e7f38f9b2acc97d9e25c53e20826892a1fa7bd89ee81a62d09fef610d8e94003"
-    ));
-    pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
+    ))
+});
+pub(crate) static GENESIS_STATE_ROOT: LazyLock<B256> = LazyLock::new(|| {
+    B256::from(hex!(
         "38dbd050384803b66b62644b16203eae29ee831b04c8f45444698049a0803ddb"
-    ));
-}
+    ))
+});
 
 pub(crate) fn get_evm_with_storage(
     config: &EvmConfig,

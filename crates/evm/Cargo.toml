@@ -23,7 +23,6 @@ citrea-primitives = { path = "../primitives" }
 borsh = { workspace = true, features = ["rc"] }
 hex = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
-once_cell = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 sha2 = { workspace = true }
@@ -62,7 +61,6 @@ bcs = { workspace = true }
 bytes = { workspace = true }
 citrea-primitives = { path = "../primitives", features = ["testing"] }
 hex = { workspace = true }
-lazy_static = "1.4.0"
 rand = { workspace = true }
 rayon = { workspace = true }
 reth-chainspec = { workspace = true }

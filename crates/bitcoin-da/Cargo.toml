@@ -28,7 +28,6 @@ jsonrpsee = { workspace = true, optional = true }
 k256 = { workspace = true }
 lru = { workspace = true, optional = true }
 metrics = { workspace = true, optional = true }
-pin-project = { workspace = true, optional = true, features = [] }
 reqwest = { workspace = true, optional = true }
 reth-tasks = { workspace = true, optional = true }
 secp256k1 = { version = "0.29", optional = true, features = ["rand-std", "std", "global-context"] }
@@ -53,7 +52,6 @@ native = [
   "dep:lru",
   "dep:tokio",
   "dep:metrics",
-  "dep:pin-project",
   "dep:reth-tasks",
   "dep:tracing",
   "dep:serde_json",

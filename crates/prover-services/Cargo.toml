@@ -15,7 +15,6 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 # 3rd-party deps
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-futures = { workspace = true }
 rand = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

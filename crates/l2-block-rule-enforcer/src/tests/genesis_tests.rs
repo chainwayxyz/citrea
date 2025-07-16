@@ -1,6 +1,6 @@
 use std::str::FromStr;
+use std::sync::LazyLock;
 
-use lazy_static::lazy_static;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{DaSpec, Module, Spec, StateValueAccessor, WorkingSet};
@@ -11,15 +11,14 @@ use crate::{L2BlockRuleEnforcer, L2BlockRuleEnforcerConfig};
 
 type C = DefaultContext;
 
-lazy_static! {
-    pub(crate) static ref TEST_CONFIG: L2BlockRuleEnforcerConfig = L2BlockRuleEnforcerConfig {
+pub(crate) static TEST_CONFIG: LazyLock<L2BlockRuleEnforcerConfig> =
+    LazyLock::new(|| L2BlockRuleEnforcerConfig {
         max_l2_blocks_per_l1: 10,
         authority: <DefaultContext as Spec>::Address::from_str(
-            "sov1kqrxxkwkf7t7kfuegllwkzp6jc6r6h66pgkfe7pggtm0gayl756qku2u5p"
+            "sov1kqrxxkwkf7t7kfuegllwkzp6jc6r6h66pgkfe7pggtm0gayl756qku2u5p",
         )
         .unwrap(),
-    };
-}
+    });
 
 #[test]
 fn genesis_data() {
