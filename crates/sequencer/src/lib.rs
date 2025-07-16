@@ -139,6 +139,7 @@ where
         rpc_storage,
         ledger_db.clone(),
         sequencer_config.test_mode,
+        l2_block_tx.subscribe(),
     );
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
 

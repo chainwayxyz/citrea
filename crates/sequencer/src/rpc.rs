@@ -7,9 +7,10 @@ use alloy_rpc_types::Transaction;
 use citrea_common::rpc::utils::internal_rpc_error;
 use citrea_evm::Evm;
 use citrea_stf::runtime::DefaultContext;
-use jsonrpsee::core::RpcResult;
+use jsonrpsee::core::{RpcResult, SubscriptionResult};
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::{ErrorCode, ErrorObject};
+use jsonrpsee::PendingSubscriptionSink;
 use parking_lot::Mutex;
 use reth_rpc::eth::EthTxBuilder;
 use reth_rpc_eth_types::error::EthApiError;
@@ -17,6 +18,9 @@ use reth_rpc_types_compat::TransactionCompat;
 use reth_transaction_pool::{EthPooledTransaction, PoolTransaction};
 use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps};
 use sov_modules_api::{Spec, WorkingSet};
+use sov_rollup_interface::rpc::block::L2BlockResponse;
+use sov_rollup_interface::rpc::{L2BlockIdentifier, LedgerRpcProvider};
+use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error};
 
@@ -40,6 +44,8 @@ pub struct RpcContext {
     pub ledger: LedgerDB,
     /// Whether the sequencer is running in test mode
     pub test_mode: bool,
+    /// Broadcast receiver for L2 block notifications
+    pub l2_block_rx: broadcast::Receiver<u64>,
 }
 
 /// Creates a shared RpcContext with all required data.
@@ -51,6 +57,7 @@ pub struct RpcContext {
 /// * `storage` - Storage for the sequencer state
 /// * `ledger_db` - Ledger database access
 /// * `test_mode` - Whether the sequencer is running in test mode
+/// * `l2_block_rx` - Broadcast receiver for L2 block notifications
 pub fn create_rpc_context(
     mempool: Arc<CitreaMempool>,
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
@@ -58,6 +65,7 @@ pub fn create_rpc_context(
     storage: <DefaultContext as Spec>::Storage,
     ledger_db: LedgerDB,
     test_mode: bool,
+    l2_block_rx: broadcast::Receiver<u64>,
 ) -> RpcContext {
     RpcContext {
         mempool,
@@ -66,6 +74,7 @@ pub fn create_rpc_context(
         storage,
         ledger: ledger_db,
         test_mode,
+        l2_block_rx,
     }
 }
 
@@ -159,6 +168,10 @@ pub trait SequencerRpc {
     /// Resume sequencer commitments
     #[method(name = "citrea_resumeCommitments")]
     async fn resume_commitments(&self) -> RpcResult<()>;
+
+    /// Subscribe to Citrea events
+    #[subscription(name = "citrea_subscribe" => "citrea_subscription", unsubscribe = "citrea_unsubscribe", item = L2BlockResponse)]
+    async fn subscribe_citrea(&self, topic: String) -> SubscriptionResult;
 }
 
 /// Sequencer RPC server implementation
@@ -334,6 +347,70 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
                 internal_rpc_error(format!("Could not send resume commitments signal: {e}"))
             })
     }
+
+    /// Subscribe to Citrea events
+    async fn subscribe_citrea(
+        &self,
+        pending: PendingSubscriptionSink,
+        topic: String,
+    ) -> SubscriptionResult {
+        match topic.as_str() {
+            "newL2Blocks" => {
+                let subscription = pending.accept().await?;
+                let mut rx = self.context.l2_block_rx.resubscribe();
+                let storage = self.context.storage.clone();
+                let ledger = self.context.ledger.clone();
+
+                tokio::spawn(async move {
+                    while let Ok(block_height) = rx.recv().await {
+                        let block_response =
+                            match get_l2_block_response(block_height, &storage, &ledger).await {
+                                Ok(response) => response,
+                                Err(e) => {
+                                    tracing::error!("Failed to get L2 block response: {}", e);
+                                    continue;
+                                }
+                            };
+
+                        if let Err(e) = subscription
+                            .send_timeout(
+                                jsonrpsee::SubscriptionMessage::new(
+                                    subscription.method_name(),
+                                    subscription.subscription_id(),
+                                    &block_response,
+                                )
+                                .unwrap(),
+                                std::time::Duration::from_secs(10),
+                            )
+                            .await
+                        {
+                            tracing::debug!("Failed to send L2 block notification: {}", e);
+                            break;
+                        }
+                    }
+                });
+            }
+            _ => {
+                pending
+                    .reject(internal_rpc_error("Unsupported subscription topic"))
+                    .await;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Get L2 block response by block height
+async fn get_l2_block_response(
+    block_height: u64,
+    _storage: &<DefaultContext as Spec>::Storage,
+    ledger: &LedgerDB,
+) -> Result<L2BlockResponse, Box<dyn std::error::Error + Send + Sync>> {
+    let l2_block = ledger
+        .get_l2_block(&L2BlockIdentifier::Number(block_height))?
+        .ok_or("L2 block not found")?;
+
+    Ok(l2_block)
 }
 
 /// Creates and returns the sequencer RPC module with all methods registered

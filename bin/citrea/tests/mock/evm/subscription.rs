@@ -288,3 +288,90 @@ fn parse_log_contract_logs(
 
     (log_payload, another_log_payload)
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_citrea_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
+    let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+    let sequencer_config = SequencerConfig {
+        max_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
+        ..Default::default()
+    };
+
+    let seq_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
+
+    let port = port_rx.await.unwrap();
+
+    let test_client = make_test_client(port).await?;
+
+    test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 1, None).await;
+
+    // Subscribe
+    let new_l2_blocks_rx = test_client.subscribe_new_l2_blocks().await;
+    let last_received_block = Arc::new(Mutex::new(None));
+    let last_received_block_clone = last_received_block.clone();
+    tokio::spawn(async move {
+        loop {
+            let Ok(block) = new_l2_blocks_rx.recv() else {
+                return;
+            };
+            *(last_received_block_clone.lock().unwrap()) = Some(block);
+        }
+    });
+
+    // Empty block
+    {
+        test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&test_client, 2, None).await;
+        // Wait for subscription notification
+        sleep(Duration::from_millis(100)).await;
+
+        let block = last_received_block.lock().unwrap();
+        let block = block.as_ref().unwrap();
+        assert_eq!(block.header.height.to::<u64>(), 2);
+        assert!(block.txs.is_empty());
+    }
+
+    // Block with 1 send transaction
+    {
+        let _pending_tx = test_client
+            .send_eth(Address::random(), None, None, None, 10000)
+            .await
+            .unwrap();
+
+        test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&test_client, 3, None).await;
+        // Wait for subscription notification
+        sleep(Duration::from_millis(100)).await;
+
+        let block = last_received_block.lock().unwrap();
+        let block = block.as_ref().unwrap();
+        assert_eq!(block.header.height.to::<u64>(), 3);
+        assert_eq!(block.txs.len(), 1);
+    }
+
+    seq_task.graceful_shutdown();
+    Ok(())
+}

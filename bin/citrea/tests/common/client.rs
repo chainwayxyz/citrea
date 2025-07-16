@@ -772,6 +772,30 @@ impl TestClient {
         rx
     }
 
+    pub(crate) async fn subscribe_new_l2_blocks(&self) -> mpsc::Receiver<L2BlockResponse> {
+        let (tx, rx) = mpsc::channel();
+        let mut subscription = self
+            .ws_client
+            .subscribe(
+                "citrea_subscribe",
+                rpc_params!["newL2Blocks"],
+                "citrea_unsubscribe",
+            )
+            .await
+            .unwrap();
+
+        tokio::spawn(async move {
+            loop {
+                let Some(Ok(block)) = subscription.next().await else {
+                    return;
+                };
+                tx.send(block).unwrap();
+            }
+        });
+
+        rx
+    }
+
     pub(crate) async fn eth_block_number(&self) -> u64 {
         let block_number: U256 = self
             .http_client
