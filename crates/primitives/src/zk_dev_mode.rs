@@ -5,3 +5,13 @@ use sov_rollup_interface::Network;
 pub fn network_to_dev_mode(network: Network) -> bool {
     !matches!(network, Network::Mainnet)
 }
+
+#[test]
+fn test_network_to_dev_mode() {
+    assert!(network_to_dev_mode(Network::Testnet));
+    assert!(network_to_dev_mode(Network::Devnet));
+    assert!(network_to_dev_mode(Network::Nightly));
+    assert!(network_to_dev_mode(Network::TestNetworkWithForks));
+
+    assert!(!network_to_dev_mode(Network::Mainnet));
+}
