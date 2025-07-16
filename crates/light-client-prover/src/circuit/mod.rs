@@ -222,6 +222,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// * `proof` - The serialized complete proof to process.
     /// * `last_l2_height` - The last L2 height known before processing this proof.
     /// * `last_sequencer_commitment_index` - The last sequencer commitment index known before processing this proof.
+    /// * `network` - The Citrea network this light client proof is running on.
     /// * `working_set` - The working set to use accessor that reads the JMT state.
     ///
     /// # Logic
@@ -344,6 +345,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// This function processes the relevant transactions, moves the L2 state forward, and validates the changes to the LCP’s JMT state.
     ///
     /// # Arguments
+    /// * `network` - The Citrea network this light client proof is running on.
     /// * `storage` - The storage used for accessing the JMT state, performing updates, and validating read and write operations.
     /// * `witness` - The witness that contains the hints for the JMT state.
     /// * `da_txs` - Vector of the relevant transactions. Transactions are considered relevant if their wtxid begins with a predefined constant reveal transaction prefix.

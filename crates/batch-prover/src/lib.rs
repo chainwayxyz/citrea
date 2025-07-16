@@ -68,6 +68,7 @@ pub mod rpc;
 /// Builds and initializes all batch prover services.
 ///
 /// # Arguments
+/// * `network` - The Citrea network this batch prover is running on.
 /// * `prover_config` - Configuration for the batch prover.
 /// * `runner_config` - Runner configuration for the batch prover.
 /// * `init_params` - Initialization parameters for the batch prover start up.

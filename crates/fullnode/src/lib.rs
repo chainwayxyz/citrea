@@ -156,6 +156,7 @@ pub mod rpc;
 /// Builds and initializes all fullnode services
 ///
 /// # Arguments
+/// * `network` - The Citrea network this fullnode is running on
 /// * `runner_config` - Configuration for the fullnode
 /// * `init_params` - Initial parameters for node setup
 /// * `native_stf` - State transition function blueprint
