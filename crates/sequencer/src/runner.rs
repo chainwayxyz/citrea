@@ -233,9 +233,11 @@ where
                     da_blocks,
                     &mut nonce,
                 )?;
-            SEQUENCER_METRICS
-                .dry_run_system_txs_time
-                .record(start_dry_run_system_txs.elapsed().as_millis() as f64);
+            SEQUENCER_METRICS.dry_run_system_txs_time.record(
+                Instant::now()
+                    .saturating_duration_since(start_dry_run_system_txs)
+                    .as_secs_f64(),
+            );
 
             // Track transactions that failed due to insufficient L1 fee balance
             let mut l1_fee_failed_txs = vec![];
@@ -364,7 +366,7 @@ where
                 histogram!("sequencer_dry_run_tx_time").record(
                     Instant::now()
                         .saturating_duration_since(start_tx)
-                        .as_millis() as f64,
+                        .as_secs_f64(),
                 );
             }
             SEQUENCER_METRICS.dry_run_execution.record(
@@ -485,9 +487,11 @@ where
         let evm_txs = self.get_best_transactions()?;
 
         let last_da_block_height = da_blocks.last().map(|b| b.header().height());
-        SEQUENCER_METRICS
-            .dry_run_preparation_time
-            .record(start_dry_run_preparation.elapsed().as_millis() as f64);
+        SEQUENCER_METRICS.dry_run_preparation_time.record(
+            Instant::now()
+                .saturating_duration_since(start_dry_run_preparation)
+                .as_secs_f64(),
+        );
 
         // Dry running transactions would basically allow for figuring out a list of
         // all transactions that would fit into the current block and the list of transactions
@@ -520,9 +524,11 @@ where
             );
             bail!("Failed to apply begin l2 block hook: {:?}", err)
         }
-        SEQUENCER_METRICS
-            .begin_l2_block_time
-            .record(start_begin_l2_block.elapsed().as_millis() as f64);
+        SEQUENCER_METRICS.begin_l2_block_time.record(
+            Instant::now()
+                .saturating_duration_since(start_begin_l2_block)
+                .as_secs_f64(),
+        );
 
         let start_encode_and_sign_sov_tx = Instant::now();
         let mut blobs = vec![];
@@ -544,32 +550,40 @@ where
             blobs.push(signed_tx.to_blob()?);
             txs.push(signed_tx);
         }
-        SEQUENCER_METRICS
-            .encode_and_sign_sov_tx_time
-            .record(start_encode_and_sign_sov_tx.elapsed().as_millis() as f64);
+        SEQUENCER_METRICS.encode_and_sign_sov_tx_time.record(
+            Instant::now()
+                .saturating_duration_since(start_encode_and_sign_sov_tx)
+                .as_secs_f64(),
+        );
 
         let start_apply_txs = Instant::now();
         self.stf
             .apply_l2_block_txs(&l2_block_info, &txs, &mut working_set)
             .expect("dry_run_transactions should have already checked this");
-        SEQUENCER_METRICS
-            .apply_l2_block_txs_time
-            .record(start_apply_txs.elapsed().as_millis() as f64);
+        SEQUENCER_METRICS.apply_l2_block_txs_time.record(
+            Instant::now()
+                .saturating_duration_since(start_apply_txs)
+                .as_secs_f64(),
+        );
 
         let start_end_l2_block = Instant::now();
         self.stf.end_l2_block(l2_block_info, &mut working_set)?;
-        SEQUENCER_METRICS
-            .end_l2_block_time
-            .record(start_end_l2_block.elapsed().as_millis() as f64);
+        SEQUENCER_METRICS.end_l2_block_time.record(
+            Instant::now()
+                .saturating_duration_since(start_end_l2_block)
+                .as_secs_f64(),
+        );
 
         // Finalize l2 block
         let start_finalize_l2_block = Instant::now();
         let l2_block_result = self
             .stf
             .finalize_l2_block(active_fork_spec, working_set, prestate);
-        SEQUENCER_METRICS
-            .finalize_l2_block_time
-            .record(start_finalize_l2_block.elapsed().as_millis() as f64);
+        SEQUENCER_METRICS.finalize_l2_block_time.record(
+            Instant::now()
+                .saturating_duration_since(start_finalize_l2_block)
+                .as_secs_f64(),
+        );
 
         let start_sign_l2_block_header = Instant::now();
         // Calculate tx hashes for merkle root
@@ -595,30 +609,40 @@ where
             l2_block.height(),
             evm_txs_count
         );
-        SEQUENCER_METRICS
-            .sign_l2_block_header_time
-            .record(start_sign_l2_block_header.elapsed().as_millis() as f64);
+        SEQUENCER_METRICS.sign_l2_block_header_time.record(
+            Instant::now()
+                .saturating_duration_since(start_sign_l2_block_header)
+                .as_secs_f64(),
+        );
 
         let save_l2_block_start = Instant::now();
         let state_diff = self.save_l2_block(l2_block, l2_block_result, tx_hashes, blobs)?;
-        SEQUENCER_METRICS
-            .save_l2_block_time
-            .record(save_l2_block_start.elapsed().as_millis() as f64);
+        SEQUENCER_METRICS.save_l2_block_time.record(
+            Instant::now()
+                .saturating_duration_since(save_l2_block_start)
+                .as_secs_f64(),
+        );
 
         self.ledger_db
             .set_state_diff(L2BlockNumber(l2_height), &state_diff)?;
 
         let start_maintain_mempool = Instant::now();
         self.maintain_mempool(l1_fee_failed_txs)?;
-        SEQUENCER_METRICS
-            .maintain_mempool_time
-            .record(start_maintain_mempool.elapsed().as_millis() as f64);
+        SEQUENCER_METRICS.maintain_mempool_time.record(
+            Instant::now()
+                .saturating_duration_since(start_maintain_mempool)
+                .as_secs_f64(),
+        );
 
         histogram!(
             "sequencer_block_production_time",
             "block_number" => l2_height.to_string()
         )
-        .record(block_production_start.elapsed().as_millis() as f64);
+        .record(
+            Instant::now()
+                .saturating_duration_since(block_production_start)
+                .as_secs_f64(),
+        );
 
         // Update last used l1 height if this is a new da block
         if let Some(l1_height) = last_da_block_height {

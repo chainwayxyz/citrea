@@ -176,9 +176,9 @@ where
                                 "l2_start_height" => commitment_range.start().0.to_string(),
                                 "l2_end_height" => commitment_range.end().0.to_string()
                             ).record(
-                                start_commitment_processing
-                                    .elapsed()
-                                    .as_millis() as f64,
+                                std::time::Instant::now()
+                                    .saturating_duration_since(start_commitment_processing)
+                                    .as_secs_f64(),
                             );
                             // Reset the start time for the next commitment processing
                             start_commitment_processing = Instant::now();

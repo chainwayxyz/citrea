@@ -6,6 +6,7 @@
 use core::panic;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::anyhow;
 use citrea_common::backup::BackupManager;
@@ -237,7 +238,11 @@ where
                     }
                     FULLNODE_METRICS
                         .sequencer_commitment_processing_time
-                        .record(start_commitment_process.elapsed().as_millis() as f64);
+                        .record(
+                            Instant::now()
+                                .saturating_duration_since(start_commitment_process)
+                                .as_secs_f64(),
+                        );
                 }
                 ProofOrCommitment::Proof(proof) => {
                     let start_proof_process = std::time::Instant::now();
@@ -259,9 +264,11 @@ where
                             }
                         }
                     }
-                    FULLNODE_METRICS
-                        .batch_proof_processing_time
-                        .record(start_proof_process.elapsed().as_millis() as f64);
+                    FULLNODE_METRICS.batch_proof_processing_time.record(
+                        Instant::now()
+                            .saturating_duration_since(start_proof_process)
+                            .as_secs_f64(),
+                    );
                 }
             }
         }

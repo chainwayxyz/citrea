@@ -326,8 +326,11 @@ impl BitcoinService {
         // Process transaction queue.
         self.process_transaction_queue().await?;
 
-        histogram!("bitcoin_da_transaction_queue_processing_time")
-            .record(now.elapsed().as_millis() as f64);
+        histogram!("bitcoin_da_transaction_queue_processing_time").record(
+            std::time::Instant::now()
+                .saturating_duration_since(now)
+                .as_secs_f64(),
+        );
 
         Ok(txs)
     }

@@ -4,6 +4,7 @@
 
 use std::collections::{hash_map, HashMap, VecDeque};
 use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::Context;
 use citrea_common::utils::{get_tangerine_activation_height_non_zero, merge_state_diffs};
@@ -587,9 +588,11 @@ where
 
         let sequencer_commitments = partition.commitments.to_vec();
 
-        BATCH_PROVER_METRICS
-            .total_input_preparation_time
-            .record(input_preparation_start.elapsed().as_secs_f64());
+        BATCH_PROVER_METRICS.total_input_preparation_time.record(
+            Instant::now()
+                .saturating_duration_since(input_preparation_start)
+                .as_secs_f64(),
+        );
 
         Ok(BatchProofCircuitInputV3 {
             initial_state_root,
@@ -939,7 +942,11 @@ pub(crate) fn get_batch_proof_circuit_input_from_commitments<
 
     BATCH_PROVER_METRICS
         .cumulative_witness_generation_time
-        .record(start_generate_cumulative_witness.elapsed().as_millis() as f64);
+        .record(
+            std::time::Instant::now()
+                .saturating_duration_since(start_generate_cumulative_witness)
+                .as_secs_f64(),
+        );
 
     Ok(CommitmentStateTransitionData {
         short_header_proofs,
