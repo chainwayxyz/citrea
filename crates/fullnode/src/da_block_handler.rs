@@ -481,11 +481,6 @@ where
             sequencer_commitment.clone(),
         )?;
 
-        self.ledger_db.set_l2_range_by_commitment_merkle_root(
-            sequencer_commitment.merkle_root,
-            (L2BlockNumber(start_l2_height), L2BlockNumber(end_l2_height)),
-        )?;
-
         self.ledger_db
             .put_commitment_by_index(sequencer_commitment)?;
 

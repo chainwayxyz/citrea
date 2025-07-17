@@ -16,8 +16,7 @@ use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
 use crate::schema::types::{
-    BonsaiSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus,
-    PendingProofsOutput, SlotNumber,
+    BonsaiSession, L2BlockNumber, L2HeightAndIndex, L2HeightStatus, PendingProofsOutput, SlotNumber,
 };
 
 /// Shared ledger operations
@@ -113,18 +112,6 @@ pub trait SharedLedgerOps {
     /// Returns stored short header proof by l1 hash
     fn get_short_header_proof_by_l1_hash(&self, hash: &[u8; 32])
         -> anyhow::Result<Option<Vec<u8>>>;
-    /// Set L2 range by l2 block hash merkle root
-    fn set_l2_range_by_commitment_merkle_root(
-        &self,
-        root: [u8; 32],
-        range: L2HeightRange,
-    ) -> anyhow::Result<()>;
-
-    /// Get L2 range by l2 block hash merkle root
-    fn get_l2_range_by_commitment_merkle_root(
-        &self,
-        root: [u8; 32],
-    ) -> anyhow::Result<Option<L2HeightRange>>;
 
     /// Store commitment by index
     fn put_commitment_by_index(&self, commitment: &SequencerCommitment) -> anyhow::Result<()>;

@@ -16,9 +16,9 @@ use crate::rocks_db_config::RocksdbConfig;
 #[cfg(test)]
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
-    CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber,
-    ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot,
-    L2RangeByL1Height, L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs,
+    CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentsByNumber, ExecutedMigrations,
+    JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot, L2RangeByL1Height,
+    L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs,
     PendingBonsaiSessionByJobId, PendingL1SubmissionJobs, PendingProofs,
     PendingSequencerCommitment, PendingSequencerCommitments, ProofByJobId, ProofsBySlotNumberV2,
     ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
@@ -34,7 +34,7 @@ use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
 use crate::schema::types::{
-    BonsaiSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber,
+    BonsaiSession, L2BlockNumber, L2HeightAndIndex, L2HeightStatus, SlotNumber,
 };
 
 /// Implementation of database migrator
@@ -425,21 +425,6 @@ impl SharedLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err)]
     fn put_executed_migration(&self, migration: (String, u64)) -> anyhow::Result<()> {
         self.db.put::<ExecutedMigrations>(&migration, &())
-    }
-
-    fn set_l2_range_by_commitment_merkle_root(
-        &self,
-        root: [u8; 32],
-        range: L2HeightRange,
-    ) -> anyhow::Result<()> {
-        self.db.put::<CommitmentMerkleRoots>(&root, &range)
-    }
-
-    fn get_l2_range_by_commitment_merkle_root(
-        &self,
-        root: [u8; 32],
-    ) -> anyhow::Result<Option<L2HeightRange>> {
-        self.db.get::<CommitmentMerkleRoots>(&root)
     }
 
     fn put_commitment_by_index(&self, commitment: &SequencerCommitment) -> anyhow::Result<()> {
