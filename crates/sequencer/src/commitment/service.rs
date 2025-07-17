@@ -220,6 +220,10 @@ where
             .commitment_blocks_count
             .set(l2_block_hashes.len() as f64);
 
+        SEQUENCER_METRICS
+            .currently_committing_index
+            .set(commitment_index as f64);
+
         let commitment =
             self.get_commitment(commitment_index, &commitment_range, l2_block_hashes)?;
 

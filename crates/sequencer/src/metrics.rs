@@ -28,6 +28,9 @@ pub struct SequencerMetrics {
     /// Current count of blocks in the commitment
     #[metric(describe = "The number of blocks included in a sequencer commitment")]
     pub commitment_blocks_count: Gauge,
+    /// Current commitment indext being submitted to DA
+    #[metric(describe = "The index of commitment that is being submitted to DA")]
+    pub currently_committing_index: Gauge,
     /// Current L2 block number
     #[metric(describe = "The current L2 block number")]
     pub current_l2_block: Gauge,
