@@ -101,7 +101,6 @@ pub struct BatchProofInfoRpcResponse {
     pub last_l2_height: U64,
 }
 
-
 impl From<VerifiedStateTransitionForSequencerCommitmentIndex> for BatchProofInfoRpcResponse {
     fn from(info: VerifiedStateTransitionForSequencerCommitmentIndex) -> Self {
         Self {
