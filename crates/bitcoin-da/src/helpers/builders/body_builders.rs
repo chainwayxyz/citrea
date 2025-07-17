@@ -212,10 +212,6 @@ pub fn create_inscription_type_0(
         let (control_block, merkle_root, tapscript_hash) =
             build_control_block(&reveal_script, public_key, SECP256K1);
 
-        if let Some(root) = merkle_root {
-            info!("Taproot merkle root for inscription - Complete: {}", root);
-        }
-
         // create commit tx address
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
@@ -288,6 +284,9 @@ pub fn create_inscription_type_0(
                         .as_secs_f64(),
                 );
 
+                if let Some(root) = merkle_root {
+                    info!("Taproot merkle root for inscription - Complete: {}", root);
+                }
                 return Ok(DaTxs::Complete {
                     commit: unsigned_commit_tx,
                     reveal: TxWithId {
@@ -381,10 +380,6 @@ pub fn create_inscription_type_1(
 
             let (control_block, merkle_root, tapscript_hash) =
                 build_control_block(&reveal_script, public_key, SECP256K1);
-
-            if let Some(root) = merkle_root {
-                info!("Taproot merkle root for inscription - Chunked: {}", root);
-            }
 
             // create commit tx address
             let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
@@ -486,6 +481,10 @@ pub fn create_inscription_type_1(
                     commit_chunks.push(unsigned_commit_tx);
                     reveal_chunks.push(reveal_tx);
 
+                    if let Some(root) = merkle_root {
+                        info!("Taproot merkle root for inscription - Chunked: {}", root);
+                    }
+
                     break 'mine_chunk;
                 } else {
                     unsigned_commit_tx.output[0].value -= Amount::ONE_SAT;
@@ -573,10 +572,6 @@ pub fn create_inscription_type_1(
         let (control_block, merkle_root, tapscript_hash) =
             build_control_block(&reveal_script, public_key, SECP256K1);
 
-        if let Some(root) = merkle_root {
-            info!("Taproot merkle root for inscription - Aggregate: {}", root);
-        }
-
         // create commit tx address
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
@@ -649,6 +644,9 @@ pub fn create_inscription_type_1(
                         .as_secs_f64(),
                 );
 
+                if let Some(root) = merkle_root {
+                    info!("Taproot merkle root for inscription - Aggregate: {}", root);
+                }
                 return Ok(DaTxs::Chunked {
                     commit_chunks,
                     reveal_chunks,
@@ -748,13 +746,6 @@ pub fn create_inscription_type_3(
         let (control_block, merkle_root, tapscript_hash) =
             build_control_block(&reveal_script, public_key, SECP256K1);
 
-        if let Some(root) = merkle_root {
-            info!(
-                "Taproot merkle root for inscription - BatchProofMethodId: {}",
-                root
-            );
-        }
-
         // create commit tx address
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
@@ -827,6 +818,12 @@ pub fn create_inscription_type_3(
                         .as_secs_f64(),
                 );
 
+                if let Some(root) = merkle_root {
+                    info!(
+                        "Taproot merkle root for inscription - BatchProofMethodId: {}",
+                        root
+                    );
+                }
                 return Ok(DaTxs::BatchProofMethodId {
                     commit: unsigned_commit_tx,
                     reveal: TxWithId {
@@ -923,10 +920,6 @@ pub fn create_inscription_type_4(
         let (control_block, merkle_root, tapscript_hash) =
             build_control_block(&reveal_script, public_key, SECP256K1);
 
-        if let Some(root) = merkle_root {
-            info!("Taproot merkle root for inscription - Commitment: {}", root);
-        }
-
         // create commit tx address
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
@@ -1000,6 +993,9 @@ pub fn create_inscription_type_4(
                         .as_secs_f64(),
                 );
 
+                if let Some(root) = merkle_root {
+                    info!("Taproot merkle root for inscription - Commitment: {}", root);
+                }
                 return Ok(DaTxs::SequencerCommitment {
                     commit: unsigned_commit_tx,
                     reveal: TxWithId {
