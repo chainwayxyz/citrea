@@ -13,7 +13,6 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey, StaleNodeIndex};
 use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
-use sov_rollup_interface::mmr::{MMRChunk, MMRNodeHash, Wtxid};
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
@@ -27,14 +26,6 @@ use super::types::{
     AccessoryKey, AccessoryStateValue, BonsaiSession, DbHash, JmtValue, L1Height, L2BlockNumber,
     L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber, StateKey,
 };
-
-/// A list of all tables used by the StateDB. These tables store rollup state - meaning
-/// account balances, nonces, etc.
-pub const MMR_TABLES: &[&str] = &[
-    MMRNodes::table_name(),
-    MMRTreeSize::table_name(),
-    MMRChunks::table_name(),
-];
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
 /// account balances, nonces, etc.
@@ -486,21 +477,6 @@ define_table_with_default_codec!(
 define_table_with_seek_key_codec!(
     /// Stores the last pruned L2 block number
     (LastPrunedBlock) () => u64
-);
-
-define_table_with_seek_key_codec!(
-    /// Stores the chunk's hash of an MMR
-    (MMRNodes) (u32, u32) => MMRNodeHash
-);
-
-define_table_with_seek_key_codec!(
-    /// Stores the chunk's content by hash
-    (MMRChunks) Wtxid => MMRChunk
-);
-
-define_table_with_seek_key_codec!(
-    /// Stores the MMR tree size
-    (MMRTreeSize) () => u32
 );
 
 define_table_with_default_codec!(

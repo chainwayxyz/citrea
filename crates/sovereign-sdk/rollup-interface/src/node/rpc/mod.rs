@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::da::SequencerCommitment;
-use crate::mmr::MMRGuest;
 use crate::zk::batch_proof::output::CumulativeStateDiff;
 use crate::zk::light_client_proof::output::VerifiedStateTransitionForSequencerCommitmentIndex;
 use crate::RefCount;
@@ -102,29 +101,6 @@ pub struct BatchProofInfoRpcResponse {
     pub last_l2_height: U64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(transparent)]
-/// Hex serializable Root
-pub struct Root(#[serde(with = "utils::rpc_hex")] [u8; 32]);
-
-/// Hex serializable MMRGuest
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MMRGuestRpcResponse {
-    /// Subroots of the MMR
-    pub subroots: Vec<Root>,
-    /// Size of the MMR
-    pub size: U64,
-}
-
-impl From<MMRGuest> for MMRGuestRpcResponse {
-    fn from(mmr: MMRGuest) -> Self {
-        Self {
-            subroots: mmr.subroots.into_iter().map(Root).collect(),
-            size: U64::from(mmr.size),
-        }
-    }
-}
 
 impl From<VerifiedStateTransitionForSequencerCommitmentIndex> for BatchProofInfoRpcResponse {
     fn from(info: VerifiedStateTransitionForSequencerCommitmentIndex) -> Self {
