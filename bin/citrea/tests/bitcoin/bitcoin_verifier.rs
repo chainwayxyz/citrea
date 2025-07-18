@@ -26,6 +26,8 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_primitives::REVEAL_TX_PREFIX;
 use reth_tasks::TaskManager;
+use sov_db::ledger_db::LedgerDB;
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::Network;
@@ -115,8 +117,14 @@ impl TestCase for BitcoinVerifierTest {
 
         let da_node = f.bitcoin_nodes.get(0).unwrap();
 
-        let service = get_default_service(&task_executor, &da_node.config).await;
-        let (block, _, _, _) = generate_mock_txs(&service, da_node, &task_executor).await;
+        let dir = Self::test_config().dir;
+        let rocksdb_config = RocksdbConfig::new(&dir, None, None);
+        let ledger_db = LedgerDB::with_config(&rocksdb_config)?;
+
+        let service =
+            get_default_service(&task_executor, &da_node.config, Some(ledger_db.clone())).await;
+        let (block, _, _, _) =
+            generate_mock_txs(&service, da_node, &task_executor, Some(ledger_db)).await;
 
         let (mut txs, inclusion_proof, completeness_proof) =
             service.extract_relevant_blobs_with_proof(&block);
@@ -744,7 +752,7 @@ impl BitcoinVerifierTest {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_bitcoin_verifier() -> Result<()> {
     TestCaseRunner::new(BitcoinVerifierTest {
         task_manager: TaskManager::current(),

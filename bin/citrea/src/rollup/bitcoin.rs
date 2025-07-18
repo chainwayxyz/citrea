@@ -105,6 +105,7 @@ impl RollupBlueprint for BitcoinRollup {
         require_wallet_check: bool,
         task_executor: TaskExecutor,
         network: Network,
+        ledger_db: LedgerDB,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
         let (tx, rx) = unbounded_channel::<TxRequestWithNotifier<TxidWrapper>>();
 
@@ -140,6 +141,7 @@ impl RollupBlueprint for BitcoinRollup {
             BitcoinService::from_config(
                 da_config,
                 chain_params,
+                Some(ledger_db),
                 client.clone(),
                 network,
                 network_constants,

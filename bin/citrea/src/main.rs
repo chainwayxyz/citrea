@@ -204,6 +204,7 @@ where
             matches!(node_type, NodeWithConfig::Sequencer(_))
                 || matches!(node_type, NodeWithConfig::BatchProver(_)),
             network,
+            ledger_db.clone(),
         )
         .await?;
 

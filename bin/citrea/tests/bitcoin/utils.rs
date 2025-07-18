@@ -19,6 +19,7 @@ use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_e2e::traits::NodeT;
 use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
 use reth_tasks::TaskExecutor;
+use sov_db::ledger_db::LedgerDB;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
@@ -59,6 +60,7 @@ fn get_tx_backup_dir() -> PathBuf {
 pub async fn get_default_service(
     task_executor: &TaskExecutor,
     config: &BitcoinConfig,
+    ledger_db: Option<LedgerDB>,
 ) -> Arc<BitcoinService> {
     spawn_bitcoin_da_service(
         task_executor,
@@ -66,6 +68,7 @@ pub async fn get_default_service(
         get_tx_backup_dir(),
         DaServiceKeyKind::Sequencer,
         REVEAL_TX_PREFIX.to_vec(),
+        ledger_db,
     )
     .await
 }
@@ -74,6 +77,7 @@ pub async fn spawn_bitcoin_da_sequencer_service(
     task_executor: &TaskExecutor,
     config: &BitcoinConfig,
     dir: PathBuf,
+    ledger_db: Option<LedgerDB>,
 ) -> Arc<BitcoinService> {
     spawn_bitcoin_da_service(
         task_executor,
@@ -81,6 +85,7 @@ pub async fn spawn_bitcoin_da_sequencer_service(
         dir,
         DaServiceKeyKind::Sequencer,
         REVEAL_TX_PREFIX.to_vec(),
+        ledger_db,
     )
     .await
 }
@@ -89,6 +94,7 @@ pub async fn spawn_bitcoin_da_prover_service(
     task_executor: &TaskExecutor,
     config: &BitcoinConfig,
     dir: PathBuf,
+    ledger_db: Option<LedgerDB>,
 ) -> Arc<BitcoinService> {
     spawn_bitcoin_da_service(
         task_executor,
@@ -96,6 +102,7 @@ pub async fn spawn_bitcoin_da_prover_service(
         dir,
         DaServiceKeyKind::BatchProver,
         REVEAL_TX_PREFIX.to_vec(),
+        ledger_db,
     )
     .await
 }
@@ -106,6 +113,7 @@ pub async fn spawn_bitcoin_da_service(
     test_dir: PathBuf,
     kind: DaServiceKeyKind,
     reveal_tx_prefix: Vec<u8>,
+    ledger_db: Option<LedgerDB>,
 ) -> Arc<BitcoinService> {
     let da_private_key = match kind {
         DaServiceKeyKind::Sequencer => SEQUENCER_DA_PRIVATE_KEY.to_string(),
@@ -168,6 +176,7 @@ pub async fn spawn_bitcoin_da_service(
         BitcoinService::from_config(
             &da_config,
             chain_params,
+            ledger_db,
             client,
             network,
             network_constants,
@@ -314,6 +323,7 @@ pub async fn generate_mock_txs(
     da_service: &BitcoinService,
     da_node: &BitcoinNode,
     task_executor: &TaskExecutor,
+    ledger_db: Option<LedgerDB>,
 ) -> (
     BitcoinBlock,
     Vec<SequencerCommitment>,
@@ -331,6 +341,7 @@ pub async fn generate_mock_txs(
         wrong_prefix_wallet,
         DaServiceKeyKind::Sequencer,
         vec![6],
+        ledger_db.clone(),
     )
     .await;
 
@@ -345,6 +356,7 @@ pub async fn generate_mock_txs(
             "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(),
         ),
         REVEAL_TX_PREFIX.to_vec(),
+        ledger_db.clone(),
     )
     .await;
 

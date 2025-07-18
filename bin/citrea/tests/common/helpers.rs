@@ -149,6 +149,7 @@ pub async fn start_rollup(
             &rollup_config,
             sequencer_config.is_some() || rollup_prover_config.is_some(),
             network.unwrap_or(Network::Nightly),
+            ledger_db.clone(),
         )
         .await
         .expect("Dependencies setup should work");

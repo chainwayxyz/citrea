@@ -6,6 +6,7 @@ use rocksdb::{ReadOptions, WriteBatch};
 use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::{Fork, ForkMigration};
+use sov_rollup_interface::mmr::Wtxid;
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use sov_schema_db::{ScanDirection, Schema, SchemaBatch, SeekKeyEncoder, DB};
@@ -16,13 +17,13 @@ use crate::rocks_db_config::RocksdbConfig;
 #[cfg(test)]
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
-    CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber,
-    ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot,
-    L2RangeByL1Height, L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs,
-    PendingBonsaiSessionByJobId, PendingL1SubmissionJobs, PendingProofs,
-    PendingSequencerCommitment, PendingSequencerCommitments, ProofByJobId, ProofsBySlotNumberV2,
-    ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
-    ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
+    ChunksByWtxid, CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots,
+    CommitmentsByNumber, ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber,
+    L2GenesisStateRoot, L2RangeByL1Height, L2StatusHeights, LastPrunedBlock,
+    LightClientProofBySlotNumber, MempoolTxs, PendingBonsaiSessionByJobId, PendingL1SubmissionJobs,
+    PendingProofs, PendingSequencerCommitment, PendingSequencerCommitments, ProofByJobId,
+    ProofsBySlotNumberV2, ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs,
+    SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
     VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
@@ -984,6 +985,19 @@ impl NodeLedgerOps for LedgerDB {
             self.get_highest_l2_height_for_status(L2HeightStatus::Proven, Some(l1_height))?;
 
         Ok((committed_height, proven_height))
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn store_chunk(&self, wtxid: Wtxid, chunk_data: Vec<u8>) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<ChunksByWtxid>(&wtxid, &chunk_data)?;
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_chunk(&self, wtxid: Wtxid) -> anyhow::Result<Option<Vec<u8>>> {
+        self.db.get::<ChunksByWtxid>(&wtxid)
     }
 }
 

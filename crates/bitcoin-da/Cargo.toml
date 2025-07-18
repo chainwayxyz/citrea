@@ -13,6 +13,7 @@ repository = { workspace = true }
 [dependencies]
 citrea-common = { path = "../common", optional = true }
 citrea-primitives = { path = "../primitives" }
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
 anyhow = { workspace = true }
@@ -61,5 +62,6 @@ native = [
   "dep:reqwest",
   "dep:jsonrpsee",
   "dep:secp256k1",
+  "dep:sov-db",
 ]
 testing = []

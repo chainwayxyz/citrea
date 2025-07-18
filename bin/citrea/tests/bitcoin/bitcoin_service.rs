@@ -14,6 +14,8 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_primitives::REVEAL_TX_PREFIX;
 use reth_tasks::TaskManager;
+use sov_db::ledger_db::LedgerDB;
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_rollup_interface::da::{BlobReaderTrait, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::Network;
@@ -53,14 +55,19 @@ impl TestCase for BitcoinServiceTest {
 
         let da_node = f.bitcoin_nodes.get(0).unwrap();
 
-        let service = get_default_service(&task_executor, &da_node.config).await;
+        let dir = Self::test_config().dir;
+        let rocksdb_config = RocksdbConfig::new(&dir, None, None);
+        let ledger_db = LedgerDB::with_config(&rocksdb_config)?;
+
+        let service =
+            get_default_service(&task_executor, &da_node.config, Some(ledger_db.clone())).await;
         let verifier = BitcoinVerifier::new(RollupParams {
             reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
             network: Network::Nightly,
         });
 
         let (block, block_commitments, block_proofs, _) =
-            generate_mock_txs(&service, da_node, &task_executor).await;
+            generate_mock_txs(&service, da_node, &task_executor, Some(ledger_db)).await;
         let block_wtxids = block
             .txdata
             .iter()
@@ -123,6 +130,7 @@ impl TestCase for BitcoinServiceTest {
                 .into_iter()
                 .map(|(_, proof)| proof)
                 .collect();
+
             assert_eq!(proofs, block_proofs);
         }
 
@@ -145,6 +153,7 @@ impl TestCase for BitcoinServiceTest {
                 block.txdata.iter().map(|tx| tx.deref().clone()).collect(),
                 REVEAL_TX_PREFIX,
             );
+
             assert_eq!(txs.len(), 4);
 
             // Count the number of transactions occurring per public key
@@ -152,6 +161,7 @@ impl TestCase for BitcoinServiceTest {
                 *acc.entry(tx.sender().0).or_insert(0) += 1;
                 acc
             });
+
             // 3 valid sequencer commitments
             assert_eq!(tx_count_of_pubkey.get(&da_pubkey).unwrap(), &3);
             // 1 invalid sequencer commitment due to different key
@@ -162,7 +172,7 @@ impl TestCase for BitcoinServiceTest {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_bitcoin_service() -> Result<()> {
     TestCaseRunner::new(BitcoinServiceTest {
         task_manager: TaskManager::current(),

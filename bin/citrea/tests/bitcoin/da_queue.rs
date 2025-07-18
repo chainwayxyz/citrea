@@ -254,9 +254,13 @@ impl TestCase for DaTransactionQueueingTest {
         let full_node = f.full_node.as_mut().unwrap();
         let light_client_prover = f.light_client_prover.as_mut().unwrap();
 
-        let da_service =
-            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
-                .await;
+        let da_service = spawn_bitcoin_da_prover_service(
+            &task_executor,
+            &da.config,
+            Self::test_config().dir,
+            None,
+        )
+        .await;
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         da.generate(DEFAULT_FINALITY_DEPTH).await?;

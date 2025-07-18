@@ -5,6 +5,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::mmr::Wtxid;
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use uuid::Uuid;
@@ -206,6 +207,12 @@ pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
 
     /// Remove a pending proof by its commitment index range
     fn remove_pending_proof(&self, min_index: u32, max_index: u32) -> Result<()>;
+
+    /// Store a chunk by its wtxid
+    fn store_chunk(&self, wtxid: Wtxid, chunk_data: Vec<u8>) -> Result<()>;
+
+    /// Get a chunk by its wtxid
+    fn get_chunk(&self, wtxid: Wtxid) -> Result<Option<Vec<u8>>>;
 }
 
 /// Prover ledger operations
