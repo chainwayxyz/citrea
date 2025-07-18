@@ -36,6 +36,16 @@ Full node RPC is accessible at `127.0.0.1:12346`
 
 If test_mode is set to false in the sequencer config, the sequencer will publish blocks every 2 seconds.
 
+_Optional_: Run batch prover on Mock DA:
+```sh
+PARALLEL_PROOF_LIMIT=1 ./target/debug/citrea --dev --rollup-config-path resources/configs/mock/batch_prover_rollup_config.toml --genesis-paths resources/genesis/mock/ --batch-prover resources/configs/mock/batch_prover_config.toml
+```
+
+_Optional_: Run light client prover on Mock DA:
+```sh
+./target/debug/citrea --dev --rollup-config-path resources/configs/mock/light_client_prover_rollup_config.toml --genesis-paths resources/genesis/mock/ --light-client-prover resources/configs/mock/light_client_prover_config.toml
+```
+
 ### Run on Bitcoin Regtest
 
 Run on local Bitcoin network.
