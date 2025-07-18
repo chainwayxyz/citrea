@@ -150,6 +150,11 @@ If your testing of the local network requires mining sequencer commitments and b
 bitcoin-cli -regtest -generate
 ```
 
+Or you can run this command in a seperate terminal to periodically mine new regtest blocks:
+```sh
+while true; do; bitcoin-cli -regtest -generate; sleep 10; done;
+```
+
 ## Testing
 
 To run tests:
