@@ -257,11 +257,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
             #[cfg(feature = "native")]
             {
-                // Update the metrics with the new block count
-                gauge!(
-                    "evm_gas_usage","block_number" => sealed_block.header.number.to_string(),
-                )
-                .set(sealed_block.header.number as f64);
+                let base_fee_gwei = sealed_block.header.base_fee_per_gas.unwrap_or_default() as f64
+                    / 1_000_000_000.0; // Convert to Gwei
+                                       // Update the metrics with the new block count
+                gauge!("evm_gas_usage").set(sealed_block.header.gas_used as f64);
+                gauge!("evm_base_fee_per_gas").set(base_fee_gwei);
             }
 
             self.block_hashes.set(
