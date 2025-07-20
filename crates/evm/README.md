@@ -9,7 +9,7 @@ This crate is key to Citrea's compatibility with the EVM, while utilizing the lo
 - The system contract
   - A system contract that keeps track of L1. It will also play an important role for our bridge, [Clementine](https://github.com/chainwayxyz/clementine).
 - Tracing methods for transactions
-  - Used in Call/Gas simulations for the EVM (compatible with EIP-1559), mostly.
+  - Used in Call/Gas simulations for the EVM (compatible with [EIP-1559](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1559.md)), mostly.
 - Extensive EVM tests
   - These tests are independent from [Hive](https://github.com/ethereum/hive) tests of Ethereum Foundation. We maintain them in the `hive` folder.
 
