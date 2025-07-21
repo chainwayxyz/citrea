@@ -3,13 +3,13 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
+use sov_rollup_interface::RefCount;
+use tracing::{debug, error, info};
+
 use super::migrations::utils::{drop_column_families, list_column_families};
 use super::LedgerDB;
 use crate::ledger_db::SharedLedgerOps;
 use crate::rocks_db_config::RocksdbConfig;
-use anyhow::anyhow;
-use sov_rollup_interface::RefCount;
-use tracing::{debug, error, info};
 
 /// Utilities for ledger db migrations
 pub mod utils;
