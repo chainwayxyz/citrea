@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::Context;
 use rand::Rng;
@@ -65,6 +66,7 @@ where
         };
 
         PARALLEL_PROVER_METRICS.ongoing_proving_jobs.set(0);
+        PARALLEL_PROVER_METRICS.proof_count_waiting_in_queue.set(0);
 
         Ok(Self {
             parallel_proof_limit,
@@ -159,7 +161,9 @@ where
 
             match proof {
                 Ok(proof) => {
-                    let duration = proof_start_time.elapsed().as_secs_f64();
+                    let duration = Instant::now()
+                        .saturating_duration_since(proof_start_time)
+                        .as_secs_f64();
                     let proof_with_duration = ProofWithDuration {
                         proof: proof.proof.clone(),
                         duration,
@@ -187,12 +191,17 @@ where
         // try to reserve a slot if there is one available
         if *ongoing_proof_count < self.parallel_proof_limit {
             *ongoing_proof_count += 1;
-            PARALLEL_PROVER_METRICS.ongoing_proving_jobs.increment(1);
+            PARALLEL_PROVER_METRICS
+                .ongoing_proving_jobs
+                .set(*ongoing_proof_count as f64);
             return;
         }
         // release the lock manually just in case
         drop(ongoing_proof_count);
 
+        PARALLEL_PROVER_METRICS
+            .proof_count_waiting_in_queue
+            .increment(1);
         warn!("Reached parallel proof limit, waiting for one of the proving tasks to finish");
 
         loop {
@@ -204,7 +213,12 @@ where
             let mut ongoing_proof_count = self.ongoing_proof_count.lock().await;
             if *ongoing_proof_count < self.parallel_proof_limit {
                 *ongoing_proof_count += 1;
-                PARALLEL_PROVER_METRICS.ongoing_proving_jobs.increment(1);
+                PARALLEL_PROVER_METRICS
+                    .ongoing_proving_jobs
+                    .set(*ongoing_proof_count as f64);
+                PARALLEL_PROVER_METRICS
+                    .proof_count_waiting_in_queue
+                    .decrement(1);
                 return;
             }
         }

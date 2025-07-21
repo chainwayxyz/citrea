@@ -14,6 +14,10 @@ pub struct ParallelProverMetrics {
     /// Number of ongoing proving jobs
     #[metric(describe = "Number of ongoing proving jobs")]
     pub ongoing_proving_jobs: Gauge,
+
+    /// Number of proofs waiting in queue to be processed because of PARALLEL_PROOF_LIMIT
+    #[metric(describe = "Number of proofs waiting in queue to be processed")]
+    pub proof_count_waiting_in_queue: Gauge,
 }
 
 /// Parallel prover metrics
