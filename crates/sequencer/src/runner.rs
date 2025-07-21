@@ -21,7 +21,7 @@ use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::merkle::{compute_tx_hashes, compute_tx_merkle_root};
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
-use metrics::{counter, gauge, histogram};
+use metrics::{gauge, histogram};
 use parking_lot::Mutex;
 use reth_execution_types::ChangedAccount;
 use reth_provider::{AccountReader, BlockReaderIdExt};
