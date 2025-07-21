@@ -17,7 +17,6 @@ use sov_modules_api::{Context, Module, Spec, WorkingSet};
 use sov_rollup_interface::spec::SpecId;
 
 use crate::smart_contracts::{BlockHashContract, SimpleStorageContract};
-use crate::tests::get_test_seq_pub_key;
 use crate::tests::queries::{init_evm, init_evm_single_block};
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{create_contract_message, get_evm, get_evm_config, get_fork_fn_latest};
@@ -89,7 +88,6 @@ fn test_state_change() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate: 1,
         timestamp: 0,
     };
@@ -757,7 +755,6 @@ fn test_call_with_block_overrides() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -791,8 +788,7 @@ fn test_call_with_block_overrides() {
             l2_height,
             pre_state_root: [99u8; 32],
             current_spec: SpecId::Tangerine,
-            sequencer_pub_key: get_test_seq_pub_key(),
-            l1_fee_rate,
+                l1_fee_rate,
             timestamp: 0,
         };
 

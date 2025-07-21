@@ -20,7 +20,6 @@ use sov_state::ProverStorage;
 use crate::primitive_types::Block;
 use crate::tests::ef_tests::models::{BlockchainTest, ForkSpec};
 use crate::tests::ef_tests::{Case, Error, Suite};
-use crate::tests::get_test_seq_pub_key;
 use crate::tests::utils::{commit, config_push_contracts, get_evm_with_storage};
 use crate::{AccountData, Evm, EvmChainConfig, EvmConfig, RlpEvmTransaction, U256};
 
@@ -71,8 +70,7 @@ impl BlockchainTestCase {
                 l2_height,
                 pre_state_root: *root,
                 current_spec,
-                sequencer_pub_key: get_test_seq_pub_key(),
-                l1_fee_rate,
+                        l1_fee_rate,
                 timestamp: 0,
             };
 

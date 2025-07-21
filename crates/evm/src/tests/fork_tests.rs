@@ -18,7 +18,6 @@ use crate::smart_contracts::{
     SchnorrVerifyCallerContract, SelfDestructorContract, SelfdestructingConstructorContract,
     SimpleStorageContract, TransientStorageContract,
 };
-use crate::tests::get_test_seq_pub_key;
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
     create_contract_message, get_evm, get_evm_config, get_evm_with_spec, set_arg_message,
@@ -130,7 +129,6 @@ fn test_cancun_transient_storage_activation() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -243,7 +241,6 @@ fn test_cancun_mcopy_activation() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -319,7 +316,6 @@ fn test_self_destructing_constructor() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -399,7 +395,6 @@ fn test_blob_base_fee_should_return_1() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -476,7 +471,6 @@ fn test_kzg_point_eval_should_revert() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -585,7 +579,6 @@ fn test_p256_verify() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -641,7 +634,6 @@ fn test_schnorr_verify() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -676,8 +668,7 @@ fn test_schnorr_verify() {
                 l2_height,
                 pre_state_root: [10u8; 32],
                 current_spec: SovSpecId::Tangerine,
-                sequencer_pub_key: get_test_seq_pub_key(),
-                l1_fee_rate,
+                        l1_fee_rate,
                 timestamp: 0,
             };
             let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
@@ -774,7 +765,6 @@ fn test_offchain_contract_storage_evm() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -874,7 +864,6 @@ fn test_offchain_contract_storage_evm() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };

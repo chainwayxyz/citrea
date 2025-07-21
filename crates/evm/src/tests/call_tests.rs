@@ -35,7 +35,7 @@ use crate::tests::utils::{
     get_evm_config, get_evm_config_starting_base_fee, get_evm_with_spec, get_fork_fn_latest,
     publish_event_message, set_arg_message,
 };
-use crate::tests::{get_test_seq_pub_key, DEFAULT_CHAIN_ID};
+use crate::tests::DEFAULT_CHAIN_ID;
 use crate::{
     AccountData, EvmConfig, RlpEvmTransaction, BASE_FEE_VAULT, L1_FEE_VAULT, PRIORITY_FEE_VAULT,
 };
@@ -67,7 +67,6 @@ fn call_multiple_test() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -201,7 +200,6 @@ fn call_test() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -279,7 +277,6 @@ fn failed_transaction_test() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -347,7 +344,6 @@ fn self_destruct_test() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -414,7 +410,6 @@ fn self_destruct_test() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -502,7 +497,6 @@ fn test_block_hash_in_evm() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -535,7 +529,6 @@ fn test_block_hash_in_evm() {
             l2_height,
             pre_state_root: [99u8; 32],
             current_spec: SovSpecId::Tangerine,
-            sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,
         };
@@ -655,7 +648,6 @@ fn test_block_gas_limit() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -716,7 +708,6 @@ fn test_block_gas_limit() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -876,7 +867,6 @@ fn test_l1_fee_success() {
             l2_height: 2,
             pre_state_root: [10u8; 32],
             current_spec: SovSpecId::Tangerine,
-            sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,
         };
@@ -981,7 +971,6 @@ fn test_l1_fee_not_enough_funds() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -1054,7 +1043,6 @@ fn test_l1_fee_halt() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -1168,7 +1156,6 @@ fn test_l1_fee_compression_discount() {
         l2_height: 2,
         pre_state_root: [99u8; 32],
         current_spec: SovSpecId::Tangerine, // Compression discount is enabled
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -1257,7 +1244,6 @@ fn test_blob_tx() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine, // won't be Tangerine at height 2 currently but we can trick the spec id
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -1333,7 +1319,6 @@ fn test_eip7702_tx() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -1379,7 +1364,6 @@ fn test_eip7702_tx() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -1503,7 +1487,6 @@ fn test_eip7702_tx() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
@@ -1609,7 +1592,6 @@ fn test_eip7702_tx() {
         l2_height,
         pre_state_root: [10u8; 32],
         current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
