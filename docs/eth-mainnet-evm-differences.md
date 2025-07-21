@@ -18,7 +18,7 @@ Citrea implements [RIP-7212](https://github.com/ethereum/RIPs/blob/master/RIPS/r
 
 ## System Contracts
 
-### No EIP-2935 & EIP-7002
+### No [EIP-2935](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-2935.md) & [EIP-7002](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-7002.md)
 These EIPs are not implemented in Citrea.
 
 ### Citrea Specific System Contracts
@@ -52,7 +52,7 @@ Citrea blocks have 10 million gas limit, except for tests where we have differen
 Citrea blocks are produced every 2 seconds. The timing of the blocks are controlled by the sequencer and are not guaranteed to meet the 2 second interval.
 
 ### Block base fee
-Though Citrea implements EIP-1559, the base fee of Citrea blocks have a lower limit of `0.01 Gwei`.
+Though Citrea implements [EIP-1559](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1559.md), the base fee of Citrea blocks have a lower limit of `0.01 Gwei`.
 
 ### L1 Fees
 Citrea posts ZK proofs of block range executions on Bitcoin. These proofs output the state difference of the rollup between the block range. Therefore, the rollup charges transactions an L1 fee based on the its "diff size".
@@ -62,7 +62,7 @@ As the diffs are batched and there is no way to know how many times a storage sl
 Code related to the L1 fees can be found in `crates/evm/src/evm/handler.rs`
 
 ### No EIP-4844
-EIP-4844 transaction cannot be included in L2 blocks. `BLOBBASEFEE` always returns 1.
+[EIP-4844](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md) transaction cannot be included in L2 blocks. `BLOBBASEFEE` always returns 1.
 
 ### System Transactions
 System transactions are transactions that are done by the system signer `0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD`. These transactions are put inside the L2 blocks by the sequencer and they are not charged any fees.
