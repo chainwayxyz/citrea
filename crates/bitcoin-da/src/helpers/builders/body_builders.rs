@@ -278,7 +278,7 @@ pub fn create_inscription_type_0(
                     commit_tx_address
                 );
 
-                histogram!("mine_da_transaction").record(
+                histogram!("type_0_mine_da_transaction").record(
                     Instant::now()
                         .saturating_duration_since(start)
                         .as_secs_f64(),
@@ -631,7 +631,7 @@ pub fn create_inscription_type_1(
                     commit_tx_address
                 );
 
-                histogram!("mine_da_transaction").record(
+                histogram!("type_1_mine_da_transaction").record(
                     Instant::now()
                         .saturating_duration_since(start)
                         .as_secs_f64(),
@@ -802,7 +802,7 @@ pub fn create_inscription_type_3(
                     commit_tx_address
                 );
 
-                histogram!("mine_da_transaction").record(
+                histogram!("type_3_mine_da_transaction").record(
                     Instant::now()
                         .saturating_duration_since(start)
                         .as_secs_f64(),
@@ -971,7 +971,7 @@ pub fn create_inscription_type_4(
                     commit_tx_address
                 );
 
-                histogram!("mine_da_transaction").record(
+                histogram!("type_4_mine_da_transaction").record(
                     Instant::now()
                         .saturating_duration_since(start)
                         .as_secs_f64(),
