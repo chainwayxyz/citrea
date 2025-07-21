@@ -38,7 +38,7 @@ where
             let elapsed = start.elapsed().as_secs_f64();
             let success = response.is_success().to_string();
 
-            let hist_title = format!("{}_rpc_response_time_seconds", node_type);
+            let hist_title = format!("{}_rpc_response_time", node_type);
 
             histogram!(
                 hist_title,
