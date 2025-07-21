@@ -94,6 +94,10 @@ pub struct SequencerMetrics {
     /// Histogram tracking the time taken to dry run system transactions
     #[metric(describe = "The time taken to dry run system transactions in milliseconds")]
     pub dry_run_system_txs_time: Histogram,
+
+    /// The l1 fee rate in the l2 block
+    #[metric(describe = "The L1 fee rate in the l2 block")]
+    pub l1_fee_rate: Gauge,
 }
 
 /// Sequencer metrics

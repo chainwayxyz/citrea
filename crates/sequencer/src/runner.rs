@@ -438,6 +438,7 @@ where
             .block_production_execution
             .record(block_production_time);
         gauge!("sequencer_block_production_execution_gauge").set(block_production_time);
+        SEQUENCER_METRICS.l1_fee_rate.set(l1_fee_rate as f64);
         SEQUENCER_METRICS.current_l2_block.set(l2_height as f64);
 
         result
