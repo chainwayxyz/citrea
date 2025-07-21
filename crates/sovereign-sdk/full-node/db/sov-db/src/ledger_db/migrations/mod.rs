@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::anyhow;
+use sov_rollup_interface::RefCount;
 use tracing::{debug, error, info};
 
 use super::migrations::utils::{drop_column_families, list_column_families};
@@ -119,26 +119,15 @@ impl<'a> LedgerDBMigrator<'a> {
             return Ok(());
         }
 
-        // Drop the lock file
-        drop(ledger_db);
-
-        info!("Pending migrations exist. Preparing backups...");
-        // Copy files over, if temp_db_path falls out of scope, the directory is removed.
-        let temp_db_path = tempfile::tempdir()?;
-        copy_db_dir_recursive(dbs_path, temp_db_path.path())?;
-
-        let new_ledger_db = Arc::new(LedgerDB::with_config(&RocksdbConfig::new(
-            temp_db_path.path(),
-            max_open_files,
-            Some(all_column_families.clone()),
-        ))?);
+        info!("Pending migrations exist. Applying...");
 
         let mut tables_to_drop = vec![];
 
         info!("Executing pending migrations.");
+        let ledger_db = RefCount::new(ledger_db);
         for migration in unexecuted_migrations {
             debug!("Running migration: {}", migration.identifier().0);
-            if let Err(e) = migration.execute(new_ledger_db.clone(), &mut tables_to_drop) {
+            if let Err(e) = migration.execute(ledger_db.clone(), &mut tables_to_drop) {
                 error!(
                     "Error executing migration {}\n: {:?}",
                     migration.identifier().0,
@@ -154,57 +143,28 @@ impl<'a> LedgerDBMigrator<'a> {
         // Mark migrations as executed separately from the previous loop,
         // to make sure all migrations executed successfully.
         for migration in self.migrations.iter() {
-            new_ledger_db
+            ledger_db
                 .put_executed_migration(migration.identifier())
                 .expect(
                     "Should mark migrations as executed, otherwise, something is seriously wrong",
                 );
         }
-        // Stop using the original ledger DB path, i.e drop locks
-        drop(new_ledger_db);
+
+        // Drop the lock file
+        drop(ledger_db);
 
         // Now that the lock is gone drop the tables that were migrated
 
         drop_column_families(
             &RocksdbConfig::new(
-                temp_db_path.path(),
+                self.ledger_path,
                 max_open_files,
                 Some(all_column_families.clone()),
             ),
             tables_to_drop,
         )?;
 
-        info!("Migrations executed, restoring to original path");
-        // Construct a backup path adjacent to original path
-        let ledger_path = dbs_path.join(LedgerDB::DB_PATH_SUFFIX);
-        let temp_ledger_path = temp_db_path.path().join(LedgerDB::DB_PATH_SUFFIX);
-        let last_part = ledger_path
-            .components()
-            .last()
-            .ok_or(anyhow!("Original path contains invalid construction"))?
-            .as_os_str()
-            .to_str()
-            .ok_or(anyhow!("Could not extract path of ledger path"))?;
-
-        let backup_path = ledger_path
-            .parent()
-            .ok_or(anyhow!(
-                "Was not able to determine parent path of ledger DB"
-            ))?
-            .join(format!("{}-backup", last_part));
-
-        // Initially clear the backup path
-        clear_db_dir(&backup_path)?;
-
-        // Backup original DB
-        copy_db_dir_recursive(&ledger_path, &backup_path)?;
-
-        // Initially clear the original path
-        clear_db_dir(&ledger_path)?;
-        assert!(!ledger_path.exists(), "Failed to clear original path");
-
-        // Copy new DB into original path
-        copy_db_dir_recursive(&temp_ledger_path, &ledger_path)?;
+        info!("Migrations executed successfully.");
 
         Ok(())
     }
@@ -240,12 +200,4 @@ fn merge_column_families(
         .chain(column_families_in_db)
         .collect();
     column_families.into_iter().collect()
-}
-
-/// Completely clears the given path
-pub fn clear_db_dir(path: &Path) -> std::io::Result<()> {
-    if path.exists() {
-        fs::remove_dir_all(path)?;
-    }
-    Ok(())
 }

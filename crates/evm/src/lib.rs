@@ -102,8 +102,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     #[state(rename = "c")]
-    pub(crate) offchain_code:
-        sov_modules_api::OffchainStateMap<B256, revm::state::Bytecode, BcsCodec>,
+    pub offchain_code: sov_modules_api::OffchainStateMap<B256, revm::state::Bytecode, BcsCodec>,
 
     /// Chain configuration. This field is set in genesis.
     #[state(rename = "S")]

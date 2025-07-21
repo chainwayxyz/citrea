@@ -25,7 +25,7 @@ use reth_trie::updates::TrieUpdates;
 use reth_trie::{HashedPostState, HashedStorage, StorageMultiProof, StorageProof};
 use revm::database::BundleState;
 use sov_db::ledger_db::LedgerDB;
-use sov_modules_api::{Spec, WorkingSet};
+use sov_modules_api::{Spec, StateMapAccessor, WorkingSet};
 
 /// Provider for EVM database operations in the sequencer
 ///
@@ -123,6 +123,31 @@ impl AccountReader for DbProvider {
                 .map(Into::into)
         };
         Ok(account)
+    }
+}
+
+impl StateProvider for DbProvider {
+    fn storage(
+        &self,
+        account: Address,
+        storage_key: StorageKey,
+    ) -> ProviderResult<Option<StorageValue>> {
+        let mut working_set = WorkingSet::new(self.storage.clone());
+        let value = self
+            .evm
+            .storage_get(&account, &storage_key.into(), &mut working_set);
+
+        Ok(value)
+    }
+
+    fn bytecode_by_hash(&self, code_hash: &B256) -> ProviderResult<Option<Bytecode>> {
+        let mut working_set = WorkingSet::new(self.storage.clone());
+        let code = self
+            .evm
+            .offchain_code
+            .get(code_hash, &mut working_set.offchain_state());
+
+        Ok(code.map(reth_primitives::Bytecode))
     }
 }
 
@@ -639,19 +664,5 @@ impl StorageRootProvider for DbProvider {
 impl HashedPostStateProvider for DbProvider {
     fn hashed_post_state(&self, _bundle_state: &BundleState) -> HashedPostState {
         unimplemented!("hashed_post_state")
-    }
-}
-
-impl StateProvider for DbProvider {
-    fn storage(
-        &self,
-        _account: Address,
-        _storage_key: StorageKey,
-    ) -> ProviderResult<Option<StorageValue>> {
-        unimplemented!("storage")
-    }
-
-    fn bytecode_by_hash(&self, _code_hash: &B256) -> ProviderResult<Option<Bytecode>> {
-        unimplemented!("bytecode_by_hash")
     }
 }
