@@ -18,7 +18,6 @@ anyhow = { workspace = true, default-features = true }
 byteorder = { workspace = true, default-features = true, optional = true }
 metrics = { workspace = true }
 metrics-derive = { workspace = true }
-once_cell = { workspace = true, default-features = true }
 rocksdb = { workspace = true }
 tempfile = { workspace = true, optional = true }
 thiserror = { workspace = true }

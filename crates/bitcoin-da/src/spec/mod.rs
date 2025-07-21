@@ -19,8 +19,6 @@ pub mod blob;
 pub mod block;
 mod block_hash;
 pub mod header;
-#[cfg(feature = "native")]
-pub mod header_stream;
 pub mod proof;
 pub mod short_proof;
 pub mod transaction;

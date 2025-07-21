@@ -278,6 +278,7 @@ pub async fn start_rollup(
         let (l2_syncer, l1_syncer, prover, rpc_module) =
             CitreaRollupBlueprint::create_batch_prover(
                 &mock_demo_rollup,
+                network.unwrap_or(Network::Nightly),
                 rollup_prover_config,
                 genesis_config,
                 rollup_config.clone(),
@@ -371,6 +372,7 @@ pub async fn start_rollup(
         let (mut l2_syncer, l1_block_handler, pruner, rpc_module) =
             CitreaRollupBlueprint::create_full_node(
                 &mock_demo_rollup,
+                network.unwrap_or(Network::Nightly),
                 genesis_config,
                 rollup_config.clone(),
                 da_service,

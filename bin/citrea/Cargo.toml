@@ -54,7 +54,6 @@ borsh = { workspace = true, features = ["bytes"] }
 clap = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
-lazy_static = { workspace = true }
 log-panics = { workspace = true }
 metrics = { workspace = true }
 metrics-exporter-prometheus = { workspace = true, default-features = true }

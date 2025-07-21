@@ -89,12 +89,10 @@ metrics = "0.23.0"
 metrics-derive = "0.1.0"
 metrics-exporter-prometheus = "0.15.3"
 metrics-util = "0.17.0"
-num_cpus = "1.0"
 # 1.13 uses getrandom 0.3
 uuid = { version = "=1.12.1", default-features = false, features = ["serde", "borsh", "v7"] }
 parking_lot = "0.12.3"
 proptest = { version = "1.6.0", default-features = false, features = ["alloc"] }
-pin-project = "1.1.9"
 rand = "0.8"
 rayon = "1.8.0"
 rlimit = "0.10.2"
@@ -119,12 +117,12 @@ tower = { version = "0.4.13", features = ["full"] }
 
 # Risc0 dependencies
 bonsai-sdk = { version = "1.4" }
-risc0-binfmt = "2.0.1"
-risc0-zkvm = { version = "2.1.0", default-features = false }
-risc0-zkvm-platform = "2.0.2"
-risc0-zkp = "2.0.1"
-risc0-circuit-rv32im = "2.0.4"
-risc0-build = "2.1.2"
+risc0-binfmt = "2.0.2"
+risc0-zkvm = { version = "2.3.0", default-features = false }
+risc0-zkvm-platform = "2.0.3"
+risc0-zkp = "2.0.2"
+risc0-circuit-rv32im = "3.0.0"
+risc0-build = "2.3.0"
 rzup = "0.4.1"
 
 # EVM dependencies
@@ -165,7 +163,7 @@ alloy-eips = { version = "0.13", default-features = false }
 alloy-consensus = { version = "0.13", default-features = false, features = ["serde", "serde-bincode-compat"] }
 alloy-network = { version = "0.13", default-features = false }
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "34c6d80" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "859cddf" }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "0fe8a8b" }

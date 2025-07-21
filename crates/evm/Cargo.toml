@@ -64,7 +64,6 @@ bcs = { workspace = true }
 bytes = { workspace = true }
 citrea-primitives = { path = "../primitives", features = ["testing"] }
 hex = { workspace = true }
-lazy_static = "1.4.0"
 rand = { workspace = true }
 rayon = { workspace = true }
 reth-chainspec = { workspace = true }

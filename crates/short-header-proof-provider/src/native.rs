@@ -60,11 +60,11 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
 
                 if return_cond {
                     let mut queried_hashes_map = self.queried_and_verified_hashes.lock();
-                    if queried_hashes_map.capacity() == queried_hashes_map.len() {
-                        queried_hashes_map.try_reserve(1).map_err(|e| {
-                            ShortHeaderProofProviderError::VectorAllocationFailed(e.to_string())
-                        })?;
-                    }
+
+                    queried_hashes_map.try_reserve(1).map_err(|e| {
+                        ShortHeaderProofProviderError::VectorAllocationFailed(e.to_string())
+                    })?;
+
                     let entry = queried_hashes_map.entry(l2_height);
                     match entry {
                         std::collections::hash_map::Entry::Occupied(mut occ) => {

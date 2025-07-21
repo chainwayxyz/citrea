@@ -27,8 +27,8 @@
 //! - In order to find our data in the Bitcoin blockchain, we use the `reveal_tx_prefix`.
 //!   It is a prefix of the wtxid of the reveal transaction.
 //!
-//! - A relevant transaction is a transaction that contains the `reveal_tx_prefix` in its wtxid
-//!   and it contains a script that we are able to parse according to our tx format.
+//! - A relevant transaction is a transaction which wtxid starts from `reveal_tx_prefix` and
+//!   it contains a script that we are able to parse according to our tx format.
 //!
 //! - In tests the `reveal_tx_prefix` is of 1 byte length, but in production it is of 2 bytes length.
 //!   Because in production it's 2 bytes long, the probability of getting a random wtxid to match our prefix is 1/2^16.

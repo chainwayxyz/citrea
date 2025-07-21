@@ -15,7 +15,6 @@ resolver = "2"
 anyhow = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
-once_cell = { workspace = true }
 serde = { workspace = true }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }

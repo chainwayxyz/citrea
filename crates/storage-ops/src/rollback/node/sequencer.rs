@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use sov_db::schema::tables::{
-    CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2RangeByL1Height, ProverLastScannedSlot,
+    CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2RangeByL1Height,
     SequencerCommitmentByIndex, StateDiffByBlockNumber,
 };
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
@@ -129,9 +129,6 @@ impl LedgerNodeRollback for SequencerLedgerRollback {
 
         if let Some(l1_target) = context.l1_target {
             rollback_result = self.rollback_slots(l1_target, rollback_result)?;
-            let _ = self
-                .ledger_db
-                .put::<ProverLastScannedSlot>(&(), &SlotNumber(l1_target));
         }
 
         let _ = self.ledger_db.flush();

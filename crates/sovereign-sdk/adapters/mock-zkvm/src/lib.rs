@@ -135,6 +135,7 @@ impl sov_rollup_interface::zk::Zkvm for MockZkvm {
     fn verify(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
+        _allow_dev_mode: bool,
     ) -> Result<(), Self::Error> {
         let proof = MockProof::decode(serialized_proof)?;
         anyhow::ensure!(
@@ -161,8 +162,9 @@ impl sov_rollup_interface::zk::Zkvm for MockZkvm {
     fn verify_and_deserialize_output<T: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
+        _allow_dev_mode: bool,
     ) -> Result<T, Self::Error> {
-        Self::verify(serialized_proof, code_commitment)?;
+        Self::verify(serialized_proof, code_commitment, true)?;
         Self::deserialize_output(&serialized_proof[37..])
     }
 }
@@ -249,6 +251,7 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
     fn verify(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
+        _allow_dev_mode: bool,
     ) -> Result<(), Self::Error> {
         let proof = MockProof::decode(serialized_proof)?;
         anyhow::ensure!(
@@ -275,8 +278,9 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
     fn verify_and_deserialize_output<T: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
+        _allow_dev_mode: bool,
     ) -> Result<T, Self::Error> {
-        Self::verify(serialized_proof, code_commitment)?;
+        Self::verify(serialized_proof, code_commitment, true)?;
         Self::deserialize_output(&serialized_proof[37..])
     }
 }

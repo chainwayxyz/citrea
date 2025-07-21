@@ -137,6 +137,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
+use sov_rollup_interface::Network;
 use tokio::sync::{broadcast, Mutex};
 
 /// Module for handling L1 data availability blocks
@@ -155,6 +156,7 @@ pub mod rpc;
 /// Builds and initializes all fullnode services
 ///
 /// # Arguments
+/// * `network` - The Citrea network this fullnode is running on
 /// * `runner_config` - Configuration for the fullnode
 /// * `init_params` - Initial parameters for node setup
 /// * `native_stf` - State transition function blueprint
@@ -181,6 +183,7 @@ pub mod rpc;
 /// - Configured RPC module
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn build_services<DA, DB, Vm>(
+    network: Network,
     runner_config: RunnerConfig,
     init_params: InitParams,
     native_stf: StfBlueprint<
@@ -239,6 +242,7 @@ where
     )?;
 
     let l1_block_handler = L1BlockHandler::new(
+        network,
         ledger_db,
         da_service,
         public_keys.sequencer_da_pub_key,

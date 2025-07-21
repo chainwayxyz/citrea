@@ -12,7 +12,7 @@ repository.workspace = true
 # Citrea Deps
 bitcoin-da = { path = "../bitcoin-da", optional = true }
 citrea-common = { path = "../common", optional = true }
-citrea-primitives = { path = "../primitives", optional = true }
+citrea-primitives = { path = "../primitives" }
 citrea-risc0-batch-proof = { path = "../../guests/risc0/batch-proof" }
 prover-services = { path = "../prover-services", optional = true }
 
@@ -36,7 +36,6 @@ hex = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, optional = true, features = ["http-client", "server", "client"] }
 metrics = { workspace = true, optional = true }
 metrics-derive = { workspace = true, optional = true }
-once_cell = { workspace = true, default-features = true, optional = true }
 reth-tasks = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
@@ -56,7 +55,6 @@ native = [
   "dep:sov-mock-da",
   "dep:bitcoin-da",
   "dep:prover-services",
-  "dep:citrea-primitives",
   "dep:citrea-common",
   "dep:sov-prover-storage-manager",
   "dep:sov-db",
@@ -66,7 +64,6 @@ native = [
   "dep:jsonrpsee",
   "dep:metrics",
   "dep:metrics-derive",
-  "dep:once_cell",
   "dep:reth-tasks",
   "dep:tokio",
   "dep:tracing",

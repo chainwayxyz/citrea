@@ -3,6 +3,7 @@ use jsonrpsee::server::middleware::rpc::RpcServiceT;
 use jsonrpsee::types::error::ErrorObjectOwned;
 use jsonrpsee::types::Request;
 use jsonrpsee::MethodResponse;
+use serde_json::Value;
 
 const PROTECTED_METHODS: [&str; 3] = ["backup_create", "backup_validate", "backup_info"];
 
@@ -27,7 +28,7 @@ where
     fn call(&self, req: Request<'a>) -> Self::Future {
         let method = req.method_name();
         let service = self.service.clone();
-        let api_key = self.api_key.clone();
+        let api_key = self.api_key.clone().map(Value::from);
 
         if !PROTECTED_METHODS.contains(&method) {
             return Box::pin(service.call(req));
@@ -44,8 +45,9 @@ where
 
         Box::pin(async move {
             let params = req.params();
+
             let auth_param = params
-                .parse::<Vec<String>>()
+                .parse::<Vec<Value>>()
                 .ok()
                 .and_then(|v| v.last().cloned());
 

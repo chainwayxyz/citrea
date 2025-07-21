@@ -36,7 +36,6 @@ hex = { workspace = true }
 jsonrpsee = { workspace = true }
 metrics = { workspace = true }
 metrics-derive = { workspace = true }
-once_cell = { workspace = true, default-features = true }
 reth-tasks = { workspace = true }
 rs_merkle = { workspace = true }
 serde = { workspace = true }

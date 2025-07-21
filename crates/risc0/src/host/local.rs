@@ -108,9 +108,6 @@ impl LocalProver {
 
         #[cfg(feature = "testing")]
         {
-            // If we are testing, set guest env var to enable dev mode so that it verifies fake receipts
-            env.env_var("RISC0_DEV_MODE", "1");
-
             match self.network {
                 Network::Nightly => {}
                 Network::TestNetworkWithForks => {
@@ -118,11 +115,6 @@ impl LocalProver {
                 }
                 _ => panic!("Invalid network in testing feature!"),
             }
-        }
-
-        if self.dev_mode {
-            // on dev mode always propagate dev mode to the guest
-            env.env_var("RISC0_DEV_MODE", "1");
         }
 
         // Add input

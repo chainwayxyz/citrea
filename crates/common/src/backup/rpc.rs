@@ -37,7 +37,11 @@ pub struct BackupInfoResponse {
 #[rpc(client, server, namespace = "backup")]
 pub trait BackupRpc {
     #[method(name = "create")]
-    async fn backup_create(&self, path: Option<PathBuf>) -> RpcResult<CreateBackupInfo>;
+    async fn backup_create(
+        &self,
+        path: Option<PathBuf>,
+        n_to_keep: Option<u32>,
+    ) -> RpcResult<CreateBackupInfo>;
 
     #[method(name = "validate")]
     async fn backup_validate(&self, path: PathBuf) -> RpcResult<BackupValidationResponse>;
@@ -65,11 +69,25 @@ impl BackupRpcServerImpl {
 
 #[async_trait::async_trait]
 impl BackupRpcServer for BackupRpcServerImpl {
-    async fn backup_create(&self, path: Option<PathBuf>) -> RpcResult<CreateBackupInfo> {
-        self.backup_manager
+    async fn backup_create(
+        &self,
+        path: Option<PathBuf>,
+        n_to_keep: Option<u32>,
+    ) -> RpcResult<CreateBackupInfo> {
+        let result = self
+            .backup_manager
             .create_backup(path, &self.ledger_db)
             .await
-            .map_err(internal_rpc_error)
+            .map_err(internal_rpc_error)?;
+
+        if let Some(n_to_keep) = n_to_keep {
+            self.backup_manager
+                .purge_backup(result.backup_path.clone(), Some(n_to_keep), None)
+                .await
+                .map_err(internal_rpc_error)?;
+        }
+
+        Ok(result)
     }
 
     async fn backup_validate(&self, path: PathBuf) -> RpcResult<BackupValidationResponse> {

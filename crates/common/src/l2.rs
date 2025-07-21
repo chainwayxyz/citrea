@@ -250,7 +250,7 @@ async fn get_l2_blocks_range(
                         return Err(backoff::Error::Permanent(SyncError::ResponseOverLimit));
                     }
                     let error_msg = format!("L2 block: call error during RPC call: {:?}", e);
-                    debug!(error_msg);
+                    error!(error_msg);
                     Err(backoff::Error::Transient {
                         err: SyncError::Call(error_msg),
                         retry_after: None,
@@ -258,7 +258,7 @@ async fn get_l2_blocks_range(
                 }
                 JsonrpseeError::Transport(e) => {
                     let error_msg = format!("L2 block: connection error during RPC call: {:?}", e);
-                    debug!(error_msg);
+                    error!(error_msg);
                     Err(backoff::Error::Transient {
                         err: SyncError::Connection(error_msg),
                         retry_after: None,

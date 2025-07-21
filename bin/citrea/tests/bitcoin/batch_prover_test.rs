@@ -1291,7 +1291,7 @@ impl TestCase for BatchProverCreateInputTest {
             let output: BatchProofCircuitOutput = Risc0Host::extract_output(&proof).unwrap();
 
             // Verify the proof
-            Risc0Host::verify(proof.as_slice(), &code_commitment)
+            Risc0Host::verify(proof.as_slice(), &code_commitment, true)
                 .expect("Proof verification failed");
 
             assert_eq!(output.last_l2_height(), max_l2_blocks_per_commitment);

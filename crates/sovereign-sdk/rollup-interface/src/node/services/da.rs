@@ -39,11 +39,6 @@ pub trait DaService: Send + Sync + 'static {
     /// A DA layer block, possibly excluding some irrelevant information.
     type FilteredBlock: SlotData<BlockHeader = <Self::Spec as DaSpec>::BlockHeader>;
 
-    /// Type that allow to consume [`futures::Stream`] of BlockHeaders.
-    type HeaderStream: futures::Stream<
-        Item = Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error>,
-    >;
-
     /// A transaction ID, used to identify the transaction in the DA layer.
     type TransactionId: Send + PartialEq + Eq + PartialOrd + Ord + core::hash::Hash + Into<[u8; 32]>;
 

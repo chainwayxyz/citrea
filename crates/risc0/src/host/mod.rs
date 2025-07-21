@@ -11,7 +11,7 @@ use bonsai::BonsaiProver;
 use borsh::BorshDeserialize;
 use local::LocalProver;
 use risc0_zkvm::sha::Digest;
-use risc0_zkvm::AssumptionReceipt;
+use risc0_zkvm::{AssumptionReceipt, VerifierContext};
 use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, Zkvm, ZkvmHost};
 use sov_rollup_interface::Network;
@@ -133,10 +133,14 @@ impl Zkvm for Risc0Host {
     fn verify(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
+        allow_dev_mode: bool,
     ) -> Result<(), Self::Error> {
         let receipt = receipt_from_proof(serialized_proof)?;
 
-        Ok(receipt.verify(*code_commitment)?)
+        Ok(receipt.verify_with_context(
+            &VerifierContext::default().with_dev_mode(allow_dev_mode),
+            *code_commitment,
+        )?)
     }
 
     fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
@@ -151,11 +155,15 @@ impl Zkvm for Risc0Host {
     fn verify_and_deserialize_output<T: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
+        allow_dev_mode: bool,
     ) -> Result<T, Self::Error> {
         let receipt = receipt_from_proof(serialized_proof)?;
 
         #[allow(clippy::clone_on_copy)]
-        receipt.verify(code_commitment.clone())?;
+        receipt.verify_with_context(
+            &VerifierContext::default().with_dev_mode(allow_dev_mode),
+            code_commitment.clone(),
+        )?;
 
         Ok(T::deserialize(&mut receipt.journal.as_ref())?)
     }

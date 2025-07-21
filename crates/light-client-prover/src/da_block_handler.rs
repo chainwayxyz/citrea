@@ -239,8 +239,8 @@ where
 
         let storage = self.storage_manager.create_storage_for_next_l2_height();
 
-        // TODO: might need to iterate over da_data and call .full_data() on each
         let result = self.circuit.run_l1_block(
+            self.network,
             storage,
             Default::default(),
             da_data,

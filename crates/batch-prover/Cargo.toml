@@ -40,8 +40,6 @@ hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server", "client"] }
 metrics = { workspace = true }
 metrics-derive = { workspace = true }
-num_cpus = { workspace = true }
-once_cell = { workspace = true, default-features = true }
 parking_lot = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }

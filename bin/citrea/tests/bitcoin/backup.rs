@@ -32,7 +32,7 @@ async fn create_backup(
     Ok(client
         .request(
             "backup_create",
-            rpc_params![path, Some(API_KEY.to_string())],
+            rpc_params![path, None::<u32>, Some(API_KEY.to_string())],
         )
         .await?)
 }
@@ -87,7 +87,11 @@ impl BackupSequencerTest {
         let client = sequencer.client.http_client();
 
         // Should fail as backup methods are protected and api_key is not passed as hidden second param
-        let backup = sequencer.client.http_client().backup_create(None).await;
+        let backup = sequencer
+            .client
+            .http_client()
+            .backup_create(None, None)
+            .await;
 
         assert!(backup.is_err());
 

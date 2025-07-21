@@ -1,10 +1,11 @@
+use std::sync::LazyLock;
+
 use alloy_consensus::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, EMPTY_WITHDRAWALS};
 use alloy_consensus::EMPTY_OMMER_ROOT_HASH;
 use alloy_eips::eip1559::{BaseFeeParams, ETHEREUM_BLOCK_GAS_LIMIT_30M};
 use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::hex_literal::hex;
 use alloy_primitives::{Address, Bloom, Bytes, B256, B64, U256};
-use lazy_static::lazy_static;
 use reth_primitives::{Header, SealedHeader};
 use sov_modules_api::prelude::*;
 
@@ -12,12 +13,7 @@ use crate::evm::primitive_types::SealedBlock;
 use crate::evm::{AccountInfo, EvmChainConfig};
 use crate::tests::utils::{get_evm, get_evm_test_config, GENESIS_HASH, GENESIS_STATE_ROOT};
 
-lazy_static! {
-    pub(crate) static ref GENESIS_DA_TXS_COMMITMENT: B256 = B256::from(hex!(
-        "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
-    ));
-    pub(crate) static ref BENEFICIARY: Address = Address::from([3u8; 20]);
-}
+pub(crate) static BENEFICIARY: LazyLock<Address> = LazyLock::new(|| Address::from([3u8; 20]));
 
 #[test]
 fn genesis_data() {

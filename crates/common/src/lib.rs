@@ -11,6 +11,7 @@ pub mod rpc;
 pub mod utils;
 
 pub use config::*;
+use serde::{Deserialize, Serialize};
 use sov_rollup_interface::zk::StorageRootHash;
 
 type L2BlockHash = [u8; 32];
@@ -22,7 +23,8 @@ pub struct InitParams {
     pub prev_l2_block_hash: L2BlockHash,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum NodeType {
     Sequencer,
     FullNode,

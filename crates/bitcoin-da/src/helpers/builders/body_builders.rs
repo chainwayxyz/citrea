@@ -16,7 +16,7 @@ use metrics::histogram;
 use secp256k1::SECP256K1;
 use serde::Serialize;
 use sov_rollup_interface::da::DataOnDa;
-use tracing::{instrument, trace, warn};
+use tracing::{info, instrument, trace, warn};
 
 use super::{
     build_commit_transaction, build_control_block, build_reveal_transaction, build_witness,
@@ -284,6 +284,9 @@ pub fn create_inscription_type_0(
                         .as_secs_f64(),
                 );
 
+                if let Some(root) = merkle_root {
+                    info!("Taproot merkle root for inscription - Complete: {}", root);
+                }
                 return Ok(DaTxs::Complete {
                     commit: unsigned_commit_tx,
                     reveal: TxWithId {
@@ -478,6 +481,10 @@ pub fn create_inscription_type_1(
                     commit_chunks.push(unsigned_commit_tx);
                     reveal_chunks.push(reveal_tx);
 
+                    if let Some(root) = merkle_root {
+                        info!("Taproot merkle root for inscription - Chunked: {}", root);
+                    }
+
                     break 'mine_chunk;
                 } else {
                     unsigned_commit_tx.output[0].value -= Amount::ONE_SAT;
@@ -637,6 +644,9 @@ pub fn create_inscription_type_1(
                         .as_secs_f64(),
                 );
 
+                if let Some(root) = merkle_root {
+                    info!("Taproot merkle root for inscription - Aggregate: {}", root);
+                }
                 return Ok(DaTxs::Chunked {
                     commit_chunks,
                     reveal_chunks,
@@ -808,6 +818,12 @@ pub fn create_inscription_type_3(
                         .as_secs_f64(),
                 );
 
+                if let Some(root) = merkle_root {
+                    info!(
+                        "Taproot merkle root for inscription - BatchProofMethodId: {}",
+                        root
+                    );
+                }
                 return Ok(DaTxs::BatchProofMethodId {
                     commit: unsigned_commit_tx,
                     reveal: TxWithId {
@@ -977,6 +993,9 @@ pub fn create_inscription_type_4(
                         .as_secs_f64(),
                 );
 
+                if let Some(root) = merkle_root {
+                    info!("Taproot merkle root for inscription - Commitment: {}", root);
+                }
                 return Ok(DaTxs::SequencerCommitment {
                     commit: unsigned_commit_tx,
                     reveal: TxWithId {

@@ -44,7 +44,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: citrea-cli-${{ github.ref_name }}-linux-amd64
-          path: target/release/citrea-cli 
+          path: target/release/citrea-cli
 
   osx_arm64_binary_extraction:
     runs-on: self-hosted-citrea-osx-arm64
@@ -155,16 +155,16 @@ jobs:
         run: |
           sudo apt update
           sudo apt -y install wget
-          RELEASE="${{ github.ref_name}}"
-          
-          BINARY_URL="https://github.com/chainwayxyz/citrea/releases/download/${RELEASE}/citrea-${RELEASE}-linux-amd64"   
+          RELEASE="${{ github.ref_name }}"
+
+          BINARY_URL="https://github.com/chainwayxyz/citrea/releases/download/${RELEASE}/citrea-${RELEASE}-linux-amd64"
           echo "Downloading binary from ${BINARY_URL}"
-          # Download the binary using wget 
+          # Download the binary using wget
           wget -O docker/build-push/testnet/citrea "${BINARY_URL}"
-          
+
           # Make the downloaded file executable
           chmod +x docker/build-push/testnet/citrea
-          
+
           mkdir -p docker/build-push/testnet/genesis/
           mv resources/genesis/testnet/* docker/build-push/testnet/genesis/
 
@@ -202,6 +202,7 @@ jobs:
           VERSION_IMAGE_TAG: ${{ github.ref_name }}
         run: |
           docker tag ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.GENERAL_IMAGE_TAG }} ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.VERSION_IMAGE_TAG }}
-          
+
           docker push ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.VERSION_IMAGE_TAG }}
           docker push ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.GENERAL_IMAGE_TAG }}
+

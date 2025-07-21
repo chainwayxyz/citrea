@@ -45,6 +45,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
+use sov_rollup_interface::Network;
 use tokio::sync::{broadcast, mpsc, Mutex};
 
 /// Module containing database migration definitions
@@ -67,6 +68,7 @@ pub mod rpc;
 /// Builds and initializes all batch prover services.
 ///
 /// # Arguments
+/// * `network` - The Citrea network this batch prover is running on.
 /// * `prover_config` - Configuration for the batch prover.
 /// * `runner_config` - Runner configuration for the batch prover.
 /// * `init_params` - Initialization parameters for the batch prover start up.
@@ -96,6 +98,7 @@ pub mod rpc;
 /// - `RpcModule` configured with the necessary RPC methods.
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub async fn build_services<DA, DB, Vm>(
+    network: Network,
     prover_config: BatchProverConfig,
     runner_config: RunnerConfig,
     init_params: InitParams,
@@ -167,6 +170,7 @@ where
     let l2_block_rx = l2_block_tx.subscribe();
 
     let prover = Prover::new(
+        network,
         prover_config,
         ledger_db,
         storage_manager,

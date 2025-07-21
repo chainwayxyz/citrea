@@ -76,7 +76,10 @@ impl<'a> RocksdbConfig<'a> {
         // https://github.com/facebook/rocksdb/wiki/Compression
         db_options.set_compression_type(rocksdb::DBCompressionType::Lz4);
 
-        let allowed_cores = std::cmp::max(1, num_cpus::get() / 2) as i32;
+        let cpu_count = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1);
+        let allowed_cores = std::cmp::max(1, cpu_count / 2) as i32;
         db_options.set_compression_options_parallel_threads(allowed_cores);
         db_options.increase_parallelism(allowed_cores);
 

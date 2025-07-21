@@ -8,6 +8,7 @@ use accessors::{
     VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
 use borsh::BorshDeserialize;
+use citrea_primitives::network_to_dev_mode;
 use initial_values::LCP_JMT_GENESIS_ROOT;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::{BlobReaderTrait, DaSpec, WorkingSet, Zkvm};
@@ -221,6 +222,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// * `proof` - The serialized complete proof to process.
     /// * `last_l2_height` - The last L2 height known before processing this proof.
     /// * `last_sequencer_commitment_index` - The last sequencer commitment index known before processing this proof.
+    /// * `network` - The Citrea network this light client proof is running on.
     /// * `working_set` - The working set to use accessor that reads the JMT state.
     ///
     /// # Logic
@@ -243,6 +245,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         proof: &[u8],
         last_l2_height: u64,
         last_sequencer_commitment_index: u32,
+        network: Network,
         working_set: &mut WorkingSet<S>,
     ) -> Result<(), CircuitError> {
         let Ok(journal) = Z::extract_raw_output(proof) else {
@@ -290,7 +293,12 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
         log!("Using batch proof method id {:?}", batch_proof_method_id);
 
-        Z::verify(proof, &batch_proof_method_id.into()).map_err(|_| "Failed to verify proof")?;
+        Z::verify(
+            proof,
+            &batch_proof_method_id.into(),
+            network_to_dev_mode(network),
+        )
+        .map_err(|_| "Failed to verify proof")?;
 
         if !self.verify_batch_proof_seq_comm_relation(&batch_proof_output, working_set) {
             return Err("Failed to verify sequencer commitment relation");
@@ -337,6 +345,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// This function processes the relevant transactions, moves the L2 state forward, and validates the changes to the LCP’s JMT state.
     ///
     /// # Arguments
+    /// * `network` - The Citrea network this light client proof is running on.
     /// * `storage` - The storage used for accessing the JMT state, performing updates, and validating read and write operations.
     /// * `witness` - The witness that contains the hints for the JMT state.
     /// * `da_txs` - Vector of the relevant transactions. Transactions are considered relevant if their wtxid begins with a predefined constant reveal transaction prefix.
@@ -363,6 +372,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// * `RunL1BlockResult` - The result of running the L1 block, contains updates to the L2 state and the light client's JMT state.
     pub fn run_l1_block(
         &self,
+        network: Network,
         storage: S,
         witness: Witness,
         da_txs: Vec<DS::BlobTransaction>,
@@ -435,6 +445,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         &proof,
                         last_l2_height,
                         last_sequencer_commitment_index,
+                        network,
                         &mut working_set,
                     ) {
                         Ok(()) => {}
@@ -478,6 +489,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         &complete_proof,
                         last_l2_height,
                         last_sequencer_commitment_index,
+                        network,
                         &mut working_set,
                     ) {
                         Ok(()) => {}
@@ -645,6 +657,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 let prev_output = Z::verify_and_deserialize_output::<LightClientCircuitOutput>(
                     &proof,
                     &input.light_client_proof_method_id.into(),
+                    network_to_dev_mode(network),
                 )
                 .expect("Previous light client proof is invalid");
 
@@ -679,6 +692,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
         // then we can call run_l1_block to run the logic of the circuit
         let result = self.run_l1_block(
+            network,
             storage,
             input.witness,
             da_txs,

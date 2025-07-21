@@ -14,6 +14,7 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_zk_proofs_and_sequencer_commitments, sync_l1, ProofOrCommitment};
 use citrea_common::utils::get_tangerine_activation_height_non_zero;
 use citrea_primitives::forks::fork_from_block_number;
+use citrea_primitives::network_to_dev_mode;
 use reth_tasks::shutdown::GracefulShutdown;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -26,6 +27,7 @@ use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
+use sov_rollup_interface::Network;
 use tokio::select;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
@@ -74,6 +76,8 @@ where
     queued_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
+    /// Citrea network the node is operating on
+    network: Network,
 }
 
 impl<Vm, Da, DB> L1BlockHandler<Vm, Da, DB>
@@ -94,6 +98,7 @@ where
     /// * `backup_manager` - Manager for backup operations
     #[allow(clippy::too_many_arguments)]
     pub fn new(
+        network: Network,
         ledger_db: DB,
         da_service: Arc<Da>,
         sequencer_da_pub_key: Vec<u8>,
@@ -111,6 +116,7 @@ where
             l1_block_cache,
             queued_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             backup_manager,
+            network,
         }
     }
 
@@ -570,8 +576,12 @@ where
             .expect("Proof public input must contain valid spec id");
 
         // Verify the proof against the code commitment
-        Vm::verify(proof.as_slice(), code_commitment)
-            .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
+        Vm::verify(
+            proof.as_slice(),
+            code_commitment,
+            network_to_dev_mode(self.network),
+        )
+        .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
 
         // Process the verified proof using Tangerine-specific logic
         self.process_tangerine_zk_proof(

@@ -60,12 +60,11 @@ coverage-html: ## Coverage in HTML format
 	cargo llvm-cov --locked --all-features --html nextest --workspace --all-features
 
 install-dev-tools:  ## Installs all necessary cargo helpers
-	cargo install --locked dprint
-	cargo install cargo-llvm-cov
-	cargo install cargo-hack
-	cargo install --locked cargo-udeps
-	cargo install flaky-finder
-	cargo install --locked cargo-nextest
+	cargo install --locked dprint --version 0.49.1
+	cargo install cargo-llvm-cov --version 0.6.16
+	cargo install cargo-hack --version 0.6.36
+	cargo install --locked cargo-udeps --version 0.1.55
+	cargo install --locked cargo-nextest --version 0.9.95
 	$(MAKE) install-risc0
 	rustup target add thumbv6m-none-eabi
 	rustup component add llvm-tools-preview
@@ -75,10 +74,13 @@ install-risc0:
 	curl -L https://risczero.com/install | bash && \
 	([ -f $$HOME/.bashrc ] && source $$HOME/.bashrc || true) && \
 	([ -f $$HOME/.zshrc ] && source $$HOME/.zshrc || true) && \
-	rzup install cargo-risczero 2.1.0 && \
+	rzup install cargo-risczero 2.3.0 && \
 	rzup install cpp && \
-	rzup install r0vm 2.1.0 && \
+	rzup install r0vm 2.3.0 && \
 	rzup install rust 1.85.0 && \
+	rzup default cargo-risczero 2.3.0 && \
+	rzup default r0vm 2.3.0 && \
+	rzup default rust 1.85.0
 
 install-sp1: ## Install necessary SP1 toolchain
 	curl -L https://sp1.succinct.xyz | bash
@@ -102,9 +104,6 @@ check-features: ## Checks that project compiles with all combinations of feature
 
 find-unused-deps: ## Prints unused dependencies for project. Note: requires nightly
 	cargo +nightly udeps --all-targets --all-features
-
-find-flaky-tests:  ## Runs tests over and over to find if there's flaky tests
-	flaky-finder -j16 -r320 --continue "cargo test -- --nocapture"
 
 docs:  ## Generates documentation locally
 	cargo doc --open

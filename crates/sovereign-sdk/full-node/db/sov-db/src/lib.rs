@@ -19,8 +19,6 @@ pub mod schema;
 /// This is primarily used as the backing store for the [JMT(JellyfishMerkleTree)](https://docs.rs/jmt/latest/jmt/).
 pub mod state_db;
 
-pub mod mmr_db;
-
 /// Implements a wrapper around RocksDB meant for storing state only accessible
 /// outside of the zkVM execution environment, as this data is not included in
 /// the JMT and does not contribute to proofs of execution.

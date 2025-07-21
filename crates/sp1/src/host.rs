@@ -1,5 +1,4 @@
 use borsh::BorshDeserialize;
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
@@ -9,6 +8,7 @@ use sp1_sdk::{
     block_on, HashableKey, NetworkProverV2, ProverClient, SP1ProofWithPublicValues, SP1ProvingKey,
     SP1PublicValues, SP1Stdin, SP1VerifyingKey,
 };
+use std::sync::LazyLock;
 use tracing::info;
 
 use crate::guest::SP1Guest;
@@ -16,7 +16,7 @@ use crate::guest::SP1Guest;
 // It is safer to define ProverClient once globally, because all the SP1 api is
 // built around the client, and creating multiple ProverClient in the lifespan
 // of the program causes problems especially when ran with cuda feature enabled.
-pub static CLIENT: Lazy<ProverClient> = Lazy::new(ProverClient::new);
+pub static CLIENT: LazyLock<ProverClient> = LazyLock::new(ProverClient::new);
 
 #[derive(Clone)]
 pub struct SP1Host {
@@ -133,9 +133,7 @@ impl ZkvmHost for SP1Host {
         }
     }
 
-    fn extract_output<T: BorshDeserialize>(
-        proof: &Proof,
-    ) -> Result<T, Self::Error> {
+    fn extract_output<T: BorshDeserialize>(proof: &Proof) -> Result<T, Self::Error> {
         let public_values = match proof {
             Proof::PublicInput(data) => {
                 let public_values: SP1PublicValues = bincode::deserialize(data)?;

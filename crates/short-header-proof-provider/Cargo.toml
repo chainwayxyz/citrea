@@ -13,7 +13,6 @@ resolver = "2"
 [dependencies]
 borsh = { workspace = true }
 futures = { workspace = true, optional = true }
-once_cell = { workspace = true, default-features = false }
 parking_lot = { workspace = true, optional = true }
 
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", default-features = false, optional = true }

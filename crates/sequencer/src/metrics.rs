@@ -1,6 +1,7 @@
+use std::sync::LazyLock;
+
 use metrics::{Counter, Gauge, Histogram};
 use metrics_derive::Metrics;
-use once_cell::sync::Lazy;
 
 /// Defines the metrics being collected for the sequencer
 #[allow(unused)]
@@ -96,7 +97,7 @@ pub struct SequencerMetrics {
 }
 
 /// Sequencer metrics
-pub static SEQUENCER_METRICS: Lazy<SequencerMetrics> = Lazy::new(|| {
+pub static SEQUENCER_METRICS: LazyLock<SequencerMetrics> = LazyLock::new(|| {
     SequencerMetrics::describe();
     SequencerMetrics::default()
 });

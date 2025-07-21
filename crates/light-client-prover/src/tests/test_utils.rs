@@ -300,6 +300,7 @@ impl NativeCircuitRunner {
             .unwrap();
 
         let res = self.circuit.run_l1_block(
+            sov_rollup_interface::Network::Nightly,
             prover_storage,
             Default::default(),
             da_txs,
