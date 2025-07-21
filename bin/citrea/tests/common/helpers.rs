@@ -82,7 +82,7 @@ pub async fn start_rollup(
         panic!("Both batch prover and light client prover config cannot be set at the same time");
     }
 
-    let (tables, migrations, backup_manager) = if sequencer_config.is_some() {
+    let (tables, migrations, backup_manager, node_type) = if sequencer_config.is_some() {
         (
             SEQUENCER_LEDGER_TABLES
                 .iter()
@@ -90,6 +90,7 @@ pub async fn start_rollup(
                 .collect::<Vec<_>>(),
             citrea_sequencer::db_migrations::migrations(),
             Arc::new(BackupManager::new(NodeType::Sequencer, None, None)),
+            NodeType::Sequencer,
         )
     } else if rollup_prover_config.is_some() {
         (
@@ -99,6 +100,7 @@ pub async fn start_rollup(
                 .collect::<Vec<_>>(),
             citrea_batch_prover::db_migrations::migrations(),
             Arc::new(BackupManager::new(NodeType::BatchProver, None, None)),
+            NodeType::BatchProver,
         )
     } else if light_client_prover_config.is_some() {
         (
@@ -108,6 +110,7 @@ pub async fn start_rollup(
                 .collect::<Vec<_>>(),
             citrea_light_client_prover::db_migrations::migrations(),
             Arc::new(BackupManager::new(NodeType::LightClientProver, None, None)),
+            NodeType::LightClientProver,
         )
     } else {
         (
@@ -117,6 +120,7 @@ pub async fn start_rollup(
                 .collect::<Vec<_>>(),
             citrea_fullnode::db_migrations::migrations(),
             Arc::new(BackupManager::new(NodeType::FullNode, None, None)),
+            NodeType::FullNode,
         )
     };
     mock_demo_rollup
@@ -255,6 +259,7 @@ pub async fn start_rollup(
             &task_executor,
             rpc_module,
             Some(rpc_reporting_channel),
+            node_type.to_string(),
         );
 
         task_executor.spawn_critical_with_graceful_shutdown_signal(
@@ -292,6 +297,7 @@ pub async fn start_rollup(
             &task_executor,
             rpc_module,
             Some(rpc_reporting_channel),
+            node_type.to_string(),
         );
 
         let handler_span = span.clone();
@@ -346,6 +352,7 @@ pub async fn start_rollup(
             &task_executor,
             rpc_module,
             Some(rpc_reporting_channel),
+            node_type.to_string(),
         );
 
         let handler_span = span.clone();
@@ -382,6 +389,7 @@ pub async fn start_rollup(
             &task_executor,
             rpc_module,
             Some(rpc_reporting_channel),
+            node_type.to_string(),
         );
 
         let handler_span = span.clone();

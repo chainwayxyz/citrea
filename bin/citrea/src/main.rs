@@ -255,6 +255,8 @@ where
 
     let task_executor = task_manager.executor();
 
+    let node_type_str = node_type.to_string();
+
     match node_type {
         NodeWithConfig::Sequencer(sequencer_config) => {
             let (mut sequencer, rpc_module) = rollup_blueprint
@@ -272,7 +274,13 @@ where
                 )
                 .expect("Could not start sequencer");
 
-            start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
+            start_rpc_server(
+                rollup_config.rpc.clone(),
+                &task_executor,
+                rpc_module,
+                None,
+                node_type_str,
+            );
 
             task_executor.spawn_critical_with_graceful_shutdown_signal(
                 "sequencer",
@@ -300,7 +308,13 @@ where
                 .await
                 .expect("Could not start batch prover");
 
-            start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
+            start_rpc_server(
+                rollup_config.rpc.clone(),
+                &task_executor,
+                rpc_module,
+                None,
+                node_type_str,
+            );
 
             task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
                 l1_syncer.run(shutdown_signal).await
@@ -336,7 +350,13 @@ where
             .await
             .expect("Could not start light client prover");
 
-            start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
+            start_rpc_server(
+                rollup_config.rpc.clone(),
+                &task_executor,
+                rpc_module,
+                None,
+                node_type_str,
+            );
 
             task_executor.spawn_critical_with_graceful_shutdown_signal(
                 "LightClient",
@@ -361,7 +381,13 @@ where
                 .await
                 .expect("Could not start full-node");
 
-            start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
+            start_rpc_server(
+                rollup_config.rpc.clone(),
+                &task_executor,
+                rpc_module,
+                None,
+                node_type_str,
+            );
 
             let l1_start_height = match ledger_db.get_last_scanned_l1_height()? {
                 Some(l1_height) => l1_height.0,
