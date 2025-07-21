@@ -5,6 +5,7 @@
 
 use std::collections::VecDeque;
 use std::sync::Arc;
+use std::time::Instant;
 
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
@@ -113,7 +114,6 @@ where
             self.da_service.clone(),
             self.pending_l1_blocks.clone(),
             self.l1_block_cache.clone(),
-            BATCH_PROVER_METRICS.scan_l1_block.clone(),
         );
         tokio::pin!(l1_sync_worker);
 
@@ -156,6 +156,7 @@ where
             let l1_block = pending_l1_blocks
                 .front()
                 .expect("Pending l1 blocks cannot be empty");
+            let start_l1_block_processing = Instant::now();
             let l1_height = l1_block.header().height();
             let l1_hash = l1_block.header().hash().into();
 
@@ -223,6 +224,11 @@ where
                 .expect("Should put prover last scanned l1 height");
 
             BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
+            BATCH_PROVER_METRICS.scan_l1_block.set(
+                Instant::now()
+                    .saturating_duration_since(start_l1_block_processing)
+                    .as_secs_f64(),
+            );
 
             pending_l1_blocks.pop_front();
 

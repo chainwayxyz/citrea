@@ -4,6 +4,7 @@
 //! and maintaining the light client state.
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
+use std::time::Instant;
 
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
@@ -158,7 +159,6 @@ where
             self.da_service.clone(),
             self.queued_l1_blocks.clone(),
             self.l1_block_cache.clone(),
-            LIGHT_CLIENT_METRICS.scan_l1_block.clone(),
         );
         tokio::pin!(l1_sync_worker);
 
@@ -206,6 +206,7 @@ where
     /// 2. Prepares the light client circuit input and calls `Self::prove` to generate a proof for the L1 block.
     /// 3. Asserts that the state update's state root matches the one in the circuit output, and finalizes the storage.
     async fn process_l1_block(&mut self, l1_block: Da::FilteredBlock) -> anyhow::Result<()> {
+        let start_l1_block_processing = Instant::now();
         let l1_hash = l1_block.header().hash().into();
         let l1_height = l1_block.header().height();
 
@@ -307,6 +308,11 @@ where
             .expect("Saving last scanned l1 height to ledger db");
 
         LIGHT_CLIENT_METRICS.current_l1_block.set(l1_height as f64);
+        LIGHT_CLIENT_METRICS.scan_l1_block.set(
+            Instant::now()
+                .saturating_duration_since(start_l1_block_processing)
+                .as_secs_f64(),
+        );
 
         Ok(())
     }

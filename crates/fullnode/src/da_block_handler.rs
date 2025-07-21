@@ -135,7 +135,6 @@ where
             self.da_service.clone(),
             self.queued_l1_blocks.clone(),
             self.l1_block_cache.clone(),
-            FULLNODE_METRICS.scan_l1_block.clone(),
         );
         tokio::pin!(l1_sync_worker);
 
@@ -179,6 +178,7 @@ where
     /// 2. Records block height mapping
     /// 3. Extracts and processes contained ZK proofs and commitments
     async fn process_l1_block(&mut self, l1_block: Da::FilteredBlock) -> anyhow::Result<()> {
+        let start_scanning = Instant::now();
         let _l1_lock = self.backup_manager.start_l1_processing().await;
 
         let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
@@ -308,6 +308,11 @@ where
             .map_err(|e| anyhow!("Could not set last scanned l1 height: {e}"))?;
 
         FULLNODE_METRICS.current_l1_block.set(l1_height as f64);
+        FULLNODE_METRICS.scan_l1_block.set(
+            Instant::now()
+                .saturating_duration_since(start_scanning)
+                .as_secs_f64(),
+        );
 
         Ok(())
     }

@@ -15,7 +15,7 @@ pub struct LightClientProverMetrics {
     pub current_l1_block: Gauge,
     #[metric(describe = "The duration of scanning and processing a single L1 block")]
     /// The duration of scanning and processing a single L1 block
-    pub scan_l1_block: Histogram,
+    pub scan_l1_block: Gauge,
     /// Histogram tracking the time taken to prove a state transition
     #[metric(describe = "The duration of generating a batch proof")]
     pub proving_time: Histogram,

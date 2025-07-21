@@ -25,7 +25,7 @@ pub struct BatchProverMetrics {
 
     /// Histogram tracking the time taken to scan and process L1 blocks
     #[metric(describe = "The duration of scanning and processing a single L1 block")]
-    pub scan_l1_block: Histogram,
+    pub scan_l1_block: Gauge,
 
     /// Histogram tracking the time taken to prepare input for a batch proof
     #[metric(describe = "The duration of the entire input preparation process for a batch proof")]

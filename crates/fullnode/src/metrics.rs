@@ -21,7 +21,7 @@ pub struct FullnodeMetrics {
 
     /// Histogram tracking the time taken to scan and process L1 blocks
     #[metric(describe = "The duration of scanning and processing a single L1 block")]
-    pub scan_l1_block: Histogram,
+    pub scan_l1_block: Gauge,
 
     /// Histogram tracking the time taken to process L2 blocks
     #[metric(describe = "The duration of processing a single l2 block")]
