@@ -366,11 +366,10 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             "newL2Blocks" => {
                 let subscription = pending.accept().await?;
                 let mut rx = self.context.l2_block_rx.resubscribe();
-                let storage = self.context.storage.clone();
                 let ledger = self.context.ledger.clone();
 
                 tokio::spawn(async move {
-                    handle_l2_block_subscription(subscription, &mut rx, storage, ledger).await;
+                    handle_l2_block_subscription(subscription, &mut rx, ledger).await;
                 });
             }
             _ => {
@@ -386,7 +385,6 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
 /// Get L2 block response by block height
 async fn get_l2_block_response(
     block_height: u64,
-    _storage: &<DefaultContext as Spec>::Storage,
     ledger: &LedgerDB,
 ) -> Result<L2BlockResponse, Box<dyn std::error::Error + Send + Sync>> {
     let l2_block = ledger
@@ -400,16 +398,13 @@ async fn get_l2_block_response(
 async fn handle_l2_block_subscription(
     subscription: SubscriptionSink,
     rx: &mut tokio::sync::broadcast::Receiver<u64>,
-    storage: <DefaultContext as Spec>::Storage,
     ledger: LedgerDB,
 ) {
     loop {
         match receive_next_blocks(rx).await {
             BlockReceiveResult::Blocks(blocks) => {
                 for block_height in blocks {
-                    if !send_block_notification(&subscription, block_height, &storage, &ledger)
-                        .await
-                    {
+                    if !send_block_notification(&subscription, block_height, &ledger).await {
                         return;
                     }
                 }
@@ -466,10 +461,9 @@ async fn receive_next_blocks(rx: &mut broadcast::Receiver<u64>) -> BlockReceiveR
 async fn send_block_notification(
     subscription: &SubscriptionSink,
     block_height: u64,
-    storage: &<DefaultContext as Spec>::Storage,
     ledger: &LedgerDB,
 ) -> bool {
-    let block_response = match get_l2_block_response(block_height, storage, ledger).await {
+    let block_response = match get_l2_block_response(block_height, ledger).await {
         Ok(response) => response,
         Err(e) => {
             tracing::error!("Failed to get L2 block {} response: {}", block_height, e);
