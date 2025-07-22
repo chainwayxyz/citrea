@@ -119,6 +119,10 @@
       "pluginVersion": "12.0.1+security-01",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "disableTextWrap": false,
           "editorMode": "builder",
           "expr": "sequencer_current_l2_block",
@@ -127,11 +131,7 @@
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
+          "useBackend": false
         }
       ],
       "title": "Current L2 Block",
@@ -186,6 +186,10 @@
       "pluginVersion": "12.0.1+security-01",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "disableTextWrap": false,
           "editorMode": "builder",
           "expr": "sequencer_current_l1_block",
@@ -194,11 +198,7 @@
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
+          "useBackend": false
         }
       ],
       "title": "Current L1 Block",
@@ -273,7 +273,7 @@
         "y": 8
       },
       "id": 22,
-      "interval": "1s",
+      "interval": "2s",
       "options": {
         "legend": {
           "calcs": [],
@@ -286,24 +286,26 @@
           "mode": "single",
           "sort": "none"
         },
-        "xField": "{__name__=\"sequencer_last_block_number\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
+        "xField": "{__name__=\"sequencer_current_l2_block\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
       },
       "pluginVersion": "12.0.1+security-01",
       "targets": [
         {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_last_block_number",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false,
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
-          }
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sequencer_current_l2_block",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
         },
         {
           "datasource": {
@@ -551,6 +553,10 @@
       "pluginVersion": "12.0.1+security-01",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "disableTextWrap": false,
           "editorMode": "builder",
           "expr": "sequencer_mempool_txs",
@@ -559,11 +565,7 @@
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
+          "useBackend": false
         }
       ],
       "title": "Number Of Txs In Mempool",
@@ -623,7 +625,7 @@
         "x": 0,
         "y": 16
       },
-      "id": 23,
+      "id": 25,
       "interval": "1s",
       "options": {
         "legend": {
@@ -638,13 +640,13 @@
             "x": {
               "matcher": {
                 "id": "byName",
-                "options": "{__name__=\"sequencer_last_block_number\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
+                "options": "{__name__=\"sequencer_current_l2_block\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
               }
             },
             "y": {
               "matcher": {
                 "id": "byName",
-                "options": "{__name__=\"evm_gas_usage\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
+                "options": "{__name__=\"sequencer_l1_fee_rate\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
               }
             }
           }
@@ -658,9 +660,26 @@
       "pluginVersion": "12.0.1+security-01",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "evm_gas_usage",
+          "expr": "sequencer_current_l2_block",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        },
+        {
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sequencer_l1_fee_rate",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
@@ -671,26 +690,9 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           }
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_last_block_number",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "B",
-          "useBackend": false
         }
       ],
-      "title": "Evm Gas Usage Per Block Num",
+      "title": "L1 Fee Rate Per Block",
       "transformations": [
         {
           "id": "joinByField",
@@ -787,6 +789,10 @@
       "pluginVersion": "12.0.1+security-01",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "disableTextWrap": false,
           "editorMode": "builder",
           "expr": "evm_base_fee_per_gas",
@@ -795,11 +801,7 @@
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
+          "useBackend": false
         },
         {
           "datasource": {
@@ -833,7 +835,6 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "This does not work perfect in scenarios where there are over couple hundered missed DA blocks, and new l2 blocks are produced for every 10 L1 block instantly",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -845,7 +846,7 @@
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
-            "fillOpacity": 100,
+            "fillOpacity": 50,
             "hideFrom": {
               "legend": false,
               "tooltip": false,
@@ -883,8 +884,8 @@
         "x": 0,
         "y": 24
       },
-      "id": 2,
-      "interval": "1",
+      "id": 23,
+      "interval": "1s",
       "options": {
         "legend": {
           "calcs": [],
@@ -904,7 +905,7 @@
             "y": {
               "matcher": {
                 "id": "byName",
-                "options": "{__name__=\"sequencer_l2_block_tx_count\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
+                "options": "{__name__=\"evm_gas_usage\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
               }
             }
           }
@@ -918,19 +919,19 @@
       "pluginVersion": "12.0.1+security-01",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sequencer_last_block_number",
+          "expr": "evm_gas_usage",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
+          "useBackend": false
         },
         {
           "datasource": {
@@ -939,7 +940,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sequencer_l2_block_tx_count",
+          "expr": "sequencer_last_block_number",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -950,7 +951,7 @@
           "useBackend": false
         }
       ],
-      "title": "Tx Count By Block Number",
+      "title": "Evm Gas Usage Per Block Num",
       "transformations": [
         {
           "id": "joinByField",
@@ -1041,15 +1042,15 @@
       "pluginVersion": "12.0.1+security-01",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "editorMode": "code",
           "expr": "bitcoin_da_transaction_queue_processing_time",
           "legendFormat": "__auto",
           "range": true,
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
+          "refId": "A"
         }
       ],
       "title": "Bitcoin DA Queue Processing Time",
@@ -1060,6 +1061,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
+      "description": "This does not work perfect in scenarios where there are over couple hundered missed DA blocks, and new l2 blocks are produced for every 10 L1 block instantly",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1071,32 +1073,21 @@
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
+            "fillOpacity": 100,
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
+            "pointShape": "circle",
+            "pointSize": {
+              "fixed": 5
+            },
+            "pointStrokeWidth": 1,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
+            "show": "points+lines"
           },
           "mappings": [],
           "thresholds": {
@@ -1120,7 +1111,8 @@
         "x": 0,
         "y": 32
       },
-      "id": 6,
+      "id": 2,
+      "interval": "1",
       "options": {
         "legend": {
           "calcs": [],
@@ -1128,6 +1120,23 @@
           "placement": "bottom",
           "showLegend": true
         },
+        "mapping": "auto",
+        "series": [
+          {
+            "x": {
+              "matcher": {
+                "id": "byName",
+                "options": "{__name__=\"sequencer_last_block_number\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
+              }
+            },
+            "y": {
+              "matcher": {
+                "id": "byName",
+                "options": "{__name__=\"sequencer_l2_block_tx_count\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
+              }
+            }
+          }
+        ],
         "tooltip": {
           "hideZeros": false,
           "mode": "single",
@@ -1137,23 +1146,46 @@
       "pluginVersion": "12.0.1+security-01",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sequencer_block_production_execution",
+          "expr": "sequencer_last_block_number",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
-          "useBackend": false,
+          "useBackend": false
+        },
+        {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
-          }
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sequencer_l2_block_tx_count",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
         }
       ],
-      "title": "Complete Produce L2 Block",
-      "type": "timeseries"
+      "title": "Tx Count By Block Number",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {}
+        }
+      ],
+      "type": "xychart"
     },
     {
       "datasource": {
@@ -1307,6 +1339,206 @@
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.0.1+security-01",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sequencer_block_production_execution",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Complete Produce L2 Block",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "id": 21,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.0.1+security-01",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sequencer_dry_run_execution",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Total Dry Run Execution Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
             "fillOpacity": 50,
             "hideFrom": {
               "legend": false,
@@ -1343,7 +1575,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 40
+        "y": 48
       },
       "id": 8,
       "options": {
@@ -1385,6 +1617,10 @@
       "pluginVersion": "12.0.1+security-01",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "disableTextWrap": false,
           "editorMode": "builder",
           "expr": "sequencer_currently_committing_index",
@@ -1393,11 +1629,7 @@
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
+          "useBackend": false
         },
         {
           "datasource": {
@@ -1489,9 +1721,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 40
+        "y": 48
       },
-      "id": 21,
+      "id": 27,
       "options": {
         "legend": {
           "calcs": [],
@@ -1510,7 +1742,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sequencer_dry_run_execution",
+          "expr": "sequencer_rpc_response_time",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
@@ -1523,7 +1755,107 @@
           }
         }
       ],
-      "title": "Total Dry Run Execution Time",
+      "title": "Rpc Response Times",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 56
+      },
+      "id": 26,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.0.1+security-01",
+      "targets": [
+        {
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "type_4_mine_da_transaction",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "title": "Mine Sequencer Commitment Tx Duration",
       "type": "timeseries"
     },
     {
@@ -1532,7 +1864,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 48
+        "y": 64
       },
       "id": 20,
       "panels": [
@@ -1619,6 +1951,10 @@
           "pluginVersion": "12.0.1+security-01",
           "targets": [
             {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
               "disableTextWrap": false,
               "editorMode": "builder",
               "expr": "sequencer_dry_run_preparation_time",
@@ -1627,11 +1963,7 @@
               "legendFormat": "__auto",
               "range": true,
               "refId": "A",
-              "useBackend": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              }
+              "useBackend": false
             }
           ],
           "title": "Dry Run Preparation Time",
@@ -1719,6 +2051,10 @@
           "pluginVersion": "12.0.1+security-01",
           "targets": [
             {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
               "disableTextWrap": false,
               "editorMode": "builder",
               "expr": "sequencer_dry_run_system_txs_time",
@@ -1727,11 +2063,7 @@
               "legendFormat": "__auto",
               "range": true,
               "refId": "A",
-              "useBackend": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              }
+              "useBackend": false
             }
           ],
           "title": "Dry Run System Txs Time",
@@ -1819,6 +2151,10 @@
           "pluginVersion": "12.0.1+security-01",
           "targets": [
             {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
               "disableTextWrap": false,
               "editorMode": "builder",
               "expr": "sequencer_dry_run_tx_time",
@@ -1827,11 +2163,7 @@
               "legendFormat": "__auto",
               "range": true,
               "refId": "A",
-              "useBackend": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              }
+              "useBackend": false
             }
           ],
           "title": "Dry Run Time Per Tx Processing",
@@ -1919,6 +2251,10 @@
           "pluginVersion": "12.0.1+security-01",
           "targets": [
             {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
               "disableTextWrap": false,
               "editorMode": "builder",
               "expr": "sequencer_begin_l2_block_time",
@@ -1927,11 +2263,7 @@
               "legendFormat": "__auto",
               "range": true,
               "refId": "A",
-              "useBackend": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              }
+              "useBackend": false
             }
           ],
           "title": "Begin L2 Block Time",
@@ -2019,6 +2351,10 @@
           "pluginVersion": "12.0.1+security-01",
           "targets": [
             {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
               "disableTextWrap": false,
               "editorMode": "builder",
               "expr": "sequencer_encode_and_sign_sov_tx_time",
@@ -2027,11 +2363,7 @@
               "legendFormat": "__auto",
               "range": true,
               "refId": "A",
-              "useBackend": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              }
+              "useBackend": false
             }
           ],
           "title": "Encode and Sign Sov Tx Time",
@@ -2119,6 +2451,10 @@
           "pluginVersion": "12.0.1+security-01",
           "targets": [
             {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
               "disableTextWrap": false,
               "editorMode": "builder",
               "expr": "sequencer_apply_l2_block_txs_time",
@@ -2127,11 +2463,7 @@
               "legendFormat": "__auto",
               "range": true,
               "refId": "A",
-              "useBackend": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              }
+              "useBackend": false
             }
           ],
           "title": "Apply L2 Block Txs Time",
@@ -2219,6 +2551,10 @@
           "pluginVersion": "12.0.1+security-01",
           "targets": [
             {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
               "disableTextWrap": false,
               "editorMode": "builder",
               "expr": "sequencer_end_l2_block_time",
@@ -2227,11 +2563,7 @@
               "legendFormat": "__auto",
               "range": true,
               "refId": "A",
-              "useBackend": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              }
+              "useBackend": false
             }
           ],
           "title": "End L2 Block Time",
@@ -2319,6 +2651,10 @@
           "pluginVersion": "12.0.1+security-01",
           "targets": [
             {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
               "disableTextWrap": false,
               "editorMode": "builder",
               "expr": "sequencer_finalize_l2_block_time",
@@ -2327,11 +2663,7 @@
               "legendFormat": "__auto",
               "range": true,
               "refId": "A",
-              "useBackend": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              }
+              "useBackend": false
             }
           ],
           "title": "Finalize L2 Block Time",
@@ -2419,6 +2751,10 @@
           "pluginVersion": "12.0.1+security-01",
           "targets": [
             {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
               "disableTextWrap": false,
               "editorMode": "builder",
               "expr": "sequencer_sign_l2_block_header_time",
@@ -2427,11 +2763,7 @@
               "legendFormat": "__auto",
               "range": true,
               "refId": "A",
-              "useBackend": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              }
+              "useBackend": false
             }
           ],
           "title": "Sign L2 Block Header Time",
@@ -2519,6 +2851,10 @@
           "pluginVersion": "12.0.1+security-01",
           "targets": [
             {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
               "disableTextWrap": false,
               "editorMode": "builder",
               "expr": "sequencer_save_l2_block_time",
@@ -2527,11 +2863,7 @@
               "legendFormat": "__auto",
               "range": true,
               "refId": "A",
-              "useBackend": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              }
+              "useBackend": false
             }
           ],
           "title": "Save L2 Block Time",
@@ -2619,6 +2951,10 @@
           "pluginVersion": "12.0.1+security-01",
           "targets": [
             {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
               "disableTextWrap": false,
               "editorMode": "builder",
               "expr": "sequencer_maintain_mempool_time",
@@ -2627,11 +2963,7 @@
               "legendFormat": "__auto",
               "range": true,
               "refId": "A",
-              "useBackend": false,
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              }
+              "useBackend": false
             }
           ],
           "title": "Maintain Mempool Time",
@@ -2649,12 +2981,12 @@
     "list": []
   },
   "time": {
-    "from": "now-5m",
+    "from": "now-6h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Sequencer",
+  "title": "Sequencer Dashboard",
   "uid": "d1faed80-531c-4c31-bd06-acc46d388c84",
   "version": 4,
   "weekStart": ""
