@@ -14,6 +14,23 @@ pub struct SequencerMetrics {
     /// Counter for tracking mempool transaction increments
     #[metric(describe = "An ever increasing transactions count into the mempool")]
     pub mempool_txs_inc: Counter,
+    /// Current number of transactions in the deposit data mempool
+    #[metric(
+        describe = "How many deposit data transactions are currently in the deposit data mempool"
+    )]
+    pub deposit_data_mempool_txs: Gauge,
+    /// Counter for tracking deposit data mempool transaction increments
+    #[metric(describe = "An ever increasing transactions count into the deposit data mempool")]
+    pub deposit_data_mempool_txs_inc: Counter,
+    /// Counter for tracking unaccepted deposit transactions
+    #[metric(describe = "An ever increasing count of unaccepted deposit transactions")]
+    pub unaccepted_deposit_txs: Counter,
+    /// Histogram tracking the duration of deposit transaction eth_call
+    #[metric(describe = "The duration of deposit transaction eth_call in seconds")]
+    pub deposit_tx_call_duration: Histogram,
+    /// Histogram tracking the size of deposit transactions
+    #[metric(describe = "The size of deposit transactions in bytes")]
+    pub deposit_tx_size: Histogram,
     /// Histogram tracking execution time of dry run operations
     #[metric(describe = "The duration of dry running transactions")]
     pub dry_run_execution: Histogram,
