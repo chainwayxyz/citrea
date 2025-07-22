@@ -16,6 +16,8 @@ services:
       - 3000:3000
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=password
+    volumes:
+      - grafana_data:/var/lib/grafana
     networks:
       - monitoring
 
@@ -35,3 +37,6 @@ services:
 networks:
   monitoring:
     driver: bridge
+
+volumes:
+  grafana_data: {}
