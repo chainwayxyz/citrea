@@ -162,7 +162,7 @@ where
                         .saturating_duration_since(proof_start_time)
                         .as_secs_f64();
                     let proof_with_duration = ProofWithDuration {
-                        proof: proof.proof.clone(),
+                        proof: proof.proof,
                         duration,
                     };
                     tx.send(proof_with_duration)
