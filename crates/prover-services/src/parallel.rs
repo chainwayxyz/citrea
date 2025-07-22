@@ -65,9 +65,6 @@ where
             }
         };
 
-        PARALLEL_PROVER_METRICS.ongoing_proving_jobs.set(0);
-        PARALLEL_PROVER_METRICS.proof_count_waiting_in_queue.set(0);
-
         Ok(Self {
             parallel_proof_limit,
             ongoing_proof_count: Default::default(),
