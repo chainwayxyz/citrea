@@ -10,7 +10,7 @@ use citrea_stf::runtime::DefaultContext;
 use jsonrpsee::core::{RpcResult, SubscriptionResult};
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::{ErrorCode, ErrorObject};
-use jsonrpsee::PendingSubscriptionSink;
+use jsonrpsee::{PendingSubscriptionSink, SubscriptionSink};
 use parking_lot::Mutex;
 use reth_rpc::eth::EthTxBuilder;
 use reth_rpc_eth_types::error::EthApiError;
@@ -29,6 +29,14 @@ use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS;
 use crate::types::SequencerRpcMessage;
 use crate::utils::recover_raw_transaction;
+
+/// Result of receiving blocks from the `l2_block_rx` channel
+enum BlockReceiveResult {
+    /// Successfully received blocks (may include recovered lagged blocks)
+    Blocks(Vec<u64>),
+    /// Channel was closed
+    ChannelClosed,
+}
 
 /// RPC context containing all the shared data needed for RPC method implementations
 pub struct RpcContext {
@@ -362,32 +370,7 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
                 let ledger = self.context.ledger.clone();
 
                 tokio::spawn(async move {
-                    while let Ok(block_height) = rx.recv().await {
-                        let block_response =
-                            match get_l2_block_response(block_height, &storage, &ledger).await {
-                                Ok(response) => response,
-                                Err(e) => {
-                                    tracing::error!("Failed to get L2 block response: {}", e);
-                                    continue;
-                                }
-                            };
-
-                        if let Err(e) = subscription
-                            .send_timeout(
-                                jsonrpsee::SubscriptionMessage::new(
-                                    subscription.method_name(),
-                                    subscription.subscription_id(),
-                                    &block_response,
-                                )
-                                .unwrap(),
-                                std::time::Duration::from_secs(10),
-                            )
-                            .await
-                        {
-                            tracing::debug!("Failed to send L2 block notification: {}", e);
-                            break;
-                        }
-                    }
+                    handle_l2_block_subscription(subscription, &mut rx, storage, ledger).await;
                 });
             }
             _ => {
@@ -411,6 +394,106 @@ async fn get_l2_block_response(
         .ok_or("L2 block not found")?;
 
     Ok(l2_block)
+}
+
+/// Handle L2 block subscription, including lagged block recovery
+async fn handle_l2_block_subscription(
+    subscription: SubscriptionSink,
+    rx: &mut tokio::sync::broadcast::Receiver<u64>,
+    storage: <DefaultContext as Spec>::Storage,
+    ledger: LedgerDB,
+) {
+    loop {
+        match receive_next_blocks(rx).await {
+            BlockReceiveResult::Blocks(blocks) => {
+                for block_height in blocks {
+                    if !send_block_notification(&subscription, block_height, &storage, &ledger)
+                        .await
+                    {
+                        return;
+                    }
+                }
+            }
+            BlockReceiveResult::ChannelClosed => {
+                tracing::info!("L2 block channel closed, ending subscription");
+                return;
+            }
+        }
+    }
+}
+
+/// Receive the next block(s) from the channel, handling lag recovery
+async fn receive_next_blocks(rx: &mut broadcast::Receiver<u64>) -> BlockReceiveResult {
+    match rx.recv().await {
+        Ok(block_height) => BlockReceiveResult::Blocks(vec![block_height]),
+        Err(broadcast::error::RecvError::Lagged(num_lagged)) => {
+            tracing::warn!(
+                "Subscription lagged by {} blocks, attempting to recover",
+                num_lagged
+            );
+
+            // Try to get the next available block and calculate missed blocks
+            match rx.recv().await {
+                Ok(current_block_height) => {
+                    let start_height = current_block_height.saturating_sub(num_lagged);
+                    let mut blocks = Vec::with_capacity(num_lagged as usize + 1);
+
+                    // Add all missed blocks
+                    for height in start_height..current_block_height {
+                        blocks.push(height);
+                    }
+                    // Add the current block
+                    blocks.push(current_block_height);
+
+                    BlockReceiveResult::Blocks(blocks)
+                }
+                Err(broadcast::error::RecvError::Closed) => {
+                    tracing::info!("L2 block channel closed during lag recovery");
+                    BlockReceiveResult::ChannelClosed
+                }
+                Err(broadcast::error::RecvError::Lagged(_)) => {
+                    // Still lagging, return empty to try again
+                    tracing::warn!("Still lagging after recovery attempt");
+                    BlockReceiveResult::Blocks(vec![])
+                }
+            }
+        }
+        Err(broadcast::error::RecvError::Closed) => BlockReceiveResult::ChannelClosed,
+    }
+}
+
+/// Send a block notification to the subscriber
+async fn send_block_notification(
+    subscription: &SubscriptionSink,
+    block_height: u64,
+    storage: &<DefaultContext as Spec>::Storage,
+    ledger: &LedgerDB,
+) -> bool {
+    let block_response = match get_l2_block_response(block_height, storage, ledger).await {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::error!("Failed to get L2 block {} response: {}", block_height, e);
+            return true; // Continue subscription despite this error
+        }
+    };
+
+    if let Err(e) = subscription
+        .send_timeout(
+            jsonrpsee::SubscriptionMessage::new(
+                subscription.method_name(),
+                subscription.subscription_id(),
+                &block_response,
+            )
+            .unwrap(),
+            std::time::Duration::from_secs(10),
+        )
+        .await
+    {
+        tracing::debug!("Failed to send L2 block notification: {}", e);
+        return false; // End subscription
+    }
+
+    true
 }
 
 /// Creates and returns the sequencer RPC module with all methods registered
