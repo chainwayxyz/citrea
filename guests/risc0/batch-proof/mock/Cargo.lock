@@ -1149,7 +1149,6 @@ dependencies = [
  "borsh",
  "citrea-primitives",
  "k256",
- "once_cell",
  "reth-primitives",
  "reth-primitives-traits",
  "revm",

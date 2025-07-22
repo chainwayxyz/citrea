@@ -25,7 +25,6 @@ hex = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 metrics = { workspace = true, optional = true }
 metrics-derive = { workspace = true, optional = true }
-once_cell = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 sha2 = { workspace = true }

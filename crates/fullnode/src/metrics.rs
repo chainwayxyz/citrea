@@ -5,7 +5,7 @@
 
 use std::sync::LazyLock;
 
-use metrics::{Counter, Gauge, Histogram};
+use metrics::{Gauge, Histogram};
 use metrics_derive::Metrics;
 
 /// Collection of metrics for monitoring fullnode performance and state
@@ -36,7 +36,7 @@ pub struct FullnodeMetrics {
     #[metric(describe = "The duration of processing a batch proof")]
     pub batch_proof_processing_time: Histogram,
 
-    /// Counter for the highest committed l2 height
+    /// Gauge for the highest committed l2 height
     #[metric(describe = "The highest committed l2 height")]
     pub highest_committed_l2_height: Gauge,
 
@@ -44,7 +44,7 @@ pub struct FullnodeMetrics {
     #[metric(describe = "The highest committed l2 height")]
     pub highest_committed_index: Gauge,
 
-    /// Counter for the highest proven l2 height
+    /// Gauge for the highest proven l2 height
     #[metric(describe = "The highest proven l2 height")]
     pub highest_proven_l2_height: Gauge,
 

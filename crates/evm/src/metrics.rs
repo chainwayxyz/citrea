@@ -1,6 +1,7 @@
+use std::sync::LazyLock;
+
 use metrics::Gauge;
 use metrics_derive::Metrics;
-use once_cell::sync::Lazy;
 
 /// This defines the struct which encapsulates all metrics used for Evm.
 ///
@@ -17,7 +18,7 @@ pub struct EvmMetrics {
 }
 
 /// EVM metrics
-pub static EVM_METRICS: Lazy<EvmMetrics> = Lazy::new(|| {
+pub static EVM_METRICS: LazyLock<EvmMetrics> = LazyLock::new(|| {
     EvmMetrics::describe();
     EvmMetrics::default()
 });

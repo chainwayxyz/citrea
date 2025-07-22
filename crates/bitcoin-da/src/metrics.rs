@@ -1,8 +1,9 @@
 //! This module defines the metrics for Bitcoin DA.
 
+use std::sync::LazyLock;
+
 use metrics::{Gauge, Histogram};
 use metrics_derive::Metrics;
-use once_cell::sync::Lazy;
 
 /// This defines the struct which encapsulates all metrics used for Bitcoin DA.
 ///
@@ -23,7 +24,7 @@ pub struct BitcoinDaMetrics {
 }
 
 /// Bitcoin DA metrics
-pub static BITCOIN_DA_METRICS: Lazy<BitcoinDaMetrics> = Lazy::new(|| {
+pub static BITCOIN_DA_METRICS: LazyLock<BitcoinDaMetrics> = LazyLock::new(|| {
     BitcoinDaMetrics::describe();
     BitcoinDaMetrics::default()
 });

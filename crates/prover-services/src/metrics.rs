@@ -2,10 +2,10 @@
 //!
 //! This module defines metrics that track various aspects of parallel prover service,
 //! including block processing times and current block numbers.
+use std::sync::LazyLock;
 
 use metrics::Gauge;
 use metrics_derive::Metrics;
-use once_cell::sync::Lazy;
 
 /// Collection of metrics for monitoring parallel prover service performance and state
 #[derive(Metrics)]
@@ -21,7 +21,7 @@ pub struct ParallelProverMetrics {
 }
 
 /// Parallel prover metrics
-pub static PARALLEL_PROVER_METRICS: Lazy<ParallelProverMetrics> = Lazy::new(|| {
+pub static PARALLEL_PROVER_METRICS: LazyLock<ParallelProverMetrics> = LazyLock::new(|| {
     ParallelProverMetrics::describe();
     ParallelProverMetrics::default()
 });
