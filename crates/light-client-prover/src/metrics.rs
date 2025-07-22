@@ -4,7 +4,7 @@
 //! including L1 block processing times and current L1 block number.
 use std::sync::LazyLock;
 
-use metrics::{Gauge, Histogram};
+use metrics::Gauge;
 use metrics_derive::Metrics;
 
 #[derive(Metrics)]
@@ -17,9 +17,9 @@ pub struct LightClientProverMetrics {
     #[metric(describe = "The duration of scanning and processing a single L1 block")]
     /// The duration of scanning and processing a single L1 block
     pub scan_l1_block: Gauge,
-    /// Histogram tracking the time taken to prove a state transition
-    #[metric(describe = "The duration of generating a batch proof")]
-    pub proving_time: Histogram,
+    /// Tracking the time taken to prove a state transition, gauge because one proof is generated per l1 block
+    #[metric(describe = "The duration of generating a light client proof")]
+    pub proving_time: Gauge,
 }
 
 /// Light client metrics

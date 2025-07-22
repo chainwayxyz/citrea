@@ -301,7 +301,7 @@ where
 
         LIGHT_CLIENT_METRICS
             .proving_time
-            .record(proof_with_duration.duration);
+            .set(proof_with_duration.duration);
 
         self.ledger_db
             .set_last_scanned_l1_height(SlotNumber(l1_block.header().height()))
