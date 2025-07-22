@@ -746,9 +746,7 @@ where
             },
         )?;
 
-        FULLNODE_METRICS
-            .highest_proven_l2_height
-            .absolute(end_l2_height);
+        FULLNODE_METRICS.highest_proven_l2_height.set(end_l2_height);
 
         Ok(ProcessingResult::Success)
     }
