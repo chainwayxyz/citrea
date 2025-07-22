@@ -6805,7 +6805,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "borsh",
- "futures",
  "metrics 0.23.0",
  "metrics-derive",
  "rand 0.8.5",
