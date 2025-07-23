@@ -68,7 +68,7 @@ pub struct SequencerMetrics {
 
     /// Histogram tracking the time taken to save an L2 block
     #[metric(describe = "The time taken to save an L2 block in milliseconds")]
-    pub save_l2_block_time: Histogram,
+    pub save_l2_block_time: Histogram, // TODO: Gauge
 
     /// Histogram tracking the time taken to apply L2 block transactions
     #[metric(describe = "The time taken to apply transactions in an L2 block in milliseconds")]
@@ -102,7 +102,7 @@ pub struct SequencerMetrics {
     #[metric(
         describe = "The time taken to maintain the mempool after processing an L2 block in milliseconds"
     )]
-    pub maintain_mempool_time: Histogram,
+    pub maintain_mempool_time: Histogram, // TODO: Gauge
 
     /// Histogram tracking the time taken to prepare for a dry run
     #[metric(describe = "The time taken to prepare for a dry run in milliseconds")]

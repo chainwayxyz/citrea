@@ -494,13 +494,13 @@ where
         let evm_txs = self.get_best_transactions()?;
 
         let last_da_block_height = da_blocks.last().map(|b| b.header().height());
-        let dry_run_preparation_duration = Instant::now()
-            .saturating_duration_since(start_dry_run_preparation)
-            .as_secs_f64();
-        SEQUENCER_METRICS
-            .dry_run_preparation_time
-            .record(dry_run_preparation_duration);
-        gauge!("sequencer_dry_run_preparation_time_gauge").set(dry_run_preparation_duration);
+        gauge!("sequencer_dry_run_preparation_time_gauge").set(
+            Instant::now()
+                .saturating_duration_since(start_dry_run_preparation)
+                .as_secs_f64(),
+        );
+
+        // TODO: Get number of l1 fee failed txs in gauge
 
         // Dry running transactions would basically allow for figuring out a list of
         // all transactions that would fit into the current block and the list of transactions
@@ -523,92 +523,26 @@ where
             "Prover storage version is corrupted"
         );
 
+        let evm_txs_count = txs_to_run.len();
+
         let mut working_set = WorkingSet::new(prestate.clone());
 
-        let start_begin_l2_block = Instant::now();
-        if let Err(err) = self.stf.begin_l2_block(&mut working_set, &l2_block_info) {
-            warn!(
-                "Failed to apply l2 block hook: {:?} \n reverting batch workspace",
-                err
-            );
-            bail!("Failed to apply begin l2 block hook: {:?}", err)
-        }
+        self.instrumented_begin_l2_block(&mut working_set, &l2_block_info)?;
 
-        let begin_l2_block_duration = Instant::now()
-            .saturating_duration_since(start_begin_l2_block)
-            .as_secs_f64();
-        SEQUENCER_METRICS
-            .begin_l2_block_time
-            .record(begin_l2_block_duration);
-        gauge!("sequencer_begin_l2_block_time_gauge").set(begin_l2_block_duration);
+        let (signed_txs, blobs) = self.encode_and_sign_evm_txs_into_sov_txs(
+            &mut working_set,
+            &l2_block_info,
+            txs_to_run,
+        )?;
 
-        let start_encode_and_sign_sov_tx = Instant::now();
-        let mut blobs = vec![];
-        let mut txs = vec![];
-
-        // if a batch failed need to refetch nonce
-        // so sticking to fetching from state makes sense
-        let nonce = self.get_nonce(&mut working_set)?;
-
-        let evm_txs_count = txs_to_run.len();
-        if evm_txs_count > 0 {
-            let call_txs = CallMessage { txs: txs_to_run };
-            let raw_message = <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
-                citrea_evm::Evm<DefaultContext>,
-            >>::encode_call(call_txs);
-
-            let signed_tx = self.sign_tx(active_fork_spec, raw_message, nonce)?;
-
-            blobs.push(signed_tx.to_blob()?);
-            txs.push(signed_tx);
-        }
-        let encode_and_sign_duration = Instant::now()
-            .saturating_duration_since(start_encode_and_sign_sov_tx)
-            .as_secs_f64();
-        SEQUENCER_METRICS
-            .encode_and_sign_sov_tx_time
-            .record(encode_and_sign_duration);
-        gauge!("sequencer_encode_and_sign_sov_tx_time_gauge").set(encode_and_sign_duration);
-
-        let start_apply_txs = Instant::now();
-        self.stf
-            .apply_l2_block_txs(&l2_block_info, &txs, &mut working_set)
-            .expect("dry_run_transactions should have already checked this");
-
-        let apply_txs_duration = Instant::now()
-            .saturating_duration_since(start_apply_txs)
-            .as_secs_f64();
-        SEQUENCER_METRICS
-            .apply_l2_block_txs_time
-            .record(apply_txs_duration);
-        gauge!("sequencer_apply_l2_block_txs_time_gauge").set(apply_txs_duration);
-
-        let start_end_l2_block = Instant::now();
-        self.stf.end_l2_block(l2_block_info, &mut working_set)?;
-        let end_l2_block_duration = Instant::now()
-            .saturating_duration_since(start_end_l2_block)
-            .as_secs_f64();
-        SEQUENCER_METRICS
-            .end_l2_block_time
-            .record(end_l2_block_duration);
-        gauge!("sequencer_end_l2_block_time_gauge").set(end_l2_block_duration);
-
-        // Finalize l2 block
-        let start_finalize_l2_block = Instant::now();
-        let l2_block_result = self
-            .stf
-            .finalize_l2_block(active_fork_spec, working_set, prestate);
-        let finalize_l2_block_duration = Instant::now()
-            .saturating_duration_since(start_finalize_l2_block)
-            .as_secs_f64();
-        SEQUENCER_METRICS
-            .finalize_l2_block_time
-            .record(finalize_l2_block_duration);
-        gauge!("sequencer_finalize_l2_block_time_gauge").set(finalize_l2_block_duration);
+        self.instrumented_apply_l2_block_txs(&l2_block_info, &signed_txs, &mut working_set)?;
+        self.instrumented_end_l2_block(l2_block_info, &mut working_set)?;
+        let l2_block_result =
+            self.instrumented_finalize_l2_block(active_fork_spec, working_set, prestate);
 
         let start_sign_l2_block_header = Instant::now();
         // Calculate tx hashes for merkle root
-        let tx_hashes = compute_tx_hashes(&txs, active_fork_spec);
+        let tx_hashes = compute_tx_hashes(&signed_txs, active_fork_spec);
         let tx_merkle_root = compute_tx_merkle_root(&tx_hashes, active_fork_spec);
 
         // create the l2 block header
@@ -623,44 +557,25 @@ where
 
         let signed_header = self.sign_l2_block_header(header)?;
         // TODO: cleanup l2 block structure once we decide how to pull data from the running sequencer in the existing form
-        let l2_block = L2Block::new(signed_header, txs);
+        let l2_block = L2Block::new(signed_header, signed_txs);
 
         info!(
             "New block #{}, Tx count: #{}",
             l2_block.height(),
             evm_txs_count
         );
-        let sign_l2_block_header_duration = Instant::now()
-            .saturating_duration_since(start_sign_l2_block_header)
-            .as_secs_f64();
-        SEQUENCER_METRICS
-            .sign_l2_block_header_time
-            .record(sign_l2_block_header_duration);
-        gauge!("sequencer_sign_l2_block_header_time_gauge").set(sign_l2_block_header_duration);
+        gauge!("sequencer_sign_l2_block_header_time_gauge").set(
+            Instant::now()
+                .saturating_duration_since(start_sign_l2_block_header)
+                .as_secs_f64(),
+        );
 
-        let save_l2_block_start = Instant::now();
         let state_diff = self.save_l2_block(l2_block, l2_block_result, tx_hashes, blobs)?;
-        let save_l2_block_duration = Instant::now()
-            .saturating_duration_since(save_l2_block_start)
-            .as_secs_f64();
-        SEQUENCER_METRICS
-            .save_l2_block_time
-            .record(save_l2_block_duration);
-        gauge!("sequencer_save_l2_block_time_gauge").set(save_l2_block_duration);
 
         self.ledger_db
             .set_state_diff(L2BlockNumber(l2_height), &state_diff)?;
 
-        let start_maintain_mempool = Instant::now();
         self.maintain_mempool(l1_fee_failed_txs)?;
-        let maintain_mempool_time = Instant::now()
-            .saturating_duration_since(start_maintain_mempool)
-            .as_secs_f64();
-        SEQUENCER_METRICS
-            .maintain_mempool_time
-            .record(maintain_mempool_time);
-
-        gauge!("sequencer_maintain_mempool_gauge").set(maintain_mempool_time);
 
         let block_production_duration = Instant::now()
             .saturating_duration_since(block_production_start)
@@ -676,6 +591,105 @@ where
         }
 
         Ok(l2_height)
+    }
+
+    fn instrumented_begin_l2_block(
+        &mut self,
+        working_set: &mut WorkingSet<ProverStorage>,
+        l2_block_info: &HookL2BlockInfo,
+    ) -> anyhow::Result<()> {
+        let start = Instant::now();
+        if let Err(err) = self.stf.begin_l2_block(working_set, l2_block_info) {
+            warn!(
+                "Failed to apply l2 block hook: {:?} \n reverting batch workspace",
+                err
+            );
+            bail!("Failed to apply begin l2 block hook: {:?}", err)
+        }
+        let duration = Instant::now()
+            .saturating_duration_since(start)
+            .as_secs_f64();
+        gauge!("sequencer_begin_l2_block_time_gauge").set(duration);
+        Ok(())
+    }
+
+    fn encode_and_sign_evm_txs_into_sov_txs(
+        &self,
+        working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
+        l2_block_info: &HookL2BlockInfo,
+        txs: Vec<RlpEvmTransaction>,
+    ) -> anyhow::Result<(Vec<Transaction>, Vec<Vec<u8>>)> {
+        let start_encode_and_sign_sov_tx = Instant::now();
+        let mut blobs = vec![];
+        let mut signed_txs = vec![];
+
+        // if a batch failed need to refetch nonce
+        // so sticking to fetching from state makes sense
+        let nonce = self.get_nonce(working_set)?;
+
+        if !txs.is_empty() {
+            let call_txs = CallMessage { txs };
+            let raw_message = <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
+                citrea_evm::Evm<DefaultContext>,
+            >>::encode_call(call_txs);
+
+            let signed_tx = self.sign_tx(l2_block_info.current_spec, raw_message, nonce)?;
+            blobs.push(signed_tx.to_blob()?);
+            signed_txs.push(signed_tx);
+        }
+        let encode_and_sign_duration = Instant::now()
+            .saturating_duration_since(start_encode_and_sign_sov_tx)
+            .as_secs_f64();
+        gauge!("sequencer_encode_and_sign_sov_tx_time_gauge").set(encode_and_sign_duration);
+
+        Ok((signed_txs, blobs))
+    }
+
+    fn instrumented_apply_l2_block_txs(
+        &mut self,
+        l2_block_info: &HookL2BlockInfo,
+        txs: &[Transaction],
+        working_set: &mut WorkingSet<ProverStorage>,
+    ) -> anyhow::Result<()> {
+        let start = Instant::now();
+        self.stf
+            .apply_l2_block_txs(l2_block_info, txs, working_set)?;
+        let duration = Instant::now()
+            .saturating_duration_since(start)
+            .as_secs_f64();
+        gauge!("sequencer_apply_l2_block_txs_time_gauge").set(duration);
+        Ok(())
+    }
+
+    fn instrumented_end_l2_block(
+        &mut self,
+        l2_block_info: HookL2BlockInfo,
+        working_set: &mut WorkingSet<ProverStorage>,
+    ) -> anyhow::Result<()> {
+        let start = Instant::now();
+        self.stf.end_l2_block(l2_block_info, working_set)?;
+        let duration = Instant::now()
+            .saturating_duration_since(start)
+            .as_secs_f64();
+        gauge!("sequencer_end_l2_block_time_gauge").set(duration);
+        Ok(())
+    }
+
+    fn instrumented_finalize_l2_block(
+        &mut self,
+        active_fork_spec: SpecId,
+        working_set: WorkingSet<ProverStorage>,
+        prestate: ProverStorage,
+    ) -> L2BlockResult<ProverStorage, sov_state::Witness, sov_state::ReadWriteLog> {
+        let start = Instant::now();
+        let result = self
+            .stf
+            .finalize_l2_block(active_fork_spec, working_set, prestate);
+        let duration = Instant::now()
+            .saturating_duration_since(start)
+            .as_secs_f64();
+        gauge!("sequencer_finalize_l2_block_time_gauge").set(duration);
+        result
     }
 
     /// Saves an L2 block and its associated data to storage
@@ -695,6 +709,8 @@ where
         tx_hashes: Vec<[u8; 32]>,
         blobs: Vec<Vec<u8>>,
     ) -> anyhow::Result<StateDiff> {
+        let save_l2_block_start = Instant::now();
+
         debug!("New L2 block with hash: {:?}", hex::encode(l2_block.hash()));
 
         let state_root_transition = l2_block_result.state_root_transition;
@@ -731,6 +747,12 @@ where
         self.state_root = next_state_root;
         self.l2_block_hash = l2_block_hash;
 
+        gauge!("sequencer_save_l2_block_time_gauge").set(
+            Instant::now()
+                .saturating_duration_since(save_l2_block_start)
+                .as_secs_f64(),
+        );
+
         Ok(l2_block_result.state_diff)
     }
 
@@ -739,6 +761,7 @@ where
     /// # Arguments
     /// * `l1_fee_failed_txs` - Transactions that failed due to L1 fee issues
     pub(crate) fn maintain_mempool(&self, l1_fee_failed_txs: Vec<TxHash>) -> anyhow::Result<()> {
+        let start_maintain_mempool = Instant::now();
         // Combine transactions from last block and those that failed L1 fee check
         let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
         txs_to_remove.extend(l1_fee_failed_txs);
@@ -761,6 +784,11 @@ where
             warn!("Failed to remove txs from mempool: {:?}", e);
         }
 
+        gauge!("sequencer_maintain_mempool_gauge").set(
+            Instant::now()
+                .saturating_duration_since(start_maintain_mempool)
+                .as_secs_f64(),
+        );
         Ok(())
     }
 
