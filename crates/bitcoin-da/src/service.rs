@@ -443,7 +443,7 @@ impl BitcoinService {
 
     async fn queue_transactions(&self, txs: Vec<SignedTxPair>) {
         self.tx_queue.lock().await.extend(txs);
-        gauge!("bitcoin_da_transaction_queue_size").set(self.tx_queue.lock().await.len() as f64);
+        gauge!("bitcoin_da_transaction_queue_size").increment(txs.len() as f64);
     }
 
     /// Send transaction out of the queue to DA until the first error.
