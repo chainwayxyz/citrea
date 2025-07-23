@@ -15,7 +15,6 @@ pub fn start_rpc_server(
     task_executor: &TaskExecutor,
     methods: RpcModule<()>,
     channel: Option<oneshot::Sender<SocketAddr>>,
-    node_type: String,
 ) {
     info!("Starting rpc server with config : {rpc_config}");
     let bind_host = match rpc_config.bind_host.parse() {
@@ -40,7 +39,7 @@ pub fn start_rpc_server(
     let rpc_middleware = RpcServiceBuilder::new()
         .layer_fn(move |s| super::auth::Auth::new(s, rpc_config.api_key.clone()))
         .layer_fn(super::Logger)
-        .layer_fn(move |s| RpcMetrics::new(s, node_type.clone()));
+        .layer_fn(RpcMetrics);
 
     task_executor.spawn_with_signal(move |cancellation_token| {
         async move {
