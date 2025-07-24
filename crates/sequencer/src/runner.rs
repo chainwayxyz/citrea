@@ -587,6 +587,7 @@ where
         Ok(l2_height)
     }
 
+    /// Begins an L2 block and records the time taken
     fn instrumented_begin_l2_block(
         &mut self,
         working_set: &mut WorkingSet<ProverStorage>,
@@ -607,6 +608,7 @@ where
         Ok(())
     }
 
+    /// Encodes and signs EVM transactions into Sov txs, and records the time taken
     fn encode_and_sign_evm_txs_into_sov_txs(
         &self,
         working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
@@ -639,6 +641,7 @@ where
         Ok((signed_txs, blobs))
     }
 
+    /// Applies the L2 block transactions and records the time taken
     fn instrumented_apply_l2_block_txs(
         &mut self,
         l2_block_info: &HookL2BlockInfo,
@@ -655,6 +658,7 @@ where
         Ok(())
     }
 
+    /// Ends the L2 block and records the time taken
     fn instrumented_end_l2_block(
         &mut self,
         l2_block_info: HookL2BlockInfo,
@@ -669,6 +673,7 @@ where
         Ok(())
     }
 
+    /// Finalizes the L2 block and records the time taken
     fn instrumented_finalize_l2_block(
         &mut self,
         active_fork_spec: SpecId,

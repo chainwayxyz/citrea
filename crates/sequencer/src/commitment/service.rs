@@ -173,8 +173,8 @@ where
                             record_commitment_process_duration_metrics(
                                 start_commitment_processing,
                                 index,
-                                commitment_range.start().clone(),
-                                commitment_range.end().clone(),
+                                *commitment_range.start(),
+                                *commitment_range.end(),
                             );
                             // Reset the start time for the next commitment processing
                             start_commitment_processing = Instant::now();
@@ -437,6 +437,7 @@ where
     }
 }
 
+/// Records metrics related to the commitment processing duration
 fn record_commitment_process_duration_metrics(
     start: Instant,
     commitment_index: u32,
