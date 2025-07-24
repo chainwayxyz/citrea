@@ -451,17 +451,8 @@ fn record_commitment_process_duration_metrics(
     let duration = Instant::now()
         .saturating_duration_since(start)
         .as_secs_f64();
-    gauge!(
-        "latest_sequencer_commitment_process_duration_secs",
-        duration
-    );
-    gauge!("latest_sequencer_commitment_index", commitment_index as f64);
-    gauge!(
-        "latest_sequencer_commitment_l2_start_height",
-        l2_start_height.0 as f64
-    );
-    gauge!(
-        "latest_sequencer_commitment_l2_end_height",
-        l2_end_height.0 as f64
-    );
+    gauge!("latest_sequencer_commitment_process_duration_secs").set(duration);
+    gauge!("latest_sequencer_commitment_index").set(commitment_index as f64);
+    gauge!("latest_sequencer_commitment_l2_start_height").set(l2_start_height.0 as f64);
+    gauge!("latest_sequencer_commitment_l2_end_height").set(l2_end_height.0 as f64);
 }

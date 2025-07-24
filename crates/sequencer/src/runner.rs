@@ -378,6 +378,7 @@ where
                 .dry_run_execution
                 .record(dry_run_execution_duration);
             gauge!("sequencer_dry_run_execution_gauge").set(dry_run_execution_duration);
+            gauge!("sequencer_l1_fee_failed_txs_count").set(l1_fee_failed_txs.len() as f64);
 
             Ok((all_txs, l1_fee_failed_txs))
         })
@@ -499,8 +500,6 @@ where
                 .saturating_duration_since(start_dry_run_preparation)
                 .as_secs_f64(),
         );
-
-        // TODO: Get number of l1 fee failed txs in gauge
 
         // Dry running transactions would basically allow for figuring out a list of
         // all transactions that would fit into the current block and the list of transactions
