@@ -5,7 +5,7 @@ use futures::FutureExt;
 use jsonrpsee::server::middleware::rpc::RpcServiceT;
 use jsonrpsee::types::Request;
 use jsonrpsee::MethodResponse;
-use metrics::histogram;
+use metrics::{counter, histogram};
 
 /// Wraps an inner RPC service and records response times
 #[derive(Debug, Clone)]
@@ -28,6 +28,12 @@ where
             let elapsed = start.elapsed().as_secs_f64();
             let success = response.is_success().to_string();
 
+            counter!(
+                "rpc_requests_total",
+                "method" => method_name,
+                "success" => success,
+            )
+            .increment(1);
             histogram!(
                 "rpc_response_time_seconds",
                 "method" => method_name,
