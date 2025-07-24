@@ -598,7 +598,7 @@
           "useBackend": false
         }
       ],
-      "title": "Base Fee Per Block Nmber",
+      "title": "Base Fee Per Block Number",
       "transformations": [
         {
           "id": "joinByField",
