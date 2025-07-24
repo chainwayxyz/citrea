@@ -4,14 +4,14 @@ use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use citrea_batch_prover::l1_syncer::L1Syncer as BatchProverL1Syncer;
 use citrea_batch_prover::prover::Prover;
-use citrea_batch_prover::L2Syncer as BatchProverL2Syncer;
+use citrea_batch_prover::BatchProverL2Syncer;
 use citrea_common::backup::BackupManager;
 use citrea_common::{
     BatchProverConfig, FullNodeConfig, InitParams, LightClientProverConfig, NodeType,
     SequencerConfig,
 };
 use citrea_fullnode::da_block_handler::L1BlockHandler as FullNodeL1BlockHandler;
-use citrea_fullnode::L2Syncer as FullNodeL2Syncer;
+use citrea_fullnode::FullNodeL2Syncer;
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientProverL1BlockHandler;
 use citrea_primitives::forks::get_forks;

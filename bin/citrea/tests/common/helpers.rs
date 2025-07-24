@@ -362,7 +362,7 @@ pub async fn start_rollup(
     } else {
         let span = info_span!("FullNode");
 
-        let (mut l2_syncer, l1_block_handler, pruner, rpc_module) =
+        let (l2_syncer, l1_block_handler, pruner, rpc_module) =
             CitreaRollupBlueprint::create_full_node(
                 &mock_demo_rollup,
                 network.unwrap_or(Network::Nightly),

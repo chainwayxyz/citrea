@@ -33,7 +33,6 @@ use citrea_common::{BatchProverConfig, InitParams, RollupPublicKeys, RunnerConfi
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::RpcModule;
 pub use l1_syncer::L1Syncer;
-pub use l2_syncer::L2Syncer;
 pub use partition::PartitionMode;
 use prover::Prover;
 use prover_services::ParallelProverService;
@@ -47,6 +46,9 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_rollup_interface::Network;
 use tokio::sync::{broadcast, mpsc, Mutex};
+
+use crate::l2_syncer::BatchProverL2BlockProcessor;
+pub use crate::l2_syncer::BatchProverL2Syncer;
 
 /// Module containing database migration definitions
 pub mod db_migrations;
@@ -119,7 +121,7 @@ pub async fn build_services<DA, DB, Vm>(
     rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
 ) -> Result<(
-    L2Syncer<DA, DB>,
+    BatchProverL2Syncer<DA, DB>,
     L1Syncer<DA, DB>,
     Prover<DA, DB, Vm>,
     RpcModule<()>,
@@ -141,7 +143,7 @@ where
     );
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
 
-    let l2_syncer = L2Syncer::new(
+    let l2_syncer = BatchProverL2Syncer::new(
         runner_config.clone(),
         init_params,
         native_stf,
@@ -153,6 +155,7 @@ where
         l2_block_tx.clone(),
         backup_manager.clone(),
         true,
+        BatchProverL2BlockProcessor,
     )?;
 
     let (l1_signal_tx, l1_signal_rx) = mpsc::channel(1);

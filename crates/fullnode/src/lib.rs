@@ -128,7 +128,6 @@ use citrea_stf::runtime::CitreaRuntime;
 use citrea_storage_ops::pruning::{Pruner, PrunerService};
 use da_block_handler::L1BlockHandler;
 use jsonrpsee::RpcModule;
-pub use l2_syncer::L2Syncer;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::ForkManager;
@@ -139,6 +138,9 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_rollup_interface::Network;
 use tokio::sync::{broadcast, Mutex};
+
+use crate::l2_syncer::FullNodeL2BlockProcessor;
+pub use crate::l2_syncer::FullNodeL2Syncer;
 
 /// Module for handling L1 data availability blocks
 pub mod da_block_handler;
@@ -201,7 +203,7 @@ pub fn build_services<DA, DB, Vm>(
     rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
 ) -> Result<(
-    L2Syncer<DA, DB>,
+    FullNodeL2Syncer<DA, DB>,
     L1BlockHandler<Vm, DA, DB>,
     Option<PrunerService>,
     RpcModule<()>,
@@ -227,7 +229,7 @@ where
     });
 
     let include_tx_bodies = runner_config.include_tx_body;
-    let l2_syncer = L2Syncer::new(
+    let l2_syncer = FullNodeL2Syncer::new(
         runner_config,
         init_params,
         native_stf,
@@ -239,6 +241,7 @@ where
         l2_block_tx,
         backup_manager.clone(),
         include_tx_bodies,
+        FullNodeL2BlockProcessor,
     )?;
 
     let l1_block_handler = L1BlockHandler::new(
