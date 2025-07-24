@@ -30,8 +30,8 @@ where
 
             counter!(
                 "rpc_requests_total",
-                "method" => method_name,
-                "success" => success,
+                "method" => method_name.clone(),
+                "success" => success.clone(),
             )
             .increment(1);
             histogram!(
