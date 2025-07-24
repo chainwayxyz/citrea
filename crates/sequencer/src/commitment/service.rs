@@ -23,7 +23,7 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info, instrument, warn};
 
 use super::controller::CommitmentController;
-use crate::metrics::SEQUENCER_METRICS;
+use crate::metrics::SEQUENCER_METRICS as sm;
 
 /// L2 heights to commit
 pub(crate) type CommitmentRange = RangeInclusive<L2BlockNumber>;
@@ -213,13 +213,9 @@ where
             .map(|sb| sb.hash)
             .collect::<Vec<[u8; 32]>>();
 
-        SEQUENCER_METRICS
-            .commitment_blocks_count
-            .set(l2_block_hashes.len() as f64);
+        sm.commitment_blocks_count.set(l2_block_hashes.len() as f64);
 
-        SEQUENCER_METRICS
-            .currently_committing_index
-            .set(commitment_index as f64);
+        sm.currently_committing_index.set(commitment_index as f64);
 
         let commitment =
             self.get_commitment(commitment_index, &commitment_range, l2_block_hashes)?;
@@ -257,7 +253,7 @@ where
             .map_err(|_| anyhow!("DA service is dead!"))?
             .map_err(|_| anyhow!("Send transaction cannot fail"))?;
 
-        SEQUENCER_METRICS.send_commitment_execution.record(
+        sm.send_commitment_execution.record(
             Instant::now()
                 .saturating_duration_since(start)
                 .as_secs_f64(),
@@ -451,8 +447,12 @@ fn record_commitment_process_duration_metrics(
     let duration = Instant::now()
         .saturating_duration_since(start)
         .as_secs_f64();
-    gauge!("latest_sequencer_commitment_process_duration_secs").set(duration);
-    gauge!("latest_sequencer_commitment_index").set(commitment_index as f64);
-    gauge!("latest_sequencer_commitment_l2_start_height").set(l2_start_height.0 as f64);
-    gauge!("latest_sequencer_commitment_l2_end_height").set(l2_end_height.0 as f64);
+    sm.latest_sequencer_commitment_process_duration_secs
+        .set(duration);
+    sm.latest_sequencer_commitment_index
+        .set(commitment_index as f64);
+    sm.latest_sequencer_commitment_l2_start_height
+        .set(l2_start_height.0 as f64);
+    sm.latest_sequencer_commitment_l2_end_height
+        .set(l2_end_height.0 as f64);
 }

@@ -65,56 +65,65 @@ pub struct SequencerMetrics {
         describe = "The time taken to dry run a transaction in the current block in milliseconds"
     )]
     pub dry_run_tx_time: Histogram,
-
     /// Histogram tracking the time taken to save an L2 block
     #[metric(describe = "The time taken to save an L2 block in milliseconds")]
-    pub save_l2_block_time: Histogram, // TODO: Gauge
-
+    pub save_l2_block_time: Gauge,
     /// Histogram tracking the time taken to apply L2 block transactions
     #[metric(describe = "The time taken to apply transactions in an L2 block in milliseconds")]
-    pub apply_l2_block_txs_time: Histogram,
-
+    pub apply_l2_block_txs_time: Gauge,
     /// Histogram tracking the time taken to end an L2 block
     #[metric(describe = "The time taken to end an L2 block in milliseconds")]
-    pub end_l2_block_time: Histogram,
-
+    pub end_l2_block_time: Gauge,
     /// Histogram tracking the time taken to finalize an L2 block
     #[metric(describe = "The time taken to finalize an L2 block in milliseconds")]
-    pub finalize_l2_block_time: Histogram,
-
+    pub finalize_l2_block_time: Gauge,
     /// Histogram tracking the time taken to begin an L2 block
     #[metric(describe = "The time taken to begin an L2 block in milliseconds")]
-    pub begin_l2_block_time: Histogram,
-
+    pub begin_l2_block_time: Gauge,
     /// Histogram tracking the time taken to encapsulate all evm txs in a sovereign call message, encoding it and signing it
     #[metric(
         describe = "The time taken to encapsulate all evm txs in a sovereign call message, encoding it and signing it in milliseconds"
     )]
-    pub encode_and_sign_sov_tx_time: Histogram,
-
+    pub encode_and_sign_sov_tx_time: Gauge,
     /// Histogram tracking the time taken to sign an L2 block header, including the time to calculate tx merkle root
     #[metric(
         describe = "The time taken to sign an L2 block header in milliseconds, including the time to calculate tx merkle root"
     )]
     pub sign_l2_block_header_time: Histogram,
-
     /// Histogram tracking the time taken to maintain the mempool after processing an L2 block
     #[metric(
         describe = "The time taken to maintain the mempool after processing an L2 block in milliseconds"
     )]
-    pub maintain_mempool_time: Histogram, // TODO: Gauge
-
-    /// Histogram tracking the time taken to prepare for a dry run
-    #[metric(describe = "The time taken to prepare for a dry run in milliseconds")]
-    pub dry_run_preparation_time: Histogram,
-
+    pub maintain_mempool_time: Gauge,
+    /// Basically all the operations happening before the dry run, such as fetching the mempool transactions, preparing the dry run state, etc.
+    #[metric(describe = "The time taken to prepare for a dry run in seconds per block")]
+    pub dry_run_preparation_time: Gauge,
     /// Histogram tracking the time taken to dry run system transactions
     #[metric(describe = "The time taken to dry run system transactions in milliseconds")]
     pub dry_run_system_txs_time: Histogram,
-
     /// The l1 fee rate in the l2 block
     #[metric(describe = "The L1 fee rate in the l2 block")]
     pub l1_fee_rate: Gauge,
+    /// The number of transactions that failed to pay the L1 fee in the current block
+    #[metric(
+        describe = "The number of transactions that failed to pay the L1 fee in the current block"
+    )]
+    pub l1_fee_failed_txs_count: Gauge,
+    /// The number of transactions in the current L2 block
+    #[metric(describe = "The number of transactions in the current L2 block")]
+    pub l2_block_tx_count: Gauge,
+    /// The time it took to process the latest sequencer commitment
+    #[metric(describe = "The time in seconds it took to process the latest sequencer commitment")]
+    pub latest_sequencer_commitment_process_duration_secs: Gauge,
+    /// The index of the latest sequencer commitment
+    #[metric(describe = "The index of the latest sequencer commitment")]
+    pub latest_sequencer_commitment_index: Gauge,
+    /// The l2 start height of the latest sequencer commitment
+    #[metric(describe = "The l2 start height of the latest sequencer commitment")]
+    pub latest_sequencer_commitment_l2_start_height: Gauge,
+    /// The l2 end height of the latest sequencer commitment
+    #[metric(describe = "The l2 end height of the latest sequencer commitment")]
+    pub latest_sequencer_commitment_l2_end_height: Gauge,
 }
 
 /// Sequencer metrics

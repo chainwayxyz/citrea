@@ -63,7 +63,7 @@ use crate::da::{da_block_monitor, get_da_block_data};
 use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
-use crate::metrics::SEQUENCER_METRICS;
+use crate::metrics::SEQUENCER_METRICS as sm;
 use crate::types::SequencerRpcMessage;
 use crate::utils::recover_raw_transaction;
 
@@ -236,8 +236,7 @@ where
             let dry_run_system_txs_duration = Instant::now()
                 .saturating_duration_since(start_dry_run_system_txs)
                 .as_secs_f64();
-            SEQUENCER_METRICS
-                .dry_run_system_txs_time
+            sm.dry_run_system_txs_time
                 .record(dry_run_system_txs_duration);
             gauge!("sequencer_dry_run_system_txs_time_gauge").set(dry_run_system_txs_duration);
 
@@ -374,11 +373,10 @@ where
             let dry_run_execution_duration = Instant::now()
                 .saturating_duration_since(start)
                 .as_secs_f64();
-            SEQUENCER_METRICS
-                .dry_run_execution
-                .record(dry_run_execution_duration);
+            sm.dry_run_execution.record(dry_run_execution_duration);
             gauge!("sequencer_dry_run_execution_gauge").set(dry_run_execution_duration);
-            gauge!("sequencer_l1_fee_failed_txs_count").set(l1_fee_failed_txs.len() as f64);
+            sm.l1_fee_failed_txs_count
+                .set(l1_fee_failed_txs.len() as f64);
 
             Ok((all_txs, l1_fee_failed_txs))
         })
@@ -435,12 +433,10 @@ where
         let block_production_time = Instant::now()
             .saturating_duration_since(start)
             .as_secs_f64();
-        SEQUENCER_METRICS
-            .block_production_execution
-            .record(block_production_time);
+        sm.block_production_execution.record(block_production_time);
         gauge!("sequencer_block_production_execution_gauge").set(block_production_time);
-        SEQUENCER_METRICS.l1_fee_rate.set(l1_fee_rate as f64);
-        SEQUENCER_METRICS.current_l2_block.set(l2_height as f64);
+        sm.l1_fee_rate.set(l1_fee_rate as f64);
+        sm.current_l2_block.set(l2_height as f64);
 
         result
     }
@@ -495,7 +491,7 @@ where
         let evm_txs = self.get_best_transactions()?;
 
         let last_da_block_height = da_blocks.last().map(|b| b.header().height());
-        gauge!("sequencer_dry_run_preparation_time_gauge").set(
+        sm.dry_run_preparation_time.set(
             Instant::now()
                 .saturating_duration_since(start_dry_run_preparation)
                 .as_secs_f64(),
@@ -580,9 +576,8 @@ where
             .saturating_duration_since(block_production_start)
             .as_secs_f64();
 
-        gauge!("sequencer_last_block_number").set(l2_height as f64);
         gauge!("sequencer_block_production_time").set(block_production_duration);
-        gauge!("sequencer_l2_block_tx_count").set(evm_txs_count as f64);
+        sm.l2_block_tx_count.set(evm_txs_count as f64);
 
         // Update last used l1 height if this is a new da block
         if let Some(l1_height) = last_da_block_height {
@@ -608,7 +603,7 @@ where
         let duration = Instant::now()
             .saturating_duration_since(start)
             .as_secs_f64();
-        gauge!("sequencer_begin_l2_block_time_gauge").set(duration);
+        sm.begin_l2_block_time.set(duration);
         Ok(())
     }
 
@@ -639,7 +634,7 @@ where
         let encode_and_sign_duration = Instant::now()
             .saturating_duration_since(start_encode_and_sign_sov_tx)
             .as_secs_f64();
-        gauge!("sequencer_encode_and_sign_sov_tx_time_gauge").set(encode_and_sign_duration);
+        sm.encode_and_sign_sov_tx_time.set(encode_and_sign_duration);
 
         Ok((signed_txs, blobs))
     }
@@ -656,7 +651,7 @@ where
         let duration = Instant::now()
             .saturating_duration_since(start)
             .as_secs_f64();
-        gauge!("sequencer_apply_l2_block_txs_time_gauge").set(duration);
+        sm.apply_l2_block_txs_time.set(duration);
         Ok(())
     }
 
@@ -670,7 +665,7 @@ where
         let duration = Instant::now()
             .saturating_duration_since(start)
             .as_secs_f64();
-        gauge!("sequencer_end_l2_block_time_gauge").set(duration);
+        sm.end_l2_block_time.set(duration);
         Ok(())
     }
 
@@ -687,7 +682,7 @@ where
         let duration = Instant::now()
             .saturating_duration_since(start)
             .as_secs_f64();
-        gauge!("sequencer_finalize_l2_block_time_gauge").set(duration);
+        sm.finalize_l2_block_time.set(duration);
         result
     }
 
@@ -746,7 +741,7 @@ where
         self.state_root = next_state_root;
         self.l2_block_hash = l2_block_hash;
 
-        gauge!("sequencer_save_l2_block_time_gauge").set(
+        sm.save_l2_block_time.set(
             Instant::now()
                 .saturating_duration_since(save_l2_block_start)
                 .as_secs_f64(),
@@ -767,7 +762,6 @@ where
 
         // Remove processed/failed transactions from mempool
         self.mempool.remove_transactions(txs_to_remove.clone());
-        SEQUENCER_METRICS.mempool_txs.set(self.mempool.len() as f64);
 
         // Update account states in mempool
         let account_updates = self.get_account_updates()?;
@@ -783,7 +777,8 @@ where
             warn!("Failed to remove txs from mempool: {:?}", e);
         }
 
-        gauge!("sequencer_maintain_mempool_gauge").set(
+        sm.mempool_txs.set(self.mempool.len() as f64);
+        sm.maintain_mempool_time.set(
             Instant::now()
                 .saturating_duration_since(start_maintain_mempool)
                 .as_secs_f64(),
@@ -895,7 +890,7 @@ where
 
                         missed_da_blocks_count = self.da_blocks_missed(last_finalized_l1_height, last_used_l1_height);
                     }
-                    SEQUENCER_METRICS.current_l1_block.set(last_finalized_l1_height as f64);
+                    sm.current_l1_block.set(last_finalized_l1_height as f64);
                 },
                 // Handle RPC messages (both test mode and halt signals)
                 rpc_message = self.rpc_message_rx.recv() => {

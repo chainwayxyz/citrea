@@ -23,7 +23,7 @@ use tracing::{debug, error};
 
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
-use crate::metrics::SEQUENCER_METRICS;
+use crate::metrics::SEQUENCER_METRICS as sm;
 use crate::types::SequencerRpcMessage;
 use crate::utils::recover_raw_transaction;
 
@@ -208,8 +208,8 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
         {
             tracing::warn!("Failed to insert mempool tx into db: {:?}", e);
         } else {
-            SEQUENCER_METRICS.mempool_txs.increment(1);
-            SEQUENCER_METRICS.mempool_txs_inc.increment(1);
+            sm.mempool_txs.increment(1);
+            sm.mempool_txs_inc.increment(1);
         }
 
         Ok(hash)
@@ -266,9 +266,7 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
         debug!("Sequencer: citrea_sendRawDepositTransaction");
 
         let deposit_tx_size = deposit.len();
-        SEQUENCER_METRICS
-            .deposit_tx_size
-            .record(deposit_tx_size as f64);
+        sm.deposit_tx_size.record(deposit_tx_size as f64);
 
         let evm = Evm::<DefaultContext>::default();
         let mut working_set = WorkingSet::new(self.context.storage.clone());
@@ -291,9 +289,7 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
         let deposit_tx_call_duration = Instant::now()
             .saturating_duration_since(start)
             .as_secs_f64();
-        SEQUENCER_METRICS
-            .deposit_tx_call_duration
-            .record(deposit_tx_call_duration);
+        sm.deposit_tx_call_duration.record(deposit_tx_call_duration);
 
         match tx_res {
             Ok(hex_res) => {
@@ -306,7 +302,7 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             }
             Err(e) => {
                 error!("Error processing deposit tx: {:?}", e);
-                SEQUENCER_METRICS.unaccepted_deposit_txs.increment(1);
+                sm.unaccepted_deposit_txs.increment(1);
                 Err(e)
             }
         }
