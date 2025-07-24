@@ -7,7 +7,7 @@ use citrea_common::utils::get_tangerine_activation_height_non_zero;
 use citrea_evm::{get_last_l1_height_in_light_client, Evm};
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::DefaultContext;
-use metrics::histogram;
+use metrics::{gauge, histogram};
 use reth_tasks::shutdown::GracefulShutdown;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -170,15 +170,12 @@ where
                                 // continue functioning correctly. We just need to resubmit the failed commitment to DA.
                                 error!("Failed to submit commitment: {:?}", e);
                             }
-                            histogram!(
-                                "sequencer_commitment_entire_process_time",
-                                "index" => index.to_string(),
-                                "l2_start_height" => commitment_range.start().0.to_string(),
-                                "l2_end_height" => commitment_range.end().0.to_string()
-                            ).record(
-                                std::time::Instant::now()
-                                    .saturating_duration_since(start_commitment_processing)
-                                    .as_secs_f64(),
+
+                            record_commitment_process_duration_metrics(
+                                start_commitment_processing,
+                                index,
+                                commitment_range.start().clone(),
+                                commitment_range.end().clone(),
                             );
                             // Reset the start time for the next commitment processing
                             start_commitment_processing = Instant::now();
@@ -443,4 +440,28 @@ where
 
         Ok(mined_commitments)
     }
+}
+
+fn record_commitment_process_duration_metrics(
+    start: Instant,
+    commitment_index: u32,
+    l2_start_height: L2BlockNumber,
+    l2_end_height: L2BlockNumber,
+) {
+    let duration = Instant::now()
+        .saturating_duration_since(start)
+        .as_secs_f64();
+    gauge!(
+        "latest_sequencer_commitment_process_duration_secs",
+        duration
+    );
+    gauge!("latest_sequencer_commitment_index", commitment_index as f64);
+    gauge!(
+        "latest_sequencer_commitment_l2_start_height",
+        l2_start_height.0 as f64
+    );
+    gauge!(
+        "latest_sequencer_commitment_l2_end_height",
+        l2_end_height.0 as f64
+    );
 }
