@@ -23,7 +23,7 @@ use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
 use tracing::{error, info, instrument, warn};
 
-use crate::metrics::BATCH_PROVER_METRICS;
+use crate::metrics::BATCH_PROVER_METRICS as BPM;
 
 /// Handles L1 sync operations by tracking the finalized L1 blocks and
 /// extracting the sequencer commitments from them.
@@ -223,8 +223,8 @@ where
                 .set_last_scanned_l1_height(SlotNumber(l1_height))
                 .expect("Should put prover last scanned l1 height");
 
-            BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
-            BATCH_PROVER_METRICS.scan_l1_block.set(
+            BPM.current_l1_block.set(l1_height as f64);
+            BPM.set_scan_l1_block_duration(
                 Instant::now()
                     .saturating_duration_since(start_l1_block_processing)
                     .as_secs_f64(),

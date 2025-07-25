@@ -32,7 +32,7 @@ use tracing::{error, instrument};
 
 use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
-use crate::metrics::LIGHT_CLIENT_METRICS;
+use crate::metrics::LIGHT_CLIENT_METRICS as LPM;
 
 /// Variant to specify how to start processing L1 blocks
 pub enum StartVariant {
@@ -299,16 +299,14 @@ where
             stored_proof_output,
         )?;
 
-        LIGHT_CLIENT_METRICS
-            .proving_time
-            .set(proof_with_duration.duration);
+        LPM.proving_time.set(proof_with_duration.duration);
 
         self.ledger_db
             .set_last_scanned_l1_height(SlotNumber(l1_block.header().height()))
             .expect("Saving last scanned l1 height to ledger db");
 
-        LIGHT_CLIENT_METRICS.current_l1_block.set(l1_height as f64);
-        LIGHT_CLIENT_METRICS.scan_l1_block.set(
+        LPM.current_l1_block.set(l1_height as f64);
+        LPM.set_scan_l1_block_duration(
             Instant::now()
                 .saturating_duration_since(start_l1_block_processing)
                 .as_secs_f64(),

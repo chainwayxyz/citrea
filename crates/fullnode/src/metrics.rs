@@ -5,7 +5,7 @@
 
 use std::sync::LazyLock;
 
-use metrics::{Gauge, Histogram};
+use metrics::{histogram, Gauge, Histogram};
 use metrics_derive::Metrics;
 
 /// Collection of metrics for monitoring fullnode performance and state
@@ -20,9 +20,9 @@ pub struct FullnodeMetrics {
     #[metric(describe = "The current L2 block number")]
     pub current_l2_block: Gauge,
 
-    /// Histogram tracking the time taken to scan and process L1 blocks
+    /// Gauge tracking the time taken to scan and process L1 blocks
     #[metric(describe = "The duration of scanning and processing a single L1 block")]
-    pub scan_l1_block: Gauge,
+    pub scan_l1_block_duration_secs: Gauge,
 
     /// Histogram tracking the time taken to process L2 blocks
     #[metric(describe = "The duration of processing a single l2 block")]
@@ -51,6 +51,16 @@ pub struct FullnodeMetrics {
     /// Histogram for the size of l2 blocks processed
     #[metric(describe = "The size of l2 blocks processed in bytes")]
     pub l2_block_size: Histogram,
+}
+
+impl FullnodeMetrics {
+    /// Record for both gauge and histogram
+    /// Gauge is used for per block exact time tracking, histogram is used for average and quantiles
+    pub fn set_scan_l1_block_duration(&self, duration: f64) {
+        self.scan_l1_block_duration_secs.set(duration);
+        // also set histogram so we can follow average and quantiles properly
+        histogram!("full_node_scan_l1_block_duration_secs_histogram", duration);
+    }
 }
 
 /// Global instance of fullnode metrics

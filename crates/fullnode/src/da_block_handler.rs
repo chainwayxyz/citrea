@@ -34,7 +34,7 @@ use tokio::time::Duration;
 use tracing::{debug, error, info, instrument, warn};
 
 use crate::error::{CommitmentError, HaltingError, ProcessingError, ProofError, SkippableError};
-use crate::metrics::FULLNODE_METRICS;
+use crate::metrics::FULLNODE_METRICS as FM;
 
 /// Result of processing a commitment or proof
 enum ProcessingResult {
@@ -242,13 +242,11 @@ where
                             }
                         }
                     }
-                    FULLNODE_METRICS
-                        .sequencer_commitment_processing_time
-                        .record(
-                            Instant::now()
-                                .saturating_duration_since(start_commitment_process)
-                                .as_secs_f64(),
-                        );
+                    FM.sequencer_commitment_processing_time.record(
+                        Instant::now()
+                            .saturating_duration_since(start_commitment_process)
+                            .as_secs_f64(),
+                    );
                 }
                 ProofOrCommitment::Proof(proof) => {
                     let start_proof_process = std::time::Instant::now();
@@ -270,7 +268,7 @@ where
                             }
                         }
                     }
-                    FULLNODE_METRICS.batch_proof_processing_time.record(
+                    FM.batch_proof_processing_time.record(
                         Instant::now()
                             .saturating_duration_since(start_proof_process)
                             .as_secs_f64(),
@@ -313,8 +311,8 @@ where
             .set_last_scanned_l1_height(SlotNumber(l1_height))
             .map_err(|e| anyhow!("Could not set last scanned l1 height: {e}"))?;
 
-        FULLNODE_METRICS.current_l1_block.set(l1_height as f64);
-        FULLNODE_METRICS.scan_l1_block.set(
+        FM.current_l1_block.set(l1_height as f64);
+        FM.set_scan_l1_block_duration(
             Instant::now()
                 .saturating_duration_since(start_scanning)
                 .as_secs_f64(),
@@ -519,11 +517,8 @@ where
             },
         )?;
 
-        FULLNODE_METRICS
-            .highest_committed_l2_height
-            .set(end_l2_height as f64);
-        FULLNODE_METRICS
-            .highest_committed_index
+        FM.highest_committed_l2_height.set(end_l2_height as f64);
+        FM.highest_committed_index
             .set(sequencer_commitment.index as f64);
 
         Ok(ProcessingResult::Success)
@@ -746,9 +741,7 @@ where
             },
         )?;
 
-        FULLNODE_METRICS
-            .highest_proven_l2_height
-            .set(end_l2_height as f64);
+        FM.highest_proven_l2_height.set(end_l2_height as f64);
 
         Ok(ProcessingResult::Success)
     }

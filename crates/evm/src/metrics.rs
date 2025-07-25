@@ -4,7 +4,6 @@ use metrics::Gauge;
 use metrics_derive::Metrics;
 
 /// This defines the struct which encapsulates all metrics used for Evm.
-#[allow(unused)]
 #[derive(Metrics)]
 #[metrics(scope = "evm")]
 pub struct EvmMetrics {
