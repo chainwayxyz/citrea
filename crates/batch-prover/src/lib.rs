@@ -47,7 +47,6 @@ use sov_rollup_interface::zk::ZkvmHost;
 use sov_rollup_interface::Network;
 use tokio::sync::{broadcast, mpsc, Mutex};
 
-use crate::l2_syncer::BatchProverL2BlockProcessor;
 pub use crate::l2_syncer::BatchProverL2Syncer;
 
 /// Module containing database migration definitions
@@ -155,7 +154,6 @@ where
         l2_block_tx.clone(),
         backup_manager.clone(),
         true,
-        BatchProverL2BlockProcessor,
     )?;
 
     let (l1_signal_tx, l1_signal_rx) = mpsc::channel(1);

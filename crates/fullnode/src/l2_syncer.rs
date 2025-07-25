@@ -13,11 +13,11 @@ pub type FullNodeL2Syncer<DA, DB> = L2Syncer<DA, DB, FullNodeL2BlockProcessor>;
 pub struct FullNodeL2BlockProcessor;
 
 impl<DB> L2BlockProcessor<DB> for FullNodeL2BlockProcessor {
-    fn process_result(&self, _result: &ProcessL2BlockResult, _db: &DB) -> anyhow::Result<()> {
+    fn process_result(_result: &ProcessL2BlockResult, _db: &DB) -> anyhow::Result<()> {
         Ok(())
     }
 
-    fn record_metrics(&self, result: &ProcessL2BlockResult) {
+    fn record_metrics(result: &ProcessL2BlockResult) {
         FULLNODE_METRICS
             .current_l2_block
             .set(result.l2_height as f64);

@@ -11,18 +11,18 @@ use crate::metrics::BATCH_PROVER_METRICS;
 
 pub type BatchProverL2Syncer<DA, DB> = L2Syncer<DA, DB, BatchProverL2BlockProcessor>;
 
-// Batch prover L2 block processor
+/// Batch prover L2 block processor
 pub struct BatchProverL2BlockProcessor;
 
 impl<DB> L2BlockProcessor<DB> for BatchProverL2BlockProcessor
 where
     DB: BatchProverLedgerOps,
 {
-    fn process_result(&self, result: &ProcessL2BlockResult, db: &DB) -> anyhow::Result<()> {
+    fn process_result(result: &ProcessL2BlockResult, db: &DB) -> anyhow::Result<()> {
         db.set_l2_state_diff(L2BlockNumber(result.l2_height), result.state_diff.clone())
     }
 
-    fn record_metrics(&self, result: &ProcessL2BlockResult) {
+    fn record_metrics(result: &ProcessL2BlockResult) {
         BATCH_PROVER_METRICS
             .current_l2_block
             .set(result.l2_height as f64);

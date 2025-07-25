@@ -139,7 +139,6 @@ use sov_rollup_interface::zk::ZkvmHost;
 use sov_rollup_interface::Network;
 use tokio::sync::{broadcast, Mutex};
 
-use crate::l2_syncer::FullNodeL2BlockProcessor;
 pub use crate::l2_syncer::FullNodeL2Syncer;
 
 /// Module for handling L1 data availability blocks
@@ -241,7 +240,6 @@ where
         l2_block_tx,
         backup_manager.clone(),
         include_tx_bodies,
-        FullNodeL2BlockProcessor,
     )?;
 
     let l1_block_handler = L1BlockHandler::new(

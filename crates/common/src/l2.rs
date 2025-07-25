@@ -3,6 +3,7 @@
 //! This module contains functionality for synchronizing L2 blocks from the sequencer
 //! and processing them to maintain the node's state.
 
+use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -292,9 +293,9 @@ pub trait L2BlockProcessor<DB> {
     /// # Arguments
     /// * `result` - The processed l2 block result
     /// * `db` - Database handle for storage
-    fn process_result(&self, result: &ProcessL2BlockResult, db: &DB) -> anyhow::Result<()>;
+    fn process_result(result: &ProcessL2BlockResult, db: &DB) -> anyhow::Result<()>;
     /// Record metrics for the processed block
-    fn record_metrics(&self, result: &ProcessL2BlockResult);
+    fn record_metrics(result: &ProcessL2BlockResult);
 }
 
 /// Component responsible for synchronizing and processing L2 blocks
@@ -341,7 +342,7 @@ where
     /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
     /// L2 Block processor
-    block_processor: P,
+    _phantom_processor: PhantomData<P>,
 }
 
 impl<DA, DB, P> L2Syncer<DA, DB, P>
@@ -377,7 +378,6 @@ where
         l2_block_tx: broadcast::Sender<u64>,
         backup_manager: Arc<BackupManager>,
         include_tx_body: bool,
-        block_processor: P,
     ) -> Result<Self, anyhow::Error> {
         let start_l2_height = ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
 
@@ -400,7 +400,7 @@ where
             fork_manager,
             l2_block_tx,
             backup_manager,
-            block_processor,
+            _phantom_processor: PhantomData,
         })
     }
 
@@ -481,9 +481,8 @@ where
         self.state_root = l2_block_result.state_root;
         self.l2_block_hash = l2_block_result.l2_block_hash;
 
-        self.block_processor
-            .process_result(&l2_block_result, &self.ledger_db)?;
-        self.block_processor.record_metrics(&l2_block_result);
+        P::process_result(&l2_block_result, &self.ledger_db)?;
+        P::record_metrics(&l2_block_result);
 
         // Only errors when there are no receivers
         let _ = self.l2_block_tx.send(l2_block_result.l2_height);
