@@ -63,7 +63,7 @@ use crate::da::{da_block_monitor, get_da_block_data};
 use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
-use crate::metrics::SEQUENCER_METRICS as sm;
+use crate::metrics::SEQUENCER_METRICS as SM;
 use crate::types::SequencerRpcMessage;
 use crate::utils::recover_raw_transaction;
 
@@ -236,7 +236,7 @@ where
             let dry_run_system_txs_duration = Instant::now()
                 .saturating_duration_since(start_dry_run_system_txs)
                 .as_secs_f64();
-            sm.dry_run_system_txs_time
+            SM.dry_run_system_txs_time
                 .record(dry_run_system_txs_duration);
             gauge!("sequencer_dry_run_system_txs_time_gauge").set(dry_run_system_txs_duration);
 
@@ -373,9 +373,9 @@ where
             let dry_run_execution_duration = Instant::now()
                 .saturating_duration_since(start)
                 .as_secs_f64();
-            sm.dry_run_execution.record(dry_run_execution_duration);
+            SM.dry_run_execution.record(dry_run_execution_duration);
             gauge!("sequencer_dry_run_execution_gauge").set(dry_run_execution_duration);
-            sm.l1_fee_failed_txs_count
+            SM.l1_fee_failed_txs_count
                 .set(l1_fee_failed_txs.len() as f64);
 
             Ok((all_txs, l1_fee_failed_txs))
@@ -433,10 +433,10 @@ where
         let block_production_time = Instant::now()
             .saturating_duration_since(start)
             .as_secs_f64();
-        sm.block_production_execution.record(block_production_time);
+        SM.block_production_execution.record(block_production_time);
         gauge!("sequencer_block_production_execution_gauge").set(block_production_time);
-        sm.l1_fee_rate.set(l1_fee_rate as f64);
-        sm.current_l2_block.set(l2_height as f64);
+        SM.l1_fee_rate.set(l1_fee_rate as f64);
+        SM.current_l2_block.set(l2_height as f64);
 
         result
     }
@@ -491,7 +491,7 @@ where
         let evm_txs = self.get_best_transactions()?;
 
         let last_da_block_height = da_blocks.last().map(|b| b.header().height());
-        sm.dry_run_preparation_time.set(
+        SM.dry_run_preparation_time.set(
             Instant::now()
                 .saturating_duration_since(start_dry_run_preparation)
                 .as_secs_f64(),
@@ -577,7 +577,7 @@ where
             .as_secs_f64();
 
         gauge!("sequencer_block_production_time").set(block_production_duration);
-        sm.l2_block_tx_count.set(evm_txs_count as f64);
+        SM.l2_block_tx_count.set(evm_txs_count as f64);
 
         // Update last used l1 height if this is a new da block
         if let Some(l1_height) = last_da_block_height {
@@ -604,7 +604,7 @@ where
         let duration = Instant::now()
             .saturating_duration_since(start)
             .as_secs_f64();
-        sm.begin_l2_block_time.set(duration);
+        SM.begin_l2_block_time.set(duration);
         Ok(())
     }
 
@@ -636,7 +636,7 @@ where
         let encode_and_sign_duration = Instant::now()
             .saturating_duration_since(start_encode_and_sign_sov_tx)
             .as_secs_f64();
-        sm.encode_and_sign_sov_tx_time.set(encode_and_sign_duration);
+        SM.encode_and_sign_sov_tx_time.set(encode_and_sign_duration);
 
         Ok((signed_txs, blobs))
     }
@@ -654,7 +654,7 @@ where
         let duration = Instant::now()
             .saturating_duration_since(start)
             .as_secs_f64();
-        sm.apply_l2_block_txs_time.set(duration);
+        SM.apply_l2_block_txs_time.set(duration);
         Ok(())
     }
 
@@ -669,7 +669,7 @@ where
         let duration = Instant::now()
             .saturating_duration_since(start)
             .as_secs_f64();
-        sm.end_l2_block_time.set(duration);
+        SM.end_l2_block_time.set(duration);
         Ok(())
     }
 
@@ -687,7 +687,7 @@ where
         let duration = Instant::now()
             .saturating_duration_since(start)
             .as_secs_f64();
-        sm.finalize_l2_block_time.set(duration);
+        SM.finalize_l2_block_time.set(duration);
         result
     }
 
@@ -746,7 +746,7 @@ where
         self.state_root = next_state_root;
         self.l2_block_hash = l2_block_hash;
 
-        sm.save_l2_block_time.set(
+        SM.save_l2_block_time.set(
             Instant::now()
                 .saturating_duration_since(save_l2_block_start)
                 .as_secs_f64(),
@@ -782,8 +782,8 @@ where
             warn!("Failed to remove txs from mempool: {:?}", e);
         }
 
-        sm.mempool_txs.set(self.mempool.len() as f64);
-        sm.maintain_mempool_time.set(
+        SM.mempool_txs.set(self.mempool.len() as f64);
+        SM.maintain_mempool_time.set(
             Instant::now()
                 .saturating_duration_since(start_maintain_mempool)
                 .as_secs_f64(),
@@ -895,7 +895,7 @@ where
 
                         missed_da_blocks_count = self.da_blocks_missed(last_finalized_l1_height, last_used_l1_height);
                     }
-                    sm.current_l1_block.set(last_finalized_l1_height as f64);
+                    SM.current_l1_block.set(last_finalized_l1_height as f64);
                 },
                 // Handle RPC messages (both test mode and halt signals)
                 rpc_message = self.rpc_message_rx.recv() => {

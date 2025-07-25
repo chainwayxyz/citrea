@@ -6,7 +6,7 @@ use citrea_evm::system_contracts::BridgeWrapper;
 use citrea_evm::SYSTEM_SIGNER;
 use tracing::instrument;
 
-use crate::metrics::SEQUENCER_METRICS as sm;
+use crate::metrics::SEQUENCER_METRICS as SM;
 
 /// A mempool specifically for handling deposit transaction data
 #[derive(Clone, Debug, Default)]
@@ -46,7 +46,7 @@ impl DepositDataMempool {
     /// A vector of deposit transaction data, limited by the specified amount
     pub fn fetch_deposits(&mut self, limit_per_block: usize) -> Vec<Vec<u8>> {
         let number_of_deposits = self.accepted_deposit_txs.len().min(limit_per_block);
-        sm.deposit_data_mempool_txs
+        SM.deposit_data_mempool_txs
             .set(self.accepted_deposit_txs.len() as f64);
         self.accepted_deposit_txs
             .drain(..number_of_deposits)
@@ -60,8 +60,8 @@ impl DepositDataMempool {
     #[instrument(level = "trace", skip_all, ret)]
     pub fn add_deposit_tx(&mut self, req: Vec<u8>) {
         self.accepted_deposit_txs.push_back(req);
-        sm.deposit_data_mempool_txs_inc.increment(1);
-        sm.deposit_data_mempool_txs
+        SM.deposit_data_mempool_txs_inc.increment(1);
+        SM.deposit_data_mempool_txs
             .set(self.accepted_deposit_txs.len() as f64);
     }
 }
