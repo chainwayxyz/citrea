@@ -28,7 +28,7 @@ impl LightClientProverMetrics {
     pub fn set_scan_l1_block_duration(&self, duration: f64) {
         self.scan_l1_block_duration_secs.set(duration);
         // also set histogram so we can follow average and quantiles properly
-        metrics::histogram!("light_client_prover_scan_l1_block_duration_secs", duration);
+        metrics::histogram!("light_client_prover_scan_l1_block_duration_secs").record(duration);
     }
 }
 

@@ -59,7 +59,7 @@ impl FullnodeMetrics {
     pub fn set_scan_l1_block_duration(&self, duration: f64) {
         self.scan_l1_block_duration_secs.set(duration);
         // also set histogram so we can follow average and quantiles properly
-        histogram!("full_node_scan_l1_block_duration_secs_histogram", duration);
+        histogram!("full_node_scan_l1_block_duration_secs_histogram").record(duration);
     }
 }
 
