@@ -30,6 +30,14 @@ impl LightClientProverMetrics {
         // also set histogram so we can follow average and quantiles properly
         metrics::histogram!("light_client_prover_scan_l1_block_duration_secs").record(duration);
     }
+
+    /// Record for both gauge and histogram
+    /// Gauge is used for per block exact time tracking, histogram is used for average and quantiles
+    pub(crate) fn set_lcp_proving_time(&self, duration: f64) {
+        self.proving_time.set(duration);
+        // also set histogram so we can follow average and quantiles properly
+        metrics::histogram!("light_client_prover_proving_time_histogram").record(duration);
+    }
 }
 
 /// Light client metrics

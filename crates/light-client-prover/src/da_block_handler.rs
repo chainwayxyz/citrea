@@ -299,7 +299,7 @@ where
             stored_proof_output,
         )?;
 
-        LPM.proving_time.set(proof_with_duration.duration);
+        LPM.set_lcp_proving_time(proof_with_duration.duration);
 
         self.ledger_db
             .set_last_scanned_l1_height(SlotNumber(l1_block.header().height()))
