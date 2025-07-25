@@ -3,8 +3,6 @@ use alloy_consensus::{proofs, Header as AlloyHeader, TxReceipt};
 use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::{Bloom, Bytes, B256, B64, U256};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
-#[cfg(feature = "native")]
-use metrics::gauge;
 use revm::context::BlockEnv;
 use revm::context_interface::block::BlobExcessGasAndPrice;
 use revm::primitives::hardfork::SpecId;
@@ -18,6 +16,8 @@ use tracing::instrument;
 use crate::evm::primitive_types::Block;
 #[cfg(feature = "native")]
 use crate::evm::system_events::SystemEvent;
+#[cfg(feature = "native")]
+use crate::metrics::EVM_METRICS as EM;
 use crate::{citrea_spec_id_to_evm_spec_id, Evm};
 
 impl<C: sov_modules_api::Context> Evm<C> {
@@ -260,8 +260,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 let base_fee_gwei = sealed_block.header.base_fee_per_gas.unwrap_or_default() as f64
                     / 1_000_000_000.0; // Convert to Gwei
                                        // Update the metrics with the new block count
-                gauge!("evm_gas_usage").set(sealed_block.header.gas_used as f64);
-                gauge!("evm_base_fee_per_gas").set(base_fee_gwei);
+                EM.block_gas_usage.set(sealed_block.header.gas_used as f64);
+                EM.block_base_fee.set(base_fee_gwei);
             }
 
             self.block_hashes.set(
