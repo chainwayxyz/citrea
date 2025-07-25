@@ -85,11 +85,14 @@ pub struct SequencerMetrics {
         describe = "The time taken to encapsulate all evm txs in a sovereign call message, encoding it and signing it in milliseconds"
     )]
     pub encode_and_sign_sov_tx_time: Gauge,
+    /// Time taken to calculate the transaction merkle root
+    #[metric(describe = "The time taken to calculate the transaction merkle root in seconds")]
+    pub calculate_tx_merkle_root_time: Gauge,
     /// Histogram tracking the time taken to sign an L2 block header, including the time to calculate tx merkle root
     #[metric(
         describe = "The time taken to sign an L2 block header in milliseconds, including the time to calculate tx merkle root"
     )]
-    pub sign_l2_block_header_time: Histogram,
+    pub sign_l2_block_header_time: Gauge,
     /// Histogram tracking the time taken to maintain the mempool after processing an L2 block
     #[metric(
         describe = "The time taken to maintain the mempool after processing an L2 block in milliseconds"

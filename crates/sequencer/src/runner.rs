@@ -535,10 +535,9 @@ where
         let l2_block_result =
             self.instrumented_finalize_l2_block(active_fork_spec, working_set, prestate);
 
-        let start_sign_l2_block_header = Instant::now();
-        // Calculate tx hashes for merkle root
-        let tx_hashes = compute_tx_hashes(&signed_txs, active_fork_spec);
-        let tx_merkle_root = compute_tx_merkle_root(&tx_hashes, active_fork_spec);
+        // Calculate tx hashes and merkle root
+        let (tx_merkle_root, tx_hashes) =
+            self.calculate_txs_merkle_root(&signed_txs, &active_fork_spec);
 
         // create the l2 block header
         let header = L2Header::new(
@@ -558,11 +557,6 @@ where
             "New block #{}, Tx count: #{}",
             l2_block.height(),
             evm_txs_count
-        );
-        gauge!("sequencer_sign_l2_block_header_time_gauge").set(
-            Instant::now()
-                .saturating_duration_since(start_sign_l2_block_header)
-                .as_secs_f64(),
         );
 
         let state_diff = self.save_l2_block(l2_block, l2_block_result, tx_hashes, blobs)?;
@@ -585,6 +579,22 @@ where
         }
 
         Ok(l2_height)
+    }
+
+    fn calculate_txs_merkle_root(
+        &self,
+        txs: &[Transaction],
+        active_fork_spec: &ForkSpec,
+    ) -> ([u8; 32], Vec<[u8; 32]>) {
+        let start = Instant::now();
+        let tx_hashes = compute_tx_hashes(txs, active_fork_spec);
+        let merkle_root = compute_tx_merkle_root(&tx_hashes, active_fork_spec);
+        SM.calculate_tx_merkle_root_time.set(
+            Instant::now()
+                .saturating_duration_since(start)
+                .as_secs_f64(),
+        );
+        (merkle_root, tx_hashes)
     }
 
     /// Begins an L2 block and records the time taken
@@ -1055,10 +1065,16 @@ where
     /// # Returns
     /// A signed L2 block header
     fn sign_l2_block_header(&mut self, header: L2Header) -> anyhow::Result<SignedL2Header> {
+        let start = Instant::now();
         let hash = header.compute_digest();
 
         let signature = self.sov_tx_signer_priv_key.sign(&hash);
         let signature = borsh::to_vec(&signature)?;
+        SM.sign_l2_block_header_time.set(
+            Instant::now()
+                .saturating_duration_since(start)
+                .as_secs_f64(),
+        );
         Ok(SignedL2Header::new(header, hash, signature))
     }
 
