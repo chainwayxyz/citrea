@@ -34,7 +34,7 @@ use crate::utils::recover_raw_transaction;
 /// Result of receiving blocks from the `l2_block_rx` channel
 enum BlockReceiveResult {
     /// Successfully received blocks (may include recovered lagged blocks)
-    Blocks(Vec<u64>),
+    HighestBlock(u64),
     /// Channel was closed
     ChannelClosed,
 }
@@ -405,8 +405,9 @@ async fn handle_l2_block_subscription(
     let last_sent_block = Arc::new(AtomicU64::new(head_block_num));
     loop {
         match receive_next_blocks(rx, last_sent_block.clone()).await {
-            BlockReceiveResult::Blocks(blocks) => {
-                for block_height in blocks {
+            BlockReceiveResult::HighestBlock(highest_block_height) => {
+                let last_sent_block_num = last_sent_block.load(Ordering::SeqCst);
+                for block_height in last_sent_block_num + 1..=highest_block_height {
                     if !send_block_notification(&subscription, block_height, &ledger).await {
                         return;
                     }
@@ -427,7 +428,7 @@ async fn receive_next_blocks(
     last_sent_block: Arc<AtomicU64>,
 ) -> BlockReceiveResult {
     match rx.recv().await {
-        Ok(block_height) => BlockReceiveResult::Blocks(vec![block_height]),
+        Ok(block_height) => BlockReceiveResult::HighestBlock(block_height),
         Err(broadcast::error::RecvError::Lagged(num_lagged)) => {
             tracing::warn!(
                 "Subscription lagged by {} blocks, attempting to recover",
@@ -444,12 +445,8 @@ async fn receive_next_blocks(
             // we will receive the next block, which is 21, and continue from there as normal.
 
             // Recover blocks from the `last_sent_block + 1`, to `last_sent_block + num_lagged`
-            let mut blocks = Vec::with_capacity(num_lagged as usize + 1);
             let last_sent_block_num = last_sent_block.load(Ordering::SeqCst);
-            for height in (last_sent_block_num + 1)..=(last_sent_block_num + num_lagged) {
-                blocks.push(height);
-            }
-            BlockReceiveResult::Blocks(blocks)
+            BlockReceiveResult::HighestBlock(last_sent_block_num + num_lagged)
         }
         Err(broadcast::error::RecvError::Closed) => BlockReceiveResult::ChannelClosed,
     }
