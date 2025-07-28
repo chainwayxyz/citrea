@@ -401,7 +401,8 @@ async fn handle_l2_block_subscription(
     rx: &mut tokio::sync::broadcast::Receiver<u64>,
     ledger: LedgerDB,
 ) {
-    let last_sent_block = Arc::new(AtomicU64::new(0));
+    let head_block_num = ledger.get_head_l2_block_height().unwrap_or(0);
+    let last_sent_block = Arc::new(AtomicU64::new(head_block_num));
     loop {
         match receive_next_blocks(rx, last_sent_block.clone()).await {
             BlockReceiveResult::Blocks(blocks) => {
