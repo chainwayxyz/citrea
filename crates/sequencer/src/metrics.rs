@@ -34,9 +34,18 @@ pub struct SequencerMetrics {
     /// Histogram tracking execution time of dry run operations
     #[metric(describe = "The duration of dry running transactions")]
     pub dry_run_execution: Histogram,
+    /// Gauge tracking the exact time taken to dry run transactions, used for per block tracking
+    #[metric(describe = "The exact time taken to dry run transactions in seconds")]
+    pub dry_run_execution_gauge: Gauge,
+    /// Histogram tracking the time taken to dry run a single transaction
+    #[metric(describe = "The time taken to dry run a single transaction")]
+    pub dry_run_single_tx_time: Histogram,
     /// Histogram tracking block production execution time
     #[metric(describe = "The duration of executing block transactions")]
     pub block_production_execution: Histogram,
+    /// Gauge tracking the duration of the entire block production process, Gauge is used to track the exact time taken per block
+    #[metric(describe = "The total duration of the entire block production process")]
+    pub entire_block_production_duration_gauge: Gauge,
     /// Histogram tracking commitment sending execution time
     #[metric(describe = "The duration of sending a sequencer commitment")]
     pub send_commitment_execution: Histogram,
@@ -101,9 +110,14 @@ pub struct SequencerMetrics {
     /// Basically all the operations happening before the dry run, such as fetching the mempool transactions, preparing the dry run state, etc.
     #[metric(describe = "The time taken to prepare for a dry run in seconds per block")]
     pub dry_run_preparation_time: Gauge,
-    /// Histogram tracking the time taken to dry run system transactions
-    #[metric(describe = "The time taken to dry run system transactions in milliseconds")]
-    pub dry_run_system_txs_time: Histogram,
+    /// Gauge tracking exact time taken to dry run system transactions
+    #[metric(describe = "The time taken to dry run system transactions in seconds")]
+    pub dry_run_system_txs_duration_secs: Gauge,
+    /// The exact time in seconds it took to produce an l2 block, without dry run
+    #[metric(
+        describe = "The exact time in seconds it took to produce an l2 block, without dry run"
+    )]
+    pub no_dry_run_block_production_duration_secs: Gauge,
     /// The l1 fee rate in the l2 block
     #[metric(describe = "The L1 fee rate in the l2 block")]
     pub l1_fee_rate: Gauge,

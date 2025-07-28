@@ -21,7 +21,6 @@ use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::merkle::{compute_tx_hashes, compute_tx_merkle_root};
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
-use metrics::{gauge, histogram};
 use parking_lot::Mutex;
 use reth_execution_types::ChangedAccount;
 use reth_provider::{AccountReader, BlockReaderIdExt};
@@ -233,12 +232,11 @@ where
                     da_blocks,
                     &mut nonce,
                 )?;
-            let dry_run_system_txs_duration = Instant::now()
-                .saturating_duration_since(start_dry_run_system_txs)
-                .as_secs_f64();
-            SM.dry_run_system_txs_time
-                .record(dry_run_system_txs_duration);
-            gauge!("sequencer_dry_run_system_txs_time_gauge").set(dry_run_system_txs_duration);
+            SM.dry_run_system_txs_duration_secs.set(
+                Instant::now()
+                    .saturating_duration_since(start_dry_run_system_txs)
+                    .as_secs_f64(),
+            );
 
             // Track transactions that failed due to insufficient L1 fee balance
             let mut l1_fee_failed_txs = vec![];
@@ -363,8 +361,7 @@ where
                 // we can include the transaction in the block
                 working_set_to_discard = working_set.checkpoint().to_revertable();
                 all_txs.push(rlp_tx);
-
-                histogram!("sequencer_dry_run_tx_time").record(
+                SM.dry_run_single_tx_time.record(
                     Instant::now()
                         .saturating_duration_since(start_tx)
                         .as_secs_f64(),
@@ -374,7 +371,7 @@ where
                 .saturating_duration_since(start)
                 .as_secs_f64();
             SM.dry_run_execution.record(dry_run_execution_duration);
-            gauge!("sequencer_dry_run_execution_gauge").set(dry_run_execution_duration);
+            SM.dry_run_execution_gauge.set(dry_run_execution_duration);
             SM.l1_fee_failed_txs_count
                 .set(l1_fee_failed_txs.len() as f64);
 
@@ -434,7 +431,8 @@ where
             .saturating_duration_since(start)
             .as_secs_f64();
         SM.block_production_execution.record(block_production_time);
-        gauge!("sequencer_block_production_execution_gauge").set(block_production_time);
+        SM.entire_block_production_duration_gauge
+            .set(block_production_time);
         SM.l1_fee_rate.set(l1_fee_rate as f64);
         SM.current_l2_block.set(l2_height as f64);
 
@@ -566,11 +564,11 @@ where
 
         self.maintain_mempool(l1_fee_failed_txs)?;
 
-        let block_production_duration = Instant::now()
-            .saturating_duration_since(block_production_start)
-            .as_secs_f64();
-
-        gauge!("sequencer_block_production_time").set(block_production_duration);
+        SM.no_dry_run_block_production_duration_secs.set(
+            Instant::now()
+                .saturating_duration_since(block_production_start)
+                .as_secs_f64(),
+        );
         SM.l2_block_tx_count.set(evm_txs_count as f64);
 
         // Update last used l1 height if this is a new da block
@@ -611,10 +609,11 @@ where
             );
             bail!("Failed to apply begin l2 block hook: {:?}", err)
         }
-        let duration = Instant::now()
-            .saturating_duration_since(start)
-            .as_secs_f64();
-        SM.begin_l2_block_time.set(duration);
+        SM.begin_l2_block_time.set(
+            Instant::now()
+                .saturating_duration_since(start)
+                .as_secs_f64(),
+        );
         Ok(())
     }
 
@@ -643,10 +642,11 @@ where
             blobs.push(signed_tx.to_blob()?);
             signed_txs.push(signed_tx);
         }
-        let encode_and_sign_duration = Instant::now()
-            .saturating_duration_since(start_encode_and_sign_sov_tx)
-            .as_secs_f64();
-        SM.encode_and_sign_sov_tx_time.set(encode_and_sign_duration);
+        SM.encode_and_sign_sov_tx_time.set(
+            Instant::now()
+                .saturating_duration_since(start_encode_and_sign_sov_tx)
+                .as_secs_f64(),
+        );
 
         Ok((signed_txs, blobs))
     }
@@ -661,10 +661,11 @@ where
         let start = Instant::now();
         self.stf
             .apply_l2_block_txs(l2_block_info, txs, working_set)?;
-        let duration = Instant::now()
-            .saturating_duration_since(start)
-            .as_secs_f64();
-        SM.apply_l2_block_txs_time.set(duration);
+        SM.apply_l2_block_txs_time.set(
+            Instant::now()
+                .saturating_duration_since(start)
+                .as_secs_f64(),
+        );
         Ok(())
     }
 
@@ -676,10 +677,11 @@ where
     ) -> anyhow::Result<()> {
         let start = Instant::now();
         self.stf.end_l2_block(l2_block_info, working_set)?;
-        let duration = Instant::now()
-            .saturating_duration_since(start)
-            .as_secs_f64();
-        SM.end_l2_block_time.set(duration);
+        SM.end_l2_block_time.set(
+            Instant::now()
+                .saturating_duration_since(start)
+                .as_secs_f64(),
+        );
         Ok(())
     }
 
@@ -694,10 +696,11 @@ where
         let result = self
             .stf
             .finalize_l2_block(active_fork_spec, working_set, prestate);
-        let duration = Instant::now()
-            .saturating_duration_since(start)
-            .as_secs_f64();
-        SM.finalize_l2_block_time.set(duration);
+        SM.finalize_l2_block_time.set(
+            Instant::now()
+                .saturating_duration_since(start)
+                .as_secs_f64(),
+        );
         result
     }
 
