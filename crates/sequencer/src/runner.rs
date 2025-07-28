@@ -535,7 +535,7 @@ where
 
         // Calculate tx hashes and merkle root
         let (tx_merkle_root, tx_hashes) =
-            self.calculate_txs_merkle_root(&signed_txs, &active_fork_spec);
+            self.calculate_txs_merkle_root(&signed_txs, active_fork_spec);
 
         // create the l2 block header
         let header = L2Header::new(
@@ -582,7 +582,7 @@ where
     fn calculate_txs_merkle_root(
         &self,
         txs: &[Transaction],
-        active_fork_spec: &ForkSpec,
+        active_fork_spec: SpecId,
     ) -> ([u8; 32], Vec<[u8; 32]>) {
         let start = Instant::now();
         let tx_hashes = compute_tx_hashes(txs, active_fork_spec);
