@@ -552,7 +552,7 @@
             "y": {
               "matcher": {
                 "id": "byName",
-                "options": "{__name__=\"evm_base_fee_per_gas\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
+                "options": "{__name__=\"evm_block_base_fee\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
               }
             }
           }
@@ -572,7 +572,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "evm_base_fee_per_gas",
+          "expr": "evm_block_base_fee",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
@@ -906,7 +906,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sequencer_dry_run_system_txs_time_gauge",
+          "expr": "sequencer_dry_run_system_txs_duration_secs",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1025,7 +1025,24 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sequencer_sign_l2_block_header_time_gauge",
+          "expr": "sequencer_calculate_tx_merkle_root_time",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sequencer_sign_l2_block_header_time",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -2359,7 +2376,7 @@
             "y": {
               "matcher": {
                 "id": "byName",
-                "options": "{__name__=\"evm_gas_usage\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
+                "options": "{__name__=\"evm_block_gas_usage\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
               }
             }
           }
@@ -2379,7 +2396,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "evm_gas_usage",
+          "expr": "evm_block_gas_usage",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
@@ -2889,13 +2906,13 @@
     "list": []
   },
   "time": {
-    "from": "now-30m",
+    "from": "now-30s",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "Sequencer Dashboard",
   "uid": "d1faed80-531c-4c31-bd06-acc46d388c84",
-  "version": 8,
+  "version": 10,
   "weekStart": ""
 }
