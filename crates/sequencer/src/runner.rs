@@ -579,6 +579,7 @@ where
         Ok(l2_height)
     }
 
+    /// Calculates the transaction merkle root and records the time taken
     fn calculate_txs_merkle_root(
         &self,
         txs: &[Transaction],
