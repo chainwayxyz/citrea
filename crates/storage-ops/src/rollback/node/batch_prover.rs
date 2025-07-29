@@ -4,8 +4,8 @@ use std::sync::Arc;
 use sov_db::schema::tables::{
     CommitmentIndicesByJobId, CommitmentIndicesByL1, JobIdOfCommitment, L2BlockByHash,
     L2BlockByNumber, PendingL1SubmissionJobs, ProofByJobId, ProverLastScannedSlot,
-    ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash,
-    SlotByHash,
+    ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
+    ShortHeaderProofBySlotHash, SlotByHash,
 };
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_schema_db::{ScanDirection, SchemaBatch, DB};
