@@ -40,7 +40,7 @@ use tracing::{debug, error, info, instrument, warn};
 use crate::backup::BackupManager;
 use crate::cache::L1BlockCache;
 use crate::utils::decode_sov_tx_and_update_short_header_proofs;
-use crate::{InitParams, RollupPublicKeys, RunnerConfig};
+use crate::{InitParams, RollupPublicKeys};
 
 pub struct ProcessL2BlockResult {
     pub l2_height: u64,
@@ -347,7 +347,7 @@ where
 
 impl<DA, DB, P> L2Syncer<DA, DB, P>
 where
-    DA: DaService<Error = anyhow::Error>,
+    DA: DaService,
     DB: SharedLedgerOps + Clone + Send + Sync + 'static,
     P: L2BlockProcessor<DB>,
 {
@@ -367,7 +367,8 @@ where
     /// * `include_tx_body` - Whether to include transaction bodies in block processing
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        runner_config: RunnerConfig,
+        sequencer_client_url: String,
+        sync_blocks_count: u64,
         init_params: InitParams,
         stf: StfBlueprint<DefaultContext, DA::Spec, CitreaRuntime<DefaultContext, DA::Spec>>,
         public_keys: RollupPublicKeys,
@@ -391,11 +392,10 @@ where
             ledger_db,
             state_root: init_params.prev_state_root,
             l2_block_hash: init_params.prev_l2_block_hash,
-            sequencer_client: HttpClientBuilder::default()
-                .build(runner_config.sequencer_client_url)?,
+            sequencer_client: HttpClientBuilder::default().build(sequencer_client_url)?,
             sequencer_pub_key: K256PublicKey::try_from_slice(&public_keys.sequencer_public_key)?,
             include_tx_body,
-            sync_blocks_count: runner_config.sync_blocks_count,
+            sync_blocks_count,
             _l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             fork_manager,
             l2_block_tx,

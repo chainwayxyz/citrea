@@ -14,6 +14,7 @@ use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_ligh
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig, NodeType};
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::StartVariant;
+use citrea_sequencer::SequencerType;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use clap::Parser;
@@ -79,6 +80,7 @@ async fn main() -> anyhow::Result<()> {
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 args.rollup_config_path,
                 node_type,
+                args.listen_mode,
             )
             .await?;
         }
@@ -88,6 +90,7 @@ async fn main() -> anyhow::Result<()> {
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 args.rollup_config_path,
                 node_type,
+                args.listen_mode,
             )
             .await?;
         }
@@ -102,6 +105,7 @@ async fn start_rollup<S, DaC>(
     runtime_genesis_paths: &<CitreaRuntime<DefaultContext, <S as RollupBlueprint>::DaSpec> as sov_modules_stf_blueprint::Runtime<DefaultContext, <S as RollupBlueprint>::DaSpec>>::GenesisPaths,
     rollup_config_path: Option<String>,
     node_type: NodeWithConfig,
+    is_listen_mode: bool,
 ) -> Result<(), anyhow::Error>
 where
     DaC: serde::de::DeserializeOwned + DebugTrait + Clone + FromEnv + Send + Sync + 'static,
@@ -257,7 +261,7 @@ where
 
     match node_type {
         NodeWithConfig::Sequencer(sequencer_config) => {
-            let (mut sequencer, rpc_module) = rollup_blueprint
+            match rollup_blueprint
                 .create_sequencer(
                     genesis_config,
                     rollup_config.clone(),
@@ -269,19 +273,36 @@ where
                     rpc_module,
                     backup_manager,
                     task_executor.clone(),
+                    is_listen_mode,
                 )
-                .expect("Could not start sequencer");
+                .expect("Could not start sequencer")
+            {
+                (SequencerType::ListenMode(mut l2_syncer), rpc_module) => {
+                    info!("Starting listen mode sequencer");
+                    start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
+                    task_executor.spawn_critical_with_graceful_shutdown_signal(
+                        "listen_mode_sequencer",
+                        |shutdown_signal| async move {
+                            if let Err(e) = l2_syncer.run(shutdown_signal).await {
+                                error!("Error: {}", e);
+                            }
+                        },
+                    );
+                }
+                (SequencerType::Normal(mut sequencer), rpc_module) => {
+                    info!("Starting sequencer");
+                    start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
-            start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
-
-            task_executor.spawn_critical_with_graceful_shutdown_signal(
-                "sequencer",
-                |shutdown_signal| async move {
-                    if let Err(e) = sequencer.run(shutdown_signal).await {
-                        error!("Error: {}", e);
-                    }
-                },
-            );
+                    task_executor.spawn_critical_with_graceful_shutdown_signal(
+                        "sequencer",
+                        |shutdown_signal| async move {
+                            if let Err(e) = sequencer.run(shutdown_signal).await {
+                                error!("Error: {}", e);
+                            }
+                        },
+                    );
+                }
+            }
         }
         NodeWithConfig::BatchProver(batch_prover_config) => {
             let (l2_syncer, l1_syncer, prover, rpc_module) =

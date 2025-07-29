@@ -229,7 +229,8 @@ where
 
     let include_tx_bodies = runner_config.include_tx_body;
     let l2_syncer = FullNodeL2Syncer::new(
-        runner_config,
+        runner_config.sequencer_client_url,
+        runner_config.sync_blocks_count,
         init_params,
         native_stf,
         public_keys.clone(),

@@ -15,7 +15,7 @@ use citrea_fullnode::FullNodeL2Syncer;
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientProverL1BlockHandler;
 use citrea_primitives::forks::get_forks;
-use citrea_sequencer::CitreaSequencer;
+use citrea_sequencer::SequencerType;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use citrea_storage_ops::pruning::PrunerService;
 use citrea_storage_ops::rollback::Rollback;
@@ -207,7 +207,11 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
         task_executor: TaskExecutor,
-    ) -> Result<(CitreaSequencer<Self::DaService>, RpcModule<()>)> {
+        is_listen_mode: bool,
+    ) -> Result<(
+        SequencerType<<Self as RollupBlueprint>::DaService, LedgerDB>,
+        RpcModule<()>,
+    )> {
         let current_l2_height = ledger_db
             .get_head_l2_block()
             .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
@@ -234,6 +238,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             rpc_module,
             backup_manager,
             task_executor,
+            is_listen_mode,
         )
     }
 

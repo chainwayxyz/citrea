@@ -143,7 +143,8 @@ where
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
 
     let l2_syncer = BatchProverL2Syncer::new(
-        runner_config.clone(),
+        runner_config.sequencer_client_url,
+        runner_config.sync_blocks_count,
         init_params,
         native_stf,
         public_keys.clone(),
