@@ -411,8 +411,8 @@ async fn handle_l2_block_subscription(
                     if !send_block_notification(&subscription, block_height, &ledger).await {
                         return;
                     }
-                    last_sent_block.store(block_height, Ordering::SeqCst);
                 }
+                last_sent_block.store(highest_block_height, Ordering::SeqCst);
             }
             BlockReceiveResult::ChannelClosed => {
                 tracing::info!("L2 block channel closed, ending subscription");
