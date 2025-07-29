@@ -251,6 +251,8 @@ pub struct SequencerConfig {
     pub block_production_interval_ms: u64,
     /// Bridge system contract initialize function parameters
     pub bridge_initialize_params: String,
+    /// Configuration for the listen mode sequencer
+    pub listen_mode_config: Option<ListenModeConfig>,
 }
 
 impl Default for SequencerConfig {
@@ -265,6 +267,7 @@ impl Default for SequencerConfig {
             da_update_interval_ms: 100,
             bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
             mempool_conf: Default::default(),
+            listen_mode_config: None,
         }
     }
 }
@@ -280,6 +283,7 @@ impl FromEnv for SequencerConfig {
             da_update_interval_ms: read_env("DA_UPDATE_INTERVAL_MS")?.parse()?,
             block_production_interval_ms: read_env("BLOCK_PRODUCTION_INTERVAL_MS")?.parse()?,
             bridge_initialize_params: read_env("BRIDGE_INITIALIZE_PARAMS")?,
+            listen_mode_config: ListenModeConfig::from_env().ok(),
         })
     }
 }
@@ -392,6 +396,27 @@ pub struct PruningConfig {
 impl Default for PruningConfig {
     fn default() -> Self {
         Self { distance: 256 }
+    }
+}
+
+/// Configuration for the listen mode sequencer
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, Default)]
+pub struct ListenModeConfig {
+    /// The sequencer client URL to connect to
+    pub sequencer_client_url: String,
+    /// The number of blocks to sync from the sequencer
+    pub sync_blocks_count: u64,
+}
+
+impl FromEnv for ListenModeConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            sequencer_client_url: read_env("LISTEN_MODE_SEQUENCER_CLIENT_URL")?,
+            sync_blocks_count: read_env("LISTEN_MODE_SYNC_BLOCKS_COUNT")?
+                .parse()
+                .ok()
+                .unwrap_or(10),
+        })
     }
 }
 
@@ -550,6 +575,60 @@ mod tests {
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
             bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            listen_mode_config: None,
+        };
+        assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_correct_listen_mode_enabled_sequencer_config() {
+        let config = r#"
+            private_key = "1212121212121212121212121212121212121212121212121212121212121212"
+            max_l2_blocks_per_commitment = 123
+            test_mode = false
+            deposit_mempool_fetch_limit = 10
+            da_update_interval_ms = 1000
+            block_production_interval_ms = 1000
+            bridge_initialize_params = "000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"
+            [mempool_conf]
+            pending_tx_limit = 100000
+            pending_tx_size = 200
+            queue_tx_limit = 100000
+            queue_tx_size = 200
+            base_fee_tx_limit = 100000
+            base_fee_tx_size = 200
+            max_account_slots = 16
+            [listen_mode_config]
+            sequencer_client_url = "http://localhost:8080"
+            sync_blocks_count = 10
+        "#;
+
+        let config_file = create_config_from(config);
+
+        let config: SequencerConfig = from_toml_path(config_file.path()).unwrap();
+
+        let expected = SequencerConfig {
+            private_key: "1212121212121212121212121212121212121212121212121212121212121212"
+                .to_string(),
+            max_l2_blocks_per_commitment: 123,
+            test_mode: false,
+            deposit_mempool_fetch_limit: 10,
+            mempool_conf: SequencerMempoolConfig {
+                pending_tx_limit: 100000,
+                pending_tx_size: 200,
+                queue_tx_limit: 100000,
+                queue_tx_size: 200,
+                base_fee_tx_limit: 100000,
+                base_fee_tx_size: 200,
+                max_account_slots: 16,
+            },
+            da_update_interval_ms: 1000,
+            block_production_interval_ms: 1000,
+            bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            listen_mode_config: Some(ListenModeConfig {
+                sequencer_client_url: "http://localhost:8080".to_string(),
+                sync_blocks_count: 10,
+            }),
         };
         assert_eq!(config, expected);
     }
@@ -609,6 +688,57 @@ mod tests {
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
             bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            listen_mode_config: None,
+        };
+        assert_eq!(sequencer_config, expected);
+    }
+
+    #[test]
+    fn test_correct_listen_mode_enabled_sequencer_config_from_env() {
+        std::env::set_var(
+            "PRIVATE_KEY",
+            "1212121212121212121212121212121212121212121212121212121212121212",
+        );
+        std::env::set_var("MAX_L2_BLOCKS_PER_COMMITMENT", "123");
+        std::env::set_var("TEST_MODE", "false");
+        std::env::set_var("DEPOSIT_MEMPOOL_FETCH_LIMIT", "10");
+        std::env::set_var("DA_UPDATE_INTERVAL_MS", "1000");
+        std::env::set_var("BLOCK_PRODUCTION_INTERVAL_MS", "1000");
+        std::env::set_var("PENDING_TX_LIMIT", "100000");
+        std::env::set_var("PENDING_TX_SIZE", "200");
+        std::env::set_var("QUEUE_TX_LIMIT", "100000");
+        std::env::set_var("QUEUE_TX_SIZE", "200");
+        std::env::set_var("BASE_FEE_TX_LIMIT", "100000");
+        std::env::set_var("BASE_FEE_TX_SIZE", "200");
+        std::env::set_var("MAX_ACCOUNT_SLOTS", "16");
+        std::env::set_var("BRIDGE_INITIALIZE_PARAMS", "000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000");
+        std::env::set_var("LISTEN_MODE_SEQUENCER_CLIENT_URL", "http://localhost:8080");
+        std::env::set_var("LISTEN_MODE_SYNC_BLOCKS_COUNT", "10");
+
+        let sequencer_config = SequencerConfig::from_env().unwrap();
+
+        let expected = SequencerConfig {
+            private_key: "1212121212121212121212121212121212121212121212121212121212121212"
+                .to_string(),
+            max_l2_blocks_per_commitment: 123,
+            test_mode: false,
+            deposit_mempool_fetch_limit: 10,
+            mempool_conf: SequencerMempoolConfig {
+                pending_tx_limit: 100000,
+                pending_tx_size: 200,
+                queue_tx_limit: 100000,
+                queue_tx_size: 200,
+                base_fee_tx_limit: 100000,
+                base_fee_tx_size: 200,
+                max_account_slots: 16,
+            },
+            da_update_interval_ms: 1000,
+            block_production_interval_ms: 1000,
+            bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            listen_mode_config: Some(ListenModeConfig {
+                sequencer_client_url: "http://localhost:8080".to_string(),
+                sync_blocks_count: 10,
+            }),
         };
         assert_eq!(sequencer_config, expected);
     }
@@ -710,5 +840,21 @@ mod tests {
             bind_port: Some(5000),
         };
         assert_eq!(telemetry_config, expected);
+    }
+
+    #[test]
+    fn test_optional_listen_mode_config_from_env() {
+        let listen_mode_config = ListenModeConfig::from_env().ok();
+        assert!(listen_mode_config.is_none());
+
+        std::env::set_var("LISTEN_MODE_SEQUENCER_CLIENT_URL", "http://localhost:8080");
+        std::env::set_var("LISTEN_MODE_SYNC_BLOCKS_COUNT", "20");
+        let listen_mode_config = ListenModeConfig::from_env().unwrap();
+
+        let expected = ListenModeConfig {
+            sequencer_client_url: "http://localhost:8080".to_string(),
+            sync_blocks_count: 20,
+        };
+        assert_eq!(listen_mode_config, expected);
     }
 }
