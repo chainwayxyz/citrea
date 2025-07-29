@@ -1521,7 +1521,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         from_block_number: u64,
         to_block_number: u64,
     ) -> Result<Vec<Log>, EthFilterError> {
-        let max_blocks_per_filter: u64 = DEFAULT_MAX_BLOCKS_PER_FILTER;
+        let max_blocks_per_filter: u64 = get_max_blocks_per_filter();
         if to_block_number - from_block_number >= max_blocks_per_filter {
             return Err(EthFilterError::QueryExceedsMaxBlocks(max_blocks_per_filter));
         }
@@ -1532,7 +1532,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let topics_filter: Vec<BloomFilter> =
             filter.topics.iter().map(|t| t.to_bloom_filter()).collect();
 
-        let max_headers_range = MAX_HEADERS_RANGE;
+        let max_headers_range = get_max_headers_range();
 
         // loop over the range of new blocks and check logs if the filter matches the log's bloom
         // filter
@@ -1564,7 +1564,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         filter.clone(),
                         block,
                     );
-                    let max_logs_per_response = DEFAULT_MAX_LOGS_PER_RESPONSE;
+                    let max_logs_per_response = get_max_logs_per_response();
                     // size check but only if range is multiple blocks, so we always return all
                     // logs of a single block
                     let is_multi_block_range = from_block_number != to_block_number;
