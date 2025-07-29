@@ -402,9 +402,9 @@ async fn handle_l2_block_subscription(
     ledger: LedgerDB,
 ) {
     let head_block_num = ledger.get_head_l2_block_height().unwrap_or(0);
-    let last_sent_block = Arc::new(AtomicU64::new(head_block_num));
+    let last_sent_block = AtomicU64::new(head_block_num);
     loop {
-        match receive_next_blocks(rx, last_sent_block.clone()).await {
+        match receive_next_blocks(rx, &last_sent_block).await {
             BlockReceiveResult::HighestBlock(highest_block_height) => {
                 let last_sent_block_num = last_sent_block.load(Ordering::SeqCst);
                 for block_height in last_sent_block_num + 1..=highest_block_height {
@@ -425,7 +425,7 @@ async fn handle_l2_block_subscription(
 /// Receive the next block(s) from the channel, handling lag recovery
 async fn receive_next_blocks(
     rx: &mut broadcast::Receiver<u64>,
-    last_sent_block: Arc<AtomicU64>,
+    last_sent_block: &AtomicU64,
 ) -> BlockReceiveResult {
     match rx.recv().await {
         Ok(block_height) => BlockReceiveResult::HighestBlock(block_height),
