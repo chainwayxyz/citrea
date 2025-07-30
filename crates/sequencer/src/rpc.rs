@@ -166,6 +166,11 @@ pub trait SequencerRpc {
     /// Returns the transaction pool content.
     #[method(name = "txpool_content")]
     async fn txpool_content(&self) -> RpcResult<TxpoolContent<Transaction>>;
+
+    /// Removes transactions from the pool by hash.
+    /// Returns the hashes of the removed transactions.
+    #[method(name = "txpool_removeTransactionsByHash")]
+    async fn txpool_remove_tx_by_hash(&self, hashes: Vec<B256>) -> RpcResult<Vec<B256>>;
 }
 
 /// Sequencer RPC server implementation
@@ -372,6 +377,16 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
         }
 
         Ok(content)
+    }
+
+    /// Removes transactions from the pool by hash.
+    async fn txpool_remove_tx_by_hash(&self, hashes: Vec<B256>) -> RpcResult<Vec<B256>> {
+        let removed_txs = self
+            .context
+            .mempool
+            .remove_transactions_and_descendants(hashes);
+        let removed_hashes: Vec<B256> = removed_txs.iter().map(|tx| *tx.hash()).collect();
+        Ok(removed_hashes)
     }
 }
 

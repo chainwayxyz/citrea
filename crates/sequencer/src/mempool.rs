@@ -122,6 +122,15 @@ impl CitreaMempool {
         self.0.remove_transactions(tx_hashes)
     }
 
+    /// Remove a transaction from mempool.
+    /// Also removes all dependent transactions.
+    pub(crate) fn remove_transactions_and_descendants(
+        &self,
+        tx_hashes: Vec<TxHash>,
+    ) -> Vec<Arc<ValidPoolTransaction<Transaction>>> {
+        self.0.remove_transactions_and_descendants(tx_hashes)
+    }
+
     /// Performs account updates on the pool.
     ///
     /// This will either promote or discard transactions based on the new account state.
