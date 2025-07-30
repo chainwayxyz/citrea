@@ -80,7 +80,6 @@ async fn main() -> anyhow::Result<()> {
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 args.rollup_config_path,
                 node_type,
-                args.listen_mode,
             )
             .await?;
         }
@@ -90,7 +89,6 @@ async fn main() -> anyhow::Result<()> {
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 args.rollup_config_path,
                 node_type,
-                args.listen_mode,
             )
             .await?;
         }
@@ -105,7 +103,6 @@ async fn start_rollup<S, DaC>(
     runtime_genesis_paths: &<CitreaRuntime<DefaultContext, <S as RollupBlueprint>::DaSpec> as sov_modules_stf_blueprint::Runtime<DefaultContext, <S as RollupBlueprint>::DaSpec>>::GenesisPaths,
     rollup_config_path: Option<String>,
     node_type: NodeWithConfig,
-    is_listen_mode: bool,
 ) -> Result<(), anyhow::Error>
 where
     DaC: serde::de::DeserializeOwned + DebugTrait + Clone + FromEnv + Send + Sync + 'static,
@@ -261,6 +258,8 @@ where
 
     match node_type {
         NodeWithConfig::Sequencer(sequencer_config) => {
+            let is_listen_mode = sequencer_config.listen_mode_config.is_some();
+            tracing::info!("Listen mode: {}", is_listen_mode);
             match rollup_blueprint
                 .create_sequencer(
                     genesis_config,

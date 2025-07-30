@@ -45,12 +45,6 @@ pub(crate) struct Args {
     #[arg(long, conflicts_with_all = ["batch_prover", "light_client_prover"])]
     pub(crate) sequencer: Option<Option<String>>,
 
-    /// The option to run the sequencer in listen mode, if true, the sequencer will not produce blocks, but will sync with the sequencer and will have the exact same state as the sequencer.
-    /// This mode is primarily intended for fault tolerance: if the main sequencer crashes, the listen-mode sequencer can serve as a hot standby, providing an up-to-date state
-    /// to seamlessly bootstrap a new active sequencer.
-    #[arg(long, conflicts_with_all = ["batch_prover", "light_client_prover"], requires = "sequencer")]
-    pub(crate) listen_mode: bool,
-
     /// The option to run the node in batch prover mode, if a string is provided, it will be used as the path to the batch prover config, otherwise the environment variables will be used.
     #[arg(long, conflicts_with_all = ["sequencer", "light_client_prover"])]
     pub(crate) batch_prover: Option<Option<String>>,
