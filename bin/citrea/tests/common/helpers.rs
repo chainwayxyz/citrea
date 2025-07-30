@@ -254,7 +254,7 @@ pub async fn start_rollup(
         )
         .unwrap()
         {
-            (SequencerType::ListenMode(mut listen_mode_sequencer), rpc_module) => {
+            (SequencerType::ListenMode(listen_mode_sequencer), rpc_module) => {
                 tracing::info!("Starting listen mode sequencer");
                 start_rpc_server(
                     rollup_config.rpc.clone(),

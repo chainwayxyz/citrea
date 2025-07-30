@@ -1,22 +1,14 @@
-use std::net::SocketAddr;
+use std::collections::HashMap;
 
 use async_trait::async_trait;
-use bitcoin::hashes::Hash;
-use bitcoincore_rpc::RpcApi;
-use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
-use citrea_e2e::config::{ListenModeConfig, SequencerConfig, TestCaseConfig};
+use citrea_e2e::config::{ListenModeConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::NodeKind;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
-use citrea_evm::system_contracts::BitcoinLightClient;
-use citrea_evm::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
-use sha2::digest::generic_array::sequence;
-use sov_ledger_rpc::LedgerRpcClient;
 
 use super::get_citrea_path;
-use crate::common::make_test_client;
 
 struct ReadOnlySequencerTest;
 
@@ -24,7 +16,7 @@ struct ReadOnlySequencerTest;
 impl TestCase for ReadOnlySequencerTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
-            n_nodes: std::collections::HashMap::from([(NodeKind::Sequencer, 2)]),
+            n_nodes: HashMap::from([(NodeKind::Sequencer, 2)]),
             ..Default::default()
         }
     }
@@ -48,9 +40,9 @@ impl TestCase for ReadOnlySequencerTest {
 
         let mut readonly_sequencer = node.unwrap();
 
-        let sequ_config = readonly_sequencer.config.clone();
+        let seq_config = readonly_sequencer.config.clone();
 
-        let mut read_only_node_config = sequ_config;
+        let mut read_only_node_config = seq_config;
 
         read_only_node_config.node.listen_mode_config = Some(ListenModeConfig {
             sequencer_client_url: sequencer_rpc_url,
