@@ -107,17 +107,12 @@ impl BatchProverLedgerRollback {
                 .iter()
                 .all(|&idx| idx > last_sequencer_commitment_index)
             {
-                if commitment_indices
-                    .iter()
-                    .any(|&idx| idx > last_sequencer_commitment_index)
-                {
-                    tracing::warn!(
-                        "Preserving job {} that spans rollback boundary. Job indices: {:?}, rollback target: {}",
-                        job_id,
-                        commitment_indices,
-                        last_sequencer_commitment_index
-                    );
-                }
+                tracing::warn!(
+                    "Preserving job {}. Job indices: {:?}, rollback target: {}",
+                    job_id,
+                    commitment_indices,
+                    last_sequencer_commitment_index
+                );
                 continue;
             }
 
