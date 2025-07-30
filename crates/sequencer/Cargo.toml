@@ -39,6 +39,7 @@ alloy-network = { workspace = true }
 alloy-primitives = { workspace = true }
 alloy-rpc-types = { workspace = true }
 alloy-rpc-types-eth = { workspace = true }
+alloy-rpc-types-txpool = { workspace = true }
 reth-chainspec = { workspace = true }
 reth-db = { workspace = true }
 reth-execution-types = { workspace = true }

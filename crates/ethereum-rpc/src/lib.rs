@@ -129,10 +129,6 @@ pub trait EthereumRpc {
         opts: Option<GethDebugTracingOptions>,
     ) -> RpcResult<GethTrace>;
 
-    /// Returns the transaction pool content.
-    #[method(name = "txpool_content")]
-    fn txpool_content(&self) -> RpcResult<Value>;
-
     /// Gets uncle by block hash and index.
     #[method(name = "eth_getUncleByBlockHashAndIndex")]
     fn get_uncle_by_block_hash_and_index(
@@ -393,14 +389,6 @@ where
                 Err(EthApiError::EvmCustom(error.clone()).into())
             }
         }
-    }
-
-    fn txpool_content(&self) -> RpcResult<Value> {
-        // This is a simple mock for serde.
-        Ok(json!({
-            "pending": {},
-            "queued": {}
-        }))
     }
 
     fn get_uncle_by_block_hash_and_index(

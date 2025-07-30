@@ -4,6 +4,7 @@ use alloy_eips::eip2718::Encodable2718;
 use alloy_eips::BlockId;
 use alloy_primitives::{Bytes, B256};
 use alloy_rpc_types::Transaction;
+use alloy_rpc_types_txpool::TxpoolContent;
 use citrea_common::rpc::utils::internal_rpc_error;
 use citrea_evm::Evm;
 use citrea_stf::runtime::DefaultContext;
@@ -14,7 +15,9 @@ use parking_lot::Mutex;
 use reth_rpc::eth::EthTxBuilder;
 use reth_rpc_eth_types::error::EthApiError;
 use reth_rpc_types_compat::TransactionCompat;
-use reth_transaction_pool::{EthPooledTransaction, PoolTransaction};
+use reth_transaction_pool::{
+    AllPoolTransactions, EthPooledTransaction, PoolTransaction, ValidPoolTransaction,
+};
 use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps};
 use sov_modules_api::{Spec, WorkingSet};
 use tokio::sync::mpsc::UnboundedSender;
@@ -159,6 +162,10 @@ pub trait SequencerRpc {
     /// Resume sequencer commitments
     #[method(name = "citrea_resumeCommitments")]
     async fn resume_commitments(&self) -> RpcResult<()>;
+
+    /// Returns the transaction pool content.
+    #[method(name = "txpool_content")]
+    async fn txpool_content(&self) -> RpcResult<TxpoolContent<Transaction>>;
 }
 
 /// Sequencer RPC server implementation
@@ -333,6 +340,38 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             .map_err(|e| {
                 internal_rpc_error(format!("Could not send resume commitments signal: {e}"))
             })
+    }
+
+    /// Returns the transaction pool content.
+    async fn txpool_content(&self) -> RpcResult<TxpoolContent<Transaction>> {
+        let AllPoolTransactions { pending, queued } = self.context.mempool.all_transactions();
+
+        fn extract_tx(tx: Arc<ValidPoolTransaction<EthPooledTransaction>>) -> Transaction {
+            let tx_signed_ec_recovered = tx.to_consensus(); // tx signed ec recovered
+            EthTxBuilder::default()
+                .fill_pending(tx_signed_ec_recovered)
+                .expect("EthTxBuilder fill can't fail")
+        }
+
+        let mut content = TxpoolContent::default();
+
+        for tx in pending {
+            content
+                .pending
+                .entry(tx.sender())
+                .or_default()
+                .insert(tx.nonce().to_string(), extract_tx(tx));
+        }
+
+        for tx in queued {
+            content
+                .queued
+                .entry(tx.sender())
+                .or_default()
+                .insert(tx.nonce().to_string(), extract_tx(tx));
+        }
+
+        Ok(content)
     }
 }
 

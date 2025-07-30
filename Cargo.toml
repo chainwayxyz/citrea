@@ -157,6 +157,7 @@ alloy-rlp = { version = "0.3.10", default-features = false }
 alloy-rpc-types = { version = "0.13", features = ["eth"], default-features = false }
 alloy-rpc-types-eth = { version = "0.13", default-features = false }
 alloy-rpc-types-trace = { version = "0.13", default-features = false }
+alloy-rpc-types-txpool = { version = "0.13", default-features = false }
 alloy-primitives = { version = "0.8.25", default-features = false, features = ["rand", "serde", "tiny-keccak", "k256"] }
 alloy-serde = { version = "0.13", default-features = false }
 alloy-sol-types = { version = "0.8.25", default-features = false, features = ["json"] }

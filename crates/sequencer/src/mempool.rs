@@ -10,9 +10,10 @@ use reth_tasks::TaskExecutor;
 use reth_transaction_pool::blobstore::NoopBlobStore;
 use reth_transaction_pool::error::{PoolError, PoolErrorKind};
 use reth_transaction_pool::{
-    BestTransactions, BestTransactionsAttributes, CoinbaseTipOrdering, EthPooledTransaction,
-    EthTransactionValidator, Pool, PoolConfig, PoolResult, PoolTransaction, SubPoolLimit,
-    TransactionPool, TransactionPoolExt, TransactionValidationTaskExecutor, ValidPoolTransaction,
+    AllPoolTransactions, BestTransactions, BestTransactionsAttributes, CoinbaseTipOrdering,
+    EthPooledTransaction, EthTransactionValidator, Pool, PoolConfig, PoolResult, PoolTransaction,
+    SubPoolLimit, TransactionPool, TransactionPoolExt, TransactionValidationTaskExecutor,
+    ValidPoolTransaction,
 };
 
 use crate::db_provider::DbProvider;
@@ -106,6 +107,11 @@ impl CitreaMempool {
     /// Find and return a transaction by hash
     pub(crate) fn get(&self, hash: &TxHash) -> Option<Arc<ValidPoolTransaction<Transaction>>> {
         self.0.get(hash)
+    }
+
+    /// Returns all transactions in the pool
+    pub(crate) fn all_transactions(&self) -> AllPoolTransactions<Transaction> {
+        self.0.all_transactions()
     }
 
     /// Remove a transaction from mempool.
