@@ -37,7 +37,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use citrea_common::backup::BackupManager;
-use citrea_common::l2::{self, L2Syncer};
+use citrea_common::l2::L2Syncer;
 pub use citrea_common::SequencerConfig;
 use citrea_common::{InitParams, RollupPublicKeys};
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
@@ -57,8 +57,6 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
-
-use crate::listen_mode::ListenModeSequencerL2Syncer;
 
 /// Module containing commitment-related functionality
 mod commitment;
@@ -89,7 +87,7 @@ mod utils;
 pub enum SequencerType<DA, DB>
 where
     DA: DaService,
-    DB: sov_db::ledger_db::SequencerLedgerOps + Clone + Send + Sync + 'static,
+    DB: SequencerLedgerOps + Clone + Send + Sync + 'static,
 {
     ListenMode(ListenModeSequencer<DA, DB>),
     Normal(CitreaSequencer<DA>),
@@ -143,7 +141,7 @@ where
     let mempool = Arc::new(CitreaMempool::new(
         db_provider.clone(),
         sequencer_config.mempool_conf.clone(),
-        task_executor,
+        task_executor.clone(),
     )?);
     let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
 
@@ -181,7 +179,7 @@ where
         )
         .unwrap();
 
-        let listen_mode_sequencer = ListenModeSequencer::new(l2_syncer);
+        let listen_mode_sequencer = ListenModeSequencer::new(l2_syncer, task_executor);
         Ok((SequencerType::ListenMode(listen_mode_sequencer), rpc_module))
     } else {
         // Normal sequencer mode

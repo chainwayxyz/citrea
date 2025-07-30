@@ -277,17 +277,15 @@ where
                 )
                 .expect("Could not start sequencer")
             {
-                (SequencerType::ListenMode(mut l2_syncer), rpc_module) => {
+                // TODO: Like full node get l2 syncer and other stuff here and run them
+                // Make the sequencer type enum return L2Syncer
+                (SequencerType::ListenMode(listen_mode_sequencer), rpc_module) => {
                     info!("Starting listen mode sequencer");
                     start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
-                    task_executor.spawn_critical_with_graceful_shutdown_signal(
-                        "listen_mode_sequencer",
-                        |shutdown_signal| async move {
-                            if let Err(e) = l2_syncer.run(shutdown_signal).await {
-                                error!("Error: {}", e);
-                            }
-                        },
-                    );
+
+                    if let Err(e) = listen_mode_sequencer.run().await {
+                        error!("Error: {}", e);
+                    }
                 }
                 (SequencerType::Normal(mut sequencer), rpc_module) => {
                     info!("Starting sequencer");
