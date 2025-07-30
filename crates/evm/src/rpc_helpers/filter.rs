@@ -1,5 +1,6 @@
 // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-types/src/eth/filter.rs
 
+use std::env;
 use std::iter::StepBy;
 use std::ops::RangeInclusive;
 
@@ -11,7 +12,37 @@ pub const DEFAULT_MAX_BLOCKS_PER_FILTER: u64 = 1_000;
 /// The maximum number of logs that can be returned in a single eth_getLogs response.
 pub const DEFAULT_MAX_LOGS_PER_RESPONSE: usize = 5_000;
 /// The maximum number of headers we read at once when handling a range filter.
-pub const MAX_HEADERS_RANGE: u64 = 1_000; // with ~530bytes? per header this is ~500kb?
+pub const DEFAULT_MAX_HEADERS_RANGE: u64 = 1_000; // with ~530bytes? per header this is ~500kb?
+
+/// Retrieves the maximum number of blocks that can be queried in a single eth_getLogs request.
+/// This value can be configured via the `ETH_RPC_MAX_BLOCKS_PER_FILTER` environment variable.
+/// If the variable is not set, it defaults to `DEFAULT_MAX_BLOCKS_PER_FILTER`.
+pub fn get_max_blocks_per_filter() -> u64 {
+    env::var("ETH_RPC_MAX_BLOCKS_PER_FILTER").map_or(DEFAULT_MAX_BLOCKS_PER_FILTER, |v| {
+        v.parse()
+            .expect("ETH_RPC_MAX_BLOCKS_PER_FILTER must be a valid u64")
+    })
+}
+
+/// The maximum number of logs that can be returned in a single eth_getLogs response.
+/// This value can be configured via the `ETH_RPC_MAX_LOGS_PER_RESPONSE` environment variable.
+/// If the variable is not set, it defaults to `DEFAULT_MAX_LOGS_PER_RESPONSE`.
+pub fn get_max_logs_per_response() -> usize {
+    env::var("ETH_RPC_MAX_LOGS_PER_RESPONSE").map_or(DEFAULT_MAX_LOGS_PER_RESPONSE, |v| {
+        v.parse()
+            .expect("ETH_RPC_MAX_LOGS_PER_RESPONSE must be a valid usize")
+    })
+}
+
+/// The maximum number of headers we read at once when handling a range filter.
+/// This value can be configured via the `ETH_RPC_MAX_HEADERS_RANGE` environment variable.
+/// If the variable is not set, it defaults to `DEFAULT_MAX_HEADERS_RANGE`.
+pub fn get_max_headers_range() -> u64 {
+    env::var("ETH_RPC_MAX_HEADERS_RANGE").map_or(DEFAULT_MAX_HEADERS_RANGE, |v| {
+        v.parse()
+            .expect("ETH_RPC_MAX_HEADERS_RANGE must be a valid u64")
+    })
+}
 
 /// An iterator that yields _inclusive_ block ranges of a given step size
 #[derive(Debug)]

@@ -455,8 +455,8 @@ fn test_log_limits() {
             LogsContract::default(),
         )];
 
-        // call the contracts 10_001 times so we got 20_002 logs (response limit is 20_000)
-        for i in 0..10001 {
+        // call the contracts 2_501 times so we got 5_002 logs (response limit is 5_000 by default)
+        for i in 0..2501 {
             rlp_transactions.push(publish_event_message(
                 contract_addr,
                 &dev_signer,
@@ -495,15 +495,22 @@ fn test_log_limits() {
         topics: empty_topics.clone(),
     };
 
-    let rpc_logs = evm.eth_get_logs(filter, &mut working_set);
+    let rpc_logs = evm.eth_get_logs(filter.clone(), &mut working_set);
+    assert_eq!(
+        rpc_logs.unwrap_err().message(),
+        "query exceeds max results 5000, retry with the range 0-1".to_string()
+    );
 
-    assert!(rpc_logs.is_err());
-    if let Err(rpc_err) = rpc_logs {
-        assert_eq!(
-            rpc_err.message(),
-            "query exceeds max results 5000, retry with the range 0-1".to_string()
-        );
-    }
+    std::env::set_var("ETH_RPC_MAX_LOGS_PER_RESPONSE", "5002");
+    let rpc_logs = evm.eth_get_logs(filter.clone(), &mut working_set).unwrap();
+    assert_eq!(rpc_logs.len(), 5002);
+
+    std::env::set_var("ETH_RPC_MAX_LOGS_PER_RESPONSE", "5001");
+    let rpc_logs = evm.eth_get_logs(filter, &mut working_set);
+    assert_eq!(
+        rpc_logs.unwrap_err().message(),
+        "query exceeds max results 5001, retry with the range 0-1".to_string()
+    );
 
     // Test with block range from start to finish, should get all logs
     let empty_topics = [
@@ -513,7 +520,7 @@ fn test_log_limits() {
         FilterSet::default(),
     ];
 
-    for _ in 1..1001 {
+    for _ in 1..1002 {
         let l2_block_info = HookL2BlockInfo {
             l2_height,
             pre_state_root: [99u8; 32],
@@ -522,7 +529,7 @@ fn test_log_limits() {
             l1_fee_rate,
             timestamp: 0,
         };
-        // generate 100_000 blocks to test the max block range limit
+        // generate 1_002 blocks to test the max block range limit
         evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
         evm.end_l2_block_hook(&l2_block_info, &mut working_set);
         evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
@@ -532,18 +539,27 @@ fn test_log_limits() {
 
     let filter = Filter {
         block_option: FilterBlockOption::Range {
-            from_block: Some(BlockNumberOrTag::Number(1)),
-            to_block: Some(BlockNumberOrTag::Number(1_001)),
+            from_block: Some(BlockNumberOrTag::Number(3)),
+            to_block: Some(BlockNumberOrTag::Number(1_003)),
         },
         address: FilterSet::default(),
         topics: empty_topics.clone(),
     };
 
-    let rpc_logs = evm.eth_get_logs(filter, &mut working_set);
-
-    assert!(rpc_logs.is_err());
+    let rpc_logs = evm.eth_get_logs(filter.clone(), &mut working_set);
     assert_eq!(
-        rpc_logs.err().unwrap().message(),
-        "query exceeds max block range 1000".to_string()
+        rpc_logs.unwrap_err().message(),
+        "query exceeds max block range 1000"
+    );
+
+    std::env::set_var("ETH_RPC_MAX_BLOCKS_PER_FILTER", "1001");
+    let rpc_logs = evm.eth_get_logs(filter.clone(), &mut working_set);
+    assert!(rpc_logs.is_ok());
+
+    std::env::set_var("ETH_RPC_MAX_BLOCKS_PER_FILTER", "500");
+    let rpc_logs = evm.eth_get_logs(filter, &mut working_set);
+    assert_eq!(
+        rpc_logs.unwrap_err().message(),
+        "query exceeds max block range 500"
     );
 }
