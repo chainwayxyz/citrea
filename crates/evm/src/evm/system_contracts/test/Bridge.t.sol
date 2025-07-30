@@ -342,6 +342,16 @@ contract BridgeTest is Test {
         bridge.setOperator(user);
     }
 
+    function testCanTransferOwner() public {
+        address newOwner = makeAddr("new_owner");
+        vm.startPrank(owner);
+        bridge.transferOwnership(newOwner);
+        vm.stopPrank();
+        vm.startPrank(newOwner);
+        bridge.acceptOwnership();
+        assertEq(bridge.owner(), newOwner);
+    }
+
     function testCannotReinitialize() public {
         vm.expectRevert("Contract is already initialized");
         vm.prank(SYSTEM_CALLER);
