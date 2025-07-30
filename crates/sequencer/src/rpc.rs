@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use alloy_eips::eip2718::Encodable2718;
 use alloy_eips::BlockId;
-use alloy_primitives::{Bytes, B256};
+use alloy_primitives::{Address, Bytes, B256};
 use alloy_rpc_types::Transaction;
 use alloy_rpc_types_txpool::TxpoolContent;
 use citrea_common::rpc::utils::internal_rpc_error;
@@ -171,6 +171,11 @@ pub trait SequencerRpc {
     /// Returns the hashes of the removed transactions.
     #[method(name = "txpool_removeTransactionsByHash")]
     async fn txpool_remove_tx_by_hash(&self, hashes: Vec<B256>) -> RpcResult<Vec<B256>>;
+
+    /// Removes all transactions from the pool by sender.
+    /// Returns the hashes of the removed transactions.
+    #[method(name = "txpool_removeTransactionsBySender")]
+    async fn txpool_remove_tx_by_sender(&self, sender: Address) -> RpcResult<Vec<B256>>;
 }
 
 /// Sequencer RPC server implementation
@@ -385,6 +390,13 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             .context
             .mempool
             .remove_transactions_and_descendants(hashes);
+        let removed_hashes: Vec<B256> = removed_txs.iter().map(|tx| *tx.hash()).collect();
+        Ok(removed_hashes)
+    }
+
+    /// Removes all transactions from the pool by sender.
+    async fn txpool_remove_tx_by_sender(&self, sender: Address) -> RpcResult<Vec<B256>> {
+        let removed_txs = self.context.mempool.remove_transactions_by_sender(sender);
         let removed_hashes: Vec<B256> = removed_txs.iter().map(|tx| *tx.hash()).collect();
         Ok(removed_hashes)
     }

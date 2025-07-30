@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use alloy_eips::Typed2718;
-use alloy_primitives::TxHash;
+use alloy_primitives::{Address, TxHash};
 use citrea_common::SequencerMempoolConfig;
 use citrea_evm::SYSTEM_SIGNER;
 use citrea_primitives::MIN_BASE_FEE_PER_GAS;
@@ -114,7 +114,7 @@ impl CitreaMempool {
         self.0.all_transactions()
     }
 
-    /// Remove a transaction from mempool.
+    /// Remove all transactions corresponding to the given hashes.
     pub(crate) fn remove_transactions(
         &self,
         tx_hashes: Vec<TxHash>,
@@ -122,13 +122,21 @@ impl CitreaMempool {
         self.0.remove_transactions(tx_hashes)
     }
 
-    /// Remove a transaction from mempool.
+    /// Removes all transactions corresponding to the given hashes
     /// Also removes all dependent transactions.
     pub(crate) fn remove_transactions_and_descendants(
         &self,
         tx_hashes: Vec<TxHash>,
     ) -> Vec<Arc<ValidPoolTransaction<Transaction>>> {
         self.0.remove_transactions_and_descendants(tx_hashes)
+    }
+
+    /// Removes all transactions from the given sender
+    pub(crate) fn remove_transactions_by_sender(
+        &self,
+        sender: Address,
+    ) -> Vec<Arc<ValidPoolTransaction<Transaction>>> {
+        self.0.remove_transactions_by_sender(sender)
     }
 
     /// Performs account updates on the pool.
