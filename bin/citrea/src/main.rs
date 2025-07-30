@@ -259,7 +259,11 @@ where
     match node_type {
         NodeWithConfig::Sequencer(sequencer_config) => {
             let is_listen_mode = sequencer_config.listen_mode_config.is_some();
-            tracing::info!("Listen mode: {}", is_listen_mode);
+            tracing::info!(
+                "Listen mode: {}, config: {:?}",
+                is_listen_mode,
+                sequencer_config
+            );
             match rollup_blueprint
                 .create_sequencer(
                     genesis_config,
