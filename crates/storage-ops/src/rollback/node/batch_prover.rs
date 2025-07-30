@@ -89,7 +89,6 @@ impl BatchProverLedgerRollback {
         }
 
         // Now handle jobs that might contain commitments we're rolling back
-        let mut jobs_to_check = Vec::new();
         let mut jobs_iter = self
             .ledger_db
             .iter_with_direction::<CommitmentIndicesByJobId>(
@@ -104,27 +103,21 @@ impl BatchProverLedgerRollback {
             let job_id = job_record.key;
             let commitment_indices = job_record.value;
 
-            if commitment_indices
+            if !commitment_indices
                 .iter()
-                .any(|&idx| idx > last_sequencer_commitment_index)
+                .all(|&idx| idx > last_sequencer_commitment_index)
             {
-                jobs_to_check.push((job_id, commitment_indices));
-            }
-        }
-
-        // Process collected jobs
-        for (job_id, commitment_indices) in jobs_to_check {
-            // If ANY index should be preserved, skip the whole job
-            if commitment_indices
-                .iter()
-                .any(|&idx| idx <= last_sequencer_commitment_index)
-            {
-                tracing::warn!(
-                    "Preserving job {} that spans rollback boundary. Job indices: {:?}, rollback target: {}",
-                    job_id,
-                    commitment_indices,
-                    last_sequencer_commitment_index
-                );
+                if commitment_indices
+                    .iter()
+                    .any(|&idx| idx > last_sequencer_commitment_index)
+                {
+                    tracing::warn!(
+                        "Preserving job {} that spans rollback boundary. Job indices: {:?}, rollback target: {}",
+                        job_id,
+                        commitment_indices,
+                        last_sequencer_commitment_index
+                    );
+                }
                 continue;
             }
 
