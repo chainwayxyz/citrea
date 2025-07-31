@@ -44,6 +44,9 @@ pub struct RunnerConfig {
     pub sequencer_client_url: String,
     /// Saves sequencer l2 blocks if set to true
     pub include_tx_body: bool,
+    /// Listen to sequencer notification
+    #[serde(default)]
+    pub with_subscription: bool,
     /// Number of blocks to request during sync
     #[serde(default = "default_sync_blocks_count")]
     pub sync_blocks_count: u64,
@@ -58,6 +61,7 @@ impl FromEnv for RunnerConfig {
         Ok(Self {
             sequencer_client_url: read_env("SEQUENCER_CLIENT_URL")?,
             include_tx_body: read_env("INCLUDE_TX_BODY")?.parse()?,
+            with_subscription: read_env("WITH_SUBSCRIPTION")?.parse()?,
             sync_blocks_count: read_env("SYNC_BLOCKS_COUNT")
                 .ok()
                 .and_then(|val| val.parse().ok())
@@ -453,6 +457,7 @@ mod tests {
             runner: Some(RunnerConfig {
                 sequencer_client_url: "http://0.0.0.0:12346".to_owned(),
                 include_tx_body: true,
+                with_subscription: true,
                 sync_blocks_count: 10,
                 pruning_config: None,
                 scan_l1_start_height: 1,
@@ -670,6 +675,7 @@ mod tests {
             runner: Some(RunnerConfig {
                 sequencer_client_url: "http://0.0.0.0:12346".to_string(),
                 include_tx_body: true,
+                with_subscription: true,
                 sync_blocks_count: default_sync_blocks_count(),
                 pruning_config: Some(PruningConfig { distance: 1000 }),
                 scan_l1_start_height: 1,

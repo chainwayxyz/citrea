@@ -461,6 +461,7 @@ pub fn create_default_rollup_config(
             | NodeMode::Prover(socket_addr)
             | NodeMode::LightClientProver(socket_addr) => Some(RunnerConfig {
                 include_tx_body,
+                with_subscription: false,
                 sequencer_client_url: format!("http://localhost:{}", socket_addr.port()),
                 sync_blocks_count: 10,
                 pruning_config,

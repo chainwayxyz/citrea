@@ -3,6 +3,7 @@
 //! This module contains functionality for synchronizing L2 blocks from the sequencer
 //! and processing them to maintain the node's state.
 
+use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Instant;
@@ -17,8 +18,10 @@ use borsh::BorshDeserialize;
 use citrea_primitives::merkle::compute_tx_hashes;
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::CitreaRuntime;
-use jsonrpsee::core::client::Error as JsonrpseeError;
+use jsonrpsee::core::client::{Error as JsonrpseeError, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+use jsonrpsee::rpc_params;
+use jsonrpsee::ws_client::WsClientBuilder;
 use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_keys::default_signature::K256PublicKey;
@@ -33,7 +36,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use tokio::select;
-use tokio::sync::{broadcast, mpsc, Mutex};
+use tokio::sync::{broadcast, Mutex, Notify};
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, instrument, warn};
 
@@ -55,6 +58,61 @@ enum SyncError {
     Call(String),
     Connection(String),
     Unknown(String),
+}
+
+struct SequentialL2BlockBuffer {
+    blocks: BTreeMap<u64, L2BlockResponse>,
+    next_expected_height: u64,
+    notify: Arc<Notify>,
+}
+
+impl SequentialL2BlockBuffer {
+    fn new(start_height: u64) -> Self {
+        Self {
+            blocks: BTreeMap::new(),
+            next_expected_height: start_height,
+            notify: Arc::new(Notify::new()),
+        }
+    }
+
+    fn add_block(&mut self, block: L2BlockResponse) {
+        let height = block.header.height.to();
+
+        if height < self.next_expected_height || self.blocks.contains_key(&height) {
+            return;
+        }
+
+        self.blocks.insert(height, block);
+        self.notify.notify_one();
+    }
+
+    fn extend_blocks(&mut self, mut blocks: BTreeMap<u64, L2BlockResponse>) {
+        blocks.retain(|&k, _| k >= self.next_expected_height);
+        let should_notify = !blocks.is_empty();
+
+        self.blocks.extend(blocks);
+
+        if should_notify {
+            self.notify.notify_one();
+        }
+    }
+
+    /// Drain from next_expected_height until the first gap or until the buffer is fully consumed
+    /// Returns an ordered vector of `L2BlockResponse`
+    fn drain_sequential(&mut self) -> Vec<L2BlockResponse> {
+        let mut sequential_blocks = Vec::new();
+
+        while let Some(block) = self.blocks.remove(&self.next_expected_height) {
+            self.next_expected_height += 1;
+            sequential_blocks.push(block);
+        }
+
+        sequential_blocks
+    }
+
+    fn notifier(&self) -> Arc<Notify> {
+        self.notify.clone()
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -161,20 +219,26 @@ pub async fn process_l2_block<Da: DaService, DB: SharedLedgerOps>(
     })
 }
 
-pub async fn sync_l2(
+async fn sync_l2(
     mut start_l2_height: u64,
     sequencer_client: HttpClient,
-    sender: mpsc::Sender<Vec<L2BlockResponse>>,
+    block_buffer: Arc<Mutex<SequentialL2BlockBuffer>>,
     sync_blocks_count: u64,
 ) {
     let mut current_sync_blocks_count = sync_blocks_count;
 
     info!("Starting to sync from L2 height {}", start_l2_height);
     loop {
+        /// Make sure we don't poll for blocks that have already been processed
+        let next_expected_height = block_buffer.lock().await.next_expected_height;
+        if next_expected_height > start_l2_height {
+            start_l2_height = next_expected_height
+        }
+
         let end_l2_height = start_l2_height + current_sync_blocks_count - 1;
 
         let inner_client = &sequencer_client;
-        let mut l2_blocks = match get_l2_blocks_range(inner_client, start_l2_height, end_l2_height)
+        let l2_blocks = match get_l2_blocks_range(inner_client, start_l2_height, end_l2_height)
             .await
         {
             Ok(l2_blocks) => {
@@ -225,13 +289,7 @@ pub async fn sync_l2(
 
         start_l2_height += l2_blocks.len() as u64;
 
-        // Make sure L2 blocks are sorted for us to make sure they are processed
-        // in the correct order.
-        l2_blocks.sort_by_key(|l2_block| l2_block.header.height);
-
-        if let Err(e) = sender.send(l2_blocks).await {
-            error!("Could not notify about L2 block: {}", e);
-        }
+        block_buffer.lock().await.extend_blocks(l2_blocks);
     }
 }
 
@@ -239,7 +297,7 @@ async fn get_l2_blocks_range(
     sequencer_client: &HttpClient,
     start_l2_height: u64,
     end_l2_height: u64,
-) -> Result<Vec<L2BlockResponse>, SyncError> {
+) -> Result<BTreeMap<u64, L2BlockResponse>, SyncError> {
     let inner_client = &sequencer_client;
 
     let exponential_backoff = ExponentialBackoffBuilder::<backoff::SystemClock>::new()
@@ -253,7 +311,11 @@ async fn get_l2_blocks_range(
             .get_l2_block_range(U64::from(start_l2_height), U64::from(end_l2_height))
             .await;
         match l2_blocks {
-            Ok(l2_blocks) => Ok(l2_blocks.into_iter().flatten().collect::<Vec<_>>()),
+            Ok(l2_blocks) => Ok(l2_blocks
+                .into_iter()
+                .flatten()
+                .map(|block| (block.header.height.to(), block))
+                .collect::<BTreeMap<u64, _>>()),
             Err(e) => match e {
                 JsonrpseeError::Call(e) => {
                     if e.message().eq("Response is too big") {
@@ -327,6 +389,8 @@ where
     l2_block_hash: L2BlockHash,
     /// HTTP client for connecting to the sequencer
     sequencer_client: HttpClient,
+    /// sequencer websocket endpoint
+    sequencer_ws_endpoint: Option<String>,
     /// Sequencer's public key for signature verification
     sequencer_pub_key: K256PublicKey,
     /// Whether to include transaction bodies in block storage
@@ -341,6 +405,8 @@ where
     l2_block_tx: broadcast::Sender<u64>,
     /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
+    /// L2 block queue
+    block_queue: Arc<Mutex<SequentialL2BlockBuffer>>,
     /// L2 Block processor
     _phantom_processor: PhantomData<P>,
 }
@@ -391,6 +457,11 @@ where
             ledger_db,
             state_root: init_params.prev_state_root,
             l2_block_hash: init_params.prev_l2_block_hash,
+            sequencer_ws_endpoint: runner_config.with_subscription.then(|| {
+                runner_config
+                    .sequencer_client_url
+                    .replace("http://", "ws://")
+            }),
             sequencer_client: HttpClientBuilder::default()
                 .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: K256PublicKey::try_from_slice(&public_keys.sequencer_public_key)?,
@@ -400,6 +471,7 @@ where
             fork_manager,
             l2_block_tx,
             backup_manager,
+            block_queue: Arc::new(Mutex::new(SequentialL2BlockBuffer::new(start_l2_height))),
             _phantom_processor: PhantomData,
         })
     }
@@ -413,27 +485,34 @@ where
     /// 4. Maintains metrics about syncing progress
     #[instrument(name = "L2Syncer", skip_all)]
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
-        let (l2_tx, mut l2_rx) = mpsc::channel(1);
-        let l2_sync_worker = sync_l2(
+        tokio::spawn(sync_l2(
             self.start_l2_height,
             self.sequencer_client.clone(),
-            l2_tx,
+            self.block_queue.clone(),
             self.sync_blocks_count,
-        );
-        tokio::pin!(l2_sync_worker);
+        ));
+
+        if let Some(ws_endpoint) = self.sequencer_ws_endpoint.clone() {
+            tokio::spawn(run_subscription_task(ws_endpoint, self.block_queue.clone()));
+        }
 
         let backup_manager = self.backup_manager.clone();
+
+        let notifier = self.block_queue.lock().await.notifier();
         loop {
             select! {
                 biased;
                 _ = &mut shutdown_signal => {
                     info!("Shutting down L2 syncer");
-                    l2_rx.close();
                     return;
                 },
-                Some(l2_blocks) = l2_rx.recv() => {
-                    // While syncing, we'd like to process L2 blocks as they come without any delays.
-                    for l2_block in l2_blocks {
+                _ = notifier.notified() => {
+                    let blocks_to_process = {
+                        let mut queue = self.block_queue.lock().await;
+                        queue.drain_sequential()
+                    };
+
+                    for l2_block in blocks_to_process {
                         let mut backoff = ExponentialBackoff::default();
                         loop {
                             let _l2_lock = backup_manager.start_l2_processing().await;
@@ -448,7 +527,6 @@ where
                         }
                     }
                 },
-                _ = &mut l2_sync_worker => {},
             }
         }
     }
@@ -488,5 +566,55 @@ where
         let _ = self.l2_block_tx.send(l2_block_result.l2_height);
 
         Ok(())
+    }
+}
+
+async fn subscribe_to_new_l2_blocks(
+    sequencer_ws_url: &str,
+    block_buffer: Arc<Mutex<SequentialL2BlockBuffer>>,
+) -> anyhow::Result<()> {
+    debug!(
+        "Connecting to sequencer subscription at {}",
+        sequencer_ws_url
+    );
+
+    let ws_client = WsClientBuilder::default().build(&sequencer_ws_url).await?;
+    let mut subscription = ws_client
+        .subscribe(
+            "citrea_subscribe",
+            rpc_params!["newL2Blocks"],
+            "citrea_unsubscribe",
+        )
+        .await?;
+
+    while let Some(notification) = subscription.next().await {
+        match notification {
+            Ok(block) => {
+                block_buffer.lock().await.add_block(block);
+            }
+            Err(e) => {
+                error!("Subscription notification error: {}", e);
+                return Err(e.into());
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn run_subscription_task(
+    sequencer_ws_url: String,
+    block_buffer: Arc<Mutex<SequentialL2BlockBuffer>>,
+) {
+    loop {
+        match subscribe_to_new_l2_blocks(&sequencer_ws_url, block_buffer.clone()).await {
+            Ok(_) => {}
+            Err(e) => {
+                error!("Subscription error: {}", e);
+            }
+        }
+
+        // Retry after 1 sec
+        sleep(Duration::from_secs(1)).await;
     }
 }

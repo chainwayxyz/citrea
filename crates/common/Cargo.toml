@@ -22,7 +22,7 @@ borsh = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 hyper = { workspace = true }
-jsonrpsee = { workspace = true, features = ["http-client", "server"] }
+jsonrpsee = { workspace = true, features = ["http-client", "ws-client", "server"] }
 lru = { workspace = true }
 metrics = { workspace = true }
 reth-primitives = { workspace = true }
