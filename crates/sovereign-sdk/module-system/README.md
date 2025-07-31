@@ -226,7 +226,7 @@ This will generate a public trait in the bank crate called `BankRpcImpl`, which 
 }
 ```
 
-For an example of how to instantiate the generated trait as a server bound to a specific port, see the [demo-rollup](../examples/demo-rollup/) package.
+For an example of how to instantiate the generated trait as a server bound to a specific port, see the [demo-rollup](https://github.com/Sovereign-Labs/sovereign-sdk/blob/nightly/examples/demo-rollup/README.md) package.
 
 **Note that only one impl block per module may be annotated with `rpc_gen`**, but that the block may contain as many `rpc_method` annotations as you want.
 
