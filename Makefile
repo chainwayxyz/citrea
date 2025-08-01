@@ -74,12 +74,12 @@ install-risc0:
 	curl -L https://risczero.com/install | bash && \
 	([ -f $$HOME/.bashrc ] && source $$HOME/.bashrc || true) && \
 	([ -f $$HOME/.zshrc ] && source $$HOME/.zshrc || true) && \
-	rzup install cargo-risczero 2.3.0 && \
+	rzup install cargo-risczero 2.3.1 && \
 	rzup install cpp && \
-	rzup install r0vm 2.3.0 && \
+	rzup install r0vm 2.3.1 && \
 	rzup install rust 1.85.0 && \
-	rzup default cargo-risczero 2.3.0 && \
-	rzup default r0vm 2.3.0 && \
+	rzup default cargo-risczero 2.3.1 && \
+	rzup default r0vm 2.3.1 && \
 	rzup default rust 1.85.0
 
 install-sp1: ## Install necessary SP1 toolchain

@@ -3096,9 +3096,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-bigint2"
-version = "1.4.5"
+version = "1.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5174056ad92cd5adc1bfcbdf64ef964114796c09cc71c178668a9e82939e61d"
+checksum = "9810e2f9e859e2dca279da0b4c53eb87e2186ab21ecaad22a3ffadf3aabebd8d"
 dependencies = [
  "include_bytes_aligned",
  "stability",
@@ -3241,9 +3241,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-zkvm"
-version = "2.3.0"
+version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "910c2023c39ac1e23dd4f7acdff086333f31ca608035f96c74366a79c098de3b"
+checksum = "9684b333c1c5d83f29ce2a92314ccfafd9d8cdfa6c4e19c07b97015d2f1eb9d0"
 dependencies = [
  "anyhow",
  "borsh",
