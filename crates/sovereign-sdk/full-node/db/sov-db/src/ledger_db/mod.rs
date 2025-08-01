@@ -747,6 +747,21 @@ impl SequencerLedgerOps for LedgerDB {
         }
     }
 
+    /// Get last commitment slot number, if commitments exist.
+    fn get_last_commitment_slot_number(&self) -> anyhow::Result<Option<SlotNumber>> {
+        let mut iter = self.db.iter_with_direction::<CommitmentsByNumber>(
+            Default::default(),
+            ScanDirection::Backward,
+        )?;
+        iter.seek_to_last();
+
+        match iter.next() {
+            Some(Ok(item)) => Ok(Some(item.key)),
+            Some(Err(e)) => Err(e),
+            _ => Ok(None),
+        }
+    }
+
     /// Sets the state diff by block number
     #[instrument(level = "trace", skip(self), err, ret)]
     fn set_state_diff(
