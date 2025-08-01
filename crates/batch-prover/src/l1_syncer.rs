@@ -113,7 +113,7 @@ where
             self.da_service.clone(),
             self.pending_l1_blocks.clone(),
             self.l1_block_cache.clone(),
-            BATCH_PROVER_METRICS.scan_l1_block.clone(),
+            Some(BATCH_PROVER_METRICS.scan_l1_block.clone()),
         );
         tokio::pin!(l1_sync_worker);
 

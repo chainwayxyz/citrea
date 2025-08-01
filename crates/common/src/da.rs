@@ -25,7 +25,7 @@ pub async fn sync_l1<Da>(
     da_service: Arc<Da>,
     block_queue: Arc<Mutex<VecDeque<Da::FilteredBlock>>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-    l1_block_scan_histogram: Histogram,
+    l1_block_scan_histogram: Option<Histogram>,
 ) where
     Da: DaService,
 {
@@ -72,13 +72,15 @@ pub async fn sync_l1<Da>(
 
             start_from = block_number + 1;
 
-            // If the send above does not succeed, we don't set new values
-            // nor do we record any metrics.
-            l1_block_scan_histogram.record(
-                Instant::now()
-                    .saturating_duration_since(start)
-                    .as_secs_f64(),
-            );
+            if let Some(ref l1_block_scan_histogram) = l1_block_scan_histogram {
+                // If the send above does not succeed, we don't set new values
+                // nor do we record any metrics.
+                l1_block_scan_histogram.record(
+                    Instant::now()
+                        .saturating_duration_since(start)
+                        .as_secs_f64(),
+                );
+            }
         }
 
         sleep(Duration::from_secs(2)).await;

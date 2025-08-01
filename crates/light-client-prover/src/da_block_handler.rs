@@ -158,7 +158,7 @@ where
             self.da_service.clone(),
             self.queued_l1_blocks.clone(),
             self.l1_block_cache.clone(),
-            LIGHT_CLIENT_METRICS.scan_l1_block.clone(),
+            Some(LIGHT_CLIENT_METRICS.scan_l1_block.clone()),
         );
         tokio::pin!(l1_sync_worker);
 
