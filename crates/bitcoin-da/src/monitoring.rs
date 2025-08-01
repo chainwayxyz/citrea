@@ -30,7 +30,7 @@ use crate::spec::utxo::UTXO;
 type BlockHeight = u64;
 type Result<T> = std::result::Result<T, MonitorError>;
 
-const REBROADCAST_EACH_N_BLOCK: u64 = 5;
+const REBROADCAST_EACH_N_BLOCK: u64 = 1;
 
 /// Return UNIX timestamp in seconds
 fn get_timestamp() -> u64 {
