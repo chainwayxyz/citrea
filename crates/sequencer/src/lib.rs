@@ -45,7 +45,7 @@ use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use db_provider::DbProvider;
 use deposit_data_mempool::DepositDataMempool;
 use jsonrpsee::RpcModule;
-use l1_syncer::SequencerL1Syncer;
+use l1_syncer::L1Syncer;
 use listen_mode::ListenModeSequencer;
 use mempool::CitreaMempool;
 use parking_lot::Mutex;
@@ -186,7 +186,7 @@ where
 
         // Create L1 syncer for commitment tracking
         let l1_block_cache = Arc::new(AsyncMutex::new(L1BlockCache::new()));
-        let l1_syncer = SequencerL1Syncer::new(
+        let l1_syncer = L1Syncer::new(
             ledger_db,
             da_service,
             public_keys,

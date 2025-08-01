@@ -29,7 +29,7 @@ use tracing::{error, info, instrument};
 /// - Maintaining block processing order
 /// - Managing the backup state
 /// - Storing commitments in CommitmentsByNumber table
-pub struct SequencerL1Syncer<Da, DB>
+pub struct L1Syncer<Da, DB>
 where
     Da: DaService,
     DB: SequencerLedgerOps,
@@ -50,7 +50,7 @@ where
     backup_manager: Arc<BackupManager>,
 }
 
-impl<Da, DB> SequencerL1Syncer<Da, DB>
+impl<Da, DB> L1Syncer<Da, DB>
 where
     Da: DaService,
     DB: SequencerLedgerOps + Clone + 'static,

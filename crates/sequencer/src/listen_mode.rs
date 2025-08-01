@@ -7,7 +7,7 @@ use citrea_common::l2::{L2BlockProcessor, L2Syncer, ProcessL2BlockResult};
 use reth_tasks::TaskExecutor;
 use sov_rollup_interface::services::da::DaService;
 
-use crate::l1_syncer::SequencerL1Syncer;
+use crate::l1_syncer::L1Syncer;
 
 /// Listen Mode Sequencer L2 Syncer
 pub type ListenModeSequencerL2Syncer<DA, DB> =
@@ -45,7 +45,7 @@ where
     /// L2 block synchronization service for the listen mode sequencer
     pub l2_syncer: ListenModeSequencerL2Syncer<DA, DB>,
     /// L1 block synchronization service for the listen mode sequencer
-    pub l1_syncer: SequencerL1Syncer<DA, DB>,
+    pub l1_syncer: L1Syncer<DA, DB>,
     /// Task executor for running asynchronous tasks
     pub task_executor: TaskExecutor,
 }
@@ -63,7 +63,7 @@ where
     /// * `task_executor` - Task executor for running asynchronous tasks
     pub fn new(
         l2_syncer: ListenModeSequencerL2Syncer<DA, DB>,
-        l1_syncer: SequencerL1Syncer<DA, DB>,
+        l1_syncer: L1Syncer<DA, DB>,
         task_executor: TaskExecutor,
     ) -> Self {
         Self {
