@@ -668,8 +668,7 @@ impl MonitoringService {
                     // If status is still InMempool, check for how many block it has been in mempool and rebroadcast every REBROADCAST_EACH_N_BLOCK
                     if let TxStatus::InMempool { .. } = new_status {
                         let current_height = self.client.get_block_count().await?;
-                        if (current_height.saturating_sub(*height)) % REBROADCAST_EACH_N_BLOCK == 0
-                        {
+                        if (current_height.saturating_sub(*height)) >= REBROADCAST_EACH_N_BLOCK {
                             new_status = self
                                 .attempt_rebroadcast(txid, &monitored_tx.tx, &new_status)
                                 .await?
