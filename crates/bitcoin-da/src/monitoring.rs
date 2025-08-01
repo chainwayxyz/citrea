@@ -21,7 +21,7 @@ use tokio::select;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info, instrument, warn};
 
 use crate::helpers::builders::TxWithId;
 use crate::helpers::parsers::parse_relevant_transaction;
@@ -812,13 +812,13 @@ impl MonitoringService {
         Ok(())
     }
 
-    #[instrument(skip(self, tx))]
     async fn attempt_rebroadcast(
         &self,
         txid: &Txid,
         tx: &Transaction,
         current_status: &TxStatus,
     ) -> Result<TxStatus> {
+        warn!("Rebroadcasting txid: {txid} with current_status {current_status:?}");
         let raw_tx_hex = bitcoin::consensus::encode::serialize_hex(tx);
         self.client.send_raw_transaction(raw_tx_hex).await?;
         let tx_result = self.client.get_transaction(txid, None).await?;
