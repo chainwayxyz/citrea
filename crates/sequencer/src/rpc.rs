@@ -170,12 +170,12 @@ pub trait SequencerRpc {
     /// Removes transactions from the pool by hash.
     /// Returns the hashes of the removed transactions.
     #[method(name = "txpool_removeTransactionsByHash")]
-    async fn txpool_remove_tx_by_hash(&self, hashes: Vec<B256>) -> RpcResult<Vec<B256>>;
+    async fn txpool_remove_txs_by_hash(&self, hashes: Vec<B256>) -> RpcResult<Vec<B256>>;
 
     /// Removes all transactions from the pool by sender.
     /// Returns the hashes of the removed transactions.
     #[method(name = "txpool_removeTransactionsBySender")]
-    async fn txpool_remove_tx_by_sender(&self, sender: Address) -> RpcResult<Vec<B256>>;
+    async fn txpool_remove_txs_by_sender(&self, sender: Address) -> RpcResult<Vec<B256>>;
 }
 
 /// Sequencer RPC server implementation
@@ -385,7 +385,7 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
     }
 
     /// Removes transactions from the pool by hash.
-    async fn txpool_remove_tx_by_hash(&self, hashes: Vec<B256>) -> RpcResult<Vec<B256>> {
+    async fn txpool_remove_txs_by_hash(&self, hashes: Vec<B256>) -> RpcResult<Vec<B256>> {
         let removed_txs = self
             .context
             .mempool
@@ -395,7 +395,7 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
     }
 
     /// Removes all transactions from the pool by sender.
-    async fn txpool_remove_tx_by_sender(&self, sender: Address) -> RpcResult<Vec<B256>> {
+    async fn txpool_remove_txs_by_sender(&self, sender: Address) -> RpcResult<Vec<B256>> {
         let removed_txs = self.context.mempool.remove_transactions_by_sender(sender);
         let removed_hashes: Vec<B256> = removed_txs.iter().map(|tx| *tx.hash()).collect();
         Ok(removed_hashes)
