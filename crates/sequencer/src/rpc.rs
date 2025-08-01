@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use alloy_eips::eip2718::Encodable2718;
@@ -33,7 +34,7 @@ use crate::utils::recover_raw_transaction;
 /// Result of receiving blocks from the `l2_block_rx` channel
 enum BlockReceiveResult {
     /// Successfully received blocks (may include recovered lagged blocks)
-    Blocks(Vec<u64>),
+    HighestBlock(u64),
     /// Channel was closed
     ChannelClosed,
 }
@@ -400,14 +401,18 @@ async fn handle_l2_block_subscription(
     rx: &mut tokio::sync::broadcast::Receiver<u64>,
     ledger: LedgerDB,
 ) {
+    let head_block_num = ledger.get_head_l2_block_height().unwrap_or(0);
+    let last_sent_block = AtomicU64::new(head_block_num);
     loop {
-        match receive_next_blocks(rx).await {
-            BlockReceiveResult::Blocks(blocks) => {
-                for block_height in blocks {
+        match receive_next_blocks(rx, &last_sent_block).await {
+            BlockReceiveResult::HighestBlock(highest_block_height) => {
+                let last_sent_block_num = last_sent_block.load(Ordering::SeqCst);
+                for block_height in last_sent_block_num + 1..=highest_block_height {
                     if !send_block_notification(&subscription, block_height, &ledger).await {
                         return;
                     }
                 }
+                last_sent_block.store(highest_block_height, Ordering::SeqCst);
             }
             BlockReceiveResult::ChannelClosed => {
                 tracing::info!("L2 block channel closed, ending subscription");
@@ -418,40 +423,30 @@ async fn handle_l2_block_subscription(
 }
 
 /// Receive the next block(s) from the channel, handling lag recovery
-async fn receive_next_blocks(rx: &mut broadcast::Receiver<u64>) -> BlockReceiveResult {
+async fn receive_next_blocks(
+    rx: &mut broadcast::Receiver<u64>,
+    last_sent_block: &AtomicU64,
+) -> BlockReceiveResult {
     match rx.recv().await {
-        Ok(block_height) => BlockReceiveResult::Blocks(vec![block_height]),
+        Ok(block_height) => BlockReceiveResult::HighestBlock(block_height),
         Err(broadcast::error::RecvError::Lagged(num_lagged)) => {
             tracing::warn!(
                 "Subscription lagged by {} blocks, attempting to recover",
                 num_lagged
             );
 
-            // Try to get the next available block and calculate missed blocks
-            match rx.recv().await {
-                Ok(current_block_height) => {
-                    let start_height = current_block_height.saturating_sub(num_lagged);
-                    let mut blocks = Vec::with_capacity(num_lagged as usize + 1);
+            // Explanation of lag recovery:
+            // If the channel size is for example 10 and we somehow sent 30 blocks at the same time to the channel,
+            // The first 20 blocks will be dropped and we will only receive the last 10 blocks.
+            // Since we send blocks sequentially, we can recover the lagged blocks by
+            // calculating the range of blocks that were missed based on the last sent block number.
+            // Assume our last sent block number is 0, initial state, we receive a lagged error with num_lagged = 20.
+            // We return blocks from 1 to 20 to recover from the lag. After that when we call receive again,
+            // we will receive the next block, which is 21, and continue from there as normal.
 
-                    // Add all missed blocks
-                    for height in start_height..current_block_height {
-                        blocks.push(height);
-                    }
-                    // Add the current block
-                    blocks.push(current_block_height);
-
-                    BlockReceiveResult::Blocks(blocks)
-                }
-                Err(broadcast::error::RecvError::Closed) => {
-                    tracing::info!("L2 block channel closed during lag recovery");
-                    BlockReceiveResult::ChannelClosed
-                }
-                Err(broadcast::error::RecvError::Lagged(_)) => {
-                    // Still lagging, return empty to try again
-                    tracing::warn!("Still lagging after recovery attempt");
-                    BlockReceiveResult::Blocks(vec![])
-                }
-            }
+            // Recover blocks from the `last_sent_block + 1`, to `last_sent_block + num_lagged`
+            let last_sent_block_num = last_sent_block.load(Ordering::SeqCst);
+            BlockReceiveResult::HighestBlock(last_sent_block_num + num_lagged)
         }
         Err(broadcast::error::RecvError::Closed) => BlockReceiveResult::ChannelClosed,
     }

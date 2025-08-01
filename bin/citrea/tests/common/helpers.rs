@@ -15,6 +15,7 @@ use citrea_common::{
 };
 use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_primitives::TEST_PRIVATE_KEY;
+use citrea_sequencer::SequencerType;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_tasks::TaskManager;
 use short_header_proof_provider::{
@@ -235,7 +236,9 @@ pub async fn start_rollup(
         );
         let span = info_span!("Sequencer");
 
-        let (mut sequencer, rpc_module) = CitreaRollupBlueprint::create_sequencer(
+        let is_listen_mode = sequencer_config.listen_mode_config.is_some();
+
+        match CitreaRollupBlueprint::create_sequencer(
             &mock_demo_rollup,
             genesis_config,
             rollup_config.clone(),
@@ -247,26 +250,45 @@ pub async fn start_rollup(
             rpc_module,
             backup_manager,
             task_executor.clone(),
+            is_listen_mode,
         )
-        .unwrap();
-
-        start_rpc_server(
-            rollup_config.rpc,
-            &task_executor,
-            rpc_module,
-            Some(rpc_reporting_channel),
-        );
-
-        task_executor.spawn_critical_with_graceful_shutdown_signal(
-            "Sequencer",
-            |shutdown_signal| async move {
-                sequencer
-                    .run(shutdown_signal)
-                    .instrument(span)
-                    .await
-                    .unwrap();
-            },
-        );
+        .unwrap()
+        {
+            (SequencerType::ListenMode(listen_mode_sequencer), rpc_module) => {
+                tracing::info!("Starting listen mode sequencer");
+                start_rpc_server(
+                    rollup_config.rpc.clone(),
+                    &task_executor,
+                    rpc_module,
+                    Some(rpc_reporting_channel),
+                );
+                task_executor.spawn_critical_with_graceful_shutdown_signal(
+                    "ListenModeSequencer",
+                    |_| async move {
+                        listen_mode_sequencer.run().instrument(span).await.unwrap();
+                    },
+                );
+            }
+            (SequencerType::Normal(mut sequencer), rpc_module) => {
+                tracing::info!("Starting sequencer");
+                start_rpc_server(
+                    rollup_config.rpc.clone(),
+                    &task_executor,
+                    rpc_module,
+                    Some(rpc_reporting_channel),
+                );
+                task_executor.spawn_critical_with_graceful_shutdown_signal(
+                    "Sequencer",
+                    |shutdown_signal| async move {
+                        sequencer
+                            .run(shutdown_signal)
+                            .instrument(span)
+                            .await
+                            .unwrap();
+                    },
+                );
+            }
+        }
     } else if let Some(rollup_prover_config) = rollup_prover_config {
         let span = info_span!("Prover");
 

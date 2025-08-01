@@ -14,6 +14,7 @@ use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_ligh
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig, NodeType};
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::StartVariant;
+use citrea_sequencer::SequencerType;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use clap::Parser;
@@ -257,7 +258,13 @@ where
 
     match node_type {
         NodeWithConfig::Sequencer(sequencer_config) => {
-            let (mut sequencer, rpc_module) = rollup_blueprint
+            let is_listen_mode = sequencer_config.listen_mode_config.is_some();
+            tracing::info!(
+                "Listen mode: {}, config: {:?}",
+                is_listen_mode,
+                sequencer_config
+            );
+            match rollup_blueprint
                 .create_sequencer(
                     genesis_config,
                     rollup_config.clone(),
@@ -269,19 +276,34 @@ where
                     rpc_module,
                     backup_manager,
                     task_executor.clone(),
+                    is_listen_mode,
                 )
-                .expect("Could not start sequencer");
+                .expect("Could not start sequencer")
+            {
+                // TODO: Like full node get l2 syncer and other stuff here and run them
+                // Make the sequencer type enum return L2Syncer
+                (SequencerType::ListenMode(listen_mode_sequencer), rpc_module) => {
+                    info!("Starting listen mode sequencer");
+                    start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
-            start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
-
-            task_executor.spawn_critical_with_graceful_shutdown_signal(
-                "sequencer",
-                |shutdown_signal| async move {
-                    if let Err(e) = sequencer.run(shutdown_signal).await {
+                    if let Err(e) = listen_mode_sequencer.run().await {
                         error!("Error: {}", e);
                     }
-                },
-            );
+                }
+                (SequencerType::Normal(mut sequencer), rpc_module) => {
+                    info!("Starting sequencer");
+                    start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
+
+                    task_executor.spawn_critical_with_graceful_shutdown_signal(
+                        "sequencer",
+                        |shutdown_signal| async move {
+                            if let Err(e) = sequencer.run(shutdown_signal).await {
+                                error!("Error: {}", e);
+                            }
+                        },
+                    );
+                }
+            }
         }
         NodeWithConfig::BatchProver(batch_prover_config) => {
             let (l2_syncer, l1_syncer, prover, rpc_module) =
