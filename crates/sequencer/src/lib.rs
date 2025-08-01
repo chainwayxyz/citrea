@@ -37,6 +37,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use citrea_common::backup::BackupManager;
+use citrea_common::cache::L1BlockCache;
 use citrea_common::l2::L2Syncer;
 pub use citrea_common::SequencerConfig;
 use citrea_common::{InitParams, RollupPublicKeys};
@@ -44,6 +45,7 @@ use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use db_provider::DbProvider;
 use deposit_data_mempool::DepositDataMempool;
 use jsonrpsee::RpcModule;
+use l1_syncer::SequencerL1Syncer;
 use listen_mode::ListenModeSequencer;
 use mempool::CitreaMempool;
 use parking_lot::Mutex;
@@ -55,8 +57,8 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
+use tokio::sync::{broadcast, Mutex as AsyncMutex};
 
 /// Module containing commitment-related functionality
 mod commitment;
@@ -69,6 +71,8 @@ pub mod db_migrations;
 mod db_provider;
 /// Separate mempool implementation only for handling deposit data in FIFO (First-In-First-Out) order
 mod deposit_data_mempool;
+/// Module for syncing and storing sequencer commitments extracted from L1 blocks.
+mod l1_syncer;
 /// Module containing functionality for running the sequencer
 mod listen_mode;
 /// Module containing mempool functionality for transaction management
@@ -157,29 +161,41 @@ where
     );
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
 
-    // If this is a listen mode sequencer, we create an L2 syncer
+    // If this is a listen mode sequencer, we create both L2 and L1 syncers
     if is_listen_mode {
         let listen_mode_config = sequencer_config
             .listen_mode_config
             .clone()
             .expect("Listen Mode Config must be set in listen mode");
+
         let l2_syncer = L2Syncer::new(
             listen_mode_config.sequencer_client_url,
             listen_mode_config.sync_blocks_count,
             init_params,
             native_stf,
-            public_keys,
-            da_service,
-            ledger_db,
+            public_keys.clone(),
+            da_service.clone(),
+            ledger_db.clone(),
             storage_manager,
             fork_manager,
             l2_block_tx,
-            backup_manager,
+            backup_manager.clone(),
             true, // Include tx body must be true in listen mode
         )
         .unwrap();
 
-        let listen_mode_sequencer = ListenModeSequencer::new(l2_syncer, task_executor);
+        // Create L1 syncer for commitment tracking
+        let l1_block_cache = Arc::new(AsyncMutex::new(L1BlockCache::new()));
+        let l1_syncer = SequencerL1Syncer::new(
+            ledger_db,
+            da_service,
+            public_keys,
+            l1_block_cache,
+            backup_manager,
+        )
+        .unwrap();
+
+        let listen_mode_sequencer = ListenModeSequencer::new(l2_syncer, l1_syncer, task_executor);
         Ok((SequencerType::ListenMode(listen_mode_sequencer), rpc_module))
     } else {
         // Normal sequencer mode
