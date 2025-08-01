@@ -37,8 +37,6 @@ By default, `citrea-e2e` runs Bitcoin nodes in Docker, and Citrea nodes with the
 - `TEST_CITREA_DOCKER`  
   If set to true, runs Citrea nodes in Docker using the image specified by `CITREA_DOCKER_IMAGE` (or a predefined image if not set). If set to false, it runs the Citrea executable from the specified path.
 
-Additionally, for Full nodes and Light Client Prover nodes to verify mock proofs in the tests, `RISC0_DEV_MODE` should be set to true.
-
 ### Scope of Bitcoin E2E tests
 
 Bitcoin end-to-end tests verify critical interactions with the Bitcoin DA layer and the correct flow of each Citrea node. The main areas covered include:

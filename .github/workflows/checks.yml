@@ -228,7 +228,6 @@ jobs:
         env:
           RUST_BACKTRACE: 1
           TEST_BITCOIN_DOCKER: 1
-          RISC0_DEV_MODE: 1 # This is needed to generate mock proofs and verify them
           PARALLEL_PROOF_LIMIT: 1
           TEST_OUT_DIR: ${{ runner.temp }}/coverage
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/llvm-cov-target/debug/citrea
@@ -392,7 +391,6 @@ jobs:
         run: make test
         env:
           RUST_BACKTRACE: 1
-          RISC0_DEV_MODE: 1 # This is needed to generate mock proofs and verify them
           TEST_BITCOIN_DOCKER: 1
           PARALLEL_PROOF_LIMIT: 1
           TEST_OUT_DIR: ${{ runner.temp }}/test

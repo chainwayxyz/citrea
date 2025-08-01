@@ -66,10 +66,6 @@ pub async fn start_rollup(
 ) -> TaskManager {
     // create rollup config default creator function and use them here for the configs
 
-    // We enable risc0 dev mode in tests because the provers in dev mode generate fake receipts that can be verified if the verifier is also in dev mode
-    // Fake receipts are receipts without the proof, they only include the journal, which makes them suitable for testing and development
-    std::env::set_var("RISC0_DEV_MODE", "1");
-
     let mock_demo_rollup = MockDemoRollup::new(network.unwrap_or(Network::Nightly));
 
     if sequencer_config.is_some() && rollup_prover_config.is_some() {

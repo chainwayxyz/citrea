@@ -44,15 +44,14 @@ clean-docker:
 clean-all: clean clean-node clean-txs
 
 test-nocapture: ## Runs test suite with output from tests printed
-	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo nextest run --no-capture --retries 0 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
+	PARALLEL_PROOF_LIMIT=1 cargo nextest run --no-capture --retries 0 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 test: $(EF_TESTS_DIR) ## Runs test suite using nextest
-	RISC0_DEV_MODE=1 PARALLEL_PROOF_LIMIT=1 cargo nextest run -j15 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
+	PARALLEL_PROOF_LIMIT=1 cargo nextest run -j15 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 coverage: $(EF_TESTS_DIR) ## Coverage in lcov format
 	CITREA_CLI_E2E_TEST_BINARY=$(CURDIR)/target/llvm-cov-target/debug/citrea-cli \
 	CITREA_E2E_TEST_BINARY=$(CURDIR)/target/llvm-cov-target/debug/citrea \
-	RISC0_DEV_MODE=1 \
 	PARALLEL_PROOF_LIMIT=1 \
 	cargo llvm-cov --locked --lcov --output-path lcov.info nextest -j10 --workspace --all-features
 

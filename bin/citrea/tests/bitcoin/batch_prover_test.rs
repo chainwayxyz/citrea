@@ -480,7 +480,7 @@ struct ParallelProvingTest;
 impl TestCase for ParallelProvingTest {
     fn test_env() -> TestCaseEnv {
         TestCaseEnv {
-            test: vec![("RISC0_DEV_MODE", "1"), ("PARALLEL_PROOF_LIMIT", "2")],
+            test: vec![("PARALLEL_PROOF_LIMIT", "2")],
             ..Default::default()
         }
     }

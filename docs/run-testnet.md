@@ -117,7 +117,7 @@ Finally run this command to run your Citrea full node:
 
 Mac:
 ```sh
-RISC0_DEV_MODE=1 ./citrea-v0.7.2-osx-arm64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+./citrea-v0.7.2-osx-arm64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 or if you wish to use environment variables for configuring your node:
@@ -146,13 +146,12 @@ INCLUDE_TX_BODY=false \
 SYNC_BLOCKS_COUNT=10 \
 RUST_LOG=info \
 JSON_LOGS=1 \
-RISC0_DEV_MODE=1  \
 ./citrea-v0.7.2-osx-arm64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
 ```
 
 Linux:
 ```sh
-RISC0_DEV_MODE=1 ./citrea-v0.7.2-linux-amd64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+./citrea-v0.7.2-linux-amd64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 or if you wish to use environment variables for configuring your node:
@@ -182,7 +181,6 @@ INCLUDE_TX_BODY=false \
 SYNC_BLOCKS_COUNT=10 \
 RUST_LOG=info \
 JSON_LOGS=1 \
-RISC0_DEV_MODE=1  \
 ./citrea-v0.7.2-linux-amd64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
 ```
 
@@ -223,7 +221,7 @@ Look through the `rollup_config.toml` and apply changes as you wish, if you modi
 And then run the full node by executing this command
 
 ```sh
-RISC0_DEV_MODE=1 ./target/release/citrea --network testnet --da-layer bitcoin --rollup-config-path ./resources/configs/testnet/rollup_config.toml --genesis-paths ./resources/genesis/testnet
+./target/release/citrea --network testnet --da-layer bitcoin --rollup-config-path ./resources/configs/testnet/rollup_config.toml --genesis-paths ./resources/genesis/testnet
 ```
 
 If you'd like to use environment variables to pass configs instead of using .toml files you can do so like this:
@@ -252,7 +250,6 @@ INCLUDE_TX_BODY=false \
 SYNC_BLOCKS_COUNT=10 \
 RUST_LOG=info \
 JSON_LOGS=1 \
-RISC0_DEV_MODE=1  \
 ./target/release/citrea --network testnet --da-layer bitcoin --genesis-paths ./resources/genesis/testnet
 ```
 
