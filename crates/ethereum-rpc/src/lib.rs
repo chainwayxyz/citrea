@@ -129,6 +129,10 @@ pub trait EthereumRpc {
         opts: Option<GethDebugTracingOptions>,
     ) -> RpcResult<GethTrace>;
 
+    /// Returns the transaction pool content.
+    #[method(name = "txpool_content")]
+    fn txpool_content(&self) -> RpcResult<Value>;
+
     /// Gets uncle by block hash and index.
     #[method(name = "eth_getUncleByBlockHashAndIndex")]
     fn get_uncle_by_block_hash_and_index(
@@ -389,6 +393,18 @@ where
                 Err(EthApiError::EvmCustom(error.clone()).into())
             }
         }
+    }
+
+    // This method is implemented only for full nodes.
+    // Sequencer has a real implementation of txpool_content.
+    // Full nodes return an empty txpool content not to create
+    // problems with 3rd party tools.
+    fn txpool_content(&self) -> RpcResult<Value> {
+        // This is a simple mock for serde.
+        Ok(json!({
+            "pending": {},
+            "queued": {}
+        }))
     }
 
     fn get_uncle_by_block_hash_and_index(
@@ -652,6 +668,7 @@ where
         module.remove_method("eth_sendRawTransaction");
         module.remove_method("eth_getTransactionByHash");
         module.remove_method("citrea_syncStatus");
+        module.remove_method("txpool_content");
     }
 
     if !enable_subscriptions {
