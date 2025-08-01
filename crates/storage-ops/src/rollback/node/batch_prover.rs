@@ -3,8 +3,9 @@ use std::sync::Arc;
 
 use sov_db::schema::tables::{
     CommitmentIndicesByJobId, CommitmentIndicesByL1, JobIdOfCommitment, L2BlockByHash,
-    L2BlockByNumber, ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs,
-    SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
+    L2BlockByNumber, PendingL1SubmissionJobs, ProofByJobId, ProverLastScannedSlot,
+    ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
+    ShortHeaderProofBySlotHash, SlotByHash,
 };
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_schema_db::{ScanDirection, SchemaBatch, DB};
@@ -61,6 +62,7 @@ impl BatchProverLedgerRollback {
     ) -> Result {
         let mut batch = SchemaBatch::new();
 
+        // First handle sequencer commitments
         let mut comm_iter = self
             .ledger_db
             .iter_with_direction::<SequencerCommitmentByIndex>(
@@ -69,6 +71,7 @@ impl BatchProverLedgerRollback {
             )?;
         comm_iter.seek_to_last();
 
+        // Delete individual commitment entries
         for record in comm_iter {
             let comm_idx = record?.key;
             if comm_idx <= last_sequencer_commitment_index {
@@ -83,24 +86,44 @@ impl BatchProverLedgerRollback {
 
             batch.delete::<ProverPendingCommitments>(&comm_idx)?;
             increment_table_counter!("ProverPendingCommitments", rollback_result);
+        }
 
-            let mut jobs_iter = self
-                .ledger_db
-                .iter_with_direction::<CommitmentIndicesByJobId>(
-                    Default::default(),
-                    ScanDirection::Backward,
-                )?;
-            jobs_iter.seek_to_last();
-            for job_record in jobs_iter {
-                let job_record = job_record?;
-                let job_id = job_record.key;
-                let job_commitment_indices = job_record.value;
-                if !job_commitment_indices.contains(&comm_idx) {
-                    continue;
-                }
-                batch.delete::<CommitmentIndicesByJobId>(&job_id)?;
-                increment_table_counter!("SequencerCommitmentByIndex", rollback_result);
+        // Now handle jobs that might contain commitments we're rolling back
+        let mut jobs_iter = self
+            .ledger_db
+            .iter_with_direction::<CommitmentIndicesByJobId>(
+                Default::default(),
+                ScanDirection::Backward,
+            )?;
+        jobs_iter.seek_to_last();
+
+        // Collect jobs that have any indices above our rollback point
+        for job_record in jobs_iter {
+            let job_record = job_record?;
+            let job_id = job_record.key;
+            let commitment_indices = job_record.value;
+
+            if !commitment_indices
+                .iter()
+                .all(|&idx| idx > last_sequencer_commitment_index)
+            {
+                tracing::warn!(
+                    "Preserving job {}. Job indices: {:?}, rollback target: {}",
+                    job_id,
+                    commitment_indices,
+                    last_sequencer_commitment_index
+                );
+                continue;
             }
+
+            batch.delete::<CommitmentIndicesByJobId>(&job_id)?;
+            increment_table_counter!("CommitmentIndicesByJobId", rollback_result);
+
+            batch.delete::<PendingL1SubmissionJobs>(&job_id)?;
+            increment_table_counter!("PendingL1SubmissionJobs", rollback_result);
+
+            batch.delete::<ProofByJobId>(&job_id)?;
+            increment_table_counter!("ProofByJobId", rollback_result);
         }
 
         self.ledger_db.write_schemas(batch)?;
