@@ -605,14 +605,18 @@ async fn run_subscription_task(
     block_buffer: Arc<Mutex<SequentialL2BlockBuffer>>,
 ) {
     loop {
-        match subscribe_to_new_l2_blocks(&sequencer_ws_url, block_buffer.clone()).await {
-            Ok(_) => {}
-            Err(e) => {
-                error!("Subscription error: {}", e);
-            }
-        }
-
-        // Retry after 1 sec
-        sleep(Duration::from_secs(1)).await;
+        let exponential_backoff = ExponentialBackoff::default();
+        let _ = retry_backoff(exponential_backoff, || async {
+            subscribe_to_new_l2_blocks(&sequencer_ws_url, block_buffer.clone())
+                .await
+                .map_err(|e| {
+                    error!("Subscription error: {}", e);
+                    backoff::Error::Transient {
+                        err: e,
+                        retry_after: None,
+                    }
+                })
+        })
+        .await;
     }
 }
