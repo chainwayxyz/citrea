@@ -1,30 +1,26 @@
-//! Data Availability (DA) block handling for the batch prover
+//! DA block syncing for the sequencer
 //!
 //! This module is responsible for processing L1 blocks, extracting and storing
-//! sequencer commitments and signaling prover module after successful L1 block processing.
+//! sequencer commitments for the sequencer in listen mode.
 
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+use anyhow::bail;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, sync_l1};
 use citrea_common::RollupPublicKeys;
 use reth_tasks::shutdown::GracefulShutdown;
-use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::SlotNumber;
-use sov_modules_api::DaSpec;
+use sov_db::ledger_db::SequencerLedgerOps;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use tokio::select;
-use tokio::sync::mpsc::error::TrySendError;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::Mutex;
 use tokio::time::Duration;
-use tracing::{error, info, instrument, warn};
+use tracing::{error, info, instrument};
 
-use crate::metrics::BATCH_PROVER_METRICS;
-
-/// Handles L1 sync operations by tracking the finalized L1 blocks and
+/// Handles L1 sync operations for the sequencer by tracking the finalized L1 blocks and
 /// extracting the sequencer commitments from them.
 ///
 /// This struct is responsible for:
@@ -32,10 +28,11 @@ use crate::metrics::BATCH_PROVER_METRICS;
 /// - Processing sequencer commitments
 /// - Maintaining block processing order
 /// - Managing the backup state
+/// - Storing commitments in CommitmentsByNumber table
 pub struct L1Syncer<Da, DB>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps,
+    DB: SequencerLedgerOps,
 {
     /// Database for ledger operations
     ledger_db: DB,
@@ -51,16 +48,14 @@ where
     pending_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
-    /// Channel sender to signal prover module when new L1 blocks are processed
-    l1_signal_tx: mpsc::Sender<()>,
 }
 
 impl<Da, DB> L1Syncer<Da, DB>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone + 'static,
+    DB: SequencerLedgerOps + Clone + 'static,
 {
-    /// Creates a new instance of `L1Syncer`
+    /// Creates a new instance of `SequencerL1Syncer`
     ///     
     /// # Arguments
     /// * `ledger_db` - The database instance to store L1 block data.
@@ -69,18 +64,22 @@ where
     /// * `scan_l1_start_height` - The height from which to start scanning L1 blocks.
     /// * `l1_block_cache` - A cache for L1 blocks to avoid redundant fetches.
     /// * `backup_manager` - Manager for backup operations.
-    /// * `l1_signal_tx` - A channel sender to signal prover module when new L1 blocks are processed.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         ledger_db: DB,
         da_service: Arc<Da>,
         public_keys: RollupPublicKeys,
-        scan_l1_start_height: u64,
         l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
         backup_manager: Arc<BackupManager>,
-        l1_signal_tx: mpsc::Sender<()>,
-    ) -> Self {
-        Self {
+    ) -> anyhow::Result<Self> {
+        // Get the starting height from the database, checking the highest slot number
+        // in CommitmentsByNumber table
+        let Some(scan_l1_start_height) = ledger_db.get_last_commitment_slot_number()?.map(|s| s.0)
+        else {
+            bail!("Could not fetch last scanned L1 commitment height")
+        };
+
+        Ok(Self {
             ledger_db,
             da_service,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
@@ -88,32 +87,24 @@ where
             l1_block_cache,
             pending_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             backup_manager,
-            l1_signal_tx,
-        }
+        })
     }
 
-    /// Runs the L1Syncer until shutdown is signaled
+    /// Runs the SequencerL1Syncer until shutdown is signaled
     ///
     /// This method continuously:
     /// 1. Fetches new L1 blocks from the DA Layer
     /// 2. Processes each block to update the local state
     /// 3. Handles any errors with exponential backoff
     /// 4. Maintains metrics about syncing progress
-    #[instrument(name = "L1Syncer", skip_all)]
+    #[instrument(name = "SequencerL1Syncer", skip_all)]
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
-        let l1_start_height = self
-            .ledger_db
-            .get_last_scanned_l1_height()
-            .expect("Failed to get last scanned l1 height when starting l1 syncer")
-            .map(|h| h.0)
-            .unwrap_or(self.scan_l1_start_height);
-
         let l1_sync_worker = sync_l1(
-            l1_start_height,
+            self.scan_l1_start_height,
             self.da_service.clone(),
             self.pending_l1_blocks.clone(),
             self.l1_block_cache.clone(),
-            Some(BATCH_PROVER_METRICS.scan_l1_block.clone()),
+            None,
         );
         tokio::pin!(l1_sync_worker);
 
@@ -124,7 +115,7 @@ where
             select! {
                 biased;
                 _ = &mut shutdown_signal => {
-                    info!("Shutting down L1 syncer");
+                    info!("Shutting down Sequencer L1 syncer");
                     return;
                 }
                 _ = interval.tick() => {
@@ -142,14 +133,10 @@ where
     ///
     /// This method for each L1 block in the queue:
     /// 1. Records block height to hash mapping
-    /// 2. Saves the block's short header proof
-    /// 3. Extracts sequencer commitments and stores them by index
-    /// 4. Updates the last scanned L1 height in the database after each successfully processed block
-    /// 5. If queue is not empty, After processing each block in the queue , pings the L1 signal channel.
+    /// 2. Extracts sequencer commitments and stores them by slot number
+    /// 3. Updates the CommitmentsByNumber table with found commitments
     async fn process_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
         let mut pending_l1_blocks = self.pending_l1_blocks.lock().await;
-        // don't ping if no new l1 blocks
-        let should_ping = pending_l1_blocks.len() > 0;
 
         // process all the pending l1 blocks
         while !pending_l1_blocks.is_empty() {
@@ -164,17 +151,6 @@ where
                 .set_l1_height_of_l1_hash(l1_hash, l1_height)
                 .unwrap();
 
-            // Set short header proof
-            let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
-                Da::block_to_short_header_proof(l1_block.clone());
-            self.ledger_db
-                .put_short_header_proof_by_l1_hash(
-                    &l1_hash,
-                    borsh::to_vec(&short_header_proof)
-                        .expect("Should serialize short header proof"),
-                )
-                .expect("Should save short header proof to ledger db");
-
             // Extract sequencer commitments
             let l1_commitments = extract_sequencer_commitments::<Da>(
                 self.da_service.clone(),
@@ -182,61 +158,22 @@ where
                 &self.sequencer_da_pub_key,
             );
 
-            // Store commitments by index
+            // Store commitments in CommitmentsByNumber table
             for commitment in l1_commitments.iter() {
-                let index = commitment.index;
-                if index == 0 {
-                    error!("Got commitment with 0 index");
-                    continue;
-                }
+                info!(
+                    "Found commitment with index {} in L1 block {}",
+                    commitment.index, l1_height
+                );
 
-                match self.ledger_db.get_commitment_by_index(index)? {
-                    Some(db_commitment) => {
-                        if commitment != &db_commitment {
-                            error!("Found duplicate commitment index with different data\nDA: {:?}\nDB:{:?}", commitment, db_commitment);
-                        } else {
-                            warn!("Got commitment index {} that was already in db", index);
-                        }
-                    }
-                    None => {
-                        info!(
-                            "Got commitment with index {} in L1 block {}",
-                            index, l1_height
-                        );
-
-                        self.ledger_db
-                            .put_commitment_by_index(commitment)
-                            .expect("Should store commitment");
-                        self.ledger_db
-                            .put_commitment_index_by_l1(SlotNumber(l1_height), index)
-                            .expect("Should put commitment index by l1");
-                        self.ledger_db
-                            .put_prover_pending_commitment(index)
-                            .expect("Should set commitment status to pending");
-                    }
-                }
+                // Update commitments on DA slot - this stores in CommitmentsByNumber
+                self.ledger_db
+                    .update_commitments_on_da_slot(l1_height, commitment.clone())
+                    .expect("Should store commitment in CommitmentsByNumber");
             }
-
-            // Set last scanned l1 height
-            self.ledger_db
-                .set_last_scanned_l1_height(SlotNumber(l1_height))
-                .expect("Should put prover last scanned l1 height");
-
-            BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
             pending_l1_blocks.pop_front();
 
             info!("Processed L1 block {}", l1_height);
-        }
-
-        if should_ping {
-            // signal that new l1 blocks are processed
-            if let Err(e) = self.l1_signal_tx.try_send(()) {
-                match e {
-                    TrySendError::Closed(_) => error!("L1 signal receiver channel closed"),
-                    TrySendError::Full(_) => warn!("L1 signal receiver channel full"),
-                }
-            }
         }
 
         Ok(())

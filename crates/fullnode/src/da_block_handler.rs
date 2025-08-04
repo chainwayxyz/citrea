@@ -140,7 +140,7 @@ where
             self.da_service.clone(),
             self.queued_l1_blocks.clone(),
             self.l1_block_cache.clone(),
-            FULLNODE_METRICS.scan_l1_block.clone(),
+            Some(FULLNODE_METRICS.scan_l1_block.clone()),
         );
         tokio::pin!(l1_sync_worker);
 

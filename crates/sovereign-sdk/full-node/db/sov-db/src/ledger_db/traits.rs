@@ -308,6 +308,9 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
     /// Delete a pending commitment l2 range
     fn delete_pending_commitment(&self, index: u32) -> Result<()>;
 
+    /// Get last commitment slot number
+    fn get_last_commitment_slot_number(&self) -> Result<Option<SlotNumber>>;
+
     /// Gets the state diff by block number
     fn get_state_diff(&self, l2_height: L2BlockNumber) -> Result<StateDiff>;
 
