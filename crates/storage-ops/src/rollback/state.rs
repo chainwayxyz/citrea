@@ -67,24 +67,27 @@ pub(crate) fn rollback_state_db(state_db: Arc<sov_schema_db::DB>, target_version
         error!("Could not delete state data: {:?}", e);
     }
 
-    let mut last_version_output = Vec::with_capacity(8);
-    let last_version_bytes = last_version.to_be_bytes();
-    last_version_output.extend_from_slice(&last_version_bytes);
+    if last_version > target_version {
+        let mut last_version_output = Vec::with_capacity(8);
+        let last_version_bytes = last_version.to_be_bytes();
+        last_version_output.extend_from_slice(&last_version_bytes);
 
-    let mut target_version_output = Vec::with_capacity(8);
-    // Delete starting from/including the block AFTER `down_to_block`.
-    let target_version_bytes = (target_version + 1).to_be_bytes();
-    target_version_output.extend_from_slice(&target_version_bytes);
+        let mut target_version_output = Vec::with_capacity(8);
+        // Delete starting from/including the block AFTER `down_to_block`.
+        let target_version_bytes = (target_version + 1).to_be_bytes();
+        target_version_output.extend_from_slice(&target_version_bytes);
 
-    if let Err(e) = state_db
-        .delete_range_raw::<JmtNodes>(target_version_bytes.to_vec(), last_version_bytes.to_vec())
-    {
-        error!(
-            "Could not delete JmtNodes range {:?} to {:?}: {:?}",
-            target_version + 1,
-            last_version,
-            e
-        );
+        if let Err(e) = state_db.delete_range_raw::<JmtNodes>(
+            target_version_bytes.to_vec(),
+            last_version_bytes.to_vec(),
+        ) {
+            error!(
+                "Could not delete JmtNodes range {:?} to {:?}: {:?}",
+                target_version + 1,
+                last_version,
+                e
+            );
+        }
     }
 
     let _ = state_db.flush();
