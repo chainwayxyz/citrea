@@ -45,7 +45,7 @@ use crate::cache::L1BlockCache;
 use crate::utils::decode_sov_tx_and_update_short_header_proofs;
 use crate::{InitParams, RollupPublicKeys};
 
-/// Maximum number of `L2BlockResponse` ahead of `next_expected_height` to buffer from subscription
+/// Maximum number of L2BlockResponse ahead of next_expected_height to buffer from subscription
 const SUBSCRIPTION_LOOKAHEAD_LIMIT: u64 = 100;
 
 pub struct ProcessL2BlockResult {
@@ -242,9 +242,10 @@ async fn sync_l2(
     info!("Starting to sync from L2 height {}", start_l2_height);
     loop {
         // Make sure we don't poll for blocks that have already been processed
-        // Poll from next_expected_height, can be either a gap in subscription or
         let next_expected_height = block_buffer.lock().await.next_expected_height;
-        start_l2_height = next_expected_height;
+        if next_expected_height > start_l2_height {
+            start_l2_height = next_expected_height
+        }
 
         let end_l2_height = start_l2_height + current_sync_blocks_count - 1;
 
@@ -297,6 +298,8 @@ async fn sync_l2(
             sleep(Duration::from_secs(1)).await;
             continue;
         }
+
+        start_l2_height += l2_blocks.len() as u64;
 
         block_buffer.lock().await.extend_blocks(l2_blocks);
     }
