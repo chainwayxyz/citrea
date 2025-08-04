@@ -45,6 +45,9 @@ use crate::cache::L1BlockCache;
 use crate::utils::decode_sov_tx_and_update_short_header_proofs;
 use crate::{InitParams, RollupPublicKeys};
 
+/// Maximum number of L2BlockResponse ahead of next_expected_height to buffer from subscription
+const SUBSCRIPTION_LOOKAHEAD_LIMIT: u64 = 100;
+
 pub struct ProcessL2BlockResult {
     pub l2_height: u64,
     pub l2_block_hash: L2BlockHash,
@@ -78,7 +81,12 @@ impl SequentialL2BlockBuffer {
     fn add_block(&mut self, block: L2BlockResponse) {
         let height = block.header.height.to();
 
-        if height < self.next_expected_height || self.blocks.contains_key(&height) {
+        if height < self.next_expected_height
+            || self.blocks.contains_key(&height)
+            // Don't store subscription too far off the current expected block
+            // This would happen on startup when catching up to tip
+            || height - self.next_expected_height > SUBSCRIPTION_LOOKAHEAD_LIMIT
+        {
             return;
         }
 
