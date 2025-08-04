@@ -94,11 +94,15 @@ impl SequentialL2BlockBuffer {
         self.notify.notify_one();
     }
 
-    fn extend_blocks(&mut self, mut blocks: BTreeMap<u64, L2BlockResponse>) {
-        blocks.retain(|&k, _| k >= self.next_expected_height);
-        let should_notify = !blocks.is_empty();
+    fn extend_blocks(&mut self, blocks: BTreeMap<u64, L2BlockResponse>) {
+        let mut should_notify = false;
 
-        self.blocks.extend(blocks);
+        for (height, block) in blocks {
+            if height >= self.next_expected_height && !self.blocks.contains_key(&height) {
+                self.blocks.insert(height, block);
+                should_notify = true;
+            }
+        }
 
         if should_notify {
             self.notify.notify_one();
