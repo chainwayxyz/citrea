@@ -16,3 +16,8 @@ python3 bin/citrea/tests/proving-stats/get-proving-stats.py batch-prover.log $TE
 pkill citrea
 docker compose -f $TEST_DIR/docker-compose.regtest.yml down
 sudo chown -R $USER:$USER $TEST_DIR/bitcoin
+
+sleep 2 # Give some time for the processes to terminate
+
+git reset --hard
+git clean -fd
