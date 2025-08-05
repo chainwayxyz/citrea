@@ -6,13 +6,17 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use anyhow::bail;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, sync_l1};
 use citrea_common::RollupPublicKeys;
+use citrea_evm::{get_last_l1_height_in_light_client, Evm};
+use citrea_stf::runtime::DefaultContext;
 use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::SequencerLedgerOps;
+use sov_db::schema::types::SlotNumber;
+use sov_modules_api::WorkingSet;
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use tokio::select;
@@ -40,14 +44,14 @@ where
     da_service: Arc<Da>,
     /// Sequencer's DA public key for verifying commitments
     sequencer_da_pub_key: Vec<u8>,
-    /// The height from which to start scanning L1 blocks
-    scan_l1_start_height: u64,
     /// Cache for L1 blocks to avoid redundant fetches
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     /// Queue of pending L1 blocks to be processed
     pending_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
+    /// Manager for prover storage
+    storage_manager: ProverStorageManager,
 }
 
 impl<Da, DB> L1Syncer<Da, DB>
@@ -71,22 +75,16 @@ where
         public_keys: RollupPublicKeys,
         l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
         backup_manager: Arc<BackupManager>,
+        storage_manager: ProverStorageManager,
     ) -> anyhow::Result<Self> {
-        // Get the starting height from the database, checking the highest slot number
-        // in CommitmentsByNumber table
-        let Some(scan_l1_start_height) = ledger_db.get_last_commitment_slot_number()?.map(|s| s.0)
-        else {
-            bail!("Could not fetch last scanned L1 commitment height")
-        };
-
         Ok(Self {
             ledger_db,
             da_service,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
-            scan_l1_start_height,
             l1_block_cache,
             pending_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             backup_manager,
+            storage_manager,
         })
     }
 
@@ -99,8 +97,39 @@ where
     /// 4. Maintains metrics about syncing progress
     #[instrument(name = "SequencerL1Syncer", skip_all)]
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
+        let scan_l1_start_height: u64 = {
+            if let Some(l1_height) = self
+                .ledger_db
+                .get_last_scanned_l1_height()
+                .expect("Should get last scanned l1 height")
+            {
+                l1_height.0 + 1
+            } else {
+                let prestate = self.storage_manager.create_final_view_storage();
+                let mut working_set = WorkingSet::new(prestate.clone());
+                let l2_height = self
+                    .ledger_db
+                    .get_last_commitment()
+                    .expect("Should be None if does not exist")
+                    .map(|c| c.l2_end_block_number)
+                    .unwrap_or(1);
+
+                // set state to end of evm block l2_height
+                working_set.set_archival_version(l2_height + 1);
+
+                let l1_height = get_last_l1_height_in_light_client(
+                    &Evm::<DefaultContext>::default(),
+                    &mut working_set,
+                )
+                .expect("There must be a last l1 height");
+
+                l1_height.to::<u64>() + 1
+            }
+        };
+        info!("Starting L1 syncer from height {}", scan_l1_start_height);
+
         let l1_sync_worker = sync_l1(
-            self.scan_l1_start_height,
+            scan_l1_start_height,
             self.da_service.clone(),
             self.pending_l1_blocks.clone(),
             self.l1_block_cache.clone(),
@@ -144,12 +173,6 @@ where
                 .front()
                 .expect("Pending l1 blocks cannot be empty");
             let l1_height = l1_block.header().height();
-            let l1_hash = l1_block.header().hash().into();
-
-            // Set the l1 height of the l1 hash
-            self.ledger_db
-                .set_l1_height_of_l1_hash(l1_hash, l1_height)
-                .unwrap();
 
             // Extract sequencer commitments
             let l1_commitments = extract_sequencer_commitments::<Da>(
@@ -169,8 +192,11 @@ where
                 self.ledger_db
                     .update_commitments_on_da_slot(l1_height, commitment.clone())
                     .expect("Should store commitment in CommitmentsByNumber");
+                self.ledger_db.put_commitment_by_index(commitment)?;
             }
 
+            self.ledger_db
+                .set_last_scanned_l1_height(SlotNumber(l1_height))?;
             pending_l1_blocks.pop_front();
 
             info!("Processed L1 block {}", l1_height);

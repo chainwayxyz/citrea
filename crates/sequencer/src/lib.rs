@@ -176,7 +176,7 @@ where
             public_keys.clone(),
             da_service.clone(),
             ledger_db.clone(),
-            storage_manager,
+            storage_manager.clone(),
             fork_manager,
             l2_block_tx,
             backup_manager.clone(),
@@ -187,15 +187,17 @@ where
         // Create L1 syncer for commitment tracking
         let l1_block_cache = Arc::new(AsyncMutex::new(L1BlockCache::new()));
         let l1_syncer = L1Syncer::new(
-            ledger_db,
+            ledger_db.clone(),
             da_service,
             public_keys,
             l1_block_cache,
             backup_manager,
+            storage_manager,
         )
         .unwrap();
 
-        let listen_mode_sequencer = ListenModeSequencer::new(l2_syncer, l1_syncer, task_executor);
+        let listen_mode_sequencer =
+            ListenModeSequencer::new(l2_syncer, l1_syncer, task_executor, ledger_db.clone());
         Ok((SequencerType::ListenMode(listen_mode_sequencer), rpc_module))
     } else {
         // Normal sequencer mode
