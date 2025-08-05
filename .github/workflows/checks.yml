@@ -557,7 +557,7 @@ jobs:
       - name: Get current commit hash
         id: current-commit
         run: |
-          echo "patch-hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "patch-hash=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
 
       - name: Checkout nightly branch
         run: git fetch origin ege/mock-nightly && git checkout ege/mock-nightly
