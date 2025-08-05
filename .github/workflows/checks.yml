@@ -518,7 +518,7 @@ jobs:
     name: Proving stats
     runs-on: ubicloud-standard-2
     needs: [build, docker-setup]
-    if: github.event.pull_request.draft == false
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -560,12 +560,11 @@ jobs:
         run: |
           echo "patch-hash=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
 
-      - name: Checkout nightly branch
-        run: git fetch origin ege/mock-nightly && git checkout ege/mock-nightly
-
-      - name: Get nightly commit hash
+      - name: Get commit hash of nightly branch
         id: nightly-commit
-        run: echo "nightly-hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+        run: |
+          git fetch origin nightly
+          echo "nightly-hash=$(git rev-parse origin/nightly)" >> $GITHUB_OUTPUT
 
       - name: Restore nightly test cache
         id: restore-nightly
@@ -575,34 +574,53 @@ jobs:
           key: nightly-cycle-counts-${{ steps.nightly-commit.outputs.nightly-hash }}
 
       # --- Run test only if cache missed ---
+      - name: Download nightly build artifact
+        id: download-artifact
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          name: citrea-build
+          ref: nightly
+          path: target/debug
+          if_no_artifact_found: warn
+
+      # --- Build only if the artifact is not found ---
+      - name: Checkout nightly branch
+        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        run: git fetch origin ege/mock-nightly && git checkout ege/mock-nightly
+
       - name: Install Rust toolchain
-        if: steps.restore-nightly.outputs.cache-hit != 'true'
+        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: dtolnay/rust-toolchain@nightly
 
       - name: Setup mold linker
-        if: steps.restore-nightly.outputs.cache-hit != 'true'
+        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: rui314/setup-mold@v1
 
       - name: Install Protoc
-        if: steps.restore-nightly.outputs.cache-hit != 'true'
+        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: arduino/setup-protoc@v3
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Rust cache
-        if: steps.restore-nightly.outputs.cache-hit != 'true'
+        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: ubicloud/rust-cache@v2
         with:
             shared-key: build  
       - name: Cache ethereum-tests
-        if: steps.restore-nightly.outputs.cache-hit != 'true'
+        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: actions/cache@v4
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
       - name: Build citrea on nightly
-        if: steps.restore-nightly.outputs.cache-hit != 'true'
+        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         run: make build
+
+      - name: Checkout to PR branch
+        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        run: git checkout ${{ github.head_ref }}
+
       - name: Run tests on nightly
         if: steps.restore-nightly.outputs.cache-hit != 'true'
         run: |
@@ -619,7 +637,6 @@ jobs:
             --patch-commit ${{ steps.current-commit.outputs.patch-hash }} \
             --nightly-commit ${{ steps.nightly-commit.outputs.nightly-hash }}
       - name: Find Comment
-        if: github.event_name == 'pull_request'
         uses: peter-evans/find-comment@v3
         id: fc
         with:
@@ -628,7 +645,6 @@ jobs:
           body-includes: Proving stats report
 
       - name: Create or update comment
-        if: github.event_name == 'pull_request'
         uses: peter-evans/create-or-update-comment@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
