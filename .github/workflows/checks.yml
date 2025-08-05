@@ -560,7 +560,9 @@ jobs:
           echo "patch-hash=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
 
       - name: Checkout nightly branch
-        run: git fetch origin ege/mock-nightly && git checkout ege/mock-nightly
+        uses: actions/checkout@v4
+        with:
+          ref: ege/mock-nightly
 
       - name: Get nightly commit hash
         id: nightly-commit
