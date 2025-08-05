@@ -511,7 +511,7 @@ jobs:
 
       - name: Run codespell
         run: |
-          codespell --skip="*.lock,./target,./crates/evm/ethereum-tests," -I="codespell_ignore.txt"
+          codespell --skip="*.lock,./target,./crates/evm/ethereum-tests,./bin/citrea/tests/proving-stats," -I="codespell_ignore.txt"
 
 
   proving-stats:
