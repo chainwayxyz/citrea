@@ -586,7 +586,7 @@ jobs:
       # --- Build only if the artifact is not found ---
       - name: Checkout nightly branch
         if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
-        run: git fetch origin ege/mock-nightly && git checkout ege/mock-nightly
+        run: git checkout ${{ steps.nightly-commit.outputs.nightly-hash }}
 
       - name: Install Rust toolchain
         if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
@@ -619,7 +619,7 @@ jobs:
 
       - name: Checkout to PR branch
         if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
-        run: git checkout ${{ github.head_ref }}
+        run: git switch -
 
       - name: Run tests on nightly
         if: steps.restore-nightly.outputs.cache-hit != 'true'
