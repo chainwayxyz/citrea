@@ -550,8 +550,8 @@ jobs:
 
       - name: Run tests on current branch 
         run: |
-          chmod +x ./.github/scripts/run-test.sh
-          ./.github/scripts/run-test.sh patch-stats.json
+          chmod +x ./.github/scripts/run-proving-test.sh
+          ./.github/scripts/run-proving-test.sh patch-stats.json
         shell: bash
 
       - name: Get current commit hash
@@ -607,8 +607,8 @@ jobs:
       - name: Run tests on nightly
         if: steps.restore-nightly.outputs.cache-hit != 'true'
         run: |
-          chmod +x ./.github/scripts/run-test.sh
-          ./.github/scripts/run-test.sh nightly-stats.json
+          chmod +x ./.github/scripts/run-proving-test.sh
+          ./.github/scripts/run-proving-test.sh nightly-stats.json
         shell: bash
 
       - name: Compare the results
