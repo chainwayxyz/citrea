@@ -19,7 +19,3 @@ docker compose -f $TEST_DIR/docker-compose.regtest.yml down
 sudo chown -R $USER:$USER $TEST_DIR/bitcoin 
 
 sleep 2 # Give some time for the processes to terminate
-
-# Clean up the repository, so that next run starts from a clean state
-git reset --hard
-git clean -fd

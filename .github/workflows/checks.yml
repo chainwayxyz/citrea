@@ -553,6 +553,8 @@ jobs:
         run: |
           chmod +x ./.github/scripts/run-proving-test.sh
           ./.github/scripts/run-proving-test.sh patch-stats.json
+          git reset --hard 
+          git clean -fd
         shell: bash
 
       - name: Get current commit hash
