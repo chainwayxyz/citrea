@@ -48,6 +48,8 @@ where
     pub l1_syncer: L1Syncer<DA, DB>,
     /// Task executor for running asynchronous tasks
     pub task_executor: TaskExecutor,
+    /// Database for ledger operations
+    pub ledger_db: DB,
 }
 
 impl<DA, DB> ListenModeSequencer<DA, DB>
@@ -65,11 +67,13 @@ where
         l2_syncer: ListenModeSequencerL2Syncer<DA, DB>,
         l1_syncer: L1Syncer<DA, DB>,
         task_executor: TaskExecutor,
+        ledger_db: DB,
     ) -> Self {
         Self {
             l2_syncer,
             l1_syncer,
             task_executor,
+            ledger_db,
         }
     }
 
@@ -84,6 +88,10 @@ where
                 "listen_mode_sequencer_l2_syncer",
                 |shutdown_signal| async move { self.l2_syncer.run(shutdown_signal).await },
             );
+
+        while self.ledger_db.get_head_l2_block_height()?.unwrap_or(0) < 1 {
+            // Wait until one block to be processed before starting L1 syncer
+        }
 
         // Start L1 syncer task
         self.task_executor

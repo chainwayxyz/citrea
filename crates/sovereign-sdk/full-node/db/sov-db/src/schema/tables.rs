@@ -54,6 +54,8 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     SequencerCommitmentByIndex::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
     StateDiffByBlockNumber::table_name(),
+    // Needed for readonly sequencer
+    ProverLastScannedSlot::table_name(),
     // #### TESTS RELATED TABLES ####
     #[cfg(test)]
     TestTableOld::table_name(),

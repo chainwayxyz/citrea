@@ -19,7 +19,6 @@ impl LedgerMigration for DropFullnodeTables {
     ) -> anyhow::Result<()> {
         let fullnode_tables_to_drop = vec![
             "VerifiedBatchProofsBySlotNumber",
-            "ProverLastScannedSlot",
             "SlotByHash",
             "PendingSequencerCommitments",
             "ShortHeaderProofBySlotHash",
