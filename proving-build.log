@@ -1,0 +1,17 @@
+Updating crates.io index
+Compiling libz-sys v1.1.21
+Compiling libgit2-sys v0.18.1+1.9.0
+Compiling lzma-sys v0.1.20
+Compiling xz2 v0.1.7
+Compiling xz v0.1.0
+Compiling rzup v0.4.1
+Compiling risc0-build v2.3.0
+Compiling git2 v0.20.1
+Compiling vergen-git2 v1.0.5
+Compiling reth-node-core v1.3.7 (https://github.com/paradigmxyz/reth?tag=v1.3.7#ed7da87d)
+Compiling reth-node-api v1.3.7 (https://github.com/paradigmxyz/reth?tag=v1.3.7#ed7da87d)
+Compiling reth-rpc-eth-api v1.3.7 (https://github.com/paradigmxyz/reth?tag=v1.3.7#ed7da87d)
+Compiling reth-rpc-api v1.3.7 (https://github.com/paradigmxyz/reth?tag=v1.3.7#ed7da87d)
+Compiling reth-rpc-engine-api v1.3.7 (https://github.com/paradigmxyz/reth?tag=v1.3.7#ed7da87d)
+Compiling reth-rpc v1.3.7 (https://github.com/paradigmxyz/reth?tag=v1.3.7#ed7da87d)
+Compiling risc0-zkvm v2.3.0
