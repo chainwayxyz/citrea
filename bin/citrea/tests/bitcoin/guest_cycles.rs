@@ -207,7 +207,7 @@ async fn guest_cycles() {
 /// We use the sequencer DB and bitcoin data dir in the proving stats workflow.
 ///
 /// As we use the citrea artifact built without the testing feature in CI,
-/// this test should be run without the testing feature as well. 
+/// this test should be run without the testing feature as well.
 /// This can be achieved by running with docker image citrea-dev
 struct GenerateProvingStatsDB;
 #[async_trait]
