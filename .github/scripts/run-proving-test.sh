@@ -15,9 +15,11 @@ python3 bin/citrea/tests/proving-stats/get-proving-stats.py batch-prover.log $TE
 
 pkill citrea
 docker compose -f $TEST_DIR/docker-compose.regtest.yml down
-sudo chown -R $USER:$USER $TEST_DIR/bitcoin
+# After running the container, change ownership back to the user
+sudo chown -R $USER:$USER $TEST_DIR/bitcoin 
 
 sleep 2 # Give some time for the processes to terminate
 
+# Clean up the repository, so that next run starts from a clean state
 git reset --hard
 git clean -fd

@@ -205,6 +205,9 @@ async fn guest_cycles() {
 /// This test generates a proving stats database by running transactions through the sequencer
 /// and ensuring two commitments are published to Bitcoin before freezing the state.
 /// We use the sequencer DB and bitcoin data dir in the proving stats workflow.
+///
+/// Unfortunately, before running the test, we have to remove citrea-primitives from dev-dependencies
+/// because in CI, we use the citrea artifact built without the testing feature.
 struct GenerateProvingStatsDB;
 #[async_trait]
 impl TestCase for GenerateProvingStatsDB {
