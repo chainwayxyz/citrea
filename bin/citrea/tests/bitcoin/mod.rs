@@ -16,7 +16,6 @@ pub mod bitcoin_test;
 pub mod bitcoin_verifier;
 #[cfg(feature = "testing")]
 pub mod da_queue;
-pub mod cycle_count;
 pub mod fork;
 #[cfg(feature = "testing")]
 pub mod full_node;
