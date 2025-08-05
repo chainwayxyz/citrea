@@ -561,6 +561,7 @@ jobs:
         id: current-commit
         run: |
           echo "patch-hash=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+          echo "head-hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
       - name: Get commit hash of nightly branch
         id: nightly-commit
@@ -621,7 +622,7 @@ jobs:
 
       - name: Checkout to PR branch
         if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
-        run: git switch -
+        run: git checkout ${{ steps.current-commit.outputs.head-hash }}
 
       - name: Run tests on nightly
         if: steps.restore-nightly.outputs.cache-hit != 'true'
