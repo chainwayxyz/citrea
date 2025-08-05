@@ -9,7 +9,9 @@ use alloy_primitives::U32;
 use anyhow::bail;
 use async_trait::async_trait;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
-use citrea_e2e::config::{BitcoinConfig, SequencerConfig, SequencerMempoolConfig, TestCaseConfig, TestCaseEnv};
+use citrea_e2e::config::{
+    BitcoinConfig, SequencerConfig, SequencerMempoolConfig, TestCaseConfig, TestCaseEnv,
+};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
@@ -269,10 +271,12 @@ impl TestCase for GenerateProvingStatsDB {
             if signed_tx.trim().is_empty() {
                 continue;
             }
-        
-            sequencer.client.http_client().eth_send_raw_transaction(
-                hex::decode(signed_tx.trim()).unwrap().into(),
-            ).await?;
+
+            sequencer
+                .client
+                .http_client()
+                .eth_send_raw_transaction(hex::decode(signed_tx.trim()).unwrap().into())
+                .await?;
 
             tx_count += 1;
             if tx_count % 50 == 0 {
@@ -291,10 +295,16 @@ impl TestCase for GenerateProvingStatsDB {
         da.wait_mempool_len(4, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
-        batch_prover.wait_for_l1_height(da.get_finalized_height(None).await?, None).await?;
-        let commitments = futures::future::try_join_all([1, 2, 3].map(
-            |i| batch_prover.client.http_client().get_sequencer_commitment_by_index(U32::from(i)),
-        )).await?;
+        batch_prover
+            .wait_for_l1_height(da.get_finalized_height(None).await?, None)
+            .await?;
+        let commitments = futures::future::try_join_all([1, 2, 3].map(|i| {
+            batch_prover
+                .client
+                .http_client()
+                .get_sequencer_commitment_by_index(U32::from(i))
+        }))
+        .await?;
         assert!(commitments[0].is_some());
         assert!(commitments[1].is_some());
         assert!(commitments[2].is_none());
