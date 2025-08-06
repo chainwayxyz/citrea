@@ -112,7 +112,7 @@ jobs:
             target/debug/citrea
             target/debug/citrea-cli
             target/debug/**/methods.rs
-          retention-days: 1
+          retention-days: 2
 
   check:
     name: check
