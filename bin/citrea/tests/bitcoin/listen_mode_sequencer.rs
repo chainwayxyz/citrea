@@ -5,6 +5,7 @@ use alloy_primitives::ruint::aliases::{U256, U32};
 use alloy_primitives::{Address, U64};
 use alloy_rpc_types::BlockId;
 use async_trait::async_trait;
+use bitcoincore_rpc::RpcApi;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::client::Client;
 use citrea_e2e::config::TestCaseConfig;
@@ -22,8 +23,6 @@ use crate::common::make_test_client;
 struct ReadOnlySequencerTest;
 
 /*
-// TODO: Send some transcations before and after revival of the sequencer and compare the merkle roots etc.
-// TODO: Add rollback (parts 19-20)
 1. Start a sequencer cluster with 2 sequencers
 2. Configure one sequencer as a read-only sequencer
 3. Send some L2 blocks to the sequencer with some transactions
@@ -53,7 +52,7 @@ impl TestCase for ReadOnlySequencerTest {
             n_nodes: HashMap::from([(NodeKind::Sequencer, 2)]),
             with_sequencer: true,
             with_full_node: true,
-            // with_citrea_cli: true,
+            with_citrea_cli: true,
             ..Default::default()
         }
     }
@@ -211,7 +210,6 @@ impl TestCase for ReadOnlySequencerTest {
         )
         .unwrap();
         sequencer.wait_until_stopped().await?;
-        full_node.stop().await?;
         full_node.wait_until_stopped().await?;
 
         sleep(std::time::Duration::from_secs(2)).await;
@@ -344,6 +342,99 @@ impl TestCase for ReadOnlySequencerTest {
             new_commitment.unwrap().merkle_root,
             new_full_node_commitment.unwrap().merkle_root
         );
+
+        // Stop the readonly sequencer and full node
+        readonly_sequencer.wait_until_stopped().await?;
+        full_node.wait_until_stopped().await?;
+
+        // Rollback bitcoin to initial height and drop existing txs so that we can re-send them out of order
+        let initial_height_hash = da.get_block_hash(f.initial_da_height + 1).await?;
+        da.invalidate_block(&initial_height_hash).await?;
+
+        let citrea_cli = f.citrea_cli.as_ref().unwrap();
+        // Rollback the revived sequencer, full node and da to a previous state
+        citrea_cli
+            .run(
+                "rollback",
+                &[
+                    "--node-type",
+                    "sequencer",
+                    "--db-path",
+                    readonly_sequencer
+                        .config
+                        .rollup
+                        .storage
+                        .path
+                        .to_str()
+                        .unwrap(),
+                    "--l2-target",
+                    "1",
+                    "--l1-target",
+                    &"120".to_string(),
+                    "--sequencer-commitment-index",
+                    "0",
+                ],
+            )
+            .await?;
+
+        citrea_cli
+            .run(
+                "rollback",
+                &[
+                    "--node-type",
+                    "full-node",
+                    "--db-path",
+                    full_node.config.rollup.storage.path.to_str().unwrap(),
+                    "--l2-target",
+                    "1",
+                    "--l1-target",
+                    &"120".to_string(),
+                    "--sequencer-commitment-index",
+                    "0",
+                ],
+            )
+            .await?;
+
+        // Restart the readonly sequencer and full node
+        readonly_sequencer.start(None, None).await?;
+        sleep(std::time::Duration::from_secs(2)).await;
+        full_node.start(None, None).await?;
+        sleep(std::time::Duration::from_secs(2)).await;
+
+        // Check the head l2 heights are the same
+        let readonly_head_l2_height = readonly_sequencer
+            .client
+            .http_client()
+            .get_head_l2_block_height()
+            .await?;
+        let full_node_head_l2_height = full_node
+            .client
+            .http_client()
+            .get_head_l2_block_height()
+            .await?;
+        assert_eq!(readonly_head_l2_height, full_node_head_l2_height);
+
+        // Publish more l2 blocks and see that full node can still sync with revived sequencer
+        for _ in 0..max_l2_blocks_per_commitment {
+            readonly_sequencer
+                .client
+                .send_publish_batch_request()
+                .await?;
+        }
+
+        // Expect sequencer to send commitment
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+
+        // Check that full node can fetch the new commitment
+        let new_commitment = readonly_sequencer
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(1))
+            .await?;
+
+        assert!(new_commitment.is_some());
+
         Ok(())
     }
 }
