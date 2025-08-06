@@ -6,6 +6,7 @@ use alloy_primitives::{Address, U64};
 use alloy_rpc_types::BlockId;
 use async_trait::async_trait;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
+use citrea_e2e::client::Client;
 use citrea_e2e::config::TestCaseConfig;
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::NodeKind;
@@ -203,6 +204,12 @@ impl TestCase for ReadOnlySequencerTest {
         // While the commitment is still in mempool,shutdown sequencer and fullnode,
         // **revive readonly sequencer as main sequencer**
         let main_sequencer_config = sequencer.config.clone();
+        // Small hack until https://github.com/chainwayxyz/citrea-e2e/issues/124 is fixed
+        readonly_sequencer.client = Client::new(
+            &main_sequencer_config.rollup.rpc.bind_host,
+            main_sequencer_config.rollup.rpc.bind_port,
+        )
+        .unwrap();
         sequencer.wait_until_stopped().await?;
         full_node.stop().await?;
         full_node.wait_until_stopped().await?;
