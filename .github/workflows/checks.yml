@@ -576,7 +576,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: bin/citrea/tests/proving-stats/results/nightly-stats.json
-          key: nightly-cycle-counts-${{ steps.nightly-commit.outputs.nightly-hash }}
+          key: nightly-proving-stats-${{ steps.nightly-commit.outputs.nightly-hash }}
 
       # --- Run test only if cache missed ---
       - name: Download nightly build artifact
