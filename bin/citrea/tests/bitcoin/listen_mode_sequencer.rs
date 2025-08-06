@@ -57,62 +57,39 @@ impl TestCase for ReadOnlySequencerTest {
         }
     }
 
-    fn sequencer_config() -> SequencerConfig {
-        SequencerConfig {
-            // Made this 1 or-else proving takes forever
-            max_l2_blocks_per_commitment: 10,
-            ..Default::default()
-        }
-    }
-
     fn scan_l1_start_height() -> Option<u64> {
         Some(147)
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let Some(cluster) = f.sequencer_cluster.take() else {
+        let Some(cluster) = &mut f.sequencer_cluster else {
             anyhow::bail!("Sequencer cluster not running. Set n_nodes with Sequencer to 2 or more")
         };
 
-        let (mut cluster, node) = cluster.take(1);
-
-        let Some(sequencer) = cluster.get_mut(0) else {
-            anyhow::bail!("Sequencer not found in sequencer cluster. Set n_nodes with Sequencer")
-        };
-
-        let sequ_host = sequencer.config.clone().rollup.rpc.bind_host;
-        let sequ_port = sequencer.config.clone().rollup.rpc.bind_port;
-
-        let sequencer_rpc_url = format!("http://{}:{}", sequ_host.clone(), sequ_port);
+        let mut cluster_iter = cluster.iter_mut();
+        let sequencer = cluster_iter.next().unwrap();
+        let readonly_sequencer = cluster_iter.next().unwrap();
 
         let full_node = f.full_node.as_mut().unwrap();
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
 
-        let mut readonly_sequencer = node.unwrap();
-
-        let seq_config = readonly_sequencer.config.clone();
-
-        let mut read_only_node_config = seq_config;
-
-        read_only_node_config.node.listen_mode_config = Some(ListenModeConfig {
-            sequencer_client_url: sequencer_rpc_url,
-            sync_blocks_count: 10,
-        });
-
-        readonly_sequencer
-            .restart(Some(read_only_node_config.clone()), None)
-            .await?;
+        let sequ_host = sequencer.config.clone().rollup.rpc.bind_host;
+        let sequ_port = sequencer.config.clone().rollup.rpc.bind_port;
 
         let seq_test_client =
             make_test_client(SocketAddr::new(sequ_host.parse()?, sequ_port)).await?;
 
-        for _ in 0..5 {
+        let max_l2_blocks_per_commitment = sequencer.config.node.max_l2_blocks_per_commitment;
+
+        for _ in 0..max_l2_blocks_per_commitment / 2 {
             sequencer.client.send_publish_batch_request().await?;
         }
 
         // Wait for the readonly sequencer to catch up
-        readonly_sequencer.wait_for_l2_height(5, None).await?;
+        readonly_sequencer
+            .wait_for_l2_height(max_l2_blocks_per_commitment / 2, None)
+            .await?;
 
         // Fetch all l2 blocks and compare them
         let l2_blocks = readonly_sequencer
@@ -133,7 +110,7 @@ impl TestCase for ReadOnlySequencerTest {
             assert_eq!(*block.0, block.1);
         }
 
-        for _ in 0..5 {
+        for _ in 0..max_l2_blocks_per_commitment / 2 {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -182,7 +159,7 @@ impl TestCase for ReadOnlySequencerTest {
         assert!(full_node_commitment.is_some());
 
         // Now publish more l2 blocks for another commitment
-        for _ in 0..10 {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -211,8 +188,9 @@ impl TestCase for ReadOnlySequencerTest {
 
         sleep(std::time::Duration::from_secs(2)).await;
 
+        let mut read_only_node_config = readonly_sequencer.config.clone();
+
         read_only_node_config.node.listen_mode_config = None;
-        read_only_node_config.node.max_l2_blocks_per_commitment = 10;
         // Restart with main sequencer config to make it the main sequencer
         readonly_sequencer
             .restart(Some(read_only_node_config), None)
@@ -222,7 +200,7 @@ impl TestCase for ReadOnlySequencerTest {
 
         // Now the readonly sequencer is the main sequencer
         // Publish some blocks from the revived sequencer
-        for _ in 0..5 {
+        for _ in 0..max_l2_blocks_per_commitment / 2 {
             readonly_sequencer
                 .client
                 .send_publish_batch_request()
@@ -277,7 +255,7 @@ impl TestCase for ReadOnlySequencerTest {
         assert!(full_node_commitment.is_some());
 
         // Now publish more l2 blocks and see that revived sequencer can send commitments
-        for _ in 0..10 {
+        for _ in 0..max_l2_blocks_per_commitment {
             readonly_sequencer
                 .client
                 .send_publish_batch_request()
