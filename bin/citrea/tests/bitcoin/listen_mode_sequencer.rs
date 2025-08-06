@@ -202,18 +202,16 @@ impl TestCase for ReadOnlySequencerTest {
 
         // While the commitment is still in mempool,shutdown sequencer and fullnode,
         // **revive readonly sequencer as main sequencer**
-        let mut full_node_config = full_node.config.clone();
-        sequencer.stop().await?;
+        let main_sequencer_config = sequencer.config.clone();
+        sequencer.wait_until_stopped().await?;
         full_node.stop().await?;
+        full_node.wait_until_stopped().await?;
 
         sleep(std::time::Duration::from_secs(2)).await;
 
-        let mut read_only_node_config = readonly_sequencer.config.clone();
-
-        read_only_node_config.node.listen_mode_config = None;
         // Restart with main sequencer config to make it the main sequencer
         readonly_sequencer
-            .restart(Some(read_only_node_config), None)
+            .restart(Some(main_sequencer_config), None)
             .await?;
 
         sleep(std::time::Duration::from_secs(2)).await;
@@ -236,20 +234,8 @@ impl TestCase for ReadOnlySequencerTest {
                 .await?;
         }
 
-        let new_sequencer_client_host = readonly_sequencer.config.rollup.rpc.bind_host.clone();
-        let new_sequencer_client_port = readonly_sequencer.config.rollup.rpc.bind_port;
-
-        let sequencer_rpc_url = format!(
-            "http://{}:{}",
-            new_sequencer_client_host, new_sequencer_client_port
-        );
-
-        if let Some(rc) = full_node_config.rollup.runner.as_mut() {
-            rc.sequencer_client_url = sequencer_rpc_url.clone();
-        }
-
         // Start full node with the new sequencer client url
-        full_node.start(Some(full_node_config), None).await?;
+        full_node.start(None, None).await?;
 
         let head_l2_height = readonly_sequencer
             .client
