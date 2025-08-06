@@ -18,4 +18,8 @@ docker compose -f $TEST_DIR/docker-compose.regtest.yml down
 # After running the container, change ownership back to the user
 sudo chown -R $USER:$USER $TEST_DIR/bitcoin 
 
-sleep 2 # Give some time for the processes to terminate
+# Give some time for the processes to terminate
+sleep 2 
+# clean the batch prover db for the next run
+rm -rf $TEST_DIR/dbs/batch-prover-db
+rm batch-prover.log

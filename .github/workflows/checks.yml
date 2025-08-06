@@ -549,12 +549,14 @@ jobs:
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
 
+      - name: Download and unzip test data
+        run: |
+          curl -L -o archive.zip "https://static.testnet.citrea.xyz/proving-stats-data.zip"
+          unzip archive.zip -d bin/citrea/tests/proving-stats/
       - name: Run tests on current branch 
         run: |
           chmod +x ./.github/scripts/run-proving-test.sh
           ./.github/scripts/run-proving-test.sh patch-stats.json
-          git reset --hard 
-          git clean -fd
         shell: bash
 
       - name: Get current commit hash
