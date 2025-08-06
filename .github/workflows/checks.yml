@@ -592,7 +592,7 @@ jobs:
       # --- Build only if the artifact is not found ---
       - name: Checkout nightly branch
         if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
-        run: git checkout ${{ steps.nightly-commit.outputs.nightly-hash }}
+        run: git checkout -f ${{ steps.nightly-commit.outputs.nightly-hash }}
 
       - name: Install Rust toolchain
         if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
