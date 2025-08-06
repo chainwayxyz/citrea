@@ -139,13 +139,13 @@ Then the wallets can be used separately by modifying rollup_config.toml files fo
 ```toml
 # sequencer_rollup_config.toml
 [da]
-# node_url = "HOST:PORT/wallet-name"
-node_url = "0.0.0.0:18433/sequencer-wallet"
+# node_url = "HOST:PORT/wallet/<wallet-name>"
+node_url = "0.0.0.0:18433/wallet/sequencer-wallet"
 
 # batch_prover_rollup_config.toml
 [da]
-# node_url = "HOST:PORT/wallet-name"
-node_url = "0.0.0.0:18433/batch-prover-wallet"
+# node_url = "HOST:PORT/wallet/<wallet-name>"
+node_url = "0.0.0.0:18433/wallet/batch-prover-wallet"
 ```
 
 Both wallets should be funded by running
