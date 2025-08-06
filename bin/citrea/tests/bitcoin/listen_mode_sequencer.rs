@@ -1,18 +1,17 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
-use alloy_primitives::ruint::aliases::U32;
-use alloy_primitives::U64;
+use alloy_primitives::ruint::aliases::{U256, U32};
+use alloy_primitives::{Address, U64};
+use alloy_rpc_types::BlockId;
 use async_trait::async_trait;
-use base64::read;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
-use citrea_e2e::config::{ListenModeConfig, SequencerConfig, TestCaseConfig};
+use citrea_e2e::config::TestCaseConfig;
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::NodeKind;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::{NodeT, Restart};
 use citrea_e2e::Result;
-use sha2::digest::generic_array::sequence;
 use sov_ledger_rpc::LedgerRpcClient;
 use tokio::time::sleep;
 
@@ -26,7 +25,7 @@ struct ReadOnlySequencerTest;
 // TODO: Add rollback (parts 19-20)
 1. Start a sequencer cluster with 2 sequencers
 2. Configure one sequencer as a read-only sequencer
-3. Send some L2 blocks to the sequencer
+3. Send some L2 blocks to the sequencer with some transactions
 4. Verify that the read-only sequencer can fetch the L2 blocks from the main sequencer
 5. Send a commitment from the main sequencer
 6. Verify that the read-only sequencer can fetch the commitment after the commitment is finalized but not before
@@ -37,13 +36,14 @@ struct ReadOnlySequencerTest;
 11. Shut Down main sequencer and full node.
 12. Revive read-only sequencer as main sequencer
 13. Verify that after revival the read only sequencer does have the non-finalized commitment
-14. Publish more l2 blocks from the revived sequencer
+14. Publish more l2 blocks from the revived sequencer with transactions
 15. Restart full node with the new sequencer client url using revived sequencers url
 16. See that full node can sync properly
-17. Send commitment from revived sequencer and get it finalized
-18. Verify that full node can fetch the finalized commitment and verify it
-19. Roll back the revived sequencer and full node to a previous state
-20. Publish more l2 blocks and still see full node can sync with revived sequencer
+17. Check the readonly sequencer historical state works as intended
+18. Send commitment from revived sequencer and get it finalized
+19. Verify that full node can fetch the finalized commitment and verify it
+20. Roll back the revived sequencer and full node to a previous state
+21. Publish more l2 blocks and still see full node can sync with revived sequencer
 */
 #[async_trait]
 impl TestCase for ReadOnlySequencerTest {
@@ -82,32 +82,52 @@ impl TestCase for ReadOnlySequencerTest {
 
         let max_l2_blocks_per_commitment = sequencer.config.node.max_l2_blocks_per_commitment;
 
+        let some_address = Address::random();
+
         for _ in 0..max_l2_blocks_per_commitment / 2 {
+            let _ = seq_test_client
+                .send_eth(some_address, None, None, None, 1e18 as u128)
+                .await
+                .unwrap();
             sequencer.client.send_publish_batch_request().await?;
         }
+        let head_l2_height = sequencer
+            .client
+            .http_client()
+            .get_head_l2_block_height()
+            .await?;
 
         // Wait for the readonly sequencer to catch up
         readonly_sequencer
-            .wait_for_l2_height(max_l2_blocks_per_commitment / 2, None)
+            .wait_for_l2_height(head_l2_height.to::<u64>(), None)
             .await?;
 
         // Fetch all l2 blocks and compare them
         let l2_blocks = readonly_sequencer
             .client
             .http_client()
-            .get_l2_block_range(U64::from(1), U64::from(5))
+            .get_l2_block_range(U64::from(1), head_l2_height)
             .await
             .unwrap();
 
         let sequencer_rpc_blocks = sequencer
             .client
             .http_client()
-            .get_l2_block_range(U64::from(1), U64::from(5))
+            .get_l2_block_range(U64::from(1), head_l2_height)
             .await
             .unwrap();
 
-        for block in sequencer_rpc_blocks.iter().zip(l2_blocks) {
-            assert_eq!(*block.0, block.1);
+        for (sequ_block, readonly_block) in sequencer_rpc_blocks.iter().zip(l2_blocks) {
+            assert_eq!(*sequ_block, readonly_block);
+            for (sequ_tx, readonly_tx) in readonly_block
+                .as_ref()
+                .unwrap()
+                .txs
+                .iter()
+                .zip(readonly_block.as_ref().unwrap().txs.iter())
+            {
+                assert_eq!(sequ_tx, readonly_tx);
+            }
         }
 
         for _ in 0..max_l2_blocks_per_commitment / 2 {
@@ -198,9 +218,18 @@ impl TestCase for ReadOnlySequencerTest {
 
         sleep(std::time::Duration::from_secs(2)).await;
 
+        let readonly_sequencer_test_client = make_test_client(SocketAddr::new(
+            readonly_sequencer.config.rollup.rpc.bind_host.parse()?,
+            readonly_sequencer.config.rollup.rpc.bind_port,
+        ))
+        .await?;
         // Now the readonly sequencer is the main sequencer
         // Publish some blocks from the revived sequencer
         for _ in 0..max_l2_blocks_per_commitment / 2 {
+            let _ = readonly_sequencer_test_client
+                .send_eth(some_address, None, None, None, 1e18 as u128)
+                .await
+                .unwrap();
             readonly_sequencer
                 .client
                 .send_publish_batch_request()
@@ -232,6 +261,39 @@ impl TestCase for ReadOnlySequencerTest {
         full_node
             .wait_for_l2_height(head_l2_height.to::<u64>(), None)
             .await?;
+
+        // Check the balance of the address
+        let balance = readonly_sequencer_test_client
+            .eth_get_balance(some_address, None)
+            .await
+            .unwrap();
+        assert!(balance == U256::from(max_l2_blocks_per_commitment as u128 * 1e18 as u128));
+
+        // Check the balance of the address from the readonly sequencer
+        let readonly_balance = readonly_sequencer_test_client
+            .eth_get_balance(some_address, None)
+            .await
+            .unwrap();
+        assert!(
+            readonly_balance == U256::from(max_l2_blocks_per_commitment as u128 * 1e18 as u128)
+        );
+
+        // Check the historical balance of the address before it was revived
+        let historical_balance = readonly_sequencer_test_client
+            .eth_get_balance(some_address, Some(BlockId::earliest()))
+            .await
+            .unwrap();
+        assert!(historical_balance == U256::from(0));
+        let historical_balance = readonly_sequencer_test_client
+            .eth_get_balance(some_address, Some(BlockId::number(1)))
+            .await
+            .unwrap();
+        assert!(historical_balance == U256::from(1e18 as u128));
+        let historical_balance = readonly_sequencer_test_client
+            .eth_get_balance(some_address, Some(BlockId::number(2)))
+            .await
+            .unwrap();
+        assert!(historical_balance == U256::from(2e18 as u128));
 
         // Also see that the revived sequencer can see the non-finalized commitment
         let revived_commitment = readonly_sequencer
