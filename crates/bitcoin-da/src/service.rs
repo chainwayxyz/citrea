@@ -212,7 +212,7 @@ impl BitcoinService {
     }
 
     /// Run the task to process the DA commands from the queue.
-    #[instrument(name = "BitcoinDA", skip(self))]
+    #[instrument(name = "BitcoinDA", skip_all)]
     pub async fn run_da_queue(
         self: Arc<Self>,
         mut rx: UnboundedReceiver<TxRequestWithNotifier<TxidWrapper>>,
