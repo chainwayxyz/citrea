@@ -18,7 +18,6 @@ use citrea_stf::genesis_config::GenesisPaths;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use clap::Parser;
 use metrics_exporter_prometheus::PrometheusBuilder;
-use metrics_util::MetricKindMask;
 use reth_tasks::TaskManager;
 use short_header_proof_provider::{
     NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
