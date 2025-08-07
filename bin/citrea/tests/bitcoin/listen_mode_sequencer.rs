@@ -1,19 +1,22 @@
-use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::{collections::HashMap, net::SocketAddr, time::Duration};
 
-use alloy_primitives::ruint::aliases::{U256, U32};
-use alloy_primitives::{Address, U64};
+use alloy_primitives::{
+    ruint::aliases::{U256, U32},
+    Address, U64,
+};
 use alloy_rpc_types::BlockId;
 use async_trait::async_trait;
 use bitcoincore_rpc::RpcApi;
-use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
-use citrea_e2e::client::Client;
-use citrea_e2e::config::TestCaseConfig;
-use citrea_e2e::framework::TestFramework;
-use citrea_e2e::node::NodeKind;
-use citrea_e2e::test_case::{TestCase, TestCaseRunner};
-use citrea_e2e::traits::{NodeT, Restart};
-use citrea_e2e::Result;
+use citrea_e2e::{
+    bitcoin::DEFAULT_FINALITY_DEPTH,
+    client::Client,
+    config::TestCaseConfig,
+    framework::TestFramework,
+    node::NodeKind,
+    test_case::{TestCase, TestCaseRunner},
+    traits::{NodeT, Restart},
+    Result,
+};
 use sov_ledger_rpc::LedgerRpcClient;
 use tokio::time::sleep;
 
@@ -445,4 +448,182 @@ async fn read_only_sequencer_test() -> Result<()> {
         .set_citrea_path(get_citrea_path())
         .run()
         .await
+}
+
+/// Test listen mode sequencer with sync_blocks_count = 0 (subscription only)
+struct SubscriptionOnlyTest;
+
+#[async_trait]
+impl TestCase for SubscriptionOnlyTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            n_nodes: HashMap::from([(NodeKind::Sequencer, 2)]),
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let cluster = f.sequencer_cluster.as_mut().unwrap();
+        let mut cluster_iter = cluster.iter_mut();
+        let main_sequencer = cluster_iter.next().unwrap();
+        let listen_mode_sequencer = cluster_iter.next().unwrap();
+
+        // Configure listen mode with sync_blocks_count = 0, desactivates polling
+        let mut listen_mode_config = listen_mode_sequencer.config.clone();
+        listen_mode_config
+            .node
+            .listen_mode_config
+            .as_mut()
+            .unwrap()
+            .sync_blocks_count = 0;
+
+        listen_mode_sequencer
+            .restart(Some(listen_mode_config), None)
+            .await?;
+
+        sleep(Duration::from_millis(1000)).await;
+
+        for i in 1..50 {
+            main_sequencer.client.send_publish_batch_request().await?;
+            listen_mode_sequencer.wait_for_l2_height(i, None).await?;
+        }
+
+        let main_final_height = main_sequencer
+            .client
+            .ledger_get_head_l2_block_height()
+            .await?;
+        let listen_final_height = listen_mode_sequencer
+            .client
+            .ledger_get_head_l2_block_height()
+            .await?;
+
+        assert_eq!(main_final_height, listen_final_height);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_subscription_only_mode() -> Result<()> {
+    TestCaseRunner::new(SubscriptionOnlyTest).run().await
+}
+
+/// Test buffer behavior with gaps in subscriptions
+struct OutOfOrderSubscriptionTest;
+
+#[async_trait]
+impl TestCase for OutOfOrderSubscriptionTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            n_nodes: HashMap::from([(NodeKind::Sequencer, 2)]),
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let cluster = f.sequencer_cluster.as_mut().unwrap();
+        let mut cluster_iter = cluster.iter_mut();
+        let main_sequencer = cluster_iter.next().unwrap();
+        let listen_mode_sequencer = cluster_iter.next().unwrap();
+
+        let max_l2_blocks_per_commitment = main_sequencer.config.node.max_l2_blocks_per_commitment;
+        let subscription_lookahead_limit = 100;
+
+        // Stop listen mode sequencer
+        listen_mode_sequencer.wait_until_stopped().await?;
+
+        // Generate blocks on main sequencer while listen mode is stopped, should act as gap in buffer
+        for _ in 0..max_l2_blocks_per_commitment {
+            main_sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Configure listen mode with sync_blocks_count = 0, desactivates polling
+        let mut subscription_only_config = listen_mode_sequencer.config.clone();
+        subscription_only_config
+            .node
+            .listen_mode_config
+            .as_mut()
+            .unwrap()
+            .sync_blocks_count = 0;
+
+        listen_mode_sequencer
+            .start(Some(subscription_only_config), None)
+            .await?;
+
+        // Generate blocks that should be buffer by listen mode sequencer
+        for _ in 0..max_l2_blocks_per_commitment {
+            main_sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Stop listen mode sequencer again
+        listen_mode_sequencer.wait_until_stopped().await?;
+
+        // Generate blocks on main sequencer while listen mode is stopped, should act as gap in buffer
+        for _ in 0..max_l2_blocks_per_commitment {
+            main_sequencer.client.send_publish_batch_request().await?;
+        }
+
+        listen_mode_sequencer.start(None, None).await?;
+
+        let main_height = main_sequencer
+            .client
+            .ledger_get_head_l2_block_height()
+            .await?;
+        let listen_mode_height = listen_mode_sequencer
+            .client
+            .ledger_get_head_l2_block_height()
+            .await?;
+
+        assert_eq!(main_height, max_l2_blocks_per_commitment * 3);
+        assert_eq!(listen_mode_height, 0);
+
+        // Generate above SUBSCRIPTION_LOOKAHEAD_LIMIT value of 100 so that subscription at tip are over the limit and not buffered
+        for _ in 0..subscription_lookahead_limit {
+            main_sequencer.client.send_publish_batch_request().await?;
+        }
+
+        let main_height = main_sequencer
+            .client
+            .ledger_get_head_l2_block_height()
+            .await?;
+        let listen_mode_height = listen_mode_sequencer
+            .client
+            .ledger_get_head_l2_block_height()
+            .await?;
+
+        assert_eq!(
+            main_height,
+            max_l2_blocks_per_commitment * 3 + subscription_lookahead_limit
+        );
+        assert_eq!(listen_mode_height, 0);
+
+        let mut with_polling_config = listen_mode_sequencer.config.clone();
+        with_polling_config
+            .node
+            .listen_mode_config
+            .as_mut()
+            .unwrap()
+            .sync_blocks_count = 10;
+
+        listen_mode_sequencer
+            .restart(Some(with_polling_config), None)
+            .await?;
+
+        listen_mode_sequencer
+            .wait_for_l2_height(main_height, None)
+            .await?;
+        let listen_mode_height = listen_mode_sequencer
+            .client
+            .ledger_get_head_l2_block_height()
+            .await?;
+        // Make sure listen mode catches up to tip with polling fallback
+        assert_eq!(listen_mode_height, main_height);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_out_of_order_subscription() -> Result<()> {
+    TestCaseRunner::new(OutOfOrderSubscriptionTest).run().await
 }

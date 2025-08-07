@@ -60,7 +60,7 @@ where
     DB: SequencerLedgerOps + Clone + 'static,
 {
     /// Creates a new instance of `SequencerL1Syncer`
-    ///     
+    ///
     /// # Arguments
     /// * `ledger_db` - The database instance to store L1 block data.
     /// * `da_service` - The DA service instance to fetch L1 blocks.
