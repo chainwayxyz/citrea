@@ -627,6 +627,9 @@ jobs:
         if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         run: git checkout ${{ steps.current-commit.outputs.head-hash }}
 
+      - name: Make citrea executable
+        if: steps.restore-nightly.outputs.cache-hit != 'true'
+        run: chmod +x target/debug/citrea
       - name: Run tests on nightly
         if: steps.restore-nightly.outputs.cache-hit != 'true'
         run: |
