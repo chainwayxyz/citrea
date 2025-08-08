@@ -329,7 +329,7 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
     /// Batch insert mempool transactions
     fn batch_insert_mempool_txs(&self, txs: Vec<(Vec<u8>, Vec<u8>)>) -> anyhow::Result<()>;
 
-    /// Insert mempool transaction
+    /// Remove mempool transaction(s)
     fn remove_mempool_txs(&self, tx_hashes: Vec<Vec<u8>>) -> anyhow::Result<()>;
 
     /// Fetch mempool transactions

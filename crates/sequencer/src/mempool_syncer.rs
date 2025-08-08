@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -23,6 +23,8 @@ where
     /// Buffer for mempool transactions before storing into the ledger db
     /// Mapping: Tx hash to rlp encoded transaction
     transactions_buffer: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>,
+    /// Transaction hashes to be removed from mempool ledger db
+    transactions_to_remove_buffer: Arc<Mutex<HashSet<Vec<u8>>>>,
     /// sequencer websocket endpoint
     sequencer_ws_endpoint: String,
 }
@@ -36,6 +38,7 @@ where
         Self {
             ledger_db,
             transactions_buffer: Arc::new(Mutex::new(HashMap::new())),
+            transactions_to_remove_buffer: Arc::new(Mutex::new(HashSet::new())),
             sequencer_ws_endpoint,
         }
     }
@@ -64,6 +67,7 @@ where
                 subscribe_to_mempool_transaction_updates(
                     &self.sequencer_ws_endpoint,
                     self.transactions_buffer.clone(),
+                    self.transactions_to_remove_buffer.clone(),
                 )
                 .await
                 .map_err(|e| {
@@ -82,12 +86,24 @@ where
         loop {
             // Waiting at least 2 seconds here so that txs that got in block are removed so we do less db ops
             tokio::time::sleep(Duration::from_secs(3)).await;
-            let transactions_buffer = self.transactions_buffer.clone();
-            let mut txs_buffer = transactions_buffer.lock();
+            {
+                let transactions_buffer = self.transactions_buffer.clone();
+                let mut txs_buffer = transactions_buffer.lock();
 
-            let txs = txs_buffer.drain().collect();
-            if let Err(e) = self.ledger_db.batch_insert_mempool_txs(txs) {
-                error!("Failed to batch insert mempool transactions: {}", e);
+                let txs = txs_buffer.drain().collect();
+                if let Err(e) = self.ledger_db.batch_insert_mempool_txs(txs) {
+                    error!("Failed to batch insert mempool transactions: {}", e);
+                }
+            }
+
+            {
+                let txs_to_remove_buffer = self.transactions_to_remove_buffer.clone();
+                let mut txs_to_remove = txs_to_remove_buffer.lock();
+
+                let txs = txs_to_remove.drain().collect();
+                if let Err(e) = self.ledger_db.remove_mempool_txs(txs) {
+                    error!("Failed to batch remove mempool transactions: {}", e);
+                }
             }
         }
     }
@@ -96,6 +112,7 @@ where
 async fn subscribe_to_mempool_transaction_updates(
     sequencer_ws_endpoint: &str,
     transactions_buffer: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>,
+    transactions_to_remove_buffer: Arc<Mutex<HashSet<Vec<u8>>>>,
 ) -> anyhow::Result<()> {
     debug!(
         "Connecting to sequencer mempoolTransactions subscription at {}",
@@ -124,10 +141,8 @@ async fn subscribe_to_mempool_transaction_updates(
                 }
                 MempoolTransactionSignal::RemoveTransactions(tx_hashes) => {
                     debug!("Removing transactions count: {:?}", tx_hashes.len());
-                    let mut txs_buffer = transactions_buffer.lock();
-                    for tx_hash in tx_hashes {
-                        txs_buffer.remove(&tx_hash.to_vec());
-                    }
+                    let mut txs_to_remove_buffer = transactions_to_remove_buffer.lock();
+                    txs_to_remove_buffer.extend(tx_hashes.iter().map(|tx_hash| tx_hash.to_vec()));
                 }
             },
             Err(e) => {
