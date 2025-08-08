@@ -296,7 +296,12 @@ where
             return Ok(vec![]);
         }
 
-        let mut proving_jobs = Vec::with_capacity(partitions.len());
+        let (proving_jobs_tx, proving_jobs_rx) = mpsc::unbounded_channel();
+
+        // start watching the proving jobs to finish in the background
+        self.watch_proving_jobs(proving_jobs_rx);
+
+        let mut job_ids = Vec::with_capacity(partitions.len());
         for partition in partitions {
             let id = Uuid::now_v7();
             let input = self
@@ -305,7 +310,10 @@ where
 
             // start the proving job in the background
             let rx = self.start_proving(input, id).await?;
-            proving_jobs.push((id, rx));
+            proving_jobs_tx
+                .send((id, rx))
+                .context("Failed to send proving job to watcher")?;
+            job_ids.push(id);
 
             let commitment_indices = partition
                 .commitments
@@ -322,10 +330,7 @@ where
                 .context("Failed to delete pending commitments")?;
         }
 
-        let job_ids = proving_jobs.iter().map(|job| job.0).collect();
-
-        // start watching the proving jobs to finish in the background
-        self.watch_proving_jobs(proving_jobs);
+        assert!(!job_ids.is_empty(), "received empty jobs list");
 
         Ok(job_ids)
     }
@@ -672,26 +677,19 @@ where
     /// * `proving_jobs` - A vector of tuples containing the job ID and the signal receiver for each proving job.
     /// * Each job ID is a unique identifier for the proving job, and the signal receiver is used to get the proof once the job is completed.
     #[instrument(skip_all)]
-    fn watch_proving_jobs(&self, proving_jobs: Vec<(Uuid, oneshot::Receiver<ProofWithDuration>)>) {
-        assert!(!proving_jobs.is_empty(), "received empty jobs list");
-
+    fn watch_proving_jobs(
+        &self,
+        mut proving_jobs: mpsc::UnboundedReceiver<(Uuid, oneshot::Receiver<ProofWithDuration>)>,
+    ) {
         let ledger_db = self.ledger_db.clone();
         let prover_service = self.prover_service.clone();
         let code_commitments_by_spec = self.code_commitments_by_spec.clone();
-
-        let mut proving_jobs = proving_jobs
-            .into_iter()
-            .map(|(job_id, rx)| async move {
-                let proof = rx.await.expect("Proof channel should never close");
-                (job_id, proof)
-            })
-            .collect::<FuturesUnordered<_>>();
-
         let network = self.network;
 
         // start watching the proving jobs to finish in the background
         tokio::spawn(async move {
-            while let Some((job_id, proof_with_duration)) = proving_jobs.next().await {
+            while let Some((job_id, rx)) = proving_jobs.recv().await {
+                let proof_with_duration = rx.await.expect("Proof channel should never close");
                 info!("Proving job finished {}", job_id);
 
                 let output = extract_proof_output::<Vm>(
