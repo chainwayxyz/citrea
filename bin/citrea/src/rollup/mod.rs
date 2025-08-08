@@ -33,6 +33,7 @@ use sov_modules_stf_blueprint::{
 };
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
+use sov_rollup_interface::rpc::MempoolTransactionSignal;
 use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
 use tokio::sync::broadcast;
@@ -204,6 +205,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         ledger_db: LedgerDB,
         storage_manager: ProverStorageManager,
         l2_block_tx: broadcast::Sender<u64>,
+        mempool_transaction_tx: broadcast::Sender<MempoolTransactionSignal>,
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
         task_executor: TaskExecutor,
@@ -234,6 +236,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             ledger_db,
             storage_manager,
             l2_block_tx,
+            mempool_transaction_tx,
             fork_manager,
             rpc_module,
             backup_manager,

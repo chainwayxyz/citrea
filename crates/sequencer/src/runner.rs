@@ -45,6 +45,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::block::{L2Header, SignedL2Header};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
+use sov_rollup_interface::rpc::MempoolTransactionSignal;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::{L2BlockResult, StateTransitionError};
 use sov_rollup_interface::transaction::Transaction;
@@ -111,6 +112,8 @@ where
     pub(crate) fork_manager: ForkManager<'static>,
     /// Channel for broadcasting L2 block updates
     l2_block_tx: broadcast::Sender<u64>,
+    /// Channel for broadcasting mempool transaction updates
+    mempool_transaction_tx: broadcast::Sender<MempoolTransactionSignal>,
     /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
 }
@@ -150,6 +153,7 @@ where
         deposit_mempool: Arc<Mutex<DepositDataMempool>>,
         fork_manager: ForkManager<'static>,
         l2_block_tx: broadcast::Sender<u64>,
+        mempool_transaction_tx: broadcast::Sender<MempoolTransactionSignal>,
         backup_manager: Arc<BackupManager>,
         rpc_message_rx: UnboundedReceiver<SequencerRpcMessage>,
     ) -> anyhow::Result<Self> {
@@ -172,6 +176,7 @@ where
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             fork_manager,
             l2_block_tx,
+            mempool_transaction_tx,
             backup_manager,
         })
     }
@@ -637,6 +642,13 @@ where
         // Combine transactions from last block and those that failed L1 fee check
         let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
         txs_to_remove.extend(l1_fee_failed_txs);
+
+        // Broadcast mempool transaction removal
+        self.mempool_transaction_tx
+            .send(MempoolTransactionSignal::RemoveTransactions(
+                txs_to_remove.clone(),
+            ))
+            .ok();
 
         // Remove processed/failed transactions from mempool
         self.mempool.remove_transactions(txs_to_remove.clone());

@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use alloy_primitives::{U32, U64};
+use alloy_primitives::{TxHash, U32, U64};
 use block::L2BlockResponse;
 use risc0_zkp::core::digest::Digest;
 use serde::{Deserialize, Serialize};
@@ -353,6 +353,18 @@ pub fn sequencer_commitment_to_response(
         index: U32::from(commitment.index),
         l2_end_block_number: U64::from(commitment.l2_end_block_number),
     }
+}
+
+/// Mempool transaction signals from sequencer
+/// These signals are sent at sequencer `eth_sendRawTransaction` rpc endpoint if tx is accepted into the mempool
+/// and in maintain mempool function for the txs to be removed
+/// This is mainly for talking with the listen mode sequencer and for it to keep the same mempool with main sequencer
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MempoolTransactionSignal {
+    /// New Transaction added to mempool
+    NewTransaction((TxHash, Vec<u8>)),
+    /// Transaction(s) removed from mempool
+    RemoveTransactions(Vec<TxHash>),
 }
 
 /// An RPC response which might contain a full item or just its hash.

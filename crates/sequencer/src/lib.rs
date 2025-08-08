@@ -48,6 +48,7 @@ use jsonrpsee::RpcModule;
 use l1_syncer::L1Syncer;
 use listen_mode::ListenModeSequencer;
 use mempool::CitreaMempool;
+use mempool_syncer::MempoolSyncer;
 use parking_lot::Mutex;
 use reth_tasks::TaskExecutor;
 pub use rpc::SequencerRpcClient;
@@ -56,6 +57,7 @@ use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
+use sov_rollup_interface::rpc::MempoolTransactionSignal;
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::{broadcast, Mutex as AsyncMutex};
@@ -77,6 +79,8 @@ mod l1_syncer;
 mod listen_mode;
 /// Module containing mempool functionality for transaction management
 mod mempool;
+/// Module containing mempool synchronization functionality for listen mode sequencer
+mod mempool_syncer;
 /// Module containing metrics collection and reporting functionality
 mod metrics;
 /// Provides access to sequencer RPC functionality
@@ -129,6 +133,7 @@ pub fn build_services<Da>(
     ledger_db: LedgerDB,
     storage_manager: ProverStorageManager,
     l2_block_tx: broadcast::Sender<u64>,
+    mempool_transaction_tx: broadcast::Sender<MempoolTransactionSignal>,
     fork_manager: ForkManager<'static>,
     rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
@@ -158,6 +163,8 @@ where
         ledger_db.clone(),
         sequencer_config.test_mode,
         l2_block_tx.subscribe(),
+        mempool_transaction_tx.clone(),
+        mempool_transaction_tx.subscribe(),
     );
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
 
@@ -169,7 +176,7 @@ where
             .expect("Listen Mode Config must be set in listen mode");
 
         let l2_syncer = L2Syncer::new(
-            listen_mode_config.sequencer_client_url,
+            listen_mode_config.sequencer_client_url.clone(),
             listen_mode_config.sync_blocks_count,
             init_params,
             native_stf,
@@ -197,8 +204,21 @@ where
         )
         .unwrap();
 
-        let listen_mode_sequencer =
-            ListenModeSequencer::new(l2_syncer, l1_syncer, task_executor, ledger_db.clone());
+        let mempool_syncer = MempoolSyncer::new(
+            ledger_db.clone(),
+            listen_mode_config
+                .sequencer_client_url
+                .clone()
+                .replace("http://", "ws://"),
+        );
+
+        let listen_mode_sequencer = ListenModeSequencer::new(
+            l2_syncer,
+            l1_syncer,
+            mempool_syncer,
+            task_executor,
+            ledger_db.clone(),
+        );
         Ok((SequencerType::ListenMode(listen_mode_sequencer), rpc_module))
     } else {
         // Normal sequencer mode
@@ -215,6 +235,7 @@ where
             deposit_mempool,
             fork_manager,
             l2_block_tx,
+            mempool_transaction_tx,
             backup_manager,
             rpc_message_rx,
         )

@@ -808,6 +808,17 @@ impl SequencerLedgerOps for LedgerDB {
         Ok(())
     }
 
+    fn batch_insert_mempool_txs(&self, txs: Vec<(Vec<u8>, Vec<u8>)>) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        for (tx_hash, tx) in txs {
+            schema_batch.put::<MempoolTxs>(&tx_hash, &tx)?;
+        }
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
     fn get_mempool_txs(&self) -> anyhow::Result<Vec<(Vec<u8>, Vec<u8>)>> {
         let mut iter = self.db.iter::<MempoolTxs>()?;
         iter.seek_to_first();

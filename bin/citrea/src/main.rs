@@ -37,6 +37,7 @@ use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
 use tokio::signal;
 use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::broadcast;
 use tracing::{debug, error, info, instrument};
 
 use crate::cli::{node_type_from_args, Args, NodeWithConfig, SupportedDaLayer};
@@ -264,6 +265,7 @@ where
                 is_listen_mode,
                 sequencer_config
             );
+            let (mempool_transaction_tx, _mempool_transaction_rx) = broadcast::channel(10);
             match rollup_blueprint
                 .create_sequencer(
                     genesis_config,
@@ -273,6 +275,7 @@ where
                     ledger_db,
                     storage_manager,
                     l2_block_tx,
+                    mempool_transaction_tx,
                     rpc_module,
                     backup_manager,
                     task_executor.clone(),

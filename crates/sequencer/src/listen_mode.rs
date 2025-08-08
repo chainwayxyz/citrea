@@ -8,6 +8,7 @@ use reth_tasks::TaskExecutor;
 use sov_rollup_interface::services::da::DaService;
 
 use crate::l1_syncer::L1Syncer;
+use crate::mempool_syncer::MempoolSyncer;
 
 /// Listen Mode Sequencer L2 Syncer
 pub type ListenModeSequencerL2Syncer<DA, DB> =
@@ -46,6 +47,8 @@ where
     pub l2_syncer: ListenModeSequencerL2Syncer<DA, DB>,
     /// L1 block synchronization service for the listen mode sequencer
     pub l1_syncer: L1Syncer<DA, DB>,
+    /// Mempool synchronization service for the listen mode sequencer
+    pub mempool_syncer: MempoolSyncer<DB>,
     /// Task executor for running asynchronous tasks
     pub task_executor: TaskExecutor,
     /// Database for ledger operations
@@ -66,12 +69,14 @@ where
     pub fn new(
         l2_syncer: ListenModeSequencerL2Syncer<DA, DB>,
         l1_syncer: L1Syncer<DA, DB>,
+        mempool_syncer: MempoolSyncer<DB>,
         task_executor: TaskExecutor,
         ledger_db: DB,
     ) -> Self {
         Self {
             l2_syncer,
             l1_syncer,
+            mempool_syncer,
             task_executor,
             ledger_db,
         }
@@ -98,6 +103,12 @@ where
             .spawn_critical_with_graceful_shutdown_signal(
                 "listen_mode_sequencer_l1_syncer",
                 |shutdown_signal| async move { self.l1_syncer.run(shutdown_signal).await },
+            );
+
+        self.task_executor
+            .spawn_critical_with_graceful_shutdown_signal(
+                "listen_mode_sequencer_mempool_syncer",
+                |shutdown_signal| async move { self.mempool_syncer.run(shutdown_signal).await },
             );
 
         Ok(())

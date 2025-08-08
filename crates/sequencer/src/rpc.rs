@@ -20,7 +20,7 @@ use reth_transaction_pool::{EthPooledTransaction, PoolTransaction};
 use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps};
 use sov_modules_api::{Spec, WorkingSet};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
-use sov_rollup_interface::rpc::{L2BlockIdentifier, LedgerRpcProvider};
+use sov_rollup_interface::rpc::{L2BlockIdentifier, LedgerRpcProvider, MempoolTransactionSignal};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error};
@@ -55,6 +55,10 @@ pub struct RpcContext {
     pub test_mode: bool,
     /// Broadcast receiver for L2 block notifications
     pub l2_block_rx: broadcast::Receiver<u64>,
+    /// Broadcast sender for mempool transactions accepted in `eth_sendRawTransaction`
+    pub mempool_transaction_tx: broadcast::Sender<MempoolTransactionSignal>,
+    /// Broadcast receiver for mempool transaction notifications
+    pub mempool_transaction_rx: broadcast::Receiver<MempoolTransactionSignal>,
 }
 
 /// Creates a shared RpcContext with all required data.
@@ -75,6 +79,8 @@ pub fn create_rpc_context(
     ledger_db: LedgerDB,
     test_mode: bool,
     l2_block_rx: broadcast::Receiver<u64>,
+    mempool_transaction_tx: broadcast::Sender<MempoolTransactionSignal>,
+    mempool_transaction_rx: broadcast::Receiver<MempoolTransactionSignal>,
 ) -> RpcContext {
     RpcContext {
         mempool,
@@ -84,6 +90,8 @@ pub fn create_rpc_context(
         ledger: ledger_db,
         test_mode,
         l2_block_rx,
+        mempool_transaction_tx,
+        mempool_transaction_rx,
     }
 }
 
@@ -220,6 +228,17 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             .add_external_transaction(pool_transaction)
             .await
             .map_err(EthApiError::from)?;
+
+        if let Err(e) =
+            self.context
+                .mempool_transaction_tx
+                .send(MempoolTransactionSignal::NewTransaction((
+                    hash,
+                    rlp_encoded_tx.clone(),
+                )))
+        {
+            tracing::warn!("Failed to send new transaction signal: {:?}", e);
+        }
 
         // Do not return error here just log
         if let Err(e) = self
@@ -371,6 +390,34 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
 
                 tokio::spawn(async move {
                     handle_l2_block_subscription(subscription, &mut rx, ledger).await;
+                });
+            }
+            "mempoolTransactions" => {
+                let subscription = pending.accept().await?;
+                let mut rx = self.context.mempool_transaction_rx.resubscribe();
+                tokio::spawn(async move {
+                    loop {
+                        match rx.recv().await {
+                            Ok(response) => {
+                                if let Err(e) = subscription
+                                    .send_timeout(
+                                        jsonrpsee::SubscriptionMessage::new(
+                                            subscription.method_name(),
+                                            subscription.subscription_id(),
+                                            &response,
+                                        )
+                                        .unwrap(),
+                                        std::time::Duration::from_secs(10),
+                                    )
+                                    .await
+                                {
+                                    tracing::debug!("Failed to send mempool transaction: {}", e);
+                                    return false; // End subscription
+                                }
+                            }
+                            Err(_) => {}
+                        }
+                    }
                 });
             }
             _ => {
