@@ -1,3 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
 TEST_DIR=proving-stats
 OUT_FILE_NAME="$1"
 
