@@ -15,7 +15,7 @@ da_private_key = "56D08C2DDE7F412F80EC99A0A328F76688C904BD4D1435281EFC9270EC8C87
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
-path = "bin/citrea/tests/proving-stats/dbs/batch-prover-db"
+path = "proving-stats/dbs/batch-prover-db"
 db_max_open_files = 5000
 
 [rpc]
