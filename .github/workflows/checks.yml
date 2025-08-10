@@ -511,7 +511,7 @@ jobs:
 
       - name: Run codespell
         run: |
-          codespell --skip="*.lock,./target,./crates/evm/ethereum-tests,./bin/citrea/tests/proving-stats," -I="codespell_ignore.txt"
+          codespell --skip="*.lock,./target,./crates/evm/ethereum-tests," -I="codespell_ignore.txt"
 
 
   proving-stats:
@@ -537,7 +537,7 @@ jobs:
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
       - name: Install dependencies
-        working-directory: bin/citrea/tests/proving-stats
+        working-directory: proving-stats
         run: pip install -r requirements.txt
 
       - name: Restore cached Docker image
@@ -552,7 +552,7 @@ jobs:
       - name: Download and unzip test data
         run: |
           curl -L -o archive.zip "https://static.testnet.citrea.xyz/proving-stats-data.zip"
-          unzip archive.zip -d bin/citrea/tests/proving-stats/
+          unzip archive.zip -d proving-stats/
       - name: Run tests on current branch 
         run: |
           chmod +x ./.github/scripts/run-proving-test.sh
@@ -575,7 +575,7 @@ jobs:
         id: restore-nightly
         uses: actions/cache@v4
         with:
-          path: bin/citrea/tests/proving-stats/results/nightly-stats.json
+          path: proving-stats/results/nightly-stats.json
           key: nightly-proving-stats-${{ steps.nightly-commit.outputs.nightly-hash }}
 
       # --- Run test only if cache missed ---
@@ -638,7 +638,7 @@ jobs:
         shell: bash
 
       - name: Compare the results
-        working-directory: bin/citrea/tests/proving-stats
+        working-directory: proving-stats
         run: |
           python compare-results.py \
             --patch-file results/patch-stats.json \
@@ -659,5 +659,5 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
-          body-path: 'bin/citrea/tests/proving-stats/comment-body.md'
+          body-path: 'proving-stats/comment-body.md'
           edit-mode: replace
