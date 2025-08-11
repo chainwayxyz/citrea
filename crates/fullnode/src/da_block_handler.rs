@@ -148,6 +148,7 @@ where
             select! {
                 biased;
                 _ = &mut shutdown_signal => {
+                    info!("Shutting down L1BlockHandler");
                     return;
                 }
                 _ = &mut l1_sync_worker => {},
