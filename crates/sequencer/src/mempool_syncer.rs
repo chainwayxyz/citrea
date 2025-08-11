@@ -97,28 +97,44 @@ where
                     return;
                 }
                 _ = interval.tick() => {
-                    {
-                        let transactions_buffer = self.transactions_buffer.clone();
-                        let mut txs_buffer = transactions_buffer.lock();
-
-                        let txs = txs_buffer.drain().collect();
-                        if let Err(e) = self.ledger_db.batch_insert_mempool_txs(txs) {
-                            error!("Failed to batch insert mempool transactions: {}", e);
-                        }
-                    }
-
-                    {
-                        let txs_to_remove_buffer = self.transactions_to_remove_buffer.clone();
-                        let mut txs_to_remove = txs_to_remove_buffer.lock();
-
-                        let txs = txs_to_remove.drain().collect();
-                        if let Err(e) = self.ledger_db.remove_mempool_txs(txs) {
-                            error!("Failed to batch remove mempool transactions: {}", e);
-                        }
+                    if let Err(e) = self.update_mempool_transactions() {
+                        error!("Failed to update mempool transactions: {}", e);
                     }
                 }
             }
         }
+    }
+
+    fn update_mempool_transactions(&self) -> anyhow::Result<()> {
+        let mut txs = {
+            let mut guard = self.transactions_buffer.lock();
+            std::mem::take(&mut *guard).into_iter().collect::<Vec<_>>() // moves out, leaves empty HashMap
+        };
+
+        let mut to_remove = {
+            let mut guard = self.transactions_to_remove_buffer.lock();
+            std::mem::take(&mut *guard) // moves out, leaves empty set in place
+        };
+
+        // If a tx is both in 'txs' and marked for removal, drop it from inserts
+        // and consume it from the removal set so we don't try to remove it twice.
+        txs.retain(|(h, _)| !to_remove.remove(h));
+
+        if txs.is_empty() && to_remove.is_empty() {
+            return Ok(());
+        }
+
+        if !txs.is_empty() {
+            self.ledger_db.batch_insert_mempool_txs(txs)?;
+        }
+
+        if !to_remove.is_empty() {
+            // Convert remaining set to a Vec only once at the edge
+            let hashes: Vec<_> = to_remove.into_iter().collect();
+            self.ledger_db.remove_mempool_txs(hashes)?;
+        }
+
+        Ok(())
     }
 }
 
