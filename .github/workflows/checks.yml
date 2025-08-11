@@ -582,6 +582,7 @@ jobs:
       - name: Download nightly build artifact
         id: download-artifact
         if: steps.restore-nightly.outputs.cache-hit != 'true'
+        continue-on-error: true
         uses: dawidd6/action-download-artifact@v11
         with:
           name: citrea-build
@@ -627,6 +628,11 @@ jobs:
         if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         run: git checkout ${{ steps.current-commit.outputs.head-hash }}
 
+      # Sequencer DB is removed in run-proving-test.sh to avoid state corruption
+      - name: Restore sequencer DB from test data
+        if: steps.restore-nightly.outputs.cache-hit != 'true'
+        run: |
+          unzip archive.zip "dbs/*" -d proving-stats/
       - name: Make citrea executable
         if: steps.restore-nightly.outputs.cache-hit != 'true'
         run: chmod +x target/debug/citrea
