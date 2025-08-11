@@ -106,10 +106,9 @@ where
             );
 
         self.task_executor
-            .spawn_critical_with_graceful_shutdown_signal(
-                "listen_mode_sequencer_mempool_syncer",
-                |shutdown_signal| async move { self.mempool_syncer.run(shutdown_signal).await },
-            );
+            .spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
+                self.mempool_syncer.run(shutdown_signal).await
+            });
 
         Ok(())
     }
