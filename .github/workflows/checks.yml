@@ -518,7 +518,7 @@ jobs:
     name: Proving stats
     runs-on: ubicloud-standard-2
     needs: [build, docker-setup]
-    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && contains(github.event.pull_request.labels.*.name, 'guest-code')
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && contains(github.event.pull_request.labels.*.name, 'guest-code') 
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
