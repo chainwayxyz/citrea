@@ -582,6 +582,7 @@ jobs:
       - name: Download nightly build artifact
         id: download-artifact
         if: steps.restore-nightly.outputs.cache-hit != 'true'
+        continue-on-error: true
         uses: dawidd6/action-download-artifact@v11
         with:
           name: citrea-build
