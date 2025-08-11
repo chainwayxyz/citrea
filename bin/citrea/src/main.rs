@@ -265,7 +265,7 @@ where
                 is_listen_mode,
                 sequencer_config
             );
-            let (mempool_transaction_tx, _mempool_transaction_rx) = broadcast::channel(10);
+            let (mempool_transaction_tx, _mempool_transaction_rx) = broadcast::channel(1000);
             match rollup_blueprint
                 .create_sequencer(
                     genesis_config,
