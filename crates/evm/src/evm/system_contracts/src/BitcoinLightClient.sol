@@ -76,7 +76,8 @@ contract BitcoinLightClient is IBitcoinLightClient {
     /// @param _proof Merkle proof
     /// @param _index Index of the transaction
     /// @return If the witness transaction ID is included in the witness root hash of the block
-    function verifyInclusion(bytes32 _blockHash, bytes32 _wtxId, bytes calldata _proof, uint256 _index) external view returns (bool) {
+function verifyInclusion(bytes32 _blockHash, bytes32 _wtxId, bytes calldata _proof, uint256 _index) external view returns (bool) {
+        require(witnessRoots[_blockHash] != bytes32(0) || coinbaseDepths[_blockHash] != 0, "Unknown block hash");
         return _verifyInclusion(_blockHash, _wtxId, _proof, _index);
     }
 

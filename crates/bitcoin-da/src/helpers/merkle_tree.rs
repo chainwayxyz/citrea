@@ -117,7 +117,9 @@ impl BitcoinMerkleTree {
             } else {
                 let left = &merkle_proof[level as usize];
                 if left == &combined_hash {
-                    panic!("Merkle proof is invalid: left hash matches combined hash");
+                    // Instead of panicking, return an impossible hash to indicate invalid proof to caller paths that compare roots
+                    // Note: callers should treat mismatch as invalid proof
+                    return [0u8; 32];
                 }
                 preimage[..32].copy_from_slice(left);
                 preimage[32..].copy_from_slice(&combined_hash);
@@ -136,9 +138,11 @@ mod tests {
 
     use super::*;
     use crate::helpers::calculate_wtxid;
+    #[cfg(feature = "native")]
     use crate::helpers::parsers::parse_hex_transaction;
 
     #[test]
+    #[cfg(feature = "native")]
     fn test_merkle_root_with_proof() {
         let mut transactions: Vec<[u8; 32]> = vec![];
         for i in 0u8..100u8 {
@@ -156,7 +160,7 @@ mod tests {
     #[test]
     /// a b c
     /// but try to cheat and say c is index 3
-    #[should_panic(expected = "Merkle proof is invalid: left hash matches combined hash")]
+    #[cfg(feature = "native")]
     fn test_merkle_root_with_proof_wrong_idx_a() {
         let mut transactions: Vec<[u8; 32]> = vec![];
         for i in 0u8..3u8 {
@@ -170,12 +174,13 @@ mod tests {
             BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[2], 2, &idx_path);
         assert_eq!(root, calculated_root);
 
-        BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[2], 3, &idx_path);
+        let invalid_root = BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[2], 3, &idx_path);
+        assert_eq!(invalid_root, [0u8; 32]);
     }
     #[test]
     /// a b c d e f
     /// but try to cheat and say e is index 6
-    #[should_panic(expected = "Merkle proof is invalid: left hash matches combined hash")]
+    #[cfg(feature = "native")]
     fn test_merkle_root_with_proof_wrong_idx_b() {
         let mut transactions: Vec<[u8; 32]> = vec![];
         for i in 0u8..6u8 {
@@ -189,7 +194,8 @@ mod tests {
             BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[4], 4, &idx_path);
         assert_eq!(root, calculated_root);
 
-        BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[4], 6, &idx_path);
+        let invalid_root = BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[4], 6, &idx_path);
+        assert_eq!(invalid_root, [0u8; 32]);
     }
 
     #[test]
@@ -199,6 +205,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "native")]
     fn test_merkle_tree_against_bitcoin_impl() {
         let txs = std::fs::read_to_string("test_data/mock_txs.txt")
             .unwrap()

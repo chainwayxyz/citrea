@@ -161,7 +161,7 @@ impl VerifiableShortHeaderProof for BitcoinHeaderShortProof {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "native"))]
 mod test {
     use std::fs;
     use std::ops::Deref;

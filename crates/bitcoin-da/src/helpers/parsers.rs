@@ -79,13 +79,18 @@ pub trait VerifyParsed {
 
     /// Verifies the signature of the inscription and returns the hash of the body
     /// Returns None if the signature is unparsable or doesn't belong to the body.
-    fn get_sig_verified_hash(&self) -> Option<[u8; 32]> {
+fn get_sig_verified_hash(
+        &self) -> Option<[u8; 32]> {
         if let Ok(key) = k256::ecdsa::VerifyingKey::from_sec1_bytes(self.public_key()) {
             use k256::ecdsa::signature::DigestVerifier;
-            let hash = sha2::Sha256::new_with_prefix(self.body());
+            // Domain separation: prepend a fixed tag to the body
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(b"CITREA_INSCRIPTION_V1|");
+            hasher.update(self.body());
+            let digest = hasher.clone();
             let signature = k256::ecdsa::Signature::from_slice(self.signature());
-            if signature.is_ok() && key.verify_digest(hash.clone(), &signature.unwrap()).is_ok() {
-                return Some(hash.finalize().into());
+            if signature.is_ok() && key.verify_digest(digest, &signature.unwrap()).is_ok() {
+                return Some(hasher.finalize().into());
             }
         }
 
