@@ -113,10 +113,7 @@ where
 
     /// Updates the mempool transactions in the database
     fn update_mempool_transactions(&self) -> anyhow::Result<()> {
-        let mut txs = {
-            let mut guard = self.transactions_buffer.lock();
-            guard.drain().collect::<Vec<_>>()
-        };
+        let mut txs = self.transactions_buffer.lock().drain().collect::<Vec<_>>();
 
         let mut to_remove = {
             let mut guard = self.transactions_to_remove_buffer.lock();

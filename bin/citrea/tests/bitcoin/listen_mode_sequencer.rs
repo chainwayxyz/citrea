@@ -13,7 +13,7 @@ use citrea_e2e::config::{SequencerConfig, SequencerMempoolConfig, TestCaseConfig
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::NodeKind;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
-use citrea_e2e::traits::{NodeT, Restart};
+use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
 use citrea_sequencer::SequencerRpcClient;
 use sov_ledger_rpc::LedgerRpcClient;
@@ -660,8 +660,6 @@ impl TestCase for MempoolSyncerTest {
         let listen_mode_sequencer = cluster_iter.next().unwrap();
 
         let max_l2_blocks_per_commitment = main_sequencer.config.node.max_l2_blocks_per_commitment;
-
-        let da = f.bitcoin_nodes.get_mut(0).unwrap();
 
         let sequ_host = main_sequencer.config.clone().rollup.rpc.bind_host;
         let sequ_port = main_sequencer.config.clone().rollup.rpc.bind_port;
