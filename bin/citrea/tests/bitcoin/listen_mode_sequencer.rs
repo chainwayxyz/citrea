@@ -1,22 +1,20 @@
-use std::{collections::HashMap, net::SocketAddr, time::Duration};
+use std::collections::HashMap;
+use std::net::SocketAddr;
+use std::time::Duration;
 
-use alloy_primitives::{
-    ruint::aliases::{U256, U32},
-    Address, U64,
-};
+use alloy_primitives::ruint::aliases::{U256, U32};
+use alloy_primitives::{Address, U64};
 use alloy_rpc_types::BlockId;
 use async_trait::async_trait;
 use bitcoincore_rpc::RpcApi;
-use citrea_e2e::{
-    bitcoin::DEFAULT_FINALITY_DEPTH,
-    client::Client,
-    config::TestCaseConfig,
-    framework::TestFramework,
-    node::NodeKind,
-    test_case::{TestCase, TestCaseRunner},
-    traits::{NodeT, Restart},
-    Result,
-};
+use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
+use citrea_e2e::client::Client;
+use citrea_e2e::config::TestCaseConfig;
+use citrea_e2e::framework::TestFramework;
+use citrea_e2e::node::NodeKind;
+use citrea_e2e::test_case::{TestCase, TestCaseRunner};
+use citrea_e2e::traits::{NodeT, Restart};
+use citrea_e2e::Result;
 use sov_ledger_rpc::LedgerRpcClient;
 use tokio::time::sleep;
 
@@ -373,7 +371,7 @@ impl TestCase for ReadOnlySequencerTest {
                     "--l2-target",
                     "1",
                     "--l1-target",
-                    &"120".to_string(),
+                    "120",
                     "--sequencer-commitment-index",
                     "0",
                 ],
@@ -391,7 +389,7 @@ impl TestCase for ReadOnlySequencerTest {
                     "--l2-target",
                     "1",
                     "--l1-target",
-                    &"120".to_string(),
+                    "120",
                     "--sequencer-commitment-index",
                     "0",
                 ],

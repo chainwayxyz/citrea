@@ -238,6 +238,8 @@ pub async fn start_rollup(
 
         let is_listen_mode = sequencer_config.listen_mode_config.is_some();
 
+        let (mempool_transaction_tx, _) = tokio::sync::broadcast::channel(1000);
+
         match CitreaRollupBlueprint::create_sequencer(
             &mock_demo_rollup,
             genesis_config,
@@ -247,6 +249,7 @@ pub async fn start_rollup(
             ledger_db,
             storage_manager,
             l2_block_tx,
+            mempool_transaction_tx,
             rpc_module,
             backup_manager,
             task_executor.clone(),

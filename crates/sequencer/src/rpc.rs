@@ -71,6 +71,7 @@ pub struct RpcContext {
 /// * `ledger_db` - Ledger database access
 /// * `test_mode` - Whether the sequencer is running in test mode
 /// * `l2_block_rx` - Broadcast receiver for L2 block notifications
+#[allow(clippy::too_many_arguments)]
 pub fn create_rpc_context(
     mempool: Arc<CitreaMempool>,
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
@@ -397,25 +398,22 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
                 let mut rx = self.context.mempool_transaction_rx.resubscribe();
                 tokio::spawn(async move {
                     loop {
-                        match rx.recv().await {
-                            Ok(response) => {
-                                if let Err(e) = subscription
-                                    .send_timeout(
-                                        jsonrpsee::SubscriptionMessage::new(
-                                            subscription.method_name(),
-                                            subscription.subscription_id(),
-                                            &response,
-                                        )
-                                        .unwrap(),
-                                        std::time::Duration::from_secs(10),
+                        if let Ok(response) = rx.recv().await {
+                            if let Err(e) = subscription
+                                .send_timeout(
+                                    jsonrpsee::SubscriptionMessage::new(
+                                        subscription.method_name(),
+                                        subscription.subscription_id(),
+                                        &response,
                                     )
-                                    .await
-                                {
-                                    tracing::debug!("Failed to send mempool transaction: {}", e);
-                                    return false; // End subscription
-                                }
+                                    .unwrap(),
+                                    std::time::Duration::from_secs(10),
+                                )
+                                .await
+                            {
+                                tracing::debug!("Failed to send mempool transaction: {}", e);
+                                return false; // End subscription
                             }
-                            Err(_) => {}
                         }
                     }
                 });

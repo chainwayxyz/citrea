@@ -13,6 +13,7 @@ use sov_db::ledger_db::SequencerLedgerOps;
 use sov_rollup_interface::rpc::MempoolTransactionSignal;
 use tracing::{debug, error, info, instrument};
 
+/// MempoolSyncer is responsible for synchronizing the mempool transactions for listen mode sequencer
 #[derive(Clone)]
 pub struct MempoolSyncer<DB>
 where
@@ -62,6 +63,7 @@ where
         info!("Shutting down mempool syncer");
     }
 
+    /// Runs the subscription task for mempool transaction updates
     pub async fn run_subscription_task(&self, shutdown_signal: GracefulShutdown) {
         loop {
             let exponential_backoff = ExponentialBackoff::default();
@@ -85,6 +87,7 @@ where
         }
     }
 
+    /// Runs the update task for mempool transaction database
     pub async fn update_mempool_transaction_db_task(&self, shutdown_signal: GracefulShutdown) {
         // Waiting at least 2 seconds here so that txs that got in block are removed so we do less db ops
         let mut interval = tokio::time::interval(Duration::from_secs(3));
@@ -108,6 +111,7 @@ where
         }
     }
 
+    /// Updates the mempool transactions in the database
     fn update_mempool_transactions(&self) -> anyhow::Result<()> {
         let mut txs = {
             let mut guard = self.transactions_buffer.lock();
@@ -141,6 +145,7 @@ where
     }
 }
 
+/// Subscribes to mempool transaction updates from the sequencer
 async fn subscribe_to_mempool_transaction_updates(
     sequencer_ws_endpoint: &str,
     transactions_buffer: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>,
