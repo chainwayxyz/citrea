@@ -353,7 +353,7 @@ contract BridgeTest is Test {
     }
 
     function testCannotReinitialize() public {
-        vm.expectRevert("Contract is already initialized");
+        vm.expectRevert(); // initializer modifier reverts with OZ InvalidInitialization()
         vm.prank(SYSTEM_CALLER);
         bridge.initialize(depositPrefix, depositSuffix, 5);
     }

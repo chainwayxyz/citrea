@@ -160,7 +160,9 @@ pub fn get_last_l1_hash_on_contract<C: Context>(
     };
 
     // we calculate the corresponding EVM storage slot the last L1 height's hash lives
-    let mut bytes = [0u8; 64];
+let mut bytes = [0u8; 64];
+    // Guard against underflow
+    assert!(next_l1_height > U256::from(0), "Next L1 height should be > 0");
     bytes[0..32].copy_from_slice(&(next_l1_height - U256::from(1)).to_be_bytes::<32>());
     // counter intuitively the contract stores next block height (expected on setBlockInfo)x
     bytes[32..64].copy_from_slice(&U256::from(1).to_be_bytes::<32>());

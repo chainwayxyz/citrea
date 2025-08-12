@@ -107,7 +107,10 @@ impl DaVerifier for BitcoinVerifier {
             .wtxids
             .iter()
             .filter(|wtxid| wtxid.starts_with(prefix));
+        let mut total_relevant = 0usize;
+        let mut total_verified = 0usize;
         for (wtxid, tx) in relevant_wtxid_iter.zip_eq(&completeness_proof) {
+            total_relevant += 1;
             // ensure completeness proof tx matches the inclusion tx
             if &calculate_wtxid(tx) != wtxid {
                 return Err(ValidationError::RelevantTxNotInProof);
@@ -118,15 +121,13 @@ impl DaVerifier for BitcoinVerifier {
                 match parsed_tx {
                     ParsedTransaction::Complete(complete) => {
                         if let Some(hash) = complete.get_sig_verified_hash() {
-                            // complete.body is compressed, but we'll leave the compression to
-                            // circuit logic
-
                             blobs.push(BlobWithSender::new(
                                 complete.body,
                                 complete.public_key,
                                 hash,
                                 *wtxid,
-                            ))
+                            ));
+                            total_verified += 1;
                         }
                     }
                     ParsedTransaction::Aggregate(aggregate) => {
@@ -136,7 +137,8 @@ impl DaVerifier for BitcoinVerifier {
                                 aggregate.public_key,
                                 hash,
                                 *wtxid,
-                            ))
+                            ));
+                            total_verified += 1;
                         }
                     }
                     ParsedTransaction::Chunk(chunk) => {
@@ -147,6 +149,7 @@ impl DaVerifier for BitcoinVerifier {
                             [0; 32],
                             *wtxid,
                         ));
+                        total_verified += 1;
                     }
                     ParsedTransaction::BatchProverMethodId(method_id) => {
                         if let Some(hash) = method_id.get_sig_verified_hash() {
@@ -155,7 +158,8 @@ impl DaVerifier for BitcoinVerifier {
                                 method_id.public_key,
                                 hash,
                                 *wtxid,
-                            ))
+                            ));
+                            total_verified += 1;
                         }
                     }
                     ParsedTransaction::SequencerCommitment(seq_comm) => {
@@ -166,10 +170,16 @@ impl DaVerifier for BitcoinVerifier {
                                 hash,
                                 *wtxid,
                             ));
+                            total_verified += 1;
                         }
                     }
                 }
             }
+        }
+
+        // Ensure all relevant transactions were verified
+        if total_relevant != total_verified {
+            return Err(ValidationError::InvalidBlock);
         }
 
         // If there is only coinbase tx in a block, then the witness root should be 0
@@ -245,7 +255,7 @@ impl DaVerifier for BitcoinVerifier {
         );
 
         // Check that the tx root in the block header matches the tx root in the inclusion proof.
-        if block_header.merkle_root() != claimed_root {
+        if block_header.merkle_root() != claimed_root || claimed_root == [0u8; 32] {
             return Err(ValidationError::IncorrectTxidCommitment);
         }
 
