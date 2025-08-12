@@ -669,6 +669,21 @@ impl TestCase for MempoolSyncerTest {
 
         let some_address = Address::random();
 
+        let mut removed_tx_hashes = vec![];
+
+        for _ in 0..max_l2_blocks_per_commitment / 2 {
+            for _ in 0..10 {
+                let pending_tx = seq_test_client
+                    .send_eth(some_address, None, None, None, 1e17 as u128)
+                    .await?;
+                let tx_hash = *pending_tx.tx_hash();
+
+                removed_tx_hashes.push(tx_hash);
+            }
+
+            main_sequencer.client.send_publish_batch_request().await?;
+        }
+
         let current_nonce = seq_test_client.nonce();
         let mut future_nonce = current_nonce + 1;
 
@@ -727,6 +742,22 @@ impl TestCase for MempoolSyncerTest {
         listen_mode_sequencer
             .restart(Some(main_sequencer_config), None)
             .await?;
+
+        // The tx hashes that are in block should not be in the mempool
+        // Should be in the block
+        for tx_hash in removed_tx_hashes {
+            let tx = listen_mode_sequencer
+                .client
+                .http_client()
+                .eth_get_transaction_by_hash(tx_hash.clone(), Some(false))
+                .await?
+                .unwrap();
+            assert!(
+                tx.block_number.is_some(),
+                "Transaction should not be in mempool: {:?}",
+                tx_hash
+            );
+        }
 
         // All the pending txs should be in the mempool of the revived sequencer as well
         for tx_hash in tx_hashes.clone() {
