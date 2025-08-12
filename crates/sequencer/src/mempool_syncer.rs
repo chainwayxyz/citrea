@@ -93,6 +93,9 @@ where
         loop {
             tokio::select! {
                 _ = shutdown_signal.clone() => {
+                    if let Err(e) = self.update_mempool_transactions() {
+                        error!("Failed to update mempool transactions before shutdown: {}", e);
+                    }
                     info!("Shutting down mempool transaction update task");
                     return;
                 }
@@ -108,12 +111,12 @@ where
     fn update_mempool_transactions(&self) -> anyhow::Result<()> {
         let mut txs = {
             let mut guard = self.transactions_buffer.lock();
-            std::mem::take(&mut *guard).into_iter().collect::<Vec<_>>() // moves out, leaves empty HashMap
+            guard.drain().collect::<Vec<_>>()
         };
 
         let mut to_remove = {
             let mut guard = self.transactions_to_remove_buffer.lock();
-            std::mem::take(&mut *guard) // moves out, leaves empty set in place
+            std::mem::take(&mut *guard)
         };
 
         // If a tx is both in 'txs' and marked for removal, drop it from inserts
