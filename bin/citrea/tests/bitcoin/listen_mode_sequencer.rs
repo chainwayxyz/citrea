@@ -9,12 +9,13 @@ use async_trait::async_trait;
 use bitcoincore_rpc::RpcApi;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::client::Client;
-use citrea_e2e::config::TestCaseConfig;
+use citrea_e2e::config::{SequencerConfig, SequencerMempoolConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::NodeKind;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::{NodeT, Restart};
 use citrea_e2e::Result;
+use citrea_sequencer::SequencerRpcClient;
 use sov_ledger_rpc::LedgerRpcClient;
 use tokio::time::sleep;
 
@@ -624,4 +625,176 @@ impl TestCase for OutOfOrderSubscriptionTest {
 #[tokio::test]
 async fn test_out_of_order_subscription() -> Result<()> {
     TestCaseRunner::new(OutOfOrderSubscriptionTest).run().await
+}
+
+struct MempoolSyncerTest;
+
+#[async_trait::async_trait]
+impl TestCase for MempoolSyncerTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            n_nodes: HashMap::from([(NodeKind::Sequencer, 2)]),
+            with_sequencer: true,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(147)
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            mempool_conf: SequencerMempoolConfig {
+                max_account_slots: 1000,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let cluster = f.sequencer_cluster.as_mut().unwrap();
+        let mut cluster_iter = cluster.iter_mut();
+        let main_sequencer = cluster_iter.next().unwrap();
+        let listen_mode_sequencer = cluster_iter.next().unwrap();
+
+        let max_l2_blocks_per_commitment = main_sequencer.config.node.max_l2_blocks_per_commitment;
+
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+
+        let sequ_host = main_sequencer.config.clone().rollup.rpc.bind_host;
+        let sequ_port = main_sequencer.config.clone().rollup.rpc.bind_port;
+
+        let seq_test_client =
+            make_test_client(SocketAddr::new(sequ_host.parse()?, sequ_port)).await?;
+
+        let some_address = Address::random();
+
+        let current_nonce = seq_test_client.nonce();
+        let mut future_nonce = current_nonce + 1;
+
+        let mut tx_hashes = Vec::new();
+
+        for _ in 0..max_l2_blocks_per_commitment / 2 {
+            for _ in 0..10 {
+                let pending_tx = seq_test_client
+                    .send_eth(some_address, None, None, Some(future_nonce), 1e17 as u128)
+                    .await?;
+                let tx_hash = *pending_tx.tx_hash();
+
+                tx_hashes.push(tx_hash);
+                future_nonce += 1;
+            }
+
+            main_sequencer.client.send_publish_batch_request().await?;
+        }
+
+        let head_l2_height = main_sequencer
+            .client
+            .http_client()
+            .get_head_l2_block_height()
+            .await?;
+
+        // Wait for the listen mode sequencer to catch up
+        listen_mode_sequencer
+            .wait_for_l2_height(head_l2_height.to::<u64>(), None)
+            .await?;
+
+        // See that all the txs are in the mempool
+        for tx_hash in tx_hashes.clone() {
+            let tx = main_sequencer
+                .client
+                .http_client()
+                .eth_get_transaction_by_hash(tx_hash, Some(true))
+                .await?;
+            assert!(
+                tx.is_some(),
+                "Transaction not found in mempool: {:?}",
+                tx_hash
+            );
+        }
+
+        // Shutdown main sequencer and restart listen mode sequencer
+        let main_sequencer_config = main_sequencer.config.clone();
+        main_sequencer.wait_until_stopped().await?;
+
+        listen_mode_sequencer.client = Client::new(
+            &main_sequencer_config.rollup.rpc.bind_host,
+            main_sequencer_config.rollup.rpc.bind_port,
+        )
+        .unwrap();
+
+        // Restart listen mode sequencer as main sequencer
+        listen_mode_sequencer
+            .restart(Some(main_sequencer_config), None)
+            .await?;
+
+        // All the pending txs should be in the mempool of the revived sequencer as well
+        for tx_hash in tx_hashes.clone() {
+            let tx = listen_mode_sequencer
+                .client
+                .http_client()
+                .eth_get_transaction_by_hash(tx_hash, Some(true))
+                .await?;
+            assert!(
+                tx.is_some(),
+                "Transaction not found in mempool: {:?}",
+                tx_hash
+            );
+        }
+
+        // Send one tx with the correct nonce so all the transactions get in block
+        let listen_mode_sequencer_test_client = make_test_client(SocketAddr::new(
+            listen_mode_sequencer.config.rollup.rpc.bind_host.parse()?,
+            listen_mode_sequencer.config.rollup.rpc.bind_port,
+        ))
+        .await?;
+
+        let one_nonce_tx = listen_mode_sequencer_test_client
+            .send_eth(some_address, None, None, Some(current_nonce), 1e17 as u128)
+            .await?;
+        let tx_hash = *one_nonce_tx.tx_hash();
+
+        // Publish some blocks so transactions are in blocks
+        for _ in 0..max_l2_blocks_per_commitment {
+            listen_mode_sequencer_test_client
+                .send_publish_batch_request()
+                .await;
+        }
+
+        let tx = listen_mode_sequencer
+            .client
+            .http_client()
+            .eth_get_transaction_by_hash(tx_hash, Some(false))
+            .await?
+            .unwrap();
+        assert!(
+            tx.block_number.is_some(),
+            "Transaction not in block: {:?}",
+            tx_hash
+        );
+
+        // All other txs should also be in blocks
+        for tx_hash in tx_hashes {
+            let tx = listen_mode_sequencer
+                .client
+                .http_client()
+                .eth_get_transaction_by_hash(tx_hash, Some(false))
+                .await?
+                .unwrap();
+            assert!(
+                tx.block_number.is_some(),
+                "Transaction not in block: {:?}",
+                tx_hash
+            );
+        }
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_mempool_syncer() -> Result<()> {
+    TestCaseRunner::new(MempoolSyncerTest).run().await
 }

@@ -95,6 +95,10 @@ impl TestClient {
         Ok(resp.status().as_u16())
     }
 
+    pub(crate) fn nonce(&self) -> u64 {
+        self.current_nonce.load(Ordering::Relaxed)
+    }
+
     pub(crate) async fn spam_publish_batch_request(
         &self,
     ) -> Result<(), Box<dyn std::error::Error>> {
