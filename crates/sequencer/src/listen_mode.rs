@@ -24,6 +24,7 @@
 
 use citrea_common::l2::{L2BlockProcessor, L2Syncer, ProcessL2BlockResult};
 use reth_tasks::TaskExecutor;
+use sov_db::schema::types::L2BlockNumber;
 use sov_rollup_interface::services::da::DaService;
 
 use crate::l1_syncer::L1Syncer;
@@ -41,8 +42,8 @@ impl<DB> L2BlockProcessor<DB> for ListenModeSequencerL2BlockProcessor
 where
     DB: sov_db::ledger_db::SequencerLedgerOps,
 {
-    fn process_result(_result: &ProcessL2BlockResult, _db: &DB) -> anyhow::Result<()> {
-        Ok(())
+    fn process_result(result: &ProcessL2BlockResult, db: &DB) -> anyhow::Result<()> {
+        db.set_state_diff(L2BlockNumber(result.l2_height), &result.state_diff.clone())
     }
 
     fn record_metrics(result: &ProcessL2BlockResult) {
