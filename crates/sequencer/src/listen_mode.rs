@@ -1,7 +1,26 @@
-//! L2 block synchronization for the listen mode sequencer
+//! This module contains the sequencers listen mode functionality
 //!
-//! This module contains functionality for synchronizing L2 blocks and commitments from the sequencer
-//! and processing them to maintain the listen mode sequencer's state to be the same with sequencer's state.
+//! Listen mode sequencer lives as a separate process in the same network with sequencer and its purpose is to be a backup of the producer sequencer.
+//! It stores almost everything in the ledger db and state the same way sequencer does.
+//! In case of sequencer failure the listen mode sequencer will be restarted with sequencer config, since it has the same state with the  producer sequencer it will continue from where the crashed sequencer has left off.
+//! This is useful in scenarios like:
+//! - Sequencer node running out of memory and crashing
+//! - Sequencer node running out of disk space and crashing
+//!
+//! This node will provide us high availability and fault tolerance.
+//!
+//! Listen Mode sequencer is not a new type of node, it is a different way to start sequencer which does not produce block or submit commitments, rather connects to the producer sequencer and bitcoin and listens for:
+//! - New L2 Blocks:
+//!     This is done via both polling and subscription. Since subscription (websocket) will only provide the latest blocks and is prone to losses we also use polling to ensure we don't miss any blocks.
+//!     Uses the common **L2 Syncer** module
+//! - L1 block synchronization for sequencer commitments:
+//!     Listen mode sequencer scans finalized L1 blocks starting from the first l2 blocks recorded l1 height on bitcoin light client contract
+//!     This is for saving the sequencer commitments and when restarted as producer sequencer it will only fetch commitments that are non-finalized or in mempool using `resubmit_pending_commitments` function
+//!     Listen mode sequencer does not need to track pending commitments of producer sequencer because the commitment service is deterministic and readonly sequencer will be creating the same exact commitments
+//! - Mempool transactions:
+//!     Normally producer sequencer stores all the mempool transactions in persisten storage as well to recover them in case of crashes and restarts
+//!     For that reason listen mode sequencer also stores all mempool transactions in its own persistent storage, updates the persisten storage regularly and does not keep in block txs in that storage
+//!     When restarted as producer sequencer, it will put all the txs in the persistent storage back into mempool
 
 use citrea_common::l2::{L2BlockProcessor, L2Syncer, ProcessL2BlockResult};
 use reth_tasks::TaskExecutor;
