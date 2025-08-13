@@ -8,7 +8,7 @@ use backoff::ExponentialBackoffBuilder;
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Notify};
 use tokio::time::sleep;
 use tracing::{debug, error, info};
 
@@ -24,6 +24,7 @@ pub async fn sync_l1<Da>(
     da_service: Arc<Da>,
     block_queue: Arc<Mutex<VecDeque<Da::FilteredBlock>>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+    notifier: Arc<Notify>,
 ) where
     Da: DaService,
 {
@@ -59,6 +60,7 @@ pub async fn sync_l1<Da>(
 
             let mut queue = block_queue.lock().await;
 
+            notifier.notify_one();
             if queue.len() < 10 {
                 queue.push_back(l1_block);
             } else {
