@@ -467,7 +467,7 @@ impl TestCase for SubscriptionOnlyTest {
         let main_sequencer = cluster_iter.next().unwrap();
         let listen_mode_sequencer = cluster_iter.next().unwrap();
 
-        // Configure listen mode with sync_blocks_count = 0, desactivates polling
+        // Configure listen mode with sync_blocks_count = 0, deactivates polling
         let mut listen_mode_config = listen_mode_sequencer.config.clone();
         listen_mode_config
             .node
@@ -536,7 +536,7 @@ impl TestCase for OutOfOrderSubscriptionTest {
             main_sequencer.client.send_publish_batch_request().await?;
         }
 
-        // Configure listen mode with sync_blocks_count = 0, desactivates polling
+        // Configure listen mode with sync_blocks_count = 0, deactivates polling
         let mut subscription_only_config = listen_mode_sequencer.config.clone();
         subscription_only_config
             .node
