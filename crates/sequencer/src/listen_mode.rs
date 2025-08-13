@@ -28,6 +28,7 @@ use sov_rollup_interface::services::da::DaService;
 
 use crate::l1_syncer::L1Syncer;
 use crate::mempool_syncer::MempoolSyncer;
+use crate::metrics::SEQUENCER_METRICS as SM;
 
 /// Listen Mode Sequencer L2 Syncer
 pub type ListenModeSequencerL2Syncer<DA, DB> =
@@ -44,8 +45,10 @@ where
         Ok(())
     }
 
-    fn record_metrics(_result: &ProcessL2BlockResult) {
-        // Metrics recording logic can be added here if needed
+    fn record_metrics(result: &ProcessL2BlockResult) {
+        SM.current_l2_block.set(result.l2_height as f64);
+        SM.entire_block_production_duration_gauge
+            .set(result.process_duration);
     }
 }
 

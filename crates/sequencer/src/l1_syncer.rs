@@ -5,6 +5,7 @@
 
 use std::collections::VecDeque;
 use std::sync::Arc;
+use std::time::Instant;
 
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
@@ -23,6 +24,8 @@ use tokio::select;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tracing::{error, info, instrument};
+
+use crate::metrics::SEQUENCER_METRICS as SM;
 
 /// Handles L1 sync operations for the sequencer by tracking the finalized L1 blocks and
 /// extracting the sequencer commitments from them.
@@ -168,6 +171,7 @@ where
 
         // process all the pending l1 blocks
         while !pending_l1_blocks.is_empty() {
+            let start = Instant::now();
             let l1_block = pending_l1_blocks
                 .front()
                 .expect("Pending l1 blocks cannot be empty");
@@ -197,6 +201,14 @@ where
             self.ledger_db
                 .set_last_scanned_l1_height(SlotNumber(l1_height))?;
             pending_l1_blocks.pop_front();
+
+            SM.listen_mode_l1_block_process_duration_secs.record(
+                Instant::now()
+                    .saturating_duration_since(start)
+                    .as_secs_f64(),
+            );
+
+            SM.current_l1_block.set(l1_height as f64);
 
             info!("Processed L1 block {}", l1_height);
         }

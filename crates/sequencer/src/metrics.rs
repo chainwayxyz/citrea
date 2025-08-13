@@ -141,6 +141,19 @@ pub struct SequencerMetrics {
     /// The l2 end height of the latest sequencer commitment
     #[metric(describe = "The l2 end height of the latest sequencer commitment")]
     pub latest_sequencer_commitment_l2_end_height: Gauge,
+    /// Histogram tracking seconds per l1 block processing in listen mode sequencer
+    #[metric(describe = "The time in seconds it takes to process an L1 block in listen mode")]
+    pub listen_mode_l1_block_process_duration_secs: Histogram,
+    /// The size of the buffer for incoming transactions to be added in listen mode
+    #[metric(
+        describe = "The size of the buffer for incoming transactions to be added in listen mode"
+    )]
+    pub listen_mode_incoming_txs_to_be_added_buffer_size: Gauge,
+    /// The size of the buffer for incoming transactions to be removed in listen mode
+    #[metric(
+        describe = "The size of the buffer for incoming transactions to be removed in listen mode"
+    )]
+    pub listen_mode_incoming_txs_to_be_removed_buffer_size: Gauge,
 }
 
 /// Sequencer metrics

@@ -13,6 +13,8 @@ use sov_db::ledger_db::SequencerLedgerOps;
 use sov_rollup_interface::rpc::MempoolTransactionSignal;
 use tracing::{debug, error, info, instrument};
 
+use crate::metrics::SEQUENCER_METRICS as SM;
+
 /// MempoolSyncer is responsible for synchronizing the mempool transactions for listen mode sequencer
 #[derive(Clone)]
 pub struct MempoolSyncer<DB>
@@ -36,6 +38,9 @@ where
 {
     /// Creates a new MempoolSyncer
     pub fn new(ledger_db: DB, sequencer_ws_endpoint: String) -> Self {
+        SM.listen_mode_incoming_txs_to_be_removed_buffer_size
+            .set(0.0);
+        SM.listen_mode_incoming_txs_to_be_added_buffer_size.set(0.0);
         Self {
             ledger_db,
             transactions_buffer: Arc::new(Mutex::new(HashMap::new())),
@@ -114,11 +119,14 @@ where
     /// Updates the mempool transactions in the database
     fn update_mempool_transactions(&self) -> anyhow::Result<()> {
         let mut txs = self.transactions_buffer.lock().drain().collect::<Vec<_>>();
+        SM.listen_mode_incoming_txs_to_be_added_buffer_size.set(0.0);
 
         let mut to_remove = {
             let mut guard = self.transactions_to_remove_buffer.lock();
             std::mem::take(&mut *guard)
         };
+        SM.listen_mode_incoming_txs_to_be_removed_buffer_size
+            .set(0.0);
 
         // If a tx is both in 'txs' and marked for removal, drop it from inserts
         // and consume it from the removal set so we don't try to remove it twice.
@@ -179,11 +187,13 @@ async fn subscribe_to_mempool_transaction_updates(
                             transactions_buffer
                                 .lock()
                                 .insert(tx_hash.to_vec(), encoded_tx);
+                            SM.listen_mode_incoming_txs_to_be_added_buffer_size.increment(1);
                         }
                         MempoolTransactionSignal::RemoveTransactions(tx_hashes) => {
                             debug!("Removing transactions count: {:?}", tx_hashes.len());
                             let mut txs_to_remove_buffer = transactions_to_remove_buffer.lock();
                             txs_to_remove_buffer.extend(tx_hashes.iter().map(|tx_hash| tx_hash.to_vec()));
+                            SM.listen_mode_incoming_txs_to_be_removed_buffer_size.increment(tx_hashes.len() as f64);
                         }
                         },
                         Err(e) => {

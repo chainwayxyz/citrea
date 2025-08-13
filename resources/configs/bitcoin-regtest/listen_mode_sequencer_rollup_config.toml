@@ -5,27 +5,27 @@ prover_da_pub_key = ""
 
 [da]
 # fill here
-node_url = ""
+node_url = "http://0.0.0.0:8332"
 # fill here
-node_username = ""
+node_username = "citrea"
 # fill here
-node_password = ""
+node_password = "citrea"
 da_private_key = "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262"
 tx_backup_dir = "resources/bitcoin/inscription_txs"
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
-path = "resources/dbs/sequencer-db"
+path = "resources/dbs/listen-mode-sequencer-db"
 db_max_open_files = 5000
 
 [rpc]
 # the host and port to bind the rpc server for
 bind_host = "127.0.0.1"
-bind_port = 12345
+bind_port = 12340
 enable_subscriptions = true
 max_subscriptions_per_connection = 100
 
-# Optional run telemetry server: 
+# Optional run telemetry server:
 # [telemetry]
 # bind_host = "0.0.0.0"
-# bind_port = 8001
+# bind_port = 8005
