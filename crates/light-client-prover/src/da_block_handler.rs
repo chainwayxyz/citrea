@@ -4,7 +4,7 @@
 //! and maintaining the light client state.
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
