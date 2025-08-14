@@ -1,12 +1,7 @@
-use std::fs;
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use alloy::consensus::{SignableTransaction, TxLegacy};
-use alloy::network::TxSigner;
-use alloy::signers::local::PrivateKeySigner;
-use alloy::signers::Signer;
-use alloy_primitives::{Address, Bytes, TxKind, U256, U32, U64};
+use alloy_primitives::{Address, U32, U64};
 use async_trait::async_trait;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
@@ -39,7 +34,9 @@ use uuid::Uuid;
 
 use super::get_citrea_path;
 use super::utils::wait_for_zkproofs;
-use crate::bitcoin::utils::{wait_for_prover_job, wait_for_prover_job_count};
+use crate::bitcoin::utils::{
+    create_deploy_transactions, wait_for_prover_job, wait_for_prover_job_count,
+};
 use crate::common::make_test_client;
 
 /// This is a basic prover test showcasing spawning a bitcoin node as DA, a sequencer and a prover.
@@ -1365,8 +1362,9 @@ impl TestCase for InvokeCachePruningTest {
         let sequencer = f.sequencer.as_mut().unwrap();
         let batch_prover = f.batch_prover.as_mut().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
-
-        let signed_txs = self.create_deploy_transactions().await;
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+        let (signed_txs, _) =
+            create_deploy_transactions(max_l2_blocks_per_commitment as usize, None).await;
         for signed_tx in signed_txs {
             sequencer
                 .client
@@ -1425,58 +1423,6 @@ impl TestCase for InvokeCachePruningTest {
         assert_eq!(last_proven_l2_data.height, 55);
 
         Ok(())
-    }
-}
-
-impl InvokeCachePruningTest {
-    async fn create_deploy_transactions(&self) -> Vec<Vec<u8>> {
-        // 11 tx fits into a single block
-        const DEPLOY_COUNT: usize = 60 * 11;
-
-        let bytecode_hex = fs::read_to_string("tests/bitcoin/test-data/big-contract.bin").unwrap();
-        let bytecode_size = bytecode_hex.len() / 2;
-
-        // extra 32 bytes for constructor argument
-        let mut bytecode_with_args = vec![0; bytecode_size + 32];
-        hex::decode_to_slice(bytecode_hex, &mut bytecode_with_args[0..bytecode_size]).unwrap();
-
-        // prepare signer
-        let private_key: [u8; 32] =
-            hex::decode("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
-                .unwrap()
-                .try_into()
-                .unwrap();
-        let mut signer = PrivateKeySigner::from_slice(&private_key).unwrap();
-        signer.set_chain_id(Some(5655));
-
-        let mut signed_txs = Vec::with_capacity(DEPLOY_COUNT);
-        for i in 0..DEPLOY_COUNT {
-            // set constructor argument different for each contract.
-            // since constructor argument sets immutable storage variable
-            // this will make bytecode of each contract different
-            bytecode_with_args[bytecode_size..]
-                .copy_from_slice(U256::from(i).to_be_bytes::<32>().as_slice());
-
-            let mut tx = TxLegacy {
-                chain_id: Some(5655),
-                nonce: i as u64,
-                gas_price: 1_000_000_000 * 1_000_000_000, // 1_000_000_000 gwei
-                gas_limit: 3_000_000,                     // 3 million gas
-                to: TxKind::Create,
-                value: U256::ZERO,
-                input: Bytes::copy_from_slice(&bytecode_with_args),
-            };
-
-            let signature = signer.sign_transaction(&mut tx).await.unwrap();
-            let signed_tx = tx.into_signed(signature);
-
-            let mut rlp_buf = Vec::with_capacity(signed_tx.rlp_encoded_length());
-            signed_tx.rlp_encode(&mut rlp_buf);
-
-            signed_txs.push(rlp_buf);
-        }
-
-        signed_txs
     }
 }
 

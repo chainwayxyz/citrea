@@ -1,9 +1,15 @@
+use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use alloy_primitives::U64;
+use alloy::consensus::{SignableTransaction as _, TxLegacy};
+use alloy::network::TxSigner as _;
+use alloy::signers::local::PrivateKeySigner;
+use alloy::signers::Signer as _;
+use alloy_primitives::ruint::aliases::U256;
+use alloy_primitives::{Bytes, TxKind, U64};
 use anyhow::bail;
 use bitcoin_da::fee::FeeService;
 use bitcoin_da::monitoring::{MonitoringConfig, MonitoringService};
@@ -481,6 +487,65 @@ pub async fn generate_mock_txs(
     assert_eq!(block.txdata.len(), 33);
 
     (block, valid_commitments, valid_proofs, valid_method_ids)
+}
+
+/// Used for generating big state diff
+pub async fn create_deploy_transactions(
+    block_count: usize,
+    nonce: Option<u64>,
+) -> (Vec<Vec<u8>>, u64) {
+    // 11 tx fits into a single block
+    let deploy_count: usize = block_count * 11;
+
+    let bytecode_hex = fs::read_to_string("tests/bitcoin/test-data/big-contract.bin").unwrap();
+    let bytecode_size = bytecode_hex.len() / 2;
+
+    // extra 32 bytes for constructor argument
+    let mut bytecode_with_args = vec![0; bytecode_size + 32];
+    hex::decode_to_slice(bytecode_hex, &mut bytecode_with_args[0..bytecode_size]).unwrap();
+
+    // prepare signer
+    let private_key: [u8; 32] =
+        hex::decode("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+            .unwrap()
+            .try_into()
+            .unwrap();
+    let mut signer = PrivateKeySigner::from_slice(&private_key).unwrap();
+    signer.set_chain_id(Some(5655));
+
+    let mut nonce = nonce.unwrap_or(0);
+
+    let mut signed_txs = Vec::with_capacity(deploy_count);
+    for _ in 0..deploy_count {
+        // set constructor argument different for each contract.
+        // since constructor argument sets immutable storage variable
+        // this will make bytecode of each contract different
+        let rand_int = rand::random::<u32>();
+        bytecode_with_args[bytecode_size..]
+            .copy_from_slice(U256::from(rand_int).to_be_bytes::<32>().as_slice());
+
+        let mut tx = TxLegacy {
+            chain_id: Some(5655),
+            nonce,
+            gas_price: 1_000_000_000 * 1_000_000_000, // 1_000_000_000 gwei
+            gas_limit: 3_000_000,                     // 3 million gas
+            to: TxKind::Create,
+            value: U256::ZERO,
+            input: Bytes::copy_from_slice(&bytecode_with_args),
+        };
+
+        nonce += 1;
+
+        let signature = signer.sign_transaction(&mut tx).await.unwrap();
+        let signed_tx = tx.into_signed(signature);
+
+        let mut rlp_buf = Vec::with_capacity(signed_tx.rlp_encoded_length());
+        signed_tx.rlp_encode(&mut rlp_buf);
+
+        signed_txs.push(rlp_buf);
+    }
+
+    (signed_txs, nonce)
 }
 
 // For some reason, even though macro is used, it sees it as unused
