@@ -167,8 +167,6 @@ where
 
         let backup_manager = self.backup_manager.clone();
 
-        let mut interval = tokio::time::interval(Duration::from_secs(2));
-        interval.tick().await;
         loop {
             select! {
                 biased;
