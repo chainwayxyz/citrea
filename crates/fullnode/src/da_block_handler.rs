@@ -132,6 +132,8 @@ where
     /// * `shutdown_signal` - Signal to gracefully shut down
     #[instrument(name = "L1BlockHandler", skip_all)]
     pub async fn run(mut self, start_l1_height: u64, mut shutdown_signal: GracefulShutdown) {
+        let mut interval = tokio::time::interval(Duration::from_secs(1));
+        interval.tick().await;
         let notifier = Arc::new(Notify::new());
 
         let l1_sync_worker = sync_l1(
