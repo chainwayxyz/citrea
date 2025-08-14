@@ -187,8 +187,8 @@ where
             // Store commitments in CommitmentsByNumber table
             for commitment in l1_commitments.iter() {
                 info!(
-                    "Found commitment with index {} in L1 block {}",
-                    commitment.index, l1_height
+                    "Found commitment with index {} and L2 end height: {} in L1 block {}",
+                    commitment.index, commitment.l2_end_block_number, l1_height
                 );
 
                 // Update commitments on DA slot - this stores in CommitmentsByNumber
