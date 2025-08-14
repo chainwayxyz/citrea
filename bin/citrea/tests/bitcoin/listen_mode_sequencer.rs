@@ -848,7 +848,7 @@ impl TestCase for ListenModeStateDiffTriggerCommitment {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
             // Keeping this high to generate commitments from state diff check
-            max_l2_blocks_per_commitment: 60,
+            max_l2_blocks_per_commitment: 600000,
             mempool_conf: SequencerMempoolConfig {
                 max_account_slots: 1000,
                 ..Default::default()
@@ -865,9 +865,10 @@ impl TestCase for ListenModeStateDiffTriggerCommitment {
         let listen_mode_sequencer = cluster_iter.next().unwrap();
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
 
-        let max_l2_blocks_per_commitment = main_sequencer.max_l2_blocks_per_commitment();
+        let commitment_state_diff_trigger_block_count = 60;
         let (signed_txs, nonce) =
-            create_deploy_transactions(max_l2_blocks_per_commitment as usize, None).await;
+            create_deploy_transactions(commitment_state_diff_trigger_block_count as usize, None)
+                .await;
 
         for signed_tx in signed_txs {
             main_sequencer
@@ -879,12 +880,12 @@ impl TestCase for ListenModeStateDiffTriggerCommitment {
         }
 
         // we publish 60 blocks, but actually, 55th block hits state diff
-        for _ in 0..max_l2_blocks_per_commitment {
+        for _ in 0..commitment_state_diff_trigger_block_count {
             main_sequencer.client.send_publish_batch_request().await?;
         }
 
         main_sequencer
-            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
+            .wait_for_l2_height(commitment_state_diff_trigger_block_count, None)
             .await
             .unwrap();
 
@@ -896,7 +897,7 @@ impl TestCase for ListenModeStateDiffTriggerCommitment {
         let finalized_height = da.get_finalized_height(None).await?;
 
         listen_mode_sequencer
-            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
+            .wait_for_l2_height(commitment_state_diff_trigger_block_count, None)
             .await?;
 
         listen_mode_sequencer
@@ -911,9 +912,11 @@ impl TestCase for ListenModeStateDiffTriggerCommitment {
             .unwrap();
         assert_eq!(commitment.l2_end_block_number, U64::from(55));
 
-        let (signed_txs, nonce) =
-            create_deploy_transactions(max_l2_blocks_per_commitment as usize / 2, Some(nonce))
-                .await;
+        let (signed_txs, nonce) = create_deploy_transactions(
+            commitment_state_diff_trigger_block_count as usize / 2,
+            Some(nonce),
+        )
+        .await;
 
         for signed_tx in signed_txs {
             main_sequencer
@@ -925,7 +928,7 @@ impl TestCase for ListenModeStateDiffTriggerCommitment {
         }
 
         // Generate half the state diff
-        for _ in 0..max_l2_blocks_per_commitment / 2 {
+        for _ in 0..commitment_state_diff_trigger_block_count / 2 {
             main_sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -955,9 +958,11 @@ impl TestCase for ListenModeStateDiffTriggerCommitment {
             .restart(Some(main_sequencer_config), None)
             .await?;
 
-        let (signed_txs, _) =
-            create_deploy_transactions(max_l2_blocks_per_commitment as usize / 2, Some(nonce))
-                .await;
+        let (signed_txs, _) = create_deploy_transactions(
+            commitment_state_diff_trigger_block_count as usize / 2,
+            Some(nonce),
+        )
+        .await;
 
         for signed_tx in signed_txs {
             main_sequencer
@@ -969,12 +974,12 @@ impl TestCase for ListenModeStateDiffTriggerCommitment {
         }
 
         // Generate rest half of the state diff
-        for _ in 0..max_l2_blocks_per_commitment / 2 {
+        for _ in 0..commitment_state_diff_trigger_block_count / 2 {
             main_sequencer.client.send_publish_batch_request().await?;
         }
 
         listen_mode_sequencer
-            .wait_for_l2_height(2 * max_l2_blocks_per_commitment, None)
+            .wait_for_l2_height(2 * commitment_state_diff_trigger_block_count, None)
             .await?;
 
         // Wait for commitment transactions to hit the mempool
