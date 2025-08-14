@@ -75,7 +75,9 @@ jobs:
         with:
           file: ./docker/build-push/nightly/Dockerfile
           context: ./docker/build-push/nightly
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/${{ steps.build.outputs.image_name }}:${{ env.IMAGE_TAG }}
+          tags: |
+            ${{ vars.DOCKERHUB_USERNAME }}/${{ steps.build.outputs.image_name }}:${{ env.IMAGE_TAG }}
+            ${{ vars.DOCKERHUB_USERNAME }}/${{ steps.build.outputs.image_name }}:latest
           platforms: linux/amd64
           push: true
           load: false
