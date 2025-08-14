@@ -440,19 +440,19 @@ where
             .get_head_l2_block_height()?
             .unwrap_or_default();
         if end_l2_height > head_l2_height {
+            info!(
+                "Commitment with index: {} L2 blocks not synced yet. Range: {}-{}, merkle root: {} Storing commitment as pending.",
+                sequencer_commitment.index,
+                start_l2_height,
+                end_l2_height,
+                hex::encode(sequencer_commitment.merkle_root)
+            );
             // Store as pending if we haven't synced all needed L2 blocks yet
             if self
                 .ledger_db
                 .get_pending_commitment_by_index(sequencer_commitment.index)?
                 .is_none()
             {
-                info!(
-                    "Commitment with index: {} L2 blocks not synced yet. Range: {}-{}, merkle root: {} Storing commitment as pending.",
-                    sequencer_commitment.index,
-                    start_l2_height,
-                    end_l2_height,
-                    hex::encode(sequencer_commitment.merkle_root)
-                );
                 self.ledger_db.store_pending_commitment(
                     sequencer_commitment.clone(),
                     found_in_l1_block_height,
