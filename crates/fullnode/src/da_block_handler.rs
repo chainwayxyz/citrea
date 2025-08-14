@@ -6,7 +6,7 @@
 use core::panic;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use anyhow::anyhow;
 use citrea_common::backup::BackupManager;
@@ -143,6 +143,7 @@ where
         );
         tokio::pin!(l1_sync_worker);
 
+        tokio::time::sleep(Duration::from_secs(1)).await; // Gives time for queue to fill up on startup
         loop {
             select! {
                 biased;
