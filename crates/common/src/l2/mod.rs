@@ -328,7 +328,8 @@ async fn sync_l2(
         let blocks_len = l2_blocks.len() as u64;
         match block_buffer.lock().await.extend_blocks(l2_blocks) {
             Ok(()) => start_l2_height += blocks_len,
-            Err(_) => {
+            Err(e) => {
+                warn!("{e}, Waiting for block buffer to be processed");
                 sleep(Duration::from_secs(2)).await;
                 continue;
             }
