@@ -5,7 +5,7 @@
 
 use std::collections::VecDeque;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
