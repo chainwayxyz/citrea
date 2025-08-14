@@ -42,11 +42,17 @@ use tracing::{debug, error, info, instrument, warn};
 
 use crate::backup::BackupManager;
 use crate::cache::L1BlockCache;
-use crate::utils::decode_sov_tx_and_update_short_header_proofs;
+use crate::l2::error::L2SyncerError;
+use crate::l2::utils::decode_sov_tx_and_update_short_header_proofs;
 use crate::{InitParams, RollupPublicKeys};
+
+mod error;
+mod utils;
 
 /// Maximum number of L2BlockResponse ahead of next_expected_height to buffer from subscription
 const SUBSCRIPTION_LOOKAHEAD_LIMIT: u64 = 100;
+/// Maximum number of L2BlockResponse held in buffer
+const MAX_BUFFER_SIZE: usize = 2_000;
 
 pub struct ProcessL2BlockResult {
     pub l2_height: u64,
@@ -95,7 +101,12 @@ impl SequentialL2BlockBuffer {
         self.notify.notify_one();
     }
 
-    fn extend_blocks(&mut self, blocks: BTreeMap<u64, L2BlockResponse>) {
+    fn extend_blocks(&mut self, blocks: BTreeMap<u64, L2BlockResponse>) -> anyhow::Result<()> {
+        if self.blocks.len() >= MAX_BUFFER_SIZE {
+            self.notify.notify_one(); // Queue is full, send signal to process it
+            bail!("Max buffer size hit")
+        }
+
         let mut should_notify = false;
 
         for (height, block) in blocks {
@@ -108,6 +119,8 @@ impl SequentialL2BlockBuffer {
         if should_notify {
             self.notify.notify_one();
         }
+
+        Ok(())
     }
 
     /// Drain from next_expected_height until the first gap or until the buffer is fully consumed
@@ -140,7 +153,7 @@ pub async fn process_l2_block<Da: DaService, DB: SharedLedgerOps>(
     current_state_root: StorageRootHash,
     sequencer_pub_key: &K256PublicKey,
     include_tx_body: bool,
-) -> anyhow::Result<ProcessL2BlockResult> {
+) -> Result<ProcessL2BlockResult, L2SyncerError> {
     let start = Instant::now();
 
     let l2_height = l2_block_response.header.height.to();
@@ -152,7 +165,11 @@ pub async fn process_l2_block<Da: DaService, DB: SharedLedgerOps>(
     );
 
     if current_l2_block_hash != l2_block_response.header.prev_hash {
-        bail!("Previous hash mismatch at height: {}", l2_height);
+        return Err(L2SyncerError::PreviousHashMismatch {
+            height: l2_height,
+            expected: hex::encode(current_l2_block_hash),
+            got: hex::encode(l2_block_response.header.prev_hash),
+        });
     }
 
     let pre_state = storage_manager.create_storage_for_next_l2_height();
@@ -199,13 +216,19 @@ pub async fn process_l2_block<Da: DaService, DB: SharedLedgerOps>(
             Default::default(),
             Default::default(),
             &l2_block,
-        )?
+        )
+        .map_err(L2SyncerError::ApplyBlockError)?
     };
 
     let next_state_root = l2_block_result.state_root_transition.final_root;
+
     // Check if post state root is the same as the one in the l2 block
     if next_state_root.as_ref().to_vec() != l2_block.state_root() {
-        bail!("Post state root mismatch at height: {}", l2_height)
+        return Err(L2SyncerError::PostStateRootMismatch {
+            height: l2_height,
+            expected: hex::encode(l2_block.state_root()),
+            got: hex::encode(next_state_root),
+        });
     }
 
     storage_manager.finalize_storage(l2_block_result.change_set);
@@ -252,7 +275,6 @@ async fn sync_l2(
         }
 
         let end_l2_height = start_l2_height + current_sync_blocks_count - 1;
-
         let inner_client = &sequencer_client;
         let l2_blocks = match get_l2_blocks_range(inner_client, start_l2_height, end_l2_height)
             .await
@@ -299,13 +321,18 @@ async fn sync_l2(
                 start_l2_height
             );
 
-            sleep(Duration::from_secs(1)).await;
+            sleep(Duration::from_secs(2)).await;
             continue;
         }
 
-        start_l2_height += l2_blocks.len() as u64;
-
-        block_buffer.lock().await.extend_blocks(l2_blocks);
+        let blocks_len = l2_blocks.len() as u64;
+        match block_buffer.lock().await.extend_blocks(l2_blocks) {
+            Ok(()) => start_l2_height += blocks_len,
+            Err(_) => {
+                sleep(Duration::from_secs(2)).await;
+                continue;
+            }
+        };
     }
 }
 
@@ -513,6 +540,7 @@ where
         let backup_manager = self.backup_manager.clone();
 
         let notifier = self.block_queue.lock().await.notifier();
+
         loop {
             select! {
                 biased;
@@ -530,12 +558,21 @@ where
                         let mut backoff = ExponentialBackoff::default();
                         loop {
                             let _l2_lock = backup_manager.start_l2_processing().await;
+
                             match self.process_l2_block(&l2_block).await {
                                 Ok(_) => break,
-                                Err(e) => {
-                                    error!("Failed to process L2 block {}: {}", l2_block.header.height, e);
+                                Err(L2SyncerError::MissingDaBlock(block)) => {
+                                    warn!("Missing DA block hash {block:?} for block {}, waiting for DA sync", l2_block.header.height);
                                     let backoff_duration = backoff.next_backoff().expect("Failed to process L2 block multiple times. Killing L2Syncer...");
-                                    tokio::time::sleep(backoff_duration).await;
+
+                                    select! {
+                                        _ = &mut shutdown_signal => { info!("Shutting down L2 syncer"); return; },
+                                       _ = tokio::time::sleep(backoff_duration) => {}
+                                    }
+                                }
+                                // Unrecoverable error
+                                Err(e) => {
+                                    panic!("Unrecoverable L2 syncer error on block {}: {}", l2_block.header.height, e);
                                 }
                             }
                         }
@@ -555,7 +592,7 @@ where
     async fn process_l2_block(
         &mut self,
         l2_block_response: &L2BlockResponse,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), L2SyncerError> {
         let l2_block_result = process_l2_block(
             l2_block_response,
             &self.storage_manager,

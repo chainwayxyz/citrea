@@ -2417,6 +2417,7 @@ dependencies = [
  "sov-schema-db",
  "sov-state",
  "tempfile",
+ "thiserror 2.0.12",
  "tokio",
  "toml",
  "tower 0.4.13",
