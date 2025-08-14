@@ -20,6 +20,7 @@ use sov_ledger_rpc::LedgerRpcClient;
 use tokio::time::sleep;
 
 use super::get_citrea_path;
+use super::utils::create_deploy_transactions;
 use crate::common::make_test_client;
 
 struct ReadOnlySequencerTest;
@@ -826,4 +827,176 @@ impl TestCase for MempoolSyncerTest {
 #[tokio::test]
 async fn test_mempool_syncer() -> Result<()> {
     TestCaseRunner::new(MempoolSyncerTest).run().await
+}
+
+struct ListenModeStateDiffTriggerCommitment;
+
+#[async_trait::async_trait]
+impl TestCase for ListenModeStateDiffTriggerCommitment {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            n_nodes: HashMap::from([(NodeKind::Sequencer, 2)]),
+            with_sequencer: true,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(147)
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            // Keeping this high to generate commitments from state diff check
+            max_l2_blocks_per_commitment: 60,
+            mempool_conf: SequencerMempoolConfig {
+                max_account_slots: 1000,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    // CAVEAT: If state diff changes at some point recalculate the number of blocks it takes to reach the commitment state diff threshold
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let cluster = f.sequencer_cluster.as_mut().unwrap();
+        let mut cluster_iter = cluster.iter_mut();
+        let main_sequencer = cluster_iter.next().unwrap();
+        let listen_mode_sequencer = cluster_iter.next().unwrap();
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+
+        let max_l2_blocks_per_commitment = main_sequencer.max_l2_blocks_per_commitment();
+        let (signed_txs, nonce) =
+            create_deploy_transactions(max_l2_blocks_per_commitment as usize, None).await;
+
+        for signed_tx in signed_txs {
+            main_sequencer
+                .client
+                .http_client()
+                .eth_send_raw_transaction(signed_tx.into())
+                .await
+                .unwrap();
+        }
+
+        // we publish 60 blocks, but actually, 55th block hits state diff
+        for _ in 0..max_l2_blocks_per_commitment {
+            main_sequencer.client.send_publish_batch_request().await?;
+        }
+
+        main_sequencer
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
+            .await
+            .unwrap();
+
+        // Wait for commitment transactions to hit the mempool
+        da.wait_mempool_len(2, None).await?;
+
+        // Finalize the commitments
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        listen_mode_sequencer
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
+            .await?;
+
+        listen_mode_sequencer
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        let commitment = listen_mode_sequencer
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(1))
+            .await?
+            .unwrap();
+        assert_eq!(commitment.l2_end_block_number, U64::from(55));
+
+        let (signed_txs, nonce) =
+            create_deploy_transactions(max_l2_blocks_per_commitment as usize / 2, Some(nonce))
+                .await;
+
+        for signed_tx in signed_txs {
+            main_sequencer
+                .client
+                .http_client()
+                .eth_send_raw_transaction(signed_tx.into())
+                .await
+                .unwrap();
+        }
+
+        // Generate half the state diff
+        for _ in 0..max_l2_blocks_per_commitment / 2 {
+            main_sequencer.client.send_publish_batch_request().await?;
+        }
+
+        sleep(Duration::from_secs(2)).await;
+
+        let head = main_sequencer
+            .client
+            .http_client()
+            .get_head_l2_block_height()
+            .await?;
+
+        listen_mode_sequencer
+            .wait_for_l2_height(head.to::<u64>(), None)
+            .await?;
+
+        // Shut down main sequencer
+        let main_sequencer_config = main_sequencer.config.clone();
+        listen_mode_sequencer.client = Client::new(
+            &main_sequencer_config.rollup.rpc.bind_host,
+            main_sequencer_config.rollup.rpc.bind_port,
+        )
+        .unwrap();
+        main_sequencer.wait_until_stopped().await?;
+
+        // Restart listen mode as main
+        listen_mode_sequencer
+            .restart(Some(main_sequencer_config), None)
+            .await?;
+
+        let (signed_txs, _) =
+            create_deploy_transactions(max_l2_blocks_per_commitment as usize / 2, Some(nonce))
+                .await;
+
+        for signed_tx in signed_txs {
+            main_sequencer
+                .client
+                .http_client()
+                .eth_send_raw_transaction(signed_tx.into())
+                .await
+                .unwrap();
+        }
+
+        // Generate rest half of the state diff
+        for _ in 0..max_l2_blocks_per_commitment / 2 {
+            main_sequencer.client.send_publish_batch_request().await?;
+        }
+
+        listen_mode_sequencer
+            .wait_for_l2_height(2 * max_l2_blocks_per_commitment, None)
+            .await?;
+
+        // Wait for commitment transactions to hit the mempool
+        da.wait_mempool_len(2, None).await?;
+
+        // Should have generated commitment
+        let commitment = listen_mode_sequencer
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(2))
+            .await?
+            .unwrap();
+        // Using ge here because it can be 110 or 111
+        assert!(commitment.l2_end_block_number.ge(&U64::from(110)));
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_state_diff_triggered_mempool() -> Result<()> {
+    TestCaseRunner::new(ListenModeStateDiffTriggerCommitment)
+        .run()
+        .await
 }
