@@ -51,6 +51,10 @@ jobs:
             cargo build
             echo "image_name=citrea-dev" >> $GITHUB_OUTPUT
           fi
+        env:
+          REPR_GUEST_BUILD: 1
+          CITREA_NETWORK: nightly
+
 
       - name: Copy binary to build-push/nightly
         run: |
