@@ -23,13 +23,18 @@
 //!     When restarted as producer sequencer, it will put all the txs in the persistent storage back into mempool
 
 use citrea_common::l2::{L2BlockProcessor, L2Syncer, ProcessL2BlockResult};
+use l1_syncer::L1Syncer;
+use mempool_syncer::MempoolSyncer;
 use reth_tasks::TaskExecutor;
 use sov_db::schema::types::L2BlockNumber;
 use sov_rollup_interface::services::da::DaService;
 
-use crate::l1_syncer::L1Syncer;
-use crate::mempool_syncer::MempoolSyncer;
-use crate::metrics::SEQUENCER_METRICS as SM;
+use super::metrics::SEQUENCER_METRICS as SM;
+
+/// Module for syncing and storing sequencer commitments extracted from L1 blocks.
+pub(crate) mod l1_syncer;
+/// Module containing mempool synchronization functionality for listen mode sequencer
+pub(crate) mod mempool_syncer;
 
 /// Listen Mode Sequencer L2 Syncer
 pub type ListenModeSequencerL2Syncer<DA, DB> =

@@ -45,10 +45,10 @@ use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use db_provider::DbProvider;
 use deposit_data_mempool::DepositDataMempool;
 use jsonrpsee::RpcModule;
-use l1_syncer::L1Syncer;
+use listen_mode::l1_syncer::L1Syncer;
+use listen_mode::mempool_syncer::MempoolSyncer;
 use listen_mode::ListenModeSequencer;
 use mempool::CitreaMempool;
-use mempool_syncer::MempoolSyncer;
 use parking_lot::Mutex;
 use reth_tasks::TaskExecutor;
 pub use rpc::SequencerRpcClient;
@@ -73,14 +73,10 @@ pub mod db_migrations;
 mod db_provider;
 /// Separate mempool implementation only for handling deposit data in FIFO (First-In-First-Out) order
 mod deposit_data_mempool;
-/// Module for syncing and storing sequencer commitments extracted from L1 blocks.
-mod l1_syncer;
 /// Module containing functionality for running the sequencer
 mod listen_mode;
 /// Module containing mempool functionality for transaction management
 mod mempool;
-/// Module containing mempool synchronization functionality for listen mode sequencer
-mod mempool_syncer;
 /// Module containing metrics collection and reporting functionality
 mod metrics;
 /// Provides access to sequencer RPC functionality
