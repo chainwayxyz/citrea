@@ -569,16 +569,20 @@ async fn test_fullnode_rollback_without_sequencer_rollback() -> Result<(), anyho
     wait_for_l2_block(&seq_test_client, 40, None).await;
     wait_for_l2_block(&full_node_test_client, 40, None).await;
 
-    let seq_l2_block = seq_test_client
-        .ledger_get_head_l2_block()
-        .await
-        .unwrap()
-        .unwrap();
-    let full_node_l2_block = full_node_test_client
-        .ledger_get_head_l2_block()
-        .await
-        .unwrap()
-        .unwrap();
+    let sequencer_head_l2 = seq_test_client.ledger_get_head_l2_block().await;
+
+    let seq_l2_block = sequencer_head_l2.unwrap().unwrap();
+
+    wait_for_l2_block(
+        &full_node_test_client,
+        seq_l2_block.header.height.to::<u64>(),
+        None,
+    )
+    .await;
+
+    let full_node_head_l2 = full_node_test_client.ledger_get_head_l2_block().await;
+
+    let full_node_l2_block = full_node_head_l2.unwrap().unwrap();
 
     assert_eq!(
         seq_l2_block.header.state_root,

@@ -467,6 +467,7 @@ mod tests {
             include_tx_body = true
             sequencer_client_url = "http://0.0.0.0:12346"
             scan_l1_start_height = 1
+            with_subscription = true
 
             [telemetry]
             bind_host = "0.0.0.0"
@@ -776,6 +777,7 @@ mod tests {
         std::env::set_var("DB_MAX_OPEN_FILES", "123");
 
         std::env::set_var("INCLUDE_TX_BODY", "true");
+        std::env::set_var("WITH_SUBSCRIPTION", "true");
         std::env::set_var("SEQUENCER_CLIENT_URL", "http://0.0.0.0:12346");
         std::env::set_var("PRUNING_DISTANCE", "1000");
         std::env::set_var("SCAN_L1_START_HEIGHT", "1");
