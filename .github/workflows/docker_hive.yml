@@ -37,4 +37,4 @@ jobs:
           context: .
           file: ./resources/hive/Dockerfile
           push: true
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/citrea:latest
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/citrea:hive-latest
