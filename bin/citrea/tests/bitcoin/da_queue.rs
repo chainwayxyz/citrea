@@ -210,7 +210,7 @@ impl DaTransactionQueueingTest {
         assert_eq!(da.get_raw_mempool().await?.len(), 6);
 
         // Track that 5 last txs that will be dropped on next block invalidation
-        let dropped_txs = &da.get_raw_mempool().await?[1..]; // first commmit will still be part of the mempool
+        let dropped_txs = &da.get_raw_mempool().await?[1..]; // first commit will still be part of the mempool
 
         da.invalidate_block(&rollback_first_hash).await?;
         // Should be 6 + 18 if all mined txs were restored to mempool but 5 txs are dropped due to being over mempool policy limit
