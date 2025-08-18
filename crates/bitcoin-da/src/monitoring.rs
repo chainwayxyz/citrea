@@ -21,7 +21,7 @@ use tokio::select;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::helpers::builders::TxWithId;
 use crate::helpers::parsers::parse_relevant_transaction;
@@ -421,7 +421,7 @@ impl MonitoringService {
     /// Run monitoring to keep track of TX status and chain re-orgs
     pub async fn run(self: Arc<Self>, mut token: GracefulShutdown) {
         let mut check_interval = interval(Duration::from_secs(self.config.check_interval));
-        let mut evicted_interval = interval(Duration::from_secs(self.config.rebroadcast_delay));
+        let mut rebroadcast_interval = interval(Duration::from_secs(self.config.rebroadcast_delay));
         loop {
             select! {
                 biased;
@@ -438,9 +438,12 @@ impl MonitoringService {
                     }
                     self.prune_old_transactions().await;
                 }
-                _ = evicted_interval.tick() => {
+                _ = rebroadcast_interval.tick() => {
                     if let Err(e) = self.handle_evicted().await {
                         error!("Error handling evicted transactions: {}", e);
+                    }
+                    if let Err(e) = self.rebroadcast_last_txs().await {
+                        error!("Error rebroadcasting last transactions: {}", e);
                     }
                 }
             }
@@ -807,6 +810,42 @@ impl MonitoringService {
                     }
                 }
             }
+        }
+
+        Ok(())
+    }
+
+    async fn rebroadcast_last_txs(&self) -> Result<()> {
+        const TXS_NUMBER_TO_REBROADCAST: u32 = 100;
+        trace!("Rebroadcasting last {TXS_NUMBER_TO_REBROADCAST} txs");
+
+        let Some(mut current_tx) = self.get_last_tx().await else {
+            return Ok(());
+        };
+
+        for _ in 0..TXS_NUMBER_TO_REBROADCAST {
+            // Break on first finalized TX
+            if let TxStatus::Finalized { .. } = current_tx.1.status {
+                return Ok(());
+            }
+
+            let _ = self
+                .attempt_rebroadcast(&current_tx.0, &current_tx.1.tx, &current_tx.1.status)
+                .await;
+
+            let Some(prev_txid) = current_tx.1.prev_txid else {
+                // End of monitored txs chain
+                return Ok(());
+            };
+
+            let prev_tx = {
+                let Some(tx_data) = self.monitored_txs.read().await.get(&prev_txid).cloned() else {
+                    return Err(anyhow!("Missing monitored transaction {prev_txid}").into());
+                };
+                (prev_txid, tx_data)
+            };
+
+            current_tx = prev_tx;
         }
 
         Ok(())
