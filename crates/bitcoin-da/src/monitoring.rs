@@ -216,7 +216,7 @@ mod monitoring_defaults {
     }
 
     pub const fn max_rebroadcast_attempts() -> u32 {
-        5 // Maximum number of rebroadcast attempts for evicted txs
+        15 // Maximum number of rebroadcast attempts for evicted txs
     }
 
     pub const fn rebroadcast_delay() -> u64 {
