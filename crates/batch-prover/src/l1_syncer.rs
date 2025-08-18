@@ -19,8 +19,7 @@ use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use tokio::select;
 use tokio::sync::mpsc::error::TrySendError;
-use tokio::sync::{mpsc, Mutex};
-use tokio::time::Duration;
+use tokio::sync::{mpsc, Mutex, Notify};
 use tracing::{error, info, instrument, warn};
 
 use crate::metrics::BATCH_PROVER_METRICS as BPM;
@@ -62,7 +61,7 @@ where
     DB: BatchProverLedgerOps + Clone + 'static,
 {
     /// Creates a new instance of `L1Syncer`
-    ///     
+    ///
     /// # Arguments
     /// * `ledger_db` - The database instance to store L1 block data.
     /// * `da_service` - The DA service instance to fetch L1 blocks.
@@ -109,17 +108,17 @@ where
             .map(|h| h.0)
             .unwrap_or(self.scan_l1_start_height);
 
+        let notifier = Arc::new(Notify::new());
         let l1_sync_worker = sync_l1(
             l1_start_height,
             self.da_service.clone(),
             self.pending_l1_blocks.clone(),
             self.l1_block_cache.clone(),
+            notifier.clone(),
         );
         tokio::pin!(l1_sync_worker);
 
         let backup_manager = self.backup_manager.clone();
-        let mut interval = tokio::time::interval(Duration::from_secs(1));
-        interval.tick().await;
         loop {
             select! {
                 biased;
@@ -127,7 +126,7 @@ where
                     info!("Shutting down L1 syncer");
                     return;
                 }
-                _ = interval.tick() => {
+                _ = notifier.notified() => {
                     let _l1_guard = backup_manager.start_l1_processing().await;
                     if let Err(e) = self.process_l1_blocks().await {
                         error!("Could not process L1 blocks: {:?}", e);
