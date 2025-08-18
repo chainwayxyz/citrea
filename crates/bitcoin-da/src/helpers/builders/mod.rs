@@ -415,7 +415,7 @@ fn get_size_reveal(
 fn choose_utxos(
     required_utxo: Option<UTXO>,
     utxos: &[UTXO],
-    mut amount: u64,
+    amount: u64,
 ) -> Result<(Vec<UTXO>, u64, Vec<UTXO>), anyhow::Error> {
     let mut chosen_utxos = vec![];
     let mut sum = 0;
@@ -428,11 +428,13 @@ fn choose_utxos(
     }
     if sum >= amount {
         return Ok((chosen_utxos, sum, utxos.to_vec()));
-    } else {
-        amount -= sum;
     }
 
-    let mut bigger_utxos: Vec<&UTXO> = utxos.iter().filter(|utxo| utxo.amount >= amount).collect();
+    let remaining_amount = amount - sum;
+    let mut bigger_utxos: Vec<&UTXO> = utxos
+        .iter()
+        .filter(|utxo| utxo.amount >= remaining_amount)
+        .collect();
 
     if !bigger_utxos.is_empty() {
         // sort vec by amount (small first)
@@ -444,8 +446,10 @@ fn choose_utxos(
         sum += utxo.amount;
         chosen_utxos.push(utxo.clone());
     } else {
-        let mut smaller_utxos: Vec<&UTXO> =
-            utxos.iter().filter(|utxo| utxo.amount < amount).collect();
+        let mut smaller_utxos: Vec<&UTXO> = utxos
+            .iter()
+            .filter(|utxo| utxo.amount < remaining_amount)
+            .collect();
 
         // sort vec by amount (large first)
         smaller_utxos.sort_by(|a, b| b.amount.cmp(&a.amount));
