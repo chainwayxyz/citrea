@@ -799,7 +799,6 @@ impl MonitoringService {
                             };
                         }
                     }
-                } else {
                 }
             }
         }
