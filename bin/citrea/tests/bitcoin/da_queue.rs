@@ -188,6 +188,9 @@ impl DaTransactionQueueingTest {
         let (relevant_txs, _, _) = da_service.extract_relevant_blobs_with_proof(&block);
         assert_eq!(relevant_txs.len(), 9);
 
+        // Keep track of hash in which chunks start to be mined
+        let rollback_first_hash = hash;
+
         da.wait_mempool_len(6, None).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 6);
         da.generate(1).await?;
@@ -200,7 +203,21 @@ impl DaTransactionQueueingTest {
         let (relevant_txs, _, _) = da_service.extract_relevant_blobs_with_proof(&block);
         assert_eq!(relevant_txs.len(), 3);
 
-        da.generate(1).await?;
+        // Test re-org behaviour when over mempool policy limit
+
+        // Invalidate last block and make sure txs are back in mempool
+        da.invalidate_block(&hash).await?;
+        assert_eq!(da.get_raw_mempool().await?.len(), 6);
+
+        // Track that 5 last txs that will be dropped on next block invalidation
+        let dropped_txs = &da.get_raw_mempool().await?[1..]; // first commmit will still be part of the mempool
+
+        da.invalidate_block(&rollback_first_hash).await?;
+        // Should be 6 + 18 if all mined txs were restored to mempool but 5 txs are dropped due to being over mempool policy limit
+        assert_eq!(da.get_raw_mempool().await?.len(), 18 + 1);
+        let remaining_txs = da.get_raw_mempool().await?;
+        assert!(dropped_txs.iter().all(|tx| !remaining_txs.contains(tx)));
+
         Ok(())
     }
 }
