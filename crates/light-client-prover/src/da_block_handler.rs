@@ -4,7 +4,7 @@
 //! and maintaining the light client state.
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
@@ -26,8 +26,7 @@ use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutp
 use sov_rollup_interface::zk::{ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
 use tokio::select;
-use tokio::sync::Mutex;
-use tokio::time::Duration;
+use tokio::sync::{Mutex, Notify};
 use tracing::{error, instrument};
 
 use crate::circuit::initial_values::InitialValueProvider;
@@ -154,18 +153,20 @@ where
             StartVariant::LastScanned(height) => height + 1, // last scanned block + 1
             StartVariant::FromBlock(height) => height,       // first block to scan
         };
+
+        let notifier = Arc::new(Notify::new());
+
         let l1_sync_worker = sync_l1(
             start_l1_height,
             self.da_service.clone(),
             self.queued_l1_blocks.clone(),
             self.l1_block_cache.clone(),
+            notifier.clone(),
         );
         tokio::pin!(l1_sync_worker);
 
         let backup_manager = self.backup_manager.clone();
-
-        let mut interval = tokio::time::interval(Duration::from_secs(2));
-        interval.tick().await;
+        tokio::time::sleep(Duration::from_secs(1)).await; // Gives time for queue to fill up on startup
         loop {
             select! {
                 biased;
@@ -173,7 +174,7 @@ where
                     return;
                 }
                 _ = &mut l1_sync_worker => {},
-                _ = interval.tick() => {
+                _ = notifier.notified() => {
                     let _l1_guard = backup_manager.start_l1_processing().await;
                     if let Err(e) = self.process_queued_l1_blocks().await {
                         error!("Could not process queued L1 blocks and generate proof: {:?}", e);

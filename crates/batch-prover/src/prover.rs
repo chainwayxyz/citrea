@@ -709,17 +709,23 @@ where
                     .proving_time
                     .record(proof_with_duration.duration);
 
-                let tx_id = prover_service
-                    .submit_proof(proof_with_duration.proof, job_id)
-                    .await
-                    .expect("Failed to submit proof");
+                let prover_service = prover_service.clone();
+                let ledger_db = ledger_db.clone();
 
-                info!("Job {} proof sent to DA", job_id);
+                // submit the proof to the DA service in the background
+                tokio::spawn(async move {
+                    let tx_id = prover_service
+                        .submit_proof(proof_with_duration.proof, job_id)
+                        .await
+                        .expect("Failed to submit proof");
 
-                // stores tx id and removes job from pending da submission
-                ledger_db
-                    .finalize_proving_job(job_id, tx_id.into())
-                    .expect("Should update proving job tx id");
+                    info!("Job {} proof sent to DA", job_id);
+
+                    // stores tx id and removes job from pending da submission
+                    ledger_db
+                        .finalize_proving_job(job_id, tx_id.into())
+                        .expect("Should update proving job tx id");
+                });
             }
         });
     }
@@ -790,17 +796,22 @@ where
 
         // submit all proofs to da
         for (job_id, proof) in proofs {
-            let tx_id = self
-                .prover_service
-                .submit_proof(proof, job_id)
-                .await
-                .expect("Failed to submit transaction");
-            info!("Job {} proof sent to DA", job_id);
+            let prover_service = self.prover_service.clone();
+            let ledger_db = self.ledger_db.clone();
+            info!("Submitting recovered proof for job {}", job_id);
+            // submit in the background
+            tokio::spawn(async move {
+                let tx_id = prover_service
+                    .submit_proof(proof, job_id)
+                    .await
+                    .expect("Failed to submit transaction");
+                info!("Job {} proof sent to DA", job_id);
 
-            // stores tx id and removes job from pending da submission
-            self.ledger_db
-                .finalize_proving_job(job_id, tx_id.into())
-                .expect("Should update proving job tx id");
+                // stores tx id and removes job from pending da submission
+                ledger_db
+                    .finalize_proving_job(job_id, tx_id.into())
+                    .expect("Should update proving job tx id");
+            });
         }
     }
 
