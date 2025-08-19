@@ -61,7 +61,7 @@ impl DepositDataMempool {
         // Remove fetched deposits from the pending set
         for deposit in &deposits {
             if let Ok(txid) = Self::calc_tx_id(deposit) {
-                self.pending_deposits.remove(&txid.to_vec());
+                self.pending_deposits.remove(txid.as_slice());
             }
         }
 
@@ -95,8 +95,16 @@ impl DepositDataMempool {
         Ok(true)
     }
 
+    /// Calculate the transaction ID from deposit data.
+    ///
+    /// # Arguments
+    /// * `req`  - Raw deposit transaction data
+    ///
+    /// # Returns
+    /// `Ok(transaction_id)` if the deposit data are valid
+    /// `Err` if deposit data are invalid.
     fn calc_tx_id(req: &[u8]) -> anyhow::Result<[u8; 32]> {
-        let call = BridgeContract::depositCall::abi_decode_raw(&req, true)
+        let call = BridgeContract::depositCall::abi_decode_raw(req, true)
             .expect("TODO: proper error handling");
 
         let tx = call.moveTx;
@@ -104,8 +112,8 @@ impl DepositDataMempool {
         let mut data = Vec::new();
 
         data.extend_from_slice(&tx.version.0);
-        data.extend_from_slice(&tx.vin.0.to_vec());
-        data.extend_from_slice(&tx.vout.0.to_vec());
+        data.extend_from_slice(&tx.vin.0);
+        data.extend_from_slice(&tx.vout.0);
         data.extend_from_slice(&tx.locktime.0);
 
         let hasher = Sha256::hash(&data);

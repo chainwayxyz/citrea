@@ -318,21 +318,17 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
                     .add_deposit_tx(deposit.to_vec());
 
                 match add_result {
-                    Ok(true) => return Ok(()),
-                    Ok(false) => {
-                        return Err(jsonrpsee::types::error::ErrorObject::owned(
-                            jsonrpsee::types::error::INVALID_PARAMS_CODE,
-                            "Deposit already pending in mempool",
-                            None::<()>,
-                        ));
-                    }
-                    Err(_) => {
-                        return Err(jsonrpsee::types::error::ErrorObject::owned(
-                            jsonrpsee::types::error::INVALID_PARAMS_CODE,
-                            "Invalid deposit",
-                            None::<()>,
-                        ));
-                    }
+                    Ok(true) => Ok(()),
+                    Ok(false) => Err(jsonrpsee::types::error::ErrorObject::owned(
+                        jsonrpsee::types::error::INVALID_PARAMS_CODE,
+                        "Deposit already pending in mempool",
+                        None::<()>,
+                    )),
+                    Err(_) => Err(jsonrpsee::types::error::ErrorObject::owned(
+                        jsonrpsee::types::error::INVALID_PARAMS_CODE,
+                        "Invalid deposit",
+                        None::<()>,
+                    )),
                 }
             }
             Err(e) => {
