@@ -95,7 +95,7 @@ pub enum TxStatus {
 }
 
 /// The kind of transaction being monitored.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum MonitoredTxKind {
     /// Commit transaction, the first in a commit/reveal pair
     Commit,

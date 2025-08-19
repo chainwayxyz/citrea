@@ -12,7 +12,7 @@ use jsonrpsee::proc_macros::rpc;
 use serde::{Deserialize, Serialize};
 
 use crate::fee::BumpFeeMethod;
-use crate::monitoring::{MonitoredTx, TxStatus};
+use crate::monitoring::{MonitoredTx, MonitoredTxKind, TxStatus};
 use crate::service::BitcoinService;
 
 /// Response type for monitored transactions.
@@ -37,6 +37,8 @@ pub struct MonitoredTxResponse {
     /// Hex representation of the transaction, if requested.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hex: Option<String>,
+    /// Transaction kind
+    pub kind: MonitoredTxKind,
 }
 
 impl From<(Txid, MonitoredTx, bool)> for MonitoredTxResponse {
@@ -60,6 +62,7 @@ impl From<(Txid, MonitoredTx, bool)> for MonitoredTxResponse {
             next_txid: tx.next_txid,
             status: tx.status,
             hex,
+            kind: tx.kind,
         }
     }
 }
