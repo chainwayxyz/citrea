@@ -37,7 +37,7 @@ use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{
-    EncodeCall, L2Block, L2BlockModuleCallError, PrivateKey, SlotData, Spec, SpecId, StateDiff,
+    EncodeCall, L2Block, L2BlockModuleCallError, PrivateKey, SlotData, Spec, SpecId,
     StateValueAccessor, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprint;
@@ -557,10 +557,13 @@ where
             evm_txs_count
         );
 
-        let state_diff = self.save_l2_block(l2_block, l2_block_result, tx_hashes, blobs)?;
-
+        // First set the state diff before committing the L2 block
+        // This prevents race conditions where the sequencer might shut down
+        // between committing the L2 block and saving the state diff
         self.ledger_db
-            .set_state_diff(L2BlockNumber(l2_height), &state_diff)?;
+            .set_state_diff(L2BlockNumber(l2_height), &l2_block_result.state_diff)?;
+
+        self.save_l2_block(l2_block, l2_block_result, tx_hashes, blobs)?;
 
         self.maintain_mempool(l1_fee_failed_txs)?;
 
@@ -712,16 +715,13 @@ where
     /// * `l2_block_result` - Result of block execution
     /// * `tx_hashes` - Transaction hashes in the block
     /// * `blobs` - Associated blob data
-    ///
-    /// # Returns
-    /// The state diff resulting from the block
     pub(crate) fn save_l2_block(
         &mut self,
         l2_block: L2Block,
         l2_block_result: L2BlockResult<ProverStorage, sov_state::Witness, sov_state::ReadWriteLog>,
         tx_hashes: Vec<[u8; 32]>,
         blobs: Vec<Vec<u8>>,
-    ) -> anyhow::Result<StateDiff> {
+    ) -> anyhow::Result<()> {
         let save_l2_block_start = Instant::now();
 
         debug!("New L2 block with hash: {:?}", hex::encode(l2_block.hash()));
@@ -766,7 +766,7 @@ where
                 .as_secs_f64(),
         );
 
-        Ok(l2_block_result.state_diff)
+        Ok(())
     }
 
     /// Maintains the mempool by removing failed transactions
