@@ -484,15 +484,16 @@ impl MonitoringService {
         let txid = tx.id;
 
         {
-            let monitored_txs = self.monitored_txs.read().await;
+            let mut monitored_txs = self.monitored_txs.write().await;
             if monitored_txs.contains_key(&txid) {
                 return Err(MonitorError::AlreadyMonitored);
             }
 
             if let Some(prev_tx_id) = prev_txid {
-                if !monitored_txs.contains_key(&prev_tx_id) {
+                let Some(prev_tx) = monitored_txs.get_mut(&prev_tx_id) else {
                     return Err(MonitorError::PrevTxNotMonitored(prev_tx_id));
-                }
+                };
+                prev_tx.next_txid = Some(txid);
             }
         }
 
