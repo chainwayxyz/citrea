@@ -218,6 +218,13 @@ impl DaTransactionQueueingTest {
         let remaining_txs = da.get_raw_mempool().await?;
         assert!(dropped_txs.iter().all(|tx| !remaining_txs.contains(tx)));
 
+        da.generate(1).await?;
+
+        // Make sure txs are rebroadcasted from monitoring service
+        da.wait_mempool_len(5, None).await?;
+        let raw_mempool = da.get_raw_mempool().await?;
+        assert_eq!(dropped_txs, raw_mempool);
+
         Ok(())
     }
 }
