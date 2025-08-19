@@ -6,7 +6,7 @@ use rand::Rng;
 use sov_rollup_interface::da::DaTxRequest;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
-use tokio::sync::{oneshot, Mutex, Notify};
+use tokio::sync::{oneshot, OwnedSemaphorePermit, Semaphore};
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
@@ -19,9 +19,7 @@ where
     Da: DaService,
     Vm: ZkvmHost + 'static,
 {
-    parallel_proof_limit: usize,
-    ongoing_proof_count: Arc<Mutex<usize>>,
-    proof_done_notifier: Arc<Notify>,
+    proof_semaphore: Arc<Semaphore>,
     proof_mode: ProofGenMode,
     da_service: Arc<Da>,
     vm: Vm,
@@ -66,9 +64,7 @@ where
         };
 
         Ok(Self {
-            parallel_proof_limit,
-            ongoing_proof_count: Default::default(),
-            proof_done_notifier: Default::default(),
+            proof_semaphore: Arc::new(Semaphore::new(parallel_proof_limit)),
             proof_mode,
             da_service,
             vm,
@@ -124,7 +120,7 @@ where
         receipt_type: ReceiptType,
         job_id: Uuid,
     ) -> anyhow::Result<oneshot::Receiver<ProofWithDuration>> {
-        self.reserve_proof_slot().await;
+        let permit = self.reserve_proof_slot().await?;
 
         let ProofData {
             input,
@@ -145,15 +141,13 @@ where
             .context("Failed to start proving")?;
         debug!("Started proving job");
 
-        let ongoing_proof_count = self.ongoing_proof_count.clone();
-        let notifier = self.proof_done_notifier.clone();
         let (tx, rx) = oneshot::channel();
         // the reason we pipe the proof_rx to a new channel is because we need to
         // keep track of the number of ongoing proofs and notify the caller when the proof is done
         tokio::spawn(async move {
+            let _permit = permit; // Hold permit until task completion
             let proof = proof_rx.await;
 
-            *ongoing_proof_count.lock().await -= 1;
             PARALLEL_PROVER_METRICS.ongoing_proving_jobs.decrement(1);
 
             match proof {
@@ -176,49 +170,33 @@ where
             }
 
             debug!("Finished proving job");
-            notifier.notify_one();
         });
 
         Ok(rx)
     }
 
     /// Reserves a proof slot. If the limit is reached, it will wait for a proof to finish.
-    async fn reserve_proof_slot(&self) {
-        let mut ongoing_proof_count = self.ongoing_proof_count.lock().await;
-        // try to reserve a slot if there is one available
-        if *ongoing_proof_count < self.parallel_proof_limit {
-            *ongoing_proof_count += 1;
+    async fn reserve_proof_slot(&self) -> anyhow::Result<OwnedSemaphorePermit> {
+        let available_permits = self.proof_semaphore.available_permits();
+
+        if available_permits == 0 {
             PARALLEL_PROVER_METRICS
-                .ongoing_proving_jobs
-                .set(*ongoing_proof_count as f64);
-            return;
+                .proof_count_waiting_in_queue
+                .increment(1);
+            warn!("Reached parallel proof limit, waiting for one of the proving tasks to finish");
         }
-        // release the lock manually just in case
-        drop(ongoing_proof_count);
 
-        PARALLEL_PROVER_METRICS
-            .proof_count_waiting_in_queue
-            .increment(1);
-        warn!("Reached parallel proof limit, waiting for one of the proving tasks to finish");
+        let permit = self.proof_semaphore.clone().acquire_owned().await?;
 
-        loop {
-            // wait for a proof job to send a finish notification
-            self.proof_done_notifier.notified().await;
+        PARALLEL_PROVER_METRICS.ongoing_proving_jobs.increment(1);
 
-            // try to reserve a slot again, it is possible that there were multiple awaiters,
-            // hence, whoever gets the lock first will be able to reserve a slot
-            let mut ongoing_proof_count = self.ongoing_proof_count.lock().await;
-            if *ongoing_proof_count < self.parallel_proof_limit {
-                *ongoing_proof_count += 1;
-                PARALLEL_PROVER_METRICS
-                    .ongoing_proving_jobs
-                    .set(*ongoing_proof_count as f64);
-                PARALLEL_PROVER_METRICS
-                    .proof_count_waiting_in_queue
-                    .decrement(1);
-                return;
-            }
+        if available_permits == 0 {
+            PARALLEL_PROVER_METRICS
+                .proof_count_waiting_in_queue
+                .decrement(1);
         }
+
+        Ok(permit)
     }
 
     /// Submits the zk proof to the DA service, returning transaction id.
