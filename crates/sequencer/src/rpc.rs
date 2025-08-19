@@ -311,13 +311,13 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
         match tx_res {
             Ok(hex_res) => {
                 tracing::debug!("Deposit tx processed successfully {}", hex_res);
-                let already_added = self
+                let successfully_added = self
                     .context
                     .deposit_mempool
                     .lock()
                     .add_deposit_tx(deposit.to_vec());
 
-                if !already_added {
+                if !successfully_added {
                     return Err(jsonrpsee::types::error::ErrorObject::owned(
                         jsonrpsee::types::error::INVALID_PARAMS_CODE,
                         "Deposit already pending in mempool",
