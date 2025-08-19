@@ -23,15 +23,16 @@ use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::{L2Block, RuntimeTrait};
+use sov_modules_api::L2Block;
 use sov_modules_stf_blueprint::StfBlueprint;
-use sov_prover_storage_manager::ProverStorageManager;
+use sov_prover_storage_manager::{ProverStorage, ProverStorageManager};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::L2BlockResult;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
+use sov_state::{ReadWriteLog, Witness};
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tracing::{error, info, instrument};
@@ -240,14 +241,10 @@ where
     ) -> anyhow::Result<(
         u64,
         L2Block,
-        L2BlockResult<
-            <CitreaRuntime<DefaultContext, <DA as DaService>::Spec> as sov_modules_api::RuntimeTrait<DefaultContext, <DA as DaService>::Spec>>::Storage,
-            sov_modules_api::default_context::Witness,
-            sov_modules_api::default_context::ReadWriteLog,
-        >,
+        L2BlockResult<ProverStorage, Witness, ReadWriteLog>,
         Vec<[u8; 32]>,
         Option<Vec<Vec<u8>>>,
-    )>{
+    )> {
         let l2_height = l2_block_response.header.height.to();
 
         info!(
@@ -340,9 +337,9 @@ where
         l2_height: u64,
         l2_block: L2Block,
         l2_block_result: L2BlockResult<
-            <CitreaRuntime<DefaultContext, <DA as DaService>::Spec> as sov_modules_api::RuntimeTrait<DefaultContext, <DA as DaService>::Spec>>::Storage,
-            sov_modules_api::default_context::Witness,
-            sov_modules_api::default_context::ReadWriteLog,
+            sov_prover_storage_manager::ProverStorage,
+            Witness,
+            ReadWriteLog,
         >,
         tx_hashes: Vec<[u8; 32]>,
         tx_bodies: Option<Vec<Vec<u8>>>,
