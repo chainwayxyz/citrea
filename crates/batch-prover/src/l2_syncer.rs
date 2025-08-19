@@ -23,16 +23,14 @@ use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::L2Block;
+use sov_modules_api::{L2Block, StateDiff};
 use sov_modules_stf_blueprint::StfBlueprint;
-use sov_prover_storage_manager::{ProverStorage, ProverStorageManager};
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::stf::L2BlockResult;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
-use sov_state::{ReadWriteLog, Witness};
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tracing::{error, info, instrument};
@@ -205,17 +203,11 @@ where
         let start = Instant::now();
 
         // Process the L2 block and get the result
-        let (l2_height, l2_block, l2_block_result, tx_hashes, tx_bodies) =
+        let (l2_height, l2_block, state_diff, tx_hashes, tx_bodies) =
             self.apply_l2_block(l2_block_response).await?;
 
         // Save the state diff and commit the block atomically
-        self.save_l2_block_with_state_diff(
-            l2_height,
-            l2_block,
-            l2_block_result,
-            tx_hashes,
-            tx_bodies,
-        )?;
+        self.save_l2_block_with_state_diff(l2_height, l2_block, state_diff, tx_hashes, tx_bodies)?;
 
         let process_duration = Instant::now()
             .saturating_duration_since(start)
@@ -238,13 +230,7 @@ where
     async fn apply_l2_block(
         &mut self,
         l2_block_response: &L2BlockResponse,
-    ) -> anyhow::Result<(
-        u64,
-        L2Block,
-        L2BlockResult<ProverStorage, Witness, ReadWriteLog>,
-        Vec<[u8; 32]>,
-        Option<Vec<Vec<u8>>>,
-    )> {
+    ) -> anyhow::Result<(u64, L2Block, StateDiff, Vec<[u8; 32]>, Option<Vec<Vec<u8>>>)> {
         let l2_height = l2_block_response.header.height.to();
 
         info!(
@@ -315,8 +301,11 @@ where
             bail!("Post state root mismatch at height: {}", l2_height)
         }
 
+        // Extract only the state diff we need before consuming the result
+        let state_diff = l2_block_result.state_diff.clone();
+
         self.storage_manager
-            .finalize_storage(l2_block_result.change_set.clone());
+            .finalize_storage(l2_block_result.change_set);
 
         let tx_hashes = compute_tx_hashes(&l2_block.txs, current_spec);
 
@@ -328,7 +317,7 @@ where
             hex::encode(next_state_root)
         );
 
-        Ok((l2_height, l2_block, l2_block_result, tx_hashes, tx_bodies))
+        Ok((l2_height, l2_block, state_diff, tx_hashes, tx_bodies))
     }
 
     /// Save the L2 block with its state diff in the correct order to prevent race conditions
@@ -336,11 +325,7 @@ where
         &self,
         l2_height: u64,
         l2_block: L2Block,
-        l2_block_result: L2BlockResult<
-            sov_prover_storage_manager::ProverStorage,
-            Witness,
-            ReadWriteLog,
-        >,
+        state_diff: sov_modules_api::StateDiff,
         tx_hashes: Vec<[u8; 32]>,
         tx_bodies: Option<Vec<Vec<u8>>>,
     ) -> anyhow::Result<()> {
@@ -348,7 +333,7 @@ where
         // This prevents race conditions where the batch prover might shut down
         // between committing the L2 block and saving the state diff
         self.ledger_db
-            .set_l2_state_diff(L2BlockNumber(l2_height), l2_block_result.state_diff)?;
+            .set_l2_state_diff(L2BlockNumber(l2_height), state_diff)?;
 
         // Now commit the L2 block
         self.ledger_db
