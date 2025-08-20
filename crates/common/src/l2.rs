@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Instant;
 
 use alloy_primitives::U64;
 use anyhow::{bail, Context as _};
@@ -28,12 +27,14 @@ use tracing::{debug, error, info, warn};
 
 use crate::utils::decode_sov_tx_and_update_short_header_proofs;
 
-pub struct ProcessL2BlockResult {
+/// Result from applying an L2 block before committing
+pub struct AppliedL2Block {
     pub l2_height: u64,
-    pub l2_block_hash: L2BlockHash,
-    pub state_root: StorageRootHash,
+    pub l2_block: L2Block,
     pub state_diff: StateDiff,
-    pub process_duration: f64,
+    pub state_root: StorageRootHash,
+    pub tx_hashes: Vec<[u8; 32]>,
+    pub tx_bodies: Option<Vec<Vec<u8>>>,
     pub block_size: usize,
 }
 
@@ -44,8 +45,10 @@ enum SyncError {
     Unknown(String),
 }
 
+/// Apply an L2 block and return intermediate results before committing
+/// This is the first step of processing an L2 block
 #[allow(clippy::too_many_arguments)]
-pub async fn process_l2_block<Da: DaService, DB: SharedLedgerOps>(
+pub async fn apply_l2_block<Da: DaService, DB: SharedLedgerOps>(
     l2_block_response: &L2BlockResponse,
     storage_manager: &ProverStorageManager,
     fork_manager: &mut ForkManager<'_>,
@@ -56,9 +59,7 @@ pub async fn process_l2_block<Da: DaService, DB: SharedLedgerOps>(
     current_state_root: StorageRootHash,
     sequencer_pub_key: &K256PublicKey,
     include_tx_body: bool,
-) -> anyhow::Result<ProcessL2BlockResult> {
-    let start = Instant::now();
-
+) -> anyhow::Result<AppliedL2Block> {
     let l2_height = l2_block_response.header.height.to();
 
     info!(
@@ -129,26 +130,31 @@ pub async fn process_l2_block<Da: DaService, DB: SharedLedgerOps>(
     let tx_hashes = compute_tx_hashes(&l2_block.txs, current_spec);
     let tx_bodies = if include_tx_body { tx_bodies } else { None };
 
-    ledger_db.commit_l2_block(l2_block, tx_hashes, tx_bodies)?;
-
     info!(
         "New State Root after l2 block #{} is: 0x{}",
         l2_height,
         hex::encode(next_state_root)
     );
 
-    let duration = Instant::now()
-        .saturating_duration_since(start)
-        .as_secs_f64();
-
-    Ok(ProcessL2BlockResult {
+    Ok(AppliedL2Block {
         l2_height,
-        l2_block_hash: l2_block_response.header.hash,
-        state_root: next_state_root,
+        l2_block,
         state_diff: l2_block_result.state_diff,
-        process_duration: duration,
+        state_root: next_state_root,
+        tx_hashes,
+        tx_bodies,
         block_size,
     })
+}
+
+/// Commit an L2 block to the ledger database
+/// This is the second step of processing an L2 block
+pub fn commit_l2_block<DB: SharedLedgerOps>(
+    ledger_db: &DB,
+    applied: AppliedL2Block,
+) -> anyhow::Result<()> {
+    ledger_db.commit_l2_block(applied.l2_block, applied.tx_hashes, applied.tx_bodies)?;
+    Ok(())
 }
 
 pub async fn sync_l2(

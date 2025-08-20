@@ -6,15 +6,12 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use anyhow::{bail, Context as _};
 use backoff::backoff::Backoff;
 use backoff::ExponentialBackoff;
 use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::l2::sync_l2;
-use citrea_common::utils::decode_sov_tx_and_update_short_header_proofs;
-use citrea_primitives::merkle::compute_tx_hashes;
+use citrea_common::l2::{apply_l2_block, commit_l2_block, sync_l2};
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -23,14 +20,12 @@ use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::{L2Block, StateDiff};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::StorageRootHash;
-use sov_state::storage::NativeStorage;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tracing::{error, info, instrument};
@@ -202,17 +197,36 @@ where
     ) -> anyhow::Result<()> {
         let start = Instant::now();
 
-        // Process the L2 block and get the result
-        let (l2_height, l2_block, state_diff, tx_hashes, tx_bodies) =
-            self.apply_l2_block(l2_block_response).await?;
+        let applied = apply_l2_block(
+            l2_block_response,
+            &self.storage_manager,
+            &mut self.fork_manager,
+            self.da_service.clone(),
+            &self.ledger_db,
+            &mut self.stf,
+            self.l2_block_hash,
+            self.state_root,
+            &self.sequencer_pub_key,
+            self.include_tx_body,
+        )
+        .await?;
 
-        // Save the state diff and commit the block atomically
-        self.save_l2_block_with_state_diff(l2_height, l2_block, state_diff, tx_hashes, tx_bodies)?;
+        // Save state diff BEFORE committing the L2 block
+        // This prevents race conditions where the batch prover might shut down
+        // between committing the L2 block and saving the state diff
+        self.ledger_db
+            .set_l2_state_diff(L2BlockNumber(applied.l2_height), applied.state_diff.clone())?;
+
+        let l2_height = applied.l2_height;
+        let state_root = applied.state_root;
+
+        commit_l2_block(&self.ledger_db, applied)?;
 
         let process_duration = Instant::now()
             .saturating_duration_since(start)
             .as_secs_f64();
 
+        self.state_root = state_root;
         self.l2_block_hash = l2_block_response.header.hash;
 
         // Only errors when there are no receivers
@@ -222,122 +236,6 @@ where
         BATCH_PROVER_METRICS
             .process_l2_block
             .record(process_duration);
-
-        Ok(())
-    }
-
-    /// Apply the L2 block through STF and prepare it for saving
-    async fn apply_l2_block(
-        &mut self,
-        l2_block_response: &L2BlockResponse,
-    ) -> anyhow::Result<(u64, L2Block, StateDiff, Vec<[u8; 32]>, Option<Vec<Vec<u8>>>)> {
-        let l2_height = l2_block_response.header.height.to();
-
-        info!(
-            "Running l2 block batch #{} with hash: 0x{}",
-            l2_height,
-            hex::encode(l2_block_response.header.hash),
-        );
-
-        if self.l2_block_hash != l2_block_response.header.prev_hash {
-            bail!("Previous hash mismatch at height: {}", l2_height);
-        }
-
-        let pre_state = self.storage_manager.create_storage_for_next_l2_height();
-        assert_eq!(
-            pre_state.version(),
-            l2_height,
-            "Prover storage version is corrupted"
-        );
-
-        let tx_bodies = if self.include_tx_body {
-            Some(
-                l2_block_response
-                    .txs
-                    .clone()
-                    .into_iter()
-                    .map(|tx| tx.tx)
-                    .collect::<Vec<_>>(),
-            )
-        } else {
-            None
-        };
-
-        // Register this new block with the fork manager
-        self.fork_manager.register_block(l2_height)?;
-        let current_spec = self.fork_manager.active_fork().spec_id;
-
-        let l2_block: L2Block = l2_block_response
-            .clone()
-            .try_into()
-            .context("Failed to parse transactions")?;
-
-        // Apply the L2 block through STF
-        let l2_block_result = {
-            decode_sov_tx_and_update_short_header_proofs(
-                l2_block_response,
-                &self.ledger_db,
-                self.da_service.clone(),
-            )
-            .await?;
-
-            self.stf.apply_l2_block(
-                current_spec,
-                &self.sequencer_pub_key,
-                &self.state_root,
-                pre_state,
-                None,
-                None,
-                Default::default(),
-                Default::default(),
-                &l2_block,
-            )?
-        };
-
-        let next_state_root = l2_block_result.state_root_transition.final_root;
-
-        // Check if post state root is the same as the one in the l2 block
-        if next_state_root.as_ref().to_vec() != l2_block.state_root() {
-            bail!("Post state root mismatch at height: {}", l2_height)
-        }
-
-        // Extract only the state diff we need before consuming the result
-        let state_diff = l2_block_result.state_diff.clone();
-
-        self.storage_manager
-            .finalize_storage(l2_block_result.change_set);
-
-        let tx_hashes = compute_tx_hashes(&l2_block.txs, current_spec);
-
-        self.state_root = next_state_root;
-
-        info!(
-            "New State Root after l2 block #{} is: 0x{}",
-            l2_height,
-            hex::encode(next_state_root)
-        );
-
-        Ok((l2_height, l2_block, state_diff, tx_hashes, tx_bodies))
-    }
-
-    /// Save the L2 block with its state diff in the correct order to prevent race conditions
-    fn save_l2_block_with_state_diff(
-        &self,
-        l2_height: u64,
-        l2_block: L2Block,
-        state_diff: sov_modules_api::StateDiff,
-        tx_hashes: Vec<[u8; 32]>,
-        tx_bodies: Option<Vec<Vec<u8>>>,
-    ) -> anyhow::Result<()> {
-        // Save state diff BEFORE committing the L2 block
-        // This prevents race conditions where the batch prover might shut down
-        // between committing the L2 block and saving the state diff
-        self.ledger_db
-            .set_l2_state_diff(L2BlockNumber(l2_height), state_diff)?;
-
-        // Now commit the L2 block
-        self.ledger_db
-            .commit_l2_block(l2_block, tx_hashes, tx_bodies)?;
 
         Ok(())
     }

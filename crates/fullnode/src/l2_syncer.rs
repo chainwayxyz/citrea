@@ -10,7 +10,7 @@ use backoff::ExponentialBackoff;
 use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::l2::{process_l2_block, sync_l2, ProcessL2BlockResult};
+use citrea_common::l2::{apply_l2_block, commit_l2_block, sync_l2};
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -191,7 +191,9 @@ where
         &mut self,
         l2_block_response: &L2BlockResponse,
     ) -> anyhow::Result<()> {
-        let l2_block_result = process_l2_block(
+        let start = std::time::Instant::now();
+
+        let applied = apply_l2_block(
             l2_block_response,
             &self.storage_manager,
             &mut self.fork_manager,
@@ -205,17 +207,18 @@ where
         )
         .await?;
 
-        let ProcessL2BlockResult {
-            l2_height,
-            l2_block_hash,
-            state_root,
-            process_duration,
-            block_size,
-            ..
-        } = l2_block_result;
+        let l2_height = applied.l2_height;
+        let state_root = applied.state_root;
+        let block_size = applied.block_size;
+
+        commit_l2_block(&self.ledger_db, applied)?;
+
+        let process_duration = std::time::Instant::now()
+            .saturating_duration_since(start)
+            .as_secs_f64();
 
         self.state_root = state_root;
-        self.l2_block_hash = l2_block_hash;
+        self.l2_block_hash = l2_block_response.header.hash;
 
         // Only errors when there are no receivers
         let _ = self.l2_block_tx.send(l2_height);
