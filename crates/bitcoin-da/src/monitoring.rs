@@ -660,6 +660,17 @@ impl MonitoringService {
 
                     monitored_tx.status = new_status;
                 }
+                // Check evicted TXs that have already been rebroadcasted at least once
+                TxStatus::Evicted {
+                    rebroadcast_attempts,
+                    ..
+                } if *rebroadcast_attempts > 0 => {
+                    let tx_result = self.client.get_transaction(txid, None).await?;
+                    let new_status = self
+                        .determine_tx_status(&tx_result, &monitored_tx.status)
+                        .await?;
+                    monitored_tx.status = new_status;
+                }
                 TxStatus::InMempool { height, .. } => {
                     let tx_result = self.client.get_transaction(txid, None).await?;
                     let mut new_status = self
@@ -728,18 +739,17 @@ impl MonitoringService {
                         height: entry.height,
                     }
                 }
-                Err(_) => {
-                    if *current_status == TxStatus::Queued {
-                        return Ok(current_status.clone());
+                Err(_) => match current_status {
+                    TxStatus::Queued | TxStatus::Evicted { .. } => current_status.clone(),
+                    _ => {
+                        tracing::info!("Tx {} was evicted from mempool.", tx_result.info.txid);
+                        TxStatus::Evicted {
+                            last_seen: get_timestamp(),
+                            rebroadcast_attempts: 0,
+                            last_error: None,
+                        }
                     }
-
-                    tracing::info!("Tx {} was evicted from mempool.", tx_result.info.txid);
-                    TxStatus::Evicted {
-                        last_seen: get_timestamp(),
-                        rebroadcast_attempts: 0,
-                        last_error: None,
-                    }
-                }
+                },
             }
         };
         Ok(status)
@@ -790,9 +800,13 @@ impl MonitoringService {
                         .attempt_rebroadcast(txid, &monitored_tx.tx, &monitored_tx.status)
                         .await
                     {
-                        Ok(new_status) => {
+                        Ok(_) => {
                             info!("Successfully rebroadcast tx {txid}");
-                            monitored_tx.status = new_status;
+                            monitored_tx.status = TxStatus::Evicted {
+                                last_seen: now,
+                                rebroadcast_attempts: rebroadcast_attempts + 1,
+                                last_error: None,
+                            }
                         }
                         Err(e) => {
                             info!("Failed to rebroadcast tx {txid}: {e}");
