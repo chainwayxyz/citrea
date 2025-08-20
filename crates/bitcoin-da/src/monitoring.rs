@@ -737,8 +737,11 @@ impl MonitoringService {
                         height: entry.height,
                     }
                 }
+                // Tx not found in mempool
                 Err(_) => match current_status {
+                    // If transaction is queued or evicted, keep status as is
                     TxStatus::Queued | TxStatus::Evicted { .. } => current_status.clone(),
+                    // If transaction was previously in mempool or confirmed, re-org happened and it got evicted from mempool
                     _ => {
                         tracing::info!("Tx {} was evicted from mempool.", tx_result.info.txid);
                         TxStatus::Evicted {
