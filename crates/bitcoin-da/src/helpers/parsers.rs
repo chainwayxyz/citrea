@@ -348,7 +348,12 @@ mod body_parsers {
         loop {
             let instr = read_instr(instructions)?;
             match instr {
-                PushBytes(chunk) => chunks.push(chunk),
+                PushBytes(chunk) => {
+                    if chunk.is_empty() {
+                        return Err(ParserError::UnexpectedOpcode);
+                    }
+                    chunks.push(chunk)
+                }
                 Op(OP_ENDIF) => break,
                 Op(_) => return Err(ParserError::UnexpectedOpcode),
             }
