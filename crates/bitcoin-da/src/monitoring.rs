@@ -799,7 +799,7 @@ impl MonitoringService {
 
                     match self.attempt_rebroadcast(txid, &monitored_tx.status).await {
                         Ok(_) => {
-                            info!("Successfully rebroadcast tx {txid}");
+                            info!("Attempted to rebroadcast tx {txid}");
                             monitored_tx.status = TxStatus::Evicted {
                                 last_seen: now,
                                 rebroadcast_attempts: rebroadcast_attempts + 1,
