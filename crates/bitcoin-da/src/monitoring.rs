@@ -860,8 +860,14 @@ impl MonitoringService {
 
     async fn attempt_rebroadcast(&self, txid: &Txid, current_status: &TxStatus) -> Result<()> {
         warn!("Rebroadcasting txid: {txid} with current_status {current_status:?}");
-        let tx_result = self.client.get_transaction(txid, None).await?;
-        self.client.send_raw_transaction(&tx_result.hex).await?;
+        if let Ok(result) = self.client.get_transaction(txid, None).await {
+            self.client.send_raw_transaction(&result.hex).await?;
+        } else if let Ok(result) = self.client.get_raw_transaction_hex(txid, None).await {
+            self.client.send_raw_transaction(result).await?;
+        } else {
+            return Err(anyhow!("Failed to retrieve hex and rebroadcast {txid}").into());
+        }
+
         Ok(())
     }
 
