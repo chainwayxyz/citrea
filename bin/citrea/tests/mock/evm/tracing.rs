@@ -1057,28 +1057,24 @@ async fn test_pre_state_tracer_disable_code() -> Result<(), Box<dyn std::error::
     assert!(matches!(trace_result, GethTrace::PreStateTracer(_)));
 
     // Verify no code is present in either pre or post states
-    if let GethTrace::PreStateTracer(frame) = trace_result {
-        if let PreStateFrame::Diff(diff_mode) = frame {
-            // Check that no account in pre state has code
-            for (_, account_state) in diff_mode.pre.iter() {
-                assert!(
-                    account_state.code.is_none(),
-                    "Code should be None in pre state when disableCode=true"
-                );
-            }
+    if let GethTrace::PreStateTracer(PreStateFrame::Diff(diff_mode)) = trace_result {
+        // Check that no account in pre state has code
+        for (_, account_state) in diff_mode.pre.iter() {
+            assert!(
+                account_state.code.is_none(),
+                "Code should be None in pre state when disableCode=true"
+            );
+        }
 
-            // Check that no account in post state has code
-            for (_, account_state) in diff_mode.post.iter() {
-                assert!(
-                    account_state.code.is_none(),
-                    "Code should be None in post state when disableCode=true"
-                );
-            }
-        } else {
-            panic!("Expected diff mode PreStateFrame");
+        // Check that no account in post state has code
+        for (_, account_state) in diff_mode.post.iter() {
+            assert!(
+                account_state.code.is_none(),
+                "Code should be None in post state when disableCode=true"
+            );
         }
     } else {
-        panic!("Expected PreStateTracer result");
+        panic!("Expected diff mode PreStateFrame");
     }
 
     // Test with diff mode and disableCode=false (default) to ensure code is present
@@ -1101,23 +1097,21 @@ async fn test_pre_state_tracer_disable_code() -> Result<(), Box<dyn std::error::
         .await;
 
     // Verify code is present when disableCode=false
-    if let GethTrace::PreStateTracer(frame) = trace_result_with_code {
-        if let PreStateFrame::Diff(diff_mode) = frame {
-            // At least some accounts should have code when disableCode=false
-            let has_code_in_pre = diff_mode
-                .pre
-                .iter()
-                .any(|(_, account_state)| account_state.code.is_some());
-            let has_code_in_post = diff_mode
-                .post
-                .iter()
-                .any(|(_, account_state)| account_state.code.is_some());
+    if let GethTrace::PreStateTracer(PreStateFrame::Diff(diff_mode)) = trace_result_with_code {
+        // At least some accounts should have code when disableCode=false
+        let has_code_in_pre = diff_mode
+            .pre
+            .iter()
+            .any(|(_, account_state)| account_state.code.is_some());
+        let has_code_in_post = diff_mode
+            .post
+            .iter()
+            .any(|(_, account_state)| account_state.code.is_some());
 
-            assert!(
-                has_code_in_pre || has_code_in_post,
-                "At least some accounts should have code when disableCode=false"
-            );
-        }
+        assert!(
+            has_code_in_pre || has_code_in_post,
+            "At least some accounts should have code when disableCode=false"
+        );
     }
 
     task_manager.graceful_shutdown();
