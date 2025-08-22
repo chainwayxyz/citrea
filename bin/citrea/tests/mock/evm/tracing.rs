@@ -1007,6 +1007,123 @@ async fn test_pre_state_tracer() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Test that disableCode flag works correctly in diff mode
+#[tokio::test(flavor = "multi_thread")]
+async fn test_pre_state_tracer_disable_code() -> Result<(), Box<dyn std::error::Error>> {
+    let (task_manager, test_client, contract_info) = init_sequencer().await?;
+    let TestContractInfo {
+        caller_contract_address,
+        caller_contract,
+        ss_contract_address,
+    } = contract_info;
+
+    // First transaction to set a value
+    let tx_hash = {
+        let call_set_value_req = test_client
+            .contract_transaction(
+                caller_contract_address,
+                caller_contract
+                    .call_set_call_data(Address::from_slice(ss_contract_address.as_ref()), 42),
+                None,
+            )
+            .await;
+        test_client.send_publish_batch_request().await;
+        call_set_value_req
+            .get_receipt()
+            .await
+            .unwrap()
+            .transaction_hash
+    };
+
+    // Test with diff mode and disableCode=true
+    let mut prestate_config_json = serde_json::Map::new();
+    prestate_config_json.insert("diffMode".to_string(), serde_json::Value::Bool(true));
+    prestate_config_json.insert("disableCode".to_string(), serde_json::Value::Bool(true));
+    let prestate_config = serde_json::Value::Object(prestate_config_json);
+
+    let trace_result = test_client
+        .debug_trace_transaction(
+            tx_hash,
+            Some(GethDebugTracingOptions {
+                tracer: Some(GethDebugTracerType::BuiltInTracer(
+                    GethDebugBuiltInTracerType::PreStateTracer,
+                )),
+                tracer_config: alloy_rpc_types_trace::geth::GethDebugTracerConfig(prestate_config),
+                ..Default::default()
+            }),
+        )
+        .await;
+
+    assert!(matches!(trace_result, GethTrace::PreStateTracer(_)));
+
+    // Verify no code is present in either pre or post states
+    if let GethTrace::PreStateTracer(frame) = trace_result {
+        if let PreStateFrame::Diff(diff_mode) = frame {
+            // Check that no account in pre state has code
+            for (_, account_state) in diff_mode.pre.iter() {
+                assert!(
+                    account_state.code.is_none(),
+                    "Code should be None in pre state when disableCode=true"
+                );
+            }
+
+            // Check that no account in post state has code
+            for (_, account_state) in diff_mode.post.iter() {
+                assert!(
+                    account_state.code.is_none(),
+                    "Code should be None in post state when disableCode=true"
+                );
+            }
+        } else {
+            panic!("Expected diff mode PreStateFrame");
+        }
+    } else {
+        panic!("Expected PreStateTracer result");
+    }
+
+    // Test with diff mode and disableCode=false (default) to ensure code is present
+    let mut prestate_config_json = serde_json::Map::new();
+    prestate_config_json.insert("diffMode".to_string(), serde_json::Value::Bool(true));
+    prestate_config_json.insert("disableCode".to_string(), serde_json::Value::Bool(false));
+    let prestate_config = serde_json::Value::Object(prestate_config_json);
+
+    let trace_result_with_code = test_client
+        .debug_trace_transaction(
+            tx_hash,
+            Some(GethDebugTracingOptions {
+                tracer: Some(GethDebugTracerType::BuiltInTracer(
+                    GethDebugBuiltInTracerType::PreStateTracer,
+                )),
+                tracer_config: alloy_rpc_types_trace::geth::GethDebugTracerConfig(prestate_config),
+                ..Default::default()
+            }),
+        )
+        .await;
+
+    // Verify code is present when disableCode=false
+    if let GethTrace::PreStateTracer(frame) = trace_result_with_code {
+        if let PreStateFrame::Diff(diff_mode) = frame {
+            // At least some accounts should have code when disableCode=false
+            let has_code_in_pre = diff_mode
+                .pre
+                .iter()
+                .any(|(_, account_state)| account_state.code.is_some());
+            let has_code_in_post = diff_mode
+                .post
+                .iter()
+                .any(|(_, account_state)| account_state.code.is_some());
+
+            assert!(
+                has_code_in_pre || has_code_in_post,
+                "At least some accounts should have code when disableCode=false"
+            );
+        }
+    }
+
+    task_manager.graceful_shutdown();
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn test_four_byte_tracer() -> Result<(), Box<dyn std::error::Error>> {
     let (task_manager, test_client, contract_info) = init_sequencer().await?;
