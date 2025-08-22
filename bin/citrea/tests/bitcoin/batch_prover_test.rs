@@ -1313,6 +1313,21 @@ impl TestCase for BatchProverCreateInputTest {
             assert_eq!(state_roots[1], l2_block.header.state_root);
         }
 
+        // Test that non-existent commitment ranges are properly rejected
+        let result = batch_prover
+            .client
+            .http_client()
+            .create_circuit_input(100, 200, PartitionMode::Normal)
+            .await;
+
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(
+            error_msg.contains("No commitments found"),
+            "Expected error about no commitments found, got: {}",
+            error_msg
+        );
+
         sequencer.wait_until_stopped().await?;
         batch_prover.wait_until_stopped().await?;
 

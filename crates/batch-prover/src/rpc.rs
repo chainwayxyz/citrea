@@ -493,6 +493,12 @@ where
             .get_commitment_by_range(index_start..=index_end)
             .map_err(internal_rpc_error)?;
 
+        if commitments.is_empty() {
+            return Err(internal_rpc_error(
+                "No commitments found for the specified range",
+            ));
+        }
+
         let (result_tx, result_rx) = oneshot::channel();
 
         if self
