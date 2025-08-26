@@ -131,10 +131,12 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
             monitoring: MonitoringConfig::from_env().ok(),
             mempool_space_url: read_env("MEMPOOL_SPACE_URL").ok(),
             utxo_selection_mode: read_env("UTXO_SELECTION_MODE")
-                .and_then(|v| serde_json::from_str(&format!("\"{}\"", v)).map_err(|e| {
-                    anyhow::anyhow!("Failed to parse UTXO_SELECTION_MODE: {e}. Supported values are 'chained' or 'oldest'")
-                }))
-                .ok(),
+                .ok()
+                .map(|v| {
+                    serde_json::from_str(&format!("\"{}\"", v))
+                        .map_err(|e| anyhow!(e).context("Invalid UTXO_SELECTION_MODE"))
+                })
+                .transpose()?,
         })
     }
 }
