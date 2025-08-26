@@ -331,6 +331,9 @@ impl TestCase for DaTransactionQueueingTest {
         let finalized_height = da.get_finalized_height(None).await?;
 
         // Wait for full node to process sequencer commitments
+        full_node
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
+            .await?;
         full_node.wait_for_l1_height(finalized_height, None).await?;
 
         let commitment_1 = full_node
@@ -697,6 +700,9 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
         let finalized_height = da.get_finalized_height(None).await?;
 
         // Wait for full node to process sequencer commitments
+        full_node
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
+            .await?;
         full_node.wait_for_l1_height(finalized_height, None).await?;
 
         let commitment_1 = full_node
