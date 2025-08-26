@@ -345,10 +345,11 @@ impl BitcoinService {
         let signed_txs = self.tx_signer.sign_da_txs(da_txs).await?;
 
         // Test whether signed_txs should be accepted in queue
-        self.test_mempool_accept_queue_tx(&signed_txs).await?;
-
-        // Stateless validation of signed txs fee
-        validate_txs_fee_rate(&signed_txs, fee_sat_per_vbyte, utxos, prev_utxo)?;
+        if !self.test_mempool_accept_queue_tx(&signed_txs).await? {
+            // If it failed on mempool policy limit, it can also fail on meeting min relay fee
+            // Stateless validation of signed txs fee
+            validate_txs_fee_rate(&signed_txs, fee_sat_per_vbyte, utxos, prev_utxo)?;
+        }
 
         // backup to file after mempool acceptance
         backup_txs_to_file(&self.tx_backup_dir, &signed_txs)?;
@@ -678,13 +679,13 @@ impl BitcoinService {
     /// Any error recoverable by mempool state changes should be queued, such as package too large or package too many transactions.
     /// When the mempool state changes, on every new block, the package limitations change accordingly.
     /// The queued transactions will be retried on every block until the transaction is accepted to mempool.
-    async fn test_mempool_accept_queue_tx(&self, txs: &[SignedTxPair]) -> Result<()> {
+    async fn test_mempool_accept_queue_tx(&self, txs: &[SignedTxPair]) -> Result<bool> {
         let raw_txs: Vec<&Vec<u8>> = txs.iter().flat_map(|v| v.as_raw_txs()).collect();
 
         match self.test_mempool_accept(&raw_txs).await {
-            Ok(()) => Ok(()),
-            Err(BitcoinServiceError::MempoolRejection(e)) if e.should_be_queued() => Ok(()),
-            e => e,
+            Ok(()) => Ok(true),
+            Err(BitcoinServiceError::MempoolRejection(e)) if e.should_be_queued() => Ok(false),
+            Err(e) => Err(e),
         }
     }
 
