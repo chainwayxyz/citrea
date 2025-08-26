@@ -12,8 +12,10 @@ use bitcoincore_rpc::json::{
 use bitcoincore_rpc::{Client, RpcApi};
 use tracing::{debug, instrument, trace, warn};
 
+use crate::error::BitcoinServiceError;
 use crate::monitoring::{MonitoredTx, MonitoredTxKind};
 use crate::spec::utxo::UTXO;
+use crate::tx_signer::SignedTxPair;
 
 const DEFAULT_MEMPOOL_SPACE_URL: &str = "https://mempool.space/";
 const MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT: &str = "api/v1/fees/recommended";
@@ -211,6 +213,62 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
         .context("Failed to get fee rate from mempool space")?;
 
     Ok(Some(fee_rate))
+}
+
+pub(crate) async fn validate_txs_fee_rate(
+    txs: &[SignedTxPair],
+    fee_rate: u64,
+    utxos: Vec<UTXO>,
+    prev_utxo: Option<UTXO>,
+) -> Result<(), BitcoinServiceError> {
+    let mut utxo_map = utxos
+        .into_iter()
+        .map(|utxo| ((utxo.tx_id, utxo.vout), Amount::from_sat(utxo.amount)))
+        .collect::<HashMap<_, _>>();
+    if let Some(prev_utxo) = prev_utxo {
+        utxo_map.insert(
+            (prev_utxo.tx_id, prev_utxo.vout),
+            Amount::from_sat(prev_utxo.amount),
+        );
+    }
+
+    for tx in txs {
+        // Validate commit
+        let commit_tx = &tx.commit.tx;
+        let mut input_amount = Amount::ZERO;
+
+        for tx_input in &commit_tx.input {
+            let Some(&amount) =
+                utxo_map.get(&(tx_input.previous_output.txid, tx_input.previous_output.vout))
+            else {
+                return Err(BitcoinServiceError::MissingPreviousUTXO);
+            };
+
+            input_amount += amount;
+        }
+
+        let commit_output = commit_tx.output[0].value;
+        if let Some(change_output) = commit_tx.output.get(1) {
+            utxo_map.insert((tx.commit_txid(), 1), change_output.value);
+        }
+        let output_amount = commit_tx.output.iter().map(|tx| tx.value).sum();
+
+        if (input_amount - output_amount) < Amount::from_sat(commit_tx.vsize() as u64 * fee_rate) {
+            return Err(BitcoinServiceError::FeeCalculation(fee_rate));
+        }
+
+        // Validate reveal
+        let reveal_tx = &tx.reveal.tx;
+        let input_amount = commit_output;
+        let output_amount = reveal_tx.output[0].value;
+        utxo_map.insert((tx.reveal_txid(), 0), output_amount);
+
+        if (input_amount - output_amount) < Amount::from_sat(reveal_tx.vsize() as u64 * fee_rate) {
+            return Err(BitcoinServiceError::FeeCalculation(fee_rate));
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

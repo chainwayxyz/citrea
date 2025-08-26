@@ -40,7 +40,7 @@ use tokio::sync::Mutex;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::error::{BitcoinServiceError, MempoolRejection};
-use crate::fee::{BumpFeeMethod, FeeService};
+use crate::fee::{validate_txs_fee_rate, BumpFeeMethod, FeeService};
 use crate::helpers::backup::backup_txs_to_file;
 use crate::helpers::builders::body_builders::{create_inscription_transactions, DaTxs, RawTxData};
 use crate::helpers::builders::TxWithId;
@@ -301,12 +301,14 @@ impl BitcoinService {
                                     error!(?e, "Failed to send transaction to DA layer");
                                     tokio::time::sleep(Duration::from_secs(1)).await;
 
-                                    if let BitcoinServiceError::MempoolRejection(MempoolRejection::MinRelayFeeNotMet) = e {
-                                        fee_rate_multiplier = self.fee.get_next_fee_rate_multiplier(fee_rate_multiplier);
-                                    }
-
-                                    if let BitcoinServiceError::QueueNotEmpty = e {
-                                        let _ = self.process_transaction_queue().await;
+                                    match e {
+                                        BitcoinServiceError::MempoolRejection(MempoolRejection::MinRelayFeeNotMet) | BitcoinServiceError::FeeCalculation(_) => {
+                                            fee_rate_multiplier = self.fee.get_next_fee_rate_multiplier(fee_rate_multiplier);
+                                        },
+                                        BitcoinServiceError::QueueNotEmpty => {
+                                            let _ = self.process_transaction_queue().await;
+                                        },
+                                        _ => {}
                                     }
 
                                     continue;
@@ -329,12 +331,24 @@ impl BitcoinService {
         let now = Instant::now();
 
         let prev_utxo = self.select_prev_utxo().await?;
+        // get all available utxos
+        let utxos = self.get_utxos().await?;
 
         let da_txs = self
-            .create_da_transactions_with_fee_rate(tx_request, fee_sat_per_vbyte, prev_utxo)
+            .create_da_transactions_with_fee_rate(
+                tx_request,
+                fee_sat_per_vbyte,
+                utxos.clone(),
+                prev_utxo.clone(),
+            )
             .await?;
         let signed_txs = self.tx_signer.sign_da_txs(da_txs).await?;
+
+        // Test whether signed_txs should be accepted in queue
         self.test_mempool_accept_queue_tx(&signed_txs).await?;
+
+        // Stateless validation of signed txs fee
+        validate_txs_fee_rate(&signed_txs, fee_sat_per_vbyte, utxos, prev_utxo).await?;
 
         // backup to file after mempool acceptance
         backup_txs_to_file(&self.tx_backup_dir, &signed_txs)?;
@@ -481,6 +495,7 @@ impl BitcoinService {
         &self,
         tx_request: DaTxRequest,
         fee_sat_per_vbyte: u64,
+        utxos: Vec<UTXO>,
         prev_utxo: Option<UTXO>,
     ) -> Result<DaTxs> {
         let data = match tx_request {
@@ -498,12 +513,7 @@ impl BitcoinService {
         };
 
         let network = self.network;
-
         let da_private_key = self.da_private_key.expect("No private key set");
-
-        // get all available utxos
-        let utxos = self.get_utxos().await?;
-
         // get address from a utxo
         let address = utxos[0]
             .address
