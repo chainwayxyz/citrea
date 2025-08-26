@@ -215,7 +215,7 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
     Ok(Some(fee_rate))
 }
 
-pub(crate) async fn validate_txs_fee_rate(
+pub(crate) fn validate_txs_fee_rate(
     txs: &[SignedTxPair],
     fee_rate: u64,
     utxos: Vec<UTXO>,

@@ -348,7 +348,7 @@ impl BitcoinService {
         self.test_mempool_accept_queue_tx(&signed_txs).await?;
 
         // Stateless validation of signed txs fee
-        validate_txs_fee_rate(&signed_txs, fee_sat_per_vbyte, utxos, prev_utxo).await?;
+        validate_txs_fee_rate(&signed_txs, fee_sat_per_vbyte, utxos, prev_utxo)?;
 
         // backup to file after mempool acceptance
         backup_txs_to_file(&self.tx_backup_dir, &signed_txs)?;
