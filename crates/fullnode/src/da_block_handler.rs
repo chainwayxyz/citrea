@@ -577,7 +577,9 @@ where
             code_commitment,
             network_to_dev_mode(self.network),
         )
-        .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
+        .map_err(|err| {
+            SkippableError::Proof(ProofError::VerificationFailure(format!("{err:?}")))
+        })?;
 
         // Process the verified proof using Tangerine-specific logic
         self.process_tangerine_zk_proof(
@@ -853,6 +855,12 @@ where
                 .process_zk_proof(current_l1_block_height, found_in_l1_height, proof)
                 .await
             {
+                Err(ProcessingError::SkippableError(e)) => {
+                    warn!(
+                        "Failed to process pending proof with index {min_index}-{max_index}: {e:?}, skipping..."
+                    );
+                    continue;
+                }
                 Err(e) => {
                     warn!(
                         "Failed to process pending proof with index {min_index}-{max_index}: {e:?}"
