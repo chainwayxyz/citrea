@@ -827,6 +827,8 @@ impl MonitoringService {
             return Ok(());
         };
 
+        let monitored_txs = self.get_monitored_txs().await;
+
         for _ in 0..TXS_NUMBER_TO_REBROADCAST {
             // Break on first finalized TX
             if let TxStatus::Finalized { .. } = current_tx.1.status {
@@ -843,7 +845,7 @@ impl MonitoringService {
             };
 
             let prev_tx = {
-                let Some(tx_data) = self.monitored_txs.read().await.get(&prev_txid).cloned() else {
+                let Some(tx_data) = monitored_txs.get(&prev_txid).cloned() else {
                     return Err(anyhow!("Missing monitored transaction {prev_txid}").into());
                 };
                 (prev_txid, tx_data)
