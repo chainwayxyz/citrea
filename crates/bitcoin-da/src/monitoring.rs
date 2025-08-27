@@ -603,7 +603,7 @@ impl MonitoringService {
                     .iter()
                     .position(|&(hash, _)| hash == current_hash)
                 {
-                    if pos != i as usize {
+                    if pos + 1 != i as usize {
                         reorg_detected = true;
                         reorg_depth = i;
                     }
