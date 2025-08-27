@@ -483,18 +483,16 @@ impl MonitoringService {
     ) -> Result<()> {
         let txid = tx.id;
 
-        {
-            let mut monitored_txs = self.monitored_txs.write().await;
-            if monitored_txs.contains_key(&txid) {
-                return Err(MonitorError::AlreadyMonitored);
-            }
+        let mut monitored_txs = self.monitored_txs.write().await;
+        if monitored_txs.contains_key(&txid) {
+            return Err(MonitorError::AlreadyMonitored);
+        }
 
-            if let Some(prev_tx_id) = prev_txid {
-                let Some(prev_tx) = monitored_txs.get_mut(&prev_tx_id) else {
-                    return Err(MonitorError::PrevTxNotMonitored(prev_tx_id));
-                };
-                prev_tx.next_txid = Some(txid);
-            }
+        if let Some(prev_tx_id) = prev_txid {
+            let Some(prev_tx) = monitored_txs.get_mut(&prev_tx_id) else {
+                return Err(MonitorError::PrevTxNotMonitored(prev_tx_id));
+            };
+            prev_tx.next_txid = Some(txid);
         }
 
         let current_height = self.client.get_block_count().await?;
@@ -516,7 +514,7 @@ impl MonitoringService {
             kind,
         };
 
-        self.monitored_txs.write().await.insert(txid, monitored_tx);
+        monitored_txs.insert(txid, monitored_tx);
         *self.last_tx.lock().await = Some(txid);
         debug!("[monitor_transaction_chain] setting last_tx : {:?}", txid);
 
