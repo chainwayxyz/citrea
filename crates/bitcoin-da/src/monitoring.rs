@@ -635,8 +635,7 @@ impl MonitoringService {
 
                     if let TxStatus::InMempool { .. } = tx.status {
                         info!("Rebroadcasting tx {} {tx:?}", tx.tx.compute_txid());
-                        let raw_tx = self.client.get_raw_transaction_hex(txid, None).await?;
-                        self.client.send_raw_transaction(raw_tx).await?;
+                        self.attempt_rebroadcast(txid, &tx.status).await?;
                     }
                 }
             }
