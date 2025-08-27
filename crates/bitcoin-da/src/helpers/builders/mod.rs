@@ -153,7 +153,7 @@ fn build_commit_transaction(
 
         let size = get_size_commit(&inputs, &outputs);
 
-        // Size didn't change on this iteration. Fee calculation can be trusted
+        // Size didn't change on this iteration. Fee calculation was done against current transaction vsize
         if size == last_size {
             break (
                 leftover_utxos,
@@ -225,9 +225,6 @@ fn build_reveal_transaction(
         input: inputs,
         output: outputs,
     };
-
-    println!("[reveal] fee : {:?}", fee);
-    println!("[reveal] tx.vsize() : {:?}", tx.vsize());
 
     Ok(tx)
 }
