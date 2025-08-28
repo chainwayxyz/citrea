@@ -21,7 +21,7 @@ use tokio::select;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace};
 
 use crate::helpers::builders::TxWithId;
 use crate::helpers::parsers::parse_relevant_transaction;
@@ -858,7 +858,7 @@ impl MonitoringService {
     }
 
     async fn attempt_rebroadcast(&self, txid: &Txid, current_status: &TxStatus) -> Result<()> {
-        warn!("Rebroadcasting txid: {txid} with current_status {current_status:?}");
+        debug!("Rebroadcasting txid: {txid} with current_status {current_status:?}");
         if let Ok(result) = self.client.get_transaction(txid, None).await {
             self.client.send_raw_transaction(&result.hex).await?;
         } else if let Ok(result) = self.client.get_raw_transaction_hex(txid, None).await {
