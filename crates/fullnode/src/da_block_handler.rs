@@ -561,8 +561,9 @@ where
         tracing::trace!("ZK proof: {:?}", proof);
 
         // Extract and verify the proof using the appropriate ZKVM
-        let batch_proof_output = Vm::extract_output::<BatchProofCircuitOutput>(&proof)
-            .map_err(|e| anyhow!("Failed to extract batch proof output from proof: {:?}", e))?;
+        let Ok(batch_proof_output) = Vm::extract_output::<BatchProofCircuitOutput>(&proof) else {
+            return Ok(ProcessingResult::Discarded);
+        };
 
         // Get the code commitment for the appropriate fork
         let spec_id = fork_from_block_number(batch_proof_output.last_l2_height()).spec_id;
@@ -572,14 +573,15 @@ where
             .expect("Proof public input must contain valid spec id");
 
         // Verify the proof against the code commitment
-        Vm::verify(
+        if Vm::verify(
             proof.as_slice(),
             code_commitment,
             network_to_dev_mode(self.network),
         )
-        .map_err(|err| {
-            SkippableError::Proof(ProofError::VerificationFailure(format!("{err:?}")))
-        })?;
+        .is_err()
+        {
+            return Ok(ProcessingResult::Discarded);
+        }
 
         // Process the verified proof using Tangerine-specific logic
         self.process_tangerine_zk_proof(
@@ -855,12 +857,6 @@ where
                 .process_zk_proof(current_l1_block_height, found_in_l1_height, proof)
                 .await
             {
-                Err(ProcessingError::SkippableError(e)) => {
-                    warn!(
-                        "Failed to process pending proof with index {min_index}-{max_index}: {e:?}, skipping..."
-                    );
-                    continue;
-                }
                 Err(e) => {
                     warn!(
                         "Failed to process pending proof with index {min_index}-{max_index}: {e:?}"
