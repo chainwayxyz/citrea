@@ -258,6 +258,7 @@ impl BonsaiProver {
     /// receiver channels that return the associated job id and proof result on finish.
     pub fn start_recovery(&self) -> anyhow::Result<Vec<oneshot::Receiver<ProofWithJob>>> {
         let sessions = self.ledger_db.get_pending_bonsai_sessions()?;
+        info!("Recovering Bonsai sessions: {:?}", sessions);
         if sessions.is_empty() {
             return Ok(vec![]);
         }
