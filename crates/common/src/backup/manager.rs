@@ -4,6 +4,7 @@ use std::sync::{Arc, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, ensure, Context};
+use futures::future;
 use rocksdb::backup::BackupEngineInfo;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
@@ -194,13 +195,15 @@ impl BackupManager {
             }
         }
 
-        // Wait for all dbs to start backing up under lock before releasing
+        // Wait for all database backups to complete while holding locks to ensure consistency
+        let results = future::join_all(handles).await;
+        for result in results {
+            result??;
+        }
+
+        // Release locks after all database snapshots are taken
         drop(l2_lock);
         drop(l1_lock);
-
-        for handle in handles {
-            handle.await??;
-        }
 
         if let Err(e) = self.validate_backup(backup_path) {
             warn!("Error validating backup: {e}");
