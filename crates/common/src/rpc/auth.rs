@@ -1,8 +1,11 @@
+use std::borrow::Cow;
+
 use futures::future::BoxFuture;
 use jsonrpsee::server::middleware::rpc::RpcServiceT;
 use jsonrpsee::types::error::ErrorObjectOwned;
 use jsonrpsee::types::Request;
 use jsonrpsee::MethodResponse;
+use serde_json::value::RawValue;
 use serde_json::Value;
 
 const PROTECTED_METHODS: [&str; 3] = ["backup_create", "backup_validate", "backup_info"];
@@ -44,12 +47,7 @@ where
         };
 
         Box::pin(async move {
-            let params = req.params();
-
-            let auth_param = params
-                .parse::<Vec<Value>>()
-                .ok()
-                .and_then(|v| v.last().cloned());
+            let (req, auth_param) = remove_last_param(req);
 
             match auth_param {
                 Some(key) if key == api_key => service.call(req).await,
@@ -59,5 +57,39 @@ where
                 ),
             }
         })
+    }
+}
+
+// Extracts the last parameter from a JSON-RPC request.
+// Returns a new request without the last parameter and the last parameter itself.
+// If params is not an array, it returns the original request without params at all.
+fn remove_last_param(req: Request) -> (Request, Option<Value>) {
+    match req.params().parse::<Vec<Value>>() {
+        Ok(mut params) => {
+            let last_param = params.pop();
+            let params = serde_json::to_string(&params).expect("Can't fail");
+            let params_box = RawValue::from_string(params).expect("Can't fail");
+            let params_cow = Cow::Owned(params_box);
+            let new_req = Request {
+                jsonrpc: req.jsonrpc,
+                id: req.id,
+                method: req.method,
+                params: Some(params_cow),
+                extensions: req.extensions,
+            };
+            (new_req, last_param)
+        }
+        Err(_e) => {
+            // Because params is not an array,
+            // we clear params and return method as is
+            let new_req = Request {
+                jsonrpc: req.jsonrpc,
+                id: req.id,
+                method: req.method,
+                params: None,
+                extensions: req.extensions,
+            };
+            (new_req, None)
+        }
     }
 }
