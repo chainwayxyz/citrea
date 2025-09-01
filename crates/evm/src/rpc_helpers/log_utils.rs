@@ -1,4 +1,4 @@
-// https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/logs_utils.rs
+// https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-eth-types/src/logs_utils.rs
 
 /// Computes the block range based on the filter range and current block numbers
 pub fn get_filter_block_range(
