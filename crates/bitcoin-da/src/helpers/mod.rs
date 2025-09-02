@@ -15,6 +15,8 @@ pub mod builders;
 pub mod merkle_tree;
 pub mod parsers;
 
+pub(crate) const MAX_BYTE_CHUNK_LEN: usize = 520; // PushBytes(520 bytes) inside script
+
 /// Type represents a typed enum for transaction kind
 #[derive(Debug, Clone)]
 #[repr(u16)]

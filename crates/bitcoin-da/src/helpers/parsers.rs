@@ -245,6 +245,30 @@ fn read_push_bytes<'a>(
     }
 }
 
+/// Read next instruction expecting it to be PushBytes(signature).
+/// 400 bytes must be enough for any signature
+fn read_signature<'a>(
+    instructions: &mut dyn Iterator<Item = Result<Instruction<'a>, ParserError>>,
+) -> Result<&'a StructPushBytes, ParserError> {
+    let instr = read_push_bytes(instructions)?;
+    if instr.is_empty() || instr.len() > 400 {
+        return Err(ParserError::UnexpectedOpcode);
+    }
+    Ok(instr)
+}
+
+/// Read next instruction expecting it to be PushBytes(public_key).
+/// 400 bytes must be enough for any public key
+fn read_public_key<'a>(
+    instructions: &mut dyn Iterator<Item = Result<Instruction<'a>, ParserError>>,
+) -> Result<&'a StructPushBytes, ParserError> {
+    let instr = read_push_bytes(instructions)?;
+    if instr.is_empty() || instr.len() > 400 {
+        return Err(ParserError::UnexpectedOpcode);
+    }
+    Ok(instr)
+}
+
 /// Read next instruction expecting it to be Opcode (non-push opcode).
 fn read_opcode(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
@@ -261,6 +285,18 @@ mod body_parsers {
     use bitcoin::opcodes::all::{OP_ENDIF, OP_IF, OP_NIP};
     use bitcoin::script::Instruction;
     use bitcoin::script::Instruction::{Op, PushBytes};
+    use citrea_primitives::MAX_TX_BODY_SIZE;
+
+    use crate::helpers::parsers::{read_public_key, read_signature};
+    use crate::helpers::MAX_BYTE_CHUNK_LEN;
+
+    /// Maximum number of byte chunks in inscription. +1 to make sure.
+    const MAX_BYTE_CHUNKS: usize = 1 + MAX_TX_BODY_SIZE / MAX_BYTE_CHUNK_LEN;
+
+    /// Maximum aggregate body size in inscription.
+    /// Limit it to 100 chunks (each is 32 for wtxid + txid)
+    /// Realistically speaking, 100 chunks should be enough.
+    const MAX_AGGR_BODY_SIZE: usize = 32 * 2 * 100;
 
     use super::{
         read_instr, read_opcode, read_push_bytes, ParsedAggregate, ParsedBatchProverMethodId,
@@ -281,19 +317,33 @@ mod body_parsers {
             return Err(ParserError::UnexpectedOpcode);
         }
 
-        let signature = read_push_bytes(instructions)?;
-        let public_key = read_push_bytes(instructions)?;
+        let signature = read_signature(instructions)?;
+        let public_key = read_public_key(instructions)?;
 
         let mut chunks = vec![];
+        let mut total_len = 0;
 
         loop {
             let instr = read_instr(instructions)?;
             match instr {
                 PushBytes(chunk) => {
-                    if chunk.is_empty() {
+                    if chunk.is_empty() || chunk.len() > MAX_BYTE_CHUNK_LEN {
+                        // Validate byte chunk len
                         return Err(ParserError::UnexpectedOpcode);
                     }
-                    chunks.push(chunk)
+                    total_len += chunk.len();
+
+                    if total_len > MAX_TX_BODY_SIZE {
+                        // Validate tx body size
+                        return Err(ParserError::UnexpectedOpcode);
+                    }
+
+                    chunks.push(chunk);
+
+                    if chunks.len() > MAX_BYTE_CHUNKS {
+                        // Validate number of chunks
+                        return Err(ParserError::UnexpectedOpcode);
+                    }
                 }
                 Op(OP_ENDIF) => break,
                 Op(_) => return Err(ParserError::UnexpectedOpcode),
@@ -310,8 +360,7 @@ mod body_parsers {
             return Err(ParserError::UnexpectedOpcode);
         }
 
-        let body_size: usize = chunks.iter().map(|c| c.len()).sum();
-        let mut body = Vec::with_capacity(body_size);
+        let mut body = Vec::with_capacity(total_len);
         for chunk in chunks {
             body.extend_from_slice(chunk.as_bytes());
         }
@@ -340,19 +389,33 @@ mod body_parsers {
             return Err(ParserError::UnexpectedOpcode);
         }
 
-        let signature = read_push_bytes(instructions)?;
-        let public_key = read_push_bytes(instructions)?;
+        let signature = read_signature(instructions)?;
+        let public_key = read_public_key(instructions)?;
 
         let mut chunks = vec![];
+        let mut total_len = 0;
 
         loop {
             let instr = read_instr(instructions)?;
             match instr {
                 PushBytes(chunk) => {
-                    if chunk.is_empty() {
+                    if chunk.is_empty() || chunk.len() > MAX_BYTE_CHUNK_LEN {
+                        // Validate byte chunk len
                         return Err(ParserError::UnexpectedOpcode);
                     }
-                    chunks.push(chunk)
+                    total_len += chunk.len();
+
+                    if total_len > MAX_AGGR_BODY_SIZE {
+                        // Validate tx body size
+                        return Err(ParserError::UnexpectedOpcode);
+                    }
+
+                    chunks.push(chunk);
+
+                    if chunks.len() > MAX_BYTE_CHUNKS {
+                        // Validate number of chunks
+                        return Err(ParserError::UnexpectedOpcode);
+                    }
                 }
                 Op(OP_ENDIF) => break,
                 Op(_) => return Err(ParserError::UnexpectedOpcode),
@@ -369,8 +432,7 @@ mod body_parsers {
             return Err(ParserError::UnexpectedOpcode);
         }
 
-        let body_size: usize = chunks.iter().map(|c| c.len()).sum();
-        let mut body = Vec::with_capacity(body_size);
+        let mut body = Vec::with_capacity(total_len);
         for chunk in chunks {
             body.extend_from_slice(chunk.as_bytes());
         }
@@ -400,15 +462,29 @@ mod body_parsers {
         }
 
         let mut chunks = vec![];
+        let mut total_len = 0;
 
         loop {
             let instr = read_instr(instructions)?;
             match instr {
                 PushBytes(chunk) => {
-                    if chunk.is_empty() {
+                    if chunk.is_empty() || chunk.len() > MAX_BYTE_CHUNK_LEN {
+                        // Validate byte chunk len
                         return Err(ParserError::UnexpectedOpcode);
                     }
-                    chunks.push(chunk)
+                    total_len += chunk.len();
+
+                    if total_len > MAX_TX_BODY_SIZE {
+                        // Validate tx body size
+                        return Err(ParserError::UnexpectedOpcode);
+                    }
+
+                    chunks.push(chunk);
+
+                    if chunks.len() > MAX_BYTE_CHUNKS {
+                        // Validate number of chunks
+                        return Err(ParserError::UnexpectedOpcode);
+                    }
                 }
                 Op(OP_ENDIF) => break,
                 Op(_) => return Err(ParserError::UnexpectedOpcode),
@@ -448,9 +524,14 @@ mod body_parsers {
             return Err(ParserError::UnexpectedOpcode);
         }
 
-        let signature = read_push_bytes(instructions)?;
-        let public_key = read_push_bytes(instructions)?;
+        let signature = read_signature(instructions)?;
+        let public_key = read_public_key(instructions)?;
         let body = read_push_bytes(instructions)?;
+
+        if body.len() > MAX_BYTE_CHUNK_LEN {
+            // Validate body length
+            return Err(ParserError::UnexpectedOpcode);
+        }
 
         if OP_ENDIF != read_opcode(instructions)? {
             return Err(ParserError::UnexpectedOpcode);
@@ -494,6 +575,11 @@ mod body_parsers {
         let signature = read_push_bytes(instructions)?;
         let public_key = read_push_bytes(instructions)?;
         let body = read_push_bytes(instructions)?;
+
+        if body.len() > MAX_BYTE_CHUNK_LEN {
+            // Validate body length
+            return Err(ParserError::UnexpectedOpcode);
+        }
 
         if OP_ENDIF != read_opcode(instructions)? {
             return Err(ParserError::UnexpectedOpcode);

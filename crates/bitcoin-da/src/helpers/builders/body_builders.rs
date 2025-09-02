@@ -22,6 +22,7 @@ use super::{
     build_commit_transaction, build_control_block, build_reveal_transaction, build_witness,
     get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind, TxWithId,
 };
+use crate::helpers::MAX_BYTE_CHUNK_LEN;
 use crate::spec::utxo::UTXO;
 use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
@@ -178,8 +179,8 @@ pub fn create_inscription_type_0(
         .push_slice(
             PushBytesBuf::try_from(signer_public_key).expect("Cannot push sequencer public key"),
         );
-    // push body in chunks of 520 bytes
-    for chunk in body.chunks(520) {
+    // push body in chunks of MAX_BYTE_CHUNK_LEN bytes
+    for chunk in body.chunks(MAX_BYTE_CHUNK_LEN) {
         reveal_script_builder = reveal_script_builder
             .push_slice(PushBytesBuf::try_from(chunk.to_vec()).expect("Cannot push body chunk"));
     }
@@ -347,8 +348,8 @@ pub fn create_inscription_type_1(
             .push_slice(PushBytesBuf::from(kind_bytes))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF);
-        // push body in chunks of 520 bytes
-        for chunk in body.chunks(520) {
+        // push body in chunks of MAX_BYTE_CHUNK_LEN bytes
+        for chunk in body.chunks(MAX_BYTE_CHUNK_LEN) {
             reveal_script_builder = reveal_script_builder.push_slice(
                 PushBytesBuf::try_from(chunk.to_vec()).expect("Cannot push body chunk"),
             );
@@ -535,8 +536,8 @@ pub fn create_inscription_type_1(
         .push_slice(
             PushBytesBuf::try_from(signer_public_key).expect("Cannot push sequencer public key"),
         );
-    // push body in chunks of 520 bytes
-    for chunk in reveal_body.chunks(520) {
+    // push body in chunks of MAX_BYTE_CHUNK_LEN bytes
+    for chunk in reveal_body.chunks(MAX_BYTE_CHUNK_LEN) {
         reveal_script_builder = reveal_script_builder
             .push_slice(PushBytesBuf::try_from(chunk.to_vec()).expect("Cannot push body chunk"));
     }
@@ -687,6 +688,11 @@ pub fn create_inscription_type_3(
     network: Network,
     reveal_tx_prefix: &[u8],
 ) -> Result<DaTxs, anyhow::Error> {
+    debug_assert!(
+        body.len() < MAX_BYTE_CHUNK_LEN,
+        "The body of a serialized batch prover method id exceeds {} bytes",
+        MAX_BYTE_CHUNK_LEN
+    );
     // Create reveal key
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
@@ -710,8 +716,8 @@ pub fn create_inscription_type_3(
         .push_slice(
             PushBytesBuf::try_from(signer_public_key).expect("Cannot push sequencer public key"),
         );
-    // push body in chunks of 520 bytes
-    for chunk in body.chunks(520) {
+    // push body in chunks of MAX_BYTE_CHUNK_LEN bytes
+    for chunk in body.chunks(MAX_BYTE_CHUNK_LEN) {
         reveal_script_builder = reveal_script_builder
             .push_slice(PushBytesBuf::try_from(chunk.to_vec()).expect("Cannot push body chunk"));
     }
@@ -865,8 +871,9 @@ pub fn create_inscription_type_4(
     reveal_tx_prefix: &[u8],
 ) -> Result<DaTxs, anyhow::Error> {
     debug_assert!(
-        body.len() < 520,
-        "The body of a serialized sequencer commitment exceeds 520 bytes"
+        body.len() < MAX_BYTE_CHUNK_LEN,
+        "The body of a serialized sequencer commitment exceeds {} bytes",
+        MAX_BYTE_CHUNK_LEN
     );
     // Create reveal key
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
