@@ -170,7 +170,7 @@ pub async fn l2_block_event_handler<C: sov_modules_api::Context>(
                 &Filter::default(),
                 height,
                 height,
-                Some(usize::MAX),
+                usize::MAX,
             )
             .expect("Error getting logs in block range");
 
