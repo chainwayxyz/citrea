@@ -100,6 +100,7 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     L2BlockByNumber::table_name(),
     L2GenesisStateRoot::table_name(),
     LastPrunedBlock::table_name(),
+    PendingBonsaiSessionByJobId::table_name(),
     PendingL1SubmissionJobs::table_name(),
     ProofByJobId::table_name(),
     ProverLastScannedSlot::table_name(),
@@ -125,6 +126,7 @@ pub const LIGHT_CLIENT_PROVER_LEDGER_TABLES: &[&str] = &[
     LightClientProofBySlotNumber::table_name(),
     ProverLastScannedSlot::table_name(),
     SlotByHash::table_name(),
+    PendingBonsaiSessionByJobId::table_name(),
     // #### TESTS RELATED TABLES ####
     #[cfg(test)]
     TestTableOld::table_name(),
