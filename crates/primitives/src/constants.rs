@@ -48,3 +48,8 @@ pub const PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS: &[u8] = &[
 pub const MAX_DECOMPRESSED_BLOB_SIZE: usize = 1024 * 1024; // 1 MB
 #[cfg(not(feature = "testing"))]
 pub const MAX_DECOMPRESSED_BLOB_SIZE: usize = 1024 * 1024 * 100; // 100 MB
+
+/// Maximum size of a compressed blob in bytes.
+/// This limit is enforced during chunk aggregation to prevent excessive memory usage
+/// and potential denial of service attacks.
+pub const MAX_COMPRESSED_BLOB_SIZE: usize = MAX_DECOMPRESSED_BLOB_SIZE;
