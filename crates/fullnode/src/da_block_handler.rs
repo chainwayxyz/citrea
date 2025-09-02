@@ -872,7 +872,10 @@ where
                     self.ledger_db.remove_pending_proof(min_index, max_index)?;
                 }
                 Ok(ProcessingResult::Pending) => {
-                    debug!("Keeping proof over commitment index range {min_index}-{max_index} as pending")
+                    debug!("Keeping proof over commitment index range {min_index}-{max_index} as pending");
+                    // Proofs are sorted by min_index.
+                    // We can break on first pending one as subsequent will always be pending as well since they depend on this first one
+                    break;
                 }
             }
         }
