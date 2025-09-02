@@ -99,16 +99,18 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
         &self,
         l2_range: RangeInclusive<u64>,
     ) -> Result<Vec<[u8; 32]>, ShortHeaderProofProviderError> {
-        let queried_and_verified_hashes = self.queried_and_verified_hashes.lock();
-        let mut hashes = Vec::new();
+        let mut map = self.queried_and_verified_hashes.lock();
+        let mut hashes: Vec<[u8; 32]> = Vec::new();
+
         for l2_height in l2_range {
-            if let Some(queried_hashes) = queried_and_verified_hashes.get(&l2_height) {
-                hashes.try_reserve(queried_hashes.len()).map_err(|e| {
+            if let Some(taken) = map.remove(&l2_height) {
+                hashes.try_reserve(taken.len()).map_err(|e| {
                     ShortHeaderProofProviderError::VectorAllocationFailed(e.to_string())
                 })?;
-                hashes.extend(queried_hashes.clone());
+                hashes.extend(taken);
             }
         }
+
         Ok(hashes)
     }
 

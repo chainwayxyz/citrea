@@ -1110,13 +1110,22 @@ where
     pub async fn restore_mempool(&self) -> Result<(), anyhow::Error> {
         // Load transactions from persistent storage
         let mempool_txs = self.ledger_db.get_mempool_txs()?;
-        for (_, tx) in mempool_txs {
+
+        let mut failed_txs = vec![];
+
+        for (tx_hash, tx) in mempool_txs {
             // Recover and add each transaction back to mempool
             let recovered = recover_raw_transaction(Bytes::from(tx.as_slice().to_vec()))?;
             let pooled_tx = EthPooledTransaction::from_pooled(recovered);
 
-            let _ = self.mempool.add_external_transaction(pooled_tx).await?;
+            if let Err(e) = self.mempool.add_external_transaction(pooled_tx).await {
+                warn!("Failed to restore transaction: {}", e);
+                failed_txs.push(tx_hash);
+            }
         }
+
+        self.ledger_db.remove_mempool_txs(failed_txs)?;
+
         Ok(())
     }
 
