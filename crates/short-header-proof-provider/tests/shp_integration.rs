@@ -100,14 +100,13 @@ fn test_native_clear_and_take_queried_hashes() {
         .get_and_verify_short_header_proof_by_l1_hash(block_hash2, [5u8; 32], 101, [6u8; 32], 1, 51)
         .unwrap();
 
-    let hashes = native_service.take_queried_hashes(50..=51).unwrap();
-    assert_eq!(hashes.len(), 2);
-    assert!(hashes.contains(&block_hash1));
-    assert!(hashes.contains(&block_hash2));
-
     let hashes = native_service.take_queried_hashes(50..=50).unwrap();
     assert_eq!(hashes.len(), 1);
     assert!(hashes.contains(&block_hash1));
+
+    let hashes = native_service.take_queried_hashes(50..=51).unwrap();
+    assert_eq!(hashes.len(), 1);
+    assert!(hashes.contains(&block_hash2));
 }
 
 #[test]

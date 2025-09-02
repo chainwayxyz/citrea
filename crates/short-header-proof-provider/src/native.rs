@@ -103,11 +103,11 @@ impl<Da: DaSpec> ShortHeaderProofProvider for NativeShortHeaderProofProviderServ
         let mut hashes: Vec<[u8; 32]> = Vec::new();
 
         for l2_height in l2_range {
-            if let Some(mut taken) = map.remove(&l2_height) {
+            if let Some(taken) = map.remove(&l2_height) {
                 hashes.try_reserve(taken.len()).map_err(|e| {
                     ShortHeaderProofProviderError::VectorAllocationFailed(e.to_string())
                 })?;
-                hashes.append(&mut taken);
+                hashes.extend(taken);
             }
         }
 
