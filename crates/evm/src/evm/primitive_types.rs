@@ -186,9 +186,15 @@ impl Decodable for SealedBlock {
     Default,
     Eq,
 )]
-pub(crate) struct CitreaReceiptWithBloom {
+pub struct CitreaReceiptWithBloom {
     pub(crate) receipt: reth_primitives::ReceiptWithBloom<reth_primitives::Receipt>,
     pub(crate) gas_used: u64,
     pub(crate) log_index_start: u64,
     pub(crate) l1_diff_size: u64,
+}
+
+impl CitreaReceiptWithBloom {
+    pub fn receipt(&self) -> reth_primitives::ReceiptWithBloom<reth_primitives::Receipt> {
+        self.receipt.clone()
+    }
 }

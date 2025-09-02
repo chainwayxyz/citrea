@@ -2077,6 +2077,22 @@ fn gas_limit_to_return(block_gas_limit: U64, estimated_tx_expenses: EstimatedTxE
     }
 }
 
+/// Get receipt by transaction hash
+pub fn get_receipt_by_tx_hash<C: sov_modules_api::Context>(
+    tx_hash: &B256,
+    evm: &Evm<C>,
+    working_set: &mut WorkingSet<C::Storage>,
+) -> Option<CitreaReceiptWithBloom> {
+    let tx_number = evm
+        .transaction_hashes
+        .get(tx_hash, &mut working_set.accessory_state())?;
+    let receipt = evm
+        .receipts
+        .get(tx_number as usize, &mut working_set.accessory_state())
+        .expect("Transaction receipt must be present");
+    Some(receipt)
+}
+
 /// Creates the next blocks `BlockEnv` based on the latest block
 /// Also updates `Evm::latest_block_hashes` with the new block hash
 fn get_pending_block_env<C: sov_modules_api::Context>(
