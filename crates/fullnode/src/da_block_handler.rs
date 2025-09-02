@@ -774,13 +774,11 @@ where
         &self,
         current_l1_block_height: u64,
     ) -> Result<(), ProcessingError> {
-        let pending_commitments = self.ledger_db.get_pending_commitments()?;
-        if pending_commitments.is_empty() {
-            return Ok(());
-        }
+        let mut pending_commitments = self.ledger_db.get_pending_commitments()?;
 
         // Try to process each pending commitment in order
-        for (index, commitment, found_in_l1_height) in pending_commitments {
+        while let Some(Ok(item)) = pending_commitments.next() {
+            let (index, (commitment, found_in_l1_height)) = item.into_tuple();
             // A commitment is processable if:
             // - For index 1: all its L2 blocks are synced
             // - For other indices: its previous commitment exists

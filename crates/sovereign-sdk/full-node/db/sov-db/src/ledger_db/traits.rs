@@ -10,7 +10,7 @@ use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use sov_schema_db::SchemaIterator;
 use uuid::Uuid;
 
-use crate::schema::tables::PendingProofs;
+use crate::schema::tables::{PendingProofs, PendingSequencerCommitments};
 use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
 use crate::schema::types::job_status::JobStatus;
 use crate::schema::types::l2_block::StoredL2Block;
@@ -188,7 +188,7 @@ pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
     ) -> anyhow::Result<Option<(SequencerCommitment, u64)>>;
 
     /// Get all out of order or l2 range not synced yet commitments to process, sorted by index
-    fn get_pending_commitments(&self) -> Result<Vec<(u32, SequencerCommitment, u64)>>;
+    fn get_pending_commitments(&self) -> Result<SchemaIterator<'_, PendingSequencerCommitments>>;
 
     /// Remove pending commitment by index
     fn remove_pending_commitment(&self, index: u32) -> Result<()>;
