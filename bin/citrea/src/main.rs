@@ -20,7 +20,8 @@ use clap::Parser;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use reth_tasks::TaskManager;
 use short_header_proof_provider::{
-    NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
+    NativeShortHeaderProofProviderService, NotQueriedNativeShortHeaderProofProviderService,
+    SHORT_HEADER_PROOF_PROVIDER,
 };
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -213,13 +214,20 @@ where
         _ => None,
     };
 
-    match SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::<
-        <S as RollupBlueprint>::DaSpec,
-    >::new(ledger_db.clone())))
-    {
+    match if matches!(node_type, NodeWithConfig::BatchProver(_)) {
+        SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::<
+            <S as RollupBlueprint>::DaSpec,
+        >::new(ledger_db.clone())))
+    } else {
+        SHORT_HEADER_PROOF_PROVIDER.set(Box::new(
+            NotQueriedNativeShortHeaderProofProviderService::<<S as RollupBlueprint>::DaSpec>::new(
+                ledger_db.clone(),
+            ),
+        ))
+    } {
         Ok(_) => tracing::debug!("Short header proof provider set"),
         Err(_) => tracing::error!("Short header proof provider already set"),
-    };
+    }
 
     let rpc_storage = storage_manager.create_final_view_storage();
     let mut rpc_module = rollup_blueprint.create_rpc_methods(
