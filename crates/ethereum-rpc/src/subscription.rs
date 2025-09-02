@@ -163,8 +163,15 @@ pub async fn l2_block_event_handler<C: sov_modules_api::Context>(
         let _ = new_heads_tx.send(block.clone()).await;
 
         let mut working_set = WorkingSet::new(storage.clone());
+
         let logs = evm
-            .get_logs_in_block_range(&mut working_set, &Filter::default(), height, height)
+            .get_logs_in_block_range(
+                &mut working_set,
+                &Filter::default(),
+                height,
+                height,
+                usize::MAX,
+            )
             .expect("Error getting logs in block range");
 
         // Only possible error is no receiver

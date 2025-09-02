@@ -53,7 +53,7 @@ The batch prover on the other hand is semi-trusted. The batch proof circuit make
 
 - `crates/citrea-stf`: Defines the runtime and the main batch proof circuit function. Connects `sov-modules` with the runtime hooks.
 
-- `crates/common`: Utility functions used by nodee-level code.
+- `crates/common`: Utility functions used by node-level code.
 
 - `crates/ethereum-rpc`: Fee, syncing, tracing and subscription RPCs for EVM compatibility is defined here.
 
@@ -66,7 +66,7 @@ The batch prover on the other hand is semi-trusted. The batch proof circuit make
 
 - `crates/light-client-prover`: Prover node type for the light client proof circuit. (See [light-client-proof-circuit.md](./light-client-circuit.md) and [node-types.md](./node-types.md#4-light-client-prover)).
 
-- `crates/primitives`: Utility funcctions used by node-leve and circuit-level code.
+- `crates/primitives`: Utility functions used by node-leve and circuit-level code.
 
 - `crates/prover-services`: Enables parallelizing ZK proof production.
 
