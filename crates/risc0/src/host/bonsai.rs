@@ -5,9 +5,7 @@ use anyhow::{anyhow, Context};
 use bonsai_sdk::blocking::{Client, SessionId, SnarkId};
 use bonsai_sdk::responses::SessionStats;
 use metrics::gauge;
-use risc0_zkvm::{
-    compute_image_id, AssumptionReceipt, Digest, InnerAssumptionReceipt, Receipt, VerifierContext,
-};
+use risc0_zkvm::{compute_image_id, AssumptionReceipt, Digest, InnerAssumptionReceipt, Receipt};
 use sov_db::ledger_db::{BonsaiLedgerOps, LedgerDB};
 use sov_db::schema::types::{BonsaiSession, BonsaiSessionKind};
 use sov_rollup_interface::zk::{ProofWithJob, ReceiptType};
@@ -182,8 +180,8 @@ impl BonsaiProver {
 
         let groth16_receipt = self.wait_snark_receipt(&snark_session).await?;
         groth16_receipt
-            .verify_integrity_with_context(&VerifierContext::default())
-            .context("Failed to verify bonsai groth16 proof integrity")?;
+            .verify(image_id)
+            .context("Failed to verify bonsai groth16 proof")?;
 
         Ok(groth16_receipt)
     }
