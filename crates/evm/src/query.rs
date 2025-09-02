@@ -1503,6 +1503,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     &filter,
                     from_block_number,
                     to_block_number,
+                    None,
                 )
             }
         }
@@ -1520,6 +1521,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         filter: &Filter,
         from_block_number: u64,
         to_block_number: u64,
+        max_logs_per_response: Option<usize>,
     ) -> Result<Vec<Log>, EthFilterError> {
         let max_blocks_per_filter: u64 = get_max_blocks_per_filter();
         if to_block_number - from_block_number >= max_blocks_per_filter {
@@ -1564,7 +1566,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         filter.clone(),
                         block,
                     );
-                    let max_logs_per_response = get_max_logs_per_response();
+                    let max_logs_per_response =
+                        max_logs_per_response.unwrap_or(get_max_logs_per_response());
                     // size check but only if range is multiple blocks, so we always return all
                     // logs of a single block
                     let is_multi_block_range = from_block_number != to_block_number;
@@ -2075,22 +2078,6 @@ fn gas_limit_to_return(block_gas_limit: U64, estimated_tx_expenses: EstimatedTxE
 
         with_l1_overhead.min(U256::from(block_gas_limit))
     }
-}
-
-/// Get receipt by transaction hash
-pub fn get_receipt_by_tx_hash<C: sov_modules_api::Context>(
-    tx_hash: &B256,
-    evm: &Evm<C>,
-    working_set: &mut WorkingSet<C::Storage>,
-) -> Option<CitreaReceiptWithBloom> {
-    let tx_number = evm
-        .transaction_hashes
-        .get(tx_hash, &mut working_set.accessory_state())?;
-    let receipt = evm
-        .receipts
-        .get(tx_number as usize, &mut working_set.accessory_state())
-        .expect("Transaction receipt must be present");
-    Some(receipt)
 }
 
 /// Creates the next blocks `BlockEnv` based on the latest block

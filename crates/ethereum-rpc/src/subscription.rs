@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use alloy_rpc_types::{Block, BlockNumHash, BlockNumberOrTag, Filter, FilteredParams, Log};
 use alloy_serde::WithOtherFields;
-use citrea_evm::{get_receipt_by_tx_hash, Evm};
+use citrea_evm::Evm;
 use futures::future;
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
-use reth_rpc_eth_types::logs_utils::{log_matches_filter, matching_block_logs_with_tx_hashes};
+use reth_rpc_eth_types::logs_utils::log_matches_filter;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::WorkingSet;
 use tokio::sync::{broadcast, mpsc, RwLock};
@@ -164,24 +164,15 @@ pub async fn l2_block_event_handler<C: sov_modules_api::Context>(
 
         let mut working_set = WorkingSet::new(storage.clone());
 
-        // https://github.com/paradigmxyz/reth/blob/ed7da87da4de340a437bf46f39a7e1397ac82065/crates/rpc/rpc/src/eth/pubsub.rs#L311-L328
-        let block_num_hash = BlockNumHash::new(block.header.number, block.header.hash);
-        let tx_hashes_and_receipts = block
-            .transactions
-            .hashes()
-            .filter_map(|tx_hash| {
-                get_receipt_by_tx_hash(&tx_hash, &evm, &mut working_set)
-                    .map(|receipt| (tx_hash, receipt.receipt()))
-            })
-            .collect::<Vec<_>>();
-
-        // Will be filtered per consumer
-        let logs = matching_block_logs_with_tx_hashes(
-            &FilteredParams { filter: None },
-            block_num_hash,
-            tx_hashes_and_receipts.iter().map(|(h, r)| (*h, r)),
-            false,
-        );
+        let logs = evm
+            .get_logs_in_block_range(
+                &mut working_set,
+                &Filter::default(),
+                height,
+                height,
+                Some(usize::MAX),
+            )
+            .expect("Error getting logs in block range");
 
         // Only possible error is no receiver
         let _ = logs_tx.send(logs).await;
