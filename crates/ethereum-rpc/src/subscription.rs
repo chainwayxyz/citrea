@@ -189,6 +189,9 @@ pub async fn l2_block_event_handler<C: sov_modules_api::Context>(
             Ok(height) => height,
         };
 
+        let new_heads_tx = new_heads_tx.clone();
+        let logs_tx = logs_tx.clone();
+
         let mut working_set = WorkingSet::new(storage.clone());
         let block = evm
             .get_block_by_number(
@@ -200,11 +203,12 @@ pub async fn l2_block_event_handler<C: sov_modules_api::Context>(
             .expect("Error querying block from evm")
             .expect("Received signal but evm block is not found");
 
-        // Only possible error is no receiver
-        if let Err(_closed) = new_heads_tx.send(block.clone()).await {
-            warn!(target: "subscriptions", "new_heads_tx is closed");
-            break;
-        }
+        tokio::spawn(async move {
+            if let Err(_closed) = new_heads_tx.send(block).await {
+                // Only possible error is no receiver
+                warn!(target: "subscriptions", "new_heads_tx is closed");
+            }
+        });
 
         let mut working_set = WorkingSet::new(storage.clone());
 
@@ -218,10 +222,11 @@ pub async fn l2_block_event_handler<C: sov_modules_api::Context>(
             )
             .expect("Error getting logs in block range");
 
-        // Only possible error is no receiver
-        if let Err(_closed) = logs_tx.send(logs).await {
-            warn!(target: "subscriptions", "logs_tx is closed");
-            break;
-        }
+        tokio::spawn(async move {
+            if let Err(_closed) = logs_tx.send(logs).await {
+                // Only possible error is no receiver
+                warn!(target: "subscriptions", "logs_tx is closed");
+            }
+        });
     }
 }
