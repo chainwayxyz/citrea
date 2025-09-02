@@ -491,12 +491,12 @@ define_table_with_seek_key_codec!(
     (L2StatusHeights) (L2HeightStatus, u64) => L2HeightAndIndex
 );
 
-define_table_with_default_codec!(
+define_table_with_seek_key_codec!(
     /// Out of order sequencer commitments
     (PendingSequencerCommitments) u32 => (SequencerCommitment, L1Height)
 );
 
-define_table_with_default_codec!(
+define_table_with_seek_key_codec!(
     /// Out of order proofs
     (PendingProofs) (u32, u32) => (Proof, L1Height)
 );
