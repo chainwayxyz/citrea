@@ -847,12 +847,10 @@ where
         &self,
         current_l1_block_height: u64,
     ) -> Result<(), ProcessingError> {
-        let pending_proofs = self.ledger_db.get_pending_proofs()?;
-        if pending_proofs.is_empty() {
-            return Ok(());
-        }
+        let mut pending_proofs = self.ledger_db.get_pending_proofs()?;
 
-        for ((min_index, max_index), proof, found_in_l1_height) in pending_proofs {
+        while let Some(Ok(item)) = pending_proofs.next() {
+            let ((min_index, max_index), (proof, found_in_l1_height)) = item.into_tuple();
             match self
                 .process_zk_proof(current_l1_block_height, found_in_l1_height, proof)
                 .await
