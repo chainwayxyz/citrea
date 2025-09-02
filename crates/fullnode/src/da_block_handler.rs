@@ -874,7 +874,7 @@ where
                 Ok(ProcessingResult::Pending) => {
                     debug!("Keeping proof over commitment index range {min_index}-{max_index} as pending");
                     // Proofs are sorted by min_index.
-                    // We can break on the first pending one as subsequent ones will be dependent on this proof and should be kept as pending
+                    // We can break on the first pending proof as subsequent ones will depend on it and should be kept as pending
                     break;
                 }
             }
