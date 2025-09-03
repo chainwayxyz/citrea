@@ -39,6 +39,32 @@ fn test_proof_not_found() {
 }
 
 #[test]
+fn test_should_not_save_queried_hashes() {
+    let (_temp_dir, ledger_db) = setup_test_db();
+    let native_service =
+    // The save hashes field is false, so it should not save
+        NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone(), false);
+
+    let block_hash = [1u8; 32];
+    let mock_proof = MockShortHeaderProof {
+        header_hash: block_hash,
+        prev_header_hash: [2u8; 32],
+        txs_commitment: [3u8; 32],
+        height: 100,
+    };
+    let proof_bytes = borsh::to_vec(&mock_proof).unwrap();
+    ledger_db
+        .put_short_header_proof_by_l1_hash(&block_hash, proof_bytes)
+        .unwrap();
+
+    native_service
+        .get_and_verify_short_header_proof_by_l1_hash(block_hash, [2u8; 32], 100, [3u8; 32], 1, 50)
+        .unwrap();
+
+    assert!(native_service.queried_and_verified_hashes.lock().is_empty());
+}
+
+#[test]
 fn test_native_clear_and_take_queried_hashes() {
     let (_temp_dir, ledger_db) = setup_test_db();
     let native_service =
