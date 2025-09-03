@@ -151,10 +151,8 @@ pub async fn start_rollup(
 
     match SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::<
         MockDaSpec,
-    >::new(
-        ledger_db.clone(),
-        rollup_prover_config.is_some(),
-    ))) {
+    >::new(ledger_db.clone(), true)))
+    {
         Ok(_) => tracing::debug!("Short header proof provider set"),
         Err(_) => tracing::error!("Short header proof provider already set"),
     }
