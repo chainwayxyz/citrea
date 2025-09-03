@@ -774,11 +774,11 @@ where
         &self,
         current_l1_block_height: u64,
     ) -> Result<(), ProcessingError> {
-        let mut pending_commitments = self.ledger_db.get_pending_commitments()?;
+        let pending_commitments = self.ledger_db.get_pending_commitments()?;
 
         // Try to process each pending commitment in order
-        while let Some(Ok(item)) = pending_commitments.next() {
-            let (index, (commitment, found_in_l1_height)) = item.into_tuple();
+        for item in pending_commitments {
+            let (index, (commitment, found_in_l1_height)) = item?.into_tuple();
             // A commitment is processable if:
             // - For index 1: all its L2 blocks are synced
             // - For other indices: its previous commitment exists
@@ -845,10 +845,10 @@ where
         &self,
         current_l1_block_height: u64,
     ) -> Result<(), ProcessingError> {
-        let mut pending_proofs = self.ledger_db.get_pending_proofs()?;
+        let pending_proofs = self.ledger_db.get_pending_proofs()?;
 
-        while let Some(Ok(item)) = pending_proofs.next() {
-            let ((min_index, max_index), (proof, found_in_l1_height)) = item.into_tuple();
+        for item in pending_proofs {
+            let ((min_index, max_index), (proof, found_in_l1_height)) = item?.into_tuple();
             match self
                 .process_zk_proof(current_l1_block_height, found_in_l1_height, proof)
                 .await
