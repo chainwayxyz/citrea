@@ -683,3 +683,82 @@ impl ValueCodec<LastPrunedL2Height> for u64 {
         Ok(BorshDeserialize::deserialize_reader(&mut &data[..])?)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use sov_schema_db::{
+        define_schema,
+        test::{TestCompositeField, TestField},
+        Schema, SchemaBatch, DB,
+    };
+
+    define_schema!(
+        TestSchemaDefaultCodec,
+        TestCompositeField,
+        TestField,
+        "TestDefault"
+    );
+    define_schema!(
+        TestSchemaSeekKeyCodec,
+        TestCompositeField,
+        TestField,
+        "TestSeekKey"
+    );
+
+    // Define tables using both codecs for comparison
+    define_table_with_default_codec!(
+        /// Test table with default codec (little endian)
+        (TestTableDefault) (u32, u32) => u32
+    );
+
+    define_table_with_seek_key_codec!(
+        /// Test table with seek key codec (big endian)
+        (TestTableSeekKey) (u32, u32) => u32
+    );
+
+    #[test]
+    fn test_codec_ordering_comparison() {
+        let test_values: Vec<((u32, u32), u32)> = (0..8)
+            .map(|i| {
+                let val = 1u32 << (i * 4);
+                ((val, val + 1), val)
+            })
+            .collect();
+
+        // Test default codec
+        let default_ordering = {
+            let db = DB::open_temp("test-default", vec![TestTableDefault::COLUMN_FAMILY_NAME]);
+            let mut batch = SchemaBatch::new();
+            for (key, value) in &test_values {
+                batch.put::<TestTableDefault>(key, value).unwrap();
+            }
+            db.write_schemas(batch).unwrap();
+
+            let mut iter = db.iter::<TestTableDefault>().unwrap();
+            iter.seek_to_first();
+            iter.map(|item| item.unwrap().key.0).collect::<Vec<_>>()
+        };
+
+        // Test seek key codec
+        let seekkey_ordering = {
+            let db = DB::open_temp("test-seekkey", vec![TestTableSeekKey::COLUMN_FAMILY_NAME]);
+            let mut batch = SchemaBatch::new();
+            for (key, value) in &test_values {
+                batch.put::<TestTableSeekKey>(key, value).unwrap();
+            }
+            db.write_schemas(batch).unwrap();
+
+            let mut iter = db.iter::<TestTableSeekKey>().unwrap();
+            iter.seek_to_first();
+            iter.map(|item| item.unwrap().key.0).collect::<Vec<_>>()
+        };
+
+        // Verify seek key codec maintains ordering
+        let mut expected = seekkey_ordering.clone();
+        expected.sort();
+        assert_eq!(seekkey_ordering, expected);
+
+        // Verify default codec produces incorrect ordering
+        assert_ne!(default_ordering, seekkey_ordering);
+    }
+}
