@@ -686,11 +686,8 @@ impl ValueCodec<LastPrunedL2Height> for u64 {
 
 #[cfg(test)]
 mod tests {
-    use sov_schema_db::{
-        define_schema,
-        test::{TestCompositeField, TestField},
-        Schema, SchemaBatch, DB,
-    };
+    use sov_schema_db::test::{TestCompositeField, TestField};
+    use sov_schema_db::{define_schema, Schema, SchemaBatch, DB};
 
     define_schema!(
         TestSchemaDefaultCodec,
