@@ -20,8 +20,7 @@ use clap::Parser;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use reth_tasks::TaskManager;
 use short_header_proof_provider::{
-    NativeShortHeaderProofProviderService, NotQueriedNativeShortHeaderProofProviderService,
-    SHORT_HEADER_PROOF_PROVIDER,
+    NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
 };
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -214,17 +213,12 @@ where
         _ => None,
     };
 
-    match if matches!(node_type, NodeWithConfig::BatchProver(_)) {
-        SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::<
-            <S as RollupBlueprint>::DaSpec,
-        >::new(ledger_db.clone())))
-    } else {
-        SHORT_HEADER_PROOF_PROVIDER.set(Box::new(
-            NotQueriedNativeShortHeaderProofProviderService::<<S as RollupBlueprint>::DaSpec>::new(
-                ledger_db.clone(),
-            ),
-        ))
-    } {
+    match SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::<
+        <S as RollupBlueprint>::DaSpec,
+    >::new(
+        ledger_db.clone(),
+        matches!(node_type, NodeWithConfig::BatchProver(_)),
+    ))) {
         Ok(_) => tracing::debug!("Short header proof provider set"),
         Err(_) => tracing::error!("Short header proof provider already set"),
     }

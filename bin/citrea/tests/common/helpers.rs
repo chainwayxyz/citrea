@@ -18,8 +18,7 @@ use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_tasks::TaskManager;
 use short_header_proof_provider::{
-    NativeShortHeaderProofProviderService, NotQueriedNativeShortHeaderProofProviderService,
-    SHORT_HEADER_PROOF_PROVIDER,
+    NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
 };
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -150,15 +149,12 @@ pub async fn start_rollup(
         .await
         .expect("Dependencies setup should work");
 
-    match if rollup_prover_config.is_some() {
-        SHORT_HEADER_PROOF_PROVIDER.set(Box::new(
-            NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone()),
-        ))
-    } else {
-        SHORT_HEADER_PROOF_PROVIDER.set(Box::new(
-            NotQueriedNativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone()),
-        ))
-    } {
+    match SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::<
+        MockDaSpec,
+    >::new(
+        ledger_db.clone(),
+        rollup_prover_config.is_some(),
+    ))) {
         Ok(_) => tracing::debug!("Short header proof provider set"),
         Err(_) => tracing::error!("Short header proof provider already set"),
     }
@@ -179,17 +175,10 @@ pub async fn start_rollup(
             let boxed_trait: Box<dyn ShortHeaderProofProvider> =
                 Box::from_raw(leaked as *const _ as *mut _);
 
-            if rollup_prover_config.is_some() {
-                let mut concrete: Box<NativeShortHeaderProofProviderService<MockDaSpec>> =
-                    downcast_box(boxed_trait);
-                concrete.ledger_db = ledger_db.clone();
-                std::mem::forget(concrete);
-            } else {
-                let mut concrete: Box<NotQueriedNativeShortHeaderProofProviderService<MockDaSpec>> =
-                    downcast_box(boxed_trait);
-                concrete.ledger_db = ledger_db.clone();
-                std::mem::forget(concrete);
-            }
+            let mut concrete: Box<NativeShortHeaderProofProviderService<MockDaSpec>> =
+                downcast_box(boxed_trait);
+            concrete.ledger_db = ledger_db.clone();
+            std::mem::forget(concrete);
         }
     }
 

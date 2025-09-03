@@ -22,7 +22,7 @@ fn setup_test_db() -> (TempDir, sov_db::ledger_db::LedgerDB) {
 #[should_panic(expected = "Should have short header proof for l1 hash")]
 fn test_proof_not_found() {
     let (_temp_dir, ledger_db) = setup_test_db();
-    let native_service = NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db);
+    let native_service = NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db, true);
 
     let block_hash = [1u8; 32];
     let result = native_service
@@ -42,7 +42,7 @@ fn test_proof_not_found() {
 fn test_native_clear_and_take_queried_hashes() {
     let (_temp_dir, ledger_db) = setup_test_db();
     let native_service =
-        NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone());
+        NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone(), true);
 
     let block_hash = [1u8; 32];
     let mock_proof = MockShortHeaderProof {
@@ -138,7 +138,7 @@ fn test_zk_take_last_queried_hash() {
 fn test_native_to_zk_proof_flow() {
     let (_temp_dir, ledger_db) = setup_test_db();
     let native_service =
-        NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone());
+        NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone(), true);
 
     let block_hashes = vec![[1u8; 32], [2u8; 32], [3u8; 32]];
     let mut proofs = Vec::new();
@@ -215,7 +215,7 @@ fn test_native_to_zk_proof_flow() {
 fn test_native_to_zk_invalid_proof_flow() {
     let (_temp_dir, ledger_db) = setup_test_db();
     let native_service =
-        NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone());
+        NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone(), true);
 
     // create and store an invalid proof
     let block_hash = [1u8; 32];
@@ -291,7 +291,7 @@ fn test_native_to_zk_invalid_proof_flow() {
 fn test_native_to_zk_first_block_flow() {
     let (_temp_dir, ledger_db) = setup_test_db();
     let native_service =
-        NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone());
+        NativeShortHeaderProofProviderService::<MockDaSpec>::new(ledger_db.clone(), true);
 
     let block_hash = [1u8; 32];
     let mock_proof = MockShortHeaderProof {
