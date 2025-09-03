@@ -2,6 +2,7 @@ use std::sync::LazyLock;
 
 use metrics::{Counter, Gauge, Histogram};
 use metrics_derive::Metrics;
+use reth_transaction_pool::metrics::{BlobStoreMetrics, MaintainPoolMetrics, TxPoolMetrics};
 
 /// Defines the metrics being collected for the sequencer
 #[allow(unused)]
@@ -151,4 +152,22 @@ pub struct SequencerMetrics {
 pub static SEQUENCER_METRICS: LazyLock<SequencerMetrics> = LazyLock::new(|| {
     SequencerMetrics::describe();
     SequencerMetrics::default()
+});
+
+/// Reth transaction pool metrics
+pub static RETH_TX_POOL_METRICS: LazyLock<TxPoolMetrics> = LazyLock::new(|| {
+    TxPoolMetrics::describe();
+    TxPoolMetrics::default()
+});
+
+/// Reth maintain pool metrics
+pub static RETH_MAINTAIN_POOL_METRICS: LazyLock<MaintainPoolMetrics> = LazyLock::new(|| {
+    MaintainPoolMetrics::describe();
+    MaintainPoolMetrics::default()
+});
+
+/// Reth blob store metrics
+pub static RETH_BLOB_STORE_METRICS: LazyLock<BlobStoreMetrics> = LazyLock::new(|| {
+    BlobStoreMetrics::describe();
+    BlobStoreMetrics::default()
 });
