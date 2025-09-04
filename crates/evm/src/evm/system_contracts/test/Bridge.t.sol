@@ -415,6 +415,12 @@ contract BridgeTest is Test {
         assertEq(bridge.depositTxIds(0), hex"6a1d18b80867c0bc84cb9a20ec88922cf17a7bdd50e5237d67b6fad11d70fe95");
     }
 
+    function testCannotSetReplaceScriptWithMismatchingAggregatedKey() public {
+        vm.prank(owner);
+        vm.expectRevert("Replace prefix must contain the same aggregated key as deposit prefix");
+        bridge.setReplaceScript(hex"54203c48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630d6369747265615265706c61636520", hex"68");
+    }
+
     function testBytesEqual() public view {
         bytes memory a = hex"1234";
         bytes memory b = hex"1234";

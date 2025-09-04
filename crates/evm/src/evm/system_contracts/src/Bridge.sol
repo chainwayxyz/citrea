@@ -133,6 +133,7 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param _replaceSuffix The part of the replace script that succeeds the txId
     function setReplaceScript(bytes calldata _replacePrefix, bytes calldata _replaceSuffix) external onlyOwner {
         require(_replacePrefix.length != 0, "Replace script cannot be empty");
+        require(bytesToBytes32(_replacePrefix.slice(2, 32)) == bytesToBytes32(getAggregatedKey()), "Replace prefix must contain the same aggregated key as deposit prefix");
 
         replacePrefix = _replacePrefix;
         replaceSuffix = _replaceSuffix;
