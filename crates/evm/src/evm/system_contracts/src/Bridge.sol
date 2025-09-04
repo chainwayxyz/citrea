@@ -97,6 +97,7 @@ contract Bridge is Ownable2StepUpgradeable {
         require(_depositAmount != 0, "Deposit amount cannot be 0");
         require(_depositPrefix.length != 0, "Deposit script cannot be empty");
         require(_depositAmount % SAT_TO_WEI == 0, "Deposit amount must have valid satoshi value");
+        require(_depositAmount / SAT_TO_WEI <= type(uint64).max, "Deposit amount divided by SAT_TO_WEI must fit in uint64");
 
         initialized = true;
         depositPrefix = _depositPrefix;

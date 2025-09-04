@@ -653,4 +653,14 @@ contract BridgeTest is Test {
         address attacker = 0x3100000000000000000000000000000000000069;
         assertEq(attacker.balance, 0 ether);
     }
+
+    function testDepositAmountDividedBySatToWeiCannotOverflowUint64() public {
+        // Clear out the initilization flag so we can re-initialize
+        vm.store(address(bridge), bytes32(uint256(0)), bytes32(uint256(0)));
+        vm.startPrank(SYSTEM_CALLER);
+        uint256 overflowingDepositAmount = (uint256(type(uint64).max) + 1) * bridge.SAT_TO_WEI();
+        vm.expectRevert("Deposit amount divided by SAT_TO_WEI must fit in uint64");
+        bridge.initialize(depositPrefix, depositSuffix, overflowingDepositAmount);
+        vm.stopPrank();
+    }
 }
