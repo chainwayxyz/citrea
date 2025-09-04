@@ -24,10 +24,17 @@ abstract contract FeeVaultTest is Test {
         assertEq(address(recipient).balance, 1 ether);
     }
 
+    function testCannotSetRecipientToZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert("Recipient cannot be zero address");
+        feeVault.setRecipient(address(0));
+    }
+
     function testCannotWithdrawToZeroRecipient() public {
         vm.deal(address(feeVault), 1 ether);
         vm.prank(owner);
-        feeVault.setRecipient(address(0));
+        // Directly store as `setRecipient` will revert if zero address is provided
+        vm.store(address(feeVault), bytes32(uint256(0)), bytes32(uint256(0)));
         vm.expectRevert("Recipient is not set");
         feeVault.withdraw();
     }

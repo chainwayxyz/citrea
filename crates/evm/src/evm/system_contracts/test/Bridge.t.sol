@@ -366,6 +366,12 @@ contract BridgeTest is Test {
         doDeposit();
     }
 
+    function testCannotSetOperatorToZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert("Operator cannot be zero address");
+        bridge.setOperator(address(0));
+    }
+
     function testSetOperatorEmitsCorrectEvent() public {
         address currentOperator = bridge.operator();
         address newOperator = makeAddr("new_operator");

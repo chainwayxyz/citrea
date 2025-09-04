@@ -308,6 +308,7 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @notice Sets the operator address that can process user deposits
     /// @param _operator Address of the privileged operator
     function setOperator(address _operator) external onlyOwner {
+        require(_operator != address(0), "Operator cannot be zero address");
         address oldOperator = operator;
         operator = _operator;
         emit OperatorUpdated(oldOperator, _operator);

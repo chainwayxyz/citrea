@@ -28,6 +28,7 @@ abstract contract FeeVault is Ownable2StepUpgradeable {
     /// @notice Sets the new recipient address for the withdrawn fees
     /// @param _recipient New recipient address
     function setRecipient(address _recipient) external onlyOwner {
+        require(_recipient != address(0), "Recipient cannot be zero address");
         address oldRecipient = recipient;
         recipient = _recipient;
         emit RecipientUpdated(oldRecipient, _recipient);
