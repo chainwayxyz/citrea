@@ -41,7 +41,7 @@ contract Bridge is Ownable2StepUpgradeable {
     uint256 public constant SAT_TO_WEI = 10**10; 
 
     bytes public constant EPOCH = hex"00";
-    bytes public constant SIGHASH_ALL_HASH_TYPE = hex"00";
+    bytes public constant SIGHASH_DEFAULT_HASH_TYPE = hex"00";
     bytes public constant SIGHASH_SINGLE_ANYONECANPAY_HASH_TYPE = hex"83";
     bytes public constant SPEND_TYPE_NO_EXT = hex"00";
     bytes public constant SPEND_TYPE_EXT = hex"02";
@@ -453,7 +453,7 @@ contract Bridge is Ownable2StepUpgradeable {
         // First byte of the parsed control block is the length of it so it is skipped to get the actual first byte
         bytes1 leafVersion = controlBlock[1] & 0xFE;
         bytes32 tapleafHash = taggedHash("TapLeaf", (abi.encodePacked(leafVersion, script)));
-        bytes memory message = abi.encodePacked(EPOCH, SIGHASH_ALL_HASH_TYPE, version, locktime, shaPrevouts, shaAmounts, shaScriptPubkeys, shaSequences, shaOutputs, SPEND_TYPE_EXT, INPUT_INDEX, tapleafHash, KEY_VERSION, CODESEP_POS);
+        bytes memory message = abi.encodePacked(EPOCH, SIGHASH_DEFAULT_HASH_TYPE, version, locktime, shaPrevouts, shaAmounts, shaScriptPubkeys, shaSequences, shaOutputs, SPEND_TYPE_EXT, INPUT_INDEX, tapleafHash, KEY_VERSION, CODESEP_POS);
         bytes32 messageHash = taggedHash("TapSighash", message);
         bytes memory signatureWithLen = witness0.extractItemFromWitness(0);
         bytes memory signature = signatureWithLen.slice(1, signatureWithLen.length - 1);
