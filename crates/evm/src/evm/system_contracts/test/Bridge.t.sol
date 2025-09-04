@@ -366,6 +366,15 @@ contract BridgeTest is Test {
         doDeposit();
     }
 
+    function testSetOperatorEmitsCorrectEvent() public {
+        address currentOperator = bridge.operator();
+        address newOperator = makeAddr("new_operator");
+        vm.prank(owner);
+        vm.expectEmit();
+        emit Bridge.OperatorUpdated(currentOperator, newOperator);
+        bridge.setOperator(newOperator);
+    }
+
     function testReplaceDeposit() public {
         vm.startPrank(SYSTEM_CALLER);
         version = hex"03000000";

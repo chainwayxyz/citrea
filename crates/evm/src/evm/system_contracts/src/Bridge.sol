@@ -308,8 +308,9 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @notice Sets the operator address that can process user deposits
     /// @param _operator Address of the privileged operator
     function setOperator(address _operator) external onlyOwner {
+        address oldOperator = operator;
         operator = _operator;
-        emit OperatorUpdated(operator, _operator);
+        emit OperatorUpdated(oldOperator, _operator);
     }
 
     /// @notice Operator can replace a deposit transaction with its replacement if the replacement transaction is included in Bitcoin and signed by N-of-N with the replacement script
