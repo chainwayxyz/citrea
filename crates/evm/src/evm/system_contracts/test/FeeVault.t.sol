@@ -24,6 +24,14 @@ abstract contract FeeVaultTest is Test {
         assertEq(address(recipient).balance, 1 ether);
     }
 
+    function testCannotWithdrawToZeroRecipient() public {
+        vm.deal(address(feeVault), 1 ether);
+        vm.prank(owner);
+        feeVault.setRecipient(address(0));
+        vm.expectRevert("Recipient is not set");
+        feeVault.withdraw();
+    }
+
     function testCannotWithdrawLessThanMinWithdraw() public {
         vm.deal(address(feeVault), 0.1 ether);
         vm.startPrank(owner);

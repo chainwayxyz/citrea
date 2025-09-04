@@ -19,6 +19,7 @@ abstract contract FeeVault is Ownable2StepUpgradeable {
 
     /// @notice Withdraws accumulated fees to recipient if enough funds are accumulated
     function withdraw() external {
+        require(recipient != address(0), "Recipient is not set");
         require(address(this).balance >= minWithdraw, "Withdrawal amount must be greater than minimum withdraw amount");
         (bool success, ) = payable(recipient).call{value: address(this).balance}("");
         require(success, "Transfer failed");
