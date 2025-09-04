@@ -16,8 +16,10 @@ import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradea
 contract BitcoinLightClient is IBitcoinLightClient {
     using BTCUtils for bytes;
 
-    uint256 public blockNumber;
     address public constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
+    uint256 public constant HASH_LENGTH = 32;
+
+    uint256 public blockNumber;
     mapping(uint256 => bytes32) public blockHashes;
     mapping(bytes32 => bytes32) public witnessRoots;
     mapping(bytes32 => uint256) public coinbaseDepths;
@@ -102,13 +104,13 @@ contract BitcoinLightClient is IBitcoinLightClient {
     function verifyInclusionByTxId(uint256 _blockNumber, bytes32 _txId, bytes calldata _blockHeader, bytes calldata _proof, uint256 _index) external view returns (bool) {
         bytes32 _blockHash = _blockHeader.hash256View();
         require(blockHashes[_blockNumber] == _blockHash, "Invalid block header");
-        require(_proof.length == coinbaseDepths[_blockHash] * 32, "Invalid proof length");
+        require(_proof.length == coinbaseDepths[_blockHash] * HASH_LENGTH, "Invalid proof length");
         bytes32 _txRoot = _blockHeader.extractMerkleRootLE();
         return ValidateSPV.prove(_txId, _txRoot, _proof, _index);
     }
 
     function _verifyInclusion(bytes32 _blockHash, bytes32 _wtxId, bytes calldata _proof, uint256 _index) internal view returns (bool) {
-        require(_proof.length == coinbaseDepths[_blockHash] * 32, "Invalid proof length");
+        require(_proof.length == coinbaseDepths[_blockHash] * HASH_LENGTH, "Invalid proof length");
         bytes32 _witnessRoot = witnessRoots[_blockHash];
         return ValidateSPV.prove(_wtxId, _witnessRoot, _proof, _index);
     }
