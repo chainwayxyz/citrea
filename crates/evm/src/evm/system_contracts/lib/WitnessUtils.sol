@@ -114,7 +114,7 @@ library WitnessUtils {
         
         (_varIntDataLen, _nItems) = BTCUtils.parseVarInt(_witness);
         require(_varIntDataLen != BTCUtils.ERR_BAD_ARG, "Read overrun during VarInt parsing");
-        require(_index < _nItems, "Vin read overrun");
+        require(_index < _nItems, "Witness read overrun");
 
         uint256 _itemLen = 0;
         uint256 _offset = 1 + _varIntDataLen;
