@@ -139,6 +139,17 @@ impl VerifyParsed for ParsedBatchProverMethodId {
     fn body(&self) -> &[u8] {
         &self.body
     }
+    // fn get_sig_verified_hash(&self) -> Option<[u8; 32]> {
+    //     let pubs: [[u8; 32]; 5] = self.public_key.try_into();
+
+    //     let sigs: [[u8; 32]; 5] = self.signature.try_into();
+
+    //     for (pub, sig) in pubs.iter().zip(sigs.iter()) {
+    //        if not_verified {
+    //         return None;
+    //        }
+    //     }
+    // }
 }
 
 /// Error type for the parser.
