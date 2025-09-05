@@ -399,21 +399,19 @@ where
         }
     }
 
-    /// Produces a new L2 block with the given DA blocks
+    /// Produces a new L2 block with the given DA blocks.
+    /// Notifies subscribers of the new block height.
     ///
     /// # Arguments
     /// * `da_blocks` - Data availability blocks to process
     /// * `l1_fee_rate` - Current L1 fee rate
     /// * `last_used_l1_height` - Last processed L1 block height
-    ///
-    /// # Returns
-    /// The height of the produced L2 block
     async fn produce_l2_block(
         &mut self,
         mut da_blocks: Vec<Da::FilteredBlock>,
         l1_fee_rate: u128,
         last_used_l1_height: &mut u64,
-    ) -> anyhow::Result<u64> {
+    ) -> anyhow::Result<()> {
         let start: Instant = Instant::now();
         let l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
         self.fork_manager.register_block(l2_height)?;
@@ -427,6 +425,18 @@ where
                 .await
         };
 
+        match result {
+            Ok(l2_height) => {
+                // Only errors when there are no receivers
+                if let Err(_closed) = self.l2_block_tx.send(l2_height) {
+                    warn!("l2_block_tx is closed");
+                }
+            }
+            Err(e) => {
+                error!("Sequencer error: {}", e);
+            }
+        }
+
         let block_production_time = Instant::now()
             .saturating_duration_since(start)
             .as_secs_f64();
@@ -436,7 +446,7 @@ where
         SM.l1_fee_rate.set(l1_fee_rate as f64);
         SM.current_l2_block.set(l2_height as f64);
 
-        result
+        Ok(())
     }
 
     /// Inner implementation of L2 block production
@@ -931,15 +941,7 @@ where
                                 missed_da_blocks_count = 0;
                             }
                             let _l2_lock = backup_manager.start_l2_processing().await;
-                            match self.produce_l2_block(vec![last_finalized_block.clone()], l1_fee_rate, &mut last_used_l1_height).await {
-                                Ok(l2_height) => {
-                                    // Only errors when there are no receivers
-                                    let _ = self.l2_block_tx.send(l2_height);
-                                },
-                                Err(e) => {
-                                    error!("Sequencer error: {}", e);
-                                }
-                            }
+                            self.produce_l2_block(vec![last_finalized_block.clone()], l1_fee_rate, &mut last_used_l1_height).await?;
                         },
                         Some(SequencerRpcMessage::HaltCommitments) => {
                             // Forward halt signal to commitment service
@@ -983,15 +985,7 @@ where
                     }
 
                     let _l2_lock = backup_manager.start_l2_processing().await;
-                    match self.produce_l2_block(vec![da_block.clone()], l1_fee_rate, &mut last_used_l1_height).await {
-                        Ok(l2_height) => {
-                            // Only errors when there are no receivers
-                            let _ = self.l2_block_tx.send(l2_height);
-                        },
-                        Err(e) => {
-                            error!("Sequencer error: {}", e);
-                        }
-                    };
+                    self.produce_l2_block(vec![da_block.clone()], l1_fee_rate, &mut last_used_l1_height).await?;
                 },
                 _ = &mut shutdown_signal => {
                     info!("Shutting down sequencer");
@@ -1110,13 +1104,22 @@ where
     pub async fn restore_mempool(&self) -> Result<(), anyhow::Error> {
         // Load transactions from persistent storage
         let mempool_txs = self.ledger_db.get_mempool_txs()?;
-        for (_, tx) in mempool_txs {
+
+        let mut failed_txs = vec![];
+
+        for (tx_hash, tx) in mempool_txs {
             // Recover and add each transaction back to mempool
             let recovered = recover_raw_transaction(Bytes::from(tx.as_slice().to_vec()))?;
             let pooled_tx = EthPooledTransaction::from_pooled(recovered);
 
-            let _ = self.mempool.add_external_transaction(pooled_tx).await?;
+            if let Err(e) = self.mempool.add_external_transaction(pooled_tx).await {
+                warn!("Failed to restore transaction: {}", e);
+                failed_txs.push(tx_hash);
+            }
         }
+
+        self.ledger_db.remove_mempool_txs(failed_txs)?;
+
         Ok(())
     }
 

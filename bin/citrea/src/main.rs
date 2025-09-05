@@ -215,11 +215,13 @@ where
 
     match SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::<
         <S as RollupBlueprint>::DaSpec,
-    >::new(ledger_db.clone())))
-    {
+    >::new(
+        ledger_db.clone(),
+        matches!(node_type, NodeWithConfig::BatchProver(_)),
+    ))) {
         Ok(_) => tracing::debug!("Short header proof provider set"),
         Err(_) => tracing::error!("Short header proof provider already set"),
-    };
+    }
 
     let rpc_storage = storage_manager.create_final_view_storage();
     let mut rpc_module = rollup_blueprint.create_rpc_methods(

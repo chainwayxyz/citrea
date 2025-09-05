@@ -3,6 +3,7 @@
 use core::result::Result::Ok;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use bitcoin::{Amount, Network, Sequence, Txid};
@@ -19,6 +20,7 @@ use crate::tx_signer::SignedTxPair;
 
 const DEFAULT_MEMPOOL_SPACE_URL: &str = "https://mempool.space/";
 const MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT: &str = "api/v1/fees/recommended";
+const MEMPOOL_SPACE_TIMEOUT: Duration = Duration::from_secs(5);
 
 const BASE_FEE_RATE_MULTIPLIER: f64 = 1.0;
 const FEE_RATE_MULTIPLIER_FACTOR: f64 = 1.1;
@@ -203,7 +205,7 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
             return Ok(None);
         }
     };
-    let fee_rate = reqwest::get(url)
+    let fee_rate = get_with_timeout(url, MEMPOOL_SPACE_TIMEOUT)
         .await?
         .json::<serde_json::Value>()
         .await?
@@ -269,6 +271,18 @@ pub(crate) fn validate_txs_fee_rate(
     }
 
     Ok(())
+}
+
+async fn get_with_timeout<T: reqwest::IntoUrl>(
+    url: T,
+    timeout: Duration,
+) -> reqwest::Result<reqwest::Response> {
+    reqwest::Client::builder()
+        .timeout(timeout)
+        .build()?
+        .get(url)
+        .send()
+        .await
 }
 
 #[cfg(test)]

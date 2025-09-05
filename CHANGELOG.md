@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.7.3 (2025-08-28)
+Release for various bug & vulnerability fixes.
+
+Node operators need to rescan L1:
+```sh
+citrea-cli rollback --node-type fullnode --db-path path/to/db --l2-target 9999999999 --l1-target 74247 --sequencer-commitment-index 0
+```
+
 ## v0.7.2 (2025-05-2)
 Release for bridge smart contract upgrade and various bug fixes.
 

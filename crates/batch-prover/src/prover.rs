@@ -166,6 +166,8 @@ where
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
         self.recover_proving_sessions().await;
 
+        info!("Finished proving session recovery");
+
         'run_loop: loop {
             select! {
                 biased;

@@ -775,12 +775,10 @@ where
         current_l1_block_height: u64,
     ) -> Result<(), ProcessingError> {
         let pending_commitments = self.ledger_db.get_pending_commitments()?;
-        if pending_commitments.is_empty() {
-            return Ok(());
-        }
 
         // Try to process each pending commitment in order
-        for (index, commitment, found_in_l1_height) in pending_commitments {
+        for item in pending_commitments {
+            let (index, (commitment, found_in_l1_height)) = item?.into_tuple();
             // A commitment is processable if:
             // - For index 1: all its L2 blocks are synced
             // - For other indices: its previous commitment exists
@@ -848,11 +846,9 @@ where
         current_l1_block_height: u64,
     ) -> Result<(), ProcessingError> {
         let pending_proofs = self.ledger_db.get_pending_proofs()?;
-        if pending_proofs.is_empty() {
-            return Ok(());
-        }
 
-        for ((min_index, max_index), proof, found_in_l1_height) in pending_proofs {
+        for item in pending_proofs {
+            let ((min_index, max_index), (proof, found_in_l1_height)) = item?.into_tuple();
             match self
                 .process_zk_proof(current_l1_block_height, found_in_l1_height, proof)
                 .await
@@ -872,7 +868,10 @@ where
                     self.ledger_db.remove_pending_proof(min_index, max_index)?;
                 }
                 Ok(ProcessingResult::Pending) => {
-                    debug!("Keeping proof over commitment index range {min_index}-{max_index} as pending")
+                    debug!("Keeping proof over commitment index range {min_index}-{max_index} as pending");
+                    // Proofs are sorted by min_index.
+                    // We can break on the first pending proof as subsequent ones will depend on it and should be kept as pending
+                    break;
                 }
             }
         }
