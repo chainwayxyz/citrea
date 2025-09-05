@@ -463,6 +463,7 @@ pub fn create_default_rollup_config(
                 sync_blocks_count: 10,
                 pruning_config,
                 scan_l1_start_height: 1,
+                max_rpc_proving_jobs_limit: 150,
             }),
             NodeMode::SequencerNode => None,
         },
@@ -614,7 +615,7 @@ pub async fn wait_for_prover_job_count(
             );
         }
 
-        let jobs = prover_client.get_proving_jobs(count).await;
+        let jobs = prover_client.get_proving_jobs(count, None).await;
         if jobs.len() >= count {
             let job_ids = jobs.into_iter().map(|j| j.job_id).collect();
             return Ok(job_ids);

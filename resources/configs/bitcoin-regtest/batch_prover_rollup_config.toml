@@ -28,3 +28,4 @@ enable_subscriptions = false
 sequencer_client_url = "http://0.0.0.0:12345"
 include_tx_body = false
 scan_l1_start_height = 1
+max_rpc_proving_jobs_limit = 100

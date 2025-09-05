@@ -312,7 +312,7 @@ pub async fn wait_for_prover_job_count(
         let jobs = batch_prover
             .client
             .http_client()
-            .get_proving_jobs(count)
+            .get_proving_jobs(U64::from(count as u64), None)
             .await
             .unwrap();
         if jobs.len() >= count {

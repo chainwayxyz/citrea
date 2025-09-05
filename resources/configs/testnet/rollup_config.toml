@@ -54,6 +54,7 @@ bind_port = 8080
 
 [runner]
 sequencer_client_url = "https://rpc.testnet.citrea.xyz"
+max_rpc_proving_jobs_limit = 100
 
 # if you want to store full soft confirmations in your node
 # set this to true

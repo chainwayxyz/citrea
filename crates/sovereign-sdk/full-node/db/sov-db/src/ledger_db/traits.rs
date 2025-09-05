@@ -259,8 +259,8 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get jobs pending to be submitted to DA
     fn get_pending_l1_submission_jobs(&self) -> Result<Vec<Uuid>>;
 
-    /// Get latest (job id, status) with max count.
-    fn get_latest_jobs(&self, count: usize) -> Result<Vec<(Uuid, JobStatus)>>;
+    /// Get latest (job id, status) with max limit and skipped jobs (pagination).
+    fn get_latest_jobs(&self, limit: usize, skip: usize) -> Result<Vec<(Uuid, JobStatus)>>;
 
     /// Get commitment indices by l1 height
     fn get_prover_commitment_indices_by_l1(
