@@ -250,26 +250,49 @@ contract BridgeTest is Test {
         vm.stopPrank();
     }
 
+    function testCannotDoubleWithdrawWithSameUTXO() public {
+        vm.startPrank(receiver);
+        vm.deal(address(receiver), DEPOSIT_AMOUNT * 2);
+
+        bytes32 txId = hex"1234"; // Dummy txId
+        bytes4 outputId = hex"01"; // Dummy outputId
+        bridge.withdraw{value: DEPOSIT_AMOUNT}(txId, outputId);
+        vm.expectRevert("UTXO already used");
+        bridge.withdraw{value: DEPOSIT_AMOUNT}(txId, outputId);
+    }
+
     function testBatchWithdraw() public {
         vm.startPrank(user);
         vm.deal(address(user), DEPOSIT_AMOUNT * 10);
-        bytes32[] memory btc_addresses = new bytes32[](10);
-        bytes4[] memory output_ids = new bytes4[](10);
+        bytes32[] memory txIds = new bytes32[](10);
+        bytes4[] memory outputIds = new bytes4[](10);
         for (uint i = 0; i < 10; i++) {
-            btc_addresses[i] = bytes32(abi.encodePacked(i));
-            output_ids[i] = bytes4(uint32(i));
+            txIds[i] = bytes32(abi.encodePacked(i));
+            outputIds[i] = bytes4(uint32(i));
         }
-        
-        bridge.batchWithdraw{value: DEPOSIT_AMOUNT * 10}(btc_addresses, output_ids);
-        
+
+        bridge.batchWithdraw{value: DEPOSIT_AMOUNT * 10}(txIds, outputIds);
 
         for (uint i = 0; i < 10; i++) {
             (bytes32 _txId, bytes4 _outputId) = bridge.withdrawalUTXOs(i);
-            assertEq(_txId, btc_addresses[i]);
-            assertEq(_outputId, output_ids[i]);
+            assertEq(_txId, txIds[i]);
+            assertEq(_outputId, outputIds[i]);
         }
         
         assertEq(user.balance, 0);
+    }
+
+    function testCannotDoubleWithdrawWithSameUTXOsInBatch() public {
+        vm.startPrank(user);
+        vm.deal(address(user), DEPOSIT_AMOUNT * 2);
+        bytes32[] memory txIds = new bytes32[](2);
+        bytes4[] memory outputIds = new bytes4[](2);
+        for (uint i = 0; i < 2; i++) {
+            txIds[i] = hex"1234"; // Intentionally setting same txId for both
+            outputIds[i] = hex"01"; // Intentionally setting same outputId for both
+        }
+        vm.expectRevert("UTXO already used");
+        bridge.batchWithdraw{value: DEPOSIT_AMOUNT * 2}(txIds, outputIds);
     }
 
     function testCannotBatchWithdrawWithWrongValue() public {

@@ -62,6 +62,7 @@ contract Bridge is Ownable2StepUpgradeable {
     bytes32[] public depositTxIds;
 
     mapping(bytes32 => bool) public processedTxIds;
+    mapping(bytes32 => bool) public usedWithdrawalUTXO;
     
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
@@ -215,6 +216,11 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param outputId The outputId of the output in the withdrawal transaction
     function withdraw(bytes32 txId, bytes4 outputId) public payable {
         require(msg.value == depositAmount, "Invalid withdraw amount");
+
+        bytes32 utxoKey = sha256(abi.encodePacked(txId, outputId));
+        require(!usedWithdrawalUTXO[utxoKey], "UTXO already used");
+        usedWithdrawalUTXO[utxoKey] = true;
+
         UTXO memory utxo = UTXO({
             txId: txId,
             outputId: outputId
@@ -293,6 +299,10 @@ contract Bridge is Ownable2StepUpgradeable {
         require(msg.value == depositAmount * txIds.length, "Invalid withdraw amount");
         uint256 index = withdrawalUTXOs.length;
         for (uint i = 0; i < txIds.length; i++) {
+            bytes32 utxoKey = sha256(abi.encodePacked(txIds[i], outputIds[i]));
+            require(!usedWithdrawalUTXO[utxoKey], "UTXO already used");
+            usedWithdrawalUTXO[utxoKey] = true;
+
             UTXO memory utxo = UTXO({
                 txId: txIds[i],
                 outputId: outputIds[i]
