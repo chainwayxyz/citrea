@@ -55,7 +55,7 @@ impl PricingService {
     pub async fn get_price(&self, cycles: u64) -> Result<PriceResponse> {
         let url = format!("{}/api/pricing", self.base_url);
 
-        debug!("Fetching price for {} cycles", cycles);
+        info!("Fetching price for {} cycles", cycles);
 
         let response = self
             .client
@@ -80,7 +80,7 @@ impl PricingService {
             .await
             .context("Failed to parse pricing response as JSON")?;
 
-        debug!("Received pricing response: {:?}", price_response);
+        info!("Received pricing response: {:?}", price_response);
 
         Ok(price_response)
     }
