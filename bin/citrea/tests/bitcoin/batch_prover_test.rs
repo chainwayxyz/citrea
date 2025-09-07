@@ -1366,9 +1366,7 @@ impl TestCase for InvokeCachePruningTest {
                 base_fee_tx_limit: 1_000_000,
                 base_fee_tx_size: 100_000_000,
                 max_account_slots: 1_000_000,
-                max_update_depth: None,
-                max_reload_accounts: None,
-                max_tx_lifetime_secs: None,
+                ..Default::default()
             },
             ..Default::default()
         }
