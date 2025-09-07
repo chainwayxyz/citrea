@@ -164,7 +164,7 @@ impl BoundlessProver {
             max_possible_price,
         } = retry_backoff(exponential_backoff, || async move {
             self.pricing_service
-                .get_price(mcycles_count)
+                .get_price(mcycles_count.saturating_mul(1_000_000))
                 .await
                 .map_err(backoff::Error::transient)
         })
@@ -237,7 +237,7 @@ impl BoundlessProver {
                     .with_min_price_per_mcycle(U256::ZERO, mcycles_count)
                     .with_max_price_per_mcycle(max_price_per_mcycle, mcycles_count)
                     .with_lock_timeout(lock_timeout as u32)
-                    .with_timeout((lock_timeout * 4) as u32)
+                    .with_timeout((lock_timeout * 3) as u32)
                     .with_ramp_up_period(ramp_up_period as u32)
                     .with_bidding_start(current_timestamp_as_secs() + 50)
                     // https://github.com/boundless-xyz/boundless/blob/5e7ac7ddce4f54a146c607e2627302472706261b/crates/boundless-market/src/request_builder/offer_layer.rs#L66
@@ -439,7 +439,11 @@ impl BoundlessProver {
         let exponential_backoff = ExponentialBackoff::default();
 
         let max_possible_price = retry_backoff(exponential_backoff, || async move {
-            match self.pricing_service.get_price(mcycles_count).await {
+            match self
+                .pricing_service
+                .get_price(mcycles_count.saturating_mul(1_000_000))
+                .await
+            {
                 Err(e) => {
                     tracing::error!(
                         "Failed to get price from pricing service for job: {}  | err={}",
