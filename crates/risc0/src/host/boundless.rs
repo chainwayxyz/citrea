@@ -264,12 +264,12 @@ impl BoundlessProver {
             Some(_) => {
                 let (req_id, exp) = self.client.submit_offchain(request).await?;
                 tracing::info!("Request submitted to offchain boundless service");
-                (req_id.to_string(), exp)
+                (format!("0x{:x}", req_id), exp)
             }
             None => {
                 let (req_id, exp) = self.client.submit_onchain(request).await?;
                 tracing::info!("Request submitted to onchain boundless service");
-                (req_id.to_string(), exp)
+                (format!("0x{:x}", req_id), exp)
             }
         };
 
