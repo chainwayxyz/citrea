@@ -155,18 +155,21 @@ pub static SEQUENCER_METRICS: LazyLock<SequencerMetrics> = LazyLock::new(|| {
 });
 
 /// Reth transaction pool metrics
+#[allow(dead_code)]
 pub static RETH_TX_POOL_METRICS: LazyLock<TxPoolMetrics> = LazyLock::new(|| {
     TxPoolMetrics::describe();
     TxPoolMetrics::default()
 });
 
 /// Reth maintain pool metrics
+#[allow(dead_code)]
 pub static RETH_MAINTAIN_POOL_METRICS: LazyLock<MaintainPoolMetrics> = LazyLock::new(|| {
     MaintainPoolMetrics::describe();
     MaintainPoolMetrics::default()
 });
 
 /// Reth blob store metrics
+#[allow(dead_code)]
 pub static RETH_BLOB_STORE_METRICS: LazyLock<BlobStoreMetrics> = LazyLock::new(|| {
     BlobStoreMetrics::describe();
     BlobStoreMetrics::default()
