@@ -636,7 +636,7 @@ pub mod parsing {
         } else {
             Err(syn::Error::new_spanned(
                 ident,
-                format!("The field `{}` is missing an attribute: add `#[kernel_module]`, `#[module]`, `#[state]`, `#[address]`, `#[memory]`, or #[gas].", ident),
+                format!("The field `{ident}` is missing an attribute: add `#[kernel_module]`, `#[module]`, `#[state]`, `#[address]`, `#[memory]`, or #[gas]."),
             ))
         }
     }

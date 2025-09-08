@@ -185,7 +185,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 },
             );
 
-            if acc.code.len() > 0 {
+            if !acc.code.is_empty() {
                 evm_db.insert_code(acc.code_hash, code);
 
                 for (k, v) in acc.storage.iter() {

@@ -65,7 +65,7 @@ impl BitcoinMerkleTree {
             }
             curr_level_offset += 1;
             // Calculate the size of the level we just created
-            prev_level_size = (prev_level_size + 1) / 2; // Ceiling division to handle odd numbers
+            prev_level_size = prev_level_size.div_ceil(2); // Ceiling division to handle odd numbers
         }
         tree
     }

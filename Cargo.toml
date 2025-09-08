@@ -49,6 +49,9 @@ homepage = "https://citrea.xyz"
 publish = false
 repository = "https://github.com/chainwayxyz/citrea"
 
+[workspace.lints]
+clippy.doc_overindented_list_items = "allow"
+
 [workspace.dependencies]
 # External dependencies
 async-trait = "0.1.83"
@@ -114,14 +117,14 @@ tower-http = { version = "0.5.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
 
 # Risc0 dependencies
-bonsai-sdk = { version = "1.4" }
-risc0-binfmt = "2.0.2"
-risc0-zkvm = { version = "2.3.1", default-features = false }
-risc0-zkvm-platform = "2.0.3"
-risc0-zkp = "2.0.2"
-risc0-circuit-rv32im = "3.0.0"
-risc0-build = "2.3.1"
-rzup = "0.4.1"
+bonsai-sdk = { version = "1.4.1" }
+risc0-binfmt = "3.0.2"
+risc0-zkvm = { version = "3.0.3", default-features = false }
+risc0-zkvm-platform = "2.2.0"
+risc0-zkp = "3.0.2"
+risc0-circuit-rv32im = "4.0.2"
+risc0-build = "3.0.3"
+rzup = "0.5.1"
 
 # EVM dependencies
 revm-inspectors = { version = "0.18.0", default-features = false }

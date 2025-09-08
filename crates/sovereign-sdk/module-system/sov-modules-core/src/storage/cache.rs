@@ -237,11 +237,11 @@ impl Access {
 
 /// Cache entry can be in three states:
 /// - Does not exists, a given key was never inserted in the cache:
-///     ValueExists::No
+///   ValueExists::No
 /// - Exists but the value is empty.
-///      ValueExists::Yes(None)
+///   ValueExists::Yes(None)
 /// - Exists and contains a value:
-///     ValueExists::Yes(Some(value))
+///   ValueExists::Yes(Some(value))
 pub enum ValueExists {
     /// The key exists in the cache.
     Yes(Option<CacheValue>),

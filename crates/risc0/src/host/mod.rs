@@ -37,7 +37,7 @@ impl Risc0Host {
             Ok(prover) => match prover.as_str() {
                 "bonsai" => Prover::Bonsai(BonsaiProver::new(ledger_db)),
                 "ipc" => Prover::Local(LocalProver::new(network)),
-                _ => panic!("Invalid prover specified: {}", prover),
+                _ => panic!("Invalid prover specified: {prover}"),
             },
             Err(_) => {
                 debug!("No prover specified.");

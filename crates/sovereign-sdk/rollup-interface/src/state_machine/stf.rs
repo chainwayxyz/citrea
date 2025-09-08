@@ -174,7 +174,7 @@ impl std::fmt::Display for L2BlockError {
             L2BlockError::InvalidL2BlockSignature => {
                 write!(f, "Invalid l2 block signature")
             }
-            L2BlockError::Other(s) => write!(f, "Other error: {}", s),
+            L2BlockError::Other(s) => write!(f, "Other error: {s}"),
             L2BlockError::InvalidSovTxSignature => write!(f, "Invalid sov tx signature"),
             L2BlockError::SovTxCantBeRuntimeDecoded => {
                 write!(f, "Sov tx can't be runtime decoded")
@@ -216,12 +216,11 @@ impl std::fmt::Display for L2BlockModuleCallError {
             } => {
                 write!(
                             f,
-                            "EVM gas used exceeds block gas limit: cumulative_gas: {}, tx_gas_used: {}, block_gas_limit: {}",
-                            cumulative_gas, tx_gas_used, block_gas_limit
+                            "EVM gas used exceeds block gas limit: cumulative_gas: {cumulative_gas}, tx_gas_used: {tx_gas_used}, block_gas_limit: {block_gas_limit}"
                         )
             }
             L2BlockModuleCallError::EvmTransactionExecutionError(e) => {
-                write!(f, "EVM transaction execution error: {:?}", e)
+                write!(f, "EVM transaction execution error: {e:?}")
             }
             L2BlockModuleCallError::EvmMisplacedSystemTx => {
                 write!(f, "EVM misplaced system tx")
@@ -230,7 +229,7 @@ impl std::fmt::Display for L2BlockModuleCallError {
                 write!(f, "EVM not enough funds for L1 fee")
             }
             L2BlockModuleCallError::EvmTxTypeNotSupported(msg) => {
-                write!(f, "EVM tx type {} is not supported", msg)
+                write!(f, "EVM tx type {msg} is not supported")
             }
             L2BlockModuleCallError::RuleEnforcerUnauthorized => {
                 write!(f, "Rule enforcer unauthorized")
@@ -254,7 +253,7 @@ impl std::fmt::Display for L2BlockModuleCallError {
                 write!(f, "EVM system transaction reverted or halted")
             }
             L2BlockModuleCallError::ShortHeaderProofAllocationError(e) => {
-                write!(f, "Short header proof allocation error: {}", e)
+                write!(f, "Short header proof allocation error: {e}")
             }
         }
     }
@@ -264,9 +263,9 @@ impl std::fmt::Display for L2BlockModuleCallError {
 impl std::fmt::Display for StateTransitionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            StateTransitionError::L2BlockError(e) => write!(f, "{}", e),
-            StateTransitionError::HookError(e) => write!(f, "{}", e),
-            StateTransitionError::ModuleCallError(e) => write!(f, "{}", e),
+            StateTransitionError::L2BlockError(e) => write!(f, "{e}"),
+            StateTransitionError::HookError(e) => write!(f, "{e}"),
+            StateTransitionError::ModuleCallError(e) => write!(f, "{e}"),
         }
     }
 }

@@ -40,7 +40,7 @@ fn main() {
                 println!("cargo:warning=Performing guest build");
             }
             _ => {
-                println!("cargo:warning=Invalid value for SKIP_GUEST_BUILD: '{}'. Expected '0', '1', 'true', or 'false'. Defaulting to performing guest build.", value);
+                println!("cargo:warning=Invalid value for SKIP_GUEST_BUILD: '{value}'. Expected '0', '1', 'true', or 'false'. Defaulting to performing guest build.");
             }
         },
         Err(env::VarError::NotPresent) => {
@@ -71,8 +71,7 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
             env::var("CITREA_NETWORK").expect("CITREA_NETWORK must be set in docker build!");
         assert!(
             matches!(network.as_str(), "mainnet" | "testnet" | "devnet" | "nightly"),
-            "Invalid CITREA_NETWORK value: {}. Valid values are: mainnet | testnet | devnet | nightly",
-            network,
+            "Invalid CITREA_NETWORK value: {network}. Valid values are: mainnet | testnet | devnet | nightly",
         );
 
         println!("cargo:warning=Building guest in docker with network {network}");

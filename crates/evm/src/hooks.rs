@@ -238,8 +238,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .get(accessory_working_set)
                 .unwrap_or_else(|| {
                     panic!(
-                        "Pending head must be set to block {}, but was empty",
-                        expected_block_number
+                        "Pending head must be set to block {expected_block_number}, but was empty"
                     )
                 });
 
