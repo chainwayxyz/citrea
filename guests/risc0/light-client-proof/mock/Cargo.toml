@@ -11,10 +11,7 @@ resolver = "2"
 # but we tend to forget to update this while updating risc0
 # so putting here explicitly
 risc0-bigint2 = "1.4.6"
-risc0-zkvm = { version = "2.3.1", default-features = false, features = [
-    "unstable",
-    "std",
-] }
+risc0-zkvm = { version = "2.3.1", default-features = false, features = ["unstable", "std"] }
 risc0-zkvm-platform = { version = "2.0.3" }
 
 anyhow = "1.0.95"
