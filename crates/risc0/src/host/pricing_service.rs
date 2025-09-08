@@ -4,7 +4,7 @@ use std::time::Duration;
 use anyhow::{anyhow, Context, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info};
+use tracing::info;
 
 /// Response structure for the pricing API
 #[derive(Debug, Serialize, Deserialize)]
