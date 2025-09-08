@@ -69,6 +69,24 @@ pub async fn get_default_service(
         DaServiceKeyKind::Sequencer,
         REVEAL_TX_PREFIX.to_vec(),
         None,
+        None
+    )
+    .await
+}
+
+pub async fn spawn_bitcoin_da_with_wallet(
+    task_executor: &TaskExecutor,
+    config: &BitcoinConfig,
+    wallet: String,
+) -> Arc<BitcoinService> {
+    spawn_bitcoin_da_service(
+        task_executor,
+        config,
+        get_tx_backup_dir(),
+        DaServiceKeyKind::Sequencer,
+        REVEAL_TX_PREFIX.to_vec(),
+        None,
+        Some(wallet)
     )
     .await
 }
@@ -85,6 +103,7 @@ pub async fn spawn_bitcoin_da_sequencer_service(
         DaServiceKeyKind::Sequencer,
         REVEAL_TX_PREFIX.to_vec(),
         None,
+        None
     )
     .await
 }
@@ -101,6 +120,7 @@ pub async fn spawn_bitcoin_da_prover_service(
         DaServiceKeyKind::BatchProver,
         REVEAL_TX_PREFIX.to_vec(),
         None,
+        None
     )
     .await
 }
@@ -118,6 +138,7 @@ pub async fn spawn_bitcoin_da_prover_service_with_utxo_selection_mode(
         DaServiceKeyKind::BatchProver,
         REVEAL_TX_PREFIX.to_vec(),
         Some(utxo_selection_mode),
+        None
     )
     .await
 }
@@ -129,18 +150,19 @@ pub async fn spawn_bitcoin_da_service(
     kind: DaServiceKeyKind,
     reveal_tx_prefix: Vec<u8>,
     utxo_selection_mode: Option<UtxoSelectionMode>,
+    wallet: Option<String>
 ) -> Arc<BitcoinService> {
     let da_private_key = match kind {
         DaServiceKeyKind::Sequencer => SEQUENCER_DA_PRIVATE_KEY.to_string(),
         DaServiceKeyKind::BatchProver => PROVER_DA_PRIVATE_KEY.to_string(),
         DaServiceKeyKind::Other(key) => key,
     };
-
+    let wallet = wallet.unwrap_or(NodeKind::Bitcoin.to_string());
     let da_config = BitcoinServiceConfig {
         node_url: format!(
             "http://127.0.0.1:{}/wallet/{}",
             da_config.rpc_port,
-            NodeKind::Bitcoin
+            wallet
         ),
         node_username: da_config.rpc_user.clone(),
         node_password: da_config.rpc_password.clone(),
@@ -356,6 +378,7 @@ pub async fn generate_mock_txs(
         DaServiceKeyKind::Sequencer,
         vec![6],
         None,
+        None
     )
     .await;
 
@@ -371,6 +394,7 @@ pub async fn generate_mock_txs(
         ),
         REVEAL_TX_PREFIX.to_vec(),
         None,
+        None
     )
     .await;
 

@@ -579,6 +579,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             ),
             REVEAL_TX_PREFIX.to_vec(),
             None,
+            None,
         )
         .await;
 
@@ -2220,6 +2221,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
             ),
             REVEAL_TX_PREFIX.to_vec(),
             None,
+            None
         )
         .await;
 
