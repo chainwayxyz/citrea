@@ -576,3 +576,155 @@ fn create_inscription_transactions() {
         "sequencer public key should be correct"
     );
 }
+
+#[test]
+fn reproduce_direct_return_bug() {
+    let (_, address, _) = get_mock_data();
+
+    let failing_utxos = vec![
+        UTXO {
+            tx_id: Txid::from_str(
+                "8bf1396c65acc982ccb90e22b23aeb7c76d4f02b61279b47c2d9120cd7aea51f",
+            )
+            .unwrap(),
+            vout: 0,
+            address: Some(
+                Address::from_str("tb1pdf8easxk7e9ymher8grf4czylda3h5z8ze3ptue0gjxxfdcphk3qfk6lrg")
+                    .unwrap(),
+            ),
+            script_pubkey: address.script_pubkey().to_hex_string(),
+            amount: 2534,
+            confirmations: 100,
+            spendable: true,
+            solvable: true,
+        },
+        // First selected that was triggering direct_return
+        UTXO {
+            tx_id: Txid::from_str(
+                "1930d81736f8a5da742a37cff15d0453ba90adf68c17e9b149ed727862482583",
+            )
+            .unwrap(),
+            vout: 1,
+            address: Some(
+                Address::from_str("tb1pdf8easxk7e9ymher8grf4czylda3h5z8ze3ptue0gjxxfdcphk3qfk6lrg")
+                    .unwrap(),
+            ),
+            script_pubkey: address.script_pubkey().to_hex_string(),
+            amount: 881,
+            confirmations: 100,
+            spendable: true,
+            solvable: true,
+        },
+    ];
+
+    let required = failing_utxos[0].clone();
+
+    let recipient =
+        Address::from_str("bc1p2e37kuhnsdc5zvc8zlj2hn6awv3ruavak6ayc8jvpyvus59j3mwqwdt0zc")
+            .unwrap()
+            .require_network(bitcoin::Network::Bitcoin)
+            .unwrap();
+
+    let output_value = 2715;
+
+    // output_value + single input fee + non_dust_change;
+    // 2715 + 154 + 546 = 3415
+    // Total input = 3415
+    // This results in has_change = false, which was triggering the direct_return branch.
+    // On this branch, a second UTXO was selected but the fee rate was based on the initial single input vsize of 154 instead of double input vsize of 212
+    let res = super::build_commit_transaction(
+        Some(required),
+        failing_utxos.clone(),
+        recipient.clone(),
+        address.clone(),
+        output_value,
+        1,
+    );
+
+    // Should fail with not enough UTXO
+    // This would previously hit direct return and wouldn't meet fee rate
+    assert!(res.is_err());
+
+    let passing_utxos = vec![
+        UTXO {
+            tx_id: Txid::from_str(
+                "8bf1396c65acc982ccb90e22b23aeb7c76d4f02b61279b47c2d9120cd7aea51f",
+            )
+            .unwrap(),
+            vout: 0,
+            address: Some(
+                Address::from_str("tb1pdf8easxk7e9ymher8grf4czylda3h5z8ze3ptue0gjxxfdcphk3qfk6lrg")
+                    .unwrap(),
+            ),
+            script_pubkey: address.script_pubkey().to_hex_string(),
+            amount: 2534,
+            confirmations: 100,
+            spendable: true,
+            solvable: true,
+        },
+        // Should be selected first
+        UTXO {
+            tx_id: Txid::from_str(
+                "1930d81736f8a5da742a37cff15d0453ba90adf68c17e9b149ed727862482583",
+            )
+            .unwrap(),
+            vout: 1,
+            address: Some(
+                Address::from_str("tb1pdf8easxk7e9ymher8grf4czylda3h5z8ze3ptue0gjxxfdcphk3qfk6lrg")
+                    .unwrap(),
+            ),
+            script_pubkey: address.script_pubkey().to_hex_string(),
+            amount: 881,
+            confirmations: 100,
+            spendable: true,
+            solvable: true,
+        },
+        // Third UTXO
+        UTXO {
+            tx_id: Txid::from_str(
+                "1930d81736f8a5da742a37cff15d0453ba90adf68c17e9b149ed727862482583",
+            )
+            .unwrap(),
+            vout: 1,
+            address: Some(
+                Address::from_str("tb1pdf8easxk7e9ymher8grf4czylda3h5z8ze3ptue0gjxxfdcphk3qfk6lrg")
+                    .unwrap(),
+            ),
+            script_pubkey: address.script_pubkey().to_hex_string(),
+            amount: 900,
+            confirmations: 100,
+            spendable: true,
+            solvable: true,
+        },
+    ];
+
+    let required = passing_utxos[0].clone();
+
+    let recipient =
+        Address::from_str("bc1p2e37kuhnsdc5zvc8zlj2hn6awv3ruavak6ayc8jvpyvus59j3mwqwdt0zc")
+            .unwrap()
+            .require_network(bitcoin::Network::Bitcoin)
+            .unwrap();
+
+    let output_value = 2715;
+
+    let (tx, _) = super::build_commit_transaction(
+        Some(required),
+        passing_utxos.clone(),
+        recipient.clone(),
+        address.clone(),
+        output_value,
+        1,
+    )
+    .unwrap();
+
+    let total_input = 2534 + 881 + 900;
+    let total_output = tx.output[0].value.to_sat() + tx.output[1].value.to_sat();
+
+    let fee = total_input - total_output;
+
+    let expected_fee = tx.vsize();
+    let fee_rate = fee as f64 / expected_fee as f64;
+
+    assert!(fee_rate >= 1.0); // Assert that it meets min_relay_fee
+}

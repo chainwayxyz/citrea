@@ -21,7 +21,7 @@ use tokio::select;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace};
 
 use crate::helpers::builders::TxWithId;
 use crate::helpers::parsers::parse_relevant_transaction;
@@ -483,18 +483,16 @@ impl MonitoringService {
     ) -> Result<()> {
         let txid = tx.id;
 
-        {
-            let mut monitored_txs = self.monitored_txs.write().await;
-            if monitored_txs.contains_key(&txid) {
-                return Err(MonitorError::AlreadyMonitored);
-            }
+        let mut monitored_txs = self.monitored_txs.write().await;
+        if monitored_txs.contains_key(&txid) {
+            return Err(MonitorError::AlreadyMonitored);
+        }
 
-            if let Some(prev_tx_id) = prev_txid {
-                let Some(prev_tx) = monitored_txs.get_mut(&prev_tx_id) else {
-                    return Err(MonitorError::PrevTxNotMonitored(prev_tx_id));
-                };
-                prev_tx.next_txid = Some(txid);
-            }
+        if let Some(prev_tx_id) = prev_txid {
+            let Some(prev_tx) = monitored_txs.get_mut(&prev_tx_id) else {
+                return Err(MonitorError::PrevTxNotMonitored(prev_tx_id));
+            };
+            prev_tx.next_txid = Some(txid);
         }
 
         let current_height = self.client.get_block_count().await?;
@@ -516,7 +514,7 @@ impl MonitoringService {
             kind,
         };
 
-        self.monitored_txs.write().await.insert(txid, monitored_tx);
+        monitored_txs.insert(txid, monitored_tx);
         *self.last_tx.lock().await = Some(txid);
         debug!("[monitor_transaction_chain] setting last_tx : {:?}", txid);
 
@@ -603,7 +601,7 @@ impl MonitoringService {
                     .iter()
                     .position(|&(hash, _)| hash == current_hash)
                 {
-                    if pos != i as usize {
+                    if pos + 1 != i as usize {
                         reorg_detected = true;
                         reorg_depth = i;
                     }
@@ -635,8 +633,7 @@ impl MonitoringService {
 
                     if let TxStatus::InMempool { .. } = tx.status {
                         info!("Rebroadcasting tx {} {tx:?}", tx.tx.compute_txid());
-                        let raw_tx = self.client.get_raw_transaction_hex(txid, None).await?;
-                        self.client.send_raw_transaction(raw_tx).await?;
+                        self.attempt_rebroadcast(txid, &tx.status).await?;
                     }
                 }
             }
@@ -830,6 +827,8 @@ impl MonitoringService {
             return Ok(());
         };
 
+        let monitored_txs = self.get_monitored_txs().await;
+
         for _ in 0..TXS_NUMBER_TO_REBROADCAST {
             // Break on first finalized TX
             if let TxStatus::Finalized { .. } = current_tx.1.status {
@@ -846,7 +845,7 @@ impl MonitoringService {
             };
 
             let prev_tx = {
-                let Some(tx_data) = self.monitored_txs.read().await.get(&prev_txid).cloned() else {
+                let Some(tx_data) = monitored_txs.get(&prev_txid).cloned() else {
                     return Err(anyhow!("Missing monitored transaction {prev_txid}").into());
                 };
                 (prev_txid, tx_data)
@@ -859,7 +858,7 @@ impl MonitoringService {
     }
 
     async fn attempt_rebroadcast(&self, txid: &Txid, current_status: &TxStatus) -> Result<()> {
-        warn!("Rebroadcasting txid: {txid} with current_status {current_status:?}");
+        debug!("Rebroadcasting txid: {txid} with current_status {current_status:?}");
         if let Ok(result) = self.client.get_transaction(txid, None).await {
             self.client.send_raw_transaction(&result.hex).await?;
         } else if let Ok(result) = self.client.get_raw_transaction_hex(txid, None).await {

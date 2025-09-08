@@ -561,8 +561,9 @@ where
         tracing::trace!("ZK proof: {:?}", proof);
 
         // Extract and verify the proof using the appropriate ZKVM
-        let batch_proof_output = Vm::extract_output::<BatchProofCircuitOutput>(&proof)
-            .map_err(|e| anyhow!("Failed to extract batch proof output from proof: {:?}", e))?;
+        let Ok(batch_proof_output) = Vm::extract_output::<BatchProofCircuitOutput>(&proof) else {
+            return Ok(ProcessingResult::Discarded);
+        };
 
         // Get the code commitment for the appropriate fork
         let spec_id = fork_from_block_number(batch_proof_output.last_l2_height()).spec_id;
@@ -572,12 +573,15 @@ where
             .expect("Proof public input must contain valid spec id");
 
         // Verify the proof against the code commitment
-        Vm::verify(
+        if Vm::verify(
             proof.as_slice(),
             code_commitment,
             network_to_dev_mode(self.network),
         )
-        .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
+        .is_err()
+        {
+            return Ok(ProcessingResult::Discarded);
+        }
 
         // Process the verified proof using Tangerine-specific logic
         self.process_tangerine_zk_proof(
@@ -771,12 +775,10 @@ where
         current_l1_block_height: u64,
     ) -> Result<(), ProcessingError> {
         let pending_commitments = self.ledger_db.get_pending_commitments()?;
-        if pending_commitments.is_empty() {
-            return Ok(());
-        }
 
         // Try to process each pending commitment in order
-        for (index, commitment, found_in_l1_height) in pending_commitments {
+        for item in pending_commitments {
+            let (index, (commitment, found_in_l1_height)) = item?.into_tuple();
             // A commitment is processable if:
             // - For index 1: all its L2 blocks are synced
             // - For other indices: its previous commitment exists
@@ -844,11 +846,9 @@ where
         current_l1_block_height: u64,
     ) -> Result<(), ProcessingError> {
         let pending_proofs = self.ledger_db.get_pending_proofs()?;
-        if pending_proofs.is_empty() {
-            return Ok(());
-        }
 
-        for ((min_index, max_index), proof, found_in_l1_height) in pending_proofs {
+        for item in pending_proofs {
+            let ((min_index, max_index), (proof, found_in_l1_height)) = item?.into_tuple();
             match self
                 .process_zk_proof(current_l1_block_height, found_in_l1_height, proof)
                 .await
@@ -868,7 +868,10 @@ where
                     self.ledger_db.remove_pending_proof(min_index, max_index)?;
                 }
                 Ok(ProcessingResult::Pending) => {
-                    debug!("Keeping proof over commitment index range {min_index}-{max_index} as pending")
+                    debug!("Keeping proof over commitment index range {min_index}-{max_index} as pending");
+                    // Proofs are sorted by min_index.
+                    // We can break on the first pending proof as subsequent ones will depend on it and should be kept as pending
+                    break;
                 }
             }
         }

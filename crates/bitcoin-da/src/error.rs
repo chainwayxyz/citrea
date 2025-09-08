@@ -99,7 +99,10 @@ impl MempoolRejection {
     pub fn should_be_queued(&self) -> bool {
         matches!(
             self,
-            Self::PackageTooLarge | Self::PackageMempoolLimits | Self::PackageTooManyTransactions
+            Self::PackageTooLarge
+                | Self::PackageMempoolLimits
+                | Self::PackageTooManyTransactions
+                | Self::TooLongMempoolChain
         )
     }
 }
