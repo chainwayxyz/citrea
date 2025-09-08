@@ -76,7 +76,7 @@ pub mod bitcoinda {
 
     /// Genesis L2 root for the Bitcoin DA on Mainnet.
     pub const MAINNET_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
-        b"0000000000000000000000000000000000000000000000000000000000000000",
+        b"3fb2f50ed1124c12ce97853b08e2cc6613db7bc7d75aa69d56179b68732cea8a",
     ) {
         Ok(root) => root,
         Err(_) => panic!("Can't happen"),
@@ -132,7 +132,10 @@ pub mod bitcoinda {
 
     /// Initial batch proof method IDs for the Bitcoin DA on Mainnet.
     pub const MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> =
-        NonEmptySlice::new(&[(0, [0; 8])]);
+        NonEmptySlice::new(&[(
+            0,
+            decode_to_u32_array("ea3c4207b28aaeade5476bda4d09b09ddf4289c21e3b3d9a1c30a389989172a4"),
+        )]);
 
     /// Initial batch proof method IDs for the Bitcoin DA on Testnet.
     pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> =
@@ -190,7 +193,7 @@ pub mod bitcoinda {
 
     /// Public key of the batch prover in the Bitcoin DA on Mainnet.
     pub const MAINNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
-        b"030000000000000000000000000000000000000000000000000000000000000000",
+        b"03943cc1e3d053fc193e137ad6a7692d9c1037839dd7b5075658d32a091df4737f",
     ) {
         Ok(pub_key) => pub_key,
         Err(_) => panic!("PROVER_DA_PUB_KEY must be valid 33-byte hex string"),
@@ -244,7 +247,7 @@ pub mod bitcoinda {
 
     /// Public key of the sequencer in the Bitcoin DA on Mainnet.
     pub const MAINNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
-        b"030000000000000000000000000000000000000000000000000000000000000000",
+        b"035353ae57cc43b3308e7ff89aea19ce8dd12f2f8937a98eea1cb4e288186acf39",
     ) {
         Ok(pub_key) => pub_key,
         Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
@@ -299,7 +302,7 @@ pub mod bitcoinda {
     /// Public key of the method ID upgrade authority in the Bitcoin DA on Mainnet.
     pub const MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] =
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"03e2a6dd83bedc8e102aca808f546909cdffc72eef83fc281b422efb315ff742cf",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
