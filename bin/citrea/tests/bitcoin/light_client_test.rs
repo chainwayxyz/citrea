@@ -2221,7 +2221,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
             ),
             REVEAL_TX_PREFIX.to_vec(),
             None,
-            None
+            None,
         )
         .await;
 

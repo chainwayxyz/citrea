@@ -14,5 +14,10 @@ use drop_pending_commitments::DropPendingCommitments;
 pub fn migrations() -> &'static Vec<Box<dyn LedgerMigration + Send + Sync + 'static>> {
     static MIGRATIONS: OnceLock<Vec<Box<dyn LedgerMigration + Send + Sync + 'static>>> =
         OnceLock::new();
-    MIGRATIONS.get_or_init(|| vec![Box::new(DropFullnodeTables), Box::new(DropPendingCommitments)])
+    MIGRATIONS.get_or_init(|| {
+        vec![
+            Box::new(DropFullnodeTables),
+            Box::new(DropPendingCommitments),
+        ]
+    })
 }

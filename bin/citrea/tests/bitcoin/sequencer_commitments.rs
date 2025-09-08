@@ -26,7 +26,7 @@ use tokio::time::sleep;
 
 use super::get_citrea_path;
 use crate::bitcoin::get_relevant_seqcoms_from_txs;
-use crate::bitcoin::utils::{get_default_service, spawn_bitcoin_da_with_wallet};
+use crate::bitcoin::utils::spawn_bitcoin_da_with_wallet;
 
 pub async fn wait_for_sequencer_commitments(
     full_node: &FullNode,
@@ -325,7 +325,7 @@ async fn test_sequencer_sends_commitments_to_da_layer() -> Result<()> {
 }
 
 // Test commitment service fetching commitments from DA layer and storing them if their index is higher than the last stored one
-struct SequencerCommitmentsFromDaTest{
+struct SequencerCommitmentsFromDaTest {
     task_manager: TaskManager,
 }
 
@@ -352,16 +352,15 @@ impl TestCase for SequencerCommitmentsFromDaTest {
             &self.task_manager.executor(),
             &da.config,
             NodeKind::Sequencer.to_string(),
-        ).await;
+        )
+        .await;
 
         // publish blocks, no commitments should be sent
         sequencer.client.http_client().halt_commitments().await?;
         for _ in 0..40 {
             sequencer.client.send_publish_batch_request().await?;
         }
-        sequencer
-            .wait_for_l2_height(40, None)
-            .await?;
+        sequencer.wait_for_l2_height(40, None).await?;
         sequencer.wait_until_stopped().await?;
 
         // Send commitment with index 1 to DA
@@ -370,7 +369,10 @@ impl TestCase for SequencerCommitmentsFromDaTest {
             l2_end_block_number: 15,
             index: 1,
         };
-        da_service.send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment), 1).await.unwrap();
+        da_service
+            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment), 1)
+            .await
+            .unwrap();
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
@@ -380,26 +382,44 @@ impl TestCase for SequencerCommitmentsFromDaTest {
             l2_end_block_number: 25,
             index: 2,
         };
-        da_service.send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment), 1).await.unwrap();
+        da_service
+            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment), 1)
+            .await
+            .unwrap();
         // Restart sequencer, it should fetch commitment with index 1 and 2
         sequencer.restart(None, None).await?;
         // Sequencer should submit the next commitment with index 3
         da.wait_mempool_len(4, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         // Check if sequencer fetched commitment 1
-        let comm_1 = sequencer.client.http_client().get_sequencer_commitment_by_index(U32::from(1)).await?.unwrap();
+        let comm_1 = sequencer
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(1))
+            .await?
+            .unwrap();
         assert_eq!(comm_1.index, U32::from(1));
         assert_eq!(comm_1.l2_end_block_number, U64::from(15));
         assert_eq!(comm_1.merkle_root, [1; 32]);
 
         // Check if sequencer fetched commitment 2
-        let comm_2 = sequencer.client.http_client().get_sequencer_commitment_by_index(U32::from(2)).await?.unwrap();
+        let comm_2 = sequencer
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(2))
+            .await?
+            .unwrap();
         assert_eq!(comm_2.index, U32::from(2));
         assert_eq!(comm_2.l2_end_block_number, U64::from(25));
         assert_eq!(comm_2.merkle_root, [2; 32]);
 
         // Check if sequencer submitted commitment 3 for blocks 26-35
-        let comm_3 = sequencer.client.http_client().get_sequencer_commitment_by_index(U32::from(3)).await?.unwrap();
+        let comm_3 = sequencer
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(3))
+            .await?
+            .unwrap();
         assert_eq!(comm_3.index, U32::from(3));
         assert_eq!(comm_3.l2_end_block_number, U64::from(35));
 
