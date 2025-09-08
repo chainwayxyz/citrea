@@ -53,7 +53,7 @@ pub fn fork_from_block_number(block_number: u64) -> Fork {
     forks[pos]
 }
 
-pub const MAINNET_FORKS: [Fork; 1] = [Fork::new(SpecId::Tangerine, 0)];
+pub const MAINNET_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork3, 0)];
 
 pub const TESTNET_FORKS: [Fork; 3] = [
     Fork::new(SpecId::Genesis, 0),
