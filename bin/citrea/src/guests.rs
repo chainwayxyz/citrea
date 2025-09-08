@@ -96,7 +96,7 @@ pub(crate) static BATCH_PROOF_MAINNET_GUESTS: LazyLock<HashMap<SpecId, (Digest, 
 
         m.insert(
             SpecId::Tangerine,
-            guest!("../../../resources/guests/risc0/mainnet/batch-0.elf"),
+            guest!("../../../resources/guests/risc0/mainnet/batch-0.bin"),
         );
         m
     });
