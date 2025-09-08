@@ -29,6 +29,7 @@ jobs:
             ci
             chore
             revert
+            release
           
           scopes: |
           requireScope: false
