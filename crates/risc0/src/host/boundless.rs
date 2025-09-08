@@ -92,9 +92,9 @@ impl BoundlessProver {
     ) -> anyhow::Result<oneshot::Receiver<ProofWithJob>> {
         // Upload image id
         let image_id = compute_image_id(&elf).expect("Invalid elf program");
-        // TODO check for non existence or 0
+
         assert!(
-            std::env::var("RISC0_DEV_MODE").is_err(),
+            !is_dev_mode(),
             "RISC0_DEV_MODE should not be set for boundless"
         );
 
@@ -600,7 +600,12 @@ impl BoundlessProver {
     /// receiver channels that return the associated job id and proof result on finish.
     pub fn start_recovery(&self) -> anyhow::Result<Vec<oneshot::Receiver<ProofWithJob>>> {
         let sessions = self.ledger_db.get_pending_boundless_sessions()?;
+        tracing::info!(
+            "Found {} pending boundless sessions to recover",
+            sessions.len()
+        );
         if sessions.is_empty() {
+            tracing::info!("No pending boundless sessions to recover");
             return Ok(vec![]);
         }
 
@@ -624,4 +629,12 @@ impl BoundlessProver {
         }
         Ok(rxs)
     }
+}
+
+fn is_dev_mode() -> bool {
+    std::env::var("RISC0_DEV_MODE")
+        .ok()
+        .map(|x| x.to_lowercase())
+        .filter(|x| x == "1" || x == "true" || x == "yes")
+        .is_some()
 }
