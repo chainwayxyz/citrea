@@ -156,6 +156,7 @@ impl<DaC: FromEnv> FromEnv for FullNodeConfig<DaC> {
 pub struct BatchProverConfig {
     /// Prover run mode
     pub proving_mode: ProverGuestRunConfig,
+    // TODO: handle this correctly in
     /// Average number of commitments to prove
     pub proof_sampling_number: usize,
     /// If true prover will try to recover ongoing proving sessions

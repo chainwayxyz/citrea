@@ -92,6 +92,7 @@ impl BoundlessProver {
     ) -> anyhow::Result<oneshot::Receiver<ProofWithJob>> {
         // Upload image id
         let image_id = compute_image_id(&elf).expect("Invalid elf program");
+        // TODO check for non existence or 0
         assert!(
             std::env::var("RISC0_DEV_MODE").is_err(),
             "RISC0_DEV_MODE should not be set for boundless"
@@ -262,6 +263,7 @@ impl BoundlessProver {
         );
         let (req_id, request_expiry) = match self.client.offchain_client {
             Some(_) => {
+                // TODO: i think requst id can be set to job id
                 let (req_id, exp) = self.client.submit_offchain(request).await?;
                 tracing::info!("Request submitted to offchain boundless service");
                 (format!("0x{:x}", req_id), exp)
