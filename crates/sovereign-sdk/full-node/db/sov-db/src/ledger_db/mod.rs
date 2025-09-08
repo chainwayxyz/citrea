@@ -8,7 +8,7 @@ use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
-use sov_schema_db::{ScanDirection, Schema, SchemaBatch, SeekKeyEncoder, DB};
+use sov_schema_db::{ScanDirection, Schema, SchemaBatch, SchemaIterator, SeekKeyEncoder, DB};
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -912,20 +912,13 @@ impl NodeLedgerOps for LedgerDB {
         self.db.get::<PendingSequencerCommitments>(&index)
     }
 
-    fn get_pending_commitments(&self) -> anyhow::Result<Vec<(u32, SequencerCommitment, u64)>> {
-        let mut pending = Vec::new();
+    fn get_pending_commitments(
+        &self,
+    ) -> anyhow::Result<SchemaIterator<'_, PendingSequencerCommitments>> {
         let mut iter = self.db.iter::<PendingSequencerCommitments>()?;
         iter.seek_to_first();
 
-        while let Some(Ok(item)) = iter.next() {
-            let (index, (commitment, l1_height)) = item.into_tuple();
-            pending.push((index, commitment, l1_height));
-        }
-
-        // Sort by index to make sure we process pending commitments in order
-        pending.sort_by_key(|(index, _, _)| *index);
-
-        Ok(pending)
+        Ok(iter)
     }
 
     fn remove_pending_commitment(&self, index: u32) -> anyhow::Result<()> {
@@ -951,20 +944,11 @@ impl NodeLedgerOps for LedgerDB {
         Ok(())
     }
 
-    fn get_pending_proofs(&self) -> anyhow::Result<Vec<((u32, u32), Proof, u64)>> {
-        let mut pending = Vec::new();
+    fn get_pending_proofs(&self) -> anyhow::Result<SchemaIterator<'_, PendingProofs>> {
         let mut iter = self.db.iter::<PendingProofs>()?;
         iter.seek_to_first();
 
-        while let Some(Ok(item)) = iter.next() {
-            let (index_range, (proof, found_in_l1_height)) = item.into_tuple();
-            pending.push((index_range, proof, found_in_l1_height));
-        }
-
-        // Sort by min commitment index to ensure we process in order
-        pending.sort_by_key(|((min_index, _), _, _)| *min_index);
-
-        Ok(pending)
+        Ok(iter)
     }
 
     fn remove_pending_proof(&self, min_index: u32, max_index: u32) -> anyhow::Result<()> {

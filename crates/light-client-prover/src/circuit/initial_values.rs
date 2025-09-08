@@ -138,14 +138,14 @@ pub mod bitcoinda {
     pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> =
         NonEmptySlice::new(&[(
             0,
-            decode_to_u32_array("0baedfda1cce68a982e96cc5f155699dadd95b6f47cb4efb45ef6b0bc510b1ba"),
+            decode_to_u32_array("8d94f41179bbcd57066dadfdc4922a34fea4f32f1ec1ba7ca82c8c644f437013"),
         )]);
 
     /// Initial batch proof method IDs for the Bitcoin DA on Devnet.
     pub const DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> =
         NonEmptySlice::new(&[(
             0,
-            decode_to_u32_array("aba3ac6bc099b8669930c9a488f7c94d4e829d75800dbe77db115c830a27c246"),
+            decode_to_u32_array("1c13e18cd83c22eba3f620e8619af49363b240de764f37501fac5d65047146ca"),
         )]);
 
     /// Initial batch proof method IDs for the Bitcoin DA on Nightly.

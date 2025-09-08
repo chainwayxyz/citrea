@@ -172,9 +172,10 @@ impl FullNodeLedgerRollback {
         let mut batch = SchemaBatch::new();
 
         // ledger_db.drop_cf requires a mutable ref to DB so we just iterate.
-        let pending_proofs = self
+        let mut pending_proofs = self
             .ledger_db
             .iter_with_direction::<PendingProofs>(Default::default(), ScanDirection::Backward)?;
+        pending_proofs.seek_to_last();
 
         for pending_proof in pending_proofs {
             let pending_proof = pending_proof?;
@@ -200,12 +201,14 @@ impl FullNodeLedgerRollback {
     ) -> Result {
         let mut batch = SchemaBatch::new();
 
-        let pending_sequencer_commitments = self
+        let mut pending_sequencer_commitments = self
             .ledger_db
             .iter_with_direction::<PendingSequencerCommitments>(
                 Default::default(),
                 ScanDirection::Backward,
             )?;
+        pending_sequencer_commitments.seek_to_last();
+
         for sequencer_commitment in pending_sequencer_commitments {
             let sequencer_commitment = sequencer_commitment?;
             let (_, commitment_l1_height) = sequencer_commitment.value;

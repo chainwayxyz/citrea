@@ -1503,6 +1503,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     &filter,
                     from_block_number,
                     to_block_number,
+                    get_max_logs_per_response(),
                 )
             }
         }
@@ -1520,6 +1521,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         filter: &Filter,
         from_block_number: u64,
         to_block_number: u64,
+        max_logs_per_response: usize,
     ) -> Result<Vec<Log>, EthFilterError> {
         let max_blocks_per_filter: u64 = get_max_blocks_per_filter();
         if to_block_number - from_block_number >= max_blocks_per_filter {
@@ -1564,7 +1566,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         filter.clone(),
                         block,
                     );
-                    let max_logs_per_response = get_max_logs_per_response();
                     // size check but only if range is multiple blocks, so we always return all
                     // logs of a single block
                     let is_multi_block_range = from_block_number != to_block_number;
