@@ -151,7 +151,7 @@ pub(crate) static LIGHT_CLIENT_MAINNET_GUESTS: LazyLock<HashMap<SpecId, (Digest,
 
         m.insert(
             SpecId::Tangerine,
-            guest!("../../../resources/guests/risc0/mainnet/light-0.elf"),
+            guest!("../../../resources/guests/risc0/mainnet/light-0.bin"),
         );
         m
     });
