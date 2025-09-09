@@ -164,9 +164,11 @@ where
     /// * `shutdown_signal` - A signal to gracefully shut down the prover service
     #[instrument(name = "BatchProver", skip_all)]
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
-        self.recover_proving_sessions().await;
-
-        info!("Finished proving session recovery");
+        if self.prover_config.enable_recovery {
+            info!("Prover enable recovery is set to true, starting recovering proving sessions");
+            self.recover_proving_sessions().await;
+            info!("Finished proving session recovery");
+        }
 
         'run_loop: loop {
             select! {
