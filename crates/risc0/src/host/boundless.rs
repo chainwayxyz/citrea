@@ -253,7 +253,7 @@ impl BoundlessProver {
         image_id: Digest,
         receipt_type: ReceiptType,
         mcycles_count: u64,
-    ) -> anyhow::Result<(String, u64)> {
+    ) -> Result<(String, u64), ClientError> {
         // Start boundless proving session
         tracing::info!(
             "Submitting boundless proving session request, job_id={} image_id={} with offer: {:?}",
@@ -263,7 +263,6 @@ impl BoundlessProver {
         );
         let (req_id, request_expiry) = match self.client.offchain_client {
             Some(_) => {
-                // TODO: i think requst id can be set to job id
                 let (req_id, exp) = self.client.submit_offchain(request).await?;
                 tracing::info!("Request submitted to offchain boundless service");
                 (format!("0x{:x}", req_id), exp)
@@ -538,17 +537,20 @@ impl BoundlessProver {
             new_lock_timeout as u64,
         );
 
-        // Resubmit the request with updated parameters
-        let Ok((new_req_id, new_exp_time)) = self
+        let (new_req_id, new_exp_time) = match self
             .send_request(new_request, job_id, image_id, receipt_type, mcycles_count)
             .await
-        else {
-            tracing::error!(
-                "Failed to resubmit boundless proving session retrying, job_id={} request_id={}",
-                job_id,
-                request_id
-            );
-            return Ok(ResubmitResult::Retry);
+        {
+            Ok((req_id, exp_time)) => (req_id, exp_time),
+            Err(e) => {
+                tracing::error!(
+                    "Failed to resubmit boundless proving session retrying, job_id={} request_id={} | err={}",
+                    job_id,
+                    request_id,
+                    e
+                );
+                return Ok(ResubmitResult::Retry);
+            }
         };
 
         // Update request_id and request_expiry for the next iteration
