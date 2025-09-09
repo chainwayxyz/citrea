@@ -148,7 +148,7 @@ where
     async fn process_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
         let mut pending_l1_blocks = self.pending_l1_blocks.lock().await;
         // don't ping if no new l1 blocks
-        let should_ping = pending_l1_blocks.len() > 0;
+        let should_ping = !pending_l1_blocks.is_empty();
 
         // process all the pending l1 blocks
         while !pending_l1_blocks.is_empty() {

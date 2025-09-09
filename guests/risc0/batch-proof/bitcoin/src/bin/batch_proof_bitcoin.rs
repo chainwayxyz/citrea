@@ -25,7 +25,7 @@ const NETWORK: Network = match option_env!("CITREA_NETWORK") {
 
 const SEQUENCER_PUBLIC_KEY: [u8; 33] = {
     let hex_pub_key = match NETWORK {
-        Network::Mainnet => "000000000000000000000000000000000000000000000000000000000000000000",
+        Network::Mainnet => "03c79917d360ca130ddee40b75544ace55963fe5e9886895a575e6f56895369d6e",
         Network::Testnet => "0201edff3b3ee593dbef54e2fbdd421070db55e2de2aebe75f398bd85ac97ed364",
         Network::Devnet => "03745871636b11562a7f2d7c0e883a960b54c7e2c0a5427d4b99ac403588530589",
         Network::Nightly | Network::TestNetworkWithForks => {

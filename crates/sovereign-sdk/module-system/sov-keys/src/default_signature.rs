@@ -223,7 +223,7 @@ impl PublicKey for K256PublicKey {
 
 #[cfg(feature = "native")]
 fn map_error_k256(e: k256::ecdsa::signature::Error) -> std::io::Error {
-    std::io::Error::new(std::io::ErrorKind::Other, e)
+    std::io::Error::other(e)
 }
 #[cfg(not(feature = "native"))]
 fn map_error_k256(_e: k256::ecdsa::signature::Error) -> std::io::Error {

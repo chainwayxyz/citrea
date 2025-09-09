@@ -255,7 +255,7 @@ async fn get_l2_blocks_range(
                     if e.message().eq("Response is too big") {
                         return Err(backoff::Error::Permanent(SyncError::ResponseOverLimit));
                     }
-                    let error_msg = format!("L2 block: call error during RPC call: {:?}", e);
+                    let error_msg = format!("L2 block: call error during RPC call: {e:?}");
                     error!(error_msg);
                     Err(backoff::Error::Transient {
                         err: SyncError::Call(error_msg),
@@ -263,7 +263,7 @@ async fn get_l2_blocks_range(
                     })
                 }
                 JsonrpseeError::Transport(e) => {
-                    let error_msg = format!("L2 block: connection error during RPC call: {:?}", e);
+                    let error_msg = format!("L2 block: connection error during RPC call: {e:?}");
                     error!(error_msg);
                     Err(backoff::Error::Transient {
                         err: SyncError::Connection(error_msg),
@@ -272,8 +272,7 @@ async fn get_l2_blocks_range(
                 }
                 _ => Err(backoff::Error::Transient {
                     err: SyncError::Unknown(format!(
-                        "L2 block: unknown error from RPC call: {:?}",
-                        e
+                        "L2 block: unknown error from RPC call: {e:?}"
                     )),
                     retry_after: None,
                 }),
