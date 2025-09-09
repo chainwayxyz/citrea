@@ -95,7 +95,7 @@ pub(crate) static BATCH_PROOF_MAINNET_GUESTS: LazyLock<HashMap<SpecId, (Digest, 
         let mut m = HashMap::new();
 
         m.insert(
-            SpecId::Tangerine,
+            SpecId::Fork3,
             guest!("../../../resources/guests/risc0/mainnet/batch-0.bin"),
         );
         m
@@ -150,7 +150,7 @@ pub(crate) static LIGHT_CLIENT_MAINNET_GUESTS: LazyLock<HashMap<SpecId, (Digest,
         let mut m = HashMap::new();
 
         m.insert(
-            SpecId::Tangerine,
+            SpecId::Fork3,
             guest!("../../../resources/guests/risc0/mainnet/light-0.bin"),
         );
         m
