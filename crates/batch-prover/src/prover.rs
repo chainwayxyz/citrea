@@ -739,7 +739,7 @@ where
     /// and submit the recovered proofs to the DA service with them.
     #[instrument(name = "recovery", skip_all)]
     async fn recover_proving_sessions(&self, enable_proof_session_recovery: bool) {
-        let proofs = if enable_proof_session_recovery {
+        let mut proofs = if enable_proof_session_recovery {
             // recover proving sessions
             let proving_jobs = self
                 .prover_service
