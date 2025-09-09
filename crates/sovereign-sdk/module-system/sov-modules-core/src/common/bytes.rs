@@ -44,7 +44,7 @@ impl fmt::Display for Prefix {
         let buf = self.data.as_ref();
         match str::from_utf8(buf) {
             Ok(s) => {
-                write!(f, "{:?}", s)
+                write!(f, "{s:?}")
             }
             Err(_) => {
                 write!(f, "0x{}", hex::encode(buf))
