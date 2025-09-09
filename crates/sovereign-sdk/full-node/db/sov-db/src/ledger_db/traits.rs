@@ -300,15 +300,6 @@ pub trait BonsaiLedgerOps: BatchProverLedgerOps + SharedLedgerOps + Send + Sync 
 
 /// Sequencer ledger operations
 pub trait SequencerLedgerOps: SharedLedgerOps {
-    /// Gets all pending commitments.
-    fn get_pending_commitments(&self) -> Result<Vec<SequencerCommitment>>;
-
-    /// Put a pending commitment
-    fn put_pending_commitment(&self, seqcomm: &SequencerCommitment) -> Result<()>;
-
-    /// Delete a pending commitment l2 range
-    fn delete_pending_commitment(&self, index: u32) -> Result<()>;
-
     /// Gets the state diff by block number
     fn get_state_diff(&self, l2_height: L2BlockNumber) -> Result<StateDiff>;
 

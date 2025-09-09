@@ -4,12 +4,20 @@ use sov_db::ledger_db::migrations::LedgerMigration;
 
 /// Migration to drop unused fullnode tables from sequencer databases
 mod drop_fullnode_tables;
+/// Migration to drop the pending commitments table
+mod drop_pending_commitments;
 
 use drop_fullnode_tables::DropFullnodeTables;
+use drop_pending_commitments::DropPendingCommitments;
 
 /// Returns the list of migrations that need to be executed in the next fork.
 pub fn migrations() -> &'static Vec<Box<dyn LedgerMigration + Send + Sync + 'static>> {
     static MIGRATIONS: OnceLock<Vec<Box<dyn LedgerMigration + Send + Sync + 'static>>> =
         OnceLock::new();
-    MIGRATIONS.get_or_init(|| vec![Box::new(DropFullnodeTables)])
+    MIGRATIONS.get_or_init(|| {
+        vec![
+            Box::new(DropFullnodeTables),
+            Box::new(DropPendingCommitments),
+        ]
+    })
 }
