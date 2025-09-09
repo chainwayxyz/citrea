@@ -91,9 +91,9 @@ where
             let prestate = storage_manager.create_final_view_storage();
             let working_set = WorkingSet::new(prestate.clone());
 
-            // Resubmit if there were pending commitments on restart, skip it on first init
-            if let Err(e) = self.resubmit_pending_commitments(working_set).await {
-                error!("Could not resubmit pending commitments: {:?}", e);
+            // Store commitments from DA to db, skip it on first init
+            if let Err(e) = self.store_commitments_from_da(working_set).await {
+                error!("Could not store commitments from DA: {:?}", e);
             }
         }
 
@@ -164,11 +164,9 @@ where
                             .expect("Commit check tokio blocking task failed")
                             .expect("Commitment criteria check failed")
                         {
-                            if let Err(e) = self.commit(index, commitment_range.clone()).await {
-                                // We just log error and continue here as the controller updated its internal state and it can
-                                // continue functioning correctly. We just need to resubmit the failed commitment to DA.
-                                error!("Failed to submit commitment: {:?}", e);
-                            }
+                            self.commit(index, commitment_range.clone())
+                                .await
+                                .expect("Failed to submit commitment");
 
                             record_commitment_process_duration_metrics(
                                 start_commitment_processing,
@@ -237,16 +235,6 @@ where
         let start = Instant::now();
         let ledger_db = self.ledger_db.clone();
 
-        // Even though the commitment service does not shutdown before we get a response from the DA service,
-        // we still need to store the commitment in the pending commitments, so that if anything happens
-        // from the time we send the tx to the DA service and until we get a response (so the tx wasn't even submitted yet),
-        // e.g. server shutdown, we can resubmit the pending commitments.
-        //
-        // So pending status for a commitment spans from da service submission to entrance to mempool.
-        ledger_db.put_pending_commitment(&commitment).map_err(|_| {
-            anyhow!("Sequencer: Failed to store sequencer commitment in pending commitments")
-        })?;
-
         let _tx_id = rx
             .await
             .map_err(|_| anyhow!("DA service is dead!"))?
@@ -262,10 +250,7 @@ where
             .put_commitment_by_index(&commitment)
             .map_err(|_| anyhow!("Sequencer: Failed to store sequencer commitment by index"))?;
 
-        ledger_db.delete_pending_commitment(commitment.index)?;
-
-        self.ledger_db
-            .delete_state_diff_by_range(commitment_range)?;
+        ledger_db.delete_state_diff_by_range(commitment_range)?;
 
         info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
 
@@ -273,28 +258,21 @@ where
     }
 
     #[instrument(level = "trace", skip(self, working_set), err, ret)]
-    pub async fn resubmit_pending_commitments(
+    pub async fn store_commitments_from_da(
         &mut self,
         mut working_set: WorkingSet<ProverStorage>,
     ) -> anyhow::Result<()> {
-        info!("Resubmitting pending commitments");
-
-        let mut pending_db_commitments = self.ledger_db.get_pending_commitments()?;
-        pending_db_commitments.sort();
-        info!("Pending db commitments: {:?}", pending_db_commitments);
-
-        let mut pending_mempool_commitments = self.get_pending_mempool_commitments().await;
-        pending_mempool_commitments.sort();
+        let pending_mempool_commitments = self.get_pending_mempool_commitments().await;
         info!(
             "Commitments that are already in DA mempool: {:?}",
             pending_mempool_commitments
         );
+        let last_commitment = self.ledger_db.get_last_commitment()?;
 
         // to determine which L1 block to start scanning from
         let start_scanning_l1_from: u64 = {
-            let l2_height = self
-                .ledger_db
-                .get_last_commitment()?
+            let l2_height = last_commitment
+                .as_ref()
                 .map(|c| c.l2_end_block_number)
                 .unwrap_or(1);
 
@@ -310,52 +288,56 @@ where
             l1_height.to::<u64>() + 1
         };
 
-        let mut mined_commitments = self
+        let mined_commitments = self
             .get_mined_commitments_from(start_scanning_l1_from)
             .await?;
-        mined_commitments.sort();
         info!(
             "Commitments that are already mined by DA: {:?}",
             mined_commitments
         );
 
-        let mut pending_commitments_to_remove = vec![];
-        pending_commitments_to_remove.extend(pending_mempool_commitments);
-        pending_commitments_to_remove.extend(mined_commitments);
+        let mut commitments_to_store = vec![];
+        commitments_to_store.extend(pending_mempool_commitments);
+        commitments_to_store.extend(mined_commitments);
 
-        pending_commitments_to_remove.sort();
-        pending_commitments_to_remove.dedup();
-        info!(
-            "Pending commitments to remove: {:?}",
-            pending_commitments_to_remove
+        commitments_to_store.sort();
+        commitments_to_store.dedup();
+
+        let last_index = last_commitment.map_or(0, |c| c.index);
+        commitments_to_store.retain(|c| c.index > last_index);
+        assert!(
+            commitments_to_store
+                .first()
+                .is_none_or(|c| c.index == last_index + 1),
+            "First commitment to store must be the next after last stored commitment {:?} != {:?}",
+            commitments_to_store.first().map(|c| c.index),
+            last_index + 1
+        );
+        assert!(
+            commitments_to_store
+                .windows(2)
+                .all(|w| w[0].index + 1 == w[1].index),
+            "Commitments to store must be consecutive {:?}",
+            commitments_to_store
         );
 
-        for pending_db_comm in pending_db_commitments {
-            if pending_commitments_to_remove
-                .iter()
-                .any(|commitment| commitment.index == pending_db_comm.index)
-            {
-                // this pending commitment is either mined or in the L1 mempool
-                // so we can delete it from the pending db and put it to commitment by index
-                self.ledger_db.put_commitment_by_index(&pending_db_comm)?;
-                self.ledger_db
-                    .delete_pending_commitment(pending_db_comm.index)?;
-            } else {
-                // Submit commitment
-                let l2_start_block_number = if pending_db_comm.index == 1 {
-                    get_tangerine_activation_height_non_zero()
-                } else {
-                    self.ledger_db
-                        .get_commitment_by_index(pending_db_comm.index - 1)?
-                        .unwrap()
-                        .l2_end_block_number
-                        + 1
-                };
-                let range = L2BlockNumber(l2_start_block_number)
-                    ..=L2BlockNumber(pending_db_comm.l2_end_block_number);
+        info!("Commitments from DA to store: {:?}", commitments_to_store);
 
-                self.commit(pending_db_comm.index, range).await?;
-            }
+        for commitment in commitments_to_store {
+            let l2_start_block_number = if commitment.index == 1 {
+                get_tangerine_activation_height_non_zero()
+            } else {
+                self.ledger_db
+                    .get_commitment_by_index(commitment.index - 1)?
+                    .unwrap()
+                    .l2_end_block_number
+                    + 1
+            };
+            let range = L2BlockNumber(l2_start_block_number)
+                ..=L2BlockNumber(commitment.l2_end_block_number);
+
+            self.ledger_db.put_commitment_by_index(&commitment)?;
+            self.ledger_db.delete_state_diff_by_range(range)?;
         }
 
         Ok(())
