@@ -11,7 +11,7 @@ use boundless_market::contracts::boundless_market::MarketError;
 use boundless_market::contracts::{Offer, Predicate, Requirements};
 use boundless_market::request_builder::RequestParams;
 use boundless_market::GuestEnv;
-use citrea_common::utils::current_timestamp_as_secs;
+use citrea_common::utils::{current_timestamp_as_secs, read_env};
 use citrea_common::FromEnv;
 use risc0_zkvm::sha::Digestible;
 use risc0_zkvm::{
@@ -103,9 +103,23 @@ impl BoundlessProver {
             "Currently, only Groth16 receipts are supported for boundless"
         );
 
+        // TODO: Can be done better?
+        let s3_url = read_env("BOUNDLESS_S3_URL")?;
+
+        let s3_use_presigned = read_env("BOUNDLESS_S3_NO_PRESIGNED")
+            .map(|_| false)
+            .unwrap_or(true);
+
         // Upload the program(elf) to the boundless storage provider
-        let image_url = self.client.upload_program(&elf).await?;
+        let mut image_url = self.client.upload_program(&elf).await?;
         tracing::info!("Image URL: {}", image_url);
+
+        // If we are not using presigned:
+        if !s3_use_presigned {
+            let s3_path = image_url.as_str().to_string().replace("s3://", "");
+            image_url = Url::parse(&format!("{}{}", s3_url, s3_path))?;
+            tracing::info!("Downloadable Image URL: {}", image_url);
+        }
 
         let guest_env = GuestEnv::from_stdin(input.clone())
             .encode()
@@ -121,8 +135,15 @@ impl BoundlessProver {
         // );
 
         // Upload input
-        let input_url = self.client.upload_input(&guest_env).await?;
+        let mut input_url = self.client.upload_input(&guest_env).await?;
         tracing::info!("Uploaded input to {}", input_url);
+
+        // If we are not using presigned:
+        if !s3_use_presigned {
+            let s3_path = input_url.as_str().to_string().replace("s3://", "");
+            input_url = Url::parse(&format!("{}{}", s3_url, s3_path))?;
+            tracing::info!("Downloadable Input URL: {}", input_url);
+        }
 
         // move non-Send logic to blocking thread
         // I had to do this because the executor env builder is not Send
