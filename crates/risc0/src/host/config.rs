@@ -105,21 +105,30 @@ pub struct BoundlessConfig {
     pub(crate) wallet_private_key: LocalSigner<SigningKey>,
     pub(crate) rpc_url: Url,
     pub(crate) deployment: Deployment,
+    #[allow(dead_code)]
+    pub(crate) is_offchain: bool,
 }
 
 impl citrea_common::FromEnv for BoundlessConfig {
     fn from_env() -> anyhow::Result<Self> {
         let wallet_private_key = read_env("BOUNDLESS_WALLET_PRIVATE_KEY")?;
         let rpc_url = read_env("BOUNDLESS_RPC_URL")?;
+        let is_offchain = read_env("BOUNDLESS_IS_OFFCHAIN")
+            .map(|v| v == "1" || v.to_lowercase() == "true")
+            .unwrap_or(false);
 
         // TODO: Switch to Deployment::builder after boundless 1.0 release to switch between base mainnet and sepolia
-        let deployment = BASE;
+        let mut deployment = BASE;
+        if !is_offchain {
+            deployment.order_stream_url = None;
+        }
 
         Ok(Self {
             wallet_private_key: PrivateKeySigner::from_str(&wallet_private_key)
                 .context("Failed to parse wallet private key")?,
             rpc_url: Url::parse(&rpc_url).expect("Invalid RPC URL"),
             deployment,
+            is_offchain,
         })
     }
 }

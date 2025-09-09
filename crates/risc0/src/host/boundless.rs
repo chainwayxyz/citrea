@@ -263,11 +263,13 @@ impl BoundlessProver {
         );
         let (req_id, request_expiry) = match self.client.offchain_client {
             Some(_) => {
+                tracing::info!("Sending request using offchain boundless service");
                 let (req_id, exp) = self.client.submit_offchain(request).await?;
                 tracing::info!("Request submitted to offchain boundless service");
                 (format!("0x{:x}", req_id), exp)
             }
             None => {
+                tracing::info!("Sending request onchain to boundless network");
                 let (req_id, exp) = self.client.submit_onchain(request).await?;
                 tracing::info!("Request submitted to onchain boundless service");
                 (format!("0x{:x}", req_id), exp)
