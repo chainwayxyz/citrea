@@ -147,12 +147,12 @@ impl BoundlessProver {
 
         // move non-Send logic to blocking thread
         // I had to do this because the executor env builder is not Send
-        let (journal, mcycles_count) = tokio::task::spawn_blocking({
+        let (journal, mcycles_count, total_cycles_approx) = tokio::task::spawn_blocking({
             let elf = elf.clone(); // clone since we move into thread
             let input = input.clone();
             let assumptions = assumptions.clone();
 
-            move || -> anyhow::Result<(Journal, u64)> {
+            move || -> anyhow::Result<(Journal, u64, u64)> {
                 let mut env = ExecutorEnvBuilder::default();
                 for assumption in assumptions {
                     env.add_assumption(assumption);
@@ -173,7 +173,7 @@ impl BoundlessProver {
                     total_cycles_approx
                 );
 
-                Ok((session_info.journal, mcycles_count))
+                Ok((session_info.journal, mcycles_count, total_cycles_approx))
             }
         })
         .await??;
@@ -210,6 +210,8 @@ impl BoundlessProver {
             U256::from(cmp::min(max_price, max_possible_price)),
             mcycles_count,
             lock_timeout,
+            Some(total_cycles_approx),
+            Some(journal),
         );
 
         // Start boundless proving session
@@ -240,10 +242,13 @@ impl BoundlessProver {
         max_price_per_mcycle: U256,
         mcycles_count: u64,
         lock_timeout: u64,
+        total_cycles_approx: Option<u64>,
+        journal: Option<Journal>,
     ) -> RequestParams {
         // Note that offer ramp up period must be less than or equal to the lock timeout)
         let ramp_up_period = cmp::min(lock_timeout, 300); // at most 5 minutes
-        self.client
+        let mut request_params = self
+            .client
             .new_request()
             .with_program_url(image_url)
             .unwrap()
@@ -264,7 +269,16 @@ impl BoundlessProver {
                     .with_bidding_start(current_timestamp_as_secs() + 50)
                     // https://github.com/boundless-xyz/boundless/blob/5e7ac7ddce4f54a146c607e2627302472706261b/crates/boundless-market/src/request_builder/offer_layer.rs#L66
                     .with_lock_stake(U256::from(3u64)),
-            )
+            );
+
+        // If we can provide these then in the preflight layer of request sending there won't be a double execution of the program
+        if let Some(total_cycles_approx) = total_cycles_approx {
+            request_params = request_params.with_cycles(total_cycles_approx);
+        }
+        if let Some(journal) = journal {
+            request_params = request_params.with_journal(journal);
+        }
+        request_params
     }
 
     async fn send_request(
@@ -558,6 +572,9 @@ impl BoundlessProver {
             new_max_price_per_mcycle,
             mcycles_count,
             new_lock_timeout as u64,
+            // TODO: https://github.com/chainwayxyz/citrea/issues/2820
+            None,
+            None,
         );
 
         let (new_req_id, new_exp_time) = match self
