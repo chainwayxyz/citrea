@@ -820,7 +820,7 @@ where
                 ledger_db
                     .finalize_proving_job(job_id, tx_id.into())
                     .expect("Should update proving job tx id");
-                tracing::info!("Finalized recovered proving job: {}", job_id);
+                info!("Finalized recovered proving job: {}", job_id);
             });
         }
     }
