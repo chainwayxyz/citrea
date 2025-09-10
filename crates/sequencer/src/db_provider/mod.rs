@@ -1,6 +1,5 @@
 use core::ops::RangeInclusive;
 use std::fmt::Debug;
-use std::ops::Bound;
 
 use alloy_eips::{BlockHashOrNumber, BlockId, BlockNumberOrTag};
 use alloy_genesis::Genesis;
@@ -26,7 +25,7 @@ use reth_provider::{
 use reth_trie::updates::TrieUpdates;
 use reth_trie::{HashedPostState, HashedStorage, StorageMultiProof, StorageProof};
 use revm::database::BundleState;
-use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps as _};
 use sov_modules_api::{Spec, StateMapAccessor, WorkingSet};
 
 /// Provider for EVM database operations in the sequencer
@@ -189,63 +188,8 @@ impl BlockBodyIndicesProvider for DbProvider {
 }
 
 impl BlockReaderIdExt for DbProvider {
-    fn block_by_id(&self, id: BlockId) -> ProviderResult<Option<Self::Block>> {
-        let block_number = match id {
-            BlockId::Hash(hash) => {
-                let mut working_set = WorkingSet::new(self.storage.clone());
-                match self.evm.get_block_by_hash(
-                    hash.block_hash,
-                    None,
-                    &mut working_set,
-                    &self.ledger_db,
-                ) {
-                    Ok(Some(block)) => block.header.number,
-                    _ => return Ok(None),
-                }
-            }
-            BlockId::Number(num_or_tag) => match num_or_tag {
-                BlockNumberOrTag::Number(n) => n,
-                BlockNumberOrTag::Latest => self.best_block_number()?,
-                BlockNumberOrTag::Finalized => match self.finalized_block_number()? {
-                    Some(n) => n,
-                    None => return Ok(None),
-                },
-                BlockNumberOrTag::Safe => match self.finalized_block_number()? {
-                    Some(n) => n,
-                    None => return Ok(None),
-                },
-                BlockNumberOrTag::Earliest => 0,
-                BlockNumberOrTag::Pending => {
-                    return Ok(None);
-                }
-            },
-        };
-
-        let mut working_set = WorkingSet::new(self.storage.clone());
-        let mut accessory_state = working_set.accessory_state();
-
-        let citrea_block = match self
-            .evm
-            .get_block_by_height(block_number, &mut accessory_state)
-        {
-            Some(block) => block,
-            None => return Ok(None),
-        };
-
-        let transactions = self
-            .transactions_by_block(BlockHashOrNumber::Number(block_number))?
-            .unwrap_or_default();
-
-        let header = citrea_block.header.unseal();
-
-        Ok(Some(reth_primitives::Block {
-            header,
-            body: reth_primitives::BlockBody {
-                transactions,
-                ommers: Vec::new(),
-                withdrawals: None,
-            },
-        }))
+    fn block_by_id(&self, _id: BlockId) -> ProviderResult<Option<Self::Block>> {
+        unimplemented!("block_by_id")
     }
 
     fn finalized_header(&self) -> ProviderResult<Option<reth_primitives::SealedHeader>> {
@@ -260,34 +204,22 @@ impl BlockReaderIdExt for DbProvider {
         &self,
         id: BlockNumberOrTag,
     ) -> ProviderResult<Option<reth_primitives::Header>> {
-        match id {
-            BlockNumberOrTag::Number(num) => {
-                let mut working_set = WorkingSet::new(self.storage.clone());
-                match self.evm.get_block_by_number(
-                    Some(BlockNumberOrTag::Number(num)),
-                    None,
-                    &mut working_set,
-                    &self.ledger_db,
-                ) {
-                    Ok(Some(block)) => Ok(Some(block.inner.header.into_consensus())),
-                    Ok(None) => Ok(None),
-                    Err(_) => Ok(None),
-                }
-            }
+        let id = match id {
+            BlockNumberOrTag::Number(_) => id,
             BlockNumberOrTag::Latest | BlockNumberOrTag::Safe | BlockNumberOrTag::Finalized => {
-                let mut working_set = WorkingSet::new(self.storage.clone());
-                match self.evm.get_block_by_number(
-                    Some(BlockNumberOrTag::Latest),
-                    None,
-                    &mut working_set,
-                    &self.ledger_db,
-                ) {
-                    Ok(Some(block)) => Ok(Some(block.inner.header.into_consensus())),
-                    Ok(None) => Ok(None),
-                    Err(_) => Ok(None),
-                }
+                BlockNumberOrTag::Latest
             }
-            _ => Ok(None),
+            _ => return Ok(None),
+        };
+
+        let mut working_set = WorkingSet::new(self.storage.clone());
+        match self
+            .evm
+            .get_block_by_number(Some(id), None, &mut working_set, &self.ledger_db)
+        {
+            Ok(Some(block)) => Ok(Some(block.inner.header.into_consensus())),
+            Ok(None) => Ok(None),
+            Err(_) => Ok(None),
         }
     }
 
@@ -559,37 +491,9 @@ impl TransactionsProvider for DbProvider {
     type Transaction = reth_primitives::TransactionSigned;
     fn senders_by_tx_range(
         &self,
-        range: impl std::ops::RangeBounds<TxNumber>,
+        _range: impl std::ops::RangeBounds<TxNumber>,
     ) -> ProviderResult<Vec<Address>> {
-        // Convert range bounds to concrete start and end indices
-        let start = match range.start_bound() {
-            Bound::Included(&n) => n,
-            Bound::Excluded(&n) => n + 1,
-            Bound::Unbounded => 0,
-        };
-
-        let end = match range.end_bound() {
-            Bound::Included(&n) => n + 1,
-            Bound::Excluded(&n) => n,
-            Bound::Unbounded => {
-                // For unbounded end, we don't know the total count
-                // TODO: Maybe get transactions and .len() them to get all?
-                return Ok(Vec::new());
-            }
-        };
-
-        let mut working_set = WorkingSet::new(self.storage.clone());
-        let mut accessory_state = working_set.accessory_state();
-
-        // Get the transactions in the range
-        let transactions = self
-            .evm
-            .get_block_transactions(start, end, &mut accessory_state);
-
-        // Extract senders
-        let senders: Vec<Address> = transactions.iter().map(|tx| tx.signer).collect();
-
-        Ok(senders)
+        unimplemented!("senders_by_tx_range")
     }
 
     fn transaction_block(&self, _id: TxNumber) -> ProviderResult<Option<BlockNumber>> {
@@ -633,46 +537,9 @@ impl TransactionsProvider for DbProvider {
 
     fn transactions_by_block(
         &self,
-        block: BlockHashOrNumber,
+        _block: BlockHashOrNumber,
     ) -> ProviderResult<Option<Vec<Self::Transaction>>> {
-        // Convert BlockHashOrNumber to block number
-        let block_number = match block {
-            BlockHashOrNumber::Hash(hash) => {
-                let mut working_set = WorkingSet::new(self.storage.clone());
-                match self
-                    .evm
-                    .get_block_by_hash(hash, None, &mut working_set, &self.ledger_db)
-                {
-                    Ok(Some(block)) => block.header.number,
-                    _ => return Ok(None),
-                }
-            }
-            BlockHashOrNumber::Number(num) => num,
-        };
-
-        let mut working_set = WorkingSet::new(self.storage.clone());
-        let mut accessory_state = working_set.accessory_state();
-        let block = match self
-            .evm
-            .get_block_by_height(block_number, &mut accessory_state)
-        {
-            Some(block) => block,
-            None => return Ok(None),
-        };
-
-        let transactions = self.evm.get_block_transactions(
-            block.transactions.start,
-            block.transactions.end,
-            &mut accessory_state,
-        );
-
-        // Convert TransactionSignedAndRecovered to TransactionSigned
-        let signed_transactions: Vec<Self::Transaction> = transactions
-            .into_iter()
-            .map(|tx| tx.signed_transaction)
-            .collect();
-
-        Ok(Some(signed_transactions))
+        unimplemented!("transactions_by_block")
     }
 
     fn transactions_by_block_range(
@@ -702,46 +569,9 @@ impl ReceiptProvider for DbProvider {
 
     fn receipts_by_block(
         &self,
-        block: BlockHashOrNumber,
+        _block: BlockHashOrNumber,
     ) -> ProviderResult<Option<Vec<Self::Receipt>>> {
-        // Convert BlockHashOrNumber to block number
-        let block_number = match block {
-            BlockHashOrNumber::Hash(hash) => {
-                let mut working_set = WorkingSet::new(self.storage.clone());
-                match self
-                    .evm
-                    .get_block_by_hash(hash, None, &mut working_set, &self.ledger_db)
-                {
-                    Ok(Some(block)) => block.header.number,
-                    _ => return Ok(None),
-                }
-            }
-            BlockHashOrNumber::Number(num) => num,
-        };
-
-        let mut working_set = WorkingSet::new(self.storage.clone());
-        let mut accessory_state = working_set.accessory_state();
-        let block = match self
-            .evm
-            .get_block_by_height(block_number, &mut accessory_state)
-        {
-            Some(block) => block,
-            None => return Ok(None),
-        };
-
-        let citrea_receipts = self.evm.get_block_receipts_range(
-            block.transactions.start,
-            block.transactions.end,
-            &mut accessory_state,
-        );
-
-        // Convert CitreaReceiptWithBloom to Receipt using From trait
-        let reth_receipts: Vec<Self::Receipt> = citrea_receipts
-            .iter()
-            .map(|receipt| receipt.into())
-            .collect();
-
-        Ok(Some(reth_receipts))
+        unimplemented!("receipts_by_block")
     }
 
     fn receipts_by_tx_range(
