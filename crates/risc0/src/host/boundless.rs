@@ -13,6 +13,7 @@ use boundless_market::request_builder::RequestParams;
 use boundless_market::GuestEnv;
 use citrea_common::utils::{current_timestamp_as_secs, read_env};
 use citrea_common::FromEnv;
+use metrics::gauge;
 use risc0_zkvm::sha::Digestible;
 use risc0_zkvm::{
     compute_image_id, default_executor, AssumptionReceipt, Digest, ExecutorEnvBuilder,
@@ -177,6 +178,8 @@ impl BoundlessProver {
             }
         })
         .await??;
+
+        gauge!("proving_session_cycle_count").set(total_cycles_approx as f64);
 
         let exponential_backoff = ExponentialBackoff::default();
         let PriceResponse {
