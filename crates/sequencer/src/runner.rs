@@ -540,7 +540,7 @@ where
         )?;
 
         self.instrumented_apply_l2_block_txs(&l2_block_info, &signed_txs, &mut working_set)?;
-        self.instrumented_end_l2_block(l2_block_info, &mut working_set)?;
+        let receipts = self.instrumented_end_l2_block(l2_block_info, &mut working_set)?;
         let l2_block_result =
             self.instrumented_finalize_l2_block(active_fork_spec, working_set, prestate);
 
@@ -585,39 +585,19 @@ where
 
         self.save_l2_block(l2_block, l2_block_result, tx_hashes, blobs)?;
 
-        // Get actual receipts and senders from the saved block
-        // This data is used to notify the mempool maintenance task about included transactions
+        // Build notification using in-memory data instead of reading from DB
         let start_canonical_notification = Instant::now();
-        let (senders, reth_receipts) = {
-            // Get receipts using the standard ReceiptProvider trait method
-            let reth_receipts = self
-                .db_provider
-                .receipts_by_block(BlockHashOrNumber::Number(l2_height))?
-                .ok_or(anyhow!("Receipts must exist for block {}", l2_height))?;
 
-            // Get the block body indices to find the transaction range
-            let block_indices = self
-                .db_provider
-                .block_body_indices(l2_height)?
-                .ok_or(anyhow!(
-                    "Block body indices must exist for block {}",
-                    l2_height
-                ))?;
-
-            // Calculate the transaction range from the indices
-            let tx_start = block_indices.first_tx_num;
-            let tx_end = tx_start + block_indices.tx_count;
-
-            // Get senders using the standard TransactionsProvider trait method
-            let senders = self.db_provider.senders_by_tx_range(tx_start..tx_end)?;
-
-            (senders, reth_receipts)
-        };
+        // Use the transactions we already have from dry_run (txs_to_run)
+        // and build block structure without DB reads
+        let (reth_block, reth_receipts) =
+            self.build_block_data_from_memory(l2_height, &txs_to_run, &senders, &receipts)?;
 
         // Create the Chain notification with the produced block data
         if let Ok(chain) = self.create_chain_notification(
             l2_height,
             B256::from_slice(&self.l2_block_hash),
+            reth_block,
             senders,
             reth_receipts,
             bundle_state,
@@ -748,15 +728,15 @@ where
         &mut self,
         l2_block_info: HookL2BlockInfo,
         working_set: &mut WorkingSet<ProverStorage>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Vec<reth_primitives::Receipt>> {
         let start = Instant::now();
-        self.stf.end_l2_block(l2_block_info, working_set)?;
+        let receipts = self.stf.end_l2_block(l2_block_info, working_set)?;
         SM.end_l2_block_time.set(
             Instant::now()
                 .saturating_duration_since(start)
                 .as_secs_f64(),
         );
-        Ok(())
+        Ok(receipts)
     }
 
     /// Finalizes the L2 block and records the time taken

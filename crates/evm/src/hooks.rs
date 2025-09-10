@@ -18,7 +18,7 @@ use crate::evm::primitive_types::Block;
 use crate::evm::system_events::SystemEvent;
 #[cfg(feature = "native")]
 use crate::metrics::EVM_METRICS as EM;
-use crate::{citrea_spec_id_to_evm_spec_id, Evm};
+use crate::{citrea_spec_id_to_evm_spec_id, CitreaReceiptWithBloom, Evm};
 
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Logic executed at the beginning of the slot. Here we set the state root of the previous head.
@@ -105,7 +105,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &mut self,
         l2_block_info: &HookL2BlockInfo,
         working_set: &mut WorkingSet<C::Storage>,
-    ) {
+    ) -> Vec<reth_primitives::Receipt> {
         let parent_block = self
             .head
             .get(working_set)
@@ -182,8 +182,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         self.should_be_end_of_sys_txs = false;
 
+        // Collect receipts to return before clearing
+        let receipts_to_return: Vec<CitreaReceiptWithBloom> = pending_transactions
+            .iter()
+            .map(|tx| tx.receipt.clone())
+            .collect();
+
         #[cfg(not(feature = "native"))]
-        pending_transactions.clear();
+        {
+            pending_transactions.clear();
+        }
 
         #[cfg(feature = "native")]
         {
@@ -200,7 +208,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             } in pending_transactions
             {
                 self.transactions.push(transaction, &mut accessory_state);
-                self.receipts.push(receipt, &mut accessory_state);
+                self.receipts.push(&receipt, &mut accessory_state);
 
                 self.transaction_hashes.set(
                     transaction.signed_transaction.hash(),
@@ -212,6 +220,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
             self.pending_transactions.clear();
         }
+
+        // Convert CitreaReceiptWithBloom to reth Receipt
+        receipts_to_return
+            .iter()
+            .map(|receipt| receipt.receipt.receipt.clone())
+            .collect()
     }
 
     /// This logic is executed after calculating the root hash.

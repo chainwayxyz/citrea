@@ -16,6 +16,7 @@ anyhow = { workspace = true }
 borsh = { workspace = true }
 hex = { workspace = true }
 jmt = { workspace = true }
+reth-primitives = { workspace = true }
 jsonrpsee = { workspace = true, features = ["server"], optional = true }
 rs_merkle = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

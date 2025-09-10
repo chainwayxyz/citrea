@@ -16,6 +16,7 @@ borsh = { workspace = true }
 # will be needed after we update the storage system
 # tokio = { workspace = true, features = ["sync"], optional = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"], optional = true }
+reth-primitives = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 tempfile = { workspace = true, optional = true }
