@@ -3,8 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
-use alloy_eips::eip2718::Encodable2718;
-use alloy_eips::{BlockHashOrNumber, BlockId, BlockNumberOrTag};
+use alloy_eips::eip2718::{Decodable2718, Encodable2718};
 use alloy_primitives::{keccak256, Address, Bytes, TxHash, B256, U256};
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
@@ -25,10 +24,7 @@ use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use parking_lot::Mutex;
 use reth_execution_types::{Chain, ExecutionOutcome};
 use reth_primitives::{Receipt, RecoveredBlock, SealedBlock};
-use reth_provider::{
-    BlockBodyIndicesProvider, BlockReaderIdExt, CanonStateNotification, ReceiptProvider,
-    TransactionsProvider,
-};
+use reth_provider::{BlockReaderIdExt, CanonStateNotification};
 use reth_tasks::shutdown::GracefulShutdown;
 use reth_transaction_pool::error::InvalidPoolTransactionError;
 use reth_transaction_pool::{
@@ -208,7 +204,11 @@ where
         l2_block_info: HookL2BlockInfo,
         deposit_data: &[Vec<u8>],
         da_blocks: Vec<Da::FilteredBlock>,
-    ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
+    ) -> anyhow::Result<(
+        Vec<RlpEvmTransaction>,
+        Vec<TxHash>,
+        Vec<alloy_primitives::Address>,
+    )> {
         let start = Instant::now();
 
         // Disable logging during dry run to avoid noise
@@ -251,6 +251,8 @@ where
 
             // Track transactions that failed due to insufficient L1 fee balance
             let mut l1_fee_failed_txs = vec![];
+            // Track senders for successfully validated transactions
+            let mut senders = vec![];
 
             // using .next() instead of a for loop because its the intended
             // behaviour for the BestTransactions implementations
@@ -258,7 +260,9 @@ where
             #[allow(clippy::while_let_on_iterator)]
             while let Some(evm_tx) = transactions.next() {
                 let start_tx = Instant::now();
-                let buf = evm_tx.to_consensus().into_inner().encoded_2718();
+                let recovered = evm_tx.to_consensus();
+                let sender = recovered.signer();
+                let buf = recovered.into_inner().encoded_2718();
                 let rlp_tx = RlpEvmTransaction { rlp: buf };
                 let call_txs = CallMessage {
                     txs: vec![rlp_tx.clone()],
@@ -372,6 +376,7 @@ where
                 // we can include the transaction in the block
                 working_set_to_discard = working_set.checkpoint().to_revertable();
                 all_txs.push(rlp_tx);
+                senders.push(sender);
                 SM.dry_run_single_tx_time.record(
                     Instant::now()
                         .saturating_duration_since(start_tx)
@@ -386,7 +391,7 @@ where
             SM.l1_fee_failed_txs_count
                 .set(l1_fee_failed_txs.len() as f64);
 
-            Ok((all_txs, l1_fee_failed_txs))
+            Ok((all_txs, l1_fee_failed_txs, senders))
         })
     }
 
@@ -509,7 +514,7 @@ where
         // Dry running transactions would basically allow for figuring out a list of
         // all transactions that would fit into the current block and the list of transactions
         // which do not have enough balance to pay for the L1 fee.
-        let (txs_to_run, l1_fee_failed_txs) = self
+        let (txs_to_run, l1_fee_failed_txs, senders) = self
             .dry_run_transactions(
                 evm_txs,
                 prestate.clone(),
@@ -536,7 +541,7 @@ where
         let (signed_txs, blobs) = self.encode_and_sign_evm_txs_into_sov_txs(
             &mut working_set,
             &l2_block_info,
-            txs_to_run,
+            txs_to_run.clone(),
         )?;
 
         self.instrumented_apply_l2_block_txs(&l2_block_info, &signed_txs, &mut working_set)?;
@@ -591,7 +596,7 @@ where
         // Use the transactions we already have from dry_run (txs_to_run)
         // and build block structure without DB reads
         let (reth_block, reth_receipts) =
-            self.build_block_data_from_memory(l2_height, &txs_to_run, &senders, &receipts)?;
+            self.build_reth_block_data(l2_height, &txs_to_run, &senders, &receipts)?;
 
         // Create the Chain notification with the produced block data
         if let Ok(chain) = self.create_chain_notification(
@@ -838,12 +843,6 @@ where
                         .expect("Failed to borsh deserialize account ID");
                     account_id_to_address.insert(account_id, address);
                 }
-            } else if cache_key.key.starts_with(b"E/a/") && cache_value.is_some() {
-                let encoded_id = &cache_key.key[4..];
-                let account_id =
-                    borsh::from_slice::<u64>(encoded_id).expect("Failed to parse account ID");
-                // Account was read from state, so it's Loaded
-                account_id_to_status.insert(account_id, AccountStatus::Loaded);
             }
         }
 
@@ -902,20 +901,62 @@ where
         bundle_state
     }
 
+    /// Build block data from in-memory transactions without DB reads
+    fn build_reth_block_data(
+        &self,
+        l2_height: u64,
+        txs: &[RlpEvmTransaction],
+        _senders: &[alloy_primitives::Address],
+        receipts: &[reth_primitives::Receipt],
+    ) -> anyhow::Result<(reth_primitives::Block, Vec<Receipt>)> {
+        // For now, we still need one DB read to get the block header
+        // In a future optimization, we could cache this in memory too
+        let mut working_set = WorkingSet::new(self.db_provider.storage.clone());
+        let mut accessory_state = working_set.accessory_state();
+
+        let citrea_block = self
+            .db_provider
+            .evm
+            .get_block_by_height(l2_height, &mut accessory_state)
+            .ok_or(anyhow!("Block {} must exist after saving", l2_height))?;
+
+        let header = citrea_block.header.clone().unseal();
+
+        let reth_transactions: Vec<reth_primitives::TransactionSigned> = txs
+            .iter()
+            .map(|tx| {
+                // Decode RLP bytes to TransactionSigned
+                // This avoids the DB read in get_block_transactions
+                reth_primitives::TransactionSigned::decode_2718(&mut tx.rlp.as_ref())
+                    .expect("Transaction decoding should succeed")
+            })
+            .collect();
+
+        // Use receipts directly - no DB reads or serialization needed!
+        let reth_receipts = receipts.to_vec();
+
+        let block = reth_primitives::Block {
+            header,
+            body: reth_primitives::BlockBody {
+                transactions: reth_transactions,
+                ommers: Vec::new(),
+                withdrawals: None,
+            },
+        };
+
+        Ok((block, reth_receipts))
+    }
+
     /// Creates a Chain notification from the produced L2 block
     fn create_chain_notification(
         &self,
         l2_height: u64,
         block_hash: alloy_primitives::B256,
+        block: reth_primitives::Block,
         senders: Vec<alloy_primitives::Address>,
         receipts: Vec<Receipt>,
         bundle_state: BundleState,
     ) -> anyhow::Result<Chain> {
-        let block = self
-            .db_provider
-            .block_by_id(BlockId::Number(BlockNumberOrTag::Number(l2_height)))?
-            .ok_or(anyhow!("Block {} must exist after saving", l2_height))?;
-
         let sealed_block = SealedBlock::new_unchecked(block, block_hash);
         let recovered_block = RecoveredBlock::new_sealed(sealed_block, senders);
 
