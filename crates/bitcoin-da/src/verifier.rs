@@ -605,6 +605,11 @@ fn bits_to_target(bits: u32) -> [u8; 32] {
     let size = (bits >> 24) as usize;
     let mantissa = bits & 0x00ffffff;
 
+    // Mantissa should not be negative
+    if mantissa > 0x7F_FFFF {
+        return [0; 32];
+    }
+
     // Prepare U256 target
     let target =
     // If the size is less than or equal to 3, we need to shift the word to the right,
