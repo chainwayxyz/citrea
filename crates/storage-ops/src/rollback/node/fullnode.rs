@@ -88,7 +88,7 @@ impl FullNodeLedgerRollback {
             .ledger_db
             .get::<ProverLastScannedSlot>(&())?
             .unwrap_or_default();
-        for i in l1_target..=last_scanned_l1_height.0 {
+        for i in l1_target + 1..=last_scanned_l1_height.0 {
             batch.delete::<L2RangeByL1Height>(&SlotNumber(i))?;
             increment_table_counter!("L2RangeByL1Height", rollback_result);
 
