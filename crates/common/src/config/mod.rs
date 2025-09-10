@@ -337,13 +337,13 @@ impl FromEnv for SequencerMempoolConfig {
             base_fee_tx_limit: read_env("BASE_FEE_TX_LIMIT")?.parse()?,
             base_fee_tx_size: read_env("BASE_FEE_TX_SIZE")?.parse()?,
             max_account_slots: read_env("MAX_ACCOUNT_SLOTS")?.parse()?,
-            max_update_depth: std::env::var("MEMPOOL_MAX_UPDATE_DEPTH")
+            max_update_depth: std::env::var("SEQUENCER_MEMPOOL_MAX_UPDATE_DEPTH")
                 .ok()
                 .and_then(|v| v.parse().ok()),
-            max_reload_accounts: std::env::var("MEMPOOL_MAX_RELOAD_ACCOUNTS")
+            max_reload_accounts: std::env::var("SEQUENCER_MEMPOOL_MAX_RELOAD_ACCOUNTS")
                 .ok()
                 .and_then(|v| v.parse().ok()),
-            max_tx_lifetime_secs: std::env::var("MEMPOOL_MAX_TX_LIFETIME_SECS")
+            max_tx_lifetime_secs: std::env::var("SEQUENCER_MEMPOOL_MAX_TX_LIFETIME_SECS")
                 .ok()
                 .and_then(|v| v.parse().ok()),
         })
