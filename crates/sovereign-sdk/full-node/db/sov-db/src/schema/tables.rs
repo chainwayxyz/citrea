@@ -50,7 +50,6 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     L2RangeByL1Height::table_name(),
     LastPrunedBlock::table_name(),
     MempoolTxs::table_name(),
-    PendingSequencerCommitment::table_name(),
     SequencerCommitmentByIndex::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
     StateDiffByBlockNumber::table_name(),
@@ -158,7 +157,6 @@ pub const LEDGER_TABLES: &[&str] = &[
     PendingL1SubmissionJobs::table_name(),
     PendingProofs::table_name(),
     PendingProvingSessions::table_name(),
-    PendingSequencerCommitment::table_name(),
     PendingSequencerCommitments::table_name(),
     ProofByJobId::table_name(),
     ProofsBySlotNumber::table_name(),
@@ -414,12 +412,6 @@ define_table_with_default_codec!(
 define_table_with_default_codec!(
     /// The primary source of genesis state root
     (L2GenesisStateRoot) () => Vec<u8>
-);
-
-define_table_with_default_codec!(
-    /// The primary source for in progress sequencer commitments
-    /// This table is used to store the pending sequencer commitments indexes
-    (PendingSequencerCommitment) () => Vec<u32>
 );
 
 define_table_with_seek_key_codec!(
