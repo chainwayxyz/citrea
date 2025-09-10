@@ -148,13 +148,14 @@ pub async fn start_rollup(
         )
         .await
         .expect("Dependencies setup should work");
+
     match SHORT_HEADER_PROOF_PROVIDER.set(Box::new(NativeShortHeaderProofProviderService::<
         MockDaSpec,
-    >::new(ledger_db.clone())))
+    >::new(ledger_db.clone(), true)))
     {
         Ok(_) => tracing::debug!("Short header proof provider set"),
         Err(_) => tracing::error!("Short header proof provider already set"),
-    };
+    }
 
     let task_executor = task_manager.executor();
 
@@ -174,9 +175,7 @@ pub async fn start_rollup(
 
             let mut concrete: Box<NativeShortHeaderProofProviderService<MockDaSpec>> =
                 downcast_box(boxed_trait);
-
             concrete.ledger_db = ledger_db.clone();
-
             std::mem::forget(concrete);
         }
     }

@@ -3,6 +3,7 @@
 use core::result::Result::Ok;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use bitcoin::{Amount, Network, Sequence, Txid};
@@ -12,11 +13,14 @@ use bitcoincore_rpc::json::{
 use bitcoincore_rpc::{Client, RpcApi};
 use tracing::{debug, instrument, trace, warn};
 
+use crate::error::BitcoinServiceError;
 use crate::monitoring::{MonitoredTx, MonitoredTxKind};
 use crate::spec::utxo::UTXO;
+use crate::tx_signer::SignedTxPair;
 
 const DEFAULT_MEMPOOL_SPACE_URL: &str = "https://mempool.space/";
 const MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT: &str = "api/v1/fees/recommended";
+const MEMPOOL_SPACE_TIMEOUT: Duration = Duration::from_secs(5);
 
 const BASE_FEE_RATE_MULTIPLIER: f64 = 1.0;
 const FEE_RATE_MULTIPLIER_FACTOR: f64 = 1.1;
@@ -201,7 +205,7 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
             return Ok(None);
         }
     };
-    let fee_rate = reqwest::get(url)
+    let fee_rate = get_with_timeout(url, MEMPOOL_SPACE_TIMEOUT)
         .await?
         .json::<serde_json::Value>()
         .await?
@@ -211,6 +215,74 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
         .context("Failed to get fee rate from mempool space")?;
 
     Ok(Some(fee_rate))
+}
+
+pub(crate) fn validate_txs_fee_rate(
+    txs: &[SignedTxPair],
+    fee_rate: u64,
+    utxos: Vec<UTXO>,
+    prev_utxo: Option<UTXO>,
+) -> Result<(), BitcoinServiceError> {
+    let mut utxo_map = utxos
+        .into_iter()
+        .map(|utxo| ((utxo.tx_id, utxo.vout), Amount::from_sat(utxo.amount)))
+        .collect::<HashMap<_, _>>();
+    if let Some(prev_utxo) = prev_utxo {
+        utxo_map.insert(
+            (prev_utxo.tx_id, prev_utxo.vout),
+            Amount::from_sat(prev_utxo.amount),
+        );
+    }
+
+    for tx in txs {
+        // Validate commit
+        let commit_tx = &tx.commit.tx;
+        let input_amount: Amount = commit_tx
+            .input
+            .iter()
+            .flat_map(|input| {
+                utxo_map
+                    .get(&(input.previous_output.txid, input.previous_output.vout))
+                    .cloned()
+            })
+            .sum();
+        let output_amount = commit_tx.output.iter().map(|tx| tx.value).sum();
+
+        if (input_amount - output_amount) < Amount::from_sat(commit_tx.vsize() as u64) {
+            return Err(BitcoinServiceError::FeeCalculation(fee_rate));
+        }
+
+        // Add commit change output to utxo_map
+        if let Some(change_output) = commit_tx.output.get(1) {
+            utxo_map.insert((tx.commit_txid(), 1), change_output.value);
+        }
+
+        // Validate reveal
+        let reveal_tx = &tx.reveal.tx;
+        let input_amount = commit_tx.output[0].value;
+        let output_amount = reveal_tx.output[0].value;
+
+        // Add reveal utxo to utxo_map, used by chunking txs
+        utxo_map.insert((tx.reveal_txid(), 0), output_amount);
+
+        if (input_amount - output_amount) < Amount::from_sat(reveal_tx.vsize() as u64) {
+            return Err(BitcoinServiceError::FeeCalculation(fee_rate));
+        }
+    }
+
+    Ok(())
+}
+
+async fn get_with_timeout<T: reqwest::IntoUrl>(
+    url: T,
+    timeout: Duration,
+) -> reqwest::Result<reqwest::Response> {
+    reqwest::Client::builder()
+        .timeout(timeout)
+        .build()?
+        .get(url)
+        .send()
+        .await
 }
 
 #[cfg(test)]
