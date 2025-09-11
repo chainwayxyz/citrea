@@ -1,5 +1,3 @@
-use core::panic;
-
 use alloy_consensus::TxReceipt;
 use reth_primitives::{Recovered, TransactionSigned};
 use revm::context::CfgEnv;
