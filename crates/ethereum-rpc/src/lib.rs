@@ -12,6 +12,7 @@ use alloy_rpc_types::{
     SyncStatus as EthSyncStatus, Transaction,
 };
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
+use citrea_common::RpcConfig;
 use citrea_evm::{generate_eth_proof, Evm};
 use citrea_sequencer::SequencerRpcClient;
 pub use ethereum::{EthRpcConfig, Ethereum};
@@ -182,13 +183,18 @@ fn to_eth_rpc_error(err: impl ToString) -> ErrorObjectOwned {
     to_jsonrpsee_error_object(ETH_RPC_ERROR, err)
 }
 
+pub struct EthereumRpcConfig {
+    starting_l2_height: u64,
+    trace_chain_block_limit: Option<u64>,
+}
+
 pub struct EthereumRpcServerImpl<C, Da>
 where
     C: sov_modules_api::Context,
     Da: DaService,
 {
     ethereum: Arc<Ethereum<C, Da>>,
-    starting_l2_height: U64,
+    config: EthereumRpcConfig,
 }
 
 impl<C, Da> EthereumRpcServerImpl<C, Da>
@@ -196,11 +202,8 @@ where
     C: sov_modules_api::Context,
     Da: DaService,
 {
-    pub fn new(ethereum: Arc<Ethereum<C, Da>>, starting_l2_height: U64) -> Self {
-        Self {
-            ethereum,
-            starting_l2_height,
-        }
+    pub fn new(ethereum: Arc<Ethereum<C, Da>>, config: EthereumRpcConfig) -> Self {
+        Self { ethereum, config }
     }
 }
 
@@ -497,7 +500,7 @@ where
             EthSyncStatus::None
         } else {
             EthSyncStatus::Info(Box::new(SyncInfo {
-                starting_block: U256::from(self.starting_l2_height),
+                starting_block: U256::from(self.config.starting_l2_height),
                 current_block: U256::from(head_l2_block),
                 highest_block: U256::from(highest_block),
                 warp_chunks_amount: None,
@@ -577,7 +580,7 @@ where
         opts: Option<GethDebugTracingOptions>,
     ) -> SubscriptionResult {
         if &topic == "traceChain" {
-            handle_debug_trace_chain(start_block, end_block, opts, pending, self.ethereum.clone())
+            handle_debug_trace_chain(start_block, end_block, opts, pending, self.ethereum.clone(), self.config.trace_chain_block_limit)
                 .await;
         } else {
             pending
@@ -625,6 +628,7 @@ where
 pub fn create_rpc_module<C, Da>(
     da_service: Arc<Da>,
     eth_rpc_config: EthRpcConfig,
+    rpc_config: RpcConfig,
     storage: C::Storage,
     ledger_db: LedgerDB,
     sequencer_client_url: Option<String>,
@@ -660,7 +664,11 @@ where
         sequencer_client_url.map(|url| HttpClientBuilder::default().build(url).unwrap()),
         l2_block_rx,
     ));
-    let server = EthereumRpcServerImpl::new(ethereum, U64::from(head_l2_block));
+    let config = EthereumRpcConfig {
+        starting_l2_height: head_l2_block,
+        trace_chain_block_limit: rpc_config.trace_chain_block_limit,
+    };
+    let server = EthereumRpcServerImpl::new(ethereum, config);
 
     let mut module = EthereumRpcServer::into_rpc(server);
 
