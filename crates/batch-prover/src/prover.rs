@@ -164,9 +164,8 @@ where
     /// * `shutdown_signal` - A signal to gracefully shut down the prover service
     #[instrument(name = "BatchProver", skip_all)]
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
-        self.recover_proving_sessions().await;
-
-        info!("Finished proving session recovery");
+        self.recover_proving_sessions(self.prover_config.enable_recovery)
+            .await;
 
         'run_loop: loop {
             select! {
@@ -739,42 +738,47 @@ where
     /// This function will also recover proofs of jobs that are pending for DA submission,
     /// and submit the recovered proofs to the DA service with them.
     #[instrument(name = "recovery", skip_all)]
-    async fn recover_proving_sessions(&self) {
-        // recover proving sessions
-        let proving_jobs = self
-            .prover_service
-            .start_session_recovery()
-            .expect("Failed to start proving session recovery");
-        let mut proving_jobs = proving_jobs
-            .into_iter()
-            .map(|rx| async move { rx.await.expect("Proof recovery channel closed abruptly") })
-            .collect::<FuturesUnordered<_>>();
+    async fn recover_proving_sessions(&self, enable_proof_session_recovery: bool) {
+        let mut proofs = if enable_proof_session_recovery {
+            // recover proving sessions
+            let proving_jobs = self
+                .prover_service
+                .start_session_recovery()
+                .expect("Failed to start proving session recovery");
+            let mut proving_jobs = proving_jobs
+                .into_iter()
+                .map(|rx| async move { rx.await.expect("Proof recovery channel closed abruptly") })
+                .collect::<FuturesUnordered<_>>();
 
-        info!("Recovering {} proving sessions", proving_jobs.len());
+            info!("Recovering {} proving sessions", proving_jobs.len());
 
-        let mut proofs = HashMap::with_capacity(proving_jobs.len());
-        while let Some(ProofWithJob { job_id, proof }) = proving_jobs.next().await {
-            info!("Proving job finished {}", job_id);
+            let mut proofs = HashMap::with_capacity(proving_jobs.len());
+            while let Some(ProofWithJob { job_id, proof }) = proving_jobs.next().await {
+                info!("Proving job finished {}", job_id);
 
-            let output = extract_proof_output::<Vm>(
-                &job_id,
-                &proof,
-                &self.code_commitments_by_spec,
-                self.network,
-            );
+                let output = extract_proof_output::<Vm>(
+                    &job_id,
+                    &proof,
+                    &self.code_commitments_by_spec,
+                    self.network,
+                );
 
-            // stores proof and marks job as waiting for da
-            self.ledger_db
-                .put_proof_by_job_id(job_id, proof.clone(), output.into())
-                .expect("Should put proof to db");
+                // stores proof and marks job as waiting for da
+                self.ledger_db
+                    .put_proof_by_job_id(job_id, proof.clone(), output.into())
+                    .expect("Should put proof to db");
 
-            info!("Completed proving job {}", job_id);
+                info!("Completed proving job {}", job_id);
 
-            proofs.insert(job_id, proof);
+                proofs.insert(job_id, proof);
 
-            // TODO: there is a quite small chance that proving has started, but job commitment indices
-            // pending commitments haven't been updated in db, maybe we should also try to recover that?
-        }
+                // TODO: there is a quite small chance that proving has started, but job commitment indices
+                // pending commitments haven't been updated in db, maybe we should also try to recover that?
+            }
+            proofs
+        } else {
+            HashMap::new()
+        };
 
         // merge proofs of da submission pending jobs
         let job_ids = self

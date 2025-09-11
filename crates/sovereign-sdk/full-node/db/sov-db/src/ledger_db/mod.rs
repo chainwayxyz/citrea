@@ -20,8 +20,8 @@ use crate::schema::tables::{
     ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot,
     L2RangeByL1Height, L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs,
     PendingBonsaiSessionByJobId, PendingL1SubmissionJobs, PendingProofs,
-    PendingSequencerCommitment, PendingSequencerCommitments, ProofByJobId, ProofsBySlotNumberV2,
-    ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
+    PendingSequencerCommitments, ProofByJobId, ProofsBySlotNumberV2, ProverLastScannedSlot,
+    ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
     ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
     VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
@@ -700,53 +700,6 @@ impl BonsaiLedgerOps for LedgerDB {
 }
 
 impl SequencerLedgerOps for LedgerDB {
-    /// Gets all pending commitments' l2 ranges.
-    /// Returns start-end L2 heights.
-    #[instrument(level = "trace", skip(self), err)]
-    fn get_pending_commitments(&self) -> anyhow::Result<Vec<SequencerCommitment>> {
-        let commitment_indexes = self.db.get::<PendingSequencerCommitment>(&())?;
-        match commitment_indexes {
-            Some(mut commitment_indexes) => {
-                if commitment_indexes.is_empty() {
-                    return Ok(vec![]);
-                }
-                commitment_indexes.sort_unstable();
-                let start = commitment_indexes[0];
-                let end = commitment_indexes[commitment_indexes.len() - 1];
-                self.get_data_range::<SequencerCommitmentByIndex, _, _>(&(start..end))
-            }
-            None => Ok(vec![]),
-        }
-    }
-
-    /// Put a pending commitment l2 range
-    #[instrument(level = "trace", skip(self), err)]
-    fn put_pending_commitment(&self, seqcomm: &SequencerCommitment) -> anyhow::Result<()> {
-        let pending_commitment_indexes = self.db.get::<PendingSequencerCommitment>(&())?;
-        match pending_commitment_indexes {
-            Some(mut indexes) => {
-                indexes.push(seqcomm.index);
-                self.db.put::<PendingSequencerCommitment>(&(), &indexes)
-            }
-            None => self
-                .db
-                .put::<PendingSequencerCommitment>(&(), &vec![seqcomm.index]),
-        }
-    }
-
-    /// Delete a pending commitment l2 range
-    #[instrument(level = "trace", skip(self), err)]
-    fn delete_pending_commitment(&self, index: u32) -> anyhow::Result<()> {
-        let pending_commitment_indexes = self.db.get::<PendingSequencerCommitment>(&())?;
-        match pending_commitment_indexes {
-            Some(mut indexes) => {
-                indexes.retain(|&i| i != index);
-                self.db.put::<PendingSequencerCommitment>(&(), &indexes)
-            }
-            None => Ok(()),
-        }
-    }
-
     /// Sets the state diff by block number
     #[instrument(level = "trace", skip(self), err, ret)]
     fn set_state_diff(
