@@ -6,9 +6,9 @@
 use core::result::Result::Ok;
 use core::str::FromStr;
 use core::time::Duration;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::num::NonZeroUsize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -45,7 +45,9 @@ use crate::helpers::backup::backup_txs_to_file;
 use crate::helpers::builders::body_builders::{create_inscription_transactions, DaTxs, RawTxData};
 use crate::helpers::builders::TxWithId;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
-use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
+use crate::helpers::parsers::{
+    parse_hex_transaction, parse_relevant_transaction, ParsedTransaction, VerifyParsed,
+};
 use crate::helpers::{merkle_tree, TransactionKind};
 use crate::metrics::BITCOIN_DA_METRICS as BM;
 use crate::monitoring::{MonitoredTxKind, MonitoringConfig, MonitoringService, TxStatus};
@@ -58,7 +60,7 @@ use crate::spec::short_proof::BitcoinHeaderShortProof;
 use crate::spec::transaction::TransactionWrapper;
 use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
-use crate::tx_signer::{SignedTxPair, TxSigner};
+use crate::tx_signer::{SignedTxPair, SignedTxWithId, TxSigner};
 use crate::verifier::{
     BitcoinVerifier, MINIMUM_WITNESS_COMMITMENT_SIZE, WITNESS_COMMITMENT_PREFIX,
 };
@@ -172,6 +174,7 @@ impl BitcoinService {
         da_private_key: Option<SecretKey>,
         reveal_tx_prefix: Vec<u8>,
         tx_backup_dir: PathBuf,
+        tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
         utxo_selection_mode: UtxoSelectionMode,
     ) -> Self {
         Self {
@@ -188,7 +191,7 @@ impl BitcoinService {
             l1_block_hash_to_height: Arc::new(Mutex::new(LruCache::new(
                 NonZeroUsize::new(100).unwrap(),
             ))),
-            tx_queue: Arc::new(Mutex::new(VecDeque::new())),
+            tx_queue,
             utxo_selection_mode,
         }
     }
@@ -222,6 +225,8 @@ impl BitcoinService {
                 .context("Failed to create tx backup directory")?;
         }
 
+        let tx_queue = restore_tx_queue(&client, tx_backup_dir).await?;
+
         let da_private_key = config
             .da_private_key
             .as_ref()
@@ -240,6 +245,7 @@ impl BitcoinService {
             da_private_key,
             chain_params.reveal_tx_prefix,
             tx_backup_dir.to_path_buf(),
+            tx_queue,
             utxo_selection_mode,
         ))
     }
@@ -1509,4 +1515,94 @@ fn calculate_witness_root(txdata: &[TransactionWrapper], tx_count: usize) -> [u8
         })
         .collect();
     BitcoinMerkleTree::new(hashes).root()
+}
+
+async fn restore_tx_queue(
+    client: &Arc<Client>,
+    tx_backup_dir: &Path,
+) -> anyhow::Result<Arc<Mutex<VecDeque<SignedTxPair>>>> {
+    let mempool_txids = client.get_raw_mempool().await?;
+    let all_known_txids = client
+        .list_transactions(None, Some(1_000_000_000), None, None)
+        .await?
+        .into_iter()
+        .map(|tx| tx.info.txid)
+        .chain(mempool_txids.into_iter())
+        .collect::<HashSet<Txid>>();
+
+    let mut queue = VecDeque::new();
+
+    // Extract .txs file and sort them by creation time
+    let mut files: Vec<_> = std::fs::read_dir(tx_backup_dir)?
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let path = entry.path();
+            if path.extension()?.to_str()? == "txs" {
+                let metadata = entry.metadata().ok()?;
+                Some((path, metadata))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // Sort by creation time
+    files.sort_by_key(|(_, metadata)| {
+        metadata
+            .created()
+            .or_else(|_| metadata.modified())
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+    });
+
+    for (path, _) in files {
+        let content = std::fs::read_to_string(&path)?;
+        let lines: Vec<&str> = content.lines().collect();
+
+        for chunk in lines.chunks(4) {
+            if let [commit, commit_hex, reveal, reveal_hex] = chunk {
+                let commit_txid = commit
+                    .split_ascii_whitespace()
+                    .last()
+                    .map(|txid| txid.parse::<Txid>())
+                    .context("Missing commit txid")??;
+
+                let reveal_txid = reveal
+                    .split_ascii_whitespace()
+                    .last()
+                    .map(|txid| txid.parse::<Txid>())
+                    .context("Missing reveal txid")??;
+
+                // Only restore if neither transaction is already known, they should be brought back to queue
+                if !all_known_txids.contains(&commit_txid)
+                    && !all_known_txids.contains(&reveal_txid)
+                {
+                    let commit_tx = parse_hex_transaction(commit_hex)?;
+                    let commit_hex = hex::decode(commit_hex)?;
+                    let commit_tx = SignedTxWithId::new(commit_hex, commit_tx, commit_txid);
+
+                    let reveal_tx = parse_hex_transaction(reveal_hex)?;
+                    let reveal_hex = hex::decode(reveal_hex)?;
+                    let reveal_tx = SignedTxWithId::new(reveal_hex, reveal_tx, reveal_txid);
+
+                    let tx_pair = SignedTxPair {
+                        commit: commit_tx,
+                        reveal: reveal_tx,
+                        kind: if commit.contains("chunk") {
+                            TransactionKind::Chunks
+                        } else if commit.contains("aggregate") {
+                            TransactionKind::Aggregate
+                        } else {
+                            TransactionKind::Complete
+                        },
+                    };
+
+                    queue.push_back(tx_pair);
+                }
+            }
+        }
+    }
+
+    info!("Restoring queue from tx_backup_dir {queue:?}");
+
+    Ok(Arc::new(Mutex::new(queue)))
 }

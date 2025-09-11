@@ -23,6 +23,12 @@ pub(crate) struct SignedTxWithId {
     pub id: Txid,
 }
 
+impl SignedTxWithId {
+    pub fn new(hex: Vec<u8>, tx: Transaction, id: Txid) -> Self {
+        Self { hex, tx, id }
+    }
+}
+
 /// Pair of commit/reveal signed transactions
 #[derive(Debug, Clone)]
 pub(crate) struct SignedTxPair {

@@ -391,9 +391,7 @@ async fn test_queue_da_transactions() -> Result<()> {
     .await
 }
 
-struct DaTransactionQueueingUtxoSelectionModeOldestTest {
-    task_manager: TaskManager,
-}
+struct DaTransactionQueueingUtxoSelectionModeOldestTest;
 
 impl DaTransactionQueueingUtxoSelectionModeOldestTest {
     // Test for `MempoolRejection("package-mempool-limits, possibly exceeds descendant size limit for tx 6a0c9e3c2fed9cbac73c88031e7333d0ce2242a664e3141ba028b765b0b1e562 [limit: 101000]` error
@@ -641,24 +639,21 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
         }
     }
 
-    async fn cleanup(self) -> Result<()> {
-        self.task_manager
-            .graceful_shutdown_with_timeout(Duration::from_secs(1));
-        Ok(())
-    }
-
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_executor = self.task_manager.executor();
+        let task_manager = TaskManager::current();
+        let task_executor = task_manager.executor();
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
         let light_client_prover = f.light_client_prover.as_mut().unwrap();
 
+        let tx_backup_dir = Self::test_config().dir;
+
         let da_service = spawn_bitcoin_da_prover_service_with_utxo_selection_mode(
             &task_executor,
             &da.config,
-            Self::test_config().dir,
+            tx_backup_dir.clone(),
             UtxoSelectionMode::Oldest,
         )
         .await;
@@ -745,17 +740,72 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
             commitment_1_state_root,
         )
         .await?;
+
+        // Clear up mempool
+        da.generate(1).await?;
+
+        let state_diff_400kb = create_random_state_diff(400);
+
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+
+        // Create a 400kb batch proof
+        let verifiable_400kb_batch_proof =
+            create_serialized_fake_receipt_batch_proof_with_state_roots(
+                genesis_state_root,
+                20,
+                batch_proof_method_ids[0].method_id.into(),
+                Some(state_diff_400kb.clone()),
+                false,
+                l1_hash.as_raw_hash().to_byte_array(),
+                vec![commitment_1.clone()],
+                vec![commitment_1_state_root],
+                None,
+            );
+
+        // This over the mempool limit proof should be accepted and split up over multiple blocks
+        let res = da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::ZKProof(verifiable_400kb_batch_proof.clone()),
+                1,
+            )
+            .await;
+        assert!(res.is_ok());
+
+        da.wait_mempool_len(18, None).await?;
+        assert_eq!(da.get_raw_mempool().await?.len(), 18);
+
+        // Test restore queue behaviour. Drop and shutdown the existing da_service.
+        drop(da_service);
+        task_manager.graceful_shutdown_with_timeout(Duration::from_secs(1));
+
+        let task_manager = TaskManager::current();
+        let task_executor = task_manager.executor();
+        // Spawn to make sure it restores previous queued txs from tx_backup_dir
+        let _new_da_service = spawn_bitcoin_da_prover_service_with_utxo_selection_mode(
+            &task_executor,
+            &da.config,
+            tx_backup_dir,
+            UtxoSelectionMode::Oldest,
+        )
+        .await;
+
+        da.generate(1).await?;
+
+        // Make sure queued txs are properly restore on BitcoinService creation and re-sent
+        da.wait_mempool_len(6, None).await?;
+        assert_eq!(da.get_raw_mempool().await?.len(), 6);
+
+        task_manager.graceful_shutdown_with_timeout(Duration::from_secs(1));
+
         Ok(())
     }
 }
 
 #[tokio::test]
 async fn test_queue_da_transactions_oldest_mode() -> Result<()> {
-    TestCaseRunner::new(DaTransactionQueueingUtxoSelectionModeOldestTest {
-        task_manager: TaskManager::current(),
-    })
-    .set_citrea_path(get_citrea_path())
-    .set_citrea_cli_path(get_citrea_cli_path())
-    .run()
-    .await
+    TestCaseRunner::new(DaTransactionQueueingUtxoSelectionModeOldestTest)
+        .set_citrea_path(get_citrea_path())
+        .set_citrea_cli_path(get_citrea_cli_path())
+        .run()
+        .await
 }
