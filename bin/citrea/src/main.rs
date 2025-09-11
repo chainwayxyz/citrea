@@ -241,6 +241,7 @@ where
         register_ethereum(
             da_service.clone(),
             rpc_storage,
+            rollup_config.rpc.clone(),
             ledger_db.clone(),
             &mut rpc_module,
             sequencer_client_url,

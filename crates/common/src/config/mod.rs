@@ -475,6 +475,7 @@ mod tests {
                 batch_requests_limit: 50,
                 enable_subscriptions: true,
                 max_subscriptions_per_connection: 200,
+                trace_chain_block_limit: None,
                 api_key: None,
             },
             public_keys: RollupPublicKeys {
@@ -660,6 +661,7 @@ mod tests {
                 batch_requests_limit: default_batch_requests_limit(),
                 enable_subscriptions: true,
                 max_subscriptions_per_connection: 200,
+                trace_chain_block_limit: None,
                 api_key: None,
             },
             storage: StorageConfig {
