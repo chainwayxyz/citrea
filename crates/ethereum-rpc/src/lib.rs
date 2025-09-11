@@ -183,8 +183,12 @@ fn to_eth_rpc_error(err: impl ToString) -> ErrorObjectOwned {
     to_jsonrpsee_error_object(ETH_RPC_ERROR, err)
 }
 
+/// Configuration for Ethereum RPC server.
 pub struct EthereumRpcServerConfig {
+    /// Head L2 height at the time of starting the server.
+    /// Used in `eth_syncing` endpoint.
     starting_l2_height: u64,
+    /// Maximum number of L2 blocks to be traced with debug_traceChain
     trace_chain_block_limit: Option<u64>,
 }
 
