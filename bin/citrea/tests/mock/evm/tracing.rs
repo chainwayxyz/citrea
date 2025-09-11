@@ -1493,7 +1493,7 @@ async fn test_trace_chain_block_limit() -> Result<(), Box<dyn std::error::Error>
     }
 
     let result = test_client.debug_trace_chain(
-        BlockNumberOrTag::Number(0), BlockNumberOrTag::Number(10), None
+        BlockNumberOrTag::Number(0), BlockNumberOrTag::Number(15), None
     )
     .await
     .expect_err("Expected error due to exceeding block limit");
