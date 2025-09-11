@@ -183,7 +183,7 @@ fn to_eth_rpc_error(err: impl ToString) -> ErrorObjectOwned {
     to_jsonrpsee_error_object(ETH_RPC_ERROR, err)
 }
 
-pub struct EthereumRpcConfig {
+pub struct EthereumRpcServerConfig {
     starting_l2_height: u64,
     trace_chain_block_limit: Option<u64>,
 }
@@ -194,7 +194,7 @@ where
     Da: DaService,
 {
     ethereum: Arc<Ethereum<C, Da>>,
-    config: EthereumRpcConfig,
+    config: EthereumRpcServerConfig,
 }
 
 impl<C, Da> EthereumRpcServerImpl<C, Da>
@@ -202,7 +202,7 @@ where
     C: sov_modules_api::Context,
     Da: DaService,
 {
-    pub fn new(ethereum: Arc<Ethereum<C, Da>>, config: EthereumRpcConfig) -> Self {
+    pub fn new(ethereum: Arc<Ethereum<C, Da>>, config: EthereumRpcServerConfig) -> Self {
         Self { ethereum, config }
     }
 }
@@ -664,7 +664,7 @@ where
         sequencer_client_url.map(|url| HttpClientBuilder::default().build(url).unwrap()),
         l2_block_rx,
     ));
-    let config = EthereumRpcConfig {
+    let config = EthereumRpcServerConfig {
         starting_l2_height: head_l2_block,
         trace_chain_block_limit: rpc_config.trace_chain_block_limit,
     };
