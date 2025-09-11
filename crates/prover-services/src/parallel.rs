@@ -180,12 +180,12 @@ where
     async fn reserve_proof_slot(&self) -> anyhow::Result<OwnedSemaphorePermit> {
         let available_permits = self.proof_semaphore.available_permits();
 
-        let mut proof_was_in_queue = false;
+        let mut proof_was_queued = false;
         if available_permits == 0 {
             PARALLEL_PROVER_METRICS
                 .proof_count_waiting_in_queue
                 .increment(1);
-            proof_was_in_queue = true;
+            proof_was_queued = true;
             warn!("Reached parallel proof limit, waiting for one of the proving tasks to finish");
         }
 
@@ -193,7 +193,7 @@ where
 
         PARALLEL_PROVER_METRICS.ongoing_proving_jobs.increment(1);
 
-        if proof_was_in_queue {
+        if proof_was_queued {
             PARALLEL_PROVER_METRICS
                 .proof_count_waiting_in_queue
                 .decrement(1);
