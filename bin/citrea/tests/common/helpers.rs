@@ -451,6 +451,7 @@ pub fn create_default_rollup_config(
             enable_subscriptions: true,
             max_subscriptions_per_connection: 100,
             trace_chain_block_limit: None,
+            timeout: 30,
             api_key: None,
         },
         runner: match node_mode {
