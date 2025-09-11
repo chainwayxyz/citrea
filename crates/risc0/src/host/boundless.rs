@@ -2,6 +2,7 @@ use std::cmp;
 use std::str::FromStr;
 use std::time::Duration;
 
+use alloy_primitives::utils::Unit;
 use anyhow::Context;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
@@ -187,6 +188,10 @@ impl BoundlessProver {
             max_price,
             lock_timeout,
             max_possible_price,
+            lock_stake,
+            ramp_up_period,
+            timeout,
+            bidding_start,
         } = retry_backoff(exponential_backoff, || async move {
             self.pricing_service
                 .get_price(mcycles_count.saturating_mul(1_000_000))
@@ -213,6 +218,10 @@ impl BoundlessProver {
             U256::from(cmp::min(max_price, max_possible_price)),
             mcycles_count,
             lock_timeout,
+            timeout,
+            ramp_up_period,
+            bidding_start,
+            lock_stake,
             Some(total_cycles_approx),
             Some(journal),
         );
@@ -241,15 +250,18 @@ impl BoundlessProver {
         journal_digest: Digest,
         image_url: Url,
         input_url: Url,
-        _min_price_per_mcycle: U256,
+        min_price_per_mcycle: U256,
         max_price_per_mcycle: U256,
         mcycles_count: u64,
         lock_timeout: u64,
+        timeout: u64,
+        ramp_up_period: u64,
+        bidding_start: u64,
+        lock_stake: u64,
         total_cycles_approx: Option<u64>,
         journal: Option<Journal>,
     ) -> RequestParams {
         // Note that offer ramp up period must be less than or equal to the lock timeout)
-        let ramp_up_period = cmp::min(lock_timeout, 300); // at most 5 minutes
         let mut request_params = self
             .client
             .new_request()
@@ -263,15 +275,13 @@ impl BoundlessProver {
             )
             .with_offer(
                 Offer::default()
-                    // TODO: I think zero here is ok
-                    .with_min_price_per_mcycle(U256::ZERO, mcycles_count)
+                    .with_min_price_per_mcycle(min_price_per_mcycle, mcycles_count)
                     .with_max_price_per_mcycle(max_price_per_mcycle, mcycles_count)
                     .with_lock_timeout(lock_timeout as u32)
-                    .with_timeout((lock_timeout * 3) as u32)
+                    .with_timeout(timeout as u32)
                     .with_ramp_up_period(ramp_up_period as u32)
-                    .with_bidding_start(current_timestamp_as_secs() + 50)
-                    // https://github.com/boundless-xyz/boundless/blob/5e7ac7ddce4f54a146c607e2627302472706261b/crates/boundless-market/src/request_builder/offer_layer.rs#L66
-                    .with_lock_stake(U256::from(3u64)),
+                    .with_bidding_start(bidding_start)
+                    .with_lock_stake(U256::from(lock_stake) * Unit::MWEI.wei_const()),
             );
 
         // If we can provide these then in the preflight layer of request sending there won't be a double execution of the program
@@ -575,6 +585,10 @@ impl BoundlessProver {
             new_max_price_per_mcycle,
             mcycles_count,
             new_lock_timeout as u64,
+            (new_lock_timeout * 2) as u64,
+            failed_request.offer.rampUpPeriod as u64,
+            current_timestamp_as_secs(), // bidding start
+            failed_request.offer.lockStake.to::<u64>(),
             // TODO: https://github.com/chainwayxyz/citrea/issues/2820
             None,
             None,
