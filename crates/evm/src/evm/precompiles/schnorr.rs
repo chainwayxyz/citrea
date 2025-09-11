@@ -187,20 +187,24 @@ mod tests {
     }
 }
 
-mod anan {
-    use alloy_primitives::{keccak256, normalize_v, Keccak256};
+mod test_eip191 {
+    use alloy_primitives::eip191_hash_message;
     use k256::ecdsa::signature::hazmat::PrehashVerifier;
-    use k256::ecdsa::signature::{DigestSigner, DigestVerifier, Verifier};
     use k256::ecdsa::{RecoveryId, SigningKey, VerifyingKey};
-    use k256::elliptic_curve::SecretKey;
-    use k256::{EncodedPoint, Secp256k1};
-    use sha2::Digest;
+    use k256::EncodedPoint;
 
     #[test]
     fn test_eip_191_sig() {
+        // signature created with cast: cast wallet sign --private-key d38ba32d6971702225da49b49baac41c5a7ec2f5e3f2bb426976195ccd3266f7 0x48656c6c6f2c20776f726c6421
         let msg = b"Hello, world!";
+
+        // Assert that the message hex is correct
+        assert_eq!(hex::encode(msg.to_vec()), "48656c6c6f2c20776f726c6421");
+
+        // Some randomly generated secret key
         let secret_key = "d38ba32d6971702225da49b49baac41c5a7ec2f5e3f2bb426976195ccd3266f7";
         let secret_key_bytes: [u8; 32] = hex::decode(secret_key).unwrap().try_into().unwrap();
+
         // Create signing key
         let signing_key = SigningKey::from_bytes(&secret_key_bytes.into()).unwrap();
 
@@ -210,103 +214,32 @@ mod anan {
         // Get SEC1-encoded public key (uncompressed = 65 bytes)
         let pubkey_uncompressed: EncodedPoint = verify_key.to_encoded_point(false);
         let pubkey = VerifyingKey::from_encoded_point(&pubkey_uncompressed).unwrap();
-        let (mut eip_191_signature, hash) = eip191_sign(msg, &secret_key_bytes);
+
+        // Sign the message with eip-191 prefix
+        let (mut eip_191_signature, prehash) = eip191_sign(msg, &secret_key_bytes);
+
+        // cast wallet sign --private-key d38ba32d6971702225da49b49baac41c5a7ec2f5e3f2bb426976195ccd3266f7 0x48656c6c6f2c20776f726c6421
+        // Output:
+        // 0x52782f3d8fddd7e1bfaa718e4ca6f8c3581624880bae828c9e220628dcdbf55e40eedc5c0ee292cfe296492533bcdcec74836f8a4866e4f8b8308167853731731c
+
+        // Assert that cast signature matches our signature
+        assert_eq!(hex::encode(&eip_191_signature), "52782f3d8fddd7e1bfaa718e4ca6f8c3581624880bae828c9e220628dcdbf55e40eedc5c0ee292cfe296492533bcdcec74836f8a4866e4f8b8308167853731731c");
+
         let recovered_pub_key =
-            recover_pub_key_from_cast_sig_and_hash(&eip_191_signature, hash.as_slice());
-        eip_191_signature.pop(); // drop last byte
+            recover_pub_key_from_cast_sig_and_hash(&eip_191_signature, prehash.as_slice());
+
+        // Assert that the recovered public key matches the original public key
+        assert_eq!(pubkey, recovered_pub_key);
+
+        // drop last byte
+        eip_191_signature.pop();
 
         let signature = k256::ecdsa::Signature::from_slice(eip_191_signature.as_slice()).unwrap();
 
-        assert_eq!(pubkey, recovered_pub_key);
-
+        // Verify the signature using the prehash
         assert!(recovered_pub_key
-            .verify_prehash(hash.as_slice(), &signature)
+            .verify_prehash(prehash.as_slice(), &signature)
             .is_ok());
-    }
-
-    fn run() {
-        let mut cast_pubkey = hex::decode(
-        "9e20dd10239d4e3b5721d51d319418efd65e4d9832e3888ff4925466e52115dcb7eae23cdde649987956b2faf65a21d1203c1e8e0d38f0c1be4789c0456b4665",
-    ).unwrap();
-
-        let raw_hash =
-            hex::decode("0101010101010101010101010101010101010101010101010101010101010101")
-                .unwrap();
-
-        // Add 4 prefix for uncompressed pubkey
-        // cast returns the value without the tag
-        // see: sec1 crate Tag
-        cast_pubkey.insert(0, 4);
-
-        let encoded_point = EncodedPoint::from_bytes(&cast_pubkey).unwrap();
-        let pubkey = VerifyingKey::from_encoded_point(&encoded_point).unwrap();
-
-        let mut cast_sig = hex::decode(
-        "0b4fefcfe2bc874c86a5377d985ef61a3d32e65abb3589a593ef5919e3a20ef33bb815addedfce088e2a847fca3075052075673a79c8ee8bd60166e1489a256e1c",
-    ).unwrap();
-
-        let recovered_cast_pub_key = recover_pub_key_from_cast_sig_and_hash(&cast_sig, &raw_hash);
-
-        // drop last byte
-        cast_sig.pop();
-
-        let signature = k256::ecdsa::Signature::from_slice(cast_sig.as_slice()).unwrap();
-
-        // convert raw_hash to Digest without hashing
-
-        println!(
-            "Signature valid: {}",
-            pubkey
-                .verify_prehash(raw_hash.as_slice(), &signature)
-                .is_ok()
-        );
-
-        assert_eq!(pubkey, recovered_cast_pub_key, "Public keys do not match");
-
-        // ledger pubkey recovery from signature
-
-        // anan
-        let cast_sig_anan = hex::decode(
-        "929a3fd4a6574cb9dc071d46598902daa2727164c1b3a12316dabfbbf501ee3250b3e59f30fba3bbc75fe67cc090e2655f89c468f970abf80bfdd135bc9f1d641c",
-    ).unwrap();
-
-        let anan_recovered_pubkey =
-            recover_pub_key_from_cast_sig_and_hash(&cast_sig_anan, &msg_to_eip191_msg(b"anan"));
-
-        println!(
-            "Recovered public key: {}",
-            hex::encode(anan_recovered_pubkey.to_sec1_bytes())
-        );
-
-        // baban
-        let cast_sig_baban = hex::decode(
-        "bebe2bd58f347396133e1beed0cd22a98541cc8819c2b2a5a9a64ff05e950f104e13d7a55d9482ed47a7f854862a244eecc9b0b6827cf6f2b4bc67372dff75fc1c"
-    ).unwrap();
-
-        let baban_recovered_pubkey =
-            recover_pub_key_from_cast_sig_and_hash(&cast_sig_baban, &msg_to_eip191_msg(b"baban"));
-
-        println!(
-            "Baban recovered pubkey: {}",
-            hex::encode(baban_recovered_pubkey.to_sec1_bytes())
-        );
-
-        assert_eq!(
-            anan_recovered_pubkey, baban_recovered_pubkey,
-            "recovered keys are not the same"
-        );
-    }
-
-    fn recover_pub_key_from_cast_sig_and_msg(cast_sig: &[u8], msg: &[u8]) -> VerifyingKey {
-        assert_eq!(cast_sig.len(), 65, "Invalid signature length");
-
-        let y_odd = cast_sig[64] - 27;
-        let y_odd = y_odd != 0;
-
-        let signature = k256::ecdsa::Signature::from_slice(&cast_sig[0..64]).unwrap();
-
-        VerifyingKey::recover_from_msg(msg, &signature, RecoveryId::new(y_odd, false))
-            .expect("Failed to recover public key")
     }
 
     fn recover_pub_key_from_cast_sig_and_hash(cast_sig: &[u8], hash: &[u8]) -> VerifyingKey {
@@ -322,28 +255,6 @@ mod anan {
             .expect("Failed to recover public key")
     }
 
-    fn msg_to_eip191_msg(msg: &[u8]) -> Vec<u8> {
-        let mut eip191_msg = Vec::new();
-        eip191_msg.extend_from_slice(b"\x19Ethereum Signed Message:\n");
-        eip191_msg.extend_from_slice(msg.len().to_string().as_bytes());
-        eip191_msg.extend_from_slice(msg);
-
-        // eip191_msg
-
-        // eip191_msg
-        // keccak the msg
-        keccak256(eip191_msg.as_slice()).to_vec()
-    }
-
-    /// Prefix + keccak according to EIP-191 "Ethereum Signed Message"
-    fn eip191_prefixed_message(msg: &[u8]) -> Vec<u8> {
-        let mut out = Vec::with_capacity(2 + 64 + msg.len());
-        out.extend_from_slice(b"\x19Ethereum Signed Message:\n");
-        out.extend_from_slice(msg.len().to_string().as_bytes());
-        out.extend_from_slice(msg);
-        out
-    }
-
     /// Sign a message with EIP-191 prefixing and return (sig65, hash32)
     /// - sig65: r(32) || s(32) || v(1) with v in {27, 28}
     /// - hash32: keccak256(prefix || len || msg)
@@ -353,17 +264,13 @@ mod anan {
         let signing_key =
             SigningKey::from_bytes(secret_key_bytes.into()).expect("invalid secp256k1 secret key");
 
-        use k256::ecdsa::signature::DigestSigner;
-        use k256::ecdsa::{RecoveryId, SigningKey, VerifyingKey};
-
         // EIP-191 prefixing, then keccak256
-        let to_hash = eip191_prefixed_message(msg);
-        let hash = sha2::Sha256::digest(&to_hash); // 32-byte digest
-        let mut hasher = sha2::Sha256::new();
-        hasher.update(&to_hash);
+        let prehash = eip191_hash_message(msg);
 
-        // Sign the digest and get a RECOVERABLE signature (so we can emit v)
-        let (rec_sig, recovery_id) = signing_key.sign_digest_recoverable(hasher).unwrap();
+        // Sign the prehash and get a RECOVERABLE signature (so we can emit v)
+        let (rec_sig, recovery_id) = signing_key
+            .sign_prehash_recoverable(&prehash.as_slice())
+            .unwrap();
 
         // Serialize r||s (64 bytes)
         let rs = rec_sig.to_bytes(); // <[u8; 64]>
@@ -379,7 +286,7 @@ mod anan {
         sig65.push(v_eth);
 
         let mut hash32 = [0u8; 32];
-        hash32.copy_from_slice(&hash);
+        hash32.copy_from_slice(&prehash.as_slice());
 
         (sig65, hash32)
     }
