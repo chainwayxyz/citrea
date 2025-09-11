@@ -138,7 +138,8 @@ where
         // start proof immediately in the background
         let proof_start_time = std::time::Instant::now();
         let proof_rx = make_proof(vm, job_id, elf, self.proof_mode, receipt_type)
-            .context("Failed to start proving")?;
+            .context("Failed to start proving")
+            .inspect_err(|_| PARALLEL_PROVER_METRICS.ongoing_proving_jobs.decrement(1))?;
         debug!("Started proving job");
 
         let (tx, rx) = oneshot::channel();
@@ -179,10 +180,12 @@ where
     async fn reserve_proof_slot(&self) -> anyhow::Result<OwnedSemaphorePermit> {
         let available_permits = self.proof_semaphore.available_permits();
 
+        let mut proof_was_queued = false;
         if available_permits == 0 {
             PARALLEL_PROVER_METRICS
                 .proof_count_waiting_in_queue
                 .increment(1);
+            proof_was_queued = true;
             warn!("Reached parallel proof limit, waiting for one of the proving tasks to finish");
         }
 
@@ -190,7 +193,7 @@ where
 
         PARALLEL_PROVER_METRICS.ongoing_proving_jobs.increment(1);
 
-        if available_permits == 0 {
+        if proof_was_queued {
             PARALLEL_PROVER_METRICS
                 .proof_count_waiting_in_queue
                 .decrement(1);

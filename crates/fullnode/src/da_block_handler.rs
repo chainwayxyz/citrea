@@ -565,6 +565,13 @@ where
             return Ok(ProcessingResult::Discarded);
         };
 
+        tracing::info!(
+            "Extracted batch proof output with last L2 height: {}, commitment index range: {}-{}",
+            batch_proof_output.last_l2_height(),
+            batch_proof_output.sequencer_commitment_index_range().0,
+            batch_proof_output.sequencer_commitment_index_range().1
+        );
+
         // Get the code commitment for the appropriate fork
         let spec_id = fork_from_block_number(batch_proof_output.last_l2_height()).spec_id;
         let code_commitment = self

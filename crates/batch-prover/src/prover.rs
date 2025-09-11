@@ -691,7 +691,10 @@ where
         tokio::spawn(async move {
             while let Some((job_id, rx)) = proving_jobs.recv().await {
                 let proof_with_duration = rx.await.expect("Proof channel should never close");
-                info!("Proving job finished {}", job_id);
+                info!(
+                    "Proving job finished {}, took {:?} seconds",
+                    job_id, proof_with_duration.duration
+                );
 
                 let output = extract_proof_output::<Vm>(
                     &job_id,
@@ -811,12 +814,13 @@ where
                     .submit_proof(proof, job_id)
                     .await
                     .expect("Failed to submit transaction");
-                info!("Job {} proof sent to DA", job_id);
+                info!("Recovered Job {} proof sent to DA", job_id);
 
                 // stores tx id and removes job from pending da submission
                 ledger_db
                     .finalize_proving_job(job_id, tx_id.into())
                     .expect("Should update proving job tx id");
+                info!("Finalized recovered proving job: {}", job_id);
             });
         }
     }
