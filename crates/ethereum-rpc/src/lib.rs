@@ -183,22 +183,14 @@ fn to_eth_rpc_error(err: impl ToString) -> ErrorObjectOwned {
     to_jsonrpsee_error_object(ETH_RPC_ERROR, err)
 }
 
-/// Configuration for Ethereum RPC server.
-pub struct EthereumRpcServerConfig {
-    /// Head L2 height at the time of starting the server.
-    /// Used in `eth_syncing` endpoint.
-    starting_l2_height: u64,
-    /// Maximum number of L2 blocks to be traced with debug_traceChain
-    trace_chain_block_limit: Option<u64>,
-}
-
 pub struct EthereumRpcServerImpl<C, Da>
 where
     C: sov_modules_api::Context,
     Da: DaService,
 {
     ethereum: Arc<Ethereum<C, Da>>,
-    config: EthereumRpcServerConfig,
+    starting_l2_height: U64,
+    trace_chain_block_limit: Option<u64>,
 }
 
 impl<C, Da> EthereumRpcServerImpl<C, Da>
@@ -206,8 +198,12 @@ where
     C: sov_modules_api::Context,
     Da: DaService,
 {
-    pub fn new(ethereum: Arc<Ethereum<C, Da>>, config: EthereumRpcServerConfig) -> Self {
-        Self { ethereum, config }
+    pub fn new(ethereum: Arc<Ethereum<C, Da>>, starting_l2_height: U64, trace_chain_block_limit: Option<u64>) -> Self {
+        Self {
+            ethereum,
+            starting_l2_height,
+            trace_chain_block_limit,
+        }
     }
 }
 
@@ -504,7 +500,7 @@ where
             EthSyncStatus::None
         } else {
             EthSyncStatus::Info(Box::new(SyncInfo {
-                starting_block: U256::from(self.config.starting_l2_height),
+                starting_block: U256::from(self.starting_l2_height),
                 current_block: U256::from(head_l2_block),
                 highest_block: U256::from(highest_block),
                 warp_chunks_amount: None,
@@ -584,7 +580,7 @@ where
         opts: Option<GethDebugTracingOptions>,
     ) -> SubscriptionResult {
         if &topic == "traceChain" {
-            handle_debug_trace_chain(start_block, end_block, opts, pending, self.ethereum.clone(), self.config.trace_chain_block_limit)
+            handle_debug_trace_chain(start_block, end_block, opts, pending, self.ethereum.clone(), self.trace_chain_block_limit)
                 .await;
         } else {
             pending
@@ -668,11 +664,11 @@ where
         sequencer_client_url.map(|url| HttpClientBuilder::default().build(url).unwrap()),
         l2_block_rx,
     ));
-    let config = EthereumRpcServerConfig {
-        starting_l2_height: head_l2_block,
-        trace_chain_block_limit: rpc_config.trace_chain_block_limit,
-    };
-    let server = EthereumRpcServerImpl::new(ethereum, config);
+    let server = EthereumRpcServerImpl::new(
+        ethereum, 
+        U64::from(head_l2_block),
+        rpc_config.trace_chain_block_limit
+    );
 
     let mut module = EthereumRpcServer::into_rpc(server);
 
