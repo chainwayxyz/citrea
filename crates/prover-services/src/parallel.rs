@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
+use anyhow::Context;
 use rand::Rng;
 use sov_rollup_interface::da::DaTxRequest;
 use sov_rollup_interface::services::da::DaService;
@@ -138,7 +139,7 @@ where
         let proof_start_time = std::time::Instant::now();
         let proof_rx = make_proof(vm, job_id, elf, self.proof_mode, receipt_type)
             .await
-            .context("Failed to start proving")
+            .with_context(|| "Failed to start proving")
             .inspect_err(|_| PARALLEL_PROVER_METRICS.ongoing_proving_jobs.decrement(1))?;
         debug!("Started proving job");
 
