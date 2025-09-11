@@ -139,10 +139,7 @@ where
         let proof_start_time = std::time::Instant::now();
         let proof_rx = make_proof(vm, job_id, elf, self.proof_mode, receipt_type)
             .context("Failed to start proving")
-            .map_err(|e| {
-                PARALLEL_PROVER_METRICS.ongoing_proving_jobs.decrement(1);
-                e
-            })?;
+            .inspect_err(|_| PARALLEL_PROVER_METRICS.ongoing_proving_jobs.decrement(1))?;
         debug!("Started proving job");
 
         let (tx, rx) = oneshot::channel();
