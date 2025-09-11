@@ -1492,15 +1492,18 @@ async fn test_trace_chain_block_limit() -> Result<(), Box<dyn std::error::Error>
         test_client.send_publish_batch_request().await;
     }
 
-    let result = test_client.debug_trace_chain(
-        BlockNumberOrTag::Number(0), BlockNumberOrTag::Number(15), None
-    )
-    .await
-    .expect_err("Expected error due to exceeding block limit");
+    let result = test_client
+        .debug_trace_chain(
+            BlockNumberOrTag::Number(0),
+            BlockNumberOrTag::Number(15),
+            None,
+        )
+        .await
+        .expect_err("Expected error due to exceeding block limit");
 
-    assert!(
-        result.to_string().contains("Block range too large. Maximum allowed range is 10 blocks")
-    );
+    assert!(result
+        .to_string()
+        .contains("Block range too large. Maximum allowed range is 10 blocks"));
     rollup_task.graceful_shutdown();
 
     Ok(())

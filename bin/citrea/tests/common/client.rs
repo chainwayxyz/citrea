@@ -22,7 +22,7 @@ use citrea_batch_prover::rpc::{BatchProverRpcClient, ProvingJobResponse};
 use citrea_batch_prover::PartitionMode;
 use citrea_evm::EstimatedDiffSize;
 use ethereum_rpc::SyncStatus;
-use jsonrpsee::core::client::{ClientT, SubscriptionClientT, Error};
+use jsonrpsee::core::client::{ClientT, Error, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};

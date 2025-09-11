@@ -198,7 +198,11 @@ where
     C: sov_modules_api::Context,
     Da: DaService,
 {
-    pub fn new(ethereum: Arc<Ethereum<C, Da>>, starting_l2_height: U64, trace_chain_block_limit: Option<u64>) -> Self {
+    pub fn new(
+        ethereum: Arc<Ethereum<C, Da>>,
+        starting_l2_height: U64,
+        trace_chain_block_limit: Option<u64>,
+    ) -> Self {
         Self {
             ethereum,
             starting_l2_height,
@@ -580,8 +584,15 @@ where
         opts: Option<GethDebugTracingOptions>,
     ) -> SubscriptionResult {
         if &topic == "traceChain" {
-            handle_debug_trace_chain(start_block, end_block, opts, pending, self.ethereum.clone(), self.trace_chain_block_limit)
-                .await;
+            handle_debug_trace_chain(
+                start_block,
+                end_block,
+                opts,
+                pending,
+                self.ethereum.clone(),
+                self.trace_chain_block_limit,
+            )
+            .await;
         } else {
             pending
                 .reject(to_eth_rpc_error("Unsupported subscription topic"))
@@ -665,9 +676,9 @@ where
         l2_block_rx,
     ));
     let server = EthereumRpcServerImpl::new(
-        ethereum, 
+        ethereum,
         U64::from(head_l2_block),
-        rpc_config.trace_chain_block_limit
+        rpc_config.trace_chain_block_limit,
     );
 
     let mut module = EthereumRpcServer::into_rpc(server);
