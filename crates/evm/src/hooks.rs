@@ -208,7 +208,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             } in pending_transactions
             {
                 self.transactions.push(transaction, &mut accessory_state);
-                self.receipts.push(&receipt, &mut accessory_state);
+                self.receipts.push(receipt, &mut accessory_state);
 
                 self.transaction_hashes.set(
                     transaction.signed_transaction.hash(),
