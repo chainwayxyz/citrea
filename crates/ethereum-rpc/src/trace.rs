@@ -70,7 +70,8 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
     if start_block >= end_block {
         pending.reject(EthApiError::InvalidBlockRange).await;
         return;
-    } else if (end_block - start_block) > max_blocks {
+    } 
+    if (end_block - start_block) > max_blocks {
         pending
             .reject(EthApiError::InvalidParams(
                 format!(
