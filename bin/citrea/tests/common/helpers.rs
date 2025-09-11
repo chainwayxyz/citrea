@@ -449,6 +449,7 @@ pub fn create_default_rollup_config(
             batch_requests_limit: 50,
             enable_subscriptions: true,
             max_subscriptions_per_connection: 100,
+            timeout: 30,
             api_key: None,
         },
         runner: match node_mode {
