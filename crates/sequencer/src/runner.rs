@@ -431,14 +431,26 @@ where
         let start: Instant = Instant::now();
         let l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
         self.fork_manager.register_block(l2_height)?;
+
+        let deposit_data = self
+            .deposit_mempool
+            .lock()
+            .fetch_deposits(self.config.deposit_mempool_fetch_limit);
+
         let result = {
             if da_blocks.len() == 1 && da_blocks[0].header().height() == *last_used_l1_height {
                 // If we are producing regular blocks, not for missed da blocks, and if the last used L1 block is the same as the last finalized block
                 // then there is no need to pass da data to the sequencer
                 da_blocks.clear();
             }
-            self.produce_l2_block_inner(da_blocks, l1_fee_rate, l2_height, last_used_l1_height)
-                .await
+            self.produce_l2_block_inner(
+                da_blocks,
+                l1_fee_rate,
+                l2_height,
+                last_used_l1_height,
+                deposit_data.clone(),
+            )
+            .await
         };
 
         match result {
@@ -450,6 +462,13 @@ where
             }
             Err(e) => {
                 error!("Sequencer error: {}", e);
+                if !deposit_data.is_empty() {
+                    let restored = self.deposit_mempool.lock().restore_deposits(deposit_data);
+                    info!(
+                        "Restored {} deposits to mempool after block production error",
+                        restored
+                    );
+                }
             }
         }
 
@@ -481,6 +500,7 @@ where
         l1_fee_rate: u128,
         l2_height: u64,
         last_used_l1_height: &mut u64,
+        deposit_data: Vec<Vec<u8>>,
     ) -> anyhow::Result<u64> {
         let start_dry_run_preparation = Instant::now();
         let active_fork_spec = self.fork_manager.active_fork().spec_id;
@@ -490,12 +510,6 @@ where
         self.save_short_header_proofs(da_blocks.clone());
 
         let timestamp = chrono::Local::now().timestamp() as u64;
-
-        // Get pending deposits up to configured limit
-        let deposit_data = self
-            .deposit_mempool
-            .lock()
-            .fetch_deposits(self.config.deposit_mempool_fetch_limit);
 
         let pub_key = self.sov_tx_signer_priv_key.pub_key();
 
