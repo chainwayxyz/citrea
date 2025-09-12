@@ -71,6 +71,23 @@ pub struct ParsedBatchProverMethodId {
     pub(crate) public_keys: Vec<Vec<u8>>,
 }
 
+impl ParsedBatchProverMethodId {
+    /// Returns the signatures in the transaction.
+    pub fn signatures(&self) -> Vec<Vec<u8>> {
+        self.signatures.clone()
+    }
+
+    /// Returns the public keys in the transaction.
+    pub fn public_keys(&self) -> Vec<Vec<u8>> {
+        self.public_keys.clone()
+    }
+
+    /// Returns the body of the transaction.
+    pub fn body(&self) -> Vec<u8> {
+        self.body.clone()
+    }
+}
+
 /// To verify the signature of the inscription and get the hash of the body
 pub trait VerifyParsed {
     /// Returns the public key used to verify the signature.
