@@ -95,6 +95,37 @@ impl DepositDataMempool {
         Ok(true)
     }
 
+    /// Restores previously fetched deposits back to the mempool
+    ///
+    /// # Arguments
+    /// * `deposits` - Vector of deposit transaction data to restore
+    ///
+    /// # Returns
+    /// The number of deposits that were successfully restored
+    #[instrument(level = "trace", skip_all, ret)]
+    pub fn restore_deposits(&mut self, deposits: Vec<Vec<u8>>) -> usize {
+        let mut restored_count = 0;
+
+        for deposit in deposits {
+            if let Ok(txid) = Self::calc_tx_id(&deposit) {
+                if self.pending_deposits.insert(txid.to_vec()) {
+                    self.accepted_deposit_txs.push_back(deposit);
+                    restored_count += 1;
+                }
+            }
+        }
+
+        if restored_count > 0 {
+            SM.deposit_data_mempool_txs_inc
+                .increment(restored_count as u64);
+            SM.deposit_data_mempool_txs
+                .set(self.accepted_deposit_txs.len() as f64);
+            debug!("Restored {} deposits to mempool", restored_count);
+        }
+
+        restored_count
+    }
+
     /// Calculate the transaction ID from deposit data.
     ///
     /// # Arguments
@@ -226,5 +257,67 @@ mod tests {
                 .unwrap()
                 .as_slice()
         )
+    }
+
+    #[test]
+    fn test_restore_deposits() {
+        let mut mempool = DepositDataMempool::new();
+        let deposit1 = hex::decode(DEPOSIT1).unwrap();
+        let deposit2 = hex::decode(DEPOSIT2).unwrap();
+        let deposit3 = hex::decode(DEPOSIT3).unwrap();
+
+        // Add deposits
+        assert!(mempool.add_deposit_tx(deposit1.clone()).unwrap());
+        assert!(mempool.add_deposit_tx(deposit2.clone()).unwrap());
+        assert!(mempool.add_deposit_tx(deposit3.clone()).unwrap());
+        assert_eq!(mempool.accepted_deposit_txs.len(), 3);
+        assert_eq!(mempool.pending_deposits.len(), 3);
+
+        // Fetch all deposits
+        let fetched = mempool.fetch_deposits(10);
+        assert_eq!(fetched.len(), 3);
+        assert_eq!(mempool.accepted_deposit_txs.len(), 0);
+        assert_eq!(mempool.pending_deposits.len(), 0);
+
+        // Restore deposits
+        let restored_count = mempool.restore_deposits(fetched.clone());
+        assert_eq!(restored_count, 3);
+        assert_eq!(mempool.accepted_deposit_txs.len(), 3);
+        assert_eq!(mempool.pending_deposits.len(), 3);
+
+        // Fetch them again
+        let refetched = mempool.fetch_deposits(10);
+        assert_eq!(refetched.len(), 3);
+        assert_eq!(refetched, fetched);
+    }
+
+    #[test]
+    fn test_restore_deposits_with_duplicates() {
+        let mut mempool = DepositDataMempool::new();
+        let deposit1 = hex::decode(DEPOSIT1).unwrap();
+        let deposit2 = hex::decode(DEPOSIT2).unwrap();
+
+        // Add one deposit
+        assert!(mempool.add_deposit_tx(deposit1.clone()).unwrap());
+        assert_eq!(mempool.accepted_deposit_txs.len(), 1);
+
+        // Try to restore deposits including one that's already there
+        let deposits_to_restore = vec![deposit1.clone(), deposit2.clone()];
+        let restored_count = mempool.restore_deposits(deposits_to_restore);
+
+        // Only deposit2 should be restored since deposit1 is already pending
+        assert_eq!(restored_count, 1);
+        assert_eq!(mempool.accepted_deposit_txs.len(), 2);
+        assert_eq!(mempool.pending_deposits.len(), 2);
+    }
+
+    #[test]
+    fn test_restore_empty_deposits() {
+        let mut mempool = DepositDataMempool::new();
+
+        let restored_count = mempool.restore_deposits(vec![]);
+        assert_eq!(restored_count, 0);
+        assert_eq!(mempool.accepted_deposit_txs.len(), 0);
+        assert_eq!(mempool.pending_deposits.len(), 0);
     }
 }
