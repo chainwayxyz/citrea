@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -41,31 +40,15 @@ pub const SEQUENCER_DA_PRIVATE_KEY: &str =
 pub const PROVER_DA_PRIVATE_KEY: &str =
     "56D08C2DDE7F412F80EC99A0A328F76688C904BD4D1435281EFC9270EC8C8707";
 
-fn get_workspace_root() -> PathBuf {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    manifest_dir
-        .ancestors()
-        .nth(2)
-        .expect("Failed to find workspace root")
-        .to_path_buf()
-}
-
-fn get_tx_backup_dir() -> PathBuf {
-    get_workspace_root()
-        .join("resources")
-        .join("bitcoin")
-        .join("inscription_txs")
-        .to_path_buf()
-}
-
 pub async fn get_default_service(
     task_executor: &TaskExecutor,
     config: &BitcoinConfig,
+    test_dir: PathBuf,
 ) -> Arc<BitcoinService> {
     spawn_bitcoin_da_service(
         task_executor,
         config,
-        get_tx_backup_dir(),
+        test_dir,
         DaServiceKeyKind::Sequencer,
         REVEAL_TX_PREFIX.to_vec(),
         None,
@@ -78,11 +61,12 @@ pub async fn spawn_bitcoin_da_with_wallet(
     task_executor: &TaskExecutor,
     config: &BitcoinConfig,
     wallet: String,
+    test_dir: PathBuf,
 ) -> Arc<BitcoinService> {
     spawn_bitcoin_da_service(
         task_executor,
         config,
-        get_tx_backup_dir(),
+        test_dir,
         DaServiceKeyKind::Sequencer,
         REVEAL_TX_PREFIX.to_vec(),
         None,
@@ -364,8 +348,8 @@ pub async fn generate_mock_txs(
 ) {
     // Funding wallet requires block generation, hence we do funding at the beginning
     // to be able to write all transactions into the same block.
+    let wrong_prefix_wallet = tempfile::tempdir().unwrap().path().to_path_buf();
     let prefix_str = "wrong_prefix";
-    let wrong_prefix_wallet = PathBuf::from_str(prefix_str).unwrap();
     create_and_fund_wallet(prefix_str.to_string(), da_node).await;
     let wrong_prefix_da_service = spawn_bitcoin_da_service(
         task_executor,
@@ -378,9 +362,10 @@ pub async fn generate_mock_txs(
     )
     .await;
 
+    let wrong_key_wallet = tempfile::tempdir().unwrap().path().to_path_buf();
     let wrong_key_str = "wrong_key";
-    let wrong_key_wallet = PathBuf::from_str(wrong_key_str).unwrap();
     create_and_fund_wallet(wrong_key_str.to_string(), da_node).await;
+
     let wrong_key_da_service = spawn_bitcoin_da_service(
         task_executor,
         &da_node.config,
@@ -407,6 +392,7 @@ pub async fn generate_mock_txs(
         method_id: [0; 8],
         activation_l2_height: 0,
     };
+
     valid_method_ids.push(method_id.clone());
     da_service
         .send_transaction(DaTxRequest::BatchProofMethodId(method_id))
@@ -420,6 +406,7 @@ pub async fn generate_mock_txs(
     };
     seq_index += 1;
     valid_commitments.push(commitment.clone());
+
     da_service
         .send_transaction(DaTxRequest::SequencerCommitment(commitment))
         .await
@@ -432,6 +419,7 @@ pub async fn generate_mock_txs(
     };
     seq_index += 1;
     valid_commitments.push(commitment.clone());
+
     da_service
         .send_transaction(DaTxRequest::SequencerCommitment(commitment))
         .await

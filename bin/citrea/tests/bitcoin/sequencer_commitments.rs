@@ -348,10 +348,12 @@ impl TestCase for SequencerCommitmentsFromDaTest {
         let sequencer = f.sequencer.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
+        let test_dir = Self::test_config().dir;
         let da_service = spawn_bitcoin_da_with_wallet(
             &self.task_manager.executor(),
             &da.config,
             NodeKind::Sequencer.to_string(),
+            test_dir,
         )
         .await;
 

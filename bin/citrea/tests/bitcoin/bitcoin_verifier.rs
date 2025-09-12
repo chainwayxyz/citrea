@@ -115,7 +115,9 @@ impl TestCase for BitcoinVerifierTest {
 
         let da_node = f.bitcoin_nodes.get(0).unwrap();
 
-        let service = get_default_service(&task_executor, &da_node.config).await;
+        let test_dir = Self::test_config().dir;
+        let service = get_default_service(&task_executor, &da_node.config, test_dir).await;
+
         let (block, _, _, _) = generate_mock_txs(&service, da_node, &task_executor).await;
 
         let (mut txs, inclusion_proof, completeness_proof) =
