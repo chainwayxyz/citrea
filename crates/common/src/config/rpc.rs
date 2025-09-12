@@ -36,6 +36,11 @@ const fn default_max_subscriptions_per_connection() -> u32 {
     100
 }
 
+#[inline]
+const fn default_timeout() -> u64 {
+    30
+}
+
 /// RPC configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize, Default, Serialize)]
 pub struct RpcConfig {
@@ -62,6 +67,9 @@ pub struct RpcConfig {
     /// Maximum number of subscription connections
     #[serde(default = "default_max_subscriptions_per_connection")]
     pub max_subscriptions_per_connection: u32,
+    /// RPC timeout in secs
+    #[serde(default = "default_timeout")]
+    pub timeout: u64,
     /// API key for protected JSON-RPC methods
     pub api_key: Option<String>,
 }
@@ -104,6 +112,10 @@ impl FromEnv for RpcConfig {
                 .ok()
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_max_subscriptions_per_connection),
+            timeout: read_env("RPC_TIMEOUT")
+                .ok()
+                .and_then(|val| val.parse().ok())
+                .unwrap_or_else(default_timeout),
             api_key: read_env("RPC_API_KEY").ok(),
         })
     }
@@ -123,6 +135,7 @@ impl fmt::Display for RpcConfig {
                 "max_subscriptions_per_connection",
                 &self.max_subscriptions_per_connection,
             )
+            .field("timeout", &self.timeout)
             .finish()
     }
 }

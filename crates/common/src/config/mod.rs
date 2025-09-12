@@ -475,6 +475,7 @@ mod tests {
                 batch_requests_limit: 50,
                 enable_subscriptions: true,
                 max_subscriptions_per_connection: 200,
+                timeout: 30,
                 api_key: None,
             },
             public_keys: RollupPublicKeys {
@@ -630,6 +631,7 @@ mod tests {
         std::env::set_var("RPC_MAX_CONNECTIONS", "500");
         std::env::set_var("RPC_ENABLE_SUBSCRIPTIONS", "true");
         std::env::set_var("RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION", "200");
+        std::env::set_var("RPC_TIMEOUT", "30");
 
         std::env::set_var(
             "SENDER_ADDRESS",
@@ -660,6 +662,7 @@ mod tests {
                 batch_requests_limit: default_batch_requests_limit(),
                 enable_subscriptions: true,
                 max_subscriptions_per_connection: 200,
+                timeout: 30,
                 api_key: None,
             },
             storage: StorageConfig {
