@@ -65,6 +65,7 @@ pub struct ParsedSequencerCommitment {
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub struct ParsedBatchProverMethodId {
     pub(crate) body: Vec<u8>,
+    // TODO: Are these better off as arrays of fixed size?
     // Consists of 65 byte keccak256(eip191 prefixed message) prehash signed signatures
     pub(crate) signatures: Vec<Vec<u8>>,
     // Compressed sec1 encoded verifying keys (33 bytes each)
