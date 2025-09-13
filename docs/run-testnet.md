@@ -96,7 +96,7 @@ There is three different ways to run a Citra full node: using a [pre-built binar
 
 ### Option 1: Using pre-built binary
 
-Before continueuing we suggest creating a `citrea/` directory and executing these commands in that directory.
+Before continuing we suggest creating a `citrea/` directory and executing these commands in that directory.
 
 #### Step 1.1: Download necessary files
 
