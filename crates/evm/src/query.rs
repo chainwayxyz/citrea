@@ -2140,6 +2140,8 @@ fn get_pending_block_env<C: sov_modules_api::Context>(
     block_env
 }
 
+const TEST_BASE_FEE_GWEI: u128 = 10000000; // 0.01 gwei
+
 #[test]
 fn test_gas_limit_to_return() {
     assert_eq!(
@@ -2147,7 +2149,7 @@ fn test_gas_limit_to_return() {
             U64::from(8_000_000),
             EstimatedTxExpenses {
                 gas_used: U64::from(5_000_000),
-                base_fee: U256::from(10000000), // 0.01 gwei
+                base_fee: U256::from(TEST_BASE_FEE_GWEI),
                 l1_fee: U256::from(40_000_000_000_000u128),
                 l1_diff_size: 1 // not relevant to this test
             }
@@ -2160,7 +2162,7 @@ fn test_gas_limit_to_return() {
             U64::from(8_000_000),
             EstimatedTxExpenses {
                 gas_used: U64::from(8_000_001),
-                base_fee: U256::from(10000000), // 0.01 gwei
+                base_fee: U256::from(TEST_BASE_FEE_GWEI),
                 l1_fee: U256::from(40_000_000u128),
                 l1_diff_size: 1 // not relevant to this test
             }
