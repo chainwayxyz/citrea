@@ -127,7 +127,20 @@ where
                     return;
                 }
                 _ = notifier.notified() => {
+                    // Check shutdown signal before acquiring lock to ensure graceful shutdown
+                    if shutdown_signal.is_shutdown() {
+                        info!("Shutdown signal received, stopping L1 block processing");
+                        return;
+                    }
+                    
                     let _l1_guard = backup_manager.start_l1_processing().await;
+                    
+                    // Check shutdown signal again after acquiring lock
+                    if shutdown_signal.is_shutdown() {
+                        info!("Shutdown signal received, stopping L1 block processing");
+                        return;
+                    }
+                    
                     if let Err(e) = self.process_l1_blocks().await {
                         error!("Could not process L1 blocks: {:?}", e);
                     }

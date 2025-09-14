@@ -167,7 +167,20 @@ where
                     for l2_block in l2_blocks {
                         let mut backoff = ExponentialBackoff::default();
                         loop {
+                            // Check shutdown signal before acquiring lock to ensure graceful shutdown
+                            if shutdown_signal.is_shutdown() {
+                                info!("Shutdown signal received, stopping L2 block processing");
+                                return;
+                            }
+                            
                             let _l2_lock = backup_manager.start_l2_processing().await;
+                            
+                            // Check shutdown signal again after acquiring lock
+                            if shutdown_signal.is_shutdown() {
+                                info!("Shutdown signal received, stopping L2 block processing");
+                                return;
+                            }
+                            
                             match self.process_l2_block(&l2_block).await {
                                 Ok(_) => break,
                                 Err(e) => {
