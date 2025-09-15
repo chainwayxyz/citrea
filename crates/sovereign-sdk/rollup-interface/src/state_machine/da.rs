@@ -41,6 +41,14 @@ pub struct BatchProofMethodId {
     pub method_id: [u32; 8],
     /// Activation L2 height of the new method id
     pub activation_l2_height: u64,
+    /// Signatures of to be verified for the method id update
+    /// Consists of 65 byte keccak256(eip191 prefixed message) prehash signed signatures
+    /// The public keys can be recovered from the signatures and the prehash
+    pub signatures: Vec<Vec<u8>>,
+    /// Public keys corresponding to the signatures
+    /// Consists of 33 byte compressed public keys
+    /// The public keys are used to verify that enough authorized entities signed the method id update
+    pub pubkeys: Vec<Vec<u8>>,
 }
 
 /// SequencerCommitment's are ordered by their index

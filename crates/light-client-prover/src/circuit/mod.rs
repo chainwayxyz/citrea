@@ -506,6 +506,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 DataOnDa::BatchProofMethodId(BatchProofMethodId {
                     method_id,
                     activation_l2_height,
+                    signatures,
+                    pubkeys,
                 }) => {
                     log!("Found batch proof method id");
                     if blob.sender().as_ref() != method_id_upgrade_authority_da_public_key {

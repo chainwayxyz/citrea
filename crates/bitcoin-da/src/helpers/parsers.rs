@@ -74,13 +74,13 @@ pub struct ParsedBatchProverMethodId {
 
 impl ParsedBatchProverMethodId {
     /// Returns the signatures in the transaction.
-    pub fn signatures(&self) -> Vec<Vec<u8>> {
-        self.signatures.clone()
+    pub fn signatures(&self) -> &[Vec<u8>] {
+        &self.signatures
     }
 
     /// Returns the public keys in the transaction.
-    pub fn public_keys(&self) -> Vec<Vec<u8>> {
-        self.public_keys.clone()
+    pub fn public_keys(&self) -> &[Vec<u8>] {
+        &self.public_keys
     }
 
     /// Returns the body of the transaction.
@@ -168,7 +168,7 @@ impl SecurityCouncilVerifyParsed for ParsedBatchProverMethodId {
 
 impl VerifyParsed for ParsedBatchProverMethodId {
     fn public_key(&self) -> &[u8] {
-        unimplemented!("ParsedBatchProverMethodId does not support single public key")
+        self.public_keys().first().expect("At least one public key")
     }
     fn signature(&self) -> &[u8] {
         unimplemented!("ParsedBatchProverMethodId does not support single signature")
