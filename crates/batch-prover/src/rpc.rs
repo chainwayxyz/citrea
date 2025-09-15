@@ -613,10 +613,11 @@ where
     async fn retry_proving_job(&self, job_id: Uuid) -> RpcResult<Uuid> {
         let ledger_db = &self.context.ledger_db;
 
-        let commitment_indices = ledger_db
+        let mut commitment_indices = ledger_db
             .get_commitment_indices_by_job_id(job_id)
             .map_err(internal_rpc_error)?
             .ok_or_else(|| internal_rpc_error("Job ID not found"))?;
+        commitment_indices.sort_unstable();
 
         ledger_db
             .remove_proving_job_by_id(job_id)
