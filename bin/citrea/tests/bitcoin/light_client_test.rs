@@ -652,6 +652,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             }],
         );
 
+        // TODO: After update manually send method id tx to DA
         // Send BatchProofMethodId transaction to da
         let new_batch_proof_method_id = [1u32; 8];
         bitcoin_da_service
