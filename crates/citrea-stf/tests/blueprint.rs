@@ -43,9 +43,7 @@ fn assert_panic_message_contains(panic_payload: Box<dyn std::any::Any + Send>, e
     };
     assert!(
         message.contains(expected),
-        "Expected panic message to contain '{}', but got: '{}'",
-        expected,
-        message
+        "Expected panic message to contain '{expected}', but got: '{message}'"
     );
 }
 

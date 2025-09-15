@@ -154,9 +154,7 @@ async fn execute(
 
     assert!(
         latest_gas_price > initial_gas_price,
-        "Gas price should increase {} > {}",
-        latest_gas_price,
-        initial_gas_price
+        "Gas price should increase {latest_gas_price} > {initial_gas_price}"
     );
 
     // get fee history

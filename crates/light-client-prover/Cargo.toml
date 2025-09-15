@@ -71,3 +71,6 @@ native = [
   "sov-rollup-interface/native",
   "dep:sov-state",
 ]
+
+[lints]
+workspace = true

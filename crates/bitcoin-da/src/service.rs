@@ -133,7 +133,7 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
             utxo_selection_mode: read_env("UTXO_SELECTION_MODE")
                 .ok()
                 .map(|v| {
-                    serde_json::from_str(&format!("\"{}\"", v))
+                    serde_json::from_str(&format!("\"{v}\""))
                         .map_err(|e| anyhow!(e).context("Invalid UTXO_SELECTION_MODE"))
                 })
                 .transpose()?,
@@ -788,7 +788,7 @@ impl BitcoinService {
     /// A Chunk is valid if:
     /// - It comes from previous L1 blocks
     /// - It comes from the same L1 block
-    ///    and its tx appears before its Aggregate tx.
+    ///   and its tx appears before its Aggregate tx.
     async fn verify_chunk_order(
         &self,
         block_height: u64,
