@@ -10,19 +10,23 @@ use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
 use citrea_e2e::config::{SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
-use citrea_e2e::node::{FullNode, Sequencer};
+use citrea_e2e::node::{FullNode, NodeKind, Sequencer};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
+use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
 use citrea_primitives::REVEAL_TX_PREFIX;
+use citrea_sequencer::SequencerRpcClient;
+use reth_tasks::TaskManager;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa};
+use sov_rollup_interface::da::{BlobReaderTrait, DaTxRequest, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::rpc::SequencerCommitmentResponse;
 use tokio::time::sleep;
 
 use super::get_citrea_path;
 use crate::bitcoin::get_relevant_seqcoms_from_txs;
+use crate::bitcoin::utils::spawn_bitcoin_da_with_wallet;
 
 pub async fn wait_for_sequencer_commitments(
     full_node: &FullNode,
@@ -318,4 +322,138 @@ async fn test_sequencer_sends_commitments_to_da_layer() -> Result<()> {
         .set_citrea_path(get_citrea_path())
         .run()
         .await
+}
+
+// Test commitment service fetching commitments from DA layer and storing them if their index is higher than the last stored one
+struct SequencerCommitmentsFromDaTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for SequencerCommitmentsFromDaTest {
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 10,
+            ..Default::default()
+        }
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let da = f.bitcoin_nodes.get(0).expect("DA not running.");
+
+        let da_service = spawn_bitcoin_da_with_wallet(
+            &self.task_manager.executor(),
+            &da.config,
+            NodeKind::Sequencer.to_string(),
+        )
+        .await;
+
+        // publish blocks, no commitments should be sent
+        sequencer.client.http_client().halt_commitments().await?;
+        for _ in 0..40 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        sequencer.wait_for_l2_height(40, None).await?;
+        sequencer.wait_until_stopped().await?;
+
+        // Send commitment with index 1 to DA
+        let commitment = SequencerCommitment {
+            merkle_root: [1; 32],
+            l2_end_block_number: 15,
+            index: 1,
+        };
+        da_service
+            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment), 1)
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+
+        // Send commitment with index 2 to DA, but don't mine it yet
+        let commitment = SequencerCommitment {
+            merkle_root: [2; 32],
+            l2_end_block_number: 25,
+            index: 2,
+        };
+        da_service
+            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment), 1)
+            .await
+            .unwrap();
+        // Restart sequencer, it should fetch commitment with index 1 and 2
+        sequencer.restart(None, None).await?;
+        // Sequencer should submit the next commitment with index 3
+        da.wait_mempool_len(4, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        // Check if sequencer fetched commitment 1
+        let comm_1 = sequencer
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(1))
+            .await?
+            .unwrap();
+        assert_eq!(comm_1.index, U32::from(1));
+        assert_eq!(comm_1.l2_end_block_number, U64::from(15));
+        assert_eq!(comm_1.merkle_root, [1; 32]);
+
+        // Check if sequencer fetched commitment 2
+        let comm_2 = sequencer
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(2))
+            .await?
+            .unwrap();
+        assert_eq!(comm_2.index, U32::from(2));
+        assert_eq!(comm_2.l2_end_block_number, U64::from(25));
+        assert_eq!(comm_2.merkle_root, [2; 32]);
+
+        // Check if sequencer submitted commitment 3 for blocks 26-35
+        let comm_3 = sequencer
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(3))
+            .await?
+            .unwrap();
+        assert_eq!(comm_3.index, U32::from(3));
+        assert_eq!(comm_3.l2_end_block_number, U64::from(35));
+
+        // Calculate root
+        let mut l2_blocks = Vec::new();
+        for i in 26..=35 {
+            l2_blocks.push(
+                sequencer
+                    .client
+                    .http_client()
+                    .get_l2_block_by_number(U64::from(i))
+                    .await?
+                    .unwrap(),
+            );
+        }
+        let merkle_tree = MerkleTree::<Sha256>::from_leaves(
+            l2_blocks
+                .iter()
+                .map(|x| x.header.hash)
+                .collect::<Vec<_>>()
+                .as_slice(),
+        );
+        // Compare merkle roots
+        assert_eq!(comm_3.merkle_root, merkle_tree.root().unwrap());
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_sequencer_commitments_from_da_layer() -> Result<()> {
+    TestCaseRunner::new(SequencerCommitmentsFromDaTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
 }

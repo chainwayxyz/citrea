@@ -15,6 +15,7 @@ resolver = "2"
 # 3rd-party dependencies
 async-trait = { workspace = true }
 borsh = { workspace = true }
+citrea-common = { path = "../common" }
 citrea-evm = { path = "../evm", features = ["native"] }
 citrea-primitives = { path = "../primitives" }
 citrea-sequencer = { path = "../sequencer" }

@@ -9,8 +9,7 @@ pub const MAINNET_CONSTANTS: NetworkConstants = NetworkConstants {
     max_target: U256::from_be_hex(
         "00000000FFFF0000000000000000000000000000000000000000000000000000",
     ),
-    // TODO: TBD before mainnet
-    finality_depth: 8,
+    finality_depth: 6,
 };
 /// Testnet4 constants.
 pub const TESTNET4_CONSTANTS: NetworkConstants = NetworkConstants {

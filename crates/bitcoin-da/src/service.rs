@@ -990,6 +990,7 @@ impl DaService for BitcoinService {
                         if complete.public_key() == prover_da_pub_key
                             && complete.get_sig_verified_hash().is_some()
                         {
+                            tracing::info!("Found complete tx with tx id: {}", tx_id);
                             let Ok(data) = DataOnDa::try_from_slice(&complete.body) else {
                                 warn!("{tx_id}: Failed to parse complete data");
                                 continue;
@@ -1013,6 +1014,7 @@ impl DaService for BitcoinService {
                         if aggregate.public_key() == prover_da_pub_key
                             && aggregate.get_sig_verified_hash().is_some()
                         {
+                            tracing::info!("Found aggregate tx with tx id: {}", tx_id);
                             // push only when signature is correct
                             // collect tx ids
                             aggregate_idxs.push((i, tx_id, aggregate));
@@ -1021,6 +1023,7 @@ impl DaService for BitcoinService {
                     ParsedTransaction::Chunk(_chunk) => {
                         // This is stored so we can see which chunk has what index
                         // This will help determine which comes first if in the same block aggregate or chunk
+                        tracing::info!("Found chunk tx with tx id: {}", tx_id);
                         chunks.insert(tx_id, i);
                     }
                     ParsedTransaction::BatchProverMethodId(_) => {
