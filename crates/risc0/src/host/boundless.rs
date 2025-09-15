@@ -127,7 +127,7 @@ impl BoundlessProver {
             .context("Failed to encode input for boundless proving")?;
 
         // Deposit to contract
-        // let deposit_amount = U256::from(1e15 as u64); // 0.001eth
+        // let deposit_amount = U256::from(1e16 as u64); // 0.01eth
         // let market = self.client.boundless_market.clone();
         // market.deposit(deposit_amount).await?;
         // tracing::info!(
@@ -190,6 +190,7 @@ impl BoundlessProver {
             lock_stake,
             ramp_up_period,
             timeout,
+            bidding_start,
             ..
         } = retry_backoff(exponential_backoff, || async move {
             self.pricing_service
@@ -220,6 +221,7 @@ impl BoundlessProver {
             timeout,
             ramp_up_period,
             lock_stake,
+            bidding_start,
             Some(total_cycles_approx),
             Some(journal),
         );
@@ -255,33 +257,35 @@ impl BoundlessProver {
         timeout: u64,
         ramp_up_period: u64,
         lock_stake: u64,
+        bidding_start: u64,
         total_cycles_approx: Option<u64>,
         journal: Option<Journal>,
     ) -> RequestParams {
         // Note that offer ramp up period must be less than or equal to the lock timeout)
-        let mut request_params = self
-            .client
-            .new_request()
-            .with_program_url(image_url)
-            .unwrap()
-            .with_input_url(input_url)
-            .unwrap()
-            .with_requirements(
-                TryInto::<RequirementParams>::try_into(
-                    Requirements::new(Predicate::digest_match(image_id, journal_digest))
-                        .with_groth16_proof(),
+        let mut request_params =
+            self.client
+                .new_request()
+                .with_program_url(image_url)
+                .unwrap()
+                .with_input_url(input_url)
+                .unwrap()
+                .with_groth16_proof()
+                .with_requirements(
+                    TryInto::<RequirementParams>::try_into(Requirements::new(
+                        Predicate::digest_match(image_id, journal_digest),
+                    ))
+                    .expect("TODO: handle error"),
                 )
-                .expect("TODO: handle error"),
-            )
-            .with_offer(
-                Offer::default()
-                    .with_min_price_per_mcycle(min_price_per_mcycle, mcycles_count)
-                    .with_max_price_per_mcycle(max_price_per_mcycle, mcycles_count)
-                    .with_lock_timeout(lock_timeout as u32)
-                    .with_timeout(timeout as u32)
-                    .with_ramp_up_period(ramp_up_period as u32)
-                    .with_lock_collateral(U256::from(lock_stake)),
-            );
+                .with_offer(
+                    Offer::default()
+                        .with_min_price_per_mcycle(min_price_per_mcycle, mcycles_count)
+                        .with_max_price_per_mcycle(max_price_per_mcycle, mcycles_count)
+                        .with_lock_timeout(lock_timeout as u32)
+                        .with_timeout(timeout as u32)
+                        .with_ramp_up_period(ramp_up_period as u32)
+                        .with_lock_collateral(U256::from(lock_stake))
+                        .with_ramp_up_start(bidding_start),
+                );
 
         // If we can provide these then in the preflight layer of request sending there won't be a double execution of the program
         if let Some(total_cycles_approx) = total_cycles_approx {
@@ -588,6 +592,7 @@ impl BoundlessProver {
             (new_lock_timeout * 2) as u64,
             failed_request.offer.rampUpPeriod as u64,
             lock_stake,
+            price_response.bidding_start,
             // TODO: https://github.com/chainwayxyz/citrea/issues/2820
             None,
             None,

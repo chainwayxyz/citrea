@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use anyhow::Context;
+use anyhow::anyhow;
 use rand::Rng;
 use sov_rollup_interface::da::DaTxRequest;
 use sov_rollup_interface::services::da::DaService;
@@ -139,8 +139,8 @@ where
         let proof_start_time = std::time::Instant::now();
         let proof_rx = make_proof(vm, job_id, elf, self.proof_mode, receipt_type)
             .await
-            .with_context(|| "Failed to start proving")
-            .inspect_err(|_| PARALLEL_PROVER_METRICS.ongoing_proving_jobs.decrement(1))?;
+            .inspect_err(|_| PARALLEL_PROVER_METRICS.ongoing_proving_jobs.decrement(1))
+            .map_err(|e| anyhow!("Failed to start proving {e}"))?;
         debug!("Started proving job");
 
         let (tx, rx) = oneshot::channel();
