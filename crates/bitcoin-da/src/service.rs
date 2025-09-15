@@ -133,7 +133,7 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
             utxo_selection_mode: read_env("UTXO_SELECTION_MODE")
                 .ok()
                 .map(|v| {
-                    serde_json::from_str(&format!("\"{}\"", v))
+                    serde_json::from_str(&format!("\"{v}\""))
                         .map_err(|e| anyhow!(e).context("Invalid UTXO_SELECTION_MODE"))
                 })
                 .transpose()?,

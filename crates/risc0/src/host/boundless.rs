@@ -118,7 +118,7 @@ impl BoundlessProver {
         // If we are not using presigned:
         if !s3_use_presigned {
             let s3_path = image_url.as_str().to_string().replace("s3://", "");
-            image_url = Url::parse(&format!("{}{}", s3_url, s3_path))?;
+            image_url = Url::parse(&format!("{s3_url}{s3_path}"))?;
             tracing::info!("Downloadable Image URL: {}", image_url);
         }
 
@@ -142,7 +142,7 @@ impl BoundlessProver {
         // If we are not using presigned:
         if !s3_use_presigned {
             let s3_path = input_url.as_str().to_string().replace("s3://", "");
-            input_url = Url::parse(&format!("{}{}", s3_url, s3_path))?;
+            input_url = Url::parse(&format!("{s3_url}{s3_path}"))?;
             tracing::info!("Downloadable Input URL: {}", input_url);
         }
 
@@ -313,13 +313,13 @@ impl BoundlessProver {
                 tracing::info!("Sending request using offchain boundless service");
                 let (req_id, exp) = self.client.submit_offchain(request).await?;
                 tracing::info!("Request submitted to offchain boundless service");
-                (format!("0x{:x}", req_id), exp)
+                (format!("0x{req_id:x}"), exp)
             }
             None => {
                 tracing::info!("Sending request onchain to boundless network");
                 let (req_id, exp) = self.client.submit_onchain(request).await?;
                 tracing::info!("Request submitted to onchain boundless service");
-                (format!("0x{:x}", req_id), exp)
+                (format!("0x{req_id:x}"), exp)
             }
         };
 
