@@ -1,7 +1,10 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
 
 mod bonsai;
+mod boundless;
+mod config;
 mod local;
+mod pricing_service;
 
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -9,6 +12,7 @@ use std::{env, fs, mem};
 
 use bonsai::BonsaiProver;
 use borsh::BorshDeserialize;
+use boundless::BoundlessProver;
 use local::LocalProver;
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{AssumptionReceipt, VerifierContext};
@@ -32,9 +36,10 @@ pub struct Risc0Host {
 
 impl Risc0Host {
     /// Create a new Risc0Host to prove the given binary.
-    pub fn new(ledger_db: LedgerDB, network: Network) -> Self {
+    pub async fn new(ledger_db: LedgerDB, network: Network) -> Self {
         let prover = match std::env::var("RISC0_PROVER") {
             Ok(prover) => match prover.as_str() {
+                "boundless" => Prover::Boundless(BoundlessProver::new(ledger_db).await),
                 "bonsai" => Prover::Bonsai(BonsaiProver::new(ledger_db)),
                 "ipc" => Prover::Local(LocalProver::new(network)),
                 _ => panic!("Invalid prover specified: {prover}"),
@@ -53,6 +58,7 @@ impl Risc0Host {
     }
 }
 
+#[async_trait::async_trait]
 impl ZkvmHost for Risc0Host {
     type Guest = Risc0Guest;
 
@@ -72,7 +78,7 @@ impl ZkvmHost for Risc0Host {
         self.assumptions.push(receipt.into());
     }
 
-    fn run(
+    async fn run(
         &mut self,
         job_id: Uuid,
         elf: Vec<u8>,
@@ -104,6 +110,15 @@ impl ZkvmHost for Risc0Host {
                 );
                 bonsai.prove(job_id, elf, input, assumptions, receipt_type)
             }
+            Prover::Boundless(boundless) => {
+                assert!(
+                    with_prove,
+                    "Boundless prover must always be run with prove set to true"
+                );
+                boundless
+                    .prove(job_id, elf, input, assumptions, receipt_type)
+                    .await
+            }
         }
     }
 
@@ -117,11 +132,7 @@ impl ZkvmHost for Risc0Host {
     fn start_session_recovery(
         &self,
     ) -> Result<Vec<oneshot::Receiver<ProofWithJob>>, anyhow::Error> {
-        let Prover::Bonsai(prover) = &self.prover else {
-            info!("Skipping proving recovery...");
-            return Ok(vec![]);
-        };
-        prover.start_recovery()
+        self.prover.start_prover_session_recovery()
     }
 }
 
@@ -176,4 +187,22 @@ pub enum Prover {
     Local(LocalProver),
     /// Bonsai prover
     Bonsai(BonsaiProver),
+    /// Boundless prover network
+    Boundless(BoundlessProver),
+}
+
+impl Prover {
+    /// Start recovery for prover if it supports it
+    pub fn start_prover_session_recovery(
+        &self,
+    ) -> anyhow::Result<Vec<oneshot::Receiver<ProofWithJob>>> {
+        match self {
+            Prover::Local(_) => {
+                info!("Skipping proving recovery...");
+                Ok(vec![])
+            }
+            Prover::Boundless(prover) => prover.start_recovery(),
+            Prover::Bonsai(prover) => prover.start_recovery(),
+        }
+    }
 }

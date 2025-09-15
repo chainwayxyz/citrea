@@ -138,7 +138,8 @@ where
         // start proof immediately in the background
         let proof_start_time = std::time::Instant::now();
         let proof_rx = make_proof(vm, job_id, elf, self.proof_mode, receipt_type)
-            .context("Failed to start proving")
+            .await
+            .with_context(|| "Failed to start proving")
             .inspect_err(|_| PARALLEL_PROVER_METRICS.ongoing_proving_jobs.decrement(1))?;
         debug!("Started proving job");
 
@@ -239,7 +240,7 @@ where
 }
 
 /// Runs the zkVM proving session. Decides on whether to produce a real proof or a fake proof based on the proof mode.
-fn make_proof<Vm>(
+async fn make_proof<Vm>(
     mut vm: Vm,
     job_id: Uuid,
     elf: Vec<u8>,
@@ -267,6 +268,6 @@ where
         }
     };
 
-    let rx = vm.run(job_id, elf, receipt_type, with_prove)?;
+    let rx = vm.run(job_id, elf, receipt_type, with_prove).await?;
     Ok(rx)
 }

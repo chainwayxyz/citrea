@@ -1266,7 +1266,7 @@ impl TestCase for BatchProverCreateInputTest {
         let network = Network::Nightly;
 
         let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
-        let mut risc0_host = Risc0Host::new(ledger_db, network);
+        let mut risc0_host = Risc0Host::new(ledger_db, network).await;
 
         for input in inputs {
             // Decode raw circuit input
@@ -1283,6 +1283,7 @@ impl TestCase for BatchProverCreateInputTest {
                     ReceiptType::Groth16,
                     false,
                 )
+                .await
                 .expect("Proof generation failed")
                 .await
                 .expect("Proof channel should not close");

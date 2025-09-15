@@ -23,8 +23,8 @@ use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
 use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
-    AccessoryKey, AccessoryStateValue, BonsaiSession, DbHash, JmtValue, L1Height, L2BlockNumber,
-    L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber, StateKey,
+    AccessoryKey, AccessoryStateValue, BonsaiSession, BoundlessSession, DbHash, JmtValue, L1Height,
+    L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber, StateKey,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -101,6 +101,8 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     LastPrunedBlock::table_name(),
     PendingBonsaiSessionByJobId::table_name(),
     PendingL1SubmissionJobs::table_name(),
+    PendingBonsaiSessionByJobId::table_name(),
+    PendingBoundlessSessionByJobId::table_name(),
     ProofByJobId::table_name(),
     ProverLastScannedSlot::table_name(),
     ProverPendingCommitments::table_name(),
@@ -121,6 +123,8 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
 pub const LIGHT_CLIENT_PROVER_LEDGER_TABLES: &[&str] = &[
     // Don't know if this will be needed
     CommitmentMerkleRoots::table_name(),
+    PendingBonsaiSessionByJobId::table_name(),
+    PendingBoundlessSessionByJobId::table_name(),
     ExecutedMigrations::table_name(),
     LightClientProofBySlotNumber::table_name(),
     ProverLastScannedSlot::table_name(),
@@ -163,6 +167,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     ProofsBySlotNumberV2::table_name(),
     ProverLastScannedSlot::table_name(),
     ProverPendingCommitments::table_name(),
+    PendingBoundlessSessionByJobId::table_name(),
     ProverStateDiffs::table_name(),
     SequencerCommitmentByIndex::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
@@ -387,6 +392,11 @@ define_table_with_default_codec!(
 define_table_with_default_codec!(
     /// Pending Bonsai proving sessions by job id
     (PendingBonsaiSessionByJobId) Uuid => BonsaiSession
+);
+
+define_table_with_default_codec!(
+    /// Pending Boundless proving sessions by job id
+    (PendingBoundlessSessionByJobId) Uuid => BoundlessSession
 );
 
 define_table_with_default_codec!(

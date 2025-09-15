@@ -117,7 +117,7 @@ impl RollupBlueprint for MockDemoRollup {
         proof_sampling_number: usize,
         is_light_client_prover: bool,
     ) -> ParallelProverService<Self::DaService, Self::Vm> {
-        let vm = Risc0Host::new(ledger_db.clone(), self.network);
+        let vm = Risc0Host::new(ledger_db.clone(), self.network).await;
 
         let proof_mode = match proving_mode {
             ProverGuestRunConfig::Skip => ProofGenMode::Skip,

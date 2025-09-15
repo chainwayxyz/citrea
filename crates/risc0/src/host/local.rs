@@ -97,7 +97,6 @@ impl LocalProver {
         prover_opts: ProverOpts,
     ) -> anyhow::Result<Proof> {
         let assumptions_len = assumptions.len();
-
         let mut env = ExecutorEnvBuilder::default();
         // Add assumptions
         for assumption in assumptions {
