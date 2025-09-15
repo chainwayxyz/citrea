@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Range;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
@@ -555,7 +556,18 @@ where
         )?;
 
         self.instrumented_apply_l2_block_txs(&l2_block_info, &signed_txs, &mut working_set)?;
-        let receipts = self.instrumented_end_l2_block(l2_block_info, &mut working_set)?;
+        self.instrumented_end_l2_block(l2_block_info, &mut working_set)?;
+
+        let receipts = self.extract_receipts_from_working_set(l2_height, &mut working_set);
+
+        assert_eq!(
+            receipts.len(),
+            evm_txs_count,
+            "Expected {} receipts but extracted {}",
+            evm_txs_count,
+            receipts.len()
+        );
+
         let l2_block_result =
             self.instrumented_finalize_l2_block(active_fork_spec, working_set, prestate);
 
@@ -743,15 +755,42 @@ where
         &mut self,
         l2_block_info: HookL2BlockInfo,
         working_set: &mut WorkingSet<ProverStorage>,
-    ) -> anyhow::Result<Vec<reth_primitives::Receipt>> {
+    ) -> anyhow::Result<()> {
         let start = Instant::now();
-        let receipts = self.stf.end_l2_block(l2_block_info, working_set)?;
+        self.stf.end_l2_block(l2_block_info, working_set)?;
         SM.end_l2_block_time.set(
             Instant::now()
                 .saturating_duration_since(start)
                 .as_secs_f64(),
         );
-        Ok(receipts)
+        Ok(())
+    }
+
+    /// Extracts receipts from the working set's accessory cache after end_l2_block
+    fn extract_receipts_from_working_set(
+        &self,
+        _l2_height: u64,
+        working_set: &mut WorkingSet<ProverStorage>,
+    ) -> Vec<reth_primitives::Receipt> {
+        let block = self
+            .db_provider
+            .evm
+            .get_head_block(working_set)
+            .expect("Head block must exist after end_l2_block");
+
+        let Range { start, end } = block.transaction_range();
+
+        let mut accessory_state = working_set.accessory_state();
+        let citrea_receipts =
+            self.db_provider
+                .evm
+                .get_block_receipts_range(start, end, &mut accessory_state);
+
+        // Convert to reth receipts
+        citrea_receipts
+            .iter()
+            .map(|r| r.receipt.receipt.clone())
+            .collect()
     }
 
     /// Finalizes the L2 block and records the time taken
