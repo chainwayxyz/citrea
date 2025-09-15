@@ -49,6 +49,9 @@ homepage = "https://citrea.xyz"
 publish = false
 repository = "https://github.com/chainwayxyz/citrea"
 
+[workspace.lints]
+clippy.doc_overindented_list_items = "allow"
+
 [workspace.dependencies]
 # External dependencies
 async-trait = "0.1.83"

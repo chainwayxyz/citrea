@@ -60,3 +60,6 @@ sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"
 sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
 
 tempfile = { workspace = true }
+
+[lints]
+workspace = true

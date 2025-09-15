@@ -788,7 +788,7 @@ impl BitcoinService {
     /// A Chunk is valid if:
     /// - It comes from previous L1 blocks
     /// - It comes from the same L1 block
-    ///    and its tx appears before its Aggregate tx.
+    ///   and its tx appears before its Aggregate tx.
     async fn verify_chunk_order(
         &self,
         block_height: u64,

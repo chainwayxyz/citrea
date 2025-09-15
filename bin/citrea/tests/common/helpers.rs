@@ -507,7 +507,7 @@ pub async fn wait_for_l2_block(client: &TestClient, num: u64, timeout: Option<Du
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout. Latest L2 block is {:?}", latest_block);
+            panic!("Timeout. Latest L2 block is {latest_block:?}");
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -637,7 +637,7 @@ pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Op
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout. Latest L1 block is {}", da_block);
+            panic!("Timeout. Latest L1 block is {da_block}");
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -700,7 +700,7 @@ pub async fn wait_for_proof(test_client: &TestClient, slot_height: u64, timeout:
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout while waiting for proof at height {}", slot_height);
+            panic!("Timeout while waiting for proof at height {slot_height}");
         }
 
         sleep(Duration::from_secs(1)).await;

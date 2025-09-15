@@ -198,7 +198,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: dtolnay/rust-toolchain@1.88.0
         with:
           components: llvm-tools-preview
       - name: Rust Cache
@@ -364,7 +364,7 @@ jobs:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
-        uses: dtolnay/rust-toolchain@1.85.0
+        uses: dtolnay/rust-toolchain@1.88.0
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
       - name: Setup env
