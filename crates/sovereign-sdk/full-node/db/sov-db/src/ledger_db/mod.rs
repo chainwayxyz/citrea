@@ -604,7 +604,10 @@ impl BatchProverLedgerOps for LedgerDB {
         }
         schema_batch.delete::<ProofByJobId>(&id)?;
         schema_batch.delete::<CommitmentIndicesByJobId>(&id)?;
+
+        // delete from pending job tables
         schema_batch.delete::<PendingL1SubmissionJobs>(&id)?;
+        schema_batch.delete::<PendingBonsaiSessionByJobId>(&id)?;
 
         self.db.write_schemas(schema_batch)?;
         Ok(())
