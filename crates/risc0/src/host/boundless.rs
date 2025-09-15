@@ -2,7 +2,6 @@ use std::cmp;
 use std::str::FromStr;
 use std::time::Duration;
 
-use alloy_primitives::utils::Unit;
 use anyhow::Context;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
