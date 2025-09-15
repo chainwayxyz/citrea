@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
+use citrea_common::RpcConfig;
 use ethereum_rpc::{EthRpcConfig, FeeHistoryCacheConfig, GasPriceOracleConfig};
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
@@ -12,6 +13,7 @@ use tokio::sync::broadcast;
 pub fn register_ethereum<Da: DaService>(
     da_service: Arc<Da>,
     storage: ProverStorage,
+    rpc_config: RpcConfig,
     ledger_db: LedgerDB,
     methods: &mut jsonrpsee::RpcModule<()>,
     sequencer_client_url: Option<String>,
@@ -27,6 +29,7 @@ pub fn register_ethereum<Da: DaService>(
     let ethereum_rpc = ethereum_rpc::create_rpc_module::<DefaultContext, Da>(
         da_service,
         eth_rpc_config,
+        rpc_config,
         storage,
         ledger_db,
         sequencer_client_url,

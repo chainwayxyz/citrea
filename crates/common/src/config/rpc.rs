@@ -67,6 +67,8 @@ pub struct RpcConfig {
     /// Maximum number of subscription connections
     #[serde(default = "default_max_subscriptions_per_connection")]
     pub max_subscriptions_per_connection: u32,
+    /// Maximum number of L2 blocks to be traced with debug_traceChain
+    pub trace_chain_block_limit: Option<u64>,
     /// RPC timeout in secs
     #[serde(default = "default_timeout")]
     pub timeout: u64,
@@ -112,6 +114,9 @@ impl FromEnv for RpcConfig {
                 .ok()
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_max_subscriptions_per_connection),
+            trace_chain_block_limit: read_env("RPC_TRACE_CHAIN_BLOCK_LIMIT")
+                .ok()
+                .and_then(|val| val.parse().ok()),
             timeout: read_env("RPC_TIMEOUT")
                 .ok()
                 .and_then(|val| val.parse().ok())

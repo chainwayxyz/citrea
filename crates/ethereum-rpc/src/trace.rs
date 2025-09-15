@@ -28,6 +28,7 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
     opts: Option<GethDebugTracingOptions>,
     pending: PendingSubscriptionSink,
     ethereum: Arc<Ethereum<C, Da>>,
+    max_blocks: Option<u64>,
 ) {
     // start block is exclusive, hence latest is not supported
     let BlockNumberOrTag::Number(start_block) = start_block else {
@@ -43,6 +44,8 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
         .block_number(&mut working_set)
         .expect("Expected at least one block")
         .saturating_to();
+    let max_blocks = max_blocks.unwrap_or(u64::MAX);
+
     let end_block = match end_block {
         BlockNumberOrTag::Number(end_block) => {
             if end_block > latest_block_number {
@@ -66,6 +69,15 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
 
     if start_block >= end_block {
         pending.reject(EthApiError::InvalidBlockRange).await;
+        return;
+    }
+    if (end_block - start_block) > max_blocks {
+        pending
+            .reject(EthApiError::InvalidParams(format!(
+                "Block range too large. Maximum allowed range is {} blocks",
+                max_blocks
+            )))
+            .await;
         return;
     }
 

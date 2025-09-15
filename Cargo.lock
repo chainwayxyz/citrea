@@ -5197,6 +5197,7 @@ dependencies = [
  "alloy-serde 0.13.0",
  "async-trait",
  "borsh",
+ "citrea-common",
  "citrea-evm",
  "citrea-primitives",
  "citrea-sequencer",
