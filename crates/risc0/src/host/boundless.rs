@@ -567,12 +567,6 @@ impl BoundlessProver {
             }
         };
 
-        // This is usdc amount * 10^6 because usdc denomination is 6
-        // 1 usdc = 10^6 micro usdc (mwei)
-        let lock_stake = failed_request.offer.lockStake;
-        // Convert to usdc amount
-        let lock_stake = lock_stake.div_ceil(Unit::MWEI.wei_const());
-
         let new_request = self.build_proof_request(
             image_id,
             failed_request
