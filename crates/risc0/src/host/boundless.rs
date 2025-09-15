@@ -2,7 +2,6 @@ use std::cmp;
 use std::str::FromStr;
 use std::time::Duration;
 
-use alloy_primitives::utils::Unit;
 use anyhow::Context;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
@@ -10,9 +9,9 @@ use boundless_market::alloy::primitives::U256;
 use boundless_market::client::{Client, ClientBuilder, ClientError};
 use boundless_market::contracts::boundless_market::MarketError;
 use boundless_market::contracts::{Offer, Predicate, Requirements};
-use boundless_market::request_builder::RequestParams;
+use boundless_market::request_builder::{RequestParams, RequirementParams};
 use boundless_market::GuestEnv;
-use citrea_common::utils::{current_timestamp_as_secs, read_env};
+use citrea_common::utils::read_env;
 use citrea_common::FromEnv;
 use metrics::gauge;
 use risc0_zkvm::sha::Digestible;
@@ -191,7 +190,7 @@ impl BoundlessProver {
             lock_stake,
             ramp_up_period,
             timeout,
-            bidding_start,
+            ..
         } = retry_backoff(exponential_backoff, || async move {
             self.pricing_service
                 .get_price(mcycles_count.saturating_mul(1_000_000))
@@ -220,7 +219,6 @@ impl BoundlessProver {
             lock_timeout,
             timeout,
             ramp_up_period,
-            bidding_start,
             lock_stake,
             Some(total_cycles_approx),
             Some(journal),
@@ -256,7 +254,6 @@ impl BoundlessProver {
         lock_timeout: u64,
         timeout: u64,
         ramp_up_period: u64,
-        bidding_start: u64,
         lock_stake: u64,
         total_cycles_approx: Option<u64>,
         journal: Option<Journal>,
@@ -270,8 +267,11 @@ impl BoundlessProver {
             .with_input_url(input_url)
             .unwrap()
             .with_requirements(
-                Requirements::new(image_id, Predicate::digest_match(journal_digest))
-                    .with_groth16_proof(),
+                TryInto::<RequirementParams>::try_into(
+                    Requirements::new(Predicate::digest_match(image_id, journal_digest))
+                        .with_groth16_proof(),
+                )
+                .expect("TODO: handle error"),
             )
             .with_offer(
                 Offer::default()
@@ -280,8 +280,7 @@ impl BoundlessProver {
                     .with_lock_timeout(lock_timeout as u32)
                     .with_timeout(timeout as u32)
                     .with_ramp_up_period(ramp_up_period as u32)
-                    .with_bidding_start(bidding_start)
-                    .with_lock_stake(U256::from(lock_stake)),
+                    .with_lock_collateral(U256::from(lock_stake)),
             );
 
         // If we can provide these then in the preflight layer of request sending there won't be a double execution of the program
@@ -588,7 +587,6 @@ impl BoundlessProver {
             new_lock_timeout as u64,
             (new_lock_timeout * 2) as u64,
             failed_request.offer.rampUpPeriod as u64,
-            current_timestamp_as_secs(), // bidding start
             lock_stake,
             // TODO: https://github.com/chainwayxyz/citrea/issues/2820
             None,
@@ -632,7 +630,7 @@ impl BoundlessProver {
         image_id: Digest,
         request_expiry: u64,
     ) -> Result<Receipt, ClientError> {
-        let (journal, seal) = self
+        let fulfilled_request = self
             .client
             .wait_for_request_fulfillment(
                 U256::from_str(&request_id).unwrap(),
@@ -640,6 +638,9 @@ impl BoundlessProver {
                 request_expiry,
             )
             .await?;
+        let fulfillment_data = fulfilled_request.data().expect("TODO: handle error");
+        let journal = fulfillment_data.journal().expect("TODO: handle error");
+        let seal = fulfilled_request.seal;
 
         let claim = ReceiptClaim::ok(image_id, journal.clone().to_vec());
 
