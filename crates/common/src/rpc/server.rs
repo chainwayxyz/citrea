@@ -1,9 +1,11 @@
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
 use jsonrpsee::RpcModule;
 use reth_tasks::TaskExecutor;
 use tokio::sync::oneshot;
+use tower::timeout::TimeoutLayer;
 use tracing::{error, info, info_span, Instrument};
 
 use crate::rpc::RpcMetrics;
@@ -34,7 +36,8 @@ pub fn start_rpc_server(
 
     let middleware = tower::ServiceBuilder::new()
         .layer(super::get_cors_layer())
-        .layer(super::get_healthcheck_proxy_layer());
+        .layer(super::get_healthcheck_proxy_layer())
+        .layer(TimeoutLayer::new(Duration::from_secs(rpc_config.timeout)));
 
     let rpc_middleware = RpcServiceBuilder::new()
         .layer_fn(move |s| super::auth::Auth::new(s, rpc_config.api_key.clone()))

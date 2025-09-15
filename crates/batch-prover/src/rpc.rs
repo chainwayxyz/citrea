@@ -247,6 +247,16 @@ pub trait BatchProverRpc {
     /// An optional vector of commitment indices associated with the given L1 height.
     #[method(name = "getCommitmentIndicesByL1")]
     async fn get_commitment_indices_by_l1(&self, l1_height: u64) -> RpcResult<Option<Vec<u32>>>;
+
+    /// Retry a proving job by its ID. This will re-queue the job for proving, and return a new job ID.
+    ///
+    /// # Arguments
+    /// * `job_id` - The unique identifier of the proving job to retry.
+    ///
+    /// # Returns
+    /// A new `Uuid` representing the retried proving job.
+    #[method(name = "retryProvingJob")]
+    async fn retry_proving_job(&self, job_id: Uuid) -> RpcResult<Uuid>;
 }
 
 /// Server implementation of the Batch Prover RPC interface
@@ -598,6 +608,35 @@ where
             .ledger_db
             .get_prover_commitment_indices_by_l1(SlotNumber(l1_height))
             .map_err(internal_rpc_error)
+    }
+
+    async fn retry_proving_job(&self, job_id: Uuid) -> RpcResult<Uuid> {
+        let ledger_db = &self.context.ledger_db;
+
+        let mut commitment_indices = ledger_db
+            .get_commitment_indices_by_job_id(job_id)
+            .map_err(internal_rpc_error)?
+            .ok_or_else(|| internal_rpc_error("Job ID not found"))?;
+        commitment_indices.sort_unstable();
+
+        ledger_db
+            .remove_proving_job_by_id(job_id)
+            .map_err(internal_rpc_error)?;
+
+        for index in &commitment_indices {
+            ledger_db
+                .put_prover_pending_commitment(*index)
+                .map_err(internal_rpc_error)?;
+        }
+        let _ = self.prove(PartitionMode::Normal).await?;
+
+        let new_id = ledger_db
+            .get_job_id_by_commitment_index(commitment_indices[0])
+            .map_err(internal_rpc_error)?
+            .ok_or_else(|| internal_rpc_error("New job ID not found"))?;
+
+        info!("Retried proving job {}, new job id: {}", job_id, new_id);
+        Ok(new_id)
     }
 }
 
