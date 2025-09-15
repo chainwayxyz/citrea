@@ -632,7 +632,8 @@ where
         let new_id = ledger_db.get_job_id_by_commitment_index(commitment_indices[0])
             .map_err(internal_rpc_error)?
             .ok_or_else(|| internal_rpc_error("New job ID not found"))?;
-        
+
+        info!("Retried proving job {}, new job id: {}", job_id, new_id);
         Ok(new_id)
     } 
 }
