@@ -211,6 +211,7 @@ pub async fn start_rollup(
         citrea::register_ethereum(
             da_service.clone(),
             rpc_storage,
+            rollup_config.rpc.clone(),
             ledger_db.clone(),
             &mut rpc_module,
             sequencer_client_url,
@@ -449,6 +450,7 @@ pub fn create_default_rollup_config(
             batch_requests_limit: 50,
             enable_subscriptions: true,
             max_subscriptions_per_connection: 100,
+            trace_chain_block_limit: None,
             timeout: 30,
             api_key: None,
         },

@@ -605,6 +605,12 @@ fn bits_to_target(bits: u32) -> [u8; 32] {
     let size = (bits >> 24) as usize;
     let mantissa = bits & 0x00ffffff;
 
+    // Mantissa is signed in Bitcoin core, if the sign bit is set, the target is set to 0.
+    // https://github.com/bitcoin/bitcoin/blob/ee42d59d4de970769ebabf77b89ff4269498f61e/src/arith_uint256.cpp#L175
+    if mantissa > 0x7F_FFFF {
+        return [0; 32];
+    }
+
     // Prepare U256 target
     let target =
     // If the size is less than or equal to 3, we need to shift the word to the right,

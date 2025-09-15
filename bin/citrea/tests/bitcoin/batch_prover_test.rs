@@ -1502,3 +1502,89 @@ async fn invoke_cache_prune_test() -> Result<()> {
         .run()
         .await
 }
+
+struct RetryProvingTest;
+
+#[async_trait]
+impl TestCase for RetryProvingTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        for _ in 0..max_l2_blocks_per_commitment * 4 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for blob inscribe tx to be in mempool
+        da.wait_mempool_len(8, None).await?;
+
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        // Wait for batch proof tx to hit mempool
+        da.wait_mempool_len(2, None).await?;
+
+        let proving_job = batch_prover
+            .client
+            .http_client()
+            .get_proving_job_of_commitment(1)
+            .await?
+            .unwrap();
+        assert_eq!(proving_job.commitments.len(), 4);
+
+        // retry proving the same job
+        let new_job_id = batch_prover
+            .client
+            .http_client()
+            .retry_proving_job(proving_job.id)
+            .await?;
+        assert_ne!(new_job_id, proving_job.id, "new job id should be different");
+
+        wait_for_prover_job(batch_prover, new_job_id, None).await?;
+
+        // check the commitments of the new proving job
+        let new_proving_job = batch_prover
+            .client
+            .http_client()
+            .get_proving_job(new_job_id)
+            .await?
+            .expect("new job should exist");
+        assert_eq!(new_proving_job.commitments.len(), 4);
+
+        // check the mapping from commitment to proving job is updated
+        let job_from_commitment = batch_prover
+            .client
+            .http_client()
+            .get_proving_job_of_commitment(1)
+            .await?
+            .unwrap();
+        assert_eq!(job_from_commitment.id, new_job_id);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn retry_proving_test() -> Result<()> {
+    TestCaseRunner::new(RetryProvingTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}

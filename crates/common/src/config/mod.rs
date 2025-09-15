@@ -425,6 +425,7 @@ mod tests {
             max_connections = 500
             enable_subscriptions = true
             max_subscriptions_per_connection = 200
+            trace_chain_block_limit = 100
 
             [da]
             sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
@@ -475,6 +476,7 @@ mod tests {
                 batch_requests_limit: 50,
                 enable_subscriptions: true,
                 max_subscriptions_per_connection: 200,
+                trace_chain_block_limit: Some(100),
                 timeout: 30,
                 api_key: None,
             },
@@ -662,6 +664,7 @@ mod tests {
                 batch_requests_limit: default_batch_requests_limit(),
                 enable_subscriptions: true,
                 max_subscriptions_per_connection: 200,
+                trace_chain_block_limit: None,
                 timeout: 30,
                 api_key: None,
             },
