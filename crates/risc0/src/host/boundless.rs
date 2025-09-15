@@ -2,7 +2,6 @@ use std::cmp;
 use std::str::FromStr;
 use std::time::Duration;
 
-use alloy_primitives::utils::Unit;
 use anyhow::Context;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
@@ -281,7 +280,7 @@ impl BoundlessProver {
                     .with_timeout(timeout as u32)
                     .with_ramp_up_period(ramp_up_period as u32)
                     .with_bidding_start(bidding_start)
-                    .with_lock_stake(U256::from(lock_stake) * Unit::MWEI.wei_const()),
+                    .with_lock_stake(U256::from(lock_stake)),
             );
 
         // If we can provide these then in the preflight layer of request sending there won't be a double execution of the program
@@ -489,7 +488,7 @@ impl BoundlessProver {
         // Retrieve the maximum possible price again from the pricing service as the price of ether may have changed.
         let exponential_backoff = ExponentialBackoff::default();
 
-        let max_possible_price = retry_backoff(exponential_backoff, || async move {
+        let price_response = retry_backoff(exponential_backoff, || async move {
             match self
                 .pricing_service
                 .get_price(mcycles_count.saturating_mul(1_000_000))
@@ -514,8 +513,9 @@ impl BoundlessProver {
                 request_id,
                 e
             )
-        })?
-        .max_possible_price;
+        })?;
+        let max_possible_price = price_response.max_possible_price;
+        let lock_stake = price_response.lock_stake;
 
         // TODO: https://github.com/chainwayxyz/citrea/issues/2417
         // Define new request with updated parameters
@@ -594,7 +594,7 @@ impl BoundlessProver {
             (new_lock_timeout * 2) as u64,
             failed_request.offer.rampUpPeriod as u64,
             current_timestamp_as_secs(), // bidding start
-            lock_stake.to::<u64>(),
+            lock_stake,
             // TODO: https://github.com/chainwayxyz/citrea/issues/2820
             None,
             None,
