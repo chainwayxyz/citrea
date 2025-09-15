@@ -42,7 +42,8 @@ pub struct TransactionSignedAndRecovered {
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct Block<H> {
+/// Block structure containing header and transaction range
+pub struct Block<H> {
     /// Block header.
     pub(crate) header: H,
 
@@ -51,6 +52,13 @@ pub(crate) struct Block<H> {
 
     /// Transactions in this block.
     pub(crate) transactions: Range<u64>,
+}
+
+impl<H> Block<H> {
+    /// Get the transaction range for this block
+    pub fn transaction_range(&self) -> Range<u64> {
+        self.transactions.clone()
+    }
 }
 
 impl Block<AlloyHeader> {

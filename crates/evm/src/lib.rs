@@ -8,9 +8,9 @@ use revm::context::BlockEnv;
 use revm::primitives::hardfork::SpecId as EvmSpecId;
 #[cfg(feature = "native")]
 use sov_db::ledger_db::LedgerDB;
-#[cfg(feature = "native")]
-use sov_modules_api::StateVecAccessor;
 use sov_modules_api::{L2BlockModuleCallError, ModuleInfo, SpecId as CitreaSpecId, WorkingSet};
+#[cfg(feature = "native")]
+use sov_modules_api::{StateValueAccessor, StateVecAccessor};
 use sov_state::codec::{BcsCodec, BorshCodec, RlpCodec};
 
 pub use crate::call::*;
@@ -239,6 +239,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         accessory_state: &mut sov_modules_api::AccessoryWorkingSet<C::Storage>,
     ) -> Option<SealedBlock> {
         self.blocks.get(height as usize, accessory_state)
+    }
+
+    /// Get the current head block from working set
+    #[cfg(feature = "native")]
+    pub fn get_head_block(
+        &self,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> Option<Block<AlloyHeader>> {
+        self.head.get(working_set)
     }
 }
 
