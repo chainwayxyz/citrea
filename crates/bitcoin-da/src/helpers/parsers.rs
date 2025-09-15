@@ -89,6 +89,13 @@ impl ParsedBatchProverMethodId {
     }
 }
 
+pub trait SecurityCouncilVerifyParsed: VerifyParsed {
+    /// If belongs to a security council, returns all public keys used to verify the signature.
+    fn public_keys(&self) -> &[Vec<u8>];
+    /// Returns the signatures of the security council.
+    fn signatures(&self) -> &[Vec<u8>];
+}
+
 /// To verify the signature of the inscription and get the hash of the body
 pub trait VerifyParsed {
     /// Returns the public key used to verify the signature.
@@ -150,12 +157,21 @@ impl VerifyParsed for ParsedSequencerCommitment {
     }
 }
 
+impl SecurityCouncilVerifyParsed for ParsedBatchProverMethodId {
+    fn public_keys(&self) -> &[Vec<u8>] {
+        &self.public_keys
+    }
+    fn signatures(&self) -> &[Vec<u8>] {
+        &self.signatures
+    }
+}
+
 impl VerifyParsed for ParsedBatchProverMethodId {
     fn public_key(&self) -> &[u8] {
-        &self.public_key
+        unimplemented!("ParsedBatchProverMethodId does not support single public key")
     }
     fn signature(&self) -> &[u8] {
-        &self.signature
+        unimplemented!("ParsedBatchProverMethodId does not support single signature")
     }
     fn body(&self) -> &[u8] {
         &self.body
