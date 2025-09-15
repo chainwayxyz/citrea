@@ -59,14 +59,40 @@ pub mod mockda {
         Err(_) => panic!("Can't happen"),
     };
 
-    /// Public key of the method ID upgrade authority in the mock DA.
-    pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] =
+    /// Public keys of the method ID upgrade authority in the mock DA.
+    /// 3 out of 5 signatures are required to upgrade method IDs.
+    pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8; 33]; 5] = [
         match const_hex::const_decode_to_array(
             b"0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
         ) {
-            Ok(pub_key) => pub_key,
-            Err(_) => panic!("Can't happen"),
-        };
+            Ok(k) => k,
+            Err(_) => panic!(),
+        },
+        match const_hex::const_decode_to_array(
+            b"0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
+        ) {
+            Ok(k) => k,
+            Err(_) => panic!(),
+        },
+        match const_hex::const_decode_to_array(
+            b"0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
+        ) {
+            Ok(k) => k,
+            Err(_) => panic!(),
+        },
+        match const_hex::const_decode_to_array(
+            b"0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
+        ) {
+            Ok(k) => k,
+            Err(_) => panic!(),
+        },
+        match const_hex::const_decode_to_array(
+            b"0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
+        ) {
+            Ok(k) => k,
+            Err(_) => panic!(),
+        },
+    ];
 }
 
 /// Module containing initial values for the Bitcoin DA (Data Availability) specification.
@@ -296,19 +322,56 @@ pub mod bitcoinda {
         }
     };
 
-    /// Public key of the method ID upgrade authority in the Bitcoin DA on Mainnet.
-    pub const MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] =
+    // TODO: Update with real keys
+    /// Public keys of the method ID upgrade authority in the Bitcoin DA on Mainnet.
+    /// 3 out of 5 signatures are required to upgrade method IDs.
+    pub const MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8; 33]; 5] = [
         match const_hex::const_decode_to_array(
             b"000000000000000000000000000000000000000000000000000000000000000000",
         ) {
-            Ok(pub_key) => pub_key,
+            Ok(k) => k,
             Err(_) => {
                 panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
             }
-        };
+        },
+        match const_hex::const_decode_to_array(
+            b"000000000000000000000000000000000000000000000000000000000000000000",
+        ) {
+            Ok(k) => k,
+            Err(_) => {
+                panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
+            }
+        },
+        match const_hex::const_decode_to_array(
+            b"000000000000000000000000000000000000000000000000000000000000000000",
+        ) {
+            Ok(k) => k,
+            Err(_) => {
+                panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
+            }
+        },
+        match const_hex::const_decode_to_array(
+            b"000000000000000000000000000000000000000000000000000000000000000000",
+        ) {
+            Ok(k) => k,
+            Err(_) => {
+                panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
+            }
+        },
+        match const_hex::const_decode_to_array(
+            b"000000000000000000000000000000000000000000000000000000000000000000",
+        ) {
+            Ok(k) => k,
+            Err(_) => {
+                panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
+            }
+        },
+    ];
 
+    // TODO: Update with real keys
     /// Public key of the method ID upgrade authority in the Bitcoin DA on Testnet.
-    pub const TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] =
+    /// 3 out of 5 signatures are required to upgrade method IDs.
+    pub const TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8; 33]; 5] = [
         match const_hex::const_decode_to_array(
             b"03796a3a8a86ff1cc37437585f0450f6059c397c01bce06bfbaaa36242f7ebfc02",
         ) {
@@ -316,10 +379,45 @@ pub mod bitcoinda {
             Err(_) => {
                 panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
             }
-        };
+        },
+        match const_hex::const_decode_to_array(
+            b"03796a3a8a86ff1cc37437585f0450f6059c397c01bce06bfbaaa36242f7ebfc02",
+        ) {
+            Ok(pub_key) => pub_key,
+            Err(_) => {
+                panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
+            }
+        },
+        match const_hex::const_decode_to_array(
+            b"03796a3a8a86ff1cc37437585f0450f6059c397c01bce06bfbaaa36242f7ebfc02",
+        ) {
+            Ok(pub_key) => pub_key,
+            Err(_) => {
+                panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
+            }
+        },
+        match const_hex::const_decode_to_array(
+            b"03796a3a8a86ff1cc37437585f0450f6059c397c01bce06bfbaaa36242f7ebfc02",
+        ) {
+            Ok(pub_key) => pub_key,
+            Err(_) => {
+                panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
+            }
+        },
+        match const_hex::const_decode_to_array(
+            b"03796a3a8a86ff1cc37437585f0450f6059c397c01bce06bfbaaa36242f7ebfc02",
+        ) {
+            Ok(pub_key) => pub_key,
+            Err(_) => {
+                panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
+            }
+        },
+    ];
 
+    // TODO: Update with real keys
     /// Public key of the method ID upgrade authority in the Bitcoin DA on Devnet.
-    pub const DEVNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] =
+    /// 3 out of 5 signatures are required to upgrade method IDs.
+    pub const DEVNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [[u8; 33]; 5] = [
         match const_hex::const_decode_to_array(
             b"0388e988066db18e19750fa92aa0fbf9c85104be2b5b507ce0aa7f30f3fe24b1ac",
         ) {
@@ -327,41 +425,176 @@ pub mod bitcoinda {
             Err(_) => {
                 panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
             }
-        };
+        },
+        match const_hex::const_decode_to_array(
+            b"0388e988066db18e19750fa92aa0fbf9c85104be2b5b507ce0aa7f30f3fe24b1ac",
+        ) {
+            Ok(pub_key) => pub_key,
+            Err(_) => {
+                panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
+            }
+        },
+        match const_hex::const_decode_to_array(
+            b"0388e988066db18e19750fa92aa0fbf9c85104be2b5b507ce0aa7f30f3fe24b1ac",
+        ) {
+            Ok(pub_key) => pub_key,
+            Err(_) => {
+                panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
+            }
+        },
+        match const_hex::const_decode_to_array(
+            b"0388e988066db18e19750fa92aa0fbf9c85104be2b5b507ce0aa7f30f3fe24b1ac",
+        ) {
+            Ok(pub_key) => pub_key,
+            Err(_) => {
+                panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
+            }
+        },
+        match const_hex::const_decode_to_array(
+            b"0388e988066db18e19750fa92aa0fbf9c85104be2b5b507ce0aa7f30f3fe24b1ac",
+        ) {
+            Ok(pub_key) => pub_key,
+            Err(_) => {
+                panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
+            }
+        },
+    ];
 
+    // TODO: Update with real keys
     /// Public key of the method ID upgrade authority in the Bitcoin DA on Nightly.
     /// This public key is set at compile time via the `METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY` environment variable.
     /// If the variable is not set, it defaults to a predefined value.
-    pub const NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] = {
-        let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY") {
-            Some(hex_pub_key) => hex_pub_key,
-            None => "0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
-        };
-
-        match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
-            Ok(pub_key) => pub_key,
-            Err(_) => {
-                panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
+    /// 3 out of 5 signatures are required to upgrade method IDs.
+    pub const NIGHTLY_METHOD_ID_UPGRADE_AUTHORITIES_DA_PUBLIC_KEYS: [[u8; 33]; 5] = [
+        {
+            let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_1") {
+                Some(k) => k,
+                None => "0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
+            };
+            match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+                Ok(pk) => pk,
+                Err(_) => panic!(
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_1 must be valid 33-byte hex string"
+                ),
             }
-        }
-    };
+        },
+        {
+            let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_2") {
+                Some(k) => k,
+                None => "02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            };
+            match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+                Ok(pk) => pk,
+                Err(_) => panic!(
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_2 must be valid 33-byte hex string"
+                ),
+            }
+        },
+        {
+            let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_3") {
+                Some(k) => k,
+                None => "03bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            };
+            match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+                Ok(pk) => pk,
+                Err(_) => panic!(
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_3 must be valid 33-byte hex string"
+                ),
+            }
+        },
+        {
+            let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_4") {
+                Some(k) => k,
+                None => "02cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            };
+            match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+                Ok(pk) => pk,
+                Err(_) => panic!(
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_4 must be valid 33-byte hex string"
+                ),
+            }
+        },
+        {
+            let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_5") {
+                Some(k) => k,
+                None => "03dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            };
+            match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+                Ok(pk) => pk,
+                Err(_) => panic!(
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_5 must be valid 33-byte hex string"
+                ),
+            }
+        },
+    ];
 
+    // TODO: Update with real keys
     /// Public key of the method ID upgrade authority in the Bitcoin DA on Test Network with Forks.
     /// This public key is set at compile time via the `METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY` environment variable.
     /// If the variable is not set, it defaults to a predefined value.
-    pub const TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] = {
-        let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY") {
-            Some(hex_pub_key) => hex_pub_key,
-            None => "0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
-        };
-
-        match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
-            Ok(pub_key) => pub_key,
-            Err(_) => {
-                panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
+    /// 3 out of 5 signatures are required to upgrade method IDs.
+    pub const TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [[u8; 33]; 5] = [
+        {
+            let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_1") {
+                Some(k) => k,
+                None => "0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
+            };
+            match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+                Ok(pk) => pk,
+                Err(_) => panic!(
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_1 must be valid 33-byte hex string"
+                ),
             }
-        }
-    };
+        },
+        {
+            let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_2") {
+                Some(k) => k,
+                None => "02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            };
+            match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+                Ok(pk) => pk,
+                Err(_) => panic!(
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_2 must be valid 33-byte hex string"
+                ),
+            }
+        },
+        {
+            let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_3") {
+                Some(k) => k,
+                None => "03bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            };
+            match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+                Ok(pk) => pk,
+                Err(_) => panic!(
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_3 must be valid 33-byte hex string"
+                ),
+            }
+        },
+        {
+            let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_4") {
+                Some(k) => k,
+                None => "02cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            };
+            match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+                Ok(pk) => pk,
+                Err(_) => panic!(
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_4 must be valid 33-byte hex string"
+                ),
+            }
+        },
+        {
+            let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_5") {
+                Some(k) => k,
+                None => "03dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            };
+            match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+                Ok(pk) => pk,
+                Err(_) => panic!(
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_5 must be valid 33-byte hex string"
+                ),
+            }
+        },
+    ];
 }
 
 /// Trait to provide initial values for the Light Client circuit based on the Data Availability specification.
