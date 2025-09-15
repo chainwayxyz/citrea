@@ -127,17 +127,16 @@ where
         &mut self,
         hook_l2_block_info: HookL2BlockInfo,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<Vec<reth_primitives::Receipt>, L2BlockHookError> {
-        match self
+    ) -> Result<(), L2BlockHookError> {
+        if let Err(e) = self
             .runtime
             .end_l2_block_hook(hook_l2_block_info, working_set)
         {
-            Ok(receipts) => Ok(receipts),
-            Err(e) => {
-                // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
-                native_error!("Failed on `end_l2_block_hook`: {:?}", e);
-                Err(e)
-            }
-        }
+            // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
+            native_error!("Failed on `end_l2_block_hook`: {:?}", e);
+            return Err(e);
+        };
+
+        Ok(())
     }
 }

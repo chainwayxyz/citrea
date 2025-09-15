@@ -302,7 +302,7 @@ where
         &mut self,
         l2_block_info: HookL2BlockInfo,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<Vec<reth_primitives::Receipt>, StateTransitionError> {
+    ) -> Result<(), StateTransitionError> {
         self.end_l2_block_inner(l2_block_info, working_set)
             .map_err(StateTransitionError::HookError)
     }

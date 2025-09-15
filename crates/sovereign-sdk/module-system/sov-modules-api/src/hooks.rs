@@ -56,12 +56,11 @@ pub trait ApplyL2BlockHooks<Da: DaSpec> {
 
     /// Executes at the end of apply_blob and rewards or slashes the sequencer
     /// If this hook returns Err rollup panics
-    /// Returns receipts as serialized bytes for optimization
     fn end_l2_block_hook(
         &mut self,
         l2_block_info: HookL2BlockInfo,
         working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
-    ) -> Result<Vec<reth_primitives::Receipt>, L2BlockHookError>;
+    ) -> Result<(), L2BlockHookError>;
 }
 
 /// Post fork 2 Information about the l2 block block

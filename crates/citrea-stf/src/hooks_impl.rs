@@ -74,11 +74,11 @@ impl<C: Context, Da: DaSpec> ApplyL2BlockHooks<Da> for CitreaRuntime<C, Da> {
         &mut self,
         l2_block_info: HookL2BlockInfo,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> Result<Vec<reth_primitives::Receipt>, L2BlockHookError> {
+    ) -> Result<(), L2BlockHookError> {
         self.l2_block_rule_enforcer
             .end_l2_block_hook(&l2_block_info, working_set)?;
-        let receipts = self.evm.end_l2_block_hook(&l2_block_info, working_set);
-        Ok(receipts)
+        self.evm.end_l2_block_hook(&l2_block_info, working_set);
+        Ok(())
     }
 }
 
