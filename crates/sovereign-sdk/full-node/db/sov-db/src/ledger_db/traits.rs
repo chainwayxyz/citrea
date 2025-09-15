@@ -247,7 +247,7 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
         output: StoredBatchProofOutput,
     ) -> Result<()>;
 
-    /// Deletes proving job by its job id
+    /// Deletes proving job by its id
     fn remove_proving_job_by_id(&self, id: Uuid) -> Result<()>;
 
     /// Updates job tx id and removes job from running jobs
