@@ -658,6 +658,11 @@ impl BoundlessProver {
         let full_snark_receipt = Receipt::new(inner, journal.to_vec());
         full_snark_receipt.verify(image_id).unwrap();
 
+        tracing::info!(
+            "Successfully verified boundless Groth16 receipt for request_id={}",
+            request_id
+        );
+
         Ok(full_snark_receipt)
     }
 
