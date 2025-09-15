@@ -249,10 +249,10 @@ pub trait BatchProverRpc {
     async fn get_commitment_indices_by_l1(&self, l1_height: u64) -> RpcResult<Option<Vec<u32>>>;
 
     /// Retry a proving job by its ID. This will re-queue the job for proving, and return a new job ID.
-    /// 
+    ///
     /// # Arguments
     /// * `job_id` - The unique identifier of the proving job to retry.
-    /// 
+    ///
     /// # Returns
     /// A new `Uuid` representing the retried proving job.
     #[method(name = "retryProvingJob")]
@@ -630,13 +630,14 @@ where
         }
         let _ = self.prove(PartitionMode::Normal).await?;
 
-        let new_id = ledger_db.get_job_id_by_commitment_index(commitment_indices[0])
+        let new_id = ledger_db
+            .get_job_id_by_commitment_index(commitment_indices[0])
             .map_err(internal_rpc_error)?
             .ok_or_else(|| internal_rpc_error("New job ID not found"))?;
 
         info!("Retried proving job {}, new job id: {}", job_id, new_id);
         Ok(new_id)
-    } 
+    }
 }
 
 /// Creates an RPC module with fullnode methods

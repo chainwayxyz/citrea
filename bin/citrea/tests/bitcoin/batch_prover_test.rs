@@ -1558,8 +1558,7 @@ impl TestCase for RetryProvingTest {
             .await?;
         assert_ne!(new_job_id, proving_job.id, "new job id should be different");
 
-        wait_for_prover_job(batch_prover, new_job_id, None)
-            .await?;
+        wait_for_prover_job(batch_prover, new_job_id, None).await?;
 
         // check the commitments of the new proving job
         let new_proving_job = batch_prover
