@@ -5,7 +5,6 @@ pragma solidity ^0.8.4;
 /** @author Citrea, modified from Bitcoin-SPV */
 
 import {BytesLib} from "bitcoin-spv/solidity/contracts/BytesLib.sol";
-import {SafeMath} from "bitcoin-spv/solidity/contracts/SafeMath.sol";
 import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 
 library WitnessUtils {
