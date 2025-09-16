@@ -77,6 +77,7 @@ pub struct RpcConfig {
     /// RPC timeout in secs
     #[serde(default = "default_timeout")]
     pub timeout: u64,
+    /// Disable JS tracer in debug endpoints
     #[serde(default = "default_disable_js_tracer")]
     pub disable_js_tracer: bool,
     /// API key for protected JSON-RPC methods
