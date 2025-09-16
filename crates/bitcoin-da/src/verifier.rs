@@ -1,14 +1,13 @@
 //! This module provides the Bitcoin DA verifier implementation.
 
-use citrea_common::da::BatchProofMethodIdUpdateBlob;
 use crypto_bigint::{Encoding, U256};
 use itertools::Itertools;
-use sov_rollup_interface::da::{
-    BatchProofMethodId, BlockHeaderTrait, DaSpec, DaVerifier, LatestDaState,
-};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, LatestDaState};
 use sov_rollup_interface::Network;
 
-use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
+use crate::helpers::parsers::{
+    parse_relevant_transaction, ParsedTransaction, SecurityCouncilVerifyParsed, VerifyParsed,
+};
 use crate::helpers::{calculate_double_sha256, calculate_txid, calculate_wtxid, merkle_tree};
 use crate::network_constants::{
     INITIAL_MAINNET_STATE, INITIAL_SIGNET_STATE, INITIAL_TESTNET4_STATE, MAINNET_CONSTANTS,
@@ -153,12 +152,12 @@ impl DaVerifier for BitcoinVerifier {
                     }
                     // The signature verification of BatchProverMethodId is done in the circuit
                     ParsedTransaction::BatchProverMethodId(method_id) => {
+                        let public_key = method_id.public_key().to_vec();
+                        let hash = method_id.get_hash();
                         blobs.push(BlobWithSender::new(
                             // Body here is: borsh(DataOnDa::BatchProofMethodId(BatchProofMethodId { ... }))
-                            method_id
-                                .body
-                                .expect("ParsedBatchProverMethodId should serialize"),
-                            method_id.public_key(),
+                            method_id.body,
+                            public_key,
                             hash,
                             *wtxid,
                         ))

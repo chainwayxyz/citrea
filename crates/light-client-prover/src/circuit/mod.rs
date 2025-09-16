@@ -382,7 +382,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
-        method_id_upgrade_authority_da_public_key: &[u8],
+        method_id_upgrade_authority_da_public_keys: &[[u8; 33]; 5],
     ) -> RunL1BlockResult<S> {
         let mut working_set =
             WorkingSet::with_witness(storage.clone(), witness, Default::default());
@@ -510,13 +510,14 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     pubkeys,
                 }) => {
                     log!("Found batch proof method id");
-                    if blob.sender().as_ref() != method_id_upgrade_authority_da_public_key {
-                        log!(
-                            "Batch proof method id sender is not upgrade authority, wtxid={:?}",
-                            blob.wtxid()
-                        );
-                        continue;
-                    }
+                    // TODO: Update here
+                    // if blob.sender().as_ref() != method_id_upgrade_authority_da_public_key {
+                    //     log!(
+                    //         "Batch proof method id sender is not upgrade authority, wtxid={:?}",
+                    //         blob.wtxid()
+                    //     );
+                    //     continue;
+                    // }
 
                     let batch_proof_method_ids =
                         BatchProofMethodIdAccessor::<S>::get(&mut working_set).unwrap();
@@ -646,7 +647,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
-        method_id_upgrade_authority_da_public_key: &[u8],
+        method_id_upgrade_authority_da_public_keys: &[[u8; 33]; 5],
     ) -> Result<LightClientCircuitOutput, LightClientVerificationError<DaV>>
     where
         DaV: DaVerifier<Spec = DS>,
@@ -704,7 +705,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             initial_batch_proof_method_ids,
             batch_prover_da_public_key,
             sequencer_da_public_key,
-            method_id_upgrade_authority_da_public_key,
+            method_id_upgrade_authority_da_public_keys,
         );
 
         Ok(LightClientCircuitOutput {

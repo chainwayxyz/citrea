@@ -251,7 +251,7 @@ where
             self.network.initial_batch_proof_method_ids().to_vec(),
             &self.network.batch_prover_da_public_key(),
             &self.network.sequencer_da_public_key(),
-            &self.network.method_id_upgrade_authority_da_public_key(),
+            &self.network.method_id_upgrade_authority_da_public_keys(),
         );
 
         // This is not exactly right, but works for now because we have a single elf for

@@ -1022,16 +1022,16 @@ pub fn create_inscription_type_4(
     }
 }
 
-fn create_signatures_and_pubkeys_for_inscription(
-    private_key_array: [SecretKey; 5],
-    body: Vec<u8>,
-) -> Vec<(Vec<u8>, Vec<u8>)> {
-    let mut res: Vec<(Vec<u8>, Vec<u8>)> = vec![];
-    for key in private_key_array {
-        let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, key);
-        let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
-        let (signature, signer_public_key) = sign_blob_with_private_key(&body, key);
-        res.push((signature, signer_public_key));
-    }
-    res
-}
+// fn create_signatures_and_pubkeys_for_inscription(
+//     private_key_array: [SecretKey; 5],
+//     body: Vec<u8>,
+// ) -> Vec<(Vec<u8>, Vec<u8>)> {
+//     let mut res: Vec<(Vec<u8>, Vec<u8>)> = vec![];
+//     for key in private_key_array {
+//         let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, key);
+//         let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
+//         let (signature, signer_public_key) = sign_blob_with_private_key(&body, key);
+//         res.push((signature, signer_public_key));
+//     }
+//     res
+// }

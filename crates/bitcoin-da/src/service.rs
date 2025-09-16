@@ -45,7 +45,9 @@ use crate::helpers::backup::backup_txs_to_file;
 use crate::helpers::builders::body_builders::{create_inscription_transactions, DaTxs, RawTxData};
 use crate::helpers::builders::TxWithId;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
-use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
+use crate::helpers::parsers::{
+    parse_relevant_transaction, ParsedTransaction, SecurityCouncilVerifyParsed, VerifyParsed,
+};
 use crate::helpers::{merkle_tree, TransactionKind};
 use crate::metrics::BITCOIN_DA_METRICS as BM;
 use crate::monitoring::{MonitoredTxKind, MonitoringConfig, MonitoringService, TxStatus};
@@ -1273,15 +1275,15 @@ impl DaService for BitcoinService {
                         relevant_txs.push(relevant_tx);
                     }
                     ParsedTransaction::BatchProverMethodId(method_id) => {
-                        if let Some(hash) = method_id.get_sig_verified_hash() {
-                            let relevant_tx = BlobWithSender::new(
-                                method_id.body,
-                                method_id.public_key,
-                                hash,
-                                wtxid.to_byte_array(),
-                            );
-                            relevant_txs.push(relevant_tx);
-                        }
+                        let public_key = method_id.public_key().to_vec();
+                        let hash = method_id.get_hash();
+                        let relevant_tx = BlobWithSender::new(
+                            method_id.body,
+                            public_key,
+                            hash,
+                            wtxid.to_byte_array(),
+                        );
+                        relevant_txs.push(relevant_tx);
                     }
                     ParsedTransaction::SequencerCommitment(seq_comm) => {
                         if let Some(hash) = seq_comm.get_sig_verified_hash() {

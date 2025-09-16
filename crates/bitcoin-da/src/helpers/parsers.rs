@@ -89,11 +89,18 @@ impl ParsedBatchProverMethodId {
     }
 }
 
+/// To verify the security council signatures of the inscription and get the hash of the body
 pub trait SecurityCouncilVerifyParsed: VerifyParsed {
     /// If belongs to a security council, returns all public keys used to verify the signature.
     fn public_keys(&self) -> &[Vec<u8>];
     /// Returns the signatures of the security council.
     fn signatures(&self) -> &[Vec<u8>];
+    /// Returns hash of the body of the transaction.
+    fn get_hash(&self) -> [u8; 32] {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(self.body());
+        hasher.finalize().into()
+    }
 }
 
 /// To verify the signature of the inscription and get the hash of the body
