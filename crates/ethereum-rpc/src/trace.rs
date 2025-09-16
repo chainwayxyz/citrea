@@ -144,7 +144,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     // Skip cache from JsTracer, MuxTracer and PreStateTracer
 
     let skip_cache = match opts.as_ref().and_then(|o| o.tracer.as_ref()) {
-        None => { false }
+        None => false,
         Some(GethDebugTracerType::JsTracer(_)) => {
             if disable_js_tracer {
                 return Err(EthApiError::Unsupported("JS tracer is disabled").into());

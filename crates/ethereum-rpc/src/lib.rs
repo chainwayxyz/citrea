@@ -11,8 +11,10 @@ use alloy_rpc_types::{
     BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter, Index, SyncInfo,
     SyncStatus as EthSyncStatus, Transaction, TransactionRequest,
 };
-use alloy_rpc_types_trace::geth::{GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult};
 use alloy_rpc_types_trace::geth::GethDebugTracerType::JsTracer;
+use alloy_rpc_types_trace::geth::{
+    GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
+};
 use citrea_common::RpcConfig;
 use citrea_evm::{generate_eth_proof, Evm};
 use citrea_sequencer::SequencerRpcClient;
@@ -406,7 +408,7 @@ where
             &evm,
             &mut working_set,
             opts,
-            self.disable_js_tracer
+            self.disable_js_tracer,
         )
         .map_err(to_eth_rpc_error)?;
 
@@ -424,12 +426,13 @@ where
         request: TransactionRequest,
         block_id: Option<BlockId>,
         opts: Option<GethDebugTracingCallOptions>,
-    ) -> RpcResult<GethTrace>{
+    ) -> RpcResult<GethTrace> {
         let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
         let evm = Evm::<C>::default();
 
         let is_js_tracer = matches!(
-            opts.as_ref().and_then(|o| o.tracing_options.tracer.as_ref()),
+            opts.as_ref()
+                .and_then(|o| o.tracing_options.tracer.as_ref()),
             Some(JsTracer(_))
         );
         if is_js_tracer && self.disable_js_tracer {
