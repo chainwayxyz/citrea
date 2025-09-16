@@ -156,6 +156,8 @@ impl DaVerifier for BitcoinVerifier {
                         let hash = method_id.get_hash();
                         blobs.push(BlobWithSender::new(
                             // Body here is: borsh(DataOnDa::BatchProofMethodId(BatchProofMethodId { ... }))
+                            // The sender field here is not used because this transaction has a security council
+                            // consisting of 5 public keys, this data and signatures are embedded in the body
                             method_id.body,
                             public_key,
                             hash,
