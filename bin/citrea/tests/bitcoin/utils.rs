@@ -125,6 +125,7 @@ pub async fn spawn_bitcoin_da_prover_service(
     .await
 }
 
+#[cfg(feature = "testing")]
 pub async fn spawn_bitcoin_da_prover_service_with_utxo_selection_mode(
     task_executor: &TaskExecutor,
     config: &BitcoinConfig,
