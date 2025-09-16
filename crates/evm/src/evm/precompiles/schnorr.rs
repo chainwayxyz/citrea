@@ -240,6 +240,9 @@ mod test_eip191 {
         assert!(recovered_pub_key
             .verify_prehash(prehash.as_slice(), &signature)
             .is_ok());
+        assert!(pubkey
+            .verify_prehash(prehash.as_slice(), &signature)
+            .is_ok());
     }
 
     fn recover_pub_key_from_cast_sig_and_hash(cast_sig: &[u8], hash: &[u8]) -> VerifyingKey {

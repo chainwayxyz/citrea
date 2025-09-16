@@ -712,6 +712,7 @@ dependencies = [
  "citrea-risc0-batch-proof",
  "const-hex",
  "constmuck",
+ "k256",
  "sov-modules-api",
  "sov-modules-core",
  "sov-rollup-interface",

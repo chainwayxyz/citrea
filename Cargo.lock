@@ -2560,6 +2560,7 @@ dependencies = [
  "constmuck",
  "hex",
  "jsonrpsee",
+ "k256",
  "metrics 0.23.0",
  "metrics-derive",
  "prover-services",

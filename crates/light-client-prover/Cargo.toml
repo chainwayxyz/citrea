@@ -34,6 +34,7 @@ const-hex = { workspace = true }
 constmuck = { workspace = true }
 hex = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, optional = true, features = ["http-client", "server", "client"] }
+k256 = { workspace = true }
 metrics = { workspace = true, optional = true }
 metrics-derive = { workspace = true, optional = true }
 reth-tasks = { workspace = true, optional = true }
