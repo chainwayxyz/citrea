@@ -26,7 +26,7 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state", optional = true, features = ["native"] }
 
 # 3rd-party deps
-alloy-primitives = { workspace = true, optional = true }
+alloy-primitives = { workspace = true }
 anyhow = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 borsh = { workspace = true }
@@ -68,7 +68,6 @@ native = [
   "dep:reth-tasks",
   "dep:tokio",
   "dep:tracing",
-  "dep:alloy-primitives",
   "sov-rollup-interface/native",
   "dep:sov-state",
 ]
