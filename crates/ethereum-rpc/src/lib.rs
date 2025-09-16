@@ -9,9 +9,10 @@ use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{
     BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter, Index, SyncInfo,
-    SyncStatus as EthSyncStatus, Transaction,
+    SyncStatus as EthSyncStatus, Transaction, TransactionRequest,
 };
-use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
+use alloy_rpc_types_trace::geth::{GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult};
+use alloy_rpc_types_trace::geth::GethDebugTracerType::JsTracer;
 use citrea_common::RpcConfig;
 use citrea_evm::{generate_eth_proof, Evm};
 use citrea_sequencer::SequencerRpcClient;
@@ -128,6 +129,16 @@ pub trait EthereumRpc {
         &self,
         tx_hash: B256,
         opts: Option<GethDebugTracingOptions>,
+    ) -> RpcResult<GethTrace>;
+
+    /// Handler for `debug_traceCall`
+    #[method(name = "debug_traceCall")]
+    #[blocking]
+    fn debug_trace_call(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        opts: Option<GethDebugTracingCallOptions>,
     ) -> RpcResult<GethTrace>;
 
     /// Returns the transaction pool content.
@@ -406,6 +417,31 @@ where
                 Err(EthApiError::EvmCustom(error.clone()).into())
             }
         }
+    }
+
+    fn debug_trace_call(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        opts: Option<GethDebugTracingCallOptions>,
+    ) -> RpcResult<GethTrace>{
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+        let evm = Evm::<C>::default();
+
+        let is_js_tracer = matches!(
+            opts.as_ref().and_then(|o| o.tracing_options.tracer.as_ref()),
+            Some(JsTracer(_))
+        );
+        if is_js_tracer && self.disable_js_tracer {
+            return Err(EthApiError::Unsupported("JsTracer is disabled").into());
+        }
+        evm.debug_trace_call(
+            request,
+            block_id,
+            opts,
+            &mut working_set,
+            &self.ethereum.ledger_db,
+        )
     }
 
     // This method is implemented only for full nodes.
