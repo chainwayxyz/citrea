@@ -668,7 +668,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-light-client-prover"
-version = "0.7.4-smol"
+version = "0.7.5-smol"
 dependencies = [
  "borsh",
  "citrea-primitives",
@@ -682,7 +682,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "0.7.4-smol"
+version = "0.7.5-smol"
 dependencies = [
  "alloy-eips",
  "brotli",
@@ -693,7 +693,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-adapter"
-version = "0.7.4-smol"
+version = "0.7.5-smol"
 dependencies = [
  "bincode",
  "borsh",
@@ -707,7 +707,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-batch-proof"
-version = "0.7.4-smol"
+version = "0.7.5-smol"
 dependencies = [
  "risc0-build",
 ]
@@ -1522,7 +1522,7 @@ dependencies = [
 
 [[package]]
 name = "light-client-proof-mock"
-version = "0.7.4-smol"
+version = "0.7.5-smol"
 dependencies = [
  "anyhow",
  "citrea-light-client-prover",
@@ -2524,7 +2524,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "sov-keys"
-version = "0.7.4-smol"
+version = "0.7.5-smol"
 dependencies = [
  "borsh",
  "derive_more 1.0.0",
@@ -2540,7 +2540,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-da"
-version = "0.7.4-smol"
+version = "0.7.5-smol"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2554,7 +2554,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "0.7.4-smol"
+version = "0.7.5-smol"
 dependencies = [
  "anyhow",
  "bech32",
@@ -2574,7 +2574,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "0.7.4-smol"
+version = "0.7.5-smol"
 dependencies = [
  "anyhow",
  "bech32",
@@ -2594,7 +2594,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "0.7.4-smol"
+version = "0.7.5-smol"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2611,7 +2611,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "0.7.4-smol"
+version = "0.7.5-smol"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2625,7 +2625,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "0.7.4-smol"
+version = "0.7.5-smol"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
