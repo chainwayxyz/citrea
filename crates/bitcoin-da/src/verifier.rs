@@ -47,6 +47,8 @@ pub enum ValidationError {
     InvalidSegWitCommitment,
     /// The relevant transaction is not present in the completeness proof.
     RelevantTxNotInProof,
+    /// The length of the completeness proof does not match the number of relevant transactions.
+    RelevantTxLenMismatch,
     /// The txid commitment in the block header does not match the inclusion proof.
     IncorrectTxidCommitment,
     /// The witness commitment is incorrect.
@@ -107,6 +109,11 @@ impl DaVerifier for BitcoinVerifier {
             .wtxids
             .iter()
             .filter(|wtxid| wtxid.starts_with(prefix));
+
+        if relevant_wtxid_iter.clone().count() != completeness_proof.len() {
+            return Err(ValidationError::RelevantTxLenMismatch);
+        }
+
         for (wtxid, tx) in relevant_wtxid_iter.zip_eq(&completeness_proof) {
             // ensure completeness proof tx matches the inclusion tx
             if &calculate_wtxid(tx) != wtxid {

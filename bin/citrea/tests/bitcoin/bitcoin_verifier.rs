@@ -289,7 +289,7 @@ impl TestCase for BitcoinVerifierTest {
 
             assert_eq!(
                 verifier.verify_transactions(&block.header, inclusion_proof, completeness_proof,),
-                Err(ValidationError::RelevantTxNotInProof),
+                Err(ValidationError::RelevantTxLenMismatch),
             );
         }
 
