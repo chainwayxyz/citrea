@@ -193,7 +193,7 @@ where
     /// * `da_blocks` - Data availability blocks
     ///
     /// # Returns
-    /// A tuple containing the validated transactions and their hashes
+    /// A tuple containing the validated transactions, their hashes, senders, and failed deposits
     #[allow(clippy::too_many_arguments)]
     async fn dry_run_transactions(
         &mut self,
@@ -208,6 +208,7 @@ where
         Vec<RlpEvmTransaction>,
         Vec<TxHash>,
         Vec<alloy_primitives::Address>,
+        Vec<Vec<u8>>,
     )> {
         let start = Instant::now();
 
@@ -234,7 +235,7 @@ where
             let evm = citrea_evm::Evm::<DefaultContext>::default();
             let start_dry_run_system_txs = Instant::now();
             // Initially fill with system transactions if any
-            let (mut all_txs, mut working_set_to_discard) = self
+            let (mut all_txs, mut working_set_to_discard, failed_deposits) = self
                 .produce_and_run_system_transactions(
                     &l2_block_info,
                     &evm,
@@ -391,7 +392,7 @@ where
             SM.l1_fee_failed_txs_count
                 .set(l1_fee_failed_txs.len() as f64);
 
-            Ok((all_txs, l1_fee_failed_txs, senders))
+            Ok((all_txs, l1_fee_failed_txs, senders, failed_deposits))
         })
     }
 
@@ -454,7 +455,15 @@ where
         };
 
         match result {
-            Ok(l2_height) => {
+            Ok((l2_height, failed_deposits)) => {
+                // Restore only the deposits that failed to process
+                if !failed_deposits.is_empty() {
+                    let restored = self
+                        .deposit_mempool
+                        .lock()
+                        .restore_deposits(failed_deposits);
+                    info!("Restored {} failed deposits to mempool", restored);
+                }
                 // Only errors when there are no receivers
                 if let Err(_closed) = self.l2_block_tx.send(l2_height) {
                     warn!("l2_block_tx is closed");
@@ -462,13 +471,6 @@ where
             }
             Err(e) => {
                 error!("Sequencer error: {}", e);
-                if !deposit_data.is_empty() {
-                    let restored = self.deposit_mempool.lock().restore_deposits(deposit_data);
-                    info!(
-                        "Restored {} deposits to mempool after block production error",
-                        restored
-                    );
-                }
             }
         }
 
@@ -501,7 +503,7 @@ where
         l2_height: u64,
         last_used_l1_height: &mut u64,
         deposit_data: Vec<Vec<u8>>,
-    ) -> anyhow::Result<u64> {
+    ) -> anyhow::Result<(u64, Vec<Vec<u8>>)> {
         let start_dry_run_preparation = Instant::now();
         let active_fork_spec = self.fork_manager.active_fork().spec_id;
 
@@ -538,7 +540,7 @@ where
         // Dry running transactions would basically allow for figuring out a list of
         // all transactions that would fit into the current block and the list of transactions
         // which do not have enough balance to pay for the L1 fee.
-        let (txs_to_run, l1_fee_failed_txs, senders) = self
+        let (txs_to_run, l1_fee_failed_txs, senders, failed_deposits) = self
             .dry_run_transactions(
                 evm_txs,
                 prestate.clone(),
@@ -658,7 +660,7 @@ where
             *last_used_l1_height = l1_height;
         }
 
-        Ok(l2_height)
+        Ok((l2_height, failed_deposits))
     }
 
     /// Calculates the transaction merkle root and records the time taken
@@ -1432,6 +1434,7 @@ where
     /// * `deposit_data` - Deposit transaction data
     /// * `da_blocks` - Data availability blocks
     /// * `nonce` - Current nonce
+    #[allow(clippy::type_complexity)]
     fn produce_and_run_system_transactions(
         &mut self,
         l2_block_info: &HookL2BlockInfo,
@@ -1443,6 +1446,7 @@ where
     ) -> anyhow::Result<(
         Vec<RlpEvmTransaction>,
         WorkingSet<<DefaultContext as Spec>::Storage>,
+        Vec<Vec<u8>>,
     )> {
         let mut system_events = vec![];
 
@@ -1487,6 +1491,7 @@ where
             nonce,
             evm,
             system_events,
+            deposit_data,
         )
     }
 
@@ -1498,6 +1503,7 @@ where
     /// * `nonce` - Current nonce
     /// * `evm` - EVM instance
     /// * `system_events` - System events to process
+    #[allow(clippy::type_complexity)]
     fn process_sys_txs(
         &mut self,
         l2_block_info: &HookL2BlockInfo,
@@ -1505,9 +1511,11 @@ where
         nonce: &mut u64,
         evm: &Evm<DefaultContext>,
         system_events: Vec<SystemEvent>,
+        deposit_data: &[Vec<u8>],
     ) -> anyhow::Result<(
         Vec<RlpEvmTransaction>,
         WorkingSet<<DefaultContext as Spec>::Storage>,
+        Vec<Vec<u8>>,
     )> {
         info!("Processing {} system transactions", system_events.len());
 
@@ -1525,14 +1533,19 @@ where
         let cfg = evm.cfg.get(&mut working_set_to_discard).unwrap();
         let chain_id = cfg.chain_id;
 
-        // Store deposit txs by index
-        let is_deposit_tx = system_events
-            .iter()
-            .map(|ev| matches!(ev, SystemEvent::BridgeDeposit(_)))
-            .collect::<Vec<_>>();
+        let mut deposit_indices = Vec::new();
+        for (deposit_idx, ev) in system_events.iter().enumerate() {
+            if matches!(ev, SystemEvent::BridgeDeposit(_)) {
+                deposit_indices.push(Some(deposit_idx));
+            } else {
+                deposit_indices.push(None);
+            }
+        }
+
+        let mut failed_deposits = Vec::new();
         // Create and process each system transaction
         let sys_txs = create_system_transactions(system_events, system_signer.nonce, chain_id);
-        for (sys_tx, is_deposit) in sys_txs.iter().zip(is_deposit_tx) {
+        for (i, sys_tx) in sys_txs.iter().enumerate() {
             // Encode transaction in EIP-2718 format
             let buf = sys_tx.encoded_2718();
             let sys_tx_rlp = RlpEvmTransaction { rlp: buf };
@@ -1565,9 +1578,11 @@ where
                     StateTransitionError::ModuleCallError(
                         L2BlockModuleCallError::EvmSystemTransactionNotSuccessful
                     )
-                ) && is_deposit
+                ) && deposit_indices[i].is_some()
                 {
-                    warn!("Deposit transaction failed: {:?}", e);
+                    let deposit_idx = deposit_indices[i].unwrap();
+                    warn!("Deposit transaction {} failed: {:?}", deposit_idx, e);
+                    failed_deposits.push(deposit_data[deposit_idx].clone());
                     *nonce = nonce.saturating_sub(1);
                     working_set_to_discard = working_set.revert().to_revertable();
                     continue;
@@ -1578,6 +1593,6 @@ where
             all_txs.push(sys_tx_rlp);
         }
 
-        Ok((all_txs, working_set_to_discard))
+        Ok((all_txs, working_set_to_discard, failed_deposits))
     }
 }
