@@ -147,7 +147,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
         None => false,
         Some(GethDebugTracerType::JsTracer(_)) => {
             if disable_js_tracer {
-                return Err(EthApiError::Unsupported("JS tracer is disabled").into());
+                return Err(EthApiError::Unsupported("JsTracer is disabled on this node").into());
             }
             true
         }
