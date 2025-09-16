@@ -478,6 +478,7 @@ mod tests {
                 max_subscriptions_per_connection: 200,
                 trace_chain_block_limit: Some(100),
                 timeout: 30,
+                disable_js_tracer: false,
                 api_key: None,
             },
             public_keys: RollupPublicKeys {
@@ -666,6 +667,7 @@ mod tests {
                 max_subscriptions_per_connection: 200,
                 trace_chain_block_limit: None,
                 timeout: 30,
+                disable_js_tracer: false,
                 api_key: None,
             },
             storage: StorageConfig {
