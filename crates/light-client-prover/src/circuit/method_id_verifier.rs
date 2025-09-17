@@ -77,11 +77,7 @@ pub(crate) fn verify_method_id_security_council(
         }
     }
 
-    if valid_signatures >= 3 {
-        true
-    } else {
-        false
-    }
+    valid_signatures >= 3
 }
 
 #[test]
@@ -90,7 +86,7 @@ fn test_eip_191_sig() {
     let msg = b"Hello, world!";
 
     // Assert that the message hex is correct
-    assert_eq!(hex::encode(msg.to_vec()), "48656c6c6f2c20776f726c6421");
+    assert_eq!(hex::encode(msg), "48656c6c6f2c20776f726c6421");
 
     // Some randomly generated secret key
     let secret_key = "d38ba32d6971702225da49b49baac41c5a7ec2f5e3f2bb426976195ccd3266f7";
@@ -145,7 +141,7 @@ fn recover_pub_key_from_cast_sig_and_hash(cast_sig: &[u8], hash: &[u8]) -> Verif
 
     let signature = k256::ecdsa::Signature::from_slice(&cast_sig[0..64]).unwrap();
 
-    VerifyingKey::recover_from_prehash(&hash, &signature, RecoveryId::new(y_odd, false))
+    VerifyingKey::recover_from_prehash(hash, &signature, RecoveryId::new(y_odd, false))
         .expect("Failed to recover public key")
 }
 
@@ -163,7 +159,7 @@ pub fn eip191_sign(msg: &[u8], secret_key_bytes: &[u8; 32]) -> (Vec<u8>, [u8; 32
 
     // Sign the prehash and get a RECOVERABLE signature (so we can emit v)
     let (rec_sig, recovery_id) = signing_key
-        .sign_prehash_recoverable(&prehash.as_slice())
+        .sign_prehash_recoverable(prehash.as_slice())
         // TODO: Is unwrap okay here?
         .unwrap();
 
@@ -181,7 +177,7 @@ pub fn eip191_sign(msg: &[u8], secret_key_bytes: &[u8; 32]) -> (Vec<u8>, [u8; 32
     sig65.push(v_eth);
 
     let mut hash32 = [0u8; 32];
-    hash32.copy_from_slice(&prehash.as_slice());
+    hash32.copy_from_slice(prehash.as_slice());
 
     (sig65, hash32)
 }

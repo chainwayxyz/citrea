@@ -13,7 +13,7 @@ use initial_values::LCP_JMT_GENESIS_ROOT;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::{BlobReaderTrait, DaSpec, WorkingSet, Zkvm};
 use sov_modules_core::{ReadWriteLog, Storage};
-use sov_rollup_interface::da::{BatchProofMethodId, BatchProofMethodIdBody, DaVerifier, DataOnDa};
+use sov_rollup_interface::da::{BatchProofMethodId, DaVerifier, DataOnDa};
 use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;

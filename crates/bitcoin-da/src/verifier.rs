@@ -3,8 +3,7 @@
 use crypto_bigint::{Encoding, U256};
 use itertools::Itertools;
 use sov_rollup_interface::da::{
-    BatchProofMethodId, BatchProofMethodIdBody, BlockHeaderTrait, DaSpec, DaVerifier, DataOnDa,
-    LatestDaState,
+    BatchProofMethodId, BlockHeaderTrait, DaSpec, DaVerifier, DataOnDa, LatestDaState,
 };
 use sov_rollup_interface::Network;
 

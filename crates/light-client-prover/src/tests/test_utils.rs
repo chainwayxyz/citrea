@@ -2,10 +2,6 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use alloy_primitives::eip191_hash_message;
-use k256::ecdsa::signature::hazmat::PrehashVerifier;
-use k256::ecdsa::{RecoveryId, SigningKey, VerifyingKey};
-use k256::EncodedPoint;
 use rand::{thread_rng, Rng};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
@@ -22,7 +18,6 @@ use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 
 use crate::circuit::accessors::ChunkAccessor;
-use crate::circuit::initial_values::mockda::METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS;
 use crate::circuit::method_id_verifier::eip191_sign;
 use crate::circuit::LightClientProofCircuit;
 
