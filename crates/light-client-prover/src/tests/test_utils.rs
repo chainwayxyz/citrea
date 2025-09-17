@@ -232,10 +232,6 @@ pub(crate) fn create_new_method_id_tx(
         signatures.push(sig);
     }
 
-    // let signatures = council_signatures
-    //     .into_iter()
-    //     .map(|s| s.to_vec())
-    //     .collect::<Vec<_>>();
     let da_data = DataOnDa::BatchProofMethodId(BatchProofMethodId {
         body: BatchProofMethodIdBody {
             method_id: new_method_id,
