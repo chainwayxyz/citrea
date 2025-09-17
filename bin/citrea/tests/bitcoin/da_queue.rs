@@ -18,7 +18,7 @@ use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::services::da::DaService;
 
-use super::light_client_test::create_random_state_diff;
+use super::light_client_test::{create_random_state_diff, TEN_MINS};
 use super::{get_citrea_cli_path, get_citrea_path};
 use crate::bitcoin::full_node::create_serialized_fake_receipt_batch_proof_with_state_roots;
 use crate::bitcoin::utils::{
@@ -68,7 +68,7 @@ impl DaTransactionQueueingTest {
                     1,
                 )
                 .await?;
-            da.wait_mempool_len(8 * i, None).await?;
+            da.wait_mempool_len(8 * i, Some(TEN_MINS)).await?;
         }
 
         da_service
@@ -80,7 +80,7 @@ impl DaTransactionQueueingTest {
 
         // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
         // The three first proofs should hit the mempool + 1 chunk
-        da.wait_mempool_len(8 * 3 + 2, None).await?;
+        da.wait_mempool_len(8 * 3 + 2, Some(TEN_MINS)).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 26);
 
         // Assert that all queued txs are monitored
@@ -121,7 +121,7 @@ impl DaTransactionQueueingTest {
         assert_eq!(relevant_txs.len(), 13);
 
         // Remaining chunks and aggregate + extra queued proof should now hit the mempool
-        da.wait_mempool_len(8 + 6, None).await?;
+        da.wait_mempool_len(8 + 6, Some(TEN_MINS)).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 8 + 6);
         da.generate(1).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 0);
@@ -183,7 +183,7 @@ impl DaTransactionQueueingTest {
             .await;
         assert!(res.is_err());
 
-        da.wait_mempool_len(18, None).await?;
+        da.wait_mempool_len(18, Some(TEN_MINS)).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 18);
 
         // Assert that all queued txs are monitored
@@ -203,7 +203,7 @@ impl DaTransactionQueueingTest {
         // Keep track of hash in which chunks start to be mined
         let rollback_first_hash = hash;
 
-        da.wait_mempool_len(6, None).await?;
+        da.wait_mempool_len(6, Some(TEN_MINS)).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 6);
         da.generate(1).await?;
         // Assert that all chunks and aggregate were mined
@@ -233,7 +233,7 @@ impl DaTransactionQueueingTest {
         da.generate(1).await?;
 
         // Make sure txs are rebroadcasted from monitoring service
-        da.wait_mempool_len(5, None).await?;
+        da.wait_mempool_len(5, Some(TEN_MINS)).await?;
         let raw_mempool = da.get_raw_mempool().await?;
         assert_eq!(dropped_txs, raw_mempool);
 
@@ -434,7 +434,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
                     1,
                 )
                 .await?;
-            da.wait_mempool_len(8 * i, None).await?;
+            da.wait_mempool_len(8 * i, Some(TEN_MINS)).await?;
         }
 
         da_service
@@ -446,7 +446,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
 
         // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
         // The three first proofs should hit the mempool + 1 chunk
-        da.wait_mempool_len(8 * 3 + 2, None).await?;
+        da.wait_mempool_len(8 * 3 + 2, Some(TEN_MINS)).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 26);
 
         // Assert that all queued txs are monitored
@@ -468,7 +468,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         assert_eq!(monitored_txs.len(), 40);
 
         // Txs starting from a new chain should be accepted to mempool
-        da.wait_mempool_len(8 * 3 + 2 + 8, None).await?;
+        da.wait_mempool_len(8 * 3 + 2 + 8, Some(TEN_MINS)).await?;
 
         // We mine the first three proofs + the 1 chunk pair + the extra proof starting another UTXO chain
         // and make sure that the remaining chunks and aggregate and sent on next block when mempool size is freed
@@ -484,7 +484,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         assert_eq!(relevant_txs.len(), 17);
 
         // Remaining chunks and aggregate
-        da.wait_mempool_len(6, None).await?;
+        da.wait_mempool_len(6, Some(TEN_MINS)).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 6);
         da.generate(1).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 0);
@@ -546,7 +546,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
             .await;
         assert!(res.is_ok());
 
-        da.wait_mempool_len(18 * 2, None).await?;
+        da.wait_mempool_len(18 * 2, Some(TEN_MINS)).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 18 * 2);
 
         // Assert that all queued txs are monitored
@@ -566,7 +566,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         // Keep track of hash in which chunks start to be mined
         let rollback_first_hash = hash;
 
-        da.wait_mempool_len(6 * 2, None).await?;
+        da.wait_mempool_len(6 * 2, Some(TEN_MINS)).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 6 * 2);
         da.generate(1).await?;
         // Assert that all chunks and aggregate were mined
@@ -598,7 +598,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         da.generate(1).await?;
 
         // Make sure txs are rebroadcasted from monitoring service
-        da.wait_mempool_len(5 * 2, None).await?;
+        da.wait_mempool_len(5 * 2, Some(TEN_MINS)).await?;
         let raw_mempool = da.get_raw_mempool().await?;
         assert_eq!(dropped_txs, raw_mempool);
 
@@ -695,7 +695,7 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
             sequencer_client.send_publish_batch_request().await?;
         }
 
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
