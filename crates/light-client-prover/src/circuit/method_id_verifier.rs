@@ -3,7 +3,6 @@ use k256::ecdsa::signature::hazmat::PrehashVerifier;
 use k256::ecdsa::{RecoveryId, SigningKey, VerifyingKey};
 use k256::EncodedPoint;
 
-// TODO: Implement error type
 /// The three out of 5 signatures should be verified for the method id upgrade to be valid.
 /// The signatures and pub keys should be in the same order as the one in the initial values constants.
 pub(crate) fn verify_method_id_security_council(
@@ -64,7 +63,10 @@ pub(crate) fn verify_method_id_security_council(
         let mut eip_191_signature = [0u8; 64];
         eip_191_signature[..64].copy_from_slice(&signature_bytes[..64]);
 
-        let signature = k256::ecdsa::Signature::from_slice(eip_191_signature.as_slice()).unwrap();
+        let Ok(signature) = k256::ecdsa::Signature::from_slice(eip_191_signature.as_slice()) else {
+            log!("Failed to parse signature");
+            continue;
+        };
 
         // Try verifying the signature
         if verifying_key
@@ -162,6 +164,7 @@ pub fn eip191_sign(msg: &[u8], secret_key_bytes: &[u8; 32]) -> (Vec<u8>, [u8; 32
     // Sign the prehash and get a RECOVERABLE signature (so we can emit v)
     let (rec_sig, recovery_id) = signing_key
         .sign_prehash_recoverable(&prehash.as_slice())
+        // TODO: Is unwrap okay here?
         .unwrap();
 
     // Serialize r||s (64 bytes)
