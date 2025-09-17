@@ -591,6 +591,29 @@ impl BatchProverLedgerOps for LedgerDB {
         self.db.write_schemas(schema_batch)
     }
 
+    fn remove_proving_job_by_id(&self, id: Uuid) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+
+        let indices = self
+            .db
+            .get::<CommitmentIndicesByJobId>(&id)?
+            .expect("Proof must exist");
+
+        for index in indices {
+            schema_batch.delete::<JobIdOfCommitment>(&index)?;
+        }
+        schema_batch.delete::<ProofByJobId>(&id)?;
+        schema_batch.delete::<CommitmentIndicesByJobId>(&id)?;
+
+        // delete from pending job tables
+        // TODO: do the same for boundless sessions
+        schema_batch.delete::<PendingL1SubmissionJobs>(&id)?;
+        schema_batch.delete::<PendingBonsaiSessionByJobId>(&id)?;
+
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
+    }
+
     #[instrument(level = "trace", skip(self), err)]
     fn finalize_proving_job(&self, id: Uuid, l1_tx_id: [u8; 32]) -> anyhow::Result<()> {
         let mut stored_proof = self.db.get::<ProofByJobId>(&id)?.expect("Proof must exist");
