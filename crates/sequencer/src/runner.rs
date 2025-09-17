@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use std::vec;
 
 use alloy_eips::eip2718::{Decodable2718, Encodable2718};
-use alloy_primitives::{keccak256, Address, Bytes, TxHash, B256, U256};
+use alloy_primitives::{keccak256, Address, Bytes, TxHash, U256};
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
@@ -617,13 +617,13 @@ where
 
         // Use the transactions we already have from dry_run (txs_to_run)
         // and build block structure without DB reads
-        let (reth_block, reth_receipts) =
+        let (reth_block, reth_receipts, evm_block_hash) =
             self.build_reth_block_data(l2_height, &txs_to_run, &senders, &receipts)?;
 
         // Create the Chain notification with the produced block data
         let chain = self.create_chain_notification(
             l2_height,
-            B256::from_slice(&self.l2_block_hash),
+            evm_block_hash,
             reth_block,
             senders,
             reth_receipts,
@@ -955,7 +955,7 @@ where
         txs: &[RlpEvmTransaction],
         _senders: &[alloy_primitives::Address],
         receipts: &[reth_primitives::Receipt],
-    ) -> anyhow::Result<(reth_primitives::Block, Vec<Receipt>)> {
+    ) -> anyhow::Result<(reth_primitives::Block, Vec<Receipt>, alloy_primitives::B256)> {
         // For now, we still need one DB read to get the block header
         // In a future optimization, we could cache this in memory too
         let mut working_set = WorkingSet::new(self.db_provider.storage.clone());
@@ -965,6 +965,8 @@ where
             .evm
             .get_block_by_height(l2_height, &mut working_set)
             .ok_or(anyhow!("Block {} must exist after saving", l2_height))?;
+
+        let evm_block_hash = citrea_block.header.hash();
 
         let header = citrea_block.header.clone().unseal();
 
@@ -989,7 +991,7 @@ where
             },
         };
 
-        Ok((block, reth_receipts))
+        Ok((block, reth_receipts, evm_block_hash))
     }
 
     /// Creates a Chain notification from the produced L2 block
@@ -1008,9 +1010,7 @@ where
         let execution_outcome =
             ExecutionOutcome::new(bundle_state, vec![receipts], l2_height, vec![]);
 
-        let chain = Chain::from_block(recovered_block, execution_outcome, None);
-
-        chain
+        Chain::from_block(recovered_block, execution_outcome, None)
     }
 
     /// Handles cleanup for L1 fee failed transactions and persistent storage
