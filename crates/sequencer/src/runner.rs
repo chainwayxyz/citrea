@@ -601,7 +601,7 @@ where
         SM.mempool_extract_bundle_state_time.set(
             Instant::now()
                 .saturating_duration_since(start_extract_bundle)
-                .as_millis() as f64,
+                .as_secs_f64(),
         );
 
         // First set the state diff before committing the L2 block
@@ -637,7 +637,7 @@ where
         SM.mempool_canonical_notification_time.set(
             Instant::now()
                 .saturating_duration_since(start_canonical_notification)
-                .as_millis() as f64,
+                .as_secs_f64(),
         );
 
         // Handle L1 fee failed transactions and persistent storage cleanup
