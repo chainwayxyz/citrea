@@ -621,19 +621,18 @@ where
             self.build_reth_block_data(l2_height, &txs_to_run, &senders, &receipts)?;
 
         // Create the Chain notification with the produced block data
-        if let Ok(chain) = self.create_chain_notification(
+        let chain = self.create_chain_notification(
             l2_height,
             B256::from_slice(&self.l2_block_hash),
             reth_block,
             senders,
             reth_receipts,
             bundle_state,
-        ) {
-            // Send canonical state notification for mempool maintenance task
-            let _ = self.canon_state_tx.send(CanonStateNotification::Commit {
-                new: Arc::new(chain),
-            });
-        }
+        );
+        // Send canonical state notification for mempool maintenance task
+        let _ = self.canon_state_tx.send(CanonStateNotification::Commit {
+            new: Arc::new(chain),
+        });
         SM.mempool_canonical_notification_time.set(
             Instant::now()
                 .saturating_duration_since(start_canonical_notification)
@@ -1002,7 +1001,7 @@ where
         senders: Vec<alloy_primitives::Address>,
         receipts: Vec<Receipt>,
         bundle_state: BundleState,
-    ) -> anyhow::Result<Chain> {
+    ) -> Chain {
         let sealed_block = SealedBlock::new_unchecked(block, block_hash);
         let recovered_block = RecoveredBlock::new_sealed(sealed_block, senders);
 
@@ -1011,7 +1010,7 @@ where
 
         let chain = Chain::from_block(recovered_block, execution_outcome, None);
 
-        Ok(chain)
+        chain
     }
 
     /// Handles cleanup for L1 fee failed transactions and persistent storage
