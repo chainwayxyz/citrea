@@ -2277,6 +2277,7 @@ dependencies = [
  "hex",
  "jmt",
  "jsonrpsee",
+ "k256",
  "l2-block-rule-enforcer",
  "log",
  "log-panics",

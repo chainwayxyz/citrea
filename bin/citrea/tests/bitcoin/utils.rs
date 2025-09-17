@@ -19,10 +19,13 @@ use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_e2e::traits::NodeT;
+use citrea_light_client_prover::circuit::method_id_verifier::eip191_sign;
 use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
 use reth_tasks::TaskExecutor;
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
+use sov_rollup_interface::da::{
+    BatchProofMethodId, BatchProofMethodIdBody, DaTxRequest, SequencerCommitment,
+};
 use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::Network;
@@ -35,6 +38,14 @@ pub enum DaServiceKeyKind {
     BatchProver,
     Other(String),
 }
+
+pub const BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS: [&str; 5] = [
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9076",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9075",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9074",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9073",
+];
 
 pub const SEQUENCER_DA_PRIVATE_KEY: &str =
     "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262";
@@ -402,10 +413,29 @@ pub async fn generate_mock_txs(
     let mut valid_method_ids = vec![];
     let mut seq_index = 1;
 
-    // Send method id update tx
-    let method_id = BatchProofMethodId {
+    let method_id_body = BatchProofMethodIdBody {
         method_id: [0; 8],
         activation_l2_height: 0,
+    };
+
+    let (signatures, pubkeys) = {
+        let secret_keys: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+            .map(|k| hex::decode(k).unwrap().try_into().unwrap());
+        let pubkeys = generate_pubkeys_from_secret_keys(secret_keys);
+        (
+            secret_keys
+                .iter()
+                .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0)
+                .collect::<Vec<_>>(),
+            pubkeys,
+        )
+    };
+
+    // Send method id update tx
+    let method_id = BatchProofMethodId {
+        body: method_id_body.clone(),
+        signatures,
+        pubkeys,
     };
     valid_method_ids.push(method_id.clone());
     da_service
@@ -506,10 +536,29 @@ pub async fn generate_mock_txs(
         .await
         .expect("Failed to send transaction");
 
-    // Send method id update tx
-    let method_id = BatchProofMethodId {
+    let method_id_body = BatchProofMethodIdBody {
         method_id: [1; 8],
         activation_l2_height: 100,
+    };
+
+    let (signatures, pubkeys) = {
+        let secret_keys: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+            .map(|k| hex::decode(k).unwrap().try_into().unwrap());
+        let pubkeys = generate_pubkeys_from_secret_keys(secret_keys);
+        (
+            secret_keys
+                .iter()
+                .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0)
+                .collect::<Vec<_>>(),
+            pubkeys,
+        )
+    };
+
+    // Send method id update tx
+    let method_id = BatchProofMethodId {
+        body: method_id_body,
+        signatures,
+        pubkeys,
     };
     valid_method_ids.push(method_id.clone());
     da_service
@@ -527,6 +576,17 @@ pub async fn generate_mock_txs(
     assert_eq!(block.txdata.len(), 33);
 
     (block, valid_commitments, valid_proofs, valid_method_ids)
+}
+
+pub fn generate_pubkeys_from_secret_keys(secret_keys: [[u8; 32]; 5]) -> Vec<Vec<u8>> {
+    let mut pubkeys = vec![];
+    for (i, sk) in secret_keys.iter().enumerate() {
+        let signing_key = k256::ecdsa::SigningKey::from_bytes(sk.into()).unwrap();
+        let verify_key = signing_key.verifying_key();
+        let encoded_point = verify_key.to_encoded_point(true);
+        pubkeys.push(encoded_point.as_bytes().to_vec());
+    }
+    pubkeys
 }
 
 // For some reason, even though macro is used, it sees it as unused

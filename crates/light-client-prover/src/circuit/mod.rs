@@ -35,7 +35,7 @@ pub mod initial_values;
 #[macro_use]
 mod log;
 
-mod method_id_verifier;
+pub mod method_id_verifier;
 
 /// L2 activation height of the fork, and the batch proof method ID
 type InitialBatchProofMethodIds = Vec<(u64, [u32; 8])>;

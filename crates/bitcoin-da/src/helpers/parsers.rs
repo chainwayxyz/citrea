@@ -508,12 +508,25 @@ mod body_parsers {
             return Err(ParserError::UnexpectedOpcode);
         }
 
-        // let signatures = read_push_bytes(instructions)?;
-        // let public_keys = read_push_bytes(instructions)?;
-        let body = read_push_bytes(instructions)?;
+        let mut chunks = vec![];
+        loop {
+            let instr = read_instr(instructions)?;
+            match instr {
+                PushBytes(chunk) => {
+                    if chunk.is_empty() {
+                        return Err(ParserError::UnexpectedOpcode);
+                    }
+                    chunks.push(chunk)
+                }
+                Op(OP_ENDIF) => break,
+                Op(_) => return Err(ParserError::UnexpectedOpcode),
+            }
+        }
 
-        if OP_ENDIF != read_opcode(instructions)? {
-            return Err(ParserError::UnexpectedOpcode);
+        let body_size: usize = chunks.iter().map(|c| c.len()).sum();
+        let mut body = Vec::with_capacity(body_size);
+        for chunk in chunks {
+            body.extend_from_slice(chunk.as_bytes());
         }
 
         // Nonce
@@ -526,8 +539,7 @@ mod body_parsers {
             return Err(ParserError::UnexpectedOpcode);
         }
 
-        let Ok(DataOnDa::BatchProofMethodId(batch_proof_method_id)) =
-            borsh::from_slice(body.as_bytes())
+        let Ok(DataOnDa::BatchProofMethodId(batch_proof_method_id)) = borsh::from_slice(&body)
         else {
             return Err(ParserError::InvalidBody);
         };

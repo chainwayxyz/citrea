@@ -2,7 +2,10 @@
 
 use crypto_bigint::{Encoding, U256};
 use itertools::Itertools;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, LatestDaState};
+use sov_rollup_interface::da::{
+    BatchProofMethodId, BatchProofMethodIdBody, BlockHeaderTrait, DaSpec, DaVerifier, DataOnDa,
+    LatestDaState,
+};
 use sov_rollup_interface::Network;
 
 use crate::helpers::parsers::{
@@ -71,6 +74,8 @@ pub enum ValidationError {
     HeaderInclusionTxCountMismatch,
     /// Failed to deserialize complete chunks.
     FailedToDeserializeCompleteChunks,
+    /// Failed to deserialize batch proof method id body
+    FailedToDeserializeBatchProofMethodIdBody,
 }
 
 impl DaVerifier for BitcoinVerifier {
@@ -154,14 +159,25 @@ impl DaVerifier for BitcoinVerifier {
                     ParsedTransaction::BatchProverMethodId(method_id) => {
                         let public_key = method_id.public_key().to_vec();
                         let hash = method_id.get_hash();
+
+                        let Ok(method_id_body) = borsh::from_slice(&method_id.body) else {
+                            return Err(ValidationError::FailedToDeserializeBatchProofMethodIdBody);
+                        };
+
+                        let blob_data = borsh::to_vec(
+                            &(DataOnDa::BatchProofMethodId(BatchProofMethodId {
+                                body: method_id_body,
+                                signatures: method_id.signatures,
+                                pubkeys: method_id.public_keys,
+                            })),
+                        )
+                        .unwrap();
+
                         blobs.push(BlobWithSender::new(
                             // Body here is: borsh(DataOnDa::BatchProofMethodId(BatchProofMethodId { ... }))
                             // The sender field here is not used because this transaction has a security council
                             // consisting of 5 public keys, this data and signatures are embedded in the body
-                            method_id.body,
-                            public_key,
-                            hash,
-                            *wtxid,
+                            blob_data, public_key, hash, *wtxid,
                         ))
                     }
                     ParsedTransaction::SequencerCommitment(seq_comm) => {

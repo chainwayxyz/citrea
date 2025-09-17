@@ -22,6 +22,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
+use citrea_light_client_prover::circuit::method_id_verifier::eip191_sign;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::REVEAL_TX_PREFIX;
@@ -30,7 +31,8 @@ use reth_tasks::TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{
-    BatchProofMethodId, DaTxRequest, DaVerifier, DataOnDa, SequencerCommitment,
+    BatchProofMethodId, BatchProofMethodIdBody, DaTxRequest, DaVerifier, DataOnDa,
+    SequencerCommitment,
 };
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::services::da::DaService;
@@ -41,8 +43,9 @@ use sov_rollup_interface::Network;
 use super::get_citrea_path;
 use super::utils::PROVER_DA_PRIVATE_KEY;
 use crate::bitcoin::utils::{
-    spawn_bitcoin_da_prover_service, spawn_bitcoin_da_sequencer_service, spawn_bitcoin_da_service,
-    wait_for_prover_job, wait_for_zkproofs, DaServiceKeyKind,
+    generate_pubkeys_from_secret_keys, spawn_bitcoin_da_prover_service,
+    spawn_bitcoin_da_sequencer_service, spawn_bitcoin_da_service, wait_for_prover_job,
+    wait_for_zkproofs, DaServiceKeyKind, BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS,
 };
 
 pub const TEN_MINS: Duration = Duration::from_secs(10 * 60);
@@ -558,6 +561,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         }
     }
 
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(195)
+    }
+
     async fn cleanup(self) -> Result<()> {
         self.task_manager
             .graceful_shutdown_with_timeout(Duration::from_secs(1));
@@ -652,14 +659,33 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             }],
         );
 
-        // TODO: After update manually send method id tx to DA
         // Send BatchProofMethodId transaction to da
         let new_batch_proof_method_id = [1u32; 8];
+        let method_id_body = BatchProofMethodIdBody {
+            method_id: new_batch_proof_method_id,
+            activation_l2_height: 210,
+        };
+
+        let (signatures, pubkeys) = {
+            let secret_keys: [[u8; 32]; 5] =
+                BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+                    .map(|k| hex::decode(k).unwrap().try_into().unwrap());
+            let pubkeys = generate_pubkeys_from_secret_keys(secret_keys);
+            (
+                secret_keys
+                    .iter()
+                    .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0)
+                    .collect::<Vec<_>>(),
+                pubkeys,
+            )
+        };
+
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    method_id: new_batch_proof_method_id,
-                    activation_l2_height: 210,
+                    body: method_id_body,
+                    signatures,
+                    pubkeys,
                 }),
                 1,
             )

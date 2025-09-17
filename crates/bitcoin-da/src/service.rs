@@ -29,7 +29,9 @@ use citrea_primitives::MAX_TX_BODY_SIZE;
 use lru::LruCache;
 use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{DaSpec, DaTxRequest, DataOnDa, SequencerCommitment};
+use sov_rollup_interface::da::{
+    BatchProofMethodId, DaSpec, DaTxRequest, DataOnDa, SequencerCommitment,
+};
 use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
 use sov_rollup_interface::zk::Proof;
 use sov_rollup_interface::Network;
@@ -1277,11 +1279,23 @@ impl DaService for BitcoinService {
                     ParsedTransaction::BatchProverMethodId(method_id) => {
                         let public_key = method_id.public_key().to_vec();
                         let hash = method_id.get_hash();
+                        let Ok(method_id_body) = borsh::from_slice(&method_id.body) else {
+                            tracing::warn!("Unparsable Batch Proof Method ID Body");
+                            continue;
+                        };
+                        let blob_data = borsh::to_vec(
+                            &(DataOnDa::BatchProofMethodId(BatchProofMethodId {
+                                body: method_id_body,
+                                signatures: method_id.signatures,
+                                pubkeys: method_id.public_keys,
+                            })),
+                        )
+                        .unwrap();
                         let relevant_tx = BlobWithSender::new(
                             // Body here is: borsh(DataOnDa::BatchProofMethodId(BatchProofMethodId { ... }))
                             // The sender field here is not used because this transaction has a security council
                             // consisting of 5 public keys, this data and signatures are embedded in the body
-                            method_id.body,
+                            blob_data,
                             public_key,
                             hash,
                             wtxid.to_byte_array(),

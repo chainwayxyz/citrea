@@ -42,6 +42,13 @@ pub struct BatchProofMethodIdBody {
     pub activation_l2_height: u64,
 }
 
+impl BatchProofMethodIdBody {
+    /// Serialize the body using borsh
+    pub fn serialize(&self) -> Vec<u8> {
+        borsh::to_vec(self).expect("BatchProofMethodIdBody serialization cannot fail")
+    }
+}
+
 /// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct BatchProofMethodId {

@@ -23,6 +23,7 @@ use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutp
 
 use crate::circuit::accessors::ChunkAccessor;
 use crate::circuit::initial_values::mockda::METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS;
+use crate::circuit::method_id_verifier::eip191_sign;
 use crate::circuit::LightClientProofCircuit;
 
 pub const TEST_PRIVATE_KEYS: [&str; 5] = [
@@ -391,40 +392,4 @@ impl NativeCircuitRunner {
         prover_storage.commit(&jmt_state_update, &Default::default(), &Default::default());
         self.prover_storage_manager.finalize_storage(prover_storage);
     }
-}
-
-/// Sign a message with EIP-191 prefixing and return (sig65, hash32)
-/// - sig65: r(32) || s(32) || v(1) with v in {27, 28}
-/// - hash32: keccak256(prefix || len || msg)
-pub fn eip191_sign(msg: &[u8], secret_key_bytes: &[u8; 32]) -> (Vec<u8>, [u8; 32]) {
-    // Build the signing key
-
-    let signing_key =
-        SigningKey::from_bytes(secret_key_bytes.into()).expect("invalid secp256k1 secret key");
-
-    // EIP-191 prefixing, then keccak256
-    let prehash = eip191_hash_message(msg);
-
-    // Sign the prehash and get a RECOVERABLE signature (so we can emit v)
-    let (rec_sig, recovery_id) = signing_key
-        .sign_prehash_recoverable(&prehash.as_slice())
-        .unwrap();
-
-    // Serialize r||s (64 bytes)
-    let rs = rec_sig.to_bytes(); // <[u8; 64]>
-    let (r, s) = rs.split_at(32);
-
-    // Compute v = 27 + recid (Ethereum style)
-    let v_eth: u8 = 27 + (u8::from(recovery_id) & 1);
-
-    // Assemble 65-byte Ethereum signature r||s||v
-    let mut sig65 = Vec::with_capacity(65);
-    sig65.extend_from_slice(r);
-    sig65.extend_from_slice(s);
-    sig65.push(v_eth);
-
-    let mut hash32 = [0u8; 32];
-    hash32.copy_from_slice(&prehash.as_slice());
-
-    (sig65, hash32)
 }
