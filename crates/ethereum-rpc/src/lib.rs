@@ -11,9 +11,8 @@ use alloy_rpc_types::{
     BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter, Index, SyncInfo,
     SyncStatus as EthSyncStatus, Transaction, TransactionRequest,
 };
-use alloy_rpc_types_trace::geth::GethDebugTracerType::JsTracer;
 use alloy_rpc_types_trace::geth::{
-    GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
+    GethDebugTracerType, GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
 };
 use citrea_common::RpcConfig;
 use citrea_evm::{generate_eth_proof, Evm};
@@ -433,7 +432,7 @@ where
         let is_js_tracer = matches!(
             opts.as_ref()
                 .and_then(|o| o.tracing_options.tracer.as_ref()),
-            Some(JsTracer(_))
+            Some(GethDebugTracerType::JsTracer(_))
         );
         if is_js_tracer && !self.enable_js_tracer {
             return Err(EthApiError::Unsupported("JsTracer is disabled on this node").into());
