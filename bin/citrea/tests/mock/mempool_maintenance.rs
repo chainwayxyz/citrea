@@ -657,7 +657,10 @@ async fn test_stale_tx_eviction() {
 
     // Configure sequencer with a very short transaction lifetime (2 seconds)
     let mut sequencer_config = SequencerConfig::default();
-    sequencer_config.mempool_conf.max_tx_lifetime_secs = Some(2);
+    sequencer_config
+        .mempool_conf
+        .maintenance
+        .max_tx_lifetime_secs = 2;
 
     let seq_task = start_rollup(
         seq_port_tx,

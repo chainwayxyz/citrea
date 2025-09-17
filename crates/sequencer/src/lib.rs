@@ -47,6 +47,7 @@ use mempool::CitreaMempool;
 use parking_lot::Mutex;
 use reth_provider::CanonStateNotification;
 use reth_tasks::TaskExecutor;
+use reth_transaction_pool::maintain::{maintain_transaction_pool_future, MaintainPoolConfig};
 pub use rpc::SequencerRpcClient;
 pub use runner::{CitreaSequencer, MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK};
 use sov_db::ledger_db::LedgerDB;
@@ -142,20 +143,11 @@ where
         let client = db_provider.clone();
         let events_stream = UnboundedReceiverStream::new(canon_state_rx);
 
-        // Build MaintainPoolConfig from mempool config
-        let mut maintain_config = reth_transaction_pool::maintain::MaintainPoolConfig::default();
-        if let Some(max_update_depth) = sequencer_config.mempool_conf.max_update_depth {
-            maintain_config.max_update_depth = max_update_depth;
-        }
-        if let Some(max_reload_accounts) = sequencer_config.mempool_conf.max_reload_accounts {
-            maintain_config.max_reload_accounts = max_reload_accounts;
-        }
-        if let Some(max_tx_lifetime_secs) = sequencer_config.mempool_conf.max_tx_lifetime_secs {
-            maintain_config.max_tx_lifetime = std::time::Duration::from_secs(max_tx_lifetime_secs);
-        }
-        // Note: no_local_exemptions field doesn't exist in reth v1.3.7
+        // Convert MempoolMaintenanceConfig to reth's MaintainPoolConfig
+        let maintain_config: MaintainPoolConfig =
+            sequencer_config.mempool_conf.maintenance.clone().into();
 
-        let maintenance_future = reth_transaction_pool::maintain::maintain_transaction_pool_future(
+        let maintenance_future = maintain_transaction_pool_future(
             client,
             pool,
             events_stream,

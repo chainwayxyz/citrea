@@ -2404,6 +2404,7 @@ dependencies = [
  "metrics 0.23.1",
  "reth-primitives",
  "reth-tasks",
+ "reth-transaction-pool",
  "rocksdb",
  "serde",
  "serde_json",
