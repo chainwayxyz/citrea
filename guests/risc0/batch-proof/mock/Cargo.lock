@@ -1194,7 +1194,6 @@ dependencies = [
  "borsh",
  "citrea-evm",
  "l2-block-rule-enforcer",
- "reth-primitives",
  "serde",
  "short-header-proof-provider",
  "sov-accounts",

@@ -183,9 +183,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         self.should_be_end_of_sys_txs = false;
 
         #[cfg(not(feature = "native"))]
-        {
-            pending_transactions.clear();
-        }
+        pending_transactions.clear();
 
         #[cfg(feature = "native")]
         {

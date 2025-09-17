@@ -164,10 +164,9 @@ impl BlockBodyIndicesProvider for DbProvider {
         num: u64,
     ) -> ProviderResult<Option<reth_db::models::StoredBlockBodyIndices>> {
         let mut working_set = WorkingSet::new(self.storage.clone());
-        let mut accessory_state = working_set.accessory_state();
 
         // Get the block from EVM
-        let block = match self.evm.get_block_by_height(num, &mut accessory_state) {
+        let block = match self.evm.get_block_by_height(num, &mut working_set) {
             Some(block) => block,
             None => return Ok(None),
         };

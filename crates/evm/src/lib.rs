@@ -197,34 +197,18 @@ impl<C: sov_modules_api::Context> Evm<C> {
         EvmDb::new(self, working_set)
     }
 
-    /// Get transactions for a block by transaction index range
-    #[cfg(feature = "native")]
-    pub fn get_block_transactions(
-        &self,
-        start_idx: u64,
-        end_idx: u64,
-        accessory_state: &mut sov_modules_api::AccessoryWorkingSet<C::Storage>,
-    ) -> Vec<TransactionSignedAndRecovered> {
-        let mut txs = Vec::new();
-        for idx in start_idx..end_idx {
-            if let Some(tx) = self.transactions.get(idx as usize, accessory_state) {
-                txs.push(tx);
-            }
-        }
-        txs
-    }
-
     /// Get receipts for a block by transaction index range
     #[cfg(feature = "native")]
     pub fn get_block_receipts_range(
         &self,
         start_idx: u64,
         end_idx: u64,
-        accessory_state: &mut sov_modules_api::AccessoryWorkingSet<C::Storage>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> Vec<CitreaReceiptWithBloom> {
+        let mut accessory_state = working_set.accessory_state();
         let mut receipts = Vec::new();
         for idx in start_idx..end_idx {
-            if let Some(receipt) = self.receipts.get(idx as usize, accessory_state) {
+            if let Some(receipt) = self.receipts.get(idx as usize, &mut accessory_state) {
                 receipts.push(receipt);
             }
         }
@@ -236,9 +220,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub fn get_block_by_height(
         &self,
         height: u64,
-        accessory_state: &mut sov_modules_api::AccessoryWorkingSet<C::Storage>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> Option<SealedBlock> {
-        self.blocks.get(height as usize, accessory_state)
+        let mut accessory_state = working_set.accessory_state();
+        self.blocks.get(height as usize, &mut accessory_state)
     }
 
     /// Get the current head block from working set

@@ -780,11 +780,10 @@ where
 
         let Range { start, end } = block.transaction_range();
 
-        let mut accessory_state = working_set.accessory_state();
         let citrea_receipts =
             self.db_provider
                 .evm
-                .get_block_receipts_range(start, end, &mut accessory_state);
+                .get_block_receipts_range(start, end, working_set);
 
         // Convert to reth receipts
         citrea_receipts
@@ -961,12 +960,11 @@ where
         // For now, we still need one DB read to get the block header
         // In a future optimization, we could cache this in memory too
         let mut working_set = WorkingSet::new(self.db_provider.storage.clone());
-        let mut accessory_state = working_set.accessory_state();
 
         let citrea_block = self
             .db_provider
             .evm
-            .get_block_by_height(l2_height, &mut accessory_state)
+            .get_block_by_height(l2_height, &mut working_set)
             .ok_or(anyhow!("Block {} must exist after saving", l2_height))?;
 
         let header = citrea_block.header.clone().unseal();
@@ -975,7 +973,6 @@ where
             .iter()
             .map(|tx| {
                 // Decode RLP bytes to TransactionSigned
-                // This avoids the DB read in get_block_transactions
                 reth_primitives::TransactionSigned::decode_2718(&mut tx.rlp.as_ref())
                     .expect("Transaction decoding should succeed")
             })

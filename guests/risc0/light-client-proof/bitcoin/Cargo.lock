@@ -684,11 +684,10 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.36"
+version = "1.1.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5252b3d2648e5eedbc1a6f501e3c795e07025c1e93bbf8bbdd6eef7f447a6d54"
+checksum = "c2e7962b54006dcfcc61cb72735f4d89bb97061dd6a7ed882ec6b8ee53714c6f"
 dependencies = [
- "find-msvc-tools",
  "shlex",
 ]
 
@@ -1202,12 +1201,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "find-msvc-tools"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fd99930f64d146689264c637b5af2f0233a933bef0d8570e2526bf9e083192d"
-
-[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1663,9 +1656,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.21.1"
+version = "1.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d75b0bedcc4fe52caa0e03d9f1151a323e4aa5e2d78ba3580400cd3c9e2bc4bc"
+checksum = "945462a4b81e43c4e3ba96bd7b49d834c6f61198356aa858733bc4acf3cbe62e"
 
 [[package]]
 name = "option-ext"
@@ -2215,9 +2208,8 @@ dependencies = [
 
 [[package]]
 name = "secp256k1"
-version = "0.29.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9465315bc9d4566e1724f0fffcbcc446268cb522e60f9a27bcded6b19c108113"
+version = "0.29.0"
+source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?branch=risc0-compatible-0-29-0#3769ab9b2227d430ca2c58546daf3680017cfefb"
 dependencies = [
  "bitcoin_hashes",
  "rand",
@@ -2227,9 +2219,8 @@ dependencies = [
 
 [[package]]
 name = "secp256k1-sys"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4387882333d3aa8cb20530a17c69a3752e97837832f34f6dccc760e715001d9"
+version = "0.10.0"
+source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?branch=risc0-compatible-0-29-0#3769ab9b2227d430ca2c58546daf3680017cfefb"
 dependencies = [
  "cc",
 ]
@@ -2957,8 +2948,3 @@ dependencies = [
  "quote",
  "syn 2.0.98",
 ]
-
-[[patch.unused]]
-name = "secp256k1"
-version = "0.29.0"
-source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?branch=risc0-compatible-0-29-0#3769ab9b2227d430ca2c58546daf3680017cfefb"
