@@ -11,8 +11,9 @@ use alloy_rpc_types::{
     BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter, Index, SyncInfo,
     SyncStatus as EthSyncStatus, Transaction, TransactionRequest,
 };
+use alloy_rpc_types_trace::geth::GethDebugTracerType::JsTracer;
 use alloy_rpc_types_trace::geth::{
-    GethDebugTracerType::JsTracer, GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
+    GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
 };
 use citrea_common::RpcConfig;
 use citrea_evm::{generate_eth_proof, Evm};
