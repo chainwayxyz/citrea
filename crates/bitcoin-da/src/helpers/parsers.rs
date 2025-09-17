@@ -49,7 +49,7 @@ pub struct ParsedAggregate {
 /// in the parent Aggregate transaction.
 #[derive(Debug, Clone)]
 pub struct ParsedChunk {
-    pub(crate) body: Vec<u8>,
+    pub body: Vec<u8>,
 }
 
 /// ParsedSequencerCommitment is a transaction that contains the sequencer commitment.
