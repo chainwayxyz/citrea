@@ -203,7 +203,7 @@ where
     ethereum: Arc<Ethereum<C, Da>>,
     starting_l2_height: U64,
     trace_chain_block_limit: Option<u64>,
-    disable_js_tracer: bool,
+    enable_js_tracer: bool,
 }
 
 impl<C, Da> EthereumRpcServerImpl<C, Da>
@@ -215,13 +215,13 @@ where
         ethereum: Arc<Ethereum<C, Da>>,
         starting_l2_height: U64,
         trace_chain_block_limit: Option<u64>,
-        disable_js_tracer: bool,
+        enable_js_tracer: bool,
     ) -> Self {
         Self {
             ethereum,
             starting_l2_height,
             trace_chain_block_limit,
-            disable_js_tracer,
+            enable_js_tracer,
         }
     }
 }
@@ -339,7 +339,7 @@ where
             &evm,
             &mut working_set,
             opts,
-            self.disable_js_tracer,
+            self.enable_js_tracer,
         )
         .map_err(to_eth_rpc_error)
     }
@@ -368,7 +368,7 @@ where
             &evm,
             &mut working_set,
             opts,
-            self.disable_js_tracer,
+            self.enable_js_tracer,
         )
         .map_err(to_eth_rpc_error)
     }
@@ -407,7 +407,7 @@ where
             &evm,
             &mut working_set,
             opts,
-            self.disable_js_tracer,
+            self.enable_js_tracer,
         )
         .map_err(to_eth_rpc_error)?;
 
@@ -434,7 +434,7 @@ where
                 .and_then(|o| o.tracing_options.tracer.as_ref()),
             Some(JsTracer(_))
         );
-        if is_js_tracer && self.disable_js_tracer {
+        if is_js_tracer && !self.enable_js_tracer {
             return Err(EthApiError::Unsupported("JsTracer is disabled on this node").into());
         }
         evm.debug_trace_call(
@@ -635,7 +635,7 @@ where
                 pending,
                 self.ethereum.clone(),
                 self.trace_chain_block_limit,
-                self.disable_js_tracer,
+                self.enable_js_tracer,
             )
             .await;
         } else {
@@ -724,7 +724,7 @@ where
         ethereum,
         U64::from(head_l2_block),
         rpc_config.trace_chain_block_limit,
-        rpc_config.disable_js_tracer,
+        rpc_config.enable_js_tracer,
     );
 
     let mut module = EthereumRpcServer::into_rpc(server);

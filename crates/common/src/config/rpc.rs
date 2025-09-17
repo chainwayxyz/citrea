@@ -42,8 +42,8 @@ const fn default_timeout() -> u64 {
 }
 
 #[inline]
-const fn default_disable_js_tracer() -> bool {
-    false
+const fn default_enable_js_tracer() -> bool {
+    true
 }
 
 /// RPC configuration.
@@ -77,9 +77,9 @@ pub struct RpcConfig {
     /// RPC timeout in secs
     #[serde(default = "default_timeout")]
     pub timeout: u64,
-    /// Disable JS tracer in debug endpoints
-    #[serde(default = "default_disable_js_tracer")]
-    pub disable_js_tracer: bool,
+    /// Enable JS tracer in debug endpoints
+    #[serde(default = "default_enable_js_tracer")]
+    pub enable_js_tracer: bool,
     /// API key for protected JSON-RPC methods
     pub api_key: Option<String>,
 }
@@ -129,10 +129,10 @@ impl FromEnv for RpcConfig {
                 .ok()
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_timeout),
-            disable_js_tracer: read_env("RPC_DISABLE_JS_TRACER")
+            enable_js_tracer: read_env("RPC_ENABLE_JS_TRACER")
                 .ok()
                 .and_then(|val| val.parse().ok())
-                .unwrap_or_else(default_disable_js_tracer),
+                .unwrap_or_else(default_enable_js_tracer),
             api_key: read_env("RPC_API_KEY").ok(),
         })
     }
