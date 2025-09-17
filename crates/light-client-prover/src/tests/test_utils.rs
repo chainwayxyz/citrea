@@ -2,6 +2,10 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use alloy_primitives::eip191_hash_message;
+use k256::ecdsa::signature::hazmat::PrehashVerifier;
+use k256::ecdsa::{RecoveryId, SigningKey, VerifyingKey};
+use k256::EncodedPoint;
 use rand::{thread_rng, Rng};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
@@ -20,6 +24,14 @@ use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutp
 use crate::circuit::accessors::ChunkAccessor;
 use crate::circuit::initial_values::mockda::METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS;
 use crate::circuit::LightClientProofCircuit;
+
+pub const TEST_PRIVATE_KEYS: [&str; 5] = [
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9076",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9075",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9074",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9073",
+];
 
 pub(crate) fn create_mock_sequencer_commitment(
     index: u32,
@@ -202,10 +214,27 @@ pub(crate) fn create_new_method_id_tx(
         .into_iter()
         .map(|pk| pk.to_vec())
         .collect::<Vec<_>>();
-    let signatures = council_signatures
-        .into_iter()
-        .map(|s| s.to_vec())
-        .collect::<Vec<_>>();
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let msg = borsh::to_vec(&BatchProofMethodIdBody {
+        activation_l2_height: activation_height,
+        method_id: new_method_id,
+    })
+    .unwrap();
+
+    let mut signatures = vec![];
+    for pk_bytes in pk_bytes_arr {
+        let (sig, hash) = eip191_sign(msg.as_slice(), &pk_bytes);
+        // let mut sig: [u8; 65] = [0u8; 65];
+        // sig.copy_from_slice(&sig);
+        signatures.push(sig);
+    }
+
+    // let signatures = council_signatures
+    //     .into_iter()
+    //     .map(|s| s.to_vec())
+    //     .collect::<Vec<_>>();
     let da_data = DataOnDa::BatchProofMethodId(BatchProofMethodId {
         body: BatchProofMethodIdBody {
             method_id: new_method_id,
@@ -362,4 +391,40 @@ impl NativeCircuitRunner {
         prover_storage.commit(&jmt_state_update, &Default::default(), &Default::default());
         self.prover_storage_manager.finalize_storage(prover_storage);
     }
+}
+
+/// Sign a message with EIP-191 prefixing and return (sig65, hash32)
+/// - sig65: r(32) || s(32) || v(1) with v in {27, 28}
+/// - hash32: keccak256(prefix || len || msg)
+pub fn eip191_sign(msg: &[u8], secret_key_bytes: &[u8; 32]) -> (Vec<u8>, [u8; 32]) {
+    // Build the signing key
+
+    let signing_key =
+        SigningKey::from_bytes(secret_key_bytes.into()).expect("invalid secp256k1 secret key");
+
+    // EIP-191 prefixing, then keccak256
+    let prehash = eip191_hash_message(msg);
+
+    // Sign the prehash and get a RECOVERABLE signature (so we can emit v)
+    let (rec_sig, recovery_id) = signing_key
+        .sign_prehash_recoverable(&prehash.as_slice())
+        .unwrap();
+
+    // Serialize r||s (64 bytes)
+    let rs = rec_sig.to_bytes(); // <[u8; 64]>
+    let (r, s) = rs.split_at(32);
+
+    // Compute v = 27 + recid (Ethereum style)
+    let v_eth: u8 = 27 + (u8::from(recovery_id) & 1);
+
+    // Assemble 65-byte Ethereum signature r||s||v
+    let mut sig65 = Vec::with_capacity(65);
+    sig65.extend_from_slice(r);
+    sig65.extend_from_slice(s);
+    sig65.push(v_eth);
+
+    let mut hash32 = [0u8; 32];
+    hash32.copy_from_slice(&prehash.as_slice());
+
+    (sig65, hash32)
 }
