@@ -20,10 +20,9 @@ use crate::schema::tables::{
     ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot,
     L2RangeByL1Height, L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs,
     PendingBonsaiSessionByJobId, PendingL1SubmissionJobs, PendingProofs,
-    PendingSequencerCommitments, ProofByJobId, ProofsBySlotNumberV2, ProverLastScannedSlot,
-    ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
-    ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
-    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    PendingSequencerCommitments, ProofByJobId, ProverLastScannedSlot, ProverPendingCommitments,
+    ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
+    StateDiffByBlockNumber, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
