@@ -33,14 +33,21 @@ impl SequencerCommitment {
         hash.into()
     }
 }
-
-/// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
+/// Body of the batch proof method id update for light client
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
-pub struct BatchProofMethodId {
+pub struct BatchProofMethodIdBody {
     /// New method id of upcoming fork
     pub method_id: [u32; 8],
     /// Activation L2 height of the new method id
     pub activation_l2_height: u64,
+}
+
+/// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct BatchProofMethodId {
+    /// Body of the method id update, the message to be signed
+    /// Includes method id and activation height
+    pub body: BatchProofMethodIdBody,
     /// Signatures of to be verified for the method id update
     /// Consists of 65 byte keccak256(eip191 prefixed message) prehash signed signatures
     /// The public keys can be recovered from the signatures and the prehash

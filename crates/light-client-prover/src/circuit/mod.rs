@@ -13,7 +13,7 @@ use initial_values::LCP_JMT_GENESIS_ROOT;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::{BlobReaderTrait, DaSpec, WorkingSet, Zkvm};
 use sov_modules_core::{ReadWriteLog, Storage};
-use sov_rollup_interface::da::{BatchProofMethodId, DaVerifier, DataOnDa};
+use sov_rollup_interface::da::{BatchProofMethodId, BatchProofMethodIdBody, DaVerifier, DataOnDa};
 use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
@@ -508,8 +508,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     }
                 }
                 DataOnDa::BatchProofMethodId(BatchProofMethodId {
-                    method_id,
-                    activation_l2_height,
+                    body,
                     signatures,
                     pubkeys,
                 }) => {
@@ -527,7 +526,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         *method_id_upgrade_authority_da_public_keys,
                         pubkeys,
                         signatures,
-                        &blob.full_data(),
+                        &borsh::to_vec(&body).unwrap(),
                     ) {
                         log!("Method ID security council verification failed");
                         continue;
@@ -541,10 +540,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         .expect("Should be at least one")
                         .0;
 
-                    if activation_l2_height > last_activation_height {
+                    if body.activation_l2_height > last_activation_height {
                         BatchProofMethodIdAccessor::<S>::insert(
-                            activation_l2_height,
-                            method_id,
+                            body.activation_l2_height,
+                            body.method_id,
                             &mut working_set,
                         );
                     }
