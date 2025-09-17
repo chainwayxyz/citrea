@@ -12,7 +12,8 @@ use alloy_rpc_types::{
     SyncStatus as EthSyncStatus, Transaction, TransactionRequest,
 };
 use alloy_rpc_types_trace::geth::{
-    GethDebugTracerType, GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
+    GethDebugTracerType, GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace,
+    TraceResult,
 };
 use citrea_common::RpcConfig;
 use citrea_evm::{generate_eth_proof, Evm};
