@@ -513,15 +513,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     pubkeys,
                 }) => {
                     log!("Found batch proof method id");
-                    // TODO: Update here
-                    // if blob.sender().as_ref() != method_id_upgrade_authority_da_public_key {
-                    //     log!(
-                    //         "Batch proof method id sender is not upgrade authority, wtxid={:?}",
-                    //         blob.wtxid()
-                    //     );
-                    //     continue;
-                    // }
-
                     if !verify_method_id_security_council(
                         *method_id_upgrade_authority_da_public_keys,
                         pubkeys,
