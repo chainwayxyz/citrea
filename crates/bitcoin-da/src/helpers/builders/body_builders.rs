@@ -694,9 +694,6 @@ pub fn create_inscription_type_3(
     let kind = TransactionKind::BatchProofMethodId;
     let kind_bytes = kind.to_bytes();
 
-    // sign the body for authentication of the sequencer
-    let (signature, signer_public_key) = sign_blob_with_private_key(&body, da_private_key);
-
     let start = Instant::now();
 
     // start creating inscription content
@@ -705,12 +702,10 @@ pub fn create_inscription_type_3(
         .push_opcode(OP_CHECKSIGVERIFY)
         .push_slice(PushBytesBuf::from(kind_bytes))
         .push_opcode(OP_FALSE)
-        .push_opcode(OP_IF)
-        .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
-        .push_slice(
-            PushBytesBuf::try_from(signer_public_key).expect("Cannot push sequencer public key"),
-        );
+        .push_opcode(OP_IF);
+
     // push body in chunks of 520 bytes
+    // Body includes security council signatures and public keys
     for chunk in body.chunks(520) {
         reveal_script_builder = reveal_script_builder
             .push_slice(PushBytesBuf::try_from(chunk.to_vec()).expect("Cannot push body chunk"));

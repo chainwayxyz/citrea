@@ -64,6 +64,7 @@ pub struct ParsedSequencerCommitment {
 /// ParsedBatchProverMethodId is a transaction that contains the BatchProver method id.
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub struct ParsedBatchProverMethodId {
+    // Borsh(BatchProofMethodIdBody)
     pub(crate) body: Vec<u8>,
     // TODO: Are these better off as arrays of fixed size?
     // Consists of 65 byte keccak256(eip191 prefixed message) prehash signed signatures
@@ -214,12 +215,9 @@ pub enum ParserError {
     /// Invalid opcode in the script.
     #[error("Invalid opcode in the script")]
     UnexpectedOpcode,
-    /// Unable to parse method id update signatures.
-    #[error("Invalid method id update signatures")]
-    InvalidMethodIdUpdateSignatures,
-    /// Unable to parse method id update public keys.
-    #[error("Invalid method id update public keys")]
-    InvalidMethodIdUpdatePublicKeys,
+    /// Body was not parsed correctly.
+    #[error("Body was not parsed correctly")]
+    InvalidBody,
     /// Some other script error.
     #[error("Script error: {0}")]
     ScriptError(String),
@@ -322,6 +320,7 @@ mod body_parsers {
     use bitcoin::opcodes::all::{OP_ENDIF, OP_IF, OP_NIP};
     use bitcoin::script::Instruction;
     use bitcoin::script::Instruction::{Op, PushBytes};
+    use sov_rollup_interface::da::DataOnDa;
 
     use super::{
         read_instr, read_opcode, read_push_bytes, ParsedAggregate, ParsedBatchProverMethodId,
@@ -509,8 +508,8 @@ mod body_parsers {
             return Err(ParserError::UnexpectedOpcode);
         }
 
-        let signatures = read_push_bytes(instructions)?;
-        let public_keys = read_push_bytes(instructions)?;
+        // let signatures = read_push_bytes(instructions)?;
+        // let public_keys = read_push_bytes(instructions)?;
         let body = read_push_bytes(instructions)?;
 
         if OP_ENDIF != read_opcode(instructions)? {
@@ -527,16 +526,16 @@ mod body_parsers {
             return Err(ParserError::UnexpectedOpcode);
         }
 
-        let signatures = borsh::from_slice(&signatures.as_bytes())
-            .map_err(|_| ParserError::InvalidMethodIdUpdateSignatures)?;
-        let public_keys = borsh::from_slice(&public_keys.as_bytes())
-            .map_err(|_| ParserError::InvalidMethodIdUpdatePublicKeys)?;
-        let body = body.as_bytes().to_vec();
+        let Ok(DataOnDa::BatchProofMethodId(batch_proof_method_id)) =
+            borsh::from_slice(body.as_bytes())
+        else {
+            return Err(ParserError::InvalidBody);
+        };
 
         Ok(ParsedBatchProverMethodId {
-            body,
-            signatures,
-            public_keys,
+            body: borsh::to_vec(&batch_proof_method_id.body).unwrap(),
+            signatures: batch_proof_method_id.signatures,
+            public_keys: batch_proof_method_id.pubkeys,
         })
     }
 
