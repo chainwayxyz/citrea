@@ -142,21 +142,15 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
 ) -> Result<Vec<TraceResult>, ErrorObjectOwned> {
     // If tracer option is not specified, or it is JsTracer, then do not check cache or insert cache, just perform the operation
     // Skip cache from JsTracer, MuxTracer and PreStateTracer
-
-    let skip_cache = match opts.as_ref().and_then(|o| o.tracer.as_ref()) {
-        None => false,
-        Some(GethDebugTracerType::JsTracer(_)) => {
-            if !enable_js_tracer {
-                return Err(EthApiError::Unsupported("JsTracer is disabled on this node").into());
-            }
-            true
-        }
-        Some(GethDebugTracerType::BuiltInTracer(bit)) => matches!(
+    let skip_cache = opts.as_ref().is_none_or(|o| {
+        o.tracer.as_ref().is_none_or(|inner| match inner {
+            GethDebugTracerType::JsTracer(_) => true,
+            GethDebugTracerType::BuiltInTracer(bit) => matches!(
             bit,
             GethDebugBuiltInTracerType::MuxTracer | GethDebugBuiltInTracerType::PreStateTracer
         ),
-    };
-
+        })
+    });
     if skip_cache {
         let mut traces = evm.trace_block_transactions_by_number(
             block_number,
