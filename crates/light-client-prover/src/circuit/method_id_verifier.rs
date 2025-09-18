@@ -77,6 +77,194 @@ pub(crate) fn verify_method_id_security_council(
     valid_signatures >= 3
 }
 
+#[cfg(test)]
+mod tests {
+    use alloy_signer::SignerSync;
+    use alloy_signer_local::PrivateKeySigner;
+
+    use super::*;
+
+    #[test]
+    fn test_valid_signatures() {
+        let msg = b"method_id_upgrade";
+        let mut initial_da_pubkeys = [[0u8; 33]; 5];
+        let mut pubkeys_in_inscription = Vec::new();
+        let mut signatures_in_inscription = Vec::new();
+
+        // Generate 5 valid keypairs and signatures
+        for i in 0..5 {
+            let secret_key = [i as u8 + 1; 32];
+            let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+            let verifying_key = signer.credential().verifying_key();
+            let pubkey = verifying_key.to_sec1_bytes();
+            initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+            pubkeys_in_inscription.push(pubkey.to_vec());
+
+            let prehash = eip191_hash_message(msg);
+            let sig = signer.sign_hash_sync(&prehash).unwrap();
+            let signature = sig.as_bytes()[0..64].to_vec();
+            signatures_in_inscription.push(signature);
+        }
+
+        assert!(verify_method_id_security_council(
+            initial_da_pubkeys,
+            pubkeys_in_inscription.clone(),
+            signatures_in_inscription.clone(),
+            msg
+        ));
+    }
+
+    #[test]
+    fn test_less_than_three_valid_signatures() {
+        let msg = b"method_id_upgrade";
+        let mut initial_da_pubkeys = [[0u8; 33]; 5];
+        let mut pubkeys_in_inscription = Vec::new();
+        let mut signatures_in_inscription = Vec::new();
+
+        // Generate 5 valid keypairs and signatures
+        for i in 0..5 {
+            let secret_key = [i as u8 + 1; 32];
+            let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+            let verifying_key = signer.credential().verifying_key();
+            let pubkey = verifying_key.to_sec1_bytes();
+            initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+            pubkeys_in_inscription.push(pubkey.to_vec());
+
+            let prehash = eip191_hash_message(msg);
+            let sig = signer.sign_hash_sync(&prehash).unwrap();
+            let signature = sig.as_bytes()[0..64].to_vec();
+            signatures_in_inscription.push(signature);
+        }
+
+        // Corrupt 3 signatures
+        for i in 0..3 {
+            signatures_in_inscription[i][0] ^= 0xFF;
+        }
+
+        assert!(!verify_method_id_security_council(
+            initial_da_pubkeys,
+            pubkeys_in_inscription.clone(),
+            signatures_in_inscription.clone(),
+            msg
+        ));
+    }
+
+    #[test]
+    fn test_pubkey_mismatch() {
+        let msg = b"method_id_upgrade";
+        let mut initial_da_pubkeys = [[0u8; 33]; 5];
+        let mut pubkeys_in_inscription = Vec::new();
+        let mut signatures_in_inscription = Vec::new();
+
+        // Generate 5 valid keypairs and signatures
+        for i in 0..5 {
+            let secret_key = [i as u8 + 1; 32];
+            let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+            let verifying_key = signer.credential().verifying_key();
+            let pubkey = verifying_key.to_sec1_bytes();
+            initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+            pubkeys_in_inscription.push(pubkey.to_vec());
+
+            let prehash = eip191_hash_message(msg);
+            let sig = signer.sign_hash_sync(&prehash).unwrap();
+            let signature = sig.as_bytes()[0..64].to_vec();
+            signatures_in_inscription.push(signature);
+        }
+
+        // Corrupt two pubkeys
+        pubkeys_in_inscription[0][0] ^= 0xFF;
+        pubkeys_in_inscription[3][0] ^= 0xFF;
+
+        assert!(verify_method_id_security_council(
+            initial_da_pubkeys,
+            pubkeys_in_inscription.clone(),
+            signatures_in_inscription.clone(),
+            msg
+        ));
+
+        // Corrupt one more and see that it won't verify
+        pubkeys_in_inscription[1][0] ^= 0xFF;
+
+        assert!(!verify_method_id_security_council(
+            initial_da_pubkeys,
+            pubkeys_in_inscription.clone(),
+            signatures_in_inscription.clone(),
+            msg
+        ));
+    }
+
+    #[test]
+    fn test_invalid_signature_length() {
+        let msg = b"method_id_upgrade";
+        let mut initial_da_pubkeys = [[0u8; 33]; 5];
+        let mut pubkeys_in_inscription = Vec::new();
+        let mut signatures_in_inscription = Vec::new();
+
+        // Generate 5 valid keypairs and signatures
+        for i in 0..5 {
+            let secret_key = [i as u8 + 1; 32];
+            let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+            let verifying_key = signer.credential().verifying_key();
+            let pubkey = verifying_key.to_sec1_bytes();
+            initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+            pubkeys_in_inscription.push(pubkey.to_vec());
+
+            let prehash = eip191_hash_message(msg);
+            let sig = signer.sign_hash_sync(&prehash).unwrap();
+            let mut signature = sig.as_bytes()[0..64].to_vec();
+            if i == 0 || i == 3 {
+                signature.pop(); // Make signature length invalid for two signatures
+            }
+            signatures_in_inscription.push(signature);
+        }
+
+        assert!(verify_method_id_security_council(
+            initial_da_pubkeys,
+            pubkeys_in_inscription.clone(),
+            signatures_in_inscription.clone(),
+            msg
+        ));
+
+        signatures_in_inscription[1].pop(); // Make another signature length invalid
+        assert!(!verify_method_id_security_council(
+            initial_da_pubkeys,
+            pubkeys_in_inscription.clone(),
+            signatures_in_inscription.clone(),
+            msg
+        ));
+    }
+
+    #[test]
+    fn test_wrong_number_of_pubkeys_or_signatures() {
+        let msg = b"method_id_upgrade";
+        let mut initial_da_pubkeys = [[0u8; 33]; 5];
+        let mut pubkeys_in_inscription = Vec::new();
+        let mut signatures_in_inscription = Vec::new();
+
+        // Generate 4 valid keypairs and signatures (should be 5)
+        for i in 0..4 {
+            let secret_key = [i as u8 + 1; 32];
+            let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+            let verifying_key = signer.credential().verifying_key();
+            let pubkey = verifying_key.to_sec1_bytes();
+            initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+            pubkeys_in_inscription.push(pubkey.to_vec());
+
+            let prehash = eip191_hash_message(msg);
+            let sig = signer.sign_hash_sync(&prehash).unwrap();
+            let signature = sig.as_bytes()[0..64].to_vec();
+            signatures_in_inscription.push(signature);
+        }
+
+        assert!(!verify_method_id_security_council(
+            initial_da_pubkeys,
+            pubkeys_in_inscription.clone(),
+            signatures_in_inscription.clone(),
+            msg
+        ));
+    }
+}
+
 #[test]
 // Compares signature created with cast and our implementation
 fn test_eip191_signature_verification() {
