@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use alloy_primitives::U64;
+use alloy_primitives::{eip191_hash_message, U64};
 use anyhow::bail;
 use bitcoin_da::fee::FeeService;
 use bitcoin_da::monitoring::{MonitoringConfig, MonitoringService};
@@ -19,7 +19,6 @@ use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_e2e::traits::NodeT;
-use citrea_light_client_prover::circuit::method_id_verifier::eip191_sign;
 use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
 use reth_tasks::TaskExecutor;
 use sov_ledger_rpc::LedgerRpcClient;
@@ -425,7 +424,7 @@ pub async fn generate_mock_txs(
         (
             secret_keys
                 .iter()
-                .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0)
+                .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0.to_vec())
                 .collect::<Vec<_>>(),
             pubkeys,
         )
@@ -548,7 +547,7 @@ pub async fn generate_mock_txs(
         (
             secret_keys
                 .iter()
-                .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0)
+                .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0.to_vec())
                 .collect::<Vec<_>>(),
             pubkeys,
         )
@@ -587,6 +586,20 @@ pub fn generate_pubkeys_from_secret_keys(secret_keys: [[u8; 32]; 5]) -> Vec<Vec<
         pubkeys.push(encoded_point.as_bytes().to_vec());
     }
     pubkeys
+}
+
+pub(crate) fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> (k256::ecdsa::Signature, [u8; 32]) {
+    use alloy_signer::SignerSync;
+    use alloy_signer_local::PrivateKeySigner;
+
+    let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+
+    let prehash = eip191_hash_message(msg);
+
+    let sig = signer.sign_hash_sync(&prehash).unwrap();
+    let signature = k256::ecdsa::Signature::from_slice(&sig.as_bytes()[0..64]).unwrap();
+
+    (signature, *prehash)
 }
 
 // For some reason, even though macro is used, it sees it as unused

@@ -22,7 +22,7 @@ pub enum ParsedTransaction {
     /// Kind 2
     Chunk(ParsedChunk),
     /// Kind 3
-    BatchProverMethodId(ParsedBatchProverMethodId),
+    BatchProverMethodId(ParsedBatchProofMethodId),
     /// Kind 4
     SequencerCommitment(ParsedSequencerCommitment),
     // /// Kind ?
@@ -61,42 +61,20 @@ pub struct ParsedSequencerCommitment {
     pub(crate) public_key: Vec<u8>,
 }
 
-/// ParsedBatchProverMethodId is a transaction that contains the BatchProver method id.
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
-pub struct ParsedBatchProverMethodId {
-    // Borsh(BatchProofMethodIdBody)
+/// ParsedBatchProofMethodId is a transaction that contains the batch proof method ID
+/// and the security council signatures and pubkeys.
+#[derive(Debug, Clone)]
+pub struct ParsedBatchProofMethodId {
+    /// Contains borsh(BatchProofMethodId)
+    /// So it has public keys and signatures of security council and the body
+    /// which is BatchProofMethodIdBody{activation_l2_height, method_id}
     pub(crate) body: Vec<u8>,
-    // TODO: Are these better off as arrays of fixed size?
-    // Consists of 65 byte keccak256(eip191 prefixed message) prehash signed signatures
-    pub(crate) signatures: Vec<Vec<u8>>,
-    // Compressed sec1 encoded verifying keys (33 bytes each)
-    pub(crate) public_keys: Vec<Vec<u8>>,
 }
 
-impl ParsedBatchProverMethodId {
-    /// Returns the signatures in the transaction.
-    pub fn signatures(&self) -> &[Vec<u8>] {
-        &self.signatures
-    }
-
-    /// Returns the public keys in the transaction.
-    pub fn public_keys(&self) -> &[Vec<u8>] {
-        &self.public_keys
-    }
-
-    /// Returns the body of the transaction.
-    pub fn body(&self) -> Vec<u8> {
-        self.body.clone()
-    }
-
-    pub fn get_hash(&self) -> [u8; 32] {
-        let mut hasher = sha2::Sha256::new();
-        hasher.update(&self.body);
-        hasher.finalize().into()
-    }
-
-    pub fn public_key(&self) -> &[u8] {
-        &self.public_keys[0]
+impl ParsedBatchProofMethodId {
+    pub fn hash(&self) -> [u8; 32] {
+        let hash = sha2::Sha256::new_with_prefix(&self.body);
+        hash.finalize().into()
     }
 }
 
@@ -284,12 +262,13 @@ mod body_parsers {
     use bitcoin::opcodes::all::{OP_ENDIF, OP_IF, OP_NIP};
     use bitcoin::script::Instruction;
     use bitcoin::script::Instruction::{Op, PushBytes};
-    use sov_rollup_interface::da::DataOnDa;
+    use sov_rollup_interface::da::{BatchProofMethodId, DataOnDa};
 
     use super::{
-        read_instr, read_opcode, read_push_bytes, ParsedAggregate, ParsedBatchProverMethodId,
-        ParsedChunk, ParsedComplete, ParsedSequencerCommitment, ParserError,
+        read_instr, read_opcode, read_push_bytes, ParsedAggregate, ParsedChunk, ParsedComplete,
+        ParsedSequencerCommitment, ParserError,
     };
+    use crate::helpers::parsers::ParsedBatchProofMethodId;
 
     /// Parse transaction body of Type0 Complete proof
     pub(super) fn parse_type_0_body(
@@ -461,7 +440,7 @@ mod body_parsers {
     /// Parse transaction body of Type3 Batch Proof MethodId upgrade tx
     pub(super) fn parse_type_3_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
-    ) -> Result<ParsedBatchProverMethodId, ParserError> {
+    ) -> Result<ParsedBatchProofMethodId, ParserError> {
         let op_false = read_push_bytes(instructions)?;
         if !op_false.is_empty() {
             // OP_FALSE = OP_PUSHBYTES_0
@@ -503,16 +482,7 @@ mod body_parsers {
             return Err(ParserError::UnexpectedOpcode);
         }
 
-        let Ok(DataOnDa::BatchProofMethodId(batch_proof_method_id)) = borsh::from_slice(&body)
-        else {
-            return Err(ParserError::InvalidBody);
-        };
-
-        Ok(ParsedBatchProverMethodId {
-            body: borsh::to_vec(&batch_proof_method_id.body).unwrap(),
-            signatures: batch_proof_method_id.signatures,
-            public_keys: batch_proof_method_id.pubkeys,
-        })
+        Ok(ParsedBatchProofMethodId { body })
     }
 
     /// Parse transaction body of Type4 Sequencer Commitment

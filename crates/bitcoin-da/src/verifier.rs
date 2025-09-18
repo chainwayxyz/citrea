@@ -154,27 +154,18 @@ impl DaVerifier for BitcoinVerifier {
                     }
                     // The signature verification of BatchProverMethodId is done in the circuit
                     ParsedTransaction::BatchProverMethodId(method_id) => {
-                        let public_key = method_id.public_key().to_vec();
-                        let hash = method_id.get_hash();
-
-                        let Ok(method_id_body) = borsh::from_slice(&method_id.body) else {
-                            return Err(ValidationError::FailedToDeserializeBatchProofMethodIdBody);
-                        };
-
-                        let blob_data = borsh::to_vec(
-                            &(DataOnDa::BatchProofMethodId(BatchProofMethodId {
-                                body: method_id_body,
-                                signatures: method_id.signatures,
-                                pubkeys: method_id.public_keys,
-                            })),
-                        )
-                        .unwrap();
+                        // Pubkey here is given as 0 because the security council pub keys are inside the body
+                        let public_key = [0u8; 32].to_vec();
+                        let hash = method_id.hash();
 
                         blobs.push(BlobWithSender::new(
                             // Body here is: borsh(DataOnDa::BatchProofMethodId(BatchProofMethodId { ... }))
                             // The sender field here is not used because this transaction has a security council
                             // consisting of 5 public keys, this data and signatures are embedded in the body
-                            blob_data, public_key, hash, *wtxid,
+                            method_id.body,
+                            public_key,
+                            hash,
+                            *wtxid,
                         ))
                     }
                     ParsedTransaction::SequencerCommitment(seq_comm) => {

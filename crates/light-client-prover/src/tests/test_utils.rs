@@ -222,9 +222,7 @@ pub(crate) fn create_new_method_id_tx(
     let mut signatures = vec![];
     for pk_bytes in pk_bytes_arr {
         let (sig, hash) = eip191_sign(msg.as_slice(), &pk_bytes);
-        // let mut sig: [u8; 65] = [0u8; 65];
-        // sig.copy_from_slice(&sig);
-        signatures.push(sig);
+        signatures.push(sig.to_vec());
     }
 
     let da_data = DataOnDa::BatchProofMethodId(BatchProofMethodId {

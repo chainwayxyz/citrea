@@ -52,16 +52,15 @@ pub(crate) fn verify_method_id_security_council(
             }
         };
 
-        // Ensure the signature is in the correct format (65 bytes: r(32) + s(32) + v(1))
-        if signature_bytes.len() != 65 {
+        // Ensure the signature is in the correct format (64 bytes: r(32) + s(32))
+        if signature_bytes.len() != 64 {
             continue;
         }
 
         // Calculate prehash of the message
         let prehash = eip191_hash_message(signature_message);
 
-        let Ok(signature) = k256::ecdsa::Signature::from_slice(&signature_bytes.as_slice()[..64])
-        else {
+        let Ok(signature) = k256::ecdsa::Signature::from_slice(&signature_bytes.as_slice()) else {
             log!("Failed to parse signature");
             continue;
         };
@@ -135,7 +134,7 @@ fn recover_pub_key_from_cast_sig_and_hash(cast_sig: &[u8], hash: &[u8]) -> Verif
 }
 
 #[cfg(test)]
-pub fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> k256::ecdsa::Signature {
+pub fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> (k256::ecdsa::Signature, [u8; 32]) {
     use alloy_signer::SignerSync;
     use alloy_signer_local::PrivateKeySigner;
 
@@ -143,5 +142,8 @@ pub fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> k256::ecdsa::Signature 
 
     let prehash = eip191_hash_message(msg);
 
-    signer.sign_hash_sync(&prehash).unwrap()
+    let sig = signer.sign_hash_sync(&prehash).unwrap();
+    let signature = k256::ecdsa::Signature::from_slice(&sig.as_bytes()[0..64]).unwrap();
+
+    (signature, *prehash)
 }
