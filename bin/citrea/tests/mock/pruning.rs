@@ -37,7 +37,10 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
             da_path: da_db_dir,
             sequencer_path: sequencer_db_dir,
             fullnode_path: fullnode_db_dir,
-            pruning_config: Some(PruningConfig { distance: 20 }),
+            pruning_config: Some(PruningConfig {
+                distance: 20,
+                ..Default::default()
+            }),
             ..Default::default()
         })
         .await;
@@ -163,7 +166,10 @@ async fn test_native_db_pruning() -> Result<(), anyhow::Error> {
             da_path: da_db_dir,
             sequencer_path: sequencer_db_dir,
             fullnode_path: fullnode_db_dir,
-            pruning_config: Some(PruningConfig { distance: 20 }),
+            pruning_config: Some(PruningConfig {
+                distance: 20,
+                ..Default::default()
+            }),
             ..Default::default()
         })
         .await;
