@@ -22,7 +22,10 @@ pub(crate) async fn prune(
         db_path.display(),
         distance
     );
-    let config = PruningConfig { distance };
+    let config = PruningConfig {
+        distance,
+        ..Default::default()
+    };
 
     let column_families = cfs_from_node_type(node_type);
 
