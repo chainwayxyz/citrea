@@ -60,10 +60,8 @@ pub(crate) fn verify_method_id_security_council(
         // Calculate prehash of the message
         let prehash = eip191_hash_message(signature_message);
 
-        let mut eip_191_signature = [0u8; 64];
-        eip_191_signature[..64].copy_from_slice(&signature_bytes[..64]);
-
-        let Ok(signature) = k256::ecdsa::Signature::from_slice(eip_191_signature.as_slice()) else {
+        let Ok(signature) = k256::ecdsa::Signature::from_slice(&signature_bytes.as_slice()[..64])
+        else {
             log!("Failed to parse signature");
             continue;
         };
