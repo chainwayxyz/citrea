@@ -23,10 +23,11 @@ pub struct Pruner {
     /// Access to native DB.
     native_db: Arc<sov_schema_db::DB>,
     /// Access to state DB.
-    #[allow(dead_code)]
     state_db: Arc<sov_schema_db::DB>,
     /// Criteria to decide pruning
     criteria: Box<dyn Criteria + Send + Sync>,
+    /// If true, prune state DB alongside ledger/native.
+    enable_state_pruning: bool,
 }
 
 impl Pruner {
@@ -45,6 +46,7 @@ impl Pruner {
             state_db,
             native_db,
             criteria,
+            enable_state_pruning: config.enable_state_pruning,
         }
     }
 
@@ -61,30 +63,33 @@ impl Pruner {
             .should_prune(last_pruned_l2_height, current_l2_height)
     }
 
-    /// Prune everything
+    /// Prune everything up to the provided L2 block. State pruning is gated by configuration.
     pub async fn prune(&self, node_type: NodeType, up_to_block: u64) {
         info!("Pruning up to L2 block: {}", up_to_block);
         let ledger_db = self.ledger_db.clone();
 
         let native_db = self.native_db.clone();
 
-        // let state_db = self.state_db.clone();
+        let state_db = self.state_db.clone();
 
         let ledger_pruning_handle =
             tokio::task::spawn_blocking(move || prune_ledger(node_type, ledger_db, up_to_block));
 
-        // TODO: Fix me
-        // let state_db_pruning_handle =
-        //     tokio::task::spawn_blocking(move || prune_state_db(state_db, up_to_block));
+        let maybe_state_handle = if self.enable_state_pruning {
+            Some(tokio::task::spawn_blocking(move || {
+                state::prune_state_db(state_db, up_to_block)
+            }))
+        } else {
+            None
+        };
 
         let native_db_pruning_handle =
             tokio::task::spawn_blocking(move || prune_native_db(native_db, up_to_block));
 
-        future::join_all([
-            ledger_pruning_handle,
-            // state_db_pruning_handle,
-            native_db_pruning_handle,
-        ])
-        .await;
+        let mut handles = vec![ledger_pruning_handle, native_db_pruning_handle];
+        if let Some(h) = maybe_state_handle {
+            handles.push(h);
+        }
+        let _ = future::join_all(handles).await;
     }
 }
