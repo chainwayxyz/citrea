@@ -37,11 +37,6 @@ const fn default_sync_blocks_count() -> u64 {
     10
 }
 
-#[inline]
-const fn default_max_rpc_proving_jobs_limit() -> usize {
-    100
-}
-
 /// Runner configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct RunnerConfig {
@@ -56,9 +51,6 @@ pub struct RunnerConfig {
     pub pruning_config: Option<PruningConfig>,
     /// The DA block number to start L1 sync from
     pub scan_l1_start_height: u64,
-    /// Maximum number of responded proving jobs in RPC batchProver_getProvingJobs
-    #[serde(default = "default_max_rpc_proving_jobs_limit")]
-    pub max_rpc_proving_jobs_limit: usize,
 }
 
 impl FromEnv for RunnerConfig {
@@ -72,10 +64,6 @@ impl FromEnv for RunnerConfig {
                 .unwrap_or_else(default_sync_blocks_count),
             pruning_config: PruningConfig::from_env().ok(),
             scan_l1_start_height: read_env("SCAN_L1_START_HEIGHT")?.parse()?,
-            max_rpc_proving_jobs_limit: read_env("MAX_RPC_PROVING_JOBS_LIMIT")
-                .ok()
-                .and_then(|val| val.parse().ok())
-                .unwrap_or_else(default_max_rpc_proving_jobs_limit),
         })
     }
 }
@@ -438,6 +426,7 @@ mod tests {
             enable_subscriptions = true
             max_subscriptions_per_connection = 200
             trace_chain_block_limit = 100
+            proving_jobs_limit = 50
 
             [da]
             sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
@@ -451,7 +440,6 @@ mod tests {
             include_tx_body = true
             sequencer_client_url = "http://0.0.0.0:12346"
             scan_l1_start_height = 1
-            max_rpc_proving_jobs_limit = 50
 
             [telemetry]
             bind_host = "0.0.0.0"
@@ -470,7 +458,6 @@ mod tests {
                 sync_blocks_count: 10,
                 pruning_config: None,
                 scan_l1_start_height: 1,
-                max_rpc_proving_jobs_limit: 50,
             }),
             da: sov_mock_da::MockDaConfig {
                 sender_address: [0; 32].into(),
@@ -491,6 +478,7 @@ mod tests {
                 enable_subscriptions: true,
                 max_subscriptions_per_connection: 200,
                 trace_chain_block_limit: Some(100),
+                proving_jobs_limit: 50,
                 timeout: 30,
                 api_key: None,
             },
@@ -647,6 +635,7 @@ mod tests {
         std::env::set_var("RPC_MAX_CONNECTIONS", "500");
         std::env::set_var("RPC_ENABLE_SUBSCRIPTIONS", "true");
         std::env::set_var("RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION", "200");
+        std::env::set_var("RPC_PROVING_JOBS_LIMIT", "50");
         std::env::set_var("RPC_TIMEOUT", "30");
 
         std::env::set_var(
@@ -662,7 +651,6 @@ mod tests {
         std::env::set_var("SEQUENCER_CLIENT_URL", "http://0.0.0.0:12346");
         std::env::set_var("PRUNING_DISTANCE", "1000");
         std::env::set_var("SCAN_L1_START_HEIGHT", "1");
-        std::env::set_var("MAX_RPC_PROVING_JOBS_LIMIT", "50");
 
         std::env::set_var("TELEMETRY_BIND_HOST", "0.0.0.0");
         std::env::set_var("TELEMETRY_BIND_PORT", "8082");
@@ -680,6 +668,7 @@ mod tests {
                 enable_subscriptions: true,
                 max_subscriptions_per_connection: 200,
                 trace_chain_block_limit: None,
+                proving_jobs_limit: 50,
                 timeout: 30,
                 api_key: None,
             },
@@ -694,7 +683,6 @@ mod tests {
                 sync_blocks_count: default_sync_blocks_count(),
                 pruning_config: Some(PruningConfig { distance: 1000 }),
                 scan_l1_start_height: 1,
-                max_rpc_proving_jobs_limit: 50,
             }),
             da: sov_mock_da::MockDaConfig {
                 sender_address: [0; 32].into(),
