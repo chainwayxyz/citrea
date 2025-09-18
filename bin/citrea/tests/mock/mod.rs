@@ -128,7 +128,10 @@ async fn test_all_flow() {
         &fullnode_db_dir,
         &da_db_dir,
         NodeMode::FullNode(seq_port),
-        Some(PruningConfig { distance: 20 }),
+        Some(PruningConfig {
+            distance: 20,
+            ..Default::default()
+        }),
     );
     let full_node_task = start_rollup(
         full_node_port_tx,
