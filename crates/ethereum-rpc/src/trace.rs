@@ -141,8 +141,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     enable_js_tracer: bool,
 ) -> Result<Vec<TraceResult>, ErrorObjectOwned> {
     let is_js_tracer = matches!(
-        opts.as_ref()
-            .and_then(|o| o.tracer.as_ref()),
+        opts.as_ref().and_then(|o| o.tracer.as_ref()),
         Some(GethDebugTracerType::JsTracer(_))
     );
     if is_js_tracer && !enable_js_tracer {
@@ -154,9 +153,9 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
         o.tracer.as_ref().is_none_or(|inner| match inner {
             GethDebugTracerType::JsTracer(_) => true,
             GethDebugTracerType::BuiltInTracer(bit) => matches!(
-            bit,
-            GethDebugBuiltInTracerType::MuxTracer | GethDebugBuiltInTracerType::PreStateTracer
-        ),
+                bit,
+                GethDebugBuiltInTracerType::MuxTracer | GethDebugBuiltInTracerType::PreStateTracer
+            ),
         })
     });
     if skip_cache {
