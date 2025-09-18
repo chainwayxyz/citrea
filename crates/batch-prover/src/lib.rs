@@ -139,7 +139,6 @@ where
         da_service.clone(),
         storage_manager.clone(),
         code_commitments.clone(),
-        runner_config.clone(),
         rpc_config.clone(),
     );
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;

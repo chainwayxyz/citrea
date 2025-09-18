@@ -16,7 +16,7 @@ use alloy_primitives::{U32, U64};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use citrea_common::rpc::utils::internal_rpc_error;
-use citrea_common::{RpcConfig, RunnerConfig};
+use citrea_common::RpcConfig;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_stf::runtime::DefaultContext;
 use citrea_stf::verifier::get_last_l1_hash_on_contract;
@@ -84,8 +84,6 @@ where
     pub storage_manager: ProverStorageManager,
     /// Code commitments for different specs, used to verify the proofs
     pub code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
-    /// Runner config
-    pub runner_config: RunnerConfig,
     /// RPC config
     pub rpc_config: RpcConfig,
 }
@@ -113,7 +111,6 @@ pub fn create_rpc_context<Da, DB, Vm>(
     da_service: Arc<Da>,
     storage_manager: ProverStorageManager,
     code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
-    runner_config: RunnerConfig,
     rpc_config: RpcConfig,
 ) -> RpcContext<Da, DB, Vm>
 where
@@ -127,7 +124,6 @@ where
         da_service,
         storage_manager,
         code_commitments,
-        runner_config,
         rpc_config,
     }
 }
