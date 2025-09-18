@@ -436,7 +436,7 @@ where
             Some(GethDebugTracerType::JsTracer(_))
         );
         if is_js_tracer && !self.enable_js_tracer {
-            return Err(EthApiError::Unsupported("JsTracer is disabled on this node").into());
+            return Err(EthApiError::Unsupported("JsTracer is disabled.").into());
         }
         evm.debug_trace_call(
             request,
