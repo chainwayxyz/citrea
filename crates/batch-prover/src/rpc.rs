@@ -58,7 +58,7 @@ pub struct ProverInputResponse {
 
 /// Response type for the proving job status.
 /// Contains the job ID and its current status.
-#[derive(Clone, Copy, Deserialize, Serialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvingJobResponse {
     /// The unique identifier for the proving job
@@ -600,7 +600,6 @@ where
         let skip = skip.unwrap_or(U64::ZERO).to::<usize>();
         let limit = limit.to::<usize>();
         let limit = limit.min(self.context.rpc_config.proving_jobs_limit);
-        let limit = if limit == 0 { 100 } else { limit };
 
         let jobs = self
             .context
