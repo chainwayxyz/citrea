@@ -2249,6 +2249,7 @@ dependencies = [
  "alloy-rpc-types",
  "alloy-rpc-types-trace",
  "alloy-signer",
+ "alloy-signer-local",
  "alloy-sol-types",
  "anyhow",
  "async-trait",
