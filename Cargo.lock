@@ -2248,6 +2248,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-rpc-types",
  "alloy-rpc-types-trace",
+ "alloy-signer",
  "alloy-sol-types",
  "anyhow",
  "async-trait",
@@ -2550,6 +2551,8 @@ name = "citrea-light-client-prover"
 version = "0.7.4"
 dependencies = [
  "alloy-primitives",
+ "alloy-signer",
+ "alloy-signer-local",
  "anyhow",
  "async-trait",
  "bitcoin-da",
