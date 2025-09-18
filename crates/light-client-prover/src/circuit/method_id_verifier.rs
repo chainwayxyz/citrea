@@ -1,6 +1,6 @@
 use alloy_primitives::eip191_hash_message;
 use k256::ecdsa::signature::hazmat::PrehashVerifier;
-use k256::ecdsa::{RecoveryId, SigningKey, VerifyingKey};
+use k256::ecdsa::VerifyingKey;
 use k256::EncodedPoint;
 
 /// The three out of 5 signatures should be verified for the method id upgrade to be valid.
@@ -60,7 +60,7 @@ pub(crate) fn verify_method_id_security_council(
         // Calculate prehash of the message
         let prehash = eip191_hash_message(signature_message);
 
-        let Ok(signature) = k256::ecdsa::Signature::from_slice(&signature_bytes.as_slice()) else {
+        let Ok(signature) = k256::ecdsa::Signature::from_slice(signature_bytes.as_slice()) else {
             log!("Failed to parse signature");
             continue;
         };
@@ -110,7 +110,7 @@ fn test_eip191_signature_verification() {
     // 0x52782f3d8fddd7e1bfaa718e4ca6f8c3581624880bae828c9e220628dcdbf55e40eedc5c0ee292cfe296492533bcdcec74836f8a4866e4f8b8308167853731731c
     let sig_bytes = eip_191_signature.as_bytes();
     // Assert that cast signature matches our signature
-    assert_eq!(hex::encode(&sig_bytes), "52782f3d8fddd7e1bfaa718e4ca6f8c3581624880bae828c9e220628dcdbf55e40eedc5c0ee292cfe296492533bcdcec74836f8a4866e4f8b8308167853731731c");
+    assert_eq!(hex::encode(sig_bytes), "52782f3d8fddd7e1bfaa718e4ca6f8c3581624880bae828c9e220628dcdbf55e40eedc5c0ee292cfe296492533bcdcec74836f8a4866e4f8b8308167853731731c");
 
     let signature =
         k256::ecdsa::Signature::from_slice(&eip_191_signature.as_bytes()[0..64]).unwrap();
@@ -120,7 +120,10 @@ fn test_eip191_signature_verification() {
         .is_ok());
 }
 
+/// Recovers the public key from a cast-style signature (65 bytes: r(32) + s(32) + v(1)) and the message hash.
+#[cfg(test)]
 fn recover_pub_key_from_cast_sig_and_hash(cast_sig: &[u8], hash: &[u8]) -> VerifyingKey {
+    use k256::ecdsa::RecoveryId;
     assert_eq!(cast_sig.len(), 65, "Invalid signature length");
     assert_eq!(hash.len(), 32, "Invalid hash length");
 
@@ -133,6 +136,7 @@ fn recover_pub_key_from_cast_sig_and_hash(cast_sig: &[u8], hash: &[u8]) -> Verif
         .expect("Failed to recover public key")
 }
 
+/// Signs a message with the given secret key using EIP-191.
 #[cfg(test)]
 pub fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> (k256::ecdsa::Signature, [u8; 32]) {
     use alloy_signer::SignerSync;

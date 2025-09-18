@@ -35,6 +35,7 @@ pub mod initial_values;
 #[macro_use]
 mod log;
 
+/// Verifies security council signatures for the method ID upgrade.
 pub mod method_id_verifier;
 
 /// L2 activation height of the fork, and the batch proof method ID

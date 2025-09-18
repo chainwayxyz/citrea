@@ -29,9 +29,7 @@ use citrea_primitives::MAX_TX_BODY_SIZE;
 use lru::LruCache;
 use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{
-    BatchProofMethodId, DaSpec, DaTxRequest, DataOnDa, SequencerCommitment,
-};
+use sov_rollup_interface::da::{DaSpec, DaTxRequest, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
 use sov_rollup_interface::zk::Proof;
 use sov_rollup_interface::Network;

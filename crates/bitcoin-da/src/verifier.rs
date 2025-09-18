@@ -2,9 +2,7 @@
 
 use crypto_bigint::{Encoding, U256};
 use itertools::Itertools;
-use sov_rollup_interface::da::{
-    BatchProofMethodId, BlockHeaderTrait, DaSpec, DaVerifier, DataOnDa, LatestDaState,
-};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, LatestDaState};
 use sov_rollup_interface::Network;
 
 use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};

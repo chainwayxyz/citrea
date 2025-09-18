@@ -83,7 +83,7 @@ impl BatchProofMethodId {
     /// Compute sha256 hash of the borsh serialized body
     pub fn get_hash(&self) -> [u8; 32] {
         let mut hasher = sha2::Sha256::new();
-        hasher.update(&self.body.serialize());
+        hasher.update(self.body.serialize());
         hasher.finalize().into()
     }
 

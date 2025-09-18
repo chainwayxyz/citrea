@@ -7,7 +7,6 @@ use bitcoin::opcodes::all::OP_CHECKSIGVERIFY;
 use bitcoin::script::Instruction::{Op, PushBytes};
 use bitcoin::script::{Error as ScriptError, PushBytes as StructPushBytes};
 use bitcoin::{Opcode, Script, Transaction};
-use borsh::{BorshDeserialize, BorshSerialize};
 use sha2::Digest;
 use thiserror::Error;
 
@@ -72,6 +71,7 @@ pub struct ParsedBatchProofMethodId {
 }
 
 impl ParsedBatchProofMethodId {
+    /// Hash of the body
     pub fn hash(&self) -> [u8; 32] {
         let hash = sha2::Sha256::new_with_prefix(&self.body);
         hash.finalize().into()
@@ -262,7 +262,6 @@ mod body_parsers {
     use bitcoin::opcodes::all::{OP_ENDIF, OP_IF, OP_NIP};
     use bitcoin::script::Instruction;
     use bitcoin::script::Instruction::{Op, PushBytes};
-    use sov_rollup_interface::da::{BatchProofMethodId, DataOnDa};
 
     use super::{
         read_instr, read_opcode, read_push_bytes, ParsedAggregate, ParsedChunk, ParsedComplete,

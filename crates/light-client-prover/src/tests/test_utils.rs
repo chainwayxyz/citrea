@@ -204,7 +204,7 @@ pub(crate) fn create_new_method_id_tx(
     new_method_id: [u32; 8],
     pub_key: [u8; 32],
     council_pub_keys: [[u8; 33]; 5],
-    council_signatures: [[u8; 65]; 5], // R,S,V
+    _council_signatures: [[u8; 65]; 5], // R,S,V
 ) -> MockBlob {
     let pubkeys = council_pub_keys
         .into_iter()
@@ -221,7 +221,7 @@ pub(crate) fn create_new_method_id_tx(
 
     let mut signatures = vec![];
     for pk_bytes in pk_bytes_arr {
-        let (sig, hash) = eip191_sign(msg.as_slice(), &pk_bytes);
+        let (sig, _hash) = eip191_sign(msg.as_slice(), &pk_bytes);
         signatures.push(sig.to_vec());
     }
 

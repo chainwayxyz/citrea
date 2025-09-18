@@ -579,11 +579,10 @@ pub async fn generate_mock_txs(
 
 pub fn generate_pubkeys_from_secret_keys(secret_keys: [[u8; 32]; 5]) -> Vec<Vec<u8>> {
     let mut pubkeys = vec![];
-    for (i, sk) in secret_keys.iter().enumerate() {
+    for sk in secret_keys.iter() {
         let signing_key = k256::ecdsa::SigningKey::from_bytes(sk.into()).unwrap();
         let verify_key = signing_key.verifying_key();
-        let encoded_point = verify_key.to_encoded_point(true);
-        pubkeys.push(encoded_point.as_bytes().to_vec());
+        pubkeys.push(verify_key.to_sec1_bytes().to_vec());
     }
     pubkeys
 }
