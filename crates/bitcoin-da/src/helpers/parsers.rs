@@ -88,19 +88,15 @@ impl ParsedBatchProverMethodId {
     pub fn body(&self) -> Vec<u8> {
         self.body.clone()
     }
-}
 
-/// To verify the security council signatures of the inscription and get the hash of the body
-pub trait SecurityCouncilVerifyParsed: VerifyParsed {
-    /// If belongs to a security council, returns all public keys used to verify the signature.
-    fn public_keys(&self) -> &[Vec<u8>];
-    /// Returns the signatures of the security council.
-    fn signatures(&self) -> &[Vec<u8>];
-    /// Returns hash of the body of the transaction.
-    fn get_hash(&self) -> [u8; 32] {
+    pub fn get_hash(&self) -> [u8; 32] {
         let mut hasher = sha2::Sha256::new();
-        hasher.update(self.body());
+        hasher.update(&self.body);
         hasher.finalize().into()
+    }
+
+    pub fn public_key(&self) -> &[u8] {
+        &self.public_keys[0]
     }
 }
 
@@ -163,38 +159,6 @@ impl VerifyParsed for ParsedSequencerCommitment {
     fn body(&self) -> &[u8] {
         &self.body
     }
-}
-
-impl SecurityCouncilVerifyParsed for ParsedBatchProverMethodId {
-    fn public_keys(&self) -> &[Vec<u8>] {
-        &self.public_keys
-    }
-    fn signatures(&self) -> &[Vec<u8>] {
-        &self.signatures
-    }
-}
-
-impl VerifyParsed for ParsedBatchProverMethodId {
-    fn public_key(&self) -> &[u8] {
-        self.public_keys().first().expect("At least one public key")
-    }
-    fn signature(&self) -> &[u8] {
-        unimplemented!("ParsedBatchProverMethodId does not support single signature")
-    }
-    fn body(&self) -> &[u8] {
-        &self.body
-    }
-    // fn get_sig_verified_hash(&self) -> Option<[u8; 32]> {
-    //     let pubs: [[u8; 32]; 5] = self.public_key.try_into();
-
-    //     let sigs: [[u8; 32]; 5] = self.signature.try_into();
-
-    //     for (pub, sig) in pubs.iter().zip(sigs.iter()) {
-    //        if not_verified {
-    //         return None;
-    //        }
-    //     }
-    // }
 }
 
 /// Error type for the parser.

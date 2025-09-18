@@ -7,9 +7,7 @@ use sov_rollup_interface::da::{
 };
 use sov_rollup_interface::Network;
 
-use crate::helpers::parsers::{
-    parse_relevant_transaction, ParsedTransaction, SecurityCouncilVerifyParsed, VerifyParsed,
-};
+use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
 use crate::helpers::{calculate_double_sha256, calculate_txid, calculate_wtxid, merkle_tree};
 use crate::network_constants::{
     INITIAL_MAINNET_STATE, INITIAL_SIGNET_STATE, INITIAL_TESTNET4_STATE, MAINNET_CONSTANTS,
