@@ -19,6 +19,11 @@ impl FromEnv for PruningConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(PruningConfig {
             distance: read_env("PRUNING_DISTANCE")?.parse()?,
+            enable_state_pruning: read_env("ENABLE_STATE_PRUNING")
+                .ok()
+                .map(|v| v.parse())
+                .transpose()?
+                .unwrap_or(false),
         })
     }
 }
@@ -387,11 +392,17 @@ impl<'de> Deserialize<'de> for ProverGuestRunConfig {
 pub struct PruningConfig {
     /// Defines the number of blocks from the tip of the chain to remove.
     pub distance: u64,
+    /// Enables pruning of the state DB (JMT). Disabled by default for safety until fully validated.
+    #[serde(default)]
+    pub enable_state_pruning: bool,
 }
 
 impl Default for PruningConfig {
     fn default() -> Self {
-        Self { distance: 256 }
+        Self {
+            distance: 256,
+            enable_state_pruning: false,
+        }
     }
 }
 
