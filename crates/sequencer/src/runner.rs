@@ -1278,8 +1278,7 @@ where
         for (index, l1_block) in da_blocks.into_iter().enumerate() {
             // First l1 block of first l2 block
             if l2_block_info.l2_height() == 1 && index == 0 {
-                let bridge_init_param = hex::decode(self.config.bridge_initialize_params.clone())
-                    .expect("should deserialize");
+                let bridge_init_param = self.config.bridge_initialize_params.clone();
 
                 info!("Initializing Bitcoin Light Client with L1 block: #{} with hash {}, tx commitment {}, and coinbase depth {}. Using {:?} for bridge initialization params.", l1_block.header().height(), hex::encode(Into::<[u8; 32]>::into(l1_block.header().txs_commitment())), hex::encode(l1_block.hash()), l1_block.header().coinbase_txid_merkle_proof_height(), bridge_init_param);
 

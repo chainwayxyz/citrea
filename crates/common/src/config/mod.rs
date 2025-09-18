@@ -250,7 +250,8 @@ pub struct SequencerConfig {
     /// Block production interval in ms
     pub block_production_interval_ms: u64,
     /// Bridge system contract initialize function parameters
-    pub bridge_initialize_params: String,
+    #[serde(with = "hex")]
+    pub bridge_initialize_params: Vec<u8>,
 }
 
 impl Default for SequencerConfig {
@@ -263,7 +264,7 @@ impl Default for SequencerConfig {
             deposit_mempool_fetch_limit: 10,
             block_production_interval_ms: 100,
             da_update_interval_ms: 100,
-            bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
             mempool_conf: Default::default(),
         }
     }
@@ -279,7 +280,7 @@ impl FromEnv for SequencerConfig {
             mempool_conf: SequencerMempoolConfig::from_env()?,
             da_update_interval_ms: read_env("DA_UPDATE_INTERVAL_MS")?.parse()?,
             block_production_interval_ms: read_env("BLOCK_PRODUCTION_INTERVAL_MS")?.parse()?,
-            bridge_initialize_params: read_env("BRIDGE_INITIALIZE_PARAMS")?,
+            bridge_initialize_params: hex::decode(read_env("BRIDGE_INITIALIZE_PARAMS")?)?,
         })
     }
 }
@@ -552,7 +553,7 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
-            bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
         };
         assert_eq!(config, expected);
     }
@@ -611,7 +612,7 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
-            bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
         };
         assert_eq!(sequencer_config, expected);
     }

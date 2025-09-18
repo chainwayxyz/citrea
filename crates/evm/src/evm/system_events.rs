@@ -59,7 +59,7 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
         },
         SystemEvent::BridgeInitialize(params) => TxEip1559 {
             to: TxKind::Call(BridgeWrapper::address()),
-            input: BridgeWrapper::initialize(params.as_slice()),
+            input: BridgeWrapper::initialize(&params),
             nonce,
             chain_id,
             value: U256::ZERO,
