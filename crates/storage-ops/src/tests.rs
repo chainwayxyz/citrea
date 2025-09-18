@@ -41,7 +41,10 @@ async fn test_pruning_simple_run() {
         let state_db = StateDB::setup_schema_db(&rocksdb_config).unwrap();
 
         let pruner = Pruner::new(
-            PruningConfig { distance: 5 },
+            PruningConfig {
+                distance: 5,
+                ..Default::default()
+            },
             ledger_db.inner(),
             Arc::new(state_db),
             Arc::new(native_db),
