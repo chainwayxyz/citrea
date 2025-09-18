@@ -8,7 +8,7 @@ use alloy_eips::eip2930::AccessListWithGasUsed;
 use alloy_eips::{BlockId, BlockNumHash, BlockNumberOrTag};
 use alloy_network::AnyTransactionReceipt;
 use alloy_primitives::TxKind::{Call, Create};
-use alloy_primitives::{Address, Bytes, Uint, B256, U256, U64};
+use alloy_primitives::{Address, Bloom, Bytes, Uint, B256, U256, U64};
 use alloy_rpc_types::state::StateOverride;
 use alloy_rpc_types::{
     AnyReceiptEnvelope, BlockOverrides, BloomFilter, Filter, FilterBlockOption, FilteredParams,
@@ -164,6 +164,64 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C::Storage>,
         ledger_db: &crate::LedgerDB,
     ) -> RpcResult<Option<WithOtherFields<AlloyRpcBlock>>> {
+        // Handle pending block
+        if block_number == Some(BlockNumberOrTag::Pending) {
+            let latest_block = self
+                .blocks
+                .last(&mut working_set.accessory_state())
+                .expect("Head block must be set");
+
+            let pending_env = get_pending_block_env(self, working_set);
+
+            let pending_consensus_header = AlloyConsensusHeader {
+                number: pending_env.number,
+                timestamp: pending_env.timestamp,
+                base_fee_per_gas: Some(pending_env.basefee),
+                gas_limit: latest_block.header.gas_limit,
+                parent_hash: latest_block.header.hash(),
+                state_root: B256::ZERO,
+                transactions_root: B256::ZERO,
+                receipts_root: B256::ZERO,
+                difficulty: U256::ZERO,
+                gas_used: 0,
+                extra_data: Bytes::default(),
+                mix_hash: B256::ZERO,
+                nonce: 0u64.into(),
+                logs_bloom: Bloom::default(),
+                ommers_hash: B256::ZERO,
+                beneficiary: Address::ZERO,
+                withdrawals_root: None,
+                parent_beacon_block_root: None,
+                blob_gas_used: None,
+                excess_blob_gas: None,
+                requests_hash: None,
+            };
+
+            let pending_header = AlloyHeader::new(pending_consensus_header);
+
+            let transactions = match details {
+                Some(true) => alloy_rpc_types::BlockTransactions::Full(vec![]),
+                _ => alloy_rpc_types::BlockTransactions::Hashes(vec![]),
+            };
+
+            let block = AlloyRpcBlock {
+                header: pending_header,
+                uncles: Default::default(),
+                transactions,
+                withdrawals: Default::default(),
+            };
+
+            let rpc_block = WithOtherFields {
+                inner: block,
+                other: OtherFields::from_iter([(
+                    "l1FeeRate".to_string(),
+                    format!("{:#x}", latest_block.l1_fee_rate).into(),
+                )]),
+            };
+
+            return Ok(Some(rpc_block));
+        }
+
         let sealed_block =
             match self.get_sealed_block_by_number(block_number, working_set, ledger_db)? {
                 Some(sealed_block) => sealed_block,
