@@ -140,6 +140,14 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     opts: Option<GethDebugTracingOptions>,
     enable_js_tracer: bool,
 ) -> Result<Vec<TraceResult>, ErrorObjectOwned> {
+    let is_js_tracer = matches!(
+        opts.as_ref()
+            .and_then(|o| o.tracer.as_ref()),
+        Some(GethDebugTracerType::JsTracer(_))
+    );
+    if is_js_tracer && !enable_js_tracer {
+        return Err(EthApiError::Unsupported("JsTracer is disabled on this node").into());
+    }
     // If tracer option is not specified, or it is JsTracer, then do not check cache or insert cache, just perform the operation
     // Skip cache from JsTracer, MuxTracer and PreStateTracer
     let skip_cache = opts.as_ref().is_none_or(|o| {
