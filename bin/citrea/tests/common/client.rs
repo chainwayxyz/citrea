@@ -831,8 +831,15 @@ impl TestClient {
         self.http_client.get_proving_job(id).await.unwrap()
     }
 
-    pub(crate) async fn get_proving_jobs(&self, count: usize) -> Vec<ProvingJobResponse> {
-        self.http_client.get_proving_jobs(count).await.unwrap()
+    pub(crate) async fn get_proving_jobs(
+        &self,
+        limit: usize,
+        skip: Option<usize>,
+    ) -> Vec<ProvingJobResponse> {
+        self.http_client
+            .get_proving_jobs(U64::from(limit as u64), skip.map(|v| U64::from(v as u64)))
+            .await
+            .unwrap()
     }
 
     pub(crate) async fn batch_prover_get_commitments_by_l1(

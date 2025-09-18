@@ -650,7 +650,7 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_latest_jobs(&self, count: usize) -> anyhow::Result<Vec<(Uuid, JobStatus)>> {
+    fn get_latest_jobs(&self, limit: usize, skip: usize) -> anyhow::Result<Vec<(Uuid, JobStatus)>> {
         let mut read_opts = ReadOptions::default();
         // Do not fill the cache with garbage data just to read ids
         read_opts.fill_cache(false);
@@ -660,11 +660,8 @@ impl BatchProverLedgerOps for LedgerDB {
             .iter_with_direction::<CommitmentIndicesByJobId>(read_opts, ScanDirection::Backward)?;
         iter.seek_to_last();
 
-        let mut jobs = Vec::with_capacity(count);
-        for el in iter {
-            if jobs.len() == count {
-                break;
-            }
+        let mut jobs = Vec::with_capacity(limit);
+        for el in iter.skip(skip).take(limit) {
             let job_id = el?.key;
             let status = self.job_status(job_id);
             jobs.push((job_id, status));

@@ -29,7 +29,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::{BatchProverConfig, InitParams, RollupPublicKeys, RunnerConfig};
+use citrea_common::{BatchProverConfig, InitParams, RollupPublicKeys, RpcConfig, RunnerConfig};
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::RpcModule;
 pub use l1_syncer::L1Syncer;
@@ -101,6 +101,7 @@ pub async fn build_services<DA, DB, Vm>(
     network: Network,
     prover_config: BatchProverConfig,
     runner_config: RunnerConfig,
+    rpc_config: RpcConfig,
     init_params: InitParams,
     native_stf: StfBlueprint<
         DefaultContext,
@@ -138,6 +139,7 @@ where
         da_service.clone(),
         storage_manager.clone(),
         code_commitments.clone(),
+        rpc_config.clone(),
     );
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
 
