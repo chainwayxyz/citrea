@@ -138,7 +138,7 @@ fn recover_pub_key_from_cast_sig_and_hash(cast_sig: &[u8], hash: &[u8]) -> Verif
 
 /// Signs a message with the given secret key using EIP-191.
 #[cfg(test)]
-pub fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> (k256::ecdsa::Signature, [u8; 32]) {
+pub(crate) fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> (k256::ecdsa::Signature, [u8; 32]) {
     use alloy_signer::SignerSync;
     use alloy_signer_local::PrivateKeySigner;
 
