@@ -350,7 +350,7 @@ pub trait BlockHeaderTrait:
     fn verify_hash(&self) -> bool;
 
     /// Transactions commitment of the block.
-    fn txs_commitment(&self) -> Self::Hash;
+    fn txs_commitment(&self) -> [u8; 32];
 
     /// The current header height
     fn height(&self) -> u64;

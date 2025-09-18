@@ -73,7 +73,7 @@ pub struct MockBlockHeader {
     /// The hash of this block.
     pub hash: MockHash,
     /// The transactions commitment of this block.
-    pub txs_commitment: MockHash,
+    pub txs_commitment: [u8; 32],
     /// The height of this block
     pub height: u64,
     /// The time at which this block was created
@@ -93,7 +93,7 @@ impl MockBlockHeader {
         MockBlockHeader {
             prev_hash: MockHash(prev_hash),
             hash: MockHash(hash),
-            txs_commitment: MockHash(txs_commitment),
+            txs_commitment,
             height,
             time: Time::now(),
             bits,
@@ -130,7 +130,7 @@ impl BlockHeaderTrait for MockBlockHeader {
         self.hash
     }
 
-    fn txs_commitment(&self) -> Self::Hash {
+    fn txs_commitment(&self) -> [u8; 32] {
         self.txs_commitment
     }
 

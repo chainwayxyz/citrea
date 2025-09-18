@@ -42,8 +42,8 @@ impl BlockHeaderTrait for HeaderWrapper {
         self.hash() == BlockHashWrapper(self.block_hash())
     }
 
-    fn txs_commitment(&self) -> Self::Hash {
-        BlockHashWrapper::from(self.txs_commitment)
+    fn txs_commitment(&self) -> [u8; 32] {
+        self.txs_commitment
     }
 
     fn height(&self) -> u64 {
