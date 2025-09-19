@@ -23,6 +23,9 @@ pub(crate) fn verify_method_id_security_council(
 
     let mut valid_signatures = 0;
 
+    // Calculate prehash of the message
+    let prehash = eip191_hash_message(signature_message);
+
     for (pubkey_idx, (const_pub_key, inscription_pub_key)) in initial_da_pubkeys
         .iter()
         .zip(pubkeys_in_inscription.iter())
@@ -56,9 +59,6 @@ pub(crate) fn verify_method_id_security_council(
         if signature_bytes.len() != 64 {
             continue;
         }
-
-        // Calculate prehash of the message
-        let prehash = eip191_hash_message(signature_message);
 
         let Ok(signature) = k256::ecdsa::Signature::from_slice(signature_bytes.as_slice()) else {
             log!("Failed to parse signature");
