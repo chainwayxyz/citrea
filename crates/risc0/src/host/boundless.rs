@@ -269,13 +269,13 @@ impl BoundlessProver {
                 .unwrap()
                 .with_input_url(input_url)
                 .unwrap()
-                .with_groth16_proof()
                 .with_requirements(
                     TryInto::<RequirementParams>::try_into(Requirements::new(
                         Predicate::digest_match(image_id, journal_digest),
                     ))
                     .expect("TODO: handle error"),
                 )
+                .with_groth16_proof()
                 .with_offer(
                     Offer::default()
                         .with_min_price_per_mcycle(min_price_per_mcycle, mcycles_count)
@@ -573,11 +573,10 @@ impl BoundlessProver {
 
         let new_request = self.build_proof_request(
             image_id,
-            failed_request
-                .requirements
-                .predicate
-                .data
-                .to_vec()
+            // this now has image id and digest
+            // first 32 bytes is image id
+            // second 32 bytes is digest
+            failed_request.requirements.predicate.data.to_vec()[32..]
                 .try_into()
                 .unwrap(),
             Url::parse(&failed_request.imageUrl).expect("Invalid image URL"),
