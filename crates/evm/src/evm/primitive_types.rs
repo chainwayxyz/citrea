@@ -54,6 +54,7 @@ pub struct Block<H> {
     pub(crate) transactions: Range<u64>,
 }
 
+#[cfg(feature = "native")]
 impl<H> Block<H> {
     /// Get the transaction range for this block
     pub fn transaction_range(&self) -> Range<u64> {
