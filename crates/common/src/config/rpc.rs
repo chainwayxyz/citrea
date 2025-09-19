@@ -41,6 +41,11 @@ const fn default_timeout() -> u64 {
     30
 }
 
+#[inline]
+const fn default_proving_jobs_limit() -> usize {
+    100
+}
+
 /// RPC configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize, Default, Serialize)]
 pub struct RpcConfig {
@@ -67,6 +72,11 @@ pub struct RpcConfig {
     /// Maximum number of subscription connections
     #[serde(default = "default_max_subscriptions_per_connection")]
     pub max_subscriptions_per_connection: u32,
+    /// Maximum number of L2 blocks to be traced with debug_traceChain
+    pub trace_chain_block_limit: Option<u64>,
+    /// Maximum number of responded proving jobs in RPC batchProver_getProvingJobs
+    #[serde(default = "default_proving_jobs_limit")]
+    pub proving_jobs_limit: usize,
     /// RPC timeout in secs
     #[serde(default = "default_timeout")]
     pub timeout: u64,
@@ -112,6 +122,13 @@ impl FromEnv for RpcConfig {
                 .ok()
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_max_subscriptions_per_connection),
+            trace_chain_block_limit: read_env("RPC_TRACE_CHAIN_BLOCK_LIMIT")
+                .ok()
+                .and_then(|val| val.parse().ok()),
+            proving_jobs_limit: read_env("RPC_PROVING_JOBS_LIMIT")
+                .ok()
+                .and_then(|val| val.parse().ok())
+                .unwrap_or_else(default_proving_jobs_limit),
             timeout: read_env("RPC_TIMEOUT")
                 .ok()
                 .and_then(|val| val.parse().ok())
@@ -121,6 +138,7 @@ impl FromEnv for RpcConfig {
     }
 }
 
+// Custom implementation to avoid printing the api_key field
 impl fmt::Display for RpcConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RpcConfig")
@@ -135,6 +153,8 @@ impl fmt::Display for RpcConfig {
                 "max_subscriptions_per_connection",
                 &self.max_subscriptions_per_connection,
             )
+            .field("trace_chain_block_limit", &self.trace_chain_block_limit)
+            .field("proving_jobs_limit", &self.proving_jobs_limit)
             .field("timeout", &self.timeout)
             .finish()
     }

@@ -315,6 +315,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         RpcModule<()>,
     )> {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
+        let rpc_config = rollup_config.rpc;
 
         let native_stf = StfBlueprint::new();
 
@@ -348,6 +349,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             network,
             prover_config,
             runner_config,
+            rpc_config,
             init_params,
             native_stf,
             rollup_config.public_keys,

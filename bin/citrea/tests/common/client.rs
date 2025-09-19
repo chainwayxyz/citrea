@@ -22,7 +22,7 @@ use citrea_batch_prover::rpc::{BatchProverRpcClient, ProvingJobResponse};
 use citrea_batch_prover::PartitionMode;
 use citrea_evm::EstimatedDiffSize;
 use ethereum_rpc::SyncStatus;
-use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
+use jsonrpsee::core::client::{ClientT, Error, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
@@ -700,7 +700,7 @@ impl TestClient {
         start_block: BlockNumberOrTag,
         end_block: BlockNumberOrTag,
         opts: Option<GethDebugTracingOptions>,
-    ) -> Vec<TraceResult> {
+    ) -> Result<Vec<TraceResult>, Error> {
         let mut subscription = self
             .ws_client
             .subscribe(
@@ -708,8 +708,7 @@ impl TestClient {
                 rpc_params!["traceChain", start_block, end_block, opts],
                 "debug_unsubscribe",
             )
-            .await
-            .unwrap();
+            .await?;
 
         let BlockNumberOrTag::Number(start_block) = start_block else {
             panic!("Only numbers for start block");
@@ -725,7 +724,7 @@ impl TestClient {
             traces.push(block_traces);
         }
 
-        traces.into_iter().flatten().collect()
+        Ok(traces.into_iter().flatten().collect())
     }
 
     pub(crate) async fn subscribe_new_heads(&self) -> mpsc::Receiver<WithOtherFields<Block>> {
@@ -832,8 +831,15 @@ impl TestClient {
         self.http_client.get_proving_job(id).await.unwrap()
     }
 
-    pub(crate) async fn get_proving_jobs(&self, count: usize) -> Vec<ProvingJobResponse> {
-        self.http_client.get_proving_jobs(count).await.unwrap()
+    pub(crate) async fn get_proving_jobs(
+        &self,
+        limit: usize,
+        skip: Option<usize>,
+    ) -> Vec<ProvingJobResponse> {
+        self.http_client
+            .get_proving_jobs(U64::from(limit as u64), skip.map(|v| U64::from(v as u64)))
+            .await
+            .unwrap()
     }
 
     pub(crate) async fn batch_prover_get_commitments_by_l1(

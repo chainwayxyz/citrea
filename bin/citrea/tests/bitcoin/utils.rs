@@ -135,6 +135,7 @@ pub async fn spawn_bitcoin_da_prover_service(
     .await
 }
 
+#[cfg(feature = "testing")]
 pub async fn spawn_bitcoin_da_prover_service_with_utxo_selection_mode(
     task_executor: &TaskExecutor,
     config: &BitcoinConfig,
@@ -321,7 +322,7 @@ pub async fn wait_for_prover_job_count(
         let jobs = batch_prover
             .client
             .http_client()
-            .get_proving_jobs(count)
+            .get_proving_jobs(U64::from(count as u64), None)
             .await
             .unwrap();
         if jobs.len() >= count {

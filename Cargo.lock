@@ -3714,6 +3714,7 @@ dependencies = [
  "alloy-serde",
  "async-trait",
  "borsh",
+ "citrea-common",
  "citrea-evm",
  "citrea-primitives",
  "citrea-sequencer",

@@ -183,6 +183,15 @@ async fn test_all_flow() {
         .await
         .unwrap();
     assert_eq!(job_ids.len(), 1);
+
+    // // Test RPC proving jobs limit
+    let arg_limited_proving_jobs = prover_client.get_proving_jobs(0, None).await;
+    assert_eq!(arg_limited_proving_jobs, vec![]);
+
+    // Test RPC proving jobs skip
+    let arg_skipped_proving_jobs = prover_client.get_proving_jobs(1, Some(1)).await;
+    assert_eq!(arg_skipped_proving_jobs, vec![]);
+
     // Wait for prover job to finish
     let response = wait_for_prover_job(&prover_client, job_ids[0], None)
         .await

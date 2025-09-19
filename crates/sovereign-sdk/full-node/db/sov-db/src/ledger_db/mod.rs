@@ -591,6 +591,29 @@ impl BatchProverLedgerOps for LedgerDB {
         self.db.write_schemas(schema_batch)
     }
 
+    fn remove_proving_job_by_id(&self, id: Uuid) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+
+        let indices = self
+            .db
+            .get::<CommitmentIndicesByJobId>(&id)?
+            .expect("Proof must exist");
+
+        for index in indices {
+            schema_batch.delete::<JobIdOfCommitment>(&index)?;
+        }
+        schema_batch.delete::<ProofByJobId>(&id)?;
+        schema_batch.delete::<CommitmentIndicesByJobId>(&id)?;
+
+        // delete from pending job tables
+        // TODO: do the same for boundless sessions
+        schema_batch.delete::<PendingL1SubmissionJobs>(&id)?;
+        schema_batch.delete::<PendingBonsaiSessionByJobId>(&id)?;
+
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
+    }
+
     #[instrument(level = "trace", skip(self), err)]
     fn finalize_proving_job(&self, id: Uuid, l1_tx_id: [u8; 32]) -> anyhow::Result<()> {
         let mut stored_proof = self.db.get::<ProofByJobId>(&id)?.expect("Proof must exist");
@@ -627,7 +650,7 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_latest_jobs(&self, count: usize) -> anyhow::Result<Vec<(Uuid, JobStatus)>> {
+    fn get_latest_jobs(&self, limit: usize, skip: usize) -> anyhow::Result<Vec<(Uuid, JobStatus)>> {
         let mut read_opts = ReadOptions::default();
         // Do not fill the cache with garbage data just to read ids
         read_opts.fill_cache(false);
@@ -637,11 +660,8 @@ impl BatchProverLedgerOps for LedgerDB {
             .iter_with_direction::<CommitmentIndicesByJobId>(read_opts, ScanDirection::Backward)?;
         iter.seek_to_last();
 
-        let mut jobs = Vec::with_capacity(count);
-        for el in iter {
-            if jobs.len() == count {
-                break;
-            }
+        let mut jobs = Vec::with_capacity(limit);
+        for el in iter.skip(skip).take(limit) {
             let job_id = el?.key;
             let status = self.job_status(job_id);
             jobs.push((job_id, status));

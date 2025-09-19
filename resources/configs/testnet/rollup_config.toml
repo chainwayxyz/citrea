@@ -48,6 +48,10 @@ bind_port = 8080
 # max subscriptions per connection is default to 100
 # max_subscriptions_per_connection = 100
 
+# maximum number of L2 blocks to be traced with debug_traceChain,
+# no limit set by default.
+# trace_chain_block_limit = 100
+
 [runner]
 sequencer_client_url = "https://rpc.testnet.citrea.xyz"
 
