@@ -389,15 +389,17 @@ impl<Da: DaService> SequencerRpcServer for SequencerRpcServerImpl<Da> {
 
     async fn resend_commitment_by_index(&self, index: U32) -> RpcResult<[u8; 32]> {
         let ledger_db = &self.context.ledger;
-        let commitment = ledger_db.get_commitment_by_index(index.to())
+        let commitment = ledger_db
+            .get_commitment_by_index(index.to())
             .expect("DB error when fetching commitment by index")
             .ok_or_else(|| internal_rpc_error("Commitment does not exist"))?;
 
         let tx_request = DaTxRequest::SequencerCommitment(commitment.clone());
         let (notify, rx) = oneshot::channel();
         let request = TxRequestWithNotifier { tx_request, notify };
-        
-        self.context.da_service
+
+        self.context
+            .da_service
             .get_send_transaction_queue()
             .send(request)
             .map_err(|_| internal_rpc_error("Bitcoin service already stopped!"))?;
@@ -407,12 +409,17 @@ impl<Da: DaService> SequencerRpcServer for SequencerRpcServerImpl<Da> {
         // Spawn a task to wait for the txid response,
         // so we can log the result even if RPC timeout occurs
         let txid_handle = tokio::spawn(async move {
-            let txid = rx.await
+            let txid = rx
+                .await
                 .map_err(|_| internal_rpc_error("DA service is dead!"))?
                 .map_err(|_| internal_rpc_error("Send transaction cannot fail"))?;
 
             let txid = txid.into();
-            tracing::info!("Resent commitment to DA layer. index: {}, txid: {:?}", index, hex::encode(txid));
+            tracing::info!(
+                "Resent commitment to DA layer. index: {}, txid: {:?}",
+                index,
+                hex::encode(txid)
+            );
             Ok(txid)
         });
         txid_handle.await.expect("Failed to join txid handle task")
@@ -475,7 +482,9 @@ impl<Da: DaService> SequencerRpcServer for SequencerRpcServerImpl<Da> {
 ///
 /// # Returns
 /// The configured RPC module
-pub fn create_rpc_module<Da: DaService>(rpc_context: RpcContext<Da>) -> jsonrpsee::RpcModule<SequencerRpcServerImpl<Da>> {
+pub fn create_rpc_module<Da: DaService>(
+    rpc_context: RpcContext<Da>,
+) -> jsonrpsee::RpcModule<SequencerRpcServerImpl<Da>> {
     let server = SequencerRpcServerImpl::new(rpc_context);
 
     SequencerRpcServer::into_rpc(server)
