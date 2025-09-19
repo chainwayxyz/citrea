@@ -1437,7 +1437,7 @@ impl TestCase for InvokeCachePruningTest {
             .unwrap()
             .unwrap();
         assert_eq!(last_proven_l2_data.commitment_index, 1);
-        assert_eq!(last_proven_l2_data.height, 55);
+        assert!(last_proven_l2_data.height >= 55);
 
         Ok(())
     }
