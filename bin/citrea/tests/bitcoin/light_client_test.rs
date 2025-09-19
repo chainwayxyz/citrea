@@ -30,7 +30,8 @@ use reth_tasks::TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{
-    BatchProofMethodId, DaTxRequest, DaVerifier, DataOnDa, SequencerCommitment,
+    BatchProofMethodId, BatchProofMethodIdBody, DaTxRequest, DaVerifier, DataOnDa,
+    SequencerCommitment,
 };
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::services::da::DaService;
@@ -41,7 +42,8 @@ use sov_rollup_interface::Network;
 use super::get_citrea_path;
 use super::utils::PROVER_DA_PUBLIC_KEY;
 use crate::bitcoin::utils::{
-    spawn_bitcoin_da_service, wait_for_prover_job, wait_for_zkproofs, DaServiceKeyKind,
+    eip191_sign, generate_pubkeys_from_secret_keys, spawn_bitcoin_da_service, wait_for_prover_job,
+    wait_for_zkproofs, DaServiceKeyKind, BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS,
 };
 
 pub const TEN_MINS: Duration = Duration::from_secs(10 * 60);
@@ -557,6 +559,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         }
     }
 
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(195)
+    }
+
     async fn cleanup(self) -> Result<()> {
         self.task_manager
             .graceful_shutdown_with_timeout(Duration::from_secs(1));
@@ -650,11 +656,31 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
 
         // Send BatchProofMethodId transaction to da
         let new_batch_proof_method_id = [1u32; 8];
+        let method_id_body = BatchProofMethodIdBody {
+            method_id: new_batch_proof_method_id,
+            activation_l2_height: 210,
+        };
+
+        let (signatures, pubkeys) = {
+            let secret_keys: [[u8; 32]; 5] =
+                BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+                    .map(|k| hex::decode(k).unwrap().try_into().unwrap());
+            let pubkeys = generate_pubkeys_from_secret_keys(secret_keys);
+            (
+                secret_keys
+                    .iter()
+                    .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0.to_vec())
+                    .collect::<Vec<_>>(),
+                pubkeys,
+            )
+        };
+
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    method_id: new_batch_proof_method_id,
-                    activation_l2_height: 210,
+                    body: method_id_body,
+                    signatures,
+                    pubkeys,
                 }),
                 1,
             )
@@ -739,6 +765,341 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
 #[tokio::test]
 async fn test_light_client_batch_proof_method_id_update() -> Result<()> {
     TestCaseRunner::new(LightClientBatchProofMethodIdUpdateTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
+}
+
+struct LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_sequencer: true,
+            with_batch_prover: true,
+            with_light_client_prover: true,
+            mode: CitreaMode::Dev,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 2,
+            da_update_interval_ms: 500,
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            enable_recovery: false,
+            ..Default::default()
+        }
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            enable_recovery: false,
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(195)
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+
+        let bitcoin_da_service = spawn_bitcoin_da_service(
+            self.task_manager.executor(),
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::BatchProver,
+        )
+        .await;
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        sequencer
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
+            .await?;
+        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let commitment_l1_height = da.get_finalized_height(None).await?;
+        batch_prover
+            .wait_for_l1_height(commitment_l1_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let commitments = batch_prover
+            .client
+            .http_client()
+            .get_commitment_indices_by_l1(commitment_l1_height)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(commitments.len(), 1);
+        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let batch_proof_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let _lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(batch_proof_l1_height)
+            .await?;
+        let batch_proof_method_ids_before = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert_eq!(
+            batch_proof_method_ids_before,
+            vec![BatchProofMethodIdRpcResponse {
+                height: U64::from(0),
+                method_id: citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
+            }]
+        );
+
+        // --- CASE 1: All valid signatures and pubkeys ---
+        let new_batch_proof_method_id = [2u32; 8];
+        let method_id_body = BatchProofMethodIdBody {
+            method_id: new_batch_proof_method_id,
+            activation_l2_height: 220,
+        };
+        let secret_keys: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+            .map(|k| hex::decode(k).unwrap().try_into().unwrap());
+        let pubkeys = generate_pubkeys_from_secret_keys(secret_keys);
+        let signatures = secret_keys
+            .iter()
+            .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0.to_vec())
+            .collect::<Vec<_>>();
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+                    body: method_id_body.clone(),
+                    signatures: signatures.clone(),
+                    pubkeys: pubkeys.clone(),
+                }),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let method_id_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(method_id_l1_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert!(batch_proof_method_ids
+            .iter()
+            .any(|x| x.method_id == new_batch_proof_method_id.into()));
+
+        // --- CASE 2: Less than 3 valid signatures (should be rejected) ---
+        let new_batch_proof_method_id2 = [3u32; 8];
+        let method_id_body2 = BatchProofMethodIdBody {
+            method_id: new_batch_proof_method_id2,
+            activation_l2_height: 230,
+        };
+        let signatures = secret_keys
+            .iter()
+            .map(|sk| eip191_sign(&method_id_body2.serialize(), sk).0.to_vec())
+            .collect::<Vec<_>>();
+        let mut broken_signatures = signatures.clone();
+
+        broken_signatures[0][0] ^= 0xFF;
+        broken_signatures[1][0] ^= 0xFF;
+        broken_signatures[2][0] ^= 0xFF;
+
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+                    body: method_id_body2.clone(),
+                    signatures: broken_signatures.clone(),
+                    pubkeys: pubkeys.clone(),
+                }),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let method_id_l1_height2 = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(method_id_l1_height2, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let batch_proof_method_ids2 = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        // Should NOT contain new_batch_proof_method_id2
+        assert!(!batch_proof_method_ids2
+            .iter()
+            .any(|x| x.method_id == new_batch_proof_method_id2.into()));
+
+        // --- CASE 3: 3 valid, 2 invalid signatures (should be accepted) ---
+        let new_batch_proof_method_id3 = [4u32; 8];
+        let method_id_body3 = BatchProofMethodIdBody {
+            method_id: new_batch_proof_method_id3,
+            activation_l2_height: 240,
+        };
+        let signatures = secret_keys
+            .iter()
+            .map(|sk| eip191_sign(&method_id_body3.serialize(), sk).0.to_vec())
+            .collect::<Vec<_>>();
+        let mut three_valid_signatures = signatures.clone();
+
+        three_valid_signatures[3][0] ^= 0xFF;
+        three_valid_signatures[4][0] ^= 0xFF;
+
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+                    body: method_id_body3.clone(),
+                    signatures: three_valid_signatures.clone(),
+                    pubkeys: pubkeys.clone(),
+                }),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let method_id_l1_height3 = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(method_id_l1_height3, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let batch_proof_method_ids3 = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert!(batch_proof_method_ids3
+            .iter()
+            .any(|x| x.method_id == new_batch_proof_method_id3.into()));
+
+        // --- CASE 4: 3 valid pubkeys, 2 invalid pubkeys (should be accepted) ---
+        let new_batch_proof_method_id4 = [5u32; 8];
+        let method_id_body4 = BatchProofMethodIdBody {
+            method_id: new_batch_proof_method_id4,
+            activation_l2_height: 250,
+        };
+        let signatures = secret_keys
+            .iter()
+            .map(|sk| eip191_sign(&method_id_body4.serialize(), sk).0.to_vec())
+            .collect::<Vec<_>>();
+        let mut three_valid_pubkeys = pubkeys.clone();
+
+        three_valid_pubkeys[3][0] ^= 0xFF;
+        three_valid_pubkeys[4][0] ^= 0xFF;
+
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+                    body: method_id_body4.clone(),
+                    signatures: signatures.clone(),
+                    pubkeys: three_valid_pubkeys.clone(),
+                }),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let method_id_l1_height4 = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(method_id_l1_height4, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let batch_proof_method_ids4 = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert!(batch_proof_method_ids4
+            .iter()
+            .any(|x| x.method_id == new_batch_proof_method_id4.into()));
+
+        // --- CASE 5: Less than 3 valid pubkeys (should be rejected) ---
+        let new_batch_proof_method_id5 = [6u32; 8];
+        let method_id_body5 = BatchProofMethodIdBody {
+            method_id: new_batch_proof_method_id5,
+            activation_l2_height: 260,
+        };
+        let signatures = secret_keys
+            .iter()
+            .map(|sk| eip191_sign(&method_id_body5.serialize(), sk).0.to_vec())
+            .collect::<Vec<_>>();
+        let mut two_valid_pubkeys = pubkeys.clone();
+
+        two_valid_pubkeys[0][0] ^= 0xFF;
+        two_valid_pubkeys[1][0] ^= 0xFF;
+        two_valid_pubkeys[2][0] ^= 0xFF;
+
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+                    body: method_id_body5.clone(),
+                    signatures: signatures.clone(),
+                    pubkeys: two_valid_pubkeys.clone(),
+                }),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let method_id_l1_height5 = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(method_id_l1_height5, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let batch_proof_method_ids5 = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert!(!batch_proof_method_ids5
+            .iter()
+            .any(|x| x.method_id == new_batch_proof_method_id5.into()));
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_light_client_batch_proof_method_id_update_security_council() -> Result<()> {
+    TestCaseRunner::new(LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         task_manager: TaskManager::current(),
     })
     .set_citrea_path(get_citrea_path())

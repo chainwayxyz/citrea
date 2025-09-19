@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use alloy_primitives::U64;
+use alloy_primitives::{eip191_hash_message, U64};
 use anyhow::bail;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig};
 use bitcoin_da::spec::RollupParams;
@@ -23,6 +23,14 @@ pub(super) enum DaServiceKeyKind {
     BatchProver,
     Other(String),
 }
+
+pub const BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS: [&str; 5] = [
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9076",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9075",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9074",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9073",
+];
 
 pub const SEQUENCER_DA_PUBLIC_KEY: &str =
     "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262";
@@ -165,4 +173,72 @@ pub async fn wait_for_prover_job_count(
 
         sleep(Duration::from_millis(500)).await;
     }
+}
+pub fn generate_pubkeys_from_secret_keys(secret_keys: [[u8; 32]; 5]) -> Vec<Vec<u8>> {
+    let mut pubkeys = vec![];
+    for sk in secret_keys.iter() {
+        let signing_key = k256::ecdsa::SigningKey::from_bytes(sk.into()).unwrap();
+        let verify_key = signing_key.verifying_key();
+        pubkeys.push(verify_key.to_sec1_bytes().to_vec());
+    }
+    pubkeys
+}
+
+pub(crate) fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> (k256::ecdsa::Signature, [u8; 32]) {
+    use alloy_signer::SignerSync;
+    use alloy_signer_local::PrivateKeySigner;
+
+    let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+
+    let prehash = eip191_hash_message(msg);
+
+    let sig = signer.sign_hash_sync(&prehash).unwrap();
+    let signature = k256::ecdsa::Signature::from_slice(&sig.as_bytes()[0..64]).unwrap();
+
+    (signature, *prehash)
+}
+
+// For some reason, even though macro is used, it sees it as unused
+#[allow(unused)]
+pub mod macros {
+    macro_rules! assert_panic {
+        // Match a single expression
+        ($expr:expr) => {
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| $expr)) {
+                Ok(_) => panic!("Expression did not trigger panic"),
+                Err(_) => (),
+            }
+        };
+        // Match an expression and an expected message
+        ($expr:expr, $expected_msg:expr) => {
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| $expr)) {
+                Ok(_) => panic!("Expression did not trigger panic"),
+                Err(err) => {
+                    let expected_msg = $expected_msg;
+                    if let Some(msg) = err.downcast_ref::<&str>() {
+                        assert!(
+                            msg.contains(expected_msg),
+                            "Panic message '{}' does not match expected '{}'",
+                            msg,
+                            expected_msg
+                        );
+                    } else if let Some(msg) = err.downcast_ref::<String>() {
+                        assert!(
+                            msg.contains(expected_msg),
+                            "Panic message '{}' does not match expected '{}'",
+                            msg,
+                            expected_msg
+                        );
+                    } else {
+                        panic!(
+                            "Panic occurred, but message does not match expected '{}'",
+                            expected_msg
+                        );
+                    }
+                }
+            }
+        };
+    }
+
+    pub(crate) use assert_panic;
 }
