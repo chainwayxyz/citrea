@@ -1,10 +1,12 @@
 use std::ops::{Range, RangeInclusive};
 
+use alloy_consensus::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
 use alloy_consensus::{
     Block as AlloyConsensusBlock, BlockBody, Header as AlloyConsensusHeader,
-    Transaction as AlloyTransaction, TxReceipt,
+    Transaction as AlloyTransaction, TxReceipt, EMPTY_OMMER_ROOT_HASH,
 };
 use alloy_eips::eip2930::AccessListWithGasUsed;
+use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_eips::{BlockId, BlockNumHash, BlockNumberOrTag};
 use alloy_network::AnyTransactionReceipt;
 use alloy_primitives::TxKind::{Call, Create};
@@ -173,6 +175,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
             let pending_env = get_pending_block_env(self, working_set);
 
+            let citrea_spec_id = fork_from_block_number(pending_env.number).spec_id;
+            let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
+
             let pending_consensus_header = AlloyConsensusHeader {
                 number: pending_env.number,
                 timestamp: pending_env.timestamp,
@@ -180,21 +185,25 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 gas_limit: latest_block.header.gas_limit,
                 parent_hash: latest_block.header.hash(),
                 state_root: B256::ZERO,
-                transactions_root: B256::ZERO,
-                receipts_root: B256::ZERO,
+                transactions_root: EMPTY_TRANSACTIONS,
+                receipts_root: EMPTY_RECEIPTS,
                 difficulty: U256::ZERO,
                 gas_used: 0,
                 extra_data: Bytes::default(),
                 mix_hash: B256::ZERO,
                 nonce: 0u64.into(),
                 logs_bloom: Bloom::default(),
-                ommers_hash: B256::ZERO,
+                ommers_hash: EMPTY_OMMER_ROOT_HASH,
                 beneficiary: Address::ZERO,
                 withdrawals_root: None,
                 parent_beacon_block_root: None,
                 blob_gas_used: None,
                 excess_blob_gas: None,
-                requests_hash: None,
+                requests_hash: if let SpecId::PRAGUE = evm_spec_id {
+                    Some(EMPTY_REQUESTS_HASH)
+                } else {
+                    None
+                },
             };
 
             let pending_header = AlloyHeader::new(pending_consensus_header);
