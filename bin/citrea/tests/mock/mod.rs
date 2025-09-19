@@ -26,7 +26,6 @@ use crate::common::{
 mod evm;
 mod l2_block_rule_enforcer;
 mod mempool;
-mod pending_block;
 mod proving;
 mod pruning;
 mod reopen;
