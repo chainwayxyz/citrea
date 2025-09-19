@@ -514,16 +514,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     pubkeys,
                 }) => {
                     log!("Found batch proof method id");
-                    if !verify_method_id_security_council(
-                        *method_id_upgrade_authority_da_public_keys,
-                        pubkeys,
-                        signatures,
-                        &borsh::to_vec(&body).unwrap(),
-                    ) {
-                        log!("Method ID security council verification failed");
-                        continue;
-                    }
-
                     let batch_proof_method_ids =
                         BatchProofMethodIdAccessor::<S>::get(&mut working_set).unwrap();
 
@@ -533,6 +523,18 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         .0;
 
                     if body.activation_l2_height > last_activation_height {
+                        // Verify the signatures only if the activation height is greater than the last one
+                        // This prevents replay attacks of old method IDs
+                        if !verify_method_id_security_council(
+                            *method_id_upgrade_authority_da_public_keys,
+                            pubkeys,
+                            signatures,
+                            &borsh::to_vec(&body).unwrap(),
+                        ) {
+                            log!("Method ID security council verification failed");
+                            continue;
+                        }
+
                         BatchProofMethodIdAccessor::<S>::insert(
                             body.activation_l2_height,
                             body.method_id,
