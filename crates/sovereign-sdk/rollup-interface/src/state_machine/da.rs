@@ -50,7 +50,7 @@ impl BatchProofMethodIdBody {
 }
 
 /// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct BatchProofMethodId {
     /// Body of the method id update, the message to be signed
     /// Includes method id and activation height
@@ -108,7 +108,7 @@ impl core::cmp::Ord for SequencerCommitment {
 }
 
 /// Transaction request to send to the DA queue.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub enum DaTxRequest {
     /// A commitment from the sequencer
     SequencerCommitment(SequencerCommitment),
@@ -119,7 +119,7 @@ pub enum DaTxRequest {
 }
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub enum DataOnDa {
     /// A zk proof and state diff
     Complete(Proof),
