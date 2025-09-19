@@ -942,9 +942,11 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .map(|sk| eip191_sign(&method_id_body2.serialize(), sk).0.to_vec())
             .collect::<Vec<_>>();
         let mut broken_signatures = signatures.clone();
-        for i in 0..3 {
-            broken_signatures[i][0] ^= 0xFF;
-        }
+
+        broken_signatures[0][0] ^= 0xFF;
+        broken_signatures[1][0] ^= 0xFF;
+        broken_signatures[2][0] ^= 0xFF;
+
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
@@ -984,9 +986,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .map(|sk| eip191_sign(&method_id_body3.serialize(), sk).0.to_vec())
             .collect::<Vec<_>>();
         let mut three_valid_signatures = signatures.clone();
-        for i in 3..5 {
-            three_valid_signatures[i][0] ^= 0xFF;
-        }
+
+        three_valid_signatures[3][0] ^= 0xFF;
+        three_valid_signatures[4][0] ^= 0xFF;
+
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
@@ -1025,9 +1028,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .map(|sk| eip191_sign(&method_id_body4.serialize(), sk).0.to_vec())
             .collect::<Vec<_>>();
         let mut three_valid_pubkeys = pubkeys.clone();
-        for i in 3..5 {
-            three_valid_pubkeys[i][0] ^= 0xFF;
-        }
+
+        three_valid_pubkeys[3][0] ^= 0xFF;
+        three_valid_pubkeys[4][0] ^= 0xFF;
+
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
@@ -1066,9 +1070,11 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .map(|sk| eip191_sign(&method_id_body5.serialize(), sk).0.to_vec())
             .collect::<Vec<_>>();
         let mut two_valid_pubkeys = pubkeys.clone();
-        for i in 0..3 {
-            two_valid_pubkeys[i][0] ^= 0xFF;
-        }
+
+        two_valid_pubkeys[0][0] ^= 0xFF;
+        two_valid_pubkeys[1][0] ^= 0xFF;
+        two_valid_pubkeys[2][0] ^= 0xFF;
+
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {

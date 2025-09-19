@@ -92,12 +92,12 @@ mod tests {
         let mut signatures_in_inscription = Vec::new();
 
         // Generate 5 valid keypairs and signatures
-        for i in 0..5 {
+        for (i, initial_pubkey) in initial_da_pubkeys.iter_mut().enumerate() {
             let secret_key = [i as u8 + 1; 32];
             let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
             let verifying_key = signer.credential().verifying_key();
             let pubkey = verifying_key.to_sec1_bytes();
-            initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+            *initial_pubkey = pubkey.to_vec().try_into().unwrap();
             pubkeys_in_inscription.push(pubkey.to_vec());
 
             let prehash = eip191_hash_message(msg);
@@ -122,12 +122,12 @@ mod tests {
         let mut signatures_in_inscription = Vec::new();
 
         // Generate 5 valid keypairs and signatures
-        for i in 0..5 {
+        for (i, initial_pubkey) in initial_da_pubkeys.iter_mut().enumerate() {
             let secret_key = [i as u8 + 1; 32];
             let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
             let verifying_key = signer.credential().verifying_key();
             let pubkey = verifying_key.to_sec1_bytes();
-            initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+            *initial_pubkey = pubkey.to_vec().try_into().unwrap();
             pubkeys_in_inscription.push(pubkey.to_vec());
 
             let prehash = eip191_hash_message(msg);
@@ -137,9 +137,9 @@ mod tests {
         }
 
         // Corrupt 3 signatures
-        for i in 0..3 {
-            signatures_in_inscription[i][0] ^= 0xFF;
-        }
+        signatures_in_inscription[0][0] ^= 0xFF;
+        signatures_in_inscription[1][0] ^= 0xFF;
+        signatures_in_inscription[2][0] ^= 0xFF;
 
         assert!(!verify_method_id_security_council(
             initial_da_pubkeys,
@@ -157,12 +157,12 @@ mod tests {
         let mut signatures_in_inscription = Vec::new();
 
         // Generate 5 valid keypairs and signatures
-        for i in 0..5 {
+        for (i, initial_pubkey) in initial_da_pubkeys.iter_mut().enumerate() {
             let secret_key = [i as u8 + 1; 32];
             let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
             let verifying_key = signer.credential().verifying_key();
             let pubkey = verifying_key.to_sec1_bytes();
-            initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+            *initial_pubkey = pubkey.to_vec().try_into().unwrap();
             pubkeys_in_inscription.push(pubkey.to_vec());
 
             let prehash = eip191_hash_message(msg);
@@ -201,12 +201,12 @@ mod tests {
         let mut signatures_in_inscription = Vec::new();
 
         // Generate 5 valid keypairs and signatures
-        for i in 0..5 {
+        for (i, initial_pubkey) in initial_da_pubkeys.iter_mut().enumerate() {
             let secret_key = [i as u8 + 1; 32];
             let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
             let verifying_key = signer.credential().verifying_key();
             let pubkey = verifying_key.to_sec1_bytes();
-            initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+            *initial_pubkey = pubkey.to_vec().try_into().unwrap();
             pubkeys_in_inscription.push(pubkey.to_vec());
 
             let prehash = eip191_hash_message(msg);
@@ -242,12 +242,12 @@ mod tests {
         let mut signatures_in_inscription = Vec::new();
 
         // Generate 4 valid keypairs and signatures (should be 5)
-        for i in 0..4 {
+        for (i, initial_pubkey) in initial_da_pubkeys.iter_mut().enumerate().take(4) {
             let secret_key = [i as u8 + 1; 32];
             let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
             let verifying_key = signer.credential().verifying_key();
             let pubkey = verifying_key.to_sec1_bytes();
-            initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+            *initial_pubkey = pubkey.to_vec().try_into().unwrap();
             pubkeys_in_inscription.push(pubkey.to_vec());
 
             let prehash = eip191_hash_message(msg);
