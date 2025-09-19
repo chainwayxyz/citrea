@@ -1586,6 +1586,9 @@ dependencies = [
 name = "bitcoin-da"
 version = "0.7.1"
 dependencies = [
+ "alloy-primitives",
+ "alloy-signer",
+ "alloy-signer-local",
  "anyhow",
  "async-trait",
  "backoff",
