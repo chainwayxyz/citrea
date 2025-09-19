@@ -33,14 +33,64 @@ impl SequencerCommitment {
         hash.into()
     }
 }
-
-/// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
+/// Body of the batch proof method id update for light client
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
-pub struct BatchProofMethodId {
+pub struct BatchProofMethodIdBody {
     /// New method id of upcoming fork
     pub method_id: [u32; 8],
     /// Activation L2 height of the new method id
     pub activation_l2_height: u64,
+}
+
+impl BatchProofMethodIdBody {
+    /// Serialize the body using borsh
+    pub fn serialize(&self) -> Vec<u8> {
+        borsh::to_vec(self).expect("BatchProofMethodIdBody serialization cannot fail")
+    }
+}
+
+/// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct BatchProofMethodId {
+    /// Body of the method id update, the message to be signed
+    /// Includes method id and activation height
+    pub body: BatchProofMethodIdBody,
+    /// Signatures of to be verified for the method id update
+    /// Consists of 64 byte keccak256(eip191 prefixed message) prehash signed signatures
+    /// The public keys can be recovered from the signatures and the prehash
+    pub signatures: Vec<Vec<u8>>,
+    /// Public keys corresponding to the signatures
+    /// Consists of 33 byte compressed public keys
+    /// The public keys are used to verify that enough authorized entities signed the method id update
+    pub pubkeys: Vec<Vec<u8>>,
+}
+impl BatchProofMethodId {
+    /// Returns the signatures in the transaction.
+    pub fn signatures(&self) -> &[Vec<u8>] {
+        &self.signatures
+    }
+
+    /// Returns the public keys in the transaction.
+    pub fn public_keys(&self) -> &[Vec<u8>] {
+        &self.pubkeys
+    }
+
+    /// Returns the body of the transaction.
+    pub fn body(&self) -> BatchProofMethodIdBody {
+        self.body.clone()
+    }
+
+    /// Compute sha256 hash of the borsh serialized body
+    pub fn get_hash(&self) -> [u8; 32] {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(self.body.serialize());
+        hasher.finalize().into()
+    }
+
+    /// Returns the first public key in the transaction.
+    pub fn public_key(&self) -> &[u8] {
+        &self.pubkeys[0]
+    }
 }
 
 /// SequencerCommitment's are ordered by their index

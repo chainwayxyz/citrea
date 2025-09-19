@@ -1273,15 +1273,20 @@ impl DaService for BitcoinService {
                         relevant_txs.push(relevant_tx);
                     }
                     ParsedTransaction::BatchProverMethodId(method_id) => {
-                        if let Some(hash) = method_id.get_sig_verified_hash() {
-                            let relevant_tx = BlobWithSender::new(
-                                method_id.body,
-                                method_id.public_key,
-                                hash,
-                                wtxid.to_byte_array(),
-                            );
-                            relevant_txs.push(relevant_tx);
-                        }
+                        // Pubkey here is given as 0 because the security council pub keys are inside the body
+                        let public_key = [0u8; 32].to_vec();
+                        let hash = method_id.hash();
+
+                        let relevant_tx = BlobWithSender::new(
+                            // Body here is: borsh(DataOnDa::BatchProofMethodId(BatchProofMethodId { ... }))
+                            // The sender field here is not used because this transaction has a security council
+                            // consisting of 5 public keys, this data and signatures are embedded in the body
+                            method_id.body,
+                            public_key,
+                            hash,
+                            wtxid.to_byte_array(),
+                        );
+                        relevant_txs.push(relevant_tx);
                     }
                     ParsedTransaction::SequencerCommitment(seq_comm) => {
                         if let Some(hash) = seq_comm.get_sig_verified_hash() {
