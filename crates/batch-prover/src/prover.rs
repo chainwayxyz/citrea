@@ -179,7 +179,7 @@ where
 
                     debug!("Got L1 signal to try proving");
                     if let Err(e) = self.try_proving(PartitionMode::Normal, true).await {
-                        error!("Failed to start proving: {}", e);
+                        error!("Failed to start proving: {:?}", e);
                     }
                 },
                 l2_signal = self.l2_block_rx.recv() => {
@@ -203,7 +203,7 @@ where
 
                     debug!("Got L2 signal to try proving");
                     if let Err(e) = self.try_proving(PartitionMode::Normal, true).await {
-                        error!("Failed to start proving: {}", e);
+                        error!("Failed to start proving: {:?}", e);
                     }
                 }
                 request = self.request_rx.recv() => {

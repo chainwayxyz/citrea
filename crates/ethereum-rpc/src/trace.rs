@@ -74,8 +74,7 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
     if (end_block - start_block) > max_blocks {
         pending
             .reject(EthApiError::InvalidParams(format!(
-                "Block range too large. Maximum allowed range is {} blocks",
-                max_blocks
+                "Block range too large. Maximum allowed range is {max_blocks} blocks"
             )))
             .await;
         return;
