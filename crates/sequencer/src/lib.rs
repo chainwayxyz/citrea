@@ -138,6 +138,7 @@ where
         rpc_message_tx,
         rpc_storage,
         ledger_db.clone(),
+        da_service.clone(),
         sequencer_config.test_mode,
     );
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;

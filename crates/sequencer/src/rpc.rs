@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use alloy_eips::eip2718::Encodable2718;
 use alloy_eips::BlockId;
-use alloy_primitives::{Address, Bytes, B256};
+use alloy_primitives::{Address, Bytes, B256, U32};
 use alloy_rpc_types::Transaction;
 use alloy_rpc_types_txpool::TxpoolContent;
 use citrea_common::rpc::utils::internal_rpc_error;
@@ -19,9 +19,12 @@ use reth_rpc_types_compat::TransactionCompat;
 use reth_transaction_pool::{
     AllPoolTransactions, EthPooledTransaction, PoolTransaction, ValidPoolTransaction,
 };
-use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps};
+use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps, SharedLedgerOps};
 use sov_modules_api::{Spec, WorkingSet};
+use sov_rollup_interface::da::DaTxRequest;
+use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::oneshot;
 use tracing::{debug, error};
 
 use crate::deposit_data_mempool::DepositDataMempool;
@@ -31,7 +34,7 @@ use crate::types::SequencerRpcMessage;
 use crate::utils::recover_raw_transaction;
 
 /// RPC context containing all the shared data needed for RPC method implementations
-pub struct RpcContext {
+pub struct RpcContext<Da: DaService> {
     /// The transaction mempool
     pub mempool: Arc<CitreaMempool>,
     /// The deposit transaction mempool
@@ -42,6 +45,8 @@ pub struct RpcContext {
     pub storage: <DefaultContext as Spec>::Storage,
     /// Ledger database access
     pub ledger: LedgerDB,
+    /// Data availability service access to resend commitments
+    pub da_service: Arc<Da>,
     /// Whether the sequencer is running in test mode
     pub test_mode: bool,
 }
@@ -55,20 +60,22 @@ pub struct RpcContext {
 /// * `storage` - Storage for the sequencer state
 /// * `ledger_db` - Ledger database access
 /// * `test_mode` - Whether the sequencer is running in test mode
-pub fn create_rpc_context(
+pub fn create_rpc_context<Da: DaService>(
     mempool: Arc<CitreaMempool>,
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     rpc_message_tx: UnboundedSender<SequencerRpcMessage>,
     storage: <DefaultContext as Spec>::Storage,
     ledger_db: LedgerDB,
+    da_service: Arc<Da>,
     test_mode: bool,
-) -> RpcContext {
+) -> RpcContext<Da> {
     RpcContext {
         mempool,
         deposit_mempool,
         rpc_message_tx,
         storage,
         ledger: ledger_db,
+        da_service,
         test_mode,
     }
 }
@@ -81,8 +88,8 @@ pub fn create_rpc_context(
 ///
 /// # Returns
 /// The updated RPC module or a registration error
-pub fn register_rpc_methods(
-    rpc_context: RpcContext,
+pub fn register_rpc_methods<Da: DaService>(
+    rpc_context: RpcContext<Da>,
     mut rpc_methods: jsonrpsee::RpcModule<()>,
 ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
     let rpc = create_rpc_module(rpc_context);
@@ -164,6 +171,10 @@ pub trait SequencerRpc {
     #[method(name = "citrea_resumeCommitments")]
     async fn resume_commitments(&self) -> RpcResult<()>;
 
+    /// Resend a sequencer commitment by index
+    #[method(name = "citrea_resendCommitmentByIndex")]
+    async fn resend_commitment_by_index(&self, index: U32) -> RpcResult<[u8; 32]>;
+
     /// Returns the transaction pool content.
     #[method(name = "txpool_content")]
     async fn txpool_content(&self) -> RpcResult<TxpoolContent<Transaction>>;
@@ -182,17 +193,17 @@ pub trait SequencerRpc {
 /// Sequencer RPC server implementation
 ///
 /// Handles all RPC method calls by delegating to the appropriate services
-pub struct SequencerRpcServerImpl {
+pub struct SequencerRpcServerImpl<Da: DaService> {
     /// The shared RPC context containing all required data
-    context: Arc<RpcContext>,
+    context: Arc<RpcContext<Da>>,
 }
 
-impl SequencerRpcServerImpl {
+impl<Da: DaService> SequencerRpcServerImpl<Da> {
     /// Creates a new instance of the sequencer RPC server.
     ///
     /// # Arguments
     /// * `context` - The shared RPC context containing all required data
-    pub fn new(context: RpcContext) -> Self {
+    pub fn new(context: RpcContext<Da>) -> Self {
         Self {
             context: Arc::new(context),
         }
@@ -200,7 +211,7 @@ impl SequencerRpcServerImpl {
 }
 
 #[async_trait::async_trait]
-impl SequencerRpcServer for SequencerRpcServerImpl {
+impl<Da: DaService> SequencerRpcServer for SequencerRpcServerImpl<Da> {
     /// eth_sendRawTransaction RPC call implementation
     async fn eth_send_raw_transaction(&self, data: Bytes) -> RpcResult<B256> {
         debug!("Sequencer: eth_sendRawTransaction");
@@ -376,6 +387,37 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             })
     }
 
+    async fn resend_commitment_by_index(&self, index: U32) -> RpcResult<[u8; 32]> {
+        let ledger_db = &self.context.ledger;
+        let commitment = ledger_db.get_commitment_by_index(index.to())
+            .expect("DB error when fetching commitment by index")
+            .ok_or_else(|| internal_rpc_error("Commitment does not exist"))?;
+
+        let tx_request = DaTxRequest::SequencerCommitment(commitment.clone());
+        let (notify, rx) = oneshot::channel();
+        let request = TxRequestWithNotifier { tx_request, notify };
+        
+        self.context.da_service
+            .get_send_transaction_queue()
+            .send(request)
+            .map_err(|_| internal_rpc_error("Bitcoin service already stopped!"))?;
+
+        tracing::info!("Resent commitment to DA queue. index: {}", index);
+
+        // Spawn a task to wait for the txid response,
+        // so we can log the result even if RPC timeout occurs
+        let txid_handle = tokio::spawn(async move {
+            let txid = rx.await
+                .map_err(|_| internal_rpc_error("DA service is dead!"))?
+                .map_err(|_| internal_rpc_error("Send transaction cannot fail"))?;
+
+            let txid = txid.into();
+            tracing::info!("Resent commitment to DA layer. index: {}, txid: {:?}", index, hex::encode(txid));
+            Ok(txid)
+        });
+        txid_handle.await.expect("Failed to join txid handle task")
+    }
+
     /// Returns the transaction pool content.
     async fn txpool_content(&self) -> RpcResult<TxpoolContent<Transaction>> {
         let AllPoolTransactions { pending, queued } = self.context.mempool.all_transactions();
@@ -433,7 +475,7 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
 ///
 /// # Returns
 /// The configured RPC module
-pub fn create_rpc_module(rpc_context: RpcContext) -> jsonrpsee::RpcModule<SequencerRpcServerImpl> {
+pub fn create_rpc_module<Da: DaService>(rpc_context: RpcContext<Da>) -> jsonrpsee::RpcModule<SequencerRpcServerImpl<Da>> {
     let server = SequencerRpcServerImpl::new(rpc_context);
 
     SequencerRpcServer::into_rpc(server)
