@@ -894,7 +894,10 @@ impl TestClient {
     ) -> Result<[u8; 32], Box<dyn std::error::Error>> {
         let txid = self
             .http_client
-            .request("citrea_resendCommitmentByIndex", rpc_params![U32::from(index)])
+            .request(
+                "citrea_resendCommitmentByIndex",
+                rpc_params![U32::from(index)],
+            )
             .await?;
         Ok(txid)
     }

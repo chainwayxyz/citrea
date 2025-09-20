@@ -786,7 +786,6 @@ async fn test_sequencer_halt_resume_commitments() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-
 /// Test the resend commitment functionality
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_resend_commitment() -> Result<(), anyhow::Error> {
@@ -842,14 +841,12 @@ async fn test_sequencer_resend_commitment() -> Result<(), anyhow::Error> {
     }
     wait_for_l2_block(&seq_test_client, 4, None).await;
 
-    let commitment_1 =
-        wait_for_commitment(&da_service, 3, Some(Duration::from_secs(30))).await;
+    let commitment_1 = wait_for_commitment(&da_service, 3, Some(Duration::from_secs(30))).await;
     assert_eq!(commitment_1.len(), 1, "Expected one commitment");
     let commitment_1 = &commitment_1[0];
     assert!(commitment_1.index == 1);
 
-    let commitment_2 =
-        wait_for_commitment(&da_service, 4, Some(Duration::from_secs(30))).await;
+    let commitment_2 = wait_for_commitment(&da_service, 4, Some(Duration::from_secs(30))).await;
     assert_eq!(commitment_2.len(), 1, "Expected one commitment");
     let commitment_2 = &commitment_2[0];
     assert!(commitment_2.index == 2);
@@ -862,7 +859,11 @@ async fn test_sequencer_resend_commitment() -> Result<(), anyhow::Error> {
 
     let commitment_2_resent =
         wait_for_commitment(&da_service, 5, Some(Duration::from_secs(30))).await;
-    assert_eq!(commitment_2_resent.len(), 1, "Expected one resent commitment");
+    assert_eq!(
+        commitment_2_resent.len(),
+        1,
+        "Expected one resent commitment"
+    );
     let commitment_2_resent = &commitment_2_resent[0];
     assert!(commitment_2_resent == commitment_2);
 
