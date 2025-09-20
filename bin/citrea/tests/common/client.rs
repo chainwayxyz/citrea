@@ -886,6 +886,18 @@ impl TestClient {
             .await?;
         Ok(())
     }
+
+    /// Resend a sequencer commitment
+    pub(crate) async fn sequencer_resend_commitment_by_index(
+        &self,
+        index: u32,
+    ) -> Result<[u8; 32], Box<dyn std::error::Error>> {
+        let txid = self
+            .http_client
+            .request("citrea_resendCommitmentByIndex", rpc_params![U32::from(index)])
+            .await?;
+        Ok(txid)
+    }
 }
 
 #[derive(serde::Deserialize, Debug)]

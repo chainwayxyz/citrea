@@ -785,3 +785,87 @@ async fn test_sequencer_halt_resume_commitments() -> Result<(), anyhow::Error> {
     seq_task.graceful_shutdown();
     Ok(())
 }
+
+
+/// Test the resend commitment functionality
+#[tokio::test(flavor = "multi_thread")]
+async fn test_sequencer_resend_commitment() -> Result<(), anyhow::Error> {
+    citrea::initialize_logging(tracing::Level::DEBUG);
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+
+    let max_l2_blocks_per_commitment = 2; // Small number of commitments for testing
+
+    let sequencer_config = SequencerConfig {
+        max_l2_blocks_per_commitment,
+        da_update_interval_ms: 100,
+        block_production_interval_ms: 100,
+        ..Default::default()
+    };
+
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_test_client = init_test_rollup(seq_port).await;
+
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
+
+    // Publish initial DA block
+    da_service.publish_test_block().await.unwrap();
+    wait_for_l1_block(&da_service, 2, None).await;
+
+    // Create first 4 L2 blocks to trigger initial commitment
+    for _ in 0..max_l2_blocks_per_commitment * 2 {
+        seq_test_client.send_publish_batch_request().await;
+    }
+    wait_for_l2_block(&seq_test_client, 4, None).await;
+
+    let commitment_1 =
+        wait_for_commitment(&da_service, 3, Some(Duration::from_secs(30))).await;
+    assert_eq!(commitment_1.len(), 1, "Expected one commitment");
+    let commitment_1 = &commitment_1[0];
+    assert!(commitment_1.index == 1);
+
+    let commitment_2 =
+        wait_for_commitment(&da_service, 4, Some(Duration::from_secs(30))).await;
+    assert_eq!(commitment_2.len(), 1, "Expected one commitment");
+    let commitment_2 = &commitment_2[0];
+    assert!(commitment_2.index == 2);
+
+    // Resend second commitment via RPC
+    seq_test_client
+        .sequencer_resend_commitment_by_index(2)
+        .await
+        .unwrap();
+
+    let commitment_2_resent =
+        wait_for_commitment(&da_service, 5, Some(Duration::from_secs(30))).await;
+    assert_eq!(commitment_2_resent.len(), 1, "Expected one resent commitment");
+    let commitment_2_resent = &commitment_2_resent[0];
+    assert!(commitment_2_resent == commitment_2);
+
+    seq_task.graceful_shutdown();
+    Ok(())
+}
