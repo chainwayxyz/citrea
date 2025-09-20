@@ -402,7 +402,7 @@ impl<Da: DaService> SequencerRpcServer for SequencerRpcServerImpl<Da> {
             .da_service
             .get_send_transaction_queue()
             .send(request)
-            .map_err(|_| internal_rpc_error("Bitcoin service already stopped!"))?;
+            .map_err(|_| internal_rpc_error("DA service already stopped!"))?;
 
         tracing::info!("Resent commitment to DA queue. index: {}", index);
 
