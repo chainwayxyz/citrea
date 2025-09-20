@@ -412,7 +412,7 @@ impl<Da: DaService> SequencerRpcServer for SequencerRpcServerImpl<Da> {
             let txid = rx
                 .await
                 .map_err(|_| internal_rpc_error("DA service is dead!"))?
-                .map_err(|_| internal_rpc_error("Send transaction cannot fail"))?;
+                .map_err(|_| internal_rpc_error("Failed to send transaction to DA layer"))?;
 
             let txid = txid.into();
             tracing::info!(
