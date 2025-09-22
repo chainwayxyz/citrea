@@ -20,6 +20,7 @@ use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_e2e::traits::NodeT;
 use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
+use k256::ecdsa::{Signature, VerifyingKey};
 use reth_tasks::TaskExecutor;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{
@@ -434,8 +435,8 @@ pub async fn generate_mock_txs(
     // Send method id update tx
     let method_id = BatchProofMethodId {
         body: method_id_body.clone(),
-        signatures,
-        pubkeys,
+        signatures: from_vec_to_sigs(signatures),
+        pubkeys: from_vec_to_vks(pubkeys),
     };
     valid_method_ids.push(method_id.clone());
     da_service
@@ -557,8 +558,8 @@ pub async fn generate_mock_txs(
     // Send method id update tx
     let method_id = BatchProofMethodId {
         body: method_id_body,
-        signatures,
-        pubkeys,
+        signatures: from_vec_to_sigs(signatures),
+        pubkeys: from_vec_to_vks(pubkeys),
     };
     valid_method_ids.push(method_id.clone());
     da_service
@@ -586,6 +587,30 @@ pub fn generate_pubkeys_from_secret_keys(secret_keys: [[u8; 32]; 5]) -> Vec<Vec<
         pubkeys.push(verify_key.to_sec1_bytes().to_vec());
     }
     pubkeys
+}
+
+pub(crate) fn create_wrong_pubkey() -> Vec<u8> {
+    let signing_key = k256::ecdsa::SigningKey::from_bytes((&[164u8; 32]).into()).unwrap();
+    let verify_key = signing_key.verifying_key();
+    verify_key.to_sec1_bytes().to_vec()
+}
+
+pub(crate) fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [Signature; 5] {
+    let mut sigs = Vec::new();
+    for v in vec.into_iter() {
+        sigs.push(Signature::from_bytes((&v[..]).try_into().unwrap()).unwrap());
+    }
+    println!("sigs: {:?}", sigs);
+    sigs.try_into().unwrap()
+}
+
+pub(crate) fn from_vec_to_vks(vec: Vec<Vec<u8>>) -> [VerifyingKey; 5] {
+    let mut vks = Vec::new();
+    for v in vec.into_iter() {
+        vks.push(VerifyingKey::from_sec1_bytes(&v[..]).unwrap());
+    }
+    println!("vks: {:?}", vks);
+    vks.try_into().unwrap()
 }
 
 pub(crate) fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> (k256::ecdsa::Signature, [u8; 32]) {

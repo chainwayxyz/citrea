@@ -42,7 +42,8 @@ use sov_rollup_interface::Network;
 use super::get_citrea_path;
 use super::utils::PROVER_DA_PRIVATE_KEY;
 use crate::bitcoin::utils::{
-    eip191_sign, generate_pubkeys_from_secret_keys, spawn_bitcoin_da_prover_service,
+    create_wrong_pubkey, eip191_sign, from_vec_to_sigs, from_vec_to_vks,
+    generate_pubkeys_from_secret_keys, spawn_bitcoin_da_prover_service,
     spawn_bitcoin_da_sequencer_service, spawn_bitcoin_da_service, wait_for_prover_job,
     wait_for_zkproofs, DaServiceKeyKind, BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS,
 };
@@ -683,8 +684,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     body: method_id_body,
-                    signatures,
-                    pubkeys,
+                    signatures: from_vec_to_sigs(signatures),
+                    pubkeys: from_vec_to_vks(pubkeys),
                 }),
                 1,
             )
@@ -908,8 +909,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     body: method_id_body.clone(),
-                    signatures: signatures.clone(),
-                    pubkeys: pubkeys.clone(),
+                    signatures: from_vec_to_sigs(signatures.clone()),
+                    pubkeys: from_vec_to_vks(pubkeys.clone()),
                 }),
                 1,
             )
@@ -951,8 +952,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     body: method_id_body2.clone(),
-                    signatures: broken_signatures.clone(),
-                    pubkeys: pubkeys.clone(),
+                    signatures: from_vec_to_sigs(broken_signatures.clone()),
+                    pubkeys: from_vec_to_vks(pubkeys.clone()),
                 }),
                 1,
             )
@@ -994,8 +995,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     body: method_id_body3.clone(),
-                    signatures: three_valid_signatures.clone(),
-                    pubkeys: pubkeys.clone(),
+                    signatures: from_vec_to_sigs(three_valid_signatures.clone()),
+                    pubkeys: from_vec_to_vks(pubkeys.clone()),
                 }),
                 1,
             )
@@ -1036,8 +1037,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     body: method_id_body4.clone(),
-                    signatures: signatures.clone(),
-                    pubkeys: three_valid_pubkeys.clone(),
+                    signatures: from_vec_to_sigs(signatures.clone()),
+                    pubkeys: from_vec_to_vks(three_valid_pubkeys.clone()),
                 }),
                 1,
             )
@@ -1071,16 +1072,17 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .collect::<Vec<_>>();
         let mut two_valid_pubkeys = pubkeys.clone();
 
-        two_valid_pubkeys[0][0] ^= 0xFF;
-        two_valid_pubkeys[1][0] ^= 0xFF;
-        two_valid_pubkeys[2][0] ^= 0xFF;
+        let wrong_pubkey = create_wrong_pubkey();
+        two_valid_pubkeys[0] = wrong_pubkey.clone();
+        two_valid_pubkeys[1] = wrong_pubkey.clone();
+        two_valid_pubkeys[2] = wrong_pubkey.clone();
 
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     body: method_id_body5.clone(),
-                    signatures: signatures.clone(),
-                    pubkeys: two_valid_pubkeys.clone(),
+                    signatures: from_vec_to_sigs(signatures.clone()),
+                    pubkeys: from_vec_to_vks(two_valid_pubkeys.clone()),
                 }),
                 1,
             )
