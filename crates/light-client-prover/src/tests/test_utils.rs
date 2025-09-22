@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use alloy_primitives::eip191_hash_message;
+use k256::ecdsa::Signature;
 use rand::{thread_rng, Rng};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
@@ -9,7 +11,8 @@ use sov_modules_api::{WorkingSet, Zkvm};
 use sov_modules_core::Storage;
 use sov_prover_storage_manager::{Config, ProverStorage, ProverStorageManager};
 use sov_rollup_interface::da::{
-    BatchProofMethodId, BlobReaderTrait, DaVerifier, DataOnDa, SequencerCommitment,
+    BatchProofMethodId, BatchProofMethodIdBody, BlobReaderTrait, DaVerifier, DataOnDa,
+    SequencerCommitment,
 };
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
@@ -18,6 +21,14 @@ use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutp
 
 use crate::circuit::accessors::ChunkAccessor;
 use crate::circuit::LightClientProofCircuit;
+
+pub const TEST_PRIVATE_KEYS: [&str; 5] = [
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9076",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9075",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9074",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9073",
+];
 
 pub(crate) fn create_mock_sequencer_commitment(
     index: u32,
@@ -170,6 +181,13 @@ pub(crate) fn create_serialized_mock_proof(
 
     mock_proof.encode_to_vec()
 }
+pub(crate) fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [Signature; 5] {
+    let mut sigs = Vec::new();
+    for v in vec.into_iter() {
+        sigs.push(Signature::from_bytes((&v[..]).into()).unwrap());
+    }
+    sigs.try_into().unwrap()
+}
 
 pub(crate) fn create_prev_lcp_serialized(
     output: LightClientCircuitOutput,
@@ -189,14 +207,46 @@ pub(crate) fn create_prev_lcp_serialized(
     mock_proof.encode_to_vec()
 }
 
+fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> (k256::ecdsa::Signature, [u8; 32]) {
+    use alloy_signer::SignerSync;
+    use alloy_signer_local::PrivateKeySigner;
+
+    let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+
+    let prehash = eip191_hash_message(msg);
+
+    let sig = signer.sign_hash_sync(&prehash).unwrap();
+    let signature = k256::ecdsa::Signature::from_slice(&sig.as_bytes()[0..64]).unwrap();
+
+    (signature, *prehash)
+}
+
 pub(crate) fn create_new_method_id_tx(
     activation_height: u64,
     new_method_id: [u32; 8],
     pub_key: [u8; 32],
 ) -> MockBlob {
-    let da_data = DataOnDa::BatchProofMethodId(BatchProofMethodId {
-        method_id: new_method_id,
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let msg = borsh::to_vec(&BatchProofMethodIdBody {
         activation_l2_height: activation_height,
+        method_id: new_method_id,
+    })
+    .unwrap();
+
+    let mut signatures = vec![];
+    for pk_bytes in pk_bytes_arr {
+        let (sig, _hash) = eip191_sign(msg.as_slice(), &pk_bytes);
+        signatures.push(sig.to_vec());
+    }
+
+    let da_data = DataOnDa::BatchProofMethodId(BatchProofMethodId {
+        body: BatchProofMethodIdBody {
+            method_id: new_method_id,
+            activation_l2_height: activation_height,
+        },
+        signatures: from_vec_to_sigs(signatures),
     });
 
     let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
@@ -277,7 +327,7 @@ impl NativeCircuitRunner {
         inital_batch_proof_method_ids: Vec<(u64, [u32; 8])>,
         batch_prover_da_pub_key: &[u8],
         sequencer_da_pub_key: &[u8],
-        method_id_upgrade_authority: &[u8],
+        method_id_upgrade_authority: &[[u8; 33]; 5],
     ) -> LightClientCircuitInput<MockDaSpec> {
         let prover_storage = self
             .prover_storage_manager

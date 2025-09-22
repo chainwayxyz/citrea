@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use alloy_primitives::U64;
+use alloy_primitives::{eip191_hash_message, U64};
 use anyhow::bail;
 use bitcoin_da::fee::FeeService;
 use bitcoin_da::monitoring::{MonitoringConfig, MonitoringService};
@@ -20,9 +20,12 @@ use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_e2e::traits::NodeT;
 use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
+use k256::ecdsa::Signature;
 use reth_tasks::TaskExecutor;
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
+use sov_rollup_interface::da::{
+    BatchProofMethodId, BatchProofMethodIdBody, DaTxRequest, SequencerCommitment,
+};
 use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::Network;
@@ -35,6 +38,14 @@ pub enum DaServiceKeyKind {
     BatchProver,
     Other(String),
 }
+
+pub const BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS: [&str; 5] = [
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9076",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9075",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9074",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9073",
+];
 
 pub const SEQUENCER_DA_PRIVATE_KEY: &str =
     "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262";
@@ -403,10 +414,25 @@ pub async fn generate_mock_txs(
     let mut valid_method_ids = vec![];
     let mut seq_index = 1;
 
-    // Send method id update tx
-    let method_id = BatchProofMethodId {
+    let method_id_body = BatchProofMethodIdBody {
         method_id: [0; 8],
         activation_l2_height: 0,
+    };
+
+    let signatures = {
+        let secret_keys: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+            .map(|k| hex::decode(k).unwrap().try_into().unwrap());
+
+        secret_keys
+            .iter()
+            .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0.to_vec())
+            .collect::<Vec<_>>()
+    };
+
+    // Send method id update tx
+    let method_id = BatchProofMethodId {
+        body: method_id_body.clone(),
+        signatures: from_vec_to_sigs(signatures),
     };
     valid_method_ids.push(method_id.clone());
     da_service
@@ -507,10 +533,24 @@ pub async fn generate_mock_txs(
         .await
         .expect("Failed to send transaction");
 
-    // Send method id update tx
-    let method_id = BatchProofMethodId {
+    let method_id_body = BatchProofMethodIdBody {
         method_id: [1; 8],
         activation_l2_height: 100,
+    };
+
+    let signatures = {
+        let secret_keys: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+            .map(|k| hex::decode(k).unwrap().try_into().unwrap());
+        secret_keys
+            .iter()
+            .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0.to_vec())
+            .collect::<Vec<_>>()
+    };
+
+    // Send method id update tx
+    let method_id = BatchProofMethodId {
+        body: method_id_body,
+        signatures: from_vec_to_sigs(signatures),
     };
     valid_method_ids.push(method_id.clone());
     da_service
@@ -528,6 +568,28 @@ pub async fn generate_mock_txs(
     assert_eq!(block.txdata.len(), 33);
 
     (block, valid_commitments, valid_proofs, valid_method_ids)
+}
+
+pub(crate) fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [Signature; 5] {
+    let mut sigs = Vec::new();
+    for v in vec.into_iter() {
+        sigs.push(Signature::from_bytes((&v[..]).into()).unwrap());
+    }
+    sigs.try_into().unwrap()
+}
+
+pub(crate) fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> (k256::ecdsa::Signature, [u8; 32]) {
+    use alloy_signer::SignerSync;
+    use alloy_signer_local::PrivateKeySigner;
+
+    let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+
+    let prehash = eip191_hash_message(msg);
+
+    let sig = signer.sign_hash_sync(&prehash).unwrap();
+    let signature = k256::ecdsa::Signature::from_slice(&sig.as_bytes()[0..64]).unwrap();
+
+    (signature, *prehash)
 }
 
 // For some reason, even though macro is used, it sees it as unused
