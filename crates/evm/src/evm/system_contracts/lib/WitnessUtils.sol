@@ -73,7 +73,7 @@ library WitnessUtils {
 
         for (uint256 i = 0; i < _nStackItems; i++) {
             (_varIntDataLen, _itemLen) = BTCUtils.parseVarIntAt(_witness, _at + _offset);
-            if (_itemLen == BTCUtils.ERR_BAD_ARG) {
+            if (_varIntDataLen == BTCUtils.ERR_BAD_ARG) {
                 return BTCUtils.ERR_BAD_ARG;
             }
 
@@ -121,12 +121,12 @@ library WitnessUtils {
 
         for (uint256 i = 0; i < _index; i++) {
             (_varIntDataLen, _itemLen) = BTCUtils.parseVarIntAt(_witness, _offset);
-            require(_itemLen != BTCUtils.ERR_BAD_ARG, "Bad VarInt in item");
+            require(_varIntDataLen != BTCUtils.ERR_BAD_ARG, "Bad VarInt in item");
             _offset += 1 + _varIntDataLen + _itemLen;
         }
 
         (_varIntDataLen, _itemLen) = BTCUtils.parseVarIntAt(_witness, _offset);
-        require(_itemLen != BTCUtils.ERR_BAD_ARG, "Bad VarInt in item");
+        require(_varIntDataLen != BTCUtils.ERR_BAD_ARG, "Bad VarInt in item");
         return _witness.slice(_offset, _itemLen + _varIntDataLen + 1);
     }
 }
