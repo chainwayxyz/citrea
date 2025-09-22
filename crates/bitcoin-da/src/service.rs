@@ -428,6 +428,7 @@ impl BitcoinService {
                 .filter(|utxo| {
                     utxo.spendable
                         && utxo.solvable
+                        && utxo.safe
                         && utxo.amount > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
                 })
                 .map(Into::into)
@@ -455,6 +456,7 @@ impl BitcoinService {
                 utxos.into_iter().filter(|utxo| {
                     utxo.spendable
                     && utxo.solvable
+                    && utxo.safe
                     && utxo.amount > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
                     // Remove utxo already in use by queued txs
                     && !txids.contains(&utxo.txid)
