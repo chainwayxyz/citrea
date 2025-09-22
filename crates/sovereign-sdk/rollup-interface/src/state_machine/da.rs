@@ -3,6 +3,7 @@
 use std::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use k256::ecdsa::{Signature, VerifyingKey};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -34,12 +35,31 @@ impl SequencerCommitment {
     }
 }
 /// Body of the batch proof method id update for light client
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct BatchProofMethodIdBody {
     /// New method id of upcoming fork
     pub method_id: [u32; 8],
     /// Activation L2 height of the new method id
     pub activation_l2_height: u64,
+}
+
+impl BorshSerialize for BatchProofMethodIdBody {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        BorshSerialize::serialize(&self.method_id, writer)?;
+        BorshSerialize::serialize(&self.activation_l2_height, writer)?;
+        Ok(())
+    }
+}
+
+impl BorshDeserialize for BatchProofMethodIdBody {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let method_id = BorshDeserialize::deserialize_reader(reader)?;
+        let activation_l2_height = BorshDeserialize::deserialize_reader(reader)?;
+        Ok(Self {
+            method_id,
+            activation_l2_height,
+        })
+    }
 }
 
 impl BatchProofMethodIdBody {
@@ -50,7 +70,7 @@ impl BatchProofMethodIdBody {
 }
 
 /// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
-#[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct BatchProofMethodId {
     /// Body of the method id update, the message to be signed
     /// Includes method id and activation height
@@ -58,20 +78,61 @@ pub struct BatchProofMethodId {
     /// Signatures of to be verified for the method id update
     /// Consists of 64 byte keccak256(eip191 prefixed message) prehash signed signatures
     /// The public keys can be recovered from the signatures and the prehash
-    pub signatures: Vec<Vec<u8>>,
+    pub signatures: [Signature; 5],
     /// Public keys corresponding to the signatures
     /// Consists of 33 byte compressed public keys
     /// The public keys are used to verify that enough authorized entities signed the method id update
-    pub pubkeys: Vec<Vec<u8>>,
+    pub pubkeys: [VerifyingKey; 5],
 }
+
+impl BorshSerialize for BatchProofMethodId {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        BorshSerialize::serialize(&self.body, writer)?;
+        for sig in &self.signatures {
+            writer.write_all(&sig.to_bytes())?;
+        }
+        for pk in &self.pubkeys {
+            writer.write_all(&pk.to_encoded_point(true).as_bytes())?;
+        }
+        Ok(())
+    }
+}
+
+impl BorshDeserialize for BatchProofMethodId {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let body = BatchProofMethodIdBody::deserialize_reader(reader)?;
+        let mut signatures = [Signature::from_bytes((&[0u8; 64]).into()).unwrap(); 5];
+        for sig in &mut signatures {
+            let mut buf = [0u8; 64];
+            reader.read_exact(&mut buf)?;
+            *sig = Signature::from_bytes((&buf).into()).map_err(|_| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid signature bytes")
+            })?;
+        }
+        let mut pubkeys = [VerifyingKey::from_sec1_bytes(&[0u8; 33]).unwrap(); 5];
+        for pk in &mut pubkeys {
+            let mut buf = [0u8; 33];
+            reader.read_exact(&mut buf)?;
+            *pk = VerifyingKey::from_sec1_bytes(&buf).map_err(|_| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid public key bytes")
+            })?;
+        }
+        Ok(Self {
+            body,
+            signatures,
+            pubkeys,
+        })
+    }
+}
+
 impl BatchProofMethodId {
     /// Returns the signatures in the transaction.
-    pub fn signatures(&self) -> &[Vec<u8>] {
+    pub fn signatures(&self) -> &[Signature; 5] {
         &self.signatures
     }
 
     /// Returns the public keys in the transaction.
-    pub fn public_keys(&self) -> &[Vec<u8>] {
+    pub fn public_keys(&self) -> &[VerifyingKey; 5] {
         &self.pubkeys
     }
 
@@ -88,7 +149,7 @@ impl BatchProofMethodId {
     }
 
     /// Returns the first public key in the transaction.
-    pub fn public_key(&self) -> &[u8] {
+    pub fn public_key(&self) -> &VerifyingKey {
         &self.pubkeys[0]
     }
 }
