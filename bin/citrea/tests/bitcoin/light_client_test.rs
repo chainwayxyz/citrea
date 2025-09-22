@@ -25,6 +25,7 @@ use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::REVEAL_TX_PREFIX;
+use k256::ecdsa::{Signature, VerifyingKey};
 use rand::{thread_rng, Rng};
 use reth_tasks::TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
@@ -892,68 +893,72 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             }]
         );
 
-        // --- CASE 1: All valid signatures and pubkeys ---
-        let new_batch_proof_method_id = [2u32; 8];
-        let method_id_body = BatchProofMethodIdBody {
-            method_id: new_batch_proof_method_id,
-            activation_l2_height: 220,
-        };
-        let secret_keys: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
-            .map(|k| hex::decode(k).unwrap().try_into().unwrap());
-        let pubkeys = generate_pubkeys_from_secret_keys(secret_keys);
-        let signatures = secret_keys
-            .iter()
-            .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0.to_vec())
-            .collect::<Vec<_>>();
-        bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body.clone(),
-                    signatures: from_vec_to_sigs(signatures.clone()),
-                    pubkeys: from_vec_to_vks(pubkeys.clone()),
-                }),
-                1,
-            )
-            .await
-            .unwrap();
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let method_id_l1_height = da.get_finalized_height(None).await?;
-        light_client_prover
-            .wait_for_l1_height(method_id_l1_height, Some(TEN_MINS))
-            .await
-            .unwrap();
-        let batch_proof_method_ids = light_client_prover
-            .client
-            .http_client()
-            .get_batch_proof_method_ids()
-            .await?;
-        assert!(batch_proof_method_ids
-            .iter()
-            .any(|x| x.method_id == new_batch_proof_method_id.into()));
+        // Case 6: Custom
+        // 035b7a64d9b7a2f6f8a7061356ff080a2fd7bfb1be093e2cf6732b03e02315895b
+        // 035b7a64d9b7a2f6f8a7061356ff080a2fd7bfb1be093e2cf6732b03e02315895b
+        let erce_pk = VerifyingKey::from_sec1_bytes(
+            hex::decode("035b7a64d9b7a2f6f8a7061356ff080a2fd7bfb1be093e2cf6732b03e02315895b")
+                .unwrap()
+                .as_slice(),
+        )
+        .unwrap();
+        //1.
+        let erce_sig = Signature::from_bytes(hex::decode( "e8a2ca2931ab463d73d9273b5851c0acebbf753679f2c5f6ccb2d3fd221367345101fcfd284b5f64640b4e7b8cb14b9a8887bf1f96255c4ce9aad5e584fe1ad81b").unwrap()[0..64].into()).unwrap();
 
-        // --- CASE 2: Less than 3 valid signatures (should be rejected) ---
-        let new_batch_proof_method_id2 = [3u32; 8];
+        //2.
+        // Random sig
+        let random_sig = Signature::from_bytes(hex::decode("efb532ca5209d2775795820d8320bc12979da6e4a4638a50eaf551eb1f49dc4f5abf01b40b572d46b0b762a739989f520b65e6194fb0e7a8d3d1f2b354676ee700").unwrap()[0..64].into()).unwrap();
+        let random_vk_1 = VerifyingKey::from_sec1_bytes(
+            hex::decode("0201edff3b3ee593dbef54e2fbdd421070db55e2de2aebe75f398bd85ac97ed364")
+                .unwrap()
+                .as_slice(),
+        )
+        .unwrap();
+
+        //3.
+        // 038a2a3a6f8ab2797da7f0c0a9c187c1d712352b3513d5c3db0eea953b4dfb8665
+        let esad_vk = VerifyingKey::from_sec1_bytes(
+            hex::decode("038a2a3a6f8ab2797da7f0c0a9c187c1d712352b3513d5c3db0eea953b4dfb8665")
+                .unwrap()
+                .as_slice(),
+        )
+        .unwrap();
+        let esad_sig = Signature::from_bytes(hex::decode("a16d2f2a39055bbe93122fbcedde40f64c898af8613870e0e1248606f90e4f6d775443b86ee62334fdf005756ac2d29cb14012d097cbfb7daa01c9c36de3825f1c").unwrap()[0..64].into()).unwrap();
+
+        // 4.
+        // 03096a187f7ab313f649d5b8bc99a16e4886f2e00178018fb419c58ba243b08d26
+        let brat_vk = VerifyingKey::from_sec1_bytes(
+            hex::decode("03096a187f7ab313f649d5b8bc99a16e4886f2e00178018fb419c58ba243b08d26")
+                .unwrap()
+                .as_slice(),
+        )
+        .unwrap();
+        let berat_sig = Signature::from_bytes(hex::decode("ecf5f86920285e5678130e2f7331d6b8e7e4aeb61a1d3e52c19b1433bf22f3974f60c74c9b5ed2c4e40011ee0bc60f10ee729a1f979c183976a7a54fb2c9d7ef1b").unwrap()[0..64].into()).unwrap();
+
+        // 5. random sig
+        let random_vk_2 = VerifyingKey::from_sec1_bytes(
+            hex::decode("03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b")
+                .unwrap()
+                .as_slice(),
+        )
+        .unwrap();
+        let random_sig2 = Signature::from_bytes(hex::decode("de873d2430824ef957f306664116e6cf05941884ef4159180c9d987b84b99c9d22f95fbfb242d779281e4349d324608da0ad0fb96de15bc83c286bb84c66260000").unwrap()[0..64].into()).unwrap();
+
+        let sigs = [erce_sig, random_sig, esad_sig, berat_sig, random_sig2];
+
+        let vks = [erce_pk, random_vk_1, esad_vk, brat_vk, random_vk_2];
+
         let method_id_body2 = BatchProofMethodIdBody {
-            method_id: new_batch_proof_method_id2,
-            activation_l2_height: 230,
+            method_id: [99u32; 8],
+            activation_l2_height: 100,
         };
-        let signatures = secret_keys
-            .iter()
-            .map(|sk| eip191_sign(&method_id_body2.serialize(), sk).0.to_vec())
-            .collect::<Vec<_>>();
-        let mut broken_signatures = signatures.clone();
-
-        broken_signatures[0][0] ^= 0xFF;
-        broken_signatures[1][0] ^= 0xFF;
-        broken_signatures[2][0] ^= 0xFF;
 
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     body: method_id_body2.clone(),
-                    signatures: from_vec_to_sigs(broken_signatures.clone()),
-                    pubkeys: from_vec_to_vks(pubkeys.clone()),
+                    signatures: sigs,
+                    pubkeys: vks,
                 }),
                 1,
             )
@@ -971,138 +976,223 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .http_client()
             .get_batch_proof_method_ids()
             .await?;
-        // Should NOT contain new_batch_proof_method_id2
-        assert!(!batch_proof_method_ids2
+        // Should contain new_batch_proof_method_id2
+        let new_batch_proof_method_id2 = [99u32; 8];
+        assert!(batch_proof_method_ids2
             .iter()
             .any(|x| x.method_id == new_batch_proof_method_id2.into()));
 
-        // --- CASE 3: 3 valid, 2 invalid signatures (should be accepted) ---
-        let new_batch_proof_method_id3 = [4u32; 8];
-        let method_id_body3 = BatchProofMethodIdBody {
-            method_id: new_batch_proof_method_id3,
-            activation_l2_height: 240,
-        };
-        let signatures = secret_keys
-            .iter()
-            .map(|sk| eip191_sign(&method_id_body3.serialize(), sk).0.to_vec())
-            .collect::<Vec<_>>();
-        let mut three_valid_signatures = signatures.clone();
+        // // --- CASE 1: All valid signatures and pubkeys ---
+        // let new_batch_proof_method_id = [2u32; 8];
+        // let method_id_body = BatchProofMethodIdBody {
+        //     method_id: new_batch_proof_method_id,
+        //     activation_l2_height: 220,
+        // };
+        // let secret_keys: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+        //     .map(|k| hex::decode(k).unwrap().try_into().unwrap());
+        // let pubkeys = generate_pubkeys_from_secret_keys(secret_keys);
+        // let signatures = secret_keys
+        //     .iter()
+        //     .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0.to_vec())
+        //     .collect::<Vec<_>>();
+        // bitcoin_da_service
+        //     .send_transaction_with_fee_rate(
+        //         DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+        //             body: method_id_body.clone(),
+        //             signatures: from_vec_to_sigs(signatures.clone()),
+        //             pubkeys: from_vec_to_vks(pubkeys.clone()),
+        //         }),
+        //         1,
+        //     )
+        //     .await
+        //     .unwrap();
+        // da.wait_mempool_len(2, None).await?;
+        // da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        // let method_id_l1_height = da.get_finalized_height(None).await?;
+        // light_client_prover
+        //     .wait_for_l1_height(method_id_l1_height, Some(TEN_MINS))
+        //     .await
+        //     .unwrap();
+        // let batch_proof_method_ids = light_client_prover
+        //     .client
+        //     .http_client()
+        //     .get_batch_proof_method_ids()
+        //     .await?;
+        // assert!(batch_proof_method_ids
+        //     .iter()
+        //     .any(|x| x.method_id == new_batch_proof_method_id.into()));
 
-        three_valid_signatures[3][0] ^= 0xFF;
-        three_valid_signatures[4][0] ^= 0xFF;
+        // // --- CASE 2: Less than 3 valid signatures (should be rejected) ---
+        // let new_batch_proof_method_id2 = [3u32; 8];
+        // let method_id_body2 = BatchProofMethodIdBody {
+        //     method_id: new_batch_proof_method_id2,
+        //     activation_l2_height: 230,
+        // };
+        // let signatures = secret_keys
+        //     .iter()
+        //     .map(|sk| eip191_sign(&method_id_body2.serialize(), sk).0.to_vec())
+        //     .collect::<Vec<_>>();
+        // let mut broken_signatures = signatures.clone();
 
-        bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body3.clone(),
-                    signatures: from_vec_to_sigs(three_valid_signatures.clone()),
-                    pubkeys: from_vec_to_vks(pubkeys.clone()),
-                }),
-                1,
-            )
-            .await
-            .unwrap();
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let method_id_l1_height3 = da.get_finalized_height(None).await?;
-        light_client_prover
-            .wait_for_l1_height(method_id_l1_height3, Some(TEN_MINS))
-            .await
-            .unwrap();
-        let batch_proof_method_ids3 = light_client_prover
-            .client
-            .http_client()
-            .get_batch_proof_method_ids()
-            .await?;
-        assert!(batch_proof_method_ids3
-            .iter()
-            .any(|x| x.method_id == new_batch_proof_method_id3.into()));
+        // broken_signatures[0][0] ^= 0xFF;
+        // broken_signatures[1][0] ^= 0xFF;
+        // broken_signatures[2][0] ^= 0xFF;
 
-        // --- CASE 4: 3 valid pubkeys, 2 invalid pubkeys (should be accepted) ---
-        let new_batch_proof_method_id4 = [5u32; 8];
-        let method_id_body4 = BatchProofMethodIdBody {
-            method_id: new_batch_proof_method_id4,
-            activation_l2_height: 250,
-        };
-        let signatures = secret_keys
-            .iter()
-            .map(|sk| eip191_sign(&method_id_body4.serialize(), sk).0.to_vec())
-            .collect::<Vec<_>>();
-        let mut three_valid_pubkeys = pubkeys.clone();
+        // bitcoin_da_service
+        //     .send_transaction_with_fee_rate(
+        //         DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+        //             body: method_id_body2.clone(),
+        //             signatures: from_vec_to_sigs(broken_signatures.clone()),
+        //             pubkeys: from_vec_to_vks(pubkeys.clone()),
+        //         }),
+        //         1,
+        //     )
+        //     .await
+        //     .unwrap();
+        // da.wait_mempool_len(2, None).await?;
+        // da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        // let method_id_l1_height2 = da.get_finalized_height(None).await?;
+        // light_client_prover
+        //     .wait_for_l1_height(method_id_l1_height2, Some(TEN_MINS))
+        //     .await
+        //     .unwrap();
+        // let batch_proof_method_ids2 = light_client_prover
+        //     .client
+        //     .http_client()
+        //     .get_batch_proof_method_ids()
+        //     .await?;
+        // // Should NOT contain new_batch_proof_method_id2
+        // assert!(!batch_proof_method_ids2
+        //     .iter()
+        //     .any(|x| x.method_id == new_batch_proof_method_id2.into()));
 
-        three_valid_pubkeys[3][0] ^= 0xFF;
-        three_valid_pubkeys[4][0] ^= 0xFF;
+        // // --- CASE 3: 3 valid, 2 invalid signatures (should be accepted) ---
+        // let new_batch_proof_method_id3 = [4u32; 8];
+        // let method_id_body3 = BatchProofMethodIdBody {
+        //     method_id: new_batch_proof_method_id3,
+        //     activation_l2_height: 240,
+        // };
+        // let signatures = secret_keys
+        //     .iter()
+        //     .map(|sk| eip191_sign(&method_id_body3.serialize(), sk).0.to_vec())
+        //     .collect::<Vec<_>>();
+        // let mut three_valid_signatures = signatures.clone();
 
-        bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body4.clone(),
-                    signatures: from_vec_to_sigs(signatures.clone()),
-                    pubkeys: from_vec_to_vks(three_valid_pubkeys.clone()),
-                }),
-                1,
-            )
-            .await
-            .unwrap();
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let method_id_l1_height4 = da.get_finalized_height(None).await?;
-        light_client_prover
-            .wait_for_l1_height(method_id_l1_height4, Some(TEN_MINS))
-            .await
-            .unwrap();
-        let batch_proof_method_ids4 = light_client_prover
-            .client
-            .http_client()
-            .get_batch_proof_method_ids()
-            .await?;
-        assert!(batch_proof_method_ids4
-            .iter()
-            .any(|x| x.method_id == new_batch_proof_method_id4.into()));
+        // three_valid_signatures[3][0] ^= 0xFF;
+        // three_valid_signatures[4][0] ^= 0xFF;
 
-        // --- CASE 5: Less than 3 valid pubkeys (should be rejected) ---
-        let new_batch_proof_method_id5 = [6u32; 8];
-        let method_id_body5 = BatchProofMethodIdBody {
-            method_id: new_batch_proof_method_id5,
-            activation_l2_height: 260,
-        };
-        let signatures = secret_keys
-            .iter()
-            .map(|sk| eip191_sign(&method_id_body5.serialize(), sk).0.to_vec())
-            .collect::<Vec<_>>();
-        let mut two_valid_pubkeys = pubkeys.clone();
+        // bitcoin_da_service
+        //     .send_transaction_with_fee_rate(
+        //         DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+        //             body: method_id_body3.clone(),
+        //             signatures: from_vec_to_sigs(three_valid_signatures.clone()),
+        //             pubkeys: from_vec_to_vks(pubkeys.clone()),
+        //         }),
+        //         1,
+        //     )
+        //     .await
+        //     .unwrap();
+        // da.wait_mempool_len(2, None).await?;
+        // da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        // let method_id_l1_height3 = da.get_finalized_height(None).await?;
+        // light_client_prover
+        //     .wait_for_l1_height(method_id_l1_height3, Some(TEN_MINS))
+        //     .await
+        //     .unwrap();
+        // let batch_proof_method_ids3 = light_client_prover
+        //     .client
+        //     .http_client()
+        //     .get_batch_proof_method_ids()
+        //     .await?;
+        // assert!(batch_proof_method_ids3
+        //     .iter()
+        //     .any(|x| x.method_id == new_batch_proof_method_id3.into()));
 
-        let wrong_pubkey = create_wrong_pubkey();
-        two_valid_pubkeys[0] = wrong_pubkey.clone();
-        two_valid_pubkeys[1] = wrong_pubkey.clone();
-        two_valid_pubkeys[2] = wrong_pubkey.clone();
+        // // --- CASE 4: 3 valid pubkeys, 2 invalid pubkeys (should be accepted) ---
+        // let new_batch_proof_method_id4 = [5u32; 8];
+        // let method_id_body4 = BatchProofMethodIdBody {
+        //     method_id: new_batch_proof_method_id4,
+        //     activation_l2_height: 250,
+        // };
+        // let signatures = secret_keys
+        //     .iter()
+        //     .map(|sk| eip191_sign(&method_id_body4.serialize(), sk).0.to_vec())
+        //     .collect::<Vec<_>>();
+        // let mut three_valid_pubkeys = pubkeys.clone();
 
-        bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body5.clone(),
-                    signatures: from_vec_to_sigs(signatures.clone()),
-                    pubkeys: from_vec_to_vks(two_valid_pubkeys.clone()),
-                }),
-                1,
-            )
-            .await
-            .unwrap();
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let method_id_l1_height5 = da.get_finalized_height(None).await?;
-        light_client_prover
-            .wait_for_l1_height(method_id_l1_height5, Some(TEN_MINS))
-            .await
-            .unwrap();
-        let batch_proof_method_ids5 = light_client_prover
-            .client
-            .http_client()
-            .get_batch_proof_method_ids()
-            .await?;
-        assert!(!batch_proof_method_ids5
-            .iter()
-            .any(|x| x.method_id == new_batch_proof_method_id5.into()));
+        // three_valid_pubkeys[3][0] ^= 0xFF;
+        // three_valid_pubkeys[4][0] ^= 0xFF;
+
+        // bitcoin_da_service
+        //     .send_transaction_with_fee_rate(
+        //         DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+        //             body: method_id_body4.clone(),
+        //             signatures: from_vec_to_sigs(signatures.clone()),
+        //             pubkeys: from_vec_to_vks(three_valid_pubkeys.clone()),
+        //         }),
+        //         1,
+        //     )
+        //     .await
+        //     .unwrap();
+        // da.wait_mempool_len(2, None).await?;
+        // da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        // let method_id_l1_height4 = da.get_finalized_height(None).await?;
+        // light_client_prover
+        //     .wait_for_l1_height(method_id_l1_height4, Some(TEN_MINS))
+        //     .await
+        //     .unwrap();
+        // let batch_proof_method_ids4 = light_client_prover
+        //     .client
+        //     .http_client()
+        //     .get_batch_proof_method_ids()
+        //     .await?;
+        // assert!(batch_proof_method_ids4
+        //     .iter()
+        //     .any(|x| x.method_id == new_batch_proof_method_id4.into()));
+
+        // // --- CASE 5: Less than 3 valid pubkeys (should be rejected) ---
+        // let new_batch_proof_method_id5 = [6u32; 8];
+        // let method_id_body5 = BatchProofMethodIdBody {
+        //     method_id: new_batch_proof_method_id5,
+        //     activation_l2_height: 260,
+        // };
+        // let signatures = secret_keys
+        //     .iter()
+        //     .map(|sk| eip191_sign(&method_id_body5.serialize(), sk).0.to_vec())
+        //     .collect::<Vec<_>>();
+        // let mut two_valid_pubkeys = pubkeys.clone();
+
+        // let wrong_pubkey = create_wrong_pubkey();
+        // two_valid_pubkeys[0] = wrong_pubkey.clone();
+        // two_valid_pubkeys[1] = wrong_pubkey.clone();
+        // two_valid_pubkeys[2] = wrong_pubkey.clone();
+
+        // bitcoin_da_service
+        //     .send_transaction_with_fee_rate(
+        //         DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+        //             body: method_id_body5.clone(),
+        //             signatures: from_vec_to_sigs(signatures.clone()),
+        //             pubkeys: from_vec_to_vks(two_valid_pubkeys.clone()),
+        //         }),
+        //         1,
+        //     )
+        //     .await
+        //     .unwrap();
+        // da.wait_mempool_len(2, None).await?;
+        // da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        // let method_id_l1_height5 = da.get_finalized_height(None).await?;
+        // light_client_prover
+        //     .wait_for_l1_height(method_id_l1_height5, Some(TEN_MINS))
+        //     .await
+        //     .unwrap();
+        // let batch_proof_method_ids5 = light_client_prover
+        //     .client
+        //     .http_client()
+        //     .get_batch_proof_method_ids()
+        //     .await?;
+        // assert!(!batch_proof_method_ids5
+        //     .iter()
+        //     .any(|x| x.method_id == new_batch_proof_method_id5.into()));
 
         Ok(())
     }

@@ -475,7 +475,7 @@ pub mod bitcoinda {
             let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_1") {
                 Some(k) => k,
                 // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077
-                None => "0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
+                None => "035b7a64d9b7a2f6f8a7061356ff080a2fd7bfb1be093e2cf6732b03e02315895b",
             };
             match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
                 Ok(pk) => pk,
@@ -501,7 +501,7 @@ pub mod bitcoinda {
             let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_3") {
                 Some(k) => k,
                 // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9075
-                None => "03fb89fd189501b9f55863a8194a8daff5b684cc52c0c21092f02ce428374c59f7",
+                None => "038a2a3a6f8ab2797da7f0c0a9c187c1d712352b3513d5c3db0eea953b4dfb8665",
             };
             match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
                 Ok(pk) => pk,
@@ -514,7 +514,7 @@ pub mod bitcoinda {
             let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_4") {
                 Some(k) => k,
                 // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9074
-                None => "037d415a6027c2dc598c3ee52e6e93e0b61dabf9ea224895533a4de34fef4b91e0",
+                None => "03096a187f7ab313f649d5b8bc99a16e4886f2e00178018fb419c58ba243b08d26",
             };
             match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
                 Ok(pk) => pk,
@@ -548,7 +548,7 @@ pub mod bitcoinda {
             let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_1") {
                 Some(k) => k,
                 // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077
-                None => "0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
+                None => "035b7a64d9b7a2f6f8a7061356ff080a2fd7bfb1be093e2cf6732b03e02315895b",
             };
             match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
                 Ok(pk) => pk,
@@ -574,7 +574,7 @@ pub mod bitcoinda {
             let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_3") {
                 Some(k) => k,
                 // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9075
-                None => "03fb89fd189501b9f55863a8194a8daff5b684cc52c0c21092f02ce428374c59f7",
+                None => "038a2a3a6f8ab2797da7f0c0a9c187c1d712352b3513d5c3db0eea953b4dfb8665",
             };
             match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
                 Ok(pk) => pk,
@@ -587,7 +587,7 @@ pub mod bitcoinda {
             let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_4") {
                 Some(k) => k,
                 // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9074
-                None => "037d415a6027c2dc598c3ee52e6e93e0b61dabf9ea224895533a4de34fef4b91e0",
+                None => "03096a187f7ab313f649d5b8bc99a16e4886f2e00178018fb419c58ba243b08d26",
             };
             match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
                 Ok(pk) => pk,

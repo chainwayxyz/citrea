@@ -792,6 +792,25 @@ fn test_eip191_signature_verification() {
 
     // Keccak256 is used inside
     let prehash = eip191_hash_message(msg);
+    let bpm = BatchProofMethodIdBody {
+        method_id: [99u32; 8],
+        activation_l2_height: 100,
+    };
+
+    let m = bpm.serialize();
+    let kek = eip191_hash_message(m);
+
+    let some_sig = "e8a2ca2931ab463d73d9273b5851c0acebbf753679f2c5f6ccb2d3fd221367345101fcfd284b5f64640b4e7b8cb14b9a8887bf1f96255c4ce9aad5e584fe1ad81b";
+
+    let some_sig_bytes = hex::decode(some_sig).unwrap();
+    let recovered_pub_key = recover_pub_key_from_cast_sig_and_hash(&some_sig_bytes, kek.as_slice());
+    println!(
+        "recovered_pub_key: {:?}",
+        hex::encode(recovered_pub_key.to_sec1_bytes())
+    );
+
+    let new_m = bpm.serialize();
+    println!("new_m: {:?}", hex::encode(&new_m));
 
     let eip_191_signature = signer.sign_hash_sync(&prehash).unwrap();
     let recovered_pub_key =
