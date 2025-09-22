@@ -468,7 +468,7 @@ pub fn create_inscription_type_1(
                             tx_id: unsigned_commit_tx.compute_txid(),
                             vout: 1,
                             address: None,
-                            script_pubkey: unsigned_commit_tx.output[0]
+                            script_pubkey: unsigned_commit_tx.output[1]
                                 .script_pubkey
                                 .to_hex_string(),
                             amount: unsigned_commit_tx.output[1].value.to_sat(),
