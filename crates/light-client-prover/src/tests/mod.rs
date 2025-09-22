@@ -1024,8 +1024,6 @@ fn test_new_method_id_txs() {
     let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
     let method_id_sender = [11u8; 32];
-    let method_id_upgrade_authority = METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS;
-    let method_id_upgrade_signatures = [[0u8; 65]; 5];
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
@@ -1042,13 +1040,7 @@ fn test_new_method_id_txs() {
         None,
         batch_prover_da_pub_key,
     );
-    let blob_2 = create_new_method_id_tx(
-        10,
-        [2u32; 8],
-        method_id_sender,
-        method_id_upgrade_authority,
-        method_id_upgrade_signatures,
-    );
+    let blob_2 = create_new_method_id_tx(10, [2u32; 8], method_id_sender);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -1093,13 +1085,7 @@ fn test_new_method_id_txs() {
     );
 
     // now try wrong method id
-    let blob_2 = create_new_method_id_tx(
-        10,
-        [3u32; 8],
-        batch_prover_da_pub_key,
-        method_id_upgrade_authority,
-        method_id_upgrade_signatures,
-    );
+    let blob_2 = create_new_method_id_tx(10, [3u32; 8], batch_prover_da_pub_key);
 
     let block_header_2 = MockBlockHeader::from_height(2);
 
@@ -1143,20 +1129,8 @@ fn test_new_method_id_txs() {
     );
 
     // now try activation height < last activating height and activation height = last activation height
-    let blob_1 = create_new_method_id_tx(
-        10,
-        [2u32; 8],
-        method_id_sender,
-        method_id_upgrade_authority,
-        method_id_upgrade_signatures,
-    );
-    let blob_2 = create_new_method_id_tx(
-        3,
-        [2u32; 8],
-        method_id_sender,
-        method_id_upgrade_authority,
-        method_id_upgrade_signatures,
-    );
+    let blob_1 = create_new_method_id_tx(10, [2u32; 8], method_id_sender);
+    let blob_2 = create_new_method_id_tx(3, [2u32; 8], method_id_sender);
 
     let block_header_3 = MockBlockHeader::from_height(3);
 

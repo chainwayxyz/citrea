@@ -82,16 +82,12 @@ pub struct BatchProofMethodId {
     /// Consists of 64 byte keccak256(eip191 prefixed message) prehash signed signatures
     /// The public keys can be recovered from the signatures and the prehash
     pub signatures: [Signature; 5],
-    /// Public keys corresponding to the signatures
-    /// Consists of 33 byte compressed public keys
-    /// The public keys are used to verify that enough authorized entities signed the method id update
-    pub pubkeys: [VerifyingKey; 5],
 }
 
 impl BatchProofMethodId {
     /// The three out of 5 signatures should be verified for the method id upgrade to be valid.
-    /// The signatures and pub keys should be in the same order as the one in the initial values constants.
-    /// If the pub key in the inscription doesn't match the initial pub key, the signature is not verified.
+    /// The signatures should be in the same order as the one in the initial values constants.
+    /// For each signature, the corresponding public key from the initial values constants is used to verify the signature.
     /// If there are less than 3 valid signatures, the verification fails.
     pub fn verify_method_id_security_council(&self, initial_da_pubkeys: [[u8; 33]; 5]) -> bool {
         // EIP-191 prefix + keccak256 → 32-byte prehash
@@ -99,17 +95,10 @@ impl BatchProofMethodId {
 
         let mut valid = 0usize;
 
-        for ((const_pubkey33, verifying_key), sig) in initial_da_pubkeys
-            .iter()
-            .zip(self.pubkeys.iter())
-            .zip(self.signatures.iter())
-        {
+        for (const_pubkey33, sig) in initial_da_pubkeys.iter().zip(self.signatures.iter()) {
             // ensure the inscription pubkey matches the expected constant (compressed 33B)
-            let encoded_point = verifying_key.to_encoded_point(true);
-            let verifying_key_bytes = encoded_point.as_bytes(); // 33 bytes
-            if const_pubkey33 != verifying_key_bytes {
-                continue;
-            }
+            let verifying_key = VerifyingKey::from_sec1_bytes(const_pubkey33)
+                .expect("Initial DA pubkeys must be parsable to k256 VerifyingKey form sec1 bytes");
 
             // verify prehash with the matching verifying key
             if verifying_key
@@ -132,9 +121,6 @@ impl BorshSerialize for BatchProofMethodId {
         BorshSerialize::serialize(&self.body, writer)?;
         for sig in &self.signatures {
             writer.write_all(&sig.to_bytes())?;
-        }
-        for pk in &self.pubkeys {
-            writer.write_all(pk.to_encoded_point(true).as_bytes())?;
         }
         Ok(())
     }
@@ -161,25 +147,7 @@ impl BorshDeserialize for BatchProofMethodId {
             .try_into()
             .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "wrong signature count"))?;
 
-        let pubkeys = [(); 5].map(|_| {
-            let mut buf = [0u8; 33];
-            reader.read_exact(&mut buf)?;
-            VerifyingKey::from_sec1_bytes(&buf).map_err(|_| {
-                std::io::Error::new(ErrorKind::InvalidData, "invalid compressed SEC1 pubkey")
-            })
-        });
-
-        let pubkeys = pubkeys
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()?
-            .try_into()
-            .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "wrong pubkey count"))?;
-
-        Ok(Self {
-            body,
-            signatures,
-            pubkeys,
-        })
+        Ok(Self { body, signatures })
     }
 }
 
@@ -187,11 +155,6 @@ impl BatchProofMethodId {
     /// Returns the signatures in the transaction.
     pub fn signatures(&self) -> &[Signature; 5] {
         &self.signatures
-    }
-
-    /// Returns the public keys in the transaction.
-    pub fn public_keys(&self) -> &[VerifyingKey; 5] {
-        &self.pubkeys
     }
 
     /// Returns the body of the transaction.
@@ -624,15 +587,6 @@ mod tests {
         sigs.try_into().unwrap()
     }
 
-    fn from_vec_to_vks(vec: Vec<Vec<u8>>) -> [VerifyingKey; 5] {
-        let mut vks = Vec::new();
-        for v in vec.into_iter() {
-            vks.push(VerifyingKey::from_sec1_bytes(&v[..]).unwrap());
-        }
-        println!("vks: {:?}", vks);
-        vks.try_into().unwrap()
-    }
-
     #[test]
     fn test_valid_signatures() {
         let body = BatchProofMethodIdBody {
@@ -657,11 +611,6 @@ mod tests {
             let sig = signer.sign_hash_sync(&prehash).unwrap();
             let signature = sig.as_bytes()[0..64].to_vec();
 
-            let m_sig = Signature::from_bytes((&signature[..]).into()).unwrap();
-            verifying_key
-                .verify_prehash(prehash.as_slice(), &m_sig)
-                .unwrap();
-            println!("ananananananna ");
             signatures_in_inscription.push(signature);
         }
 
@@ -671,7 +620,6 @@ mod tests {
                 activation_l2_height: 0,
             },
             signatures: from_vec_to_sigs(signatures_in_inscription.clone()),
-            pubkeys: from_vec_to_vks(pubkeys_in_inscription.clone()),
         };
 
         assert!(batch_proof_method_id.verify_method_id_security_council(initial_da_pubkeys,));
@@ -711,61 +659,6 @@ mod tests {
         let batch_proof_method_id = BatchProofMethodId {
             body,
             signatures: from_vec_to_sigs(signatures_in_inscription.clone()),
-            pubkeys: from_vec_to_vks(pubkeys_in_inscription.clone()),
-        };
-        assert!(!batch_proof_method_id.verify_method_id_security_council(initial_da_pubkeys));
-    }
-
-    #[test]
-    fn test_pubkey_mismatch() {
-        let body = BatchProofMethodIdBody {
-            method_id: [0u32; 8],
-            activation_l2_height: 0,
-        };
-        let msg = body.serialize();
-        let prehash = eip191_hash_message(msg);
-        let mut initial_da_pubkeys = [[0u8; 33]; 5];
-        let mut pubkeys_in_inscription = Vec::new();
-        let mut signatures_in_inscription = Vec::new();
-
-        // Generate 5 valid keypairs and signatures
-        for (i, initial_pubkey) in initial_da_pubkeys.iter_mut().enumerate() {
-            let secret_key = [i as u8 + 1; 32];
-            let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
-            let verifying_key = signer.credential().verifying_key();
-            let pubkey = verifying_key.to_sec1_bytes();
-            *initial_pubkey = pubkey.to_vec().try_into().unwrap();
-            pubkeys_in_inscription.push(pubkey.to_vec());
-
-            let sig = signer.sign_hash_sync(&prehash).unwrap();
-            let signature = sig.as_bytes()[0..64].to_vec();
-            signatures_in_inscription.push(signature);
-        }
-
-        // Corrupt two pubkeys
-        let wrong_pubkey = {
-            let secret_key = [100u8; 32];
-            let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
-            let verifying_key = signer.credential().verifying_key();
-            verifying_key.to_sec1_bytes().to_vec()
-        };
-        pubkeys_in_inscription[0] = wrong_pubkey.clone();
-        pubkeys_in_inscription[3] = wrong_pubkey.clone();
-
-        let batch_proof_method_id = BatchProofMethodId {
-            body: body.clone(),
-            signatures: from_vec_to_sigs(signatures_in_inscription.clone()),
-            pubkeys: from_vec_to_vks(pubkeys_in_inscription.clone()),
-        };
-        assert!(batch_proof_method_id.verify_method_id_security_council(initial_da_pubkeys));
-
-        // Corrupt one more and see that it won't verify
-        pubkeys_in_inscription[1] = wrong_pubkey.clone();
-
-        let batch_proof_method_id = BatchProofMethodId {
-            body,
-            signatures: from_vec_to_sigs(signatures_in_inscription.clone()),
-            pubkeys: from_vec_to_vks(pubkeys_in_inscription.clone()),
         };
         assert!(!batch_proof_method_id.verify_method_id_security_council(initial_da_pubkeys));
     }

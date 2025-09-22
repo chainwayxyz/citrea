@@ -42,8 +42,7 @@ use sov_rollup_interface::Network;
 use super::get_citrea_path;
 use super::utils::PROVER_DA_PRIVATE_KEY;
 use crate::bitcoin::utils::{
-    create_wrong_pubkey, eip191_sign, from_vec_to_sigs, from_vec_to_vks,
-    generate_pubkeys_from_secret_keys, spawn_bitcoin_da_prover_service,
+    eip191_sign, from_vec_to_sigs, spawn_bitcoin_da_prover_service,
     spawn_bitcoin_da_sequencer_service, spawn_bitcoin_da_service, wait_for_prover_job,
     wait_for_zkproofs, DaServiceKeyKind, BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS,
 };
@@ -666,18 +665,14 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             activation_l2_height: 210,
         };
 
-        let (signatures, pubkeys) = {
+        let signatures = {
             let secret_keys: [[u8; 32]; 5] =
                 BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
                     .map(|k| hex::decode(k).unwrap().try_into().unwrap());
-            let pubkeys = generate_pubkeys_from_secret_keys(secret_keys);
-            (
-                secret_keys
-                    .iter()
-                    .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0.to_vec())
-                    .collect::<Vec<_>>(),
-                pubkeys,
-            )
+            secret_keys
+                .iter()
+                .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0.to_vec())
+                .collect::<Vec<_>>()
         };
 
         bitcoin_da_service
@@ -685,7 +680,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     body: method_id_body,
                     signatures: from_vec_to_sigs(signatures),
-                    pubkeys: from_vec_to_vks(pubkeys),
                 }),
                 1,
             )
@@ -900,7 +894,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         };
         let secret_keys: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
             .map(|k| hex::decode(k).unwrap().try_into().unwrap());
-        let pubkeys = generate_pubkeys_from_secret_keys(secret_keys);
         let signatures = secret_keys
             .iter()
             .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0.to_vec())
@@ -910,7 +903,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     body: method_id_body.clone(),
                     signatures: from_vec_to_sigs(signatures.clone()),
-                    pubkeys: from_vec_to_vks(pubkeys.clone()),
                 }),
                 1,
             )
@@ -953,7 +945,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     body: method_id_body2.clone(),
                     signatures: from_vec_to_sigs(broken_signatures.clone()),
-                    pubkeys: from_vec_to_vks(pubkeys.clone()),
                 }),
                 1,
             )
@@ -996,7 +987,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     body: method_id_body3.clone(),
                     signatures: from_vec_to_sigs(three_valid_signatures.clone()),
-                    pubkeys: from_vec_to_vks(pubkeys.clone()),
                 }),
                 1,
             )
@@ -1017,92 +1007,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         assert!(batch_proof_method_ids3
             .iter()
             .any(|x| x.method_id == new_batch_proof_method_id3.into()));
-
-        // --- CASE 4: 3 valid pubkeys, 2 invalid pubkeys (should be accepted) ---
-        let new_batch_proof_method_id4 = [5u32; 8];
-        let method_id_body4 = BatchProofMethodIdBody {
-            method_id: new_batch_proof_method_id4,
-            activation_l2_height: 250,
-        };
-        let signatures = secret_keys
-            .iter()
-            .map(|sk| eip191_sign(&method_id_body4.serialize(), sk).0.to_vec())
-            .collect::<Vec<_>>();
-        let mut three_valid_pubkeys = pubkeys.clone();
-
-        three_valid_pubkeys[3][0] ^= 0xFF;
-        three_valid_pubkeys[4][0] ^= 0xFF;
-
-        bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body4.clone(),
-                    signatures: from_vec_to_sigs(signatures.clone()),
-                    pubkeys: from_vec_to_vks(three_valid_pubkeys.clone()),
-                }),
-                1,
-            )
-            .await
-            .unwrap();
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let method_id_l1_height4 = da.get_finalized_height(None).await?;
-        light_client_prover
-            .wait_for_l1_height(method_id_l1_height4, Some(TEN_MINS))
-            .await
-            .unwrap();
-        let batch_proof_method_ids4 = light_client_prover
-            .client
-            .http_client()
-            .get_batch_proof_method_ids()
-            .await?;
-        assert!(batch_proof_method_ids4
-            .iter()
-            .any(|x| x.method_id == new_batch_proof_method_id4.into()));
-
-        // --- CASE 5: Less than 3 valid pubkeys (should be rejected) ---
-        let new_batch_proof_method_id5 = [6u32; 8];
-        let method_id_body5 = BatchProofMethodIdBody {
-            method_id: new_batch_proof_method_id5,
-            activation_l2_height: 260,
-        };
-        let signatures = secret_keys
-            .iter()
-            .map(|sk| eip191_sign(&method_id_body5.serialize(), sk).0.to_vec())
-            .collect::<Vec<_>>();
-        let mut two_valid_pubkeys = pubkeys.clone();
-
-        let wrong_pubkey = create_wrong_pubkey();
-        two_valid_pubkeys[0] = wrong_pubkey.clone();
-        two_valid_pubkeys[1] = wrong_pubkey.clone();
-        two_valid_pubkeys[2] = wrong_pubkey.clone();
-
-        bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body5.clone(),
-                    signatures: from_vec_to_sigs(signatures.clone()),
-                    pubkeys: from_vec_to_vks(two_valid_pubkeys.clone()),
-                }),
-                1,
-            )
-            .await
-            .unwrap();
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let method_id_l1_height5 = da.get_finalized_height(None).await?;
-        light_client_prover
-            .wait_for_l1_height(method_id_l1_height5, Some(TEN_MINS))
-            .await
-            .unwrap();
-        let batch_proof_method_ids5 = light_client_prover
-            .client
-            .http_client()
-            .get_batch_proof_method_ids()
-            .await?;
-        assert!(!batch_proof_method_ids5
-            .iter()
-            .any(|x| x.method_id == new_batch_proof_method_id5.into()));
 
         Ok(())
     }

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use alloy_primitives::eip191_hash_message;
-use k256::ecdsa::{Signature, VerifyingKey};
+use k256::ecdsa::Signature;
 use rand::{thread_rng, Rng};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
@@ -189,14 +189,6 @@ pub(crate) fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [Signature; 5] {
     sigs.try_into().unwrap()
 }
 
-pub(crate) fn from_vec_to_vks(vec: Vec<Vec<u8>>) -> [VerifyingKey; 5] {
-    let mut vks = Vec::new();
-    for v in vec.into_iter() {
-        vks.push(VerifyingKey::from_sec1_bytes(&v[..]).unwrap());
-    }
-    vks.try_into().unwrap()
-}
-
 pub(crate) fn create_prev_lcp_serialized(
     output: LightClientCircuitOutput,
     is_valid: bool,
@@ -233,13 +225,7 @@ pub(crate) fn create_new_method_id_tx(
     activation_height: u64,
     new_method_id: [u32; 8],
     pub_key: [u8; 32],
-    council_pub_keys: [[u8; 33]; 5],
-    _council_signatures: [[u8; 65]; 5], // R,S,V
 ) -> MockBlob {
-    let pubkeys = council_pub_keys
-        .into_iter()
-        .map(|pk| pk.to_vec())
-        .collect::<Vec<_>>();
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
@@ -261,7 +247,6 @@ pub(crate) fn create_new_method_id_tx(
             activation_l2_height: activation_height,
         },
         signatures: from_vec_to_sigs(signatures),
-        pubkeys: from_vec_to_vks(pubkeys),
     });
 
     let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
