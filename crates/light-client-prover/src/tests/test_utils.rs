@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use alloy_primitives::eip191_hash_message;
+use k256::ecdsa::{Signature, VerifyingKey};
 use rand::{thread_rng, Rng};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
@@ -18,7 +20,6 @@ use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 
 use crate::circuit::accessors::ChunkAccessor;
-use crate::circuit::method_id_verifier::eip191_sign;
 use crate::circuit::LightClientProofCircuit;
 
 pub const TEST_PRIVATE_KEYS: [&str; 5] = [
@@ -180,6 +181,21 @@ pub(crate) fn create_serialized_mock_proof(
 
     mock_proof.encode_to_vec()
 }
+pub(crate) fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [Signature; 5] {
+    let mut sigs = Vec::new();
+    for v in vec.into_iter() {
+        sigs.push(Signature::from_bytes((&v[..]).try_into().unwrap()).unwrap());
+    }
+    sigs.try_into().unwrap()
+}
+
+pub(crate) fn from_vec_to_vks(vec: Vec<Vec<u8>>) -> [VerifyingKey; 5] {
+    let mut vks = Vec::new();
+    for v in vec.into_iter() {
+        vks.push(VerifyingKey::from_sec1_bytes(&v[..]).unwrap());
+    }
+    vks.try_into().unwrap()
+}
 
 pub(crate) fn create_prev_lcp_serialized(
     output: LightClientCircuitOutput,
@@ -197,6 +213,20 @@ pub(crate) fn create_prev_lcp_serialized(
     };
 
     mock_proof.encode_to_vec()
+}
+
+fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> (k256::ecdsa::Signature, [u8; 32]) {
+    use alloy_signer::SignerSync;
+    use alloy_signer_local::PrivateKeySigner;
+
+    let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+
+    let prehash = eip191_hash_message(msg);
+
+    let sig = signer.sign_hash_sync(&prehash).unwrap();
+    let signature = k256::ecdsa::Signature::from_slice(&sig.as_bytes()[0..64]).unwrap();
+
+    (signature, *prehash)
 }
 
 pub(crate) fn create_new_method_id_tx(
@@ -230,8 +260,8 @@ pub(crate) fn create_new_method_id_tx(
             method_id: new_method_id,
             activation_l2_height: activation_height,
         },
-        signatures,
-        pubkeys,
+        signatures: from_vec_to_sigs(signatures),
+        pubkeys: from_vec_to_vks(pubkeys),
     });
 
     let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
