@@ -10130,6 +10130,8 @@ name = "sov-rollup-interface"
 version = "0.7.4"
 dependencies = [
  "alloy-primitives",
+ "alloy-signer",
+ "alloy-signer-local",
  "anyhow",
  "async-trait",
  "borsh",
