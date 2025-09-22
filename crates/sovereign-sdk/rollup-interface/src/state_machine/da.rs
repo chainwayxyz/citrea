@@ -1,8 +1,12 @@
 //! Defines traits and types used by the rollup to verify claims about the
 //! DA layer.
 use std::fmt::Debug;
+use std::io::ErrorKind;
 
+use alloy_primitives::eip191_hash_message;
 use borsh::{BorshDeserialize, BorshSerialize};
+use k256::ecdsa::signature::hazmat::PrehashVerifier;
+use k256::ecdsa::{Signature, VerifyingKey};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -33,16 +37,140 @@ impl SequencerCommitment {
         hash.into()
     }
 }
-
-/// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
-pub struct BatchProofMethodId {
+/// Body of the batch proof method id update for light client
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct BatchProofMethodIdBody {
     /// New method id of upcoming fork
     pub method_id: [u32; 8],
     /// Activation L2 height of the new method id
     pub activation_l2_height: u64,
 }
 
+impl BorshSerialize for BatchProofMethodIdBody {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        BorshSerialize::serialize(&self.method_id, writer)?;
+        BorshSerialize::serialize(&self.activation_l2_height, writer)?;
+        Ok(())
+    }
+}
+
+impl BorshDeserialize for BatchProofMethodIdBody {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let method_id = BorshDeserialize::deserialize_reader(reader)?;
+        let activation_l2_height = BorshDeserialize::deserialize_reader(reader)?;
+        Ok(Self {
+            method_id,
+            activation_l2_height,
+        })
+    }
+}
+
+impl BatchProofMethodIdBody {
+    /// Serialize the body using borsh
+    pub fn serialize(&self) -> Vec<u8> {
+        borsh::to_vec(self).expect("BatchProofMethodIdBody serialization cannot fail")
+    }
+}
+
+/// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct BatchProofMethodId {
+    /// Body of the method id update, the message to be signed
+    /// Includes method id and activation height
+    pub body: BatchProofMethodIdBody,
+    /// Signatures of to be verified for the method id update
+    /// Consists of 64 byte keccak256(eip191 prefixed message) prehash signed signatures
+    /// The public keys can be recovered from the signatures and the prehash
+    pub signatures: [Signature; 5],
+}
+
+impl BatchProofMethodId {
+    /// The three out of 5 signatures should be verified for the method id upgrade to be valid.
+    /// The signatures should be in the same order as the one in the initial values constants.
+    /// For each signature, the corresponding public key from the initial values constants is used to verify the signature.
+    /// If there are less than 3 valid signatures, the verification fails.
+    pub fn verify_method_id_security_council(&self, initial_da_pubkeys: [[u8; 33]; 5]) -> bool {
+        // EIP-191 prefix + keccak256 → 32-byte prehash
+        let prehash = eip191_hash_message(self.body.serialize());
+
+        let mut valid = 0usize;
+
+        for (const_pubkey33, sig) in initial_da_pubkeys.iter().zip(self.signatures.iter()) {
+            // ensure the inscription pubkey matches the expected constant (compressed 33B)
+            let verifying_key = VerifyingKey::from_sec1_bytes(const_pubkey33)
+                .expect("Initial DA pubkeys must be parsable to k256 VerifyingKey form sec1 bytes");
+
+            // verify prehash with the matching verifying key
+            if verifying_key
+                .verify_prehash(prehash.as_slice(), sig)
+                .is_ok()
+            {
+                valid += 1;
+                if valid >= 3 {
+                    return true; // short-circuit: 3-of-5 satisfied
+                }
+            }
+        }
+
+        false
+    }
+}
+
+impl BorshSerialize for BatchProofMethodId {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        BorshSerialize::serialize(&self.body, writer)?;
+        for sig in &self.signatures {
+            writer.write_all(&sig.to_bytes())?;
+        }
+        Ok(())
+    }
+}
+
+impl BorshDeserialize for BatchProofMethodId {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let body = BatchProofMethodIdBody::deserialize_reader(reader)?;
+        let signatures = [(); 5].map(|_| {
+            let mut buf = [0u8; 64];
+            reader.read_exact(&mut buf)?;
+            // k256 accepts either 64-byte "raw" (r||s) via `try_from`
+            Signature::try_from(&buf[..]).map_err(|_| {
+                std::io::Error::new(
+                    ErrorKind::InvalidData,
+                    "invalid ECDSA signature (expected 64-byte r||s)",
+                )
+            })
+        });
+        // Convert Result<[Signature; 5], _>
+        let signatures = signatures
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?
+            .try_into()
+            .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "wrong signature count"))?;
+
+        Ok(Self { body, signatures })
+    }
+}
+
+impl BatchProofMethodId {
+    /// Returns the signatures in the transaction.
+    pub fn signatures(&self) -> &[Signature; 5] {
+        &self.signatures
+    }
+
+    /// Returns the body of the transaction.
+    pub fn body(&self) -> BatchProofMethodIdBody {
+        self.body.clone()
+    }
+
+    /// Compute sha256 hash of the borsh serialized body
+    pub fn get_hash(&self) -> [u8; 32] {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(self.body.serialize());
+        hasher.finalize().into()
+    }
+}
+
+/// SequencerCommitment's are ordered by their index
 impl core::cmp::PartialOrd for SequencerCommitment {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
@@ -56,7 +184,8 @@ impl core::cmp::Ord for SequencerCommitment {
 }
 
 /// Transaction request to send to the DA queue.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub enum DaTxRequest {
     /// A commitment from the sequencer
     SequencerCommitment(SequencerCommitment),
@@ -67,7 +196,8 @@ pub enum DaTxRequest {
 }
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum DataOnDa {
     /// A zk proof and state diff
     Complete(Proof),
@@ -438,4 +568,156 @@ impl Time {
     pub fn subsec_nanos(&self) -> u32 {
         self.nanos
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloy_signer::SignerSync;
+    use alloy_signer_local::PrivateKeySigner;
+
+    use super::*;
+
+    fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [Signature; 5] {
+        let mut sigs = Vec::new();
+        for v in vec.into_iter() {
+            sigs.push(Signature::from_bytes((&v[..]).into()).unwrap());
+        }
+        println!("sigs: {:?}", sigs);
+        sigs.try_into().unwrap()
+    }
+
+    #[test]
+    fn test_valid_signatures() {
+        let body = BatchProofMethodIdBody {
+            method_id: [0u32; 8],
+            activation_l2_height: 0,
+        };
+        let msg = body.serialize();
+        let prehash = eip191_hash_message(msg);
+        let mut initial_da_pubkeys = [[0u8; 33]; 5];
+        let mut pubkeys_in_inscription = Vec::new();
+        let mut signatures_in_inscription = Vec::new();
+
+        // Generate 5 valid keypairs and signatures
+        for (i, initial_pubkey) in initial_da_pubkeys.iter_mut().enumerate() {
+            let secret_key = [i as u8 + 1; 32];
+            let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+            let verifying_key = signer.credential().verifying_key();
+            let pubkey = verifying_key.to_sec1_bytes();
+            *initial_pubkey = pubkey.to_vec().try_into().unwrap();
+            pubkeys_in_inscription.push(pubkey.to_vec());
+
+            let sig = signer.sign_hash_sync(&prehash).unwrap();
+            let signature = sig.as_bytes()[0..64].to_vec();
+
+            signatures_in_inscription.push(signature);
+        }
+
+        let batch_proof_method_id = BatchProofMethodId {
+            body: BatchProofMethodIdBody {
+                method_id: [0u32; 8],
+                activation_l2_height: 0,
+            },
+            signatures: from_vec_to_sigs(signatures_in_inscription.clone()),
+        };
+
+        assert!(batch_proof_method_id.verify_method_id_security_council(initial_da_pubkeys,));
+    }
+
+    #[test]
+    fn test_less_than_three_valid_signatures() {
+        let body = BatchProofMethodIdBody {
+            method_id: [0u32; 8],
+            activation_l2_height: 0,
+        };
+        let msg = body.serialize();
+        let prehash = eip191_hash_message(msg);
+        let mut initial_da_pubkeys = [[0u8; 33]; 5];
+        let mut pubkeys_in_inscription = Vec::new();
+        let mut signatures_in_inscription = Vec::new();
+
+        // Generate 5 valid keypairs and signatures
+        for (i, initial_pubkey) in initial_da_pubkeys.iter_mut().enumerate() {
+            let secret_key = [i as u8 + 1; 32];
+            let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+            let verifying_key = signer.credential().verifying_key();
+            let pubkey = verifying_key.to_sec1_bytes();
+            *initial_pubkey = pubkey.to_vec().try_into().unwrap();
+            pubkeys_in_inscription.push(pubkey.to_vec());
+
+            let sig = signer.sign_hash_sync(&prehash).unwrap();
+            let signature = sig.as_bytes()[0..64].to_vec();
+            signatures_in_inscription.push(signature);
+        }
+
+        // Corrupt 3 signatures
+        signatures_in_inscription[0][0] ^= 0xFF;
+        signatures_in_inscription[1][0] ^= 0xFF;
+        signatures_in_inscription[2][0] ^= 0xFF;
+
+        let batch_proof_method_id = BatchProofMethodId {
+            body,
+            signatures: from_vec_to_sigs(signatures_in_inscription.clone()),
+        };
+        assert!(!batch_proof_method_id.verify_method_id_security_council(initial_da_pubkeys));
+    }
+}
+
+#[test]
+// Compares signature created with cast and our implementation
+fn test_eip191_signature_verification() {
+    use alloy_signer::SignerSync;
+    use alloy_signer_local::PrivateKeySigner;
+
+    // signature created with cast: cast wallet sign --private-key d38ba32d6971702225da49b49baac41c5a7ec2f5e3f2bb426976195ccd3266f7 0x48656c6c6f2c20776f726c6421
+    let msg = b"Hello, world!";
+
+    // Assert that the message hex is correct
+    assert_eq!(hex::encode(msg), "48656c6c6f2c20776f726c6421");
+
+    // Some randomly generated secret key
+    let secret_key = "d38ba32d6971702225da49b49baac41c5a7ec2f5e3f2bb426976195ccd3266f7";
+    let secret_key_bytes: [u8; 32] = hex::decode(secret_key).unwrap().try_into().unwrap();
+    let signer = PrivateKeySigner::from_bytes(&secret_key_bytes.into()).unwrap();
+    let verifying_key = signer.credential().verifying_key();
+    let pubkey = verifying_key.to_sec1_bytes();
+
+    // Keccak256 is used inside
+    let prehash = eip191_hash_message(msg);
+
+    let eip_191_signature = signer.sign_hash_sync(&prehash).unwrap();
+    let recovered_pub_key =
+        recover_pub_key_from_cast_sig_and_hash(&eip_191_signature.as_bytes(), prehash.as_slice());
+
+    assert_eq!(pubkey, recovered_pub_key.to_sec1_bytes());
+
+    // cast wallet sign --private-key d38ba32d6971702225da49b49baac41c5a7ec2f5e3f2bb426976195ccd3266f7 0x48656c6c6f2c20776f726c6421
+    // Output:
+    // 0x52782f3d8fddd7e1bfaa718e4ca6f8c3581624880bae828c9e220628dcdbf55e40eedc5c0ee292cfe296492533bcdcec74836f8a4866e4f8b8308167853731731c
+    let sig_bytes = eip_191_signature.as_bytes();
+    // Assert that cast signature matches our signature
+    assert_eq!(hex::encode(sig_bytes), "52782f3d8fddd7e1bfaa718e4ca6f8c3581624880bae828c9e220628dcdbf55e40eedc5c0ee292cfe296492533bcdcec74836f8a4866e4f8b8308167853731731c");
+
+    let signature =
+        k256::ecdsa::Signature::from_slice(&eip_191_signature.as_bytes()[0..64]).unwrap();
+
+    assert!(verifying_key
+        .verify_prehash(prehash.as_slice(), &signature)
+        .is_ok());
+}
+
+/// Recovers the public key from a cast-style signature (65 bytes: r(32) + s(32) + v(1)) and the message hash.
+#[cfg(test)]
+fn recover_pub_key_from_cast_sig_and_hash(cast_sig: &[u8], hash: &[u8]) -> VerifyingKey {
+    use k256::ecdsa::RecoveryId;
+    assert_eq!(cast_sig.len(), 65, "Invalid signature length");
+    assert_eq!(hash.len(), 32, "Invalid hash length");
+
+    let y_odd = cast_sig[64] - 27;
+    let y_odd = y_odd != 0;
+
+    let signature = k256::ecdsa::Signature::from_slice(&cast_sig[0..64]).unwrap();
+
+    VerifyingKey::recover_from_prehash(hash, &signature, RecoveryId::new(y_odd, false))
+        .expect("Failed to recover public key")
 }

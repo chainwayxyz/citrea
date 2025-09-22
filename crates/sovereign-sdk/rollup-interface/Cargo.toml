@@ -15,7 +15,7 @@ readme = "README.md"
 resolver = "2"
 
 [dependencies]
-alloy-primitives = { workspace = true, features = ["serde"], optional = true }
+alloy-primitives = { workspace = true, features = ["serde"] }
 anyhow = { workspace = true, features = ["default"] }
 async-trait = { workspace = true, optional = true }
 borsh = { workspace = true, features = ["default", "bytes", "rc"] }
@@ -25,6 +25,7 @@ faster-hex = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 hex = { workspace = true, optional = true, features = ["default"] }
 jmt = { workspace = true }
+k256 = { workspace = true }
 uuid = { workspace = true, optional = true }
 risc0-zkp = { workspace = true, optional = true }
 serde = { workspace = true, features = ["default", "rc"] }
@@ -37,12 +38,13 @@ tracing = { workspace = true, optional = true }
 sov-keys = { path = "../module-system/sov-keys" }
 
 [dev-dependencies]
+alloy-signer = { workspace = true }
+alloy-signer-local = { workspace = true }
 serde_json = { workspace = true }
 
 [features]
 default = []
 native = [
-  "alloy-primitives",
   "tokio",
   "futures",
   "tracing",

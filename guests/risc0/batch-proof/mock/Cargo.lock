@@ -3729,11 +3729,13 @@ dependencies = [
 name = "sov-rollup-interface"
 version = "0.7.1"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
  "borsh",
  "bytes",
  "digest 0.10.7",
  "jmt",
+ "k256",
  "serde",
  "sha2",
  "sov-keys",

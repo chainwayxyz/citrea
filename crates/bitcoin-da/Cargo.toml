@@ -42,6 +42,9 @@ tracing = { workspace = true, optional = true }
 bitcoincore-rpc = { workspace = true, optional = true }
 
 [dev-dependencies]
+alloy-primitives = { workspace = true }
+alloy-signer = { workspace = true }
+alloy-signer-local = { workspace = true }
 bitcoin-da = { path = ".", features = ["native"] }
 citrea-e2e = { workspace = true }
 rand = { workspace = true }
