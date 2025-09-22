@@ -1,80 +1,47 @@
 use alloy_primitives::eip191_hash_message;
 use k256::ecdsa::signature::hazmat::PrehashVerifier;
-use k256::ecdsa::VerifyingKey;
+use k256::ecdsa::{Signature, VerifyingKey};
 use k256::EncodedPoint;
 
 /// The three out of 5 signatures should be verified for the method id upgrade to be valid.
 /// The signatures and pub keys should be in the same order as the one in the initial values constants.
+/// If the pub key in the inscription doesn't match the initial pub key, the signature is not verified.
+/// If there are less than 3 valid signatures, the verification fails.
 pub(crate) fn verify_method_id_security_council(
     initial_da_pubkeys: [[u8; 33]; 5],
-    pubkeys_in_inscription: Vec<Vec<u8>>,
-    signatures_in_inscription: Vec<Vec<u8>>,
+    pubkeys_in_inscription: [VerifyingKey; 5],
+    signatures_in_inscription: [Signature; 5],
     signature_message: &[u8],
 ) -> bool {
-    // There should be exactly 5 pubkeys and signatures in the inscription
-    if pubkeys_in_inscription.len() != 5 || signatures_in_inscription.len() != 5 {
-        return false;
-    }
-
-    // The number of pubkeys in the inscription should match the number of initial DA pubkeys
-    if initial_da_pubkeys.len() != pubkeys_in_inscription.len() {
-        return false;
-    }
-
-    let mut valid_signatures = 0;
-
-    // Calculate prehash of the message
+    // EIP-191 prefix + keccak256 → 32-byte prehash
     let prehash = eip191_hash_message(signature_message);
 
-    for (pubkey_idx, (const_pub_key, inscription_pub_key)) in initial_da_pubkeys
+    let mut valid = 0usize;
+
+    for ((const_pubkey33, verifying_key), sig) in initial_da_pubkeys
         .iter()
         .zip(pubkeys_in_inscription.iter())
-        .enumerate()
+        .zip(signatures_in_inscription.iter())
     {
-        // The pubkeys should match
-        if const_pub_key != inscription_pub_key.as_slice() {
+        // ensure the inscription pubkey matches the expected constant (compressed 33B)
+        let verifying_key_bytes = verifying_key.to_encoded_point(true).as_bytes(); // 33 bytes
+        if const_pubkey33 != verifying_key_bytes {
             continue;
         }
 
-        let signature_bytes = &signatures_in_inscription[pubkey_idx];
-
-        // Decode the public key
-        let encoded_point = match EncodedPoint::from_bytes(inscription_pub_key.as_slice()) {
-            Ok(point) => point,
-            Err(e) => {
-                log!("Failed to decode public key: {:?}", e);
-                continue;
-            }
-        };
-
-        let verifying_key = match VerifyingKey::from_encoded_point(&encoded_point) {
-            Ok(key) => key,
-            Err(e) => {
-                log!("Failed to decode verifying key: {:?}", e);
-                continue;
-            }
-        };
-
-        // Ensure the signature is in the correct format (64 bytes: r(32) + s(32))
-        if signature_bytes.len() != 64 {
-            continue;
-        }
-
-        let Ok(signature) = k256::ecdsa::Signature::from_slice(signature_bytes.as_slice()) else {
-            log!("Failed to parse signature");
-            continue;
-        };
-
-        // Try verifying the signature
+        // verify prehash with the matching verifying key
         if verifying_key
-            .verify_prehash(prehash.as_slice(), &signature)
+            .verify_prehash(prehash.as_slice(), sig)
             .is_ok()
         {
-            valid_signatures += 1;
+            valid += 1;
+            if valid >= 3 {
+                return true; // short-circuit: 3-of-5 satisfied
+            }
         }
     }
 
-    valid_signatures >= 3
+    false
 }
 
 #[cfg(test)]

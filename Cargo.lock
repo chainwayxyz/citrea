@@ -10138,6 +10138,7 @@ dependencies = [
  "faster-hex",
  "hex",
  "jmt",
+ "k256",
  "risc0-zkp",
  "serde",
  "serde_json",
