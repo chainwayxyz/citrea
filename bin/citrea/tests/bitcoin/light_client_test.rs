@@ -106,7 +106,7 @@ impl TestCase for LightClientProvingTest {
             .await?;
 
         // Wait for commitment tx to be submitted to DA
-        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.wait_mempool_len(2, None).await?;
 
         // Finalize the DA block which contains the commitment tx
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -130,7 +130,7 @@ impl TestCase for LightClientProvingTest {
         assert_eq!(commitments.len(), 1);
 
         // Ensure that batch proof is submitted to DA
-        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.wait_mempool_len(2, None).await?;
 
         // Finalize the DA block which contains the batch proof tx
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -413,7 +413,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .await?;
 
         // Wait for commitment tx to be submitted to DA
-        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.wait_mempool_len(2, None).await?;
 
         // Finalize the DA block which contains the commitment txs
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -533,7 +533,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             with_sequencer: true,
             with_batch_prover: true,
             with_light_client_prover: true,
-            mode: CitreaMode::Dev,
             ..Default::default()
         }
     }
@@ -581,6 +580,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
+            // Method id sender private key, can be any sender
             DaServiceKeyKind::Other(
                 "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077".to_string(),
             ),
@@ -601,7 +601,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .await?;
 
         // Wait for commitment tx to be submitted to DA
-        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.wait_mempool_len(2, None).await?;
 
         // Finalize the DA block which contains the commitment tx
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -625,7 +625,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         assert_eq!(commitments.len(), 1);
 
         // Ensure that batch proof is submitted to DA
-        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.wait_mempool_len(2, None).await?;
 
         // Finalize the DA block which contains the batch proof tx
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -693,7 +693,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .unwrap();
 
         // Ensure that method id tx is submitted to DA
-        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.wait_mempool_len(2, None).await?;
 
         // Finalize the DA block which contains the method id tx
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -788,7 +788,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             with_sequencer: true,
             with_batch_prover: true,
             with_light_client_prover: true,
-            mode: CitreaMode::Dev,
             ..Default::default()
         }
     }
@@ -836,6 +835,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             &self.task_manager.executor(),
             &da.config,
             Self::test_config().dir,
+            // Method id sender private key, can be any sender
             DaServiceKeyKind::Other(
                 "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077".to_string(),
             ),
@@ -852,7 +852,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         sequencer
             .wait_for_l2_height(max_l2_blocks_per_commitment, None)
             .await?;
-        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitment_l1_height = da.get_finalized_height(None).await?;
         batch_prover
@@ -867,7 +867,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .unwrap()
             .unwrap();
         assert_eq!(commitments.len(), 1);
-        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let batch_proof_l1_height = da.get_finalized_height(None).await?;
         light_client_prover
@@ -916,7 +916,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             )
             .await
             .unwrap();
-        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let method_id_l1_height = da.get_finalized_height(None).await?;
         light_client_prover
@@ -959,7 +959,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             )
             .await
             .unwrap();
-        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let method_id_l1_height2 = da.get_finalized_height(None).await?;
         light_client_prover
@@ -1002,7 +1002,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             )
             .await
             .unwrap();
-        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let method_id_l1_height3 = da.get_finalized_height(None).await?;
         light_client_prover
@@ -1044,7 +1044,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             )
             .await
             .unwrap();
-        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let method_id_l1_height4 = da.get_finalized_height(None).await?;
         light_client_prover
@@ -1088,7 +1088,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             )
             .await
             .unwrap();
-        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let method_id_l1_height5 = da.get_finalized_height(None).await?;
         light_client_prover
@@ -1617,7 +1617,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
         da.generate_block(addr.clone(), last_two_chunks).await?;
         // Last two chunks should be in block n+1
-        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+        da.wait_mempool_len(2, None).await?;
 
         da.generate_block(addr.clone(), aggregate).await?;
         // Aggregate should be in block n+2
