@@ -1,6 +1,7 @@
 //! Defines traits and types used by the rollup to verify claims about the
 //! DA layer.
 use std::fmt::Debug;
+use std::io::ErrorKind;
 
 use alloy_primitives::eip191_hash_message;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -142,22 +143,38 @@ impl BorshSerialize for BatchProofMethodId {
 impl BorshDeserialize for BatchProofMethodId {
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let body = BatchProofMethodIdBody::deserialize_reader(reader)?;
-        let mut signatures = [Signature::from_bytes((&[0u8; 64]).into()).unwrap(); 5];
-        for sig in &mut signatures {
+        let signatures = [(); 5].map(|_| {
             let mut buf = [0u8; 64];
             reader.read_exact(&mut buf)?;
-            *sig = Signature::from_bytes((&buf).into()).map_err(|_| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid signature bytes")
-            })?;
-        }
-        let mut pubkeys = [VerifyingKey::from_sec1_bytes(&[0u8; 33]).unwrap(); 5];
-        for pk in &mut pubkeys {
+            // k256 accepts either 64-byte "raw" (r||s) via `try_from`
+            Signature::try_from(&buf[..]).map_err(|_| {
+                std::io::Error::new(
+                    ErrorKind::InvalidData,
+                    "invalid ECDSA signature (expected 64-byte r||s)",
+                )
+            })
+        });
+        // Convert Result<[Signature; 5], _>
+        let signatures = signatures
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?
+            .try_into()
+            .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "wrong signature count"))?;
+
+        let pubkeys = [(); 5].map(|_| {
             let mut buf = [0u8; 33];
             reader.read_exact(&mut buf)?;
-            *pk = VerifyingKey::from_sec1_bytes(&buf).map_err(|_| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid public key bytes")
-            })?;
-        }
+            VerifyingKey::from_sec1_bytes(&buf).map_err(|_| {
+                std::io::Error::new(ErrorKind::InvalidData, "invalid compressed SEC1 pubkey")
+            })
+        });
+
+        let pubkeys = pubkeys
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?
+            .try_into()
+            .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "wrong pubkey count"))?;
+
         Ok(Self {
             body,
             signatures,
@@ -818,7 +835,7 @@ fn recover_pub_key_from_cast_sig_and_hash(cast_sig: &[u8], hash: &[u8]) -> Verif
 
 /// Signs a message with the given secret key using EIP-191.
 #[cfg(test)]
-pub(crate) fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> (k256::ecdsa::Signature, [u8; 32]) {
+fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> (k256::ecdsa::Signature, [u8; 32]) {
     use alloy_signer::SignerSync;
     use alloy_signer_local::PrivateKeySigner;
 
