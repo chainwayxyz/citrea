@@ -205,11 +205,6 @@ impl BatchProofMethodId {
         hasher.update(self.body.serialize());
         hasher.finalize().into()
     }
-
-    /// Returns the first public key in the transaction.
-    pub fn public_key(&self) -> &VerifyingKey {
-        &self.pubkeys[0]
-    }
 }
 
 /// SequencerCommitment's are ordered by their index
