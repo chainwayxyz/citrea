@@ -23,8 +23,6 @@ use sov_rollup_interface::zk::light_client_proof::output::{
 use sov_rollup_interface::zk::ZkvmGuest;
 use sov_rollup_interface::Network;
 
-use crate::circuit::method_id_verifier::verify_method_id_security_council;
-
 /// Accessor (helpers) that are used inside the light client proof circuit.
 /// To access certain information that was saved to its state at one point.
 pub(crate) mod accessors;
@@ -34,9 +32,6 @@ pub mod initial_values;
 /// A macro for logging messages.
 #[macro_use]
 mod log;
-
-/// Verifies security council signatures for the method ID upgrade.
-pub mod method_id_verifier;
 
 /// L2 activation height of the fork, and the batch proof method ID
 type InitialBatchProofMethodIds = Vec<(u64, [u32; 8])>;
@@ -508,11 +503,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         }
                     }
                 }
-                DataOnDa::BatchProofMethodId(BatchProofMethodId {
-                    body,
-                    signatures,
-                    pubkeys,
-                }) => {
+                DataOnDa::BatchProofMethodId(batch_proof_method_id) => {
                     log!("Found batch proof method id");
                     let batch_proof_method_ids =
                         BatchProofMethodIdAccessor::<S>::get(&mut working_set).unwrap();
@@ -522,22 +513,19 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         .expect("Should be at least one")
                         .0;
 
-                    if body.activation_l2_height > last_activation_height {
+                    if batch_proof_method_id.body.activation_l2_height > last_activation_height {
                         // Verify the signatures only if the activation height is greater than the last one
                         // This prevents replay attacks of old method IDs
-                        if !verify_method_id_security_council(
+                        if !batch_proof_method_id.verify_method_id_security_council(
                             *method_id_upgrade_authority_da_public_keys,
-                            pubkeys,
-                            signatures,
-                            &borsh::to_vec(&body).unwrap(),
                         ) {
                             log!("Method ID security council verification failed");
                             continue;
                         }
 
                         BatchProofMethodIdAccessor::<S>::insert(
-                            body.activation_l2_height,
-                            body.method_id,
+                            batch_proof_method_id.body.activation_l2_height,
+                            batch_proof_method_id.body.method_id,
                             &mut working_set,
                         );
                     }
