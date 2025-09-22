@@ -21,7 +21,7 @@ pub enum ParsedTransaction {
     /// Kind 2
     Chunk(ParsedChunk),
     /// Kind 3
-    BatchProverMethodId(ParsedBatchProofMethodId),
+    BatchProofMethodId(ParsedBatchProofMethodId),
     /// Kind 4
     SequencerCommitment(ParsedSequencerCommitment),
     // /// Kind ?
@@ -217,8 +217,9 @@ fn parse_transaction(
         TransactionKind::Chunks => {
             body_parsers::parse_type_2_body(instructions).map(ParsedTransaction::Chunk)
         }
-        TransactionKind::BatchProofMethodId => body_parsers::parse_type_3_body(instructions)
-            .map(ParsedTransaction::BatchProverMethodId),
+        TransactionKind::BatchProofMethodId => {
+            body_parsers::parse_type_3_body(instructions).map(ParsedTransaction::BatchProofMethodId)
+        }
         TransactionKind::SequencerCommitment => body_parsers::parse_type_4_body(instructions)
             .map(ParsedTransaction::SequencerCommitment),
         TransactionKind::Unknown(n) => Err(ParserError::InvalidHeaderType(n)),
