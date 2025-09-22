@@ -95,7 +95,7 @@ impl BatchProofMethodId {
     /// If there are less than 3 valid signatures, the verification fails.
     pub fn verify_method_id_security_council(&self, initial_da_pubkeys: [[u8; 33]; 5]) -> bool {
         // EIP-191 prefix + keccak256 → 32-byte prehash
-        let prehash = eip191_hash_message(&self.body.serialize());
+        let prehash = eip191_hash_message(self.body.serialize());
 
         let mut valid = 0usize;
 
@@ -134,7 +134,7 @@ impl BorshSerialize for BatchProofMethodId {
             writer.write_all(&sig.to_bytes())?;
         }
         for pk in &self.pubkeys {
-            writer.write_all(&pk.to_encoded_point(true).as_bytes())?;
+            writer.write_all(pk.to_encoded_point(true).as_bytes())?;
         }
         Ok(())
     }
@@ -227,6 +227,7 @@ impl core::cmp::Ord for SequencerCommitment {
 }
 
 /// Transaction request to send to the DA queue.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub enum DaTxRequest {
     /// A commitment from the sequencer
@@ -239,6 +240,7 @@ pub enum DaTxRequest {
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum
 #[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum DataOnDa {
     /// A zk proof and state diff
     Complete(Proof),
@@ -621,7 +623,7 @@ mod tests {
     fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [Signature; 5] {
         let mut sigs = Vec::new();
         for v in vec.into_iter() {
-            sigs.push(Signature::from_bytes((&v[..]).try_into().unwrap()).unwrap());
+            sigs.push(Signature::from_bytes((&v[..]).into()).unwrap());
         }
         println!("sigs: {:?}", sigs);
         sigs.try_into().unwrap()
@@ -660,7 +662,7 @@ mod tests {
             let sig = signer.sign_hash_sync(&prehash).unwrap();
             let signature = sig.as_bytes()[0..64].to_vec();
 
-            let m_sig = Signature::from_bytes((&signature[..]).try_into().unwrap()).unwrap();
+            let m_sig = Signature::from_bytes((&signature[..]).into()).unwrap();
             verifying_key
                 .verify_prehash(prehash.as_slice(), &m_sig)
                 .unwrap();
@@ -831,20 +833,4 @@ fn recover_pub_key_from_cast_sig_and_hash(cast_sig: &[u8], hash: &[u8]) -> Verif
 
     VerifyingKey::recover_from_prehash(hash, &signature, RecoveryId::new(y_odd, false))
         .expect("Failed to recover public key")
-}
-
-/// Signs a message with the given secret key using EIP-191.
-#[cfg(test)]
-fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> (k256::ecdsa::Signature, [u8; 32]) {
-    use alloy_signer::SignerSync;
-    use alloy_signer_local::PrivateKeySigner;
-
-    let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
-
-    let prehash = eip191_hash_message(msg);
-
-    let sig = signer.sign_hash_sync(&prehash).unwrap();
-    let signature = k256::ecdsa::Signature::from_slice(&sig.as_bytes()[0..64]).unwrap();
-
-    (signature, *prehash)
 }

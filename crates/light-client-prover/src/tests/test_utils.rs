@@ -184,7 +184,7 @@ pub(crate) fn create_serialized_mock_proof(
 pub(crate) fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [Signature; 5] {
     let mut sigs = Vec::new();
     for v in vec.into_iter() {
-        sigs.push(Signature::from_bytes((&v[..]).try_into().unwrap()).unwrap());
+        sigs.push(Signature::from_bytes((&v[..]).into()).unwrap());
     }
     sigs.try_into().unwrap()
 }
