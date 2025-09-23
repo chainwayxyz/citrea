@@ -199,7 +199,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fetch_deposits_removes_from_pending() {
+    fn test_fetch_deposits_does_not_remove() {
         let mut mempool = DepositDataMempool::new();
         let deposit1 = hex::decode(DEPOSIT1).unwrap();
         let deposit2 = hex::decode(DEPOSIT2).unwrap();
@@ -210,6 +210,7 @@ mod tests {
         assert!(mempool.add_deposit_tx(deposit2.clone()).unwrap());
         assert!(mempool.add_deposit_tx(deposit3.clone()).unwrap());
         assert_eq!(mempool.pending_deposits.len(), 3);
+        assert_eq!(mempool.accepted_deposit_txs.len(), 3);
 
         // Fetch 2 deposits
         let fetched = mempool.fetch_deposits(2);
@@ -217,16 +218,52 @@ mod tests {
         assert_eq!(fetched[0], deposit1);
         assert_eq!(fetched[1], deposit2);
 
-        // Check that fetched deposits are removed from pending
+        // Check that fetched deposits are NOT removed
+        assert_eq!(mempool.pending_deposits.len(), 3);
+        assert_eq!(mempool.accepted_deposit_txs.len(), 3);
+
+        // Cannot add same deposits again as they're still pending
+        assert!(!mempool.add_deposit_tx(deposit1.clone()).unwrap());
+        assert!(!mempool.add_deposit_tx(deposit2.clone()).unwrap());
+
+        // Fetch again should return the same deposits
+        let fetched_again = mempool.fetch_deposits(2);
+        assert_eq!(fetched_again.len(), 2);
+        assert_eq!(fetched_again[0], deposit1);
+        assert_eq!(fetched_again[1], deposit2);
+    }
+
+    #[test]
+    fn test_remove_deposits() {
+        let mut mempool = DepositDataMempool::new();
+        let deposit1 = hex::decode(DEPOSIT1).unwrap();
+        let deposit2 = hex::decode(DEPOSIT2).unwrap();
+        let deposit3 = hex::decode(DEPOSIT3).unwrap();
+
+        // Add deposits
+        assert!(mempool.add_deposit_tx(deposit1.clone()).unwrap());
+        assert!(mempool.add_deposit_tx(deposit2.clone()).unwrap());
+        assert!(mempool.add_deposit_tx(deposit3.clone()).unwrap());
+        assert_eq!(mempool.pending_deposits.len(), 3);
+        assert_eq!(mempool.accepted_deposit_txs.len(), 3);
+
+        // Fetch 2 deposits
+        let fetched = mempool.fetch_deposits(2);
+        assert_eq!(fetched.len(), 2);
+
+        // Remove the fetched deposits
+        let removed_count = mempool.remove_deposits(&fetched);
+        assert_eq!(removed_count, 2);
+
+        // Check that only the removed deposits are gone
         assert_eq!(mempool.pending_deposits.len(), 1);
-        // The pending_deposits set now contains txids, not the deposits themselves
-        // We can verify the count and that the queue still has one item
         assert_eq!(mempool.accepted_deposit_txs.len(), 1);
 
         // Now these deposits can be added again
         assert!(mempool.add_deposit_tx(deposit1.clone()).unwrap());
         assert!(mempool.add_deposit_tx(deposit2.clone()).unwrap());
         assert_eq!(mempool.pending_deposits.len(), 3);
+        assert_eq!(mempool.accepted_deposit_txs.len(), 3);
     }
 
     #[test]
@@ -245,6 +282,17 @@ mod tests {
         assert_eq!(fetched.len(), 1);
         assert_eq!(fetched[0], deposit);
 
+        // Deposit is still in mempool after fetch
+        assert_eq!(mempool.pending_deposits.len(), 1);
+        assert_eq!(mempool.accepted_deposit_txs.len(), 1);
+
+        // Still cannot add duplicate
+        assert!(!mempool.add_deposit_tx(deposit.clone()).unwrap());
+
+        // Remove the deposit
+        let removed_count = mempool.remove_deposits(&fetched);
+        assert_eq!(removed_count, 1);
+
         // Now the same deposit can be added again
         assert!(mempool.add_deposit_tx(deposit.clone()).unwrap());
         assert_eq!(mempool.pending_deposits.len(), 1);
@@ -256,7 +304,7 @@ mod tests {
         let data = hex::decode(DEPOSIT1).unwrap();
 
         assert_eq!(
-            DepositDataMempool::calc_tx_id(data.as_slice()).unwrap(),
+            DepositDataMempool::calc_tx_id(&data).unwrap(),
             hex::decode("c1be1ce3ef6be11115274355dade79aad5b34814fccc3912c3cec2c08686fbee")
                 .unwrap()
                 .as_slice()
@@ -265,7 +313,7 @@ mod tests {
         let data = hex::decode(DEPOSIT2).unwrap();
 
         assert_eq!(
-            DepositDataMempool::calc_tx_id(data.as_slice()).unwrap(),
+            DepositDataMempool::calc_tx_id(&data).unwrap(),
             hex::decode("0d7e74f9cf18ae5bfce3855270b909a5142809a302a72093231345989aac9809")
                 .unwrap()
                 .as_slice()
