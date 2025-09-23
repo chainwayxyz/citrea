@@ -10,6 +10,9 @@ import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradea
 /// @title Bridge contract for the Citrea end of Citrea <> Bitcoin bridge
 /// @author Citrea
 
+/// @dev This contract is not intended for regular deployment and can only be used as a predeploy.
+/// @dev It does not utilize OpenZeppelin's initialization chain, thus any modifications that include new OZ logic should be made carefully.
+
 contract Bridge is Ownable2StepUpgradeable {
     using BTCUtils for bytes;
     using BytesLib for bytes;
@@ -90,6 +93,7 @@ contract Bridge is Ownable2StepUpgradeable {
     }
 
     /// @notice Initializes the bridge contract and sets the deposit script
+    /// @dev This function does not utilize OZ's initialization chain and instead uses a state variable to track initialization status
     /// @param _depositPrefix First part of the deposit script expected in the witness field for all L1 deposits 
     /// @param _depositSuffix The suffix of the deposit script that follows the receiver address
     /// @param _depositAmount The CBTC amount that can be deposited and withdrawn
