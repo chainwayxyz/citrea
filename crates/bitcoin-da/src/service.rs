@@ -1120,12 +1120,12 @@ impl DaService for BitcoinService {
                             continue 'aggregate;
                         };
 
-                        body.extend(chunk);
-
-                        if body.len() > MAX_COMPRESSED_BLOB_SIZE {
+                        if chunk.len() + body.len() > MAX_COMPRESSED_BLOB_SIZE {
                             warn!("{tx_id}: Compressed aggregate too large");
                             continue 'aggregate;
                         }
+
+                        body.extend(chunk);
                     }
                     ParsedTransaction::Complete(_)
                     | ParsedTransaction::Aggregate(_)

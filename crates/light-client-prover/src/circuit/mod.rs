@@ -467,15 +467,16 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     // Ensure that aggregate has all the needed chunks.
                     for wtxid in &wtxids {
                         match ChunkAccessor::<S>::get(*wtxid, &mut working_set) {
-                            Some(body) => {
-                                complete_proof.extend_from_slice(body.as_ref());
-                                if complete_proof.len() > MAX_COMPRESSED_BLOB_SIZE {
+                            Some(chunk) => {
+                                if chunk.len() + complete_proof.len() > MAX_COMPRESSED_BLOB_SIZE {
                                     log!(
                                         "Compressed aggregate too large, wtxid={:?}; skipping",
                                         blob.wtxid()
                                     );
                                     continue 'blob_loop;
                                 }
+
+                                complete_proof.extend_from_slice(&chunk);
                             }
                             None => {
                                 log!(
