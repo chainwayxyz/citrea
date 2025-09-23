@@ -1,39 +1,32 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
-use alloy_consensus::{Header as AlloyHeader, TxReceipt};
-pub use alloy_primitives::{keccak256, U256};
-use alloy_primitives::{Address, TxHash, B256};
-use alloy_rlp::{RlpDecodable, RlpEncodable};
-use revm::context::BlockEnv;
-use revm::primitives::hardfork::SpecId as EvmSpecId;
-#[cfg(feature = "native")]
-use sov_db::ledger_db::LedgerDB;
-use sov_modules_api::{L2BlockModuleCallError, ModuleInfo, SpecId as CitreaSpecId, WorkingSet};
-#[cfg(feature = "native")]
-use sov_modules_api::{StateValueAccessor, StateVecAccessor};
-use sov_state::codec::{BcsCodec, BorshCodec, RlpCodec};
-
-pub use crate::call::*;
-use crate::evm::primitive_types::Block;
-pub use crate::evm::*;
-pub use crate::genesis::*;
-#[cfg(feature = "native")]
-pub use crate::hooks::{
-    create_initial_system_events, populate_deposit_system_events, populate_set_block_info_event,
-};
-#[cfg(feature = "native")]
-pub use crate::metrics::EVM_METRICS;
-pub use crate::system_events::SYSTEM_SIGNER;
-pub use crate::EvmConfig;
-
 mod call;
-use evm::db::EvmDb;
 mod evm;
 mod genesis;
 mod hooks;
 #[cfg(feature = "native")]
 mod metrics;
 mod provider_functions;
+
+use alloy_consensus::TxReceipt;
+pub use alloy_primitives::{keccak256, U256};
+use alloy_rlp::{RlpDecodable, RlpEncodable};
+pub use call::*;
+pub use evm::*;
+pub use genesis::*;
+#[cfg(feature = "native")]
+pub use hooks::{
+    create_initial_system_events, populate_deposit_system_events, populate_set_block_info_event,
+};
+#[cfg(feature = "native")]
+pub use metrics::EVM_METRICS;
+use revm::context::BlockEnv;
+use revm::primitives::hardfork::SpecId as EvmSpecId;
+#[cfg(feature = "native")]
+use sov_db::ledger_db::LedgerDB;
+use sov_state::codec::BorshCodec;
+pub use system_events::SYSTEM_SIGNER;
+
 #[cfg(feature = "native")]
 mod rpc_helpers;
 #[cfg(feature = "native")]
@@ -44,10 +37,24 @@ mod query;
 pub use query::*;
 #[cfg(test)]
 mod signer;
+
 #[cfg(feature = "native")]
 pub mod smart_contracts;
+
 #[cfg(all(test, feature = "native"))]
 mod tests;
+
+use alloy_consensus::Header as AlloyHeader;
+use alloy_primitives::{Address, TxHash, B256};
+use evm::db::EvmDb;
+use sov_modules_api::{L2BlockModuleCallError, ModuleInfo, SpecId as CitreaSpecId, WorkingSet};
+#[cfg(feature = "native")]
+use sov_modules_api::{StateValueAccessor, StateVecAccessor};
+use sov_state::codec::{BcsCodec, RlpCodec};
+
+use crate::evm::primitive_types::Block;
+#[cfg(feature = "native")]
+pub use crate::EvmConfig;
 
 #[derive(
     Clone, Debug, serde::Serialize, serde::Deserialize, RlpEncodable, RlpDecodable, PartialEq, Eq,
