@@ -15,7 +15,7 @@ readme = "README.md"
 resolver = "2"
 
 [dependencies]
-alloy-primitives = { workspace = true, features = ["serde"] }
+alloy-primitives = { workspace = true }
 anyhow = { workspace = true, features = ["default"] }
 async-trait = { workspace = true, optional = true }
 borsh = { workspace = true, features = ["default", "bytes", "rc"] }
@@ -44,6 +44,7 @@ serde_json = { workspace = true }
 [features]
 default = []
 native = [
+  "alloy-primitives/serde",
   "tokio",
   "tracing",
   "risc0-zkp",
