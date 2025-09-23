@@ -25,7 +25,7 @@ pub(crate) struct SignedTxWithId {
 
 /// Pair of commit/reveal signed transactions
 #[derive(Debug, Clone)]
-pub(crate) struct SignedTxPair {
+pub struct SignedTxPair {
     pub commit: SignedTxWithId,
     pub reveal: SignedTxWithId,
     pub kind: TransactionKind,
