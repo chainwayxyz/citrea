@@ -1,7 +1,6 @@
 //! Defines traits and types used by the rollup to verify claims about the
 //! DA layer.
 use std::fmt::Debug;
-use std::io::ErrorKind;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
