@@ -496,9 +496,79 @@ contract BridgeTest is Test {
 
     function testSetDepositScript() public {
         vm.prank(owner);
-        bridge.setDepositScript(depositPrefix, depositSuffix);
+        bytes memory newPrefix = bytes("new random prefix longer than 34 bytes");
+        bytes memory newSuffix = bytes("new suffix");
+        bridge.setDepositScript(newPrefix, newSuffix);
+        assert(bridge.isBytesEqual_(newPrefix, bridge.depositPrefix()));
+        assert(bridge.isBytesEqual_(newSuffix, bridge.depositSuffix()));
+    }
+
+    function testSetDepositScriptToEmptyBytesRevert() public {
+        vm.expectRevert(bytes("Deposit script must be longer than 34 bytes"));
+        vm.prank(owner);
+        bridge.setDepositScript(bytes(""), depositSuffix);
+
+        // no change
         assert(bridge.isBytesEqual_(depositPrefix, bridge.depositPrefix()));
         assert(bridge.isBytesEqual_(depositSuffix, bridge.depositSuffix()));
+    }
+
+    function testSetDepositScriptTo33BytesRevert() public {
+        vm.expectRevert(bytes("Deposit script must be longer than 34 bytes"));
+        vm.prank(owner);
+        bridge.setDepositScript(bytes("33 bytes deposit prefix.........."), depositSuffix);
+
+        // no change
+        assert(bridge.isBytesEqual_(depositPrefix, bridge.depositPrefix()));
+        assert(bridge.isBytesEqual_(depositSuffix, bridge.depositSuffix()));
+    }
+
+    function testSetReplaceScriptToNonDepositPrefixRevert() public {
+        bytes memory replacePrefix = depositPrefix;
+        bytes memory replaceSuffix = bytes("new suffix");
+        vm.startPrank(owner);
+        // using the same values here on purpose
+        bridge.setReplaceScript(replacePrefix, replaceSuffix);
+
+        vm.expectRevert(bytes("Replace prefix must contain the same aggregated key as deposit prefix"));
+
+        bytes memory newPrefix = bytes("new random prefix longer than 34 bytes");
+        bytes memory newSuffix = bytes("new suffix 2");
+        bridge.setReplaceScript(newPrefix, newSuffix);
+        assert(bridge.isBytesEqual_(replacePrefix, bridge.replacePrefix()));
+        assert(bridge.isBytesEqual_(replaceSuffix, bridge.replaceSuffix()));
+    }
+
+    function testSetReplaceScriptToEmptyBytesRevert() public {
+        bytes memory replacePrefix = depositPrefix;
+        bytes memory replaceSuffix = bytes("new suffix");
+        vm.startPrank(owner);
+        // using the same values here on purpose
+        bridge.setReplaceScript(replacePrefix, replaceSuffix);
+
+        vm.expectRevert(bytes("Replace script must be longer than 34 bytes"));
+
+        bytes memory newPrefix = bytes("");
+        bytes memory newSuffix = bytes("new suffix 2");
+        bridge.setReplaceScript(newPrefix, newSuffix);
+        assert(bridge.isBytesEqual_(replacePrefix, bridge.replacePrefix()));
+        assert(bridge.isBytesEqual_(replaceSuffix, bridge.replaceSuffix()));
+    }
+
+    function testSetReplaceScriptTo33BytesRevert() public {
+        bytes memory replacePrefix = depositPrefix;
+        bytes memory replaceSuffix = bytes("new suffix");
+        vm.startPrank(owner);
+        // using the same values here on purpose
+        bridge.setReplaceScript(replacePrefix, replaceSuffix);
+
+        vm.expectRevert(bytes("Replace script must be longer than 34 bytes"));
+
+        bytes memory newPrefix = bytes("33 bytes replace prefix..........");
+        bytes memory newSuffix = bytes("new suffix 2");
+        bridge.setReplaceScript(newPrefix, newSuffix);
+        assert(bridge.isBytesEqual_(replacePrefix, bridge.replacePrefix()));
+        assert(bridge.isBytesEqual_(replaceSuffix, bridge.replaceSuffix()));
     }
 
     function testUpgrade() public {
