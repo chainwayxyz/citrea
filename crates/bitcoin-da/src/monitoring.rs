@@ -650,12 +650,13 @@ impl MonitoringService {
             match &monitored_tx.status {
                 // Check non-finalized TXs
                 TxStatus::Queued | TxStatus::Confirmed { .. } | TxStatus::Replaced { .. } => {
-                    let tx_result = self.client.get_transaction(txid, None).await?;
-                    let new_status = self
-                        .determine_tx_status(&tx_result, &monitored_tx.status)
-                        .await?;
+                    if let Ok(tx_result) = self.client.get_transaction(txid, None).await {
+                        let new_status = self
+                            .determine_tx_status(&tx_result, &monitored_tx.status)
+                            .await?;
 
-                    monitored_tx.status = new_status;
+                        monitored_tx.status = new_status;
+                    }
                 }
                 // Check evicted TXs that have already been rebroadcasted at least once
                 TxStatus::Evicted {
