@@ -496,7 +496,7 @@ contract BridgeTest is Test {
 
     function testSetDepositScript() public {
         vm.prank(owner);
-        bytes memory newPrefix = bytes("new random prefix longer then 34 bytes");
+        bytes memory newPrefix = bytes("new random prefix longer than 34 bytes");
         bytes memory newSuffix = bytes("new suffix");
         bridge.setDepositScript(newPrefix, newSuffix);
         assert(bridge.isBytesEqual_(newPrefix, bridge.depositPrefix()));
@@ -532,7 +532,7 @@ contract BridgeTest is Test {
 
         vm.expectRevert(bytes("Replace prefix must contain the same aggregated key as deposit prefix"));
 
-        bytes memory newPrefix = bytes("new random prefix longer then 34 bytes");
+        bytes memory newPrefix = bytes("new random prefix longer than 34 bytes");
         bytes memory newSuffix = bytes("new suffix 2");
         bridge.setReplaceScript(newPrefix, newSuffix);
         assert(bridge.isBytesEqual_(replacePrefix, bridge.replacePrefix()));
