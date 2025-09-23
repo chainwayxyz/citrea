@@ -96,7 +96,7 @@ contract Bridge is Ownable2StepUpgradeable {
     function initialize(bytes calldata _depositPrefix, bytes calldata _depositSuffix, uint256 _depositAmount) external onlySystem {
         require(!initialized, "Contract is already initialized");
         require(_depositAmount != 0, "Deposit amount cannot be 0");
-        require(_depositPrefix.length != 0, "Deposit script cannot be empty");
+        require(_depositPrefix.length >= 34, "Deposit script must be longer than 34 bytes");
         require(_depositAmount % SAT_TO_WEI == 0, "Deposit amount must have valid satoshi value");
         require(_depositAmount / SAT_TO_WEI <= type(uint64).max, "Deposit amount divided by SAT_TO_WEI must fit in uint64");
 
@@ -120,7 +120,7 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param _depositPrefix The new deposit script prefix
     /// @param _depositSuffix The part of the deposit script that succeeds the receiver address
     function setDepositScript(bytes calldata _depositPrefix, bytes calldata _depositSuffix) external onlyOwner {
-        require(_depositPrefix.length != 0, "Deposit script cannot be empty");
+        require(_depositPrefix.length >= 34, "Deposit script must be longer than 34 bytes");
 
         depositPrefix = _depositPrefix;
         depositSuffix = _depositSuffix;
@@ -133,7 +133,7 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param _replacePrefix The new replace prefix
     /// @param _replaceSuffix The part of the replace script that succeeds the txId
     function setReplaceScript(bytes calldata _replacePrefix, bytes calldata _replaceSuffix) external onlyOwner {
-        require(_replacePrefix.length != 0, "Replace script cannot be empty");
+        require(_replacePrefix.length >= 34, "Replace script must be longer than 34 bytes");
         require(bytesToBytes32(_replacePrefix.slice(2, 32)) == bytesToBytes32(getAggregatedKey()), "Replace prefix must contain the same aggregated key as deposit prefix");
 
         replacePrefix = _replacePrefix;
