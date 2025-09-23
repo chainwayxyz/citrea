@@ -20,7 +20,6 @@ use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_e2e::traits::NodeT;
 use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
-use k256::ecdsa::Signature;
 use reth_tasks::TaskExecutor;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{
@@ -570,10 +569,10 @@ pub async fn generate_mock_txs(
     (block, valid_commitments, valid_proofs, valid_method_ids)
 }
 
-pub(crate) fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [Signature; 5] {
+pub(crate) fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [[u8; 64]; 5] {
     let mut sigs = Vec::new();
     for v in vec.into_iter() {
-        sigs.push(Signature::from_bytes((&v[..]).into()).unwrap());
+        sigs.push(v.try_into().unwrap());
     }
     sigs.try_into().unwrap()
 }

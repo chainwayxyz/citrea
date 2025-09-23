@@ -1511,7 +1511,6 @@ fn test_light_client_circuit_aggregate_size_overflow() {
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
@@ -1581,7 +1580,7 @@ fn test_light_client_circuit_aggregate_size_overflow() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
     );
 
     let output = zk_circuit_runner
@@ -1594,7 +1593,7 @@ fn test_light_client_circuit_aggregate_size_overflow() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 

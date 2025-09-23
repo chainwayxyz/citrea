@@ -4,7 +4,6 @@ use std::fmt::Debug;
 use std::io::ErrorKind;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use k256::ecdsa::Signature;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -36,31 +35,12 @@ impl SequencerCommitment {
     }
 }
 /// Body of the batch proof method id update for light client
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct BatchProofMethodIdBody {
     /// New method id of upcoming fork
     pub method_id: [u32; 8],
     /// Activation L2 height of the new method id
     pub activation_l2_height: u64,
-}
-
-impl BorshSerialize for BatchProofMethodIdBody {
-    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        BorshSerialize::serialize(&self.method_id, writer)?;
-        BorshSerialize::serialize(&self.activation_l2_height, writer)?;
-        Ok(())
-    }
-}
-
-impl BorshDeserialize for BatchProofMethodIdBody {
-    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
-        let method_id = BorshDeserialize::deserialize_reader(reader)?;
-        let activation_l2_height = BorshDeserialize::deserialize_reader(reader)?;
-        Ok(Self {
-            method_id,
-            activation_l2_height,
-        })
-    }
 }
 
 impl BatchProofMethodIdBody {
@@ -71,7 +51,7 @@ impl BatchProofMethodIdBody {
 }
 
 /// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, BorshSerialize, BorshDeserialize)]
 pub struct BatchProofMethodId {
     /// Body of the method id update, the message to be signed
     /// Includes method id and activation height
@@ -79,47 +59,12 @@ pub struct BatchProofMethodId {
     /// Signatures of to be verified for the method id update
     /// Consists of 64 byte keccak256(eip191 prefixed message) prehash signed signatures
     /// The public keys can be recovered from the signatures and the prehash
-    pub signatures: [Signature; 5],
-}
-
-impl BorshSerialize for BatchProofMethodId {
-    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        BorshSerialize::serialize(&self.body, writer)?;
-        for sig in &self.signatures {
-            writer.write_all(&sig.to_bytes())?;
-        }
-        Ok(())
-    }
-}
-
-impl BorshDeserialize for BatchProofMethodId {
-    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
-        let body = BatchProofMethodIdBody::deserialize_reader(reader)?;
-        let signatures = [(); 5].map(|_| {
-            let mut buf = [0u8; 64];
-            reader.read_exact(&mut buf)?;
-            // k256 accepts either 64-byte "raw" (r||s) via `try_from`
-            Signature::try_from(&buf[..]).map_err(|_| {
-                std::io::Error::new(
-                    ErrorKind::InvalidData,
-                    "invalid ECDSA signature (expected 64-byte r||s)",
-                )
-            })
-        });
-        // Convert Result<[Signature; 5], _>
-        let signatures = signatures
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()?
-            .try_into()
-            .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "wrong signature count"))?;
-
-        Ok(Self { body, signatures })
-    }
+    pub signatures: [[u8; 64]; 5],
 }
 
 impl BatchProofMethodId {
     /// Returns the signatures in the transaction.
-    pub fn signatures(&self) -> &[Signature; 5] {
+    pub fn signatures(&self) -> &[[u8; 64]; 5] {
         &self.signatures
     }
 
