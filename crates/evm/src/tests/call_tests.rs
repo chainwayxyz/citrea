@@ -6,7 +6,7 @@ use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_primitives::{address, Address, Bytes, TxKind, B256, U64};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
-use citrea_primitives::MIN_BASE_FEE_PER_GAS;
+use citrea_primitives::min_base_fee_per_gas;
 use rand::thread_rng;
 use revm::bytecode::eip7702::Eip7702Bytecode;
 use revm::primitives::{KECCAK_EMPTY, U256};
@@ -968,7 +968,7 @@ fn test_l1_fee_not_enough_funds() {
     let (mut config, dev_signer, _, _ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("1142350000000").unwrap(), // only covers base fee
         None,
-        MIN_BASE_FEE_PER_GAS,
+        min_base_fee_per_gas(SovSpecId::Tangerine),
     );
     config_push_contracts(&mut config, None);
 
@@ -996,7 +996,7 @@ fn test_l1_fee_not_enough_funds() {
             &dev_signer,
             0,
             BlockHashContract::default(),
-            MIN_BASE_FEE_PER_GAS,
+            min_base_fee_per_gas(l2_block_info.current_spec),
             114235,
         );
 
