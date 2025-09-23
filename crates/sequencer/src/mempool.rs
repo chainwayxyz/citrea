@@ -5,7 +5,6 @@ use alloy_primitives::{Address, TxHash};
 use citrea_common::SequencerMempoolConfig;
 use citrea_evm::SYSTEM_SIGNER;
 use citrea_primitives::min_base_fee_per_gas;
-use sov_modules_api::SpecId;
 use reth_execution_types::ChangedAccount;
 use reth_tasks::TaskExecutor;
 use reth_transaction_pool::blobstore::NoopBlobStore;
@@ -16,6 +15,7 @@ use reth_transaction_pool::{
     SubPoolLimit, TransactionPool, TransactionPoolExt, TransactionValidationTaskExecutor,
     ValidPoolTransaction,
 };
+use sov_modules_api::SpecId;
 
 use crate::db_provider::DbProvider;
 

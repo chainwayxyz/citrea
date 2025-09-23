@@ -853,7 +853,7 @@ where
                 }
             };
         l1_fee_rate = multiplied_l1_fee_rate(l1_fee_rate);
-        
+
         let mut last_finalized_l1_height = last_finalized_block.header().height();
         let prestate = self.storage_manager.create_final_view_storage();
         let mut working_set = WorkingSet::new(prestate.clone());
@@ -1035,7 +1035,7 @@ where
                 .base_fee_per_gas
                 .expect("Base fee always set in Citrea"),
             cfg.base_fee_params,
-            spec_id
+            spec_id,
         ) as u64;
 
         let best_txs_with_base_fee = self

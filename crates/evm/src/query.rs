@@ -2130,11 +2130,11 @@ fn get_pending_block_env<C: sov_modules_api::Context>(
         latest_block.header.gas_limit,
         latest_block.header.base_fee_per_gas.unwrap_or_default(),
         cfg.base_fee_params,
-        citrea_spec_id
+        citrea_spec_id,
     );
     // assume timestamp will increment the same between last block and the one before that
     block_env.timestamp += time_diff;
-    
+
     let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
     block_env.blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new(
         0,
