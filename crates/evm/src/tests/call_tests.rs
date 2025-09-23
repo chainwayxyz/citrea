@@ -1663,7 +1663,7 @@ fn test_eip7702_tx() {
 }
 
 #[test]
-fn min_base_fee_post_fork3() {
+fn test_min_base_fee_fork3() {
     let (config, _dev_signer, _contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
