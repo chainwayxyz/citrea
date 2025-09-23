@@ -61,8 +61,8 @@ impl SignedTxPair {
 }
 
 #[derive(Debug)]
-pub(crate) struct TxSigner {
-    client: Arc<Client>,
+pub struct TxSigner {
+    pub client: Arc<Client>,
 }
 
 impl TxSigner {
