@@ -45,7 +45,7 @@ impl DepositDataMempool {
         }
     }
 
-    /// Retrieves a limited number of deposit transactions from the mempool
+    /// Retrieves a limited number of deposit transactions from the mempool without removing them
     ///
     /// # Arguments
     /// * `limit_per_block` - Maximum number of deposits to return
@@ -58,17 +58,58 @@ impl DepositDataMempool {
             .set(self.accepted_deposit_txs.len() as f64);
         let deposits: Vec<Deposit> = self
             .accepted_deposit_txs
-            .drain(..number_of_deposits)
+            .iter()
+            .take(number_of_deposits)
+            .cloned()
             .collect();
 
-        // Remove fetched deposits from the pending set
-        for deposit in &deposits {
+        deposits
+    }
+
+    /// Removes specific deposits from the mempool after they have been successfully included in a block
+    ///
+    /// # Arguments
+    /// * `deposits_to_remove` - The deposits that were successfully included
+    ///
+    /// # Returns
+    /// The number of deposits actually removed
+    #[instrument(level = "trace", skip_all, ret)]
+    pub fn remove_deposits(&mut self, deposits_to_remove: &[Deposit]) -> usize {
+        let mut removed_count = 0;
+
+        // Calculate txids for the deposits to remove
+        let mut txids_to_remove = HashSet::new();
+        for deposit in deposits_to_remove {
             if let Ok(txid) = Self::calc_tx_id(deposit) {
-                self.pending_deposits.remove(txid.as_slice());
+                txids_to_remove.insert(txid.to_vec());
             }
         }
 
-        deposits
+        // Drain all deposits and filter out the ones we want to remove
+        let remaining_deposits: VecDeque<Deposit> = self
+            .accepted_deposit_txs
+            .drain(..)
+            .filter(|deposit| {
+                if let Ok(txid) = Self::calc_tx_id(deposit) {
+                    if txids_to_remove.contains(txid.as_slice()) {
+                        // Remove from pending set
+                        self.pending_deposits.remove(txid.as_slice());
+                        removed_count += 1;
+                        return false;
+                    }
+                }
+                true
+            })
+            .collect();
+
+        self.accepted_deposit_txs = remaining_deposits;
+
+        // Update metrics
+        SM.deposit_data_mempool_txs
+            .set(self.accepted_deposit_txs.len() as f64);
+
+        debug!("Removed {} deposits from mempool", removed_count);
+        removed_count
     }
 
     /// Adds a new deposit transaction to the mempool

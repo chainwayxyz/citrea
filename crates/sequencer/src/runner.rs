@@ -575,6 +575,17 @@ where
 
         self.save_l2_block(l2_block, l2_block_result, tx_hashes, blobs)?;
 
+        // Remove successfully included deposits from the mempool
+        if !deposit_data.is_empty() {
+            let removed_count = self.deposit_mempool.lock().remove_deposits(&deposit_data);
+            debug!(
+                "Removed {} deposits from mempool after successful block production",
+                removed_count
+            );
+        }
+
+        // Handle L1 fee failed transactions and persistent storage cleanup
+        // Note: Mined transaction removal from mempool is handled by the maintenance task
         self.maintain_mempool(l1_fee_failed_txs)?;
 
         SM.no_dry_run_block_production_duration_secs.set(
