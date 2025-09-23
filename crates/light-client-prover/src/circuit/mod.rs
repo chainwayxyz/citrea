@@ -17,6 +17,8 @@ use sov_rollup_interface::zk::light_client_proof::output::{
 use sov_rollup_interface::zk::ZkvmGuest;
 use sov_rollup_interface::Network;
 
+use crate::circuit::method_id_verifier::verify_method_id_security_council;
+
 /// Accessor (helpers) that are used inside the light client proof circuit.
 /// To access certain information that was saved to its state at one point.
 pub(crate) mod accessors;
@@ -27,7 +29,10 @@ pub mod initial_values;
 #[macro_use]
 mod log;
 
-// L2 activation height of the fork, and the batch proof method ID
+/// Verifies method id security council signatures.
+mod method_id_verifier;
+
+/// L2 activation height of the fork, and the batch proof method ID
 type InitialBatchProofMethodIds = Vec<(u64, [u32; 8])>;
 
 type CircuitError = &'static str;
@@ -415,8 +420,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     if batch_proof_method_id.body.activation_l2_height > last_activation_height {
                         // Verify the signatures only if the activation height is greater than the last one
                         // This prevents replay attacks of old method IDs
-                        if !batch_proof_method_id.verify_method_id_security_council(
+                        if !verify_method_id_security_council(
                             *method_id_upgrade_authority_da_public_keys,
+                            batch_proof_method_id.body.serialize().as_slice(),
+                            &batch_proof_method_id.signatures,
                         ) {
                             log!("Method ID security council verification failed");
                             continue;
