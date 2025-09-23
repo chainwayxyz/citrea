@@ -20,6 +20,12 @@ pub struct LightClientProverMetrics {
     /// Tracking the time taken to prove a state transition, gauge because one proof is generated per l1 block
     #[metric(describe = "The duration of generating a light client proof")]
     pub proving_time: Gauge,
+    /// Gauge for the highest proven commitment index
+    #[metric(describe = "The highest proven commitment index")]
+    pub highest_proven_index: Gauge,
+    /// Gauge for the highest proven l2 height
+    #[metric(describe = "The highest proven l2 height")]
+    pub highest_proven_l2_height: Gauge,
 }
 
 impl LightClientProverMetrics {
