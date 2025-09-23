@@ -376,7 +376,7 @@ impl BitcoinService {
         Ok(txs)
     }
 
-    async fn select_prev_utxo(&self) -> Result<Option<UTXO>> {
+    pub async fn select_prev_utxo(&self) -> Result<Option<UTXO>> {
         let prev_utxo = self.get_prev_utxo().await;
         if self.tx_queue.lock().await.is_empty() {
             return Ok(prev_utxo);
@@ -413,7 +413,7 @@ impl BitcoinService {
     }
 
     #[instrument(level = "trace", skip_all, ret)]
-    pub(crate) async fn get_utxos(&self) -> Result<Vec<UTXO>> {
+    pub async fn get_utxos(&self) -> Result<Vec<UTXO>> {
         let utxos = self
             .client
             .list_unspent(Some(0), None, None, None, None)
@@ -494,7 +494,7 @@ impl BitcoinService {
 
     /// Sends a transaction to the Bitcoin network with a specified fee rate.
     #[instrument(level = "trace", fields(prev_utxo), ret, err, skip(self))]
-    async fn create_da_transactions_with_fee_rate(
+    pub async fn create_da_transactions_with_fee_rate(
         &self,
         tx_request: DaTxRequest,
         fee_sat_per_vbyte: u64,
