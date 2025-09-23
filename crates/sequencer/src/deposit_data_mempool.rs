@@ -85,24 +85,18 @@ impl DepositDataMempool {
             }
         }
 
-        // Drain all deposits and filter out the ones we want to remove
-        let remaining_deposits: VecDeque<Deposit> = self
-            .accepted_deposit_txs
-            .drain(..)
-            .filter(|deposit| {
-                if let Ok(txid) = Self::calc_tx_id(deposit) {
-                    if txids_to_remove.contains(txid.as_slice()) {
-                        // Remove from pending set
-                        self.pending_deposits.remove(txid.as_slice());
-                        removed_count += 1;
-                        return false;
-                    }
+        // Retain only deposits that are not in the removal set
+        self.accepted_deposit_txs.retain(|deposit| {
+            if let Ok(txid) = Self::calc_tx_id(deposit) {
+                if txids_to_remove.contains(txid.as_slice()) {
+                    // Remove from pending set
+                    self.pending_deposits.remove(txid.as_slice());
+                    removed_count += 1;
+                    return false;
                 }
-                true
-            })
-            .collect();
-
-        self.accepted_deposit_txs = remaining_deposits;
+            }
+            true
+        });
 
         // Update metrics
         SM.deposit_data_mempool_txs
