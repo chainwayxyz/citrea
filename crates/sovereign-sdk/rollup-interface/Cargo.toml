@@ -8,9 +8,7 @@ repository = { workspace = true }
 description = "Defines interfaces for building rollups with the Sovereign SDK"
 
 version = { workspace = true }
-exclude = [
-  "specs/assets/*",
-]
+exclude = ["specs/assets/*"]
 readme = "README.md"
 resolver = "2"
 
@@ -25,7 +23,6 @@ faster-hex = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 hex = { workspace = true, optional = true, features = ["default"] }
 jmt = { workspace = true }
-k256 = { workspace = true }
 uuid = { workspace = true, optional = true }
 risc0-zkp = { workspace = true, optional = true }
 serde = { workspace = true, features = ["default", "rc"] }

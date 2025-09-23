@@ -3799,7 +3799,6 @@ dependencies = [
  "bytes",
  "digest 0.10.7",
  "jmt",
- "k256",
  "serde",
  "sha2",
  "sov-keys",

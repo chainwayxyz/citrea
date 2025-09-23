@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use alloy_primitives::eip191_hash_message;
-use k256::ecdsa::Signature;
 use rand::{thread_rng, Rng};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
@@ -176,10 +175,10 @@ pub(crate) fn create_serialized_mock_proof(
 
     mock_proof.encode_to_vec()
 }
-pub(crate) fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [Signature; 5] {
+pub(crate) fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [[u8; 64]; 5] {
     let mut sigs = Vec::new();
     for v in vec.into_iter() {
-        sigs.push(Signature::from_bytes((&v[..]).into()).unwrap());
+        sigs.push(v.try_into().unwrap());
     }
     sigs.try_into().unwrap()
 }

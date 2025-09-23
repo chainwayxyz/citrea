@@ -2328,7 +2328,6 @@ dependencies = [
  "bytes",
  "digest",
  "jmt",
- "k256",
  "serde",
  "sha2",
  "sov-keys",

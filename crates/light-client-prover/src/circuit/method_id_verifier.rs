@@ -9,7 +9,7 @@ use k256::ecdsa::{Signature, VerifyingKey};
 pub fn verify_method_id_security_council(
     initial_da_pubkeys: [[u8; 33]; 5],
     msg: &[u8],
-    signatures: &[Signature; 5],
+    signatures: &[[u8; 64]; 5],
 ) -> bool {
     // EIP-191 prefix + keccak256 → 32-byte prehash
     let prehash = eip191_hash_message(msg);
@@ -21,9 +21,13 @@ pub fn verify_method_id_security_council(
         let verifying_key = VerifyingKey::from_sec1_bytes(const_pubkey33)
             .expect("Initial DA pubkeys must be parsable to k256 VerifyingKey form sec1 bytes");
 
+        let Ok(sig) = Signature::from_bytes(sig.into()) else {
+            continue; // invalid signature format, skip
+        };
+
         // verify prehash with the matching verifying key
         if verifying_key
-            .verify_prehash(prehash.as_slice(), sig)
+            .verify_prehash(prehash.as_slice(), &sig)
             .is_ok()
         {
             valid += 1;
@@ -44,10 +48,10 @@ mod tests {
 
     use super::*;
 
-    fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [Signature; 5] {
+    fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [[u8; 64]; 5] {
         let mut sigs = Vec::new();
         for v in vec.into_iter() {
-            sigs.push(Signature::from_bytes((&v[..]).into()).unwrap());
+            sigs.push(v.try_into().unwrap());
         }
         sigs.try_into().unwrap()
     }

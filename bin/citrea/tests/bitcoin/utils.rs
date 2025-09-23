@@ -179,7 +179,7 @@ pub async fn wait_for_prover_job_count(
 pub(crate) fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [Signature; 5] {
     let mut sigs = Vec::new();
     for v in vec.into_iter() {
-        sigs.push(Signature::from_bytes((&v[..]).into()).unwrap());
+        sigs.push(v.try_into().unwrap());
     }
     sigs.try_into().unwrap()
 }
