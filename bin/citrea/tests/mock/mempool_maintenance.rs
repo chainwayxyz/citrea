@@ -350,7 +350,7 @@ async fn test_account_state_updates() {
 
 /// Test that transactions with insufficient L1 fees are removed after failed inclusion
 ///
-/// This test verifies that Reth's mempool maintenance handles transactions
+/// This test verifies that Citrea's mempool maintenance handles transactions
 /// that fail during block production due to L1 fee validation or other execution errors.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_l1_fee_failed_transactions() {
