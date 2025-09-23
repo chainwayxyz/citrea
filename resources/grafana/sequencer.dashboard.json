@@ -1098,7 +1098,7 @@
           "hide": false,
           "includeNullMetadata": true,
           "instant": false,
-          "legendFormat": "sequencer_mempool_extract_bundle_state_time",
+          "legendFormat": "__auto",
           "range": true,
           "refId": "N",
           "useBackend": false
@@ -1115,7 +1115,7 @@
           "hide": false,
           "includeNullMetadata": true,
           "instant": false,
-          "legendFormat": "sequencer_mempool_canonical_notification_time",
+          "legendFormat": "__auto",
           "range": true,
           "refId": "O",
           "useBackend": false
