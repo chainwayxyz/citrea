@@ -11,11 +11,14 @@ use tracing::{debug, instrument};
 
 use crate::metrics::SEQUENCER_METRICS as SM;
 
+/// Type alias for deposit transaction data
+pub type Deposit = Vec<u8>;
+
 /// A mempool specifically for handling deposit transaction data
 #[derive(Clone, Debug, Default)]
 pub struct DepositDataMempool {
     /// Queue of accepted deposit transaction data
-    accepted_deposit_txs: VecDeque<Vec<u8>>,
+    accepted_deposit_txs: VecDeque<Deposit>,
     /// Set of pending deposit TxIds to prevent duplicates
     pending_deposits: HashSet<Vec<u8>>,
 }
@@ -33,7 +36,7 @@ impl DepositDataMempool {
     ///
     /// # Returns
     /// A transaction request configured for the bridge contract
-    pub fn make_deposit_tx_from_data(&mut self, deposit_tx_data: Vec<u8>) -> TransactionRequest {
+    pub fn make_deposit_tx_from_data(&mut self, deposit_tx_data: Deposit) -> TransactionRequest {
         TransactionRequest {
             from: Some(SYSTEM_SIGNER),
             to: Some(TxKind::Call(BridgeWrapper::address())),
@@ -49,11 +52,11 @@ impl DepositDataMempool {
     ///
     /// # Returns
     /// A vector of deposit transaction data, limited by the specified amount
-    pub fn fetch_deposits(&mut self, limit_per_block: usize) -> Vec<Vec<u8>> {
+    pub fn fetch_deposits(&mut self, limit_per_block: usize) -> Vec<Deposit> {
         let number_of_deposits = self.accepted_deposit_txs.len().min(limit_per_block);
         SM.deposit_data_mempool_txs
             .set(self.accepted_deposit_txs.len() as f64);
-        let deposits: Vec<Vec<u8>> = self
+        let deposits: Vec<Deposit> = self
             .accepted_deposit_txs
             .drain(..number_of_deposits)
             .collect();
@@ -76,7 +79,7 @@ impl DepositDataMempool {
     /// # Returns
     /// `true` if the deposit was added, `false` if it was already pending
     #[instrument(level = "trace", skip_all, ret)]
-    pub fn add_deposit_tx(&mut self, req: Vec<u8>) -> anyhow::Result<bool> {
+    pub fn add_deposit_tx(&mut self, req: Deposit) -> anyhow::Result<bool> {
         let txid = Self::calc_tx_id(&req)?;
 
         debug!("Adding deposit with tx: {}", hex::encode(txid));
@@ -103,7 +106,7 @@ impl DepositDataMempool {
     /// # Returns
     /// `Ok(transaction_id)` if the deposit data are valid
     /// `Err` if deposit data are invalid.
-    fn calc_tx_id(req: &[u8]) -> anyhow::Result<[u8; 32]> {
+    fn calc_tx_id(req: &Deposit) -> anyhow::Result<[u8; 32]> {
         let call = BridgeContract::depositCall::abi_decode_raw(req, true)
             .expect("TODO: proper error handling");
 

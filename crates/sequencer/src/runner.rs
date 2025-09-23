@@ -60,7 +60,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use crate::commitment::service::CommitmentService;
 use crate::da::{da_block_monitor, get_da_block_data};
 use crate::db_provider::DbProvider;
-use crate::deposit_data_mempool::DepositDataMempool;
+use crate::deposit_data_mempool::{Deposit, DepositDataMempool};
 use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS as SM;
 use crate::types::SequencerRpcMessage;
@@ -195,7 +195,7 @@ where
         >,
         prestate: ProverStorage,
         l2_block_info: HookL2BlockInfo,
-        deposit_data: &[Vec<u8>],
+        deposit_data: &[Deposit],
         da_blocks: Vec<Da::FilteredBlock>,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
         let start = Instant::now();
@@ -1266,7 +1266,7 @@ where
         l2_block_info: &HookL2BlockInfo,
         evm: &Evm<DefaultContext>,
         working_set_to_discard: WorkingSet<<DefaultContext as Spec>::Storage>,
-        deposit_data: &[Vec<u8>],
+        deposit_data: &[Deposit],
         da_blocks: Vec<Da::FilteredBlock>,
         nonce: &mut u64,
     ) -> anyhow::Result<(
