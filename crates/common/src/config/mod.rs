@@ -288,19 +288,12 @@ impl FromEnv for SequencerConfig {
 /// does not support serialize / deserialize
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct MempoolMaintenanceConfig {
-    /// Maximum reorg depth for mempool updates
-    #[serde(default = "default_max_update_depth")]
-    pub max_update_depth: u64,
     /// Maximum accounts to reload from state at once
     #[serde(default = "default_max_reload_accounts")]
     pub max_reload_accounts: usize,
     /// Maximum lifetime for non-executable transactions in seconds
     #[serde(default = "default_max_tx_lifetime_secs")]
     pub max_tx_lifetime_secs: u64,
-}
-
-const fn default_max_update_depth() -> u64 {
-    64
 }
 
 const fn default_max_reload_accounts() -> usize {
@@ -314,7 +307,6 @@ const fn default_max_tx_lifetime_secs() -> u64 {
 impl Default for MempoolMaintenanceConfig {
     fn default() -> Self {
         Self {
-            max_update_depth: default_max_update_depth(),
             max_reload_accounts: default_max_reload_accounts(),
             max_tx_lifetime_secs: default_max_tx_lifetime_secs(),
         }
@@ -324,10 +316,6 @@ impl Default for MempoolMaintenanceConfig {
 impl FromEnv for MempoolMaintenanceConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
-            max_update_depth: std::env::var("SEQUENCER_MEMPOOL_MAX_UPDATE_DEPTH")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or_else(default_max_update_depth),
             max_reload_accounts: std::env::var("SEQUENCER_MEMPOOL_MAX_RELOAD_ACCOUNTS")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -343,7 +331,7 @@ impl FromEnv for MempoolMaintenanceConfig {
 impl From<MempoolMaintenanceConfig> for reth_transaction_pool::maintain::MaintainPoolConfig {
     fn from(config: MempoolMaintenanceConfig) -> Self {
         Self {
-            max_update_depth: config.max_update_depth,
+            max_update_depth: Default::default(),
             max_reload_accounts: config.max_reload_accounts,
             max_tx_lifetime: std::time::Duration::from_secs(config.max_tx_lifetime_secs),
         }
