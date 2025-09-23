@@ -153,7 +153,7 @@ pub struct BitcoinService {
     pub(crate) tx_backup_dir: PathBuf,
     /// Monitoring service for tracking transaction status.
     pub monitoring: Arc<MonitoringService>,
-    fee: FeeService,
+    pub fee: FeeService,
     l1_block_hash_to_height: Arc<Mutex<LruCache<BlockHash, usize>>>,
     tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
     pub tx_signer: TxSigner,
