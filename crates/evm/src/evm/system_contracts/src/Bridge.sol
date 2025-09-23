@@ -337,7 +337,8 @@ contract Bridge is Ownable2StepUpgradeable {
         require(replacePrefix.length != 0, "Replace script is not set");
         
         // Validate that the replace transaction is properly formatted and is included in a Bitcoin block
-        validateAndCheckInclusion(replaceTx, proof);
+        (, uint256 nIns) = validateAndCheckInclusion(replaceTx, proof);
+        require(nIns == 1, "Only one input allowed");
 
         // In order to verify the P2TR signature, we need to reconstruct the message hash and that is derived from input, output and the corresponding witness field
         bytes memory input = replaceTx.vin.extractInputAtIndex(0);
