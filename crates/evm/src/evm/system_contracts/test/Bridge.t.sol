@@ -556,7 +556,7 @@ contract BridgeTest is Test {
     }
 
     function testSetReplaceScriptTo33BytesRevert() public {
-         bytes memory replacePrefix = depositPrefix;
+        bytes memory replacePrefix = depositPrefix;
         bytes memory replaceSuffix = bytes("new suffix");
         vm.startPrank(owner);
         // using the same values here on purpose
