@@ -4,7 +4,8 @@ use alloy_eips::Typed2718;
 use alloy_primitives::{Address, TxHash};
 use citrea_common::SequencerMempoolConfig;
 use citrea_evm::SYSTEM_SIGNER;
-use citrea_primitives::MIN_BASE_FEE_PER_GAS;
+use citrea_primitives::min_base_fee_per_gas;
+use sov_modules_api::SpecId;
 use reth_execution_types::ChangedAccount;
 use reth_tasks::TaskExecutor;
 use reth_transaction_pool::blobstore::NoopBlobStore;
@@ -61,7 +62,7 @@ impl CitreaMempool {
                 max_size: 0,
             },
             max_account_slots: mempool_conf.max_account_slots as usize,
-            minimal_protocol_basefee: MIN_BASE_FEE_PER_GAS,
+            minimal_protocol_basefee: min_base_fee_per_gas(SpecId::latest()),
             ..Default::default()
         };
 
