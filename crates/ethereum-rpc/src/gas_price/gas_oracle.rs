@@ -230,7 +230,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
             }
         }
         let last_entry = fee_entries.last().expect("is not empty");
-        let spec_id = fork_from_block_number(end_block).spec_id;
+        let spec_id = fork_from_block_number(end_block_plus).spec_id;
         base_fee_per_gas.push(
             calculate_next_block_base_fee(
                 last_entry.gas_used,
