@@ -307,6 +307,11 @@ where
             .expect("Saving last scanned l1 height to ledger db");
 
         LPM.current_l1_block.set(l1_height as f64);
+        LPM.highest_proven_index
+            .set(result.last_sequencer_commitment_index as f64);
+        LPM.highest_proven_l2_height
+            .set(result.last_l2_height as f64);
+
         LPM.set_scan_l1_block_duration(
             Instant::now()
                 .saturating_duration_since(start_l1_block_processing)
