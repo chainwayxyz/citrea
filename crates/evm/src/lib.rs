@@ -51,9 +51,10 @@ use sov_modules_api::{L2BlockModuleCallError, ModuleInfo, SpecId as CitreaSpecId
 #[cfg(feature = "native")]
 use sov_modules_api::{StateValueAccessor, StateVecAccessor};
 use sov_state::codec::{BcsCodec, RlpCodec};
-
-use crate::evm::primitive_types::Block;
 #[cfg(feature = "native")]
+use crate::evm::primitive_types::SealedBlock;
+use crate::evm::primitive_types::{Block, CitreaReceiptWithBloom, TransactionSignedAndRecovered};
+
 pub use crate::EvmConfig;
 
 #[derive(
