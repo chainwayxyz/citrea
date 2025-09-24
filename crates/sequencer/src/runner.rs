@@ -69,9 +69,6 @@ use crate::utils::recover_raw_transaction;
 /// Maximum number of DA blocks that can be missed per L2 block
 pub const MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK: u64 = 10;
 
-/// L1 fee rate multiplier
-pub const L1_FEE_RATE_MULTIPLIER: f64 = 0.75;
-
 /// The main sequencer implementation that manages block production and transaction processing
 ///
 /// This struct is responsible for:
@@ -826,9 +823,10 @@ where
         &mut self,
         mut shutdown_signal: GracefulShutdown,
     ) -> Result<(), anyhow::Error> {
-        fn multiplied_l1_fee_rate(rate: u128) -> u128 {
-            ((rate as f64) * L1_FEE_RATE_MULTIPLIER).ceil() as u128
-        }
+        let l1_fee_rate_multiplier = self.config.l1_fee_rate_multiplier;
+        let multiplied_l1_fee_rate = |rate: u128| -> u128 {
+            ((rate as f64) * l1_fee_rate_multiplier).ceil() as u128
+        };
         // TODO: hotfix for mock da
         self.da_service
             .get_block_at(1)
