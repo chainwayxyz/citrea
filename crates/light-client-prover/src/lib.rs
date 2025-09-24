@@ -31,4 +31,4 @@ mod tests;
 
 /// Test utilities
 #[cfg(test)]
-pub use tests::test_utils::*;
+pub(crate) use tests::test_utils::*;

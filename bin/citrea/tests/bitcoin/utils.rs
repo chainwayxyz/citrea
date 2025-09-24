@@ -3,7 +3,9 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use alloy_primitives::{eip191_hash_message, U64};
+use alloy_primitives::{eip191_hash_message, B256, U64};
+use alloy_signer::SignerSync;
+use alloy_signer_local::PrivateKeySigner;
 use anyhow::bail;
 use bitcoin_da::fee::FeeService;
 use bitcoin_da::monitoring::{MonitoringConfig, MonitoringService};
@@ -345,6 +347,50 @@ async fn create_and_fund_wallet(wallet: String, da_node: &BitcoinNode) {
     da_node.fund_wallet(wallet, 5).await.unwrap();
 }
 
+/// Converts a vector of signatures in Vec<u8> format to an array of signatures in [u8; 64] format
+fn from_vec_to_sigs(vec: Vec<(Vec<u8>, u8)>) -> [([u8; 64], u8); 3] {
+    let mut sigs = Vec::new();
+    for (v, i) in vec.into_iter() {
+        sigs.push((v.try_into().unwrap(), i));
+    }
+    sigs.try_into().unwrap()
+}
+
+/// Generates 5 valid keypairs and returns the public keys and signers from the given private keys
+pub(crate) fn generate_initial_pub_keys_with_signers_from_pks(
+    private_keys: [[u8; 32]; 5],
+) -> ([[u8; 33]; 5], Vec<PrivateKeySigner>) {
+    let mut initial_da_pubkeys = [[0u8; 33]; 5];
+    let mut signers = Vec::new();
+
+    // Generate 5 valid keypairs and signatures
+    for (i, secret_key) in private_keys.iter().enumerate() {
+        let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+        let verifying_key = signer.credential().verifying_key();
+        let pubkey = verifying_key.to_sec1_bytes();
+        initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+        signers.push(signer);
+    }
+
+    (initial_da_pubkeys, signers)
+}
+
+/// Creates 3 valid signatures from the first 3 signers for the given prehash
+pub(crate) fn create_valid_signatures(
+    signers: &[PrivateKeySigner],
+    prehash: &B256,
+) -> [([u8; 64], u8); 3] {
+    let mut signatures_in_inscription = Vec::new();
+
+    for (i, signer) in signers.iter().enumerate().take(3) {
+        let sig = signer.sign_hash_sync(prehash).unwrap();
+        let signature = sig.as_bytes()[0..64].to_vec();
+        signatures_in_inscription.push((signature, i as u8));
+    }
+
+    from_vec_to_sigs(signatures_in_inscription)
+}
+
 /// Generates 100 blocks and finalizes funds
 async fn finalize_funds(da_node: &BitcoinNode) {
     da_node.generate(100).await.unwrap();
@@ -418,20 +464,20 @@ pub async fn generate_mock_txs(
         activation_l2_height: 0,
     };
 
-    let signatures = {
-        let secret_keys: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
-            .map(|k| hex::decode(k).unwrap().try_into().unwrap());
+    let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+        .map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
-        secret_keys
-            .iter()
-            .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0.to_vec())
-            .collect::<Vec<_>>()
-    };
+    let (_initial_pubkeys, signers) = generate_initial_pub_keys_with_signers_from_pks(pk_bytes_arr);
+
+    let msg = method_id_body.serialize();
+    let prehash = eip191_hash_message(msg.as_slice());
+
+    let signatures_with_index = create_valid_signatures(&signers, &prehash);
 
     // Send method id update tx
     let method_id = BatchProofMethodId {
         body: method_id_body.clone(),
-        signatures: from_vec_to_sigs(signatures),
+        signatures_with_index,
     };
     valid_method_ids.push(method_id.clone());
     da_service
@@ -537,19 +583,20 @@ pub async fn generate_mock_txs(
         activation_l2_height: 100,
     };
 
-    let signatures = {
-        let secret_keys: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
-            .map(|k| hex::decode(k).unwrap().try_into().unwrap());
-        secret_keys
-            .iter()
-            .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0.to_vec())
-            .collect::<Vec<_>>()
-    };
+    let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+        .map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let (_initial_pubkeys, signers) = generate_initial_pub_keys_with_signers_from_pks(pk_bytes_arr);
+
+    let msg = method_id_body.serialize();
+    let prehash = eip191_hash_message(msg.as_slice());
+
+    let signatures_with_index = create_valid_signatures(&signers, &prehash);
 
     // Send method id update tx
     let method_id = BatchProofMethodId {
         body: method_id_body,
-        signatures: from_vec_to_sigs(signatures),
+        signatures_with_index,
     };
     valid_method_ids.push(method_id.clone());
     da_service
@@ -567,28 +614,6 @@ pub async fn generate_mock_txs(
     assert_eq!(block.txdata.len(), 33);
 
     (block, valid_commitments, valid_proofs, valid_method_ids)
-}
-
-pub(crate) fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [[u8; 64]; 5] {
-    let mut sigs = Vec::new();
-    for v in vec.into_iter() {
-        sigs.push(v.try_into().unwrap());
-    }
-    sigs.try_into().unwrap()
-}
-
-pub(crate) fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> (k256::ecdsa::Signature, [u8; 32]) {
-    use alloy_signer::SignerSync;
-    use alloy_signer_local::PrivateKeySigner;
-
-    let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
-
-    let prehash = eip191_hash_message(msg);
-
-    let sig = signer.sign_hash_sync(&prehash).unwrap();
-    let signature = k256::ecdsa::Signature::from_slice(&sig.as_bytes()[0..64]).unwrap();
-
-    (signature, *prehash)
 }
 
 // For some reason, even though macro is used, it sees it as unused
