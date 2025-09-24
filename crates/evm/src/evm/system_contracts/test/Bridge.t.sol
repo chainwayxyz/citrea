@@ -10,7 +10,6 @@ import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
-import "openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 
 
 
