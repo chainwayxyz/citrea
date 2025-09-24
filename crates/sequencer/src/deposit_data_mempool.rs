@@ -80,20 +80,20 @@ impl DepositDataMempool {
         // Calculate txids for the deposits to remove
         let mut txids_to_remove = HashSet::new();
         for deposit in deposits_to_remove {
-            if let Ok(txid) = Self::calc_tx_id(deposit) {
-                txids_to_remove.insert(txid.to_vec());
-            }
+            let txid = Self::calc_tx_id(deposit)
+                .expect("calc_tx_id should never be called on non-deposit");
+            txids_to_remove.insert(txid.to_vec());
         }
 
         // Retain only deposits that are not in the removal set
         self.accepted_deposit_txs.retain(|deposit| {
-            if let Ok(txid) = Self::calc_tx_id(deposit) {
-                if txids_to_remove.contains(txid.as_slice()) {
-                    // Remove from pending set
-                    self.pending_deposits.remove(txid.as_slice());
-                    removed_count += 1;
-                    return false;
-                }
+            let txid = Self::calc_tx_id(deposit)
+                .expect("calc_tx_id should never be called on non-deposit");
+            if txids_to_remove.contains(txid.as_slice()) {
+                // Remove from pending set
+                self.pending_deposits.remove(txid.as_slice());
+                removed_count += 1;
+                return false;
             }
             true
         });
