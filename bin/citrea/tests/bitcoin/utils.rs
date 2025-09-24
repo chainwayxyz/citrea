@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use alloy_primitives::{eip191_hash_message, B256, U64};
+use alloy_primitives::{B256, U64};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::bail;
@@ -12,7 +12,6 @@ use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_primitives::REVEAL_TX_PREFIX;
-use k256::ecdsa::Signature;
 use reth_tasks::TaskExecutor;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
