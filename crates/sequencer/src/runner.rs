@@ -824,9 +824,8 @@ where
         mut shutdown_signal: GracefulShutdown,
     ) -> Result<(), anyhow::Error> {
         let l1_fee_rate_multiplier = self.config.l1_fee_rate_multiplier;
-        let multiplied_l1_fee_rate = |rate: u128| -> u128 {
-            ((rate as f64) * l1_fee_rate_multiplier).ceil() as u128
-        };
+        let multiplied_l1_fee_rate =
+            |rate: u128| -> u128 { ((rate as f64) * l1_fee_rate_multiplier).ceil() as u128 };
         // TODO: hotfix for mock da
         self.da_service
             .get_block_at(1)
