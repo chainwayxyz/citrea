@@ -21,7 +21,7 @@ use bitcoin::consensus::Decodable;
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
 use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
-use bitcoincore_rpc::{Client, Error as BitcoinError, Error, RpcApi, RpcError};
+use bitcoincore_rpc::{Error as BitcoinError, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
 use citrea_common::utils::read_env;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
@@ -50,6 +50,7 @@ use crate::helpers::{merkle_tree, TransactionKind};
 use crate::metrics::BITCOIN_DA_METRICS as BM;
 use crate::monitoring::{MonitoredTxKind, MonitoringConfig, MonitoringService, TxStatus};
 use crate::network_constants::NetworkConstants;
+use crate::rpc_client::BitcoinRpcClient;
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
 use crate::spec::header::HeaderWrapper;
@@ -118,6 +119,9 @@ pub struct BitcoinServiceConfig {
 
     /// UTXO selection mode
     pub utxo_selection_mode: Option<UtxoSelectionMode>,
+
+    /// RPC timeout in seconds (default: 30)
+    pub rpc_timeout_seconds: Option<u64>,
 }
 
 impl citrea_common::FromEnv for BitcoinServiceConfig {
@@ -137,6 +141,11 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
                         .map_err(|e| anyhow!(e).context("Invalid UTXO_SELECTION_MODE"))
                 })
                 .transpose()?,
+            rpc_timeout_seconds: read_env("BITCOIN_RPC_TIMEOUT")
+                .ok()
+                .map(|v| v.parse::<u64>())
+                .transpose()
+                .context("Invalid BITCOIN_RPC_TIMEOUT")?,
         })
     }
 }
@@ -144,7 +153,7 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
 /// A service that provides data and data availability proofs for Bitcoin
 #[derive(Debug)]
 pub struct BitcoinService {
-    client: Arc<Client>,
+    client: Arc<BitcoinRpcClient>,
     pub(crate) network: bitcoin::Network,
     network_constants: NetworkConstants,
     pub(crate) da_private_key: Option<SecretKey>,
@@ -163,7 +172,7 @@ pub struct BitcoinService {
 impl BitcoinService {
     #[allow(clippy::too_many_arguments)]
     fn new(
-        client: Arc<Client>,
+        client: Arc<BitcoinRpcClient>,
         network: bitcoin::Network,
         network_constants: NetworkConstants,
         monitoring: Arc<MonitoringService>,
@@ -175,7 +184,7 @@ impl BitcoinService {
         utxo_selection_mode: UtxoSelectionMode,
     ) -> Self {
         Self {
-            tx_signer: TxSigner::new(client.clone()),
+            tx_signer: TxSigner::new(client.inner().clone()),
             client,
             network_constants,
             network,
@@ -198,7 +207,7 @@ impl BitcoinService {
     pub async fn from_config(
         config: &BitcoinServiceConfig,
         chain_params: RollupParams,
-        client: Arc<Client>,
+        client: Arc<BitcoinRpcClient>,
         network: bitcoin::Network,
         network_constants: NetworkConstants,
         monitoring: Arc<MonitoringService>,
