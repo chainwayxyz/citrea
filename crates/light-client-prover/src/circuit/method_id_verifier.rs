@@ -115,7 +115,86 @@ mod tests {
         ));
     }
 
-    // TODO: Test with duplicate indexes and out-of-bounds indexes and wrong index match
+    #[test]
+    fn test_duplicate_index() {
+        let body = BatchProofMethodIdBody {
+            method_id: [0u32; 8],
+            activation_l2_height: 0,
+        };
+        let msg = body.serialize();
+        let prehash = eip191_hash_message(msg);
+
+        let (initial_pubkeys, signers) = generate_initial_pub_keys_with_signers();
+
+        let mut signatures_with_index = create_valid_signatures(&signers, &prehash);
+
+        // Duplicate the first signature's index
+        signatures_with_index[1].1 = signatures_with_index[0].1;
+
+        let batch_proof_method_id = BatchProofMethodId {
+            body,
+            signatures_with_index,
+        };
+        assert!(!verify_method_id_security_council(
+            initial_pubkeys,
+            batch_proof_method_id.body.serialize().as_slice(),
+            &batch_proof_method_id.signatures_with_index
+        ));
+    }
+
+    #[test]
+    fn test_out_of_bounds_index() {
+        let body = BatchProofMethodIdBody {
+            method_id: [0u32; 8],
+            activation_l2_height: 0,
+        };
+        let msg = body.serialize();
+        let prehash = eip191_hash_message(msg);
+        let (initial_pubkeys, signers) = generate_initial_pub_keys_with_signers();
+        let mut signatures_with_index = create_valid_signatures(&signers, &prehash);
+        // Set an out-of-bounds index
+        signatures_with_index[0].1 = 5; // valid indexes are 0-
+        let batch_proof_method_id = BatchProofMethodId {
+            body,
+            signatures_with_index,
+        };
+        assert!(!verify_method_id_security_council(
+            initial_pubkeys,
+            batch_proof_method_id.body.serialize().as_slice(),
+            &batch_proof_method_id.signatures_with_index
+        ));
+    }
+
+    #[test]
+    fn test_signature_index_swapped() {
+        let body = BatchProofMethodIdBody {
+            method_id: [0u32; 8],
+            activation_l2_height: 0,
+        };
+        let msg = body.serialize();
+        let prehash = eip191_hash_message(msg);
+
+        let (initial_pubkeys, signers) = generate_initial_pub_keys_with_signers();
+
+        let mut signatures_with_index = create_valid_signatures(&signers, &prehash);
+
+        // Swap pubkey indexes of two signatures
+        let tmp = signatures_with_index[0].1;
+        signatures_with_index[0].1 = signatures_with_index[1].1;
+        signatures_with_index[1].1 = tmp;
+
+        let batch_proof_method_id = BatchProofMethodId {
+            body,
+            signatures_with_index,
+        };
+
+        // Should not verify because points to different pubkeys now
+        assert!(!verify_method_id_security_council(
+            initial_pubkeys,
+            batch_proof_method_id.body.serialize().as_slice(),
+            &batch_proof_method_id.signatures_with_index
+        ));
+    }
 }
 
 #[test]
