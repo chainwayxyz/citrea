@@ -58,13 +58,16 @@ pub struct BatchProofMethodId {
     /// Signatures of to be verified for the method id update
     /// Consists of 64 byte keccak256(eip191 prefixed message) prehash signed signatures
     /// The public keys can be recovered from the signatures and the prehash
-    pub signatures: [[u8; 64]; 5],
+    /// With it the indexes of the pubkeys that should be used to verify the signatures
+    /// The indexes point to the pubkeys in the light client circuit initial values
+    /// If one signature verification fails the whole method id update is invalid
+    pub signatures_with_index: [([u8; 64], u8); 3],
 }
 
 impl BatchProofMethodId {
     /// Returns the signatures in the transaction.
-    pub fn signatures(&self) -> &[[u8; 64]; 5] {
-        &self.signatures
+    pub fn signatures_with_index(&self) -> &[([u8; 64], u8); 3] {
+        &self.signatures_with_index
     }
 
     /// Returns the body of the transaction.
