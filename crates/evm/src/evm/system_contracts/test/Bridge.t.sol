@@ -175,6 +175,9 @@ contract BridgeTest is Test {
     bytes32 witnessRoot = hex"2d12d1dac06d40bbf364be911d9dc2cf07538e2118c88fdba457a5e5fa59c851";
     bytes32 mockBlockhash = keccak256("CITREA_TEST");
 
+    bytes32 txId = hex"1234"; // Dummy withdraw txId
+    bytes4 outputId = hex"01"; // Dummy withdraw outputId
+
     BitcoinLightClient bitcoinLightClient;
 
     ProxyAdmin proxyAdmin = ProxyAdmin(0x31fFFfFfFFFffFFFFFFfFFffffFFffffFfFFfffF);
@@ -232,12 +235,9 @@ contract BridgeTest is Test {
         // Assert if transferred
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
 
-        // Assert if receiver can withdraw
-        vm.startPrank(receiver);
-        bytes32 txId = hex"1234"; // Dummy txId
-        bytes4 outputId = hex"01"; // Dummy outputId
         uint256 withdrawalCount = bridge.getWithdrawalCount();
-        bridge.withdraw{value: DEPOSIT_AMOUNT}(txId, outputId);
+        // Assert if receiver can withdraw
+        doWithdraw();
 
         // Assert if withdrawal address is stored properly
         (bytes32 _txId, bytes4 _outputId) = bridge.withdrawalUTXOs(withdrawalCount);
@@ -251,27 +251,14 @@ contract BridgeTest is Test {
     }
 
     function testCannotDoubleWithdrawWithSameUTXO() public {
-        vm.startPrank(receiver);
         vm.deal(address(receiver), DEPOSIT_AMOUNT * 2);
-
-        bytes32 txId = hex"1234"; // Dummy txId
-        bytes4 outputId = hex"01"; // Dummy outputId
-        bridge.withdraw{value: DEPOSIT_AMOUNT}(txId, outputId);
+        doWithdraw();
         vm.expectRevert("UTXO already used");
-        bridge.withdraw{value: DEPOSIT_AMOUNT}(txId, outputId);
+        doWithdraw();
     }
 
     function testBatchWithdraw() public {
-        vm.startPrank(user);
-        vm.deal(address(user), DEPOSIT_AMOUNT * 10);
-        bytes32[] memory txIds = new bytes32[](10);
-        bytes4[] memory outputIds = new bytes4[](10);
-        for (uint i = 0; i < 10; i++) {
-            txIds[i] = bytes32(abi.encodePacked(i));
-            outputIds[i] = bytes4(uint32(i));
-        }
-
-        bridge.batchWithdraw{value: DEPOSIT_AMOUNT * 10}(txIds, outputIds);
+        (bytes32[] memory txIds, bytes4[] memory outputIds) = doBatchWithdraw();
 
         for (uint i = 0; i < 10; i++) {
             (bytes32 _txId, bytes4 _outputId) = bridge.withdrawalUTXOs(i);
@@ -288,8 +275,8 @@ contract BridgeTest is Test {
         bytes32[] memory txIds = new bytes32[](2);
         bytes4[] memory outputIds = new bytes4[](2);
         for (uint i = 0; i < 2; i++) {
-            txIds[i] = hex"1234"; // Intentionally setting same txId for both
-            outputIds[i] = hex"01"; // Intentionally setting same outputId for both
+            txIds[i] = txId; // Intentionally setting same txId for both
+            outputIds[i] = outputId; // Intentionally setting same outputId for both
         }
         vm.expectRevert("UTXO already used");
         bridge.batchWithdraw{value: DEPOSIT_AMOUNT * 2}(txIds, outputIds);
@@ -405,7 +392,7 @@ contract BridgeTest is Test {
     }
 
     function testReplaceDeposit() public {
-        Bridge.MerkleProof memory proof = _prepareReplaceDeposit();
+        Bridge.MerkleProof memory proof = prepareReplaceDeposit();
         vin = hex"01f7dc30d46c53a660ba2011fd389891736760cddeff5d68ef57afb815076ce86f0000000000fdffffff";
         vout = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
         witness = hex"0340c538ad077a0b4f91915d28cb926674c0c0f57ffd31cbd232d4f30b1390516dd2bfa5aa8cae925528576e29f0d9f219558ca5754648c25595d710107b2158c56154203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630d6369747265615265706c6163652036db3e96dc72a2be198234a326f3443c9326d2546deca3576a1959725a0391086821c093c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51";
@@ -422,7 +409,7 @@ contract BridgeTest is Test {
     }
 
     function testCannotReplaceDepositWithMoreThanOneInputInReplaceTx() public {
-        Bridge.MerkleProof memory proof =_prepareReplaceDeposit();
+        Bridge.MerkleProof memory proof = prepareReplaceDeposit();
         vin = hex"02f7dc30d46c53a660ba2011fd389891736760cddeff5d68ef57afb815076ce86f0000000000fdfffffff7dc30d46c53a660ba2011fd389891736760cddeff5d68ef57afb815076ce86f0000000000fdffffff";
         vout = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
         witness = hex"0340c538ad077a0b4f91915d28cb926674c0c0f57ffd31cbd232d4f30b1390516dd2bfa5aa8cae925528576e29f0d9f219558ca5754648c25595d710107b2158c56154203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630d6369747265615265706c6163652036db3e96dc72a2be198234a326f3443c9326d2546deca3576a1959725a0391086821c093c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51010101";
@@ -435,27 +422,6 @@ contract BridgeTest is Test {
         proof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER + 2, index);
         vm.expectRevert("Only one input allowed");
         bridge.replaceDeposit(replaceTx, proof, 0, hex"486568b2542cc5ebf896e41e17c42e5571e6f3e68020d90d39fe7a2d7f0a68c3");
-    }
-
-    function _prepareReplaceDeposit() internal returns (Bridge.MerkleProof memory proof) {
-        vm.startPrank(SYSTEM_CALLER);
-        version = hex"03000000";
-        vin = hex"01f74f0390589e8c83bf9ba99c1872acf63803173654cae97b1c8ec01042d6af650000000000fdffffff";
-        vout = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
-        witness = hex"034029afe3877d9562c70b50b7d215736579869fb2f8ae30626869b87bdbdab6105ca7adc90d16a246322eb0c9ef1c63847b91f2db38f74aacc3fa72cb1098cb47664a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114564cb100d2d5deceb792fe913b9185fcfb80871208000000003b9aca006841c093c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de510f2951fffb548259d5abb9f351be8f94031c9ce88ce838b40d7cec7c606e0c7a";
-        intermediateNodes = hex"00000000000000000000000000000000000000000000000000000000000000002a3e143606a444e8414861e27d3409466513df018e345609cb9add0c79dd661c";
-        witnessRoot = hex"853c333692ff1da2f74e49ac493b630fb98b4587c76f46175c4c0c8a16ec0fd8";
-        index = 1;
-        bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot, 2);
-        vm.stopPrank();
-        vm.startPrank(owner);
-        bridge.setDepositScript(hex"4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114", hex"08000000003b9aca0068");
-        bridge.setReplaceScript(hex"54203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630d6369747265615265706c61636520", hex"68");
-        vm.stopPrank();
-        vm.startPrank(SYSTEM_CALLER);
-        Bridge.Transaction memory depositToBeReplacedTx = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
-        proof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER + 1, index);
-        bridge.deposit(depositToBeReplacedTx, proof, hex"916d7adc719dd331d47ef21fe3b29014186fa3b294df42221d7c0edea729881f");
     }
 
     function testCannotSetReplaceScriptWithMismatchingAggregatedKey() public {
@@ -616,18 +582,6 @@ contract BridgeTest is Test {
         assertEq(FalseBridge(address(bridge)).falseFunc(), keccak256("false"));
     }
 
-    function isKeccakEqual(bytes memory a, bytes memory b) public pure returns (bool result) {
-        result = keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
-    }
-
-    function doDeposit() public {
-        vm.startPrank(operator);
-        Bridge.Transaction memory depositTx = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
-        Bridge.MerkleProof memory proof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER, index);
-        bridge.deposit(depositTx, proof, shaScriptPubkeys);
-        vm.stopPrank();
-    }
-
     function testVerifySigInTx() public {
         version = hex"03000000";
         locktime = hex"00000000";
@@ -710,40 +664,6 @@ contract BridgeTest is Test {
 
         vm.stopPrank();
     }
-    
-    // divided withdraw into two functions
-    // so that we can expectRevert on doSafeWithdraw
-    function prepareBitcoinLightClientForSafeWithdraw() public {
-        vm.prank(SYSTEM_CALLER);
-        bitcoinLightClient.setBlockInfo(hex"d740c1b74570c512cb79c8b3f5d3ccaa515059c49dd51b01c5b2ec56bfb9ee37", witnessRoot, 2);
-    }
-
-    function doSafeWithdraw() public {
-        vm.prank(receiver);
-        Bridge.Transaction memory prepareTx = Bridge.Transaction(
-            hex"02000000", 
-            hex"0001", 
-            hex"0180f01d40c4c53e10a58e0e63d84ee369173c3b03e9c4787f33416beefac82f910000000000fdffffff", 
-            hex"02e7251a1e01000000225120af6d60391056de5e15fd91efc05330439f58eaa811a24fe4bba53cd8c660562c26020000000000002251202a64b1ee3375f3bb4b367b8cb8384a47f73cf231717f827c6c6fbbf5aecf0c36", 
-            hex"01404344971b6185f8724449b964393220cf37cbc124727ad29df7540ee9048f47a704845f8f3d7c2c240ae904c45de08b0187cc41745d5266b8e5a5d092d30ed19b",
-            hex"d5000000"
-        );
-        Bridge.MerkleProof memory proof = Bridge.MerkleProof(
-            hex"f70aa9fc12ea0cea3947a2892e8b4c2970b1d7f1cb3e2411dc83141d17b1ce5573a03a23cb4e62a4ae2eb692ff0cef81f6289472694613dd83a3e40251ad6dbf",
-            INITIAL_BLOCK_NUMBER + 1,
-            2
-        );
-        Bridge.Transaction memory payoutTx = Bridge.Transaction(
-            hex"02000000", 
-            hex"0001", 
-            hex"019e7138d6bebcc9cab3de962a1d2dd35163d49a0f9053ad1afc9cd5539249af780100000000fdffffff", 
-            hex"016043993b000000002251209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90", 
-            hex"0141834e7a701035bb446dd4112c3a0498c1d7b44f89000f2c14e9a3ef8c04a05e6b1faa5727d1a7a62e6d46b7942ee17cb6766bde46f5b5d1e4337c57240e3c712a83",
-            hex"00000000"
-        );
-        bytes memory header = hex"00000030a49f936b31bbd053f48f8b3e55666124607917271e93d1d4c942f2139bbe9a2e402f348e5912a77a6273511b017659b8fcb9484b73241527178e4b924848e9b062802c68ffff7f2001000000";
-        bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"51209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90");
-    }
 
     function testSafeWithdraw() public {
         doDeposit();
@@ -754,9 +674,9 @@ contract BridgeTest is Test {
         assertEq(receiver.balance, 0);
         // Assert if withdrawal UTXO is stored properly
         uint256 withdrawalCount = bridge.getWithdrawalCount();
-        (bytes32 txId, bytes4 outputId) = bridge.withdrawalUTXOs(withdrawalCount - 1);
-        assertEq(txId, hex"9e7138d6bebcc9cab3de962a1d2dd35163d49a0f9053ad1afc9cd5539249af78");
-        assertEq(outputId, hex"01000000");  
+        (bytes32 _txId, bytes4 _outputId) = bridge.withdrawalUTXOs(withdrawalCount - 1);
+        assertEq(_txId, hex"9e7138d6bebcc9cab3de962a1d2dd35163d49a0f9053ad1afc9cd5539249af78");
+        assertEq(_outputId, hex"01000000");
     }
 
     function testP2TRTransactionTypeConfusionAttack() public {
@@ -795,114 +715,222 @@ contract BridgeTest is Test {
         vm.stopPrank();
     }
 
-    function testBridgePausability() public {
-        // random user cannot pause/unpause
-        vm.prank(address(0x123));
+    function testOwnerCanPause() public {
+        _testCanPause(owner);
+    }
+
+    function testOwnerCanUnpause() public {
+        _testCanUnpause(owner);
+    }
+
+    function testOperatorCanPause() public {
+        _testCanPause(operator);
+    }
+
+    function testOperatorCanUnpause() public {
+        _testCanUnpause(operator);
+    }
+
+    function _testCanPause(address pauser) internal {
+        vm.prank(pauser);
+        bridge.pause();
+        assertTrue(bridge.paused());
+    }
+
+    function _testCanUnpause(address pauser) internal {
+        vm.prank(pauser);
+        bridge.pause();
+        assertTrue(bridge.paused());
+        vm.prank(pauser);
+        bridge.unpause();
+        assertFalse(bridge.paused());
+    }
+
+    function testNonOwnerCannotPause() public {
+        vm.prank(makeAddr("user"));
         vm.expectRevert("caller is not the owner or operator");
         bridge.pause();
-        vm.prank(owner);
-        bridge.pause();
-        vm.prank(address(0x123));
+    }
+
+    function testNonOwnerCannotUnpause() public {
+        vm.prank(makeAddr("user"));
         vm.expectRevert("caller is not the owner or operator");
         bridge.unpause();
-        vm.prank(owner);
-        bridge.unpause();
+    }
 
-
-        // operator can pause/unpause
-        vm.startPrank(operator);
-        bridge.pause();
-        assert(bridge.paused());
-        bridge.unpause();
-        assert(!bridge.paused());
-        vm.stopPrank();
-
-
-        // owner can pause/unpause
-        vm.startPrank(owner);
-        bridge.pause();
-        assert(bridge.paused());
-        bridge.unpause();
-        assert(!bridge.paused());
-        vm.stopPrank();
-
-
-        // when paused, can't deposit, but can when unpaused
+    function testCannotDepositWhenPaused() public {
         vm.prank(owner);
         bridge.pause();
         vm.expectRevert("EnforcedPause()");
         doDeposit();
         assertEq(receiver.balance, 0);
         assertFalse(bridge.processedTxIds(hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929"));
-        vm.prank(owner);
+    }
+
+    function testCanDepositAfterUnpause() public {
+        vm.prank(operator);
+        bridge.pause();
+        vm.expectRevert("EnforcedPause()");
+        doDeposit();
+        vm.prank(operator);
         bridge.unpause();
         doDeposit();
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
         assertTrue(bridge.processedTxIds(hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929"));
         assertEq(bridge.depositTxIds(0), hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929");
+    }
 
-
-        // can't process any of the withdrawal functions when paused
-
-        // first test normal withdraw
+    function testCannotWithdrawWhenPaused() public {
+        doDeposit();
         vm.prank(operator);
         bridge.pause();
-        vm.prank(receiver);
         vm.expectRevert("EnforcedPause()");
-        bytes32 txId = hex"1234"; // Dummy txId
-        bytes4 outputId = hex"01"; // Dummy outputId
-        bridge.withdraw{value: DEPOSIT_AMOUNT}(txId, outputId);
-        // assert if user still has its balance
+        doWithdraw();
+        // Assert if user still has its balance
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
+    }
 
-        // now test safe withdraw;
+    function testCannotSafeWithdrawWhenPaused() public {
+        doDeposit();
+        vm.prank(operator);
+        bridge.pause();
         prepareBitcoinLightClientForSafeWithdraw();
         vm.expectRevert("EnforcedPause()");
         doSafeWithdraw();
-        // assert if user still has its balance
+        // Assert if user still has its balance
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
+    }
 
-        // now batch withdraw
-        vm.startPrank(user);
-        vm.deal(address(user), DEPOSIT_AMOUNT * 10);
-        bytes32[] memory btc_addresses = new bytes32[](10);
-        bytes4[] memory output_ids = new bytes4[](10);
-        for (uint i = 0; i < 10; i++) {
-            btc_addresses[i] = bytes32(abi.encodePacked(i));
-            output_ids[i] = bytes4(uint32(i));
-        }
-        
+    function testCannotBatchWithdrawWhenPaused() public {
+        vm.prank(operator);
+        bridge.pause();
         vm.expectRevert("EnforcedPause()");
-        bridge.batchWithdraw{value: DEPOSIT_AMOUNT * 10}(btc_addresses, output_ids);
-        // assert if user still has its balance
+        doBatchWithdraw();
+        // Assert if user still has its balance
         assertEq(user.balance, DEPOSIT_AMOUNT * 10);
         vm.stopPrank();
+    }
 
-        // now unpause again and test all withdrawal functions
+    function testCanWithdrawAfterUnpause() public {
+        doDeposit();
+        vm.prank(operator);
+        bridge.pause();
+        vm.expectRevert("EnforcedPause()");
+        doWithdraw();
         vm.prank(operator);
         bridge.unpause();
-
-        // normal withdraw
-        uint256 snapshot = vm.snapshot();
-        vm.prank(receiver);
-        txId = hex"1234"; // Dummy txId
-        outputId = hex"01"; // Dummy outputId
-        bridge.withdraw{value: DEPOSIT_AMOUNT}(txId, outputId);
+        doWithdraw();
+        // Assert if user's balance is zero after successful withdrawal
         assertEq(receiver.balance, 0);
-        // reverting to snapshot, so we don't deposit again
-        vm.revertTo(snapshot);
+    }
 
-        // safe withdraw
+    function testCanSafeWithdrawAfterUnpause() public {
+        doDeposit();
+        vm.prank(operator);
+        bridge.pause();
         prepareBitcoinLightClientForSafeWithdraw();
+        vm.expectRevert("EnforcedPause()");
         doSafeWithdraw();
+        vm.prank(operator);
+        bridge.unpause();
+        doSafeWithdraw();
+        // Assert if user's balance is zero after successful withdrawal
         assertEq(receiver.balance, 0);
-        vm.revertTo(snapshot);
+    }
 
-        // batch withdraw
-        vm.startPrank(user);
-        vm.deal(address(user), DEPOSIT_AMOUNT * 10);
-        bridge.batchWithdraw{value: DEPOSIT_AMOUNT * 10}(btc_addresses, output_ids);
-        // assert if user still has its balance
+    function testCanBatchWithdrawAfterUnpause() public {
+        vm.prank(operator);
+        bridge.pause();
+        vm.expectRevert("EnforcedPause()");
+        doBatchWithdraw();
+        vm.prank(operator);
+        bridge.unpause();
+        doBatchWithdraw();
+        // Assert if user's balance is zero after successful withdrawal
         assertEq(user.balance, 0);
+    }
+
+    function isKeccakEqual(bytes memory a, bytes memory b) public pure returns (bool result) {
+        result = keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
+    }
+
+    function doDeposit() public {
+        vm.startPrank(operator);
+        Bridge.Transaction memory depositTx = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
+        Bridge.MerkleProof memory proof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER, index);
+        bridge.deposit(depositTx, proof, shaScriptPubkeys);
+        vm.stopPrank();
+    }
+
+    function doWithdraw() public {
+        vm.prank(receiver);
+        bridge.withdraw{value: DEPOSIT_AMOUNT}(txId, outputId);
+    }
+
+    function doSafeWithdraw() public {
+        vm.prank(receiver);
+        Bridge.Transaction memory prepareTx = Bridge.Transaction(
+            hex"02000000", 
+            hex"0001", 
+            hex"0180f01d40c4c53e10a58e0e63d84ee369173c3b03e9c4787f33416beefac82f910000000000fdffffff", 
+            hex"02e7251a1e01000000225120af6d60391056de5e15fd91efc05330439f58eaa811a24fe4bba53cd8c660562c26020000000000002251202a64b1ee3375f3bb4b367b8cb8384a47f73cf231717f827c6c6fbbf5aecf0c36", 
+            hex"01404344971b6185f8724449b964393220cf37cbc124727ad29df7540ee9048f47a704845f8f3d7c2c240ae904c45de08b0187cc41745d5266b8e5a5d092d30ed19b",
+            hex"d5000000"
+        );
+        Bridge.MerkleProof memory proof = Bridge.MerkleProof(
+            hex"f70aa9fc12ea0cea3947a2892e8b4c2970b1d7f1cb3e2411dc83141d17b1ce5573a03a23cb4e62a4ae2eb692ff0cef81f6289472694613dd83a3e40251ad6dbf",
+            INITIAL_BLOCK_NUMBER + 1,
+            2
+        );
+        Bridge.Transaction memory payoutTx = Bridge.Transaction(
+            hex"02000000", 
+            hex"0001", 
+            hex"019e7138d6bebcc9cab3de962a1d2dd35163d49a0f9053ad1afc9cd5539249af780100000000fdffffff", 
+            hex"016043993b000000002251209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90", 
+            hex"0141834e7a701035bb446dd4112c3a0498c1d7b44f89000f2c14e9a3ef8c04a05e6b1faa5727d1a7a62e6d46b7942ee17cb6766bde46f5b5d1e4337c57240e3c712a83",
+            hex"00000000"
+        );
+        bytes memory header = hex"00000030a49f936b31bbd053f48f8b3e55666124607917271e93d1d4c942f2139bbe9a2e402f348e5912a77a6273511b017659b8fcb9484b73241527178e4b924848e9b062802c68ffff7f2001000000";
+        bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"51209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90");
+    }
+
+    function doBatchWithdraw() public returns (bytes32[] memory txIds, bytes4[] memory outputIds) {
+        vm.deal(address(user), DEPOSIT_AMOUNT * 10);
+        txIds = new bytes32[](10);
+        outputIds = new bytes4[](10);
+        for (uint i = 0; i < 10; i++) {
+            txIds[i] = bytes32(abi.encodePacked(i));
+            outputIds[i] = bytes4(uint32(i));
+        }
+        vm.prank(user);
+        bridge.batchWithdraw{value: DEPOSIT_AMOUNT * 10}(txIds, outputIds);
+    }
+
+    // divided withdraw into two functions
+    // so that we can expectRevert on doSafeWithdraw
+    function prepareBitcoinLightClientForSafeWithdraw() public {
+        vm.prank(SYSTEM_CALLER);
+        bitcoinLightClient.setBlockInfo(hex"d740c1b74570c512cb79c8b3f5d3ccaa515059c49dd51b01c5b2ec56bfb9ee37", witnessRoot, 2);
+    }
+
+    function prepareReplaceDeposit() internal returns (Bridge.MerkleProof memory proof) {
+        vm.startPrank(SYSTEM_CALLER);
+        version = hex"03000000";
+        vin = hex"01f74f0390589e8c83bf9ba99c1872acf63803173654cae97b1c8ec01042d6af650000000000fdffffff";
+        vout = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
+        witness = hex"034029afe3877d9562c70b50b7d215736579869fb2f8ae30626869b87bdbdab6105ca7adc90d16a246322eb0c9ef1c63847b91f2db38f74aacc3fa72cb1098cb47664a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114564cb100d2d5deceb792fe913b9185fcfb80871208000000003b9aca006841c093c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de510f2951fffb548259d5abb9f351be8f94031c9ce88ce838b40d7cec7c606e0c7a";
+        intermediateNodes = hex"00000000000000000000000000000000000000000000000000000000000000002a3e143606a444e8414861e27d3409466513df018e345609cb9add0c79dd661c";
+        witnessRoot = hex"853c333692ff1da2f74e49ac493b630fb98b4587c76f46175c4c0c8a16ec0fd8";
+        index = 1;
+        bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_2"), witnessRoot, 2);
+        vm.stopPrank();
+        vm.startPrank(owner);
+        bridge.setDepositScript(hex"4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114", hex"08000000003b9aca0068");
+        bridge.setReplaceScript(hex"54203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630d6369747265615265706c61636520", hex"68");
+        vm.stopPrank();
+        vm.startPrank(SYSTEM_CALLER);
+        Bridge.Transaction memory depositToBeReplacedTx = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
+        proof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER + 1, index);
+        bridge.deposit(depositToBeReplacedTx, proof, hex"916d7adc719dd331d47ef21fe3b29014186fa3b294df42221d7c0edea729881f");
     }
 }
