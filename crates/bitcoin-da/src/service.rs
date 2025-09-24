@@ -118,6 +118,12 @@ pub struct BitcoinServiceConfig {
 
     /// UTXO selection mode
     pub utxo_selection_mode: Option<UtxoSelectionMode>,
+
+    /// Timeout for RPC requests in seconds
+    pub rpc_timeout_secs: Option<u64>,
+
+    /// Connection timeout for RPC in seconds
+    pub rpc_connect_timeout_secs: Option<u64>,
 }
 
 impl citrea_common::FromEnv for BitcoinServiceConfig {
@@ -137,6 +143,12 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
                         .map_err(|e| anyhow!(e).context("Invalid UTXO_SELECTION_MODE"))
                 })
                 .transpose()?,
+            rpc_timeout_secs: read_env("BITCOIN_RPC_TIMEOUT_SECS")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok()),
+            rpc_connect_timeout_secs: read_env("BITCOIN_RPC_CONNECT_TIMEOUT_SECS")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok()),
         })
     }
 }
