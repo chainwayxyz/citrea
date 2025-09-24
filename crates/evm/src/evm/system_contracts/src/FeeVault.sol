@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.26;
 
 import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
 
 /// @title Fee accumulator contract template
 /// @author Citrea
+
+/// @dev This contract is not intended for regular deployment and can only be used as a predeploy.
+/// @dev It does not utilize OpenZeppelin's initialization chain thus any modifications that include new OZ logic should be made carefully.
 
 abstract contract FeeVault is Ownable2StepUpgradeable {
     address public recipient;

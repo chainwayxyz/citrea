@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.26;
 
 import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
@@ -10,6 +10,9 @@ import "openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.s
 
 /// @title Bridge contract for the Citrea end of Citrea <> Bitcoin bridge
 /// @author Citrea
+
+/// @dev This contract is not intended for regular deployment and can only be used as a predeploy.
+/// @dev It does not utilize OpenZeppelin's initialization chain, thus any modifications that include new OZ logic should be made carefully.
 
 contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     using BTCUtils for bytes;
@@ -96,13 +99,14 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     }
 
     /// @notice Initializes the bridge contract and sets the deposit script
+    /// @dev This function does not utilize OZ's initialization chain and instead uses a state variable to track initialization status
     /// @param _depositPrefix First part of the deposit script expected in the witness field for all L1 deposits 
     /// @param _depositSuffix The suffix of the deposit script that follows the receiver address
     /// @param _depositAmount The CBTC amount that can be deposited and withdrawn
     function initialize(bytes calldata _depositPrefix, bytes calldata _depositSuffix, uint256 _depositAmount) external onlySystem {
         require(!initialized, "Contract is already initialized");
         require(_depositAmount != 0, "Deposit amount cannot be 0");
-        require(_depositPrefix.length != 0, "Deposit script cannot be empty");
+        require(_depositPrefix.length >= 34, "Deposit script must be longer than 34 bytes");
         require(_depositAmount % SAT_TO_WEI == 0, "Deposit amount must have valid satoshi value");
         require(_depositAmount / SAT_TO_WEI <= type(uint64).max, "Deposit amount divided by SAT_TO_WEI must fit in uint64");
 
@@ -126,7 +130,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     /// @param _depositPrefix The new deposit script prefix
     /// @param _depositSuffix The part of the deposit script that succeeds the receiver address
     function setDepositScript(bytes calldata _depositPrefix, bytes calldata _depositSuffix) external onlyOwner {
-        require(_depositPrefix.length != 0, "Deposit script cannot be empty");
+        require(_depositPrefix.length >= 34, "Deposit script must be longer than 34 bytes");
 
         depositPrefix = _depositPrefix;
         depositSuffix = _depositSuffix;
@@ -139,7 +143,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     /// @param _replacePrefix The new replace prefix
     /// @param _replaceSuffix The part of the replace script that succeeds the txId
     function setReplaceScript(bytes calldata _replacePrefix, bytes calldata _replaceSuffix) external onlyOwner {
-        require(_replacePrefix.length != 0, "Replace script cannot be empty");
+        require(_replacePrefix.length >= 34, "Replace script must be longer than 34 bytes");
         require(bytesToBytes32(_replacePrefix.slice(2, 32)) == bytesToBytes32(getAggregatedKey()), "Replace prefix must contain the same aggregated key as deposit prefix");
 
         replacePrefix = _replacePrefix;
@@ -343,7 +347,8 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         require(replacePrefix.length != 0, "Replace script is not set");
         
         // Validate that the replace transaction is properly formatted and is included in a Bitcoin block
-        validateAndCheckInclusion(replaceTx, proof);
+        (, uint256 nIns) = validateAndCheckInclusion(replaceTx, proof);
+        require(nIns == 1, "Only one input allowed");
 
         // In order to verify the P2TR signature, we need to reconstruct the message hash and that is derived from input, output and the corresponding witness field
         bytes memory input = replaceTx.vin.extractInputAtIndex(0);
