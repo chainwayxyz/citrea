@@ -423,7 +423,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         if !verify_method_id_security_council(
                             *method_id_upgrade_authority_da_public_keys,
                             batch_proof_method_id.body.serialize().as_slice(),
-                            &batch_proof_method_id.signatures_with_index(),
+                            batch_proof_method_id.signatures_with_index(),
                         ) {
                             log!("Method ID security council verification failed");
                             continue;

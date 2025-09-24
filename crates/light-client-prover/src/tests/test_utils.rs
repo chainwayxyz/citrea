@@ -198,7 +198,7 @@ pub(crate) fn create_prev_lcp_serialized(
 }
 
 /// Converts a vector of signatures in Vec<u8> format to an array of signatures in [u8; 64] format
-pub fn from_vec_to_sigs(vec: Vec<(Vec<u8>, u8)>) -> [([u8; 64], u8); 3] {
+pub(crate) fn from_vec_to_sigs(vec: Vec<(Vec<u8>, u8)>) -> [([u8; 64], u8); 3] {
     let mut sigs = Vec::new();
     for (v, i) in vec.into_iter() {
         sigs.push((v.try_into().unwrap(), i));
@@ -207,7 +207,7 @@ pub fn from_vec_to_sigs(vec: Vec<(Vec<u8>, u8)>) -> [([u8; 64], u8); 3] {
 }
 
 /// Generates 5 valid keypairs and returns the public keys and signers from the given private keys
-pub fn generate_initial_pub_keys_with_signers_from_pks(
+pub(crate) fn generate_initial_pub_keys_with_signers_from_pks(
     private_keys: [[u8; 32]; 5],
 ) -> ([[u8; 33]; 5], Vec<PrivateKeySigner>) {
     let mut initial_da_pubkeys = [[0u8; 33]; 5];
@@ -226,17 +226,17 @@ pub fn generate_initial_pub_keys_with_signers_from_pks(
 }
 
 /// Generates 5 valid keypairs and returns the public keys and signers
-pub fn generate_initial_pub_keys_with_signers() -> ([[u8; 33]; 5], Vec<PrivateKeySigner>) {
+pub(crate) fn generate_initial_pub_keys_with_signers() -> ([[u8; 33]; 5], Vec<PrivateKeySigner>) {
     let mut initial_da_pubkeys = [[0u8; 33]; 5];
     let mut signers = Vec::new();
 
     // Generate 5 valid keypairs and signatures
-    for i in 0..5 {
+    for (i, public_key) in initial_da_pubkeys.iter_mut().enumerate() {
         let secret_key = [i as u8 + 1; 32];
         let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
         let verifying_key = signer.credential().verifying_key();
         let pubkey = verifying_key.to_sec1_bytes();
-        initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+        *public_key = pubkey.to_vec().try_into().unwrap();
         signers.push(signer);
     }
 
@@ -244,8 +244,8 @@ pub fn generate_initial_pub_keys_with_signers() -> ([[u8; 33]; 5], Vec<PrivateKe
 }
 
 /// Creates 3 valid signatures from the first 3 signers for the given prehash
-pub fn create_valid_signatures(
-    signers: &Vec<PrivateKeySigner>,
+pub(crate) fn create_valid_signatures(
+    signers: &[PrivateKeySigner],
     prehash: &B256,
 ) -> [([u8; 64], u8); 3] {
     let mut signatures_in_inscription = Vec::new();
