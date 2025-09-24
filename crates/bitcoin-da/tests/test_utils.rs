@@ -2,7 +2,9 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use alloy_primitives::eip191_hash_message;
+use alloy_primitives::{eip191_hash_message, B256};
+use alloy_signer::SignerSync;
+use alloy_signer_local::PrivateKeySigner;
 use bitcoin::block::{Header, Version};
 use bitcoin::hashes::Hash;
 use bitcoin::{BlockHash, CompactTarget, TxMerkleNode, WitnessMerkleNode};
@@ -18,7 +20,6 @@ use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::NodeKind;
 use citrea_e2e::traits::NodeT;
 use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
-use k256::ecdsa::Signature;
 use reth_tasks::TaskExecutor;
 use sov_rollup_interface::da::{
     BatchProofMethodId, BatchProofMethodIdBody, DaTxRequest, SequencerCommitment,
@@ -150,19 +151,19 @@ pub async fn generate_mock_txs(
         activation_l2_height: 0,
     };
 
-    let signatures = {
-        let secret_keys: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
-            .map(|k| hex::decode(k).unwrap().try_into().unwrap());
-        secret_keys
-            .iter()
-            .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0.to_vec())
-            .collect::<Vec<_>>()
-    };
+    let msg = method_id_body.serialize();
+    let prehash = eip191_hash_message(&msg);
+
+    let (_initial_pubkeys, signers) = generate_initial_pub_keys_with_signers_from_pks(
+        BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+            .map(|k| hex::decode(k).unwrap().try_into().unwrap()),
+    );
+    let signatures_with_index = create_valid_signatures(&signers, &prehash);
 
     // Send method id update tx
     let method_id = BatchProofMethodId {
         body: method_id_body.clone(),
-        signatures: from_vec_to_sigs(signatures),
+        signatures_with_index,
     };
 
     valid_method_ids.push(method_id.clone());
@@ -270,19 +271,19 @@ pub async fn generate_mock_txs(
         activation_l2_height: 100,
     };
 
-    let signatures = {
-        let secret_keys: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
-            .map(|k| hex::decode(k).unwrap().try_into().unwrap());
-        secret_keys
-            .iter()
-            .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0.to_vec())
-            .collect::<Vec<_>>()
-    };
+    let msg = method_id_body.serialize();
+    let prehash = eip191_hash_message(&msg);
+
+    let (_initial_pubkeys, signers) = generate_initial_pub_keys_with_signers_from_pks(
+        BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+            .map(|k| hex::decode(k).unwrap().try_into().unwrap()),
+    );
+    let signatures_with_index = create_valid_signatures(&signers, &prehash);
 
     // Send method id update tx
     let method_id = BatchProofMethodId {
         body: method_id_body,
-        signatures: from_vec_to_sigs(signatures),
+        signatures_with_index,
     };
     valid_method_ids.push(method_id.clone());
     da_service
@@ -302,26 +303,47 @@ pub async fn generate_mock_txs(
     (block, valid_commitments, valid_proofs, valid_method_ids)
 }
 
-pub(crate) fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [Signature; 5] {
+pub(crate) fn from_vec_to_sigs(vec: Vec<(Vec<u8>, u8)>) -> [([u8; 64], u8); 3] {
     let mut sigs = Vec::new();
-    for v in vec.into_iter() {
-        sigs.push(Signature::from_bytes((&v[..]).into()).unwrap());
+    for (v, i) in vec.into_iter() {
+        sigs.push((v.try_into().unwrap(), i));
     }
     sigs.try_into().unwrap()
 }
 
-fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> (k256::ecdsa::Signature, [u8; 32]) {
-    use alloy_signer::SignerSync;
-    use alloy_signer_local::PrivateKeySigner;
+/// Generates 5 valid keypairs and returns the public keys and signers from the given private keys
+pub(crate) fn generate_initial_pub_keys_with_signers_from_pks(
+    private_keys: [[u8; 32]; 5],
+) -> ([[u8; 33]; 5], Vec<PrivateKeySigner>) {
+    let mut initial_da_pubkeys = [[0u8; 33]; 5];
+    let mut signers = Vec::new();
 
-    let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+    // Generate 5 valid keypairs and signatures
+    for (i, secret_key) in private_keys.iter().enumerate() {
+        let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+        let verifying_key = signer.credential().verifying_key();
+        let pubkey = verifying_key.to_sec1_bytes();
+        initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+        signers.push(signer);
+    }
 
-    let prehash = eip191_hash_message(msg);
+    (initial_da_pubkeys, signers)
+}
 
-    let sig = signer.sign_hash_sync(&prehash).unwrap();
-    let signature = k256::ecdsa::Signature::from_slice(&sig.as_bytes()[0..64]).unwrap();
+/// Creates 3 valid signatures from the first 3 signers for the given prehash
+pub(crate) fn create_valid_signatures(
+    signers: &[PrivateKeySigner],
+    prehash: &B256,
+) -> [([u8; 64], u8); 3] {
+    let mut signatures_in_inscription = Vec::new();
 
-    (signature, *prehash)
+    for (i, signer) in signers.iter().enumerate().take(3) {
+        let sig = signer.sign_hash_sync(prehash).unwrap();
+        let signature = sig.as_bytes()[0..64].to_vec();
+        signatures_in_inscription.push((signature, i as u8));
+    }
+
+    from_vec_to_sigs(signatures_in_inscription)
 }
 
 #[allow(unused)]

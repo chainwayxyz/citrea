@@ -10162,8 +10162,6 @@ name = "sov-rollup-interface"
 version = "0.7.1"
 dependencies = [
  "alloy-primitives",
- "alloy-signer",
- "alloy-signer-local",
  "anyhow",
  "async-trait",
  "borsh",
@@ -10173,7 +10171,6 @@ dependencies = [
  "futures",
  "hex",
  "jmt",
- "k256",
  "risc0-zkp",
  "serde",
  "serde_json",

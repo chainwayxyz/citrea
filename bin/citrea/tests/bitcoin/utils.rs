@@ -2,7 +2,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use alloy_primitives::{eip191_hash_message, U64};
+use alloy_primitives::{B256, U64};
+use alloy_signer::SignerSync;
+use alloy_signer_local::PrivateKeySigner;
 use anyhow::bail;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig};
 use bitcoin_da::spec::RollupParams;
@@ -10,7 +12,6 @@ use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_primitives::REVEAL_TX_PREFIX;
-use k256::ecdsa::Signature;
 use reth_tasks::TaskExecutor;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
@@ -176,26 +177,48 @@ pub async fn wait_for_prover_job_count(
     }
 }
 
-pub(crate) fn from_vec_to_sigs(vec: Vec<Vec<u8>>) -> [Signature; 5] {
+/// Converts a vector of signatures in Vec<u8> format to an array of signatures in [u8; 64] format
+fn from_vec_to_sigs(vec: Vec<(Vec<u8>, u8)>) -> [([u8; 64], u8); 3] {
     let mut sigs = Vec::new();
-    for v in vec.into_iter() {
-        sigs.push(Signature::from_bytes((&v[..]).into()).unwrap());
+    for (v, i) in vec.into_iter() {
+        sigs.push((v.try_into().unwrap(), i));
     }
     sigs.try_into().unwrap()
 }
 
-pub(crate) fn eip191_sign(msg: &[u8], secret_key: &[u8; 32]) -> (k256::ecdsa::Signature, [u8; 32]) {
-    use alloy_signer::SignerSync;
-    use alloy_signer_local::PrivateKeySigner;
+/// Generates 5 valid keypairs and returns the public keys and signers from the given private keys
+pub(crate) fn generate_initial_pub_keys_with_signers_from_pks(
+    private_keys: [[u8; 32]; 5],
+) -> ([[u8; 33]; 5], Vec<PrivateKeySigner>) {
+    let mut initial_da_pubkeys = [[0u8; 33]; 5];
+    let mut signers = Vec::new();
 
-    let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+    // Generate 5 valid keypairs and signatures
+    for (i, secret_key) in private_keys.iter().enumerate() {
+        let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+        let verifying_key = signer.credential().verifying_key();
+        let pubkey = verifying_key.to_sec1_bytes();
+        initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+        signers.push(signer);
+    }
 
-    let prehash = eip191_hash_message(msg);
+    (initial_da_pubkeys, signers)
+}
 
-    let sig = signer.sign_hash_sync(&prehash).unwrap();
-    let signature = k256::ecdsa::Signature::from_slice(&sig.as_bytes()[0..64]).unwrap();
+/// Creates 3 valid signatures from the first 3 signers for the given prehash
+pub(crate) fn create_valid_signatures(
+    signers: &[PrivateKeySigner],
+    prehash: &B256,
+) -> [([u8; 64], u8); 3] {
+    let mut signatures_in_inscription = Vec::new();
 
-    (signature, *prehash)
+    for (i, signer) in signers.iter().enumerate().take(3) {
+        let sig = signer.sign_hash_sync(prehash).unwrap();
+        let signature = sig.as_bytes()[0..64].to_vec();
+        signatures_in_inscription.push((signature, i as u8));
+    }
+
+    from_vec_to_sigs(signatures_in_inscription)
 }
 
 // For some reason, even though macro is used, it sees it as unused
