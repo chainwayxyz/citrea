@@ -246,7 +246,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     /// @param payoutTx Transaction parameters of the payout transaction on Bitcoin
     /// @param blockHeader Block header of the associated Bitcoin block
     /// @param withdrawalAddressPubKey The script pubkey of the user that BTC is withdrawn to, included for extra validation
-    function safeWithdraw(Transaction calldata prepareTx, MerkleProof calldata prepareProof, Transaction calldata payoutTx, bytes calldata blockHeader, bytes memory withdrawalAddressPubKey) external payable whenNotPaused {
+    function safeWithdraw(Transaction calldata prepareTx, MerkleProof calldata prepareProof, Transaction calldata payoutTx, bytes calldata blockHeader, bytes memory withdrawalAddressPubKey) external payable {
         // Validate format and inclusion of the prepare transaction
         require(BTCUtils.validateVin(prepareTx.vin), "Vin is not properly formatted");
         require(BTCUtils.validateVout(prepareTx.vout), "Vout is not properly formatted");
