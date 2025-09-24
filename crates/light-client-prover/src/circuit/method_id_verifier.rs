@@ -15,7 +15,7 @@ pub fn verify_method_id_security_council(
     let prehash = eip191_hash_message(msg);
 
     // Check that signature indexes are not same and within bounds
-    let mut seen_indexes = std::collections::HashSet::new();
+    let mut seen_indexes = std::collections::BTreeSet::new();
     for &(_, index) in signatures_with_idx {
         if index >= 5 || !seen_indexes.insert(index) {
             println!("Invalid or duplicate signature index: {}", index);
@@ -26,10 +26,7 @@ pub fn verify_method_id_security_council(
     for signature_with_idx in signatures_with_idx.iter() {
         let signature = signature_with_idx.0;
         let pubkey_idx = signature_with_idx.1;
-        let Some(const_pubkey) = initial_da_pubkeys.get(pubkey_idx as usize) else {
-            println!("Index out of bounds for initial DA pubkeys: {}", pubkey_idx);
-            return false; // index out of bounds, fail
-        };
+        let const_pubkey = initial_da_pubkeys[pubkey_idx as usize];
 
         // ensure the inscription pubkey matches the expected constant (compressed 33B)
         let verifying_key = VerifyingKey::from_sec1_bytes(const_pubkey.as_slice())
