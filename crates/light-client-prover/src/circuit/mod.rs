@@ -8,7 +8,7 @@ use accessors::{
     VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
 use borsh::BorshDeserialize;
-use citrea_primitives::network_to_dev_mode;
+use citrea_primitives::{network_to_dev_mode, MAX_COMPRESSED_BLOB_SIZE};
 use initial_values::LCP_JMT_GENESIS_ROOT;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::{BlobReaderTrait, DaSpec, WorkingSet, Zkvm};
@@ -467,10 +467,21 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     // Ensure that aggregate has all the needed chunks.
                     for wtxid in &wtxids {
                         match ChunkAccessor::<S>::get(*wtxid, &mut working_set) {
-                            Some(body) => complete_proof.extend_from_slice(body.as_ref()),
+                            Some(chunk) => {
+                                if chunk.len() + complete_proof.len() > MAX_COMPRESSED_BLOB_SIZE {
+                                    log!(
+                                        "Compressed aggregate too large, wtxid={:?}; skipping",
+                                        blob.wtxid()
+                                    );
+                                    continue 'blob_loop;
+                                }
+
+                                complete_proof.extend_from_slice(&chunk);
+                            }
                             None => {
                                 log!(
-                                    "Unknown chunk in aggregate proof, wtxid={:?} skipping",
+                                    "Unknown chunk in aggregate proof, parent={:?}, child={:?}; skipping",
+                                    blob.wtxid(),
                                     wtxid
                                 );
                                 continue 'blob_loop;

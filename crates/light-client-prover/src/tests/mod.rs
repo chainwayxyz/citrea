@@ -1511,6 +1511,111 @@ fn test_missing_chunk() {
 }
 
 #[test]
+fn test_light_client_circuit_aggregate_size_overflow() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_upgrade_authority = [11u8; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let seq_comm_1 = create_mock_sequencer_commitment(1, 41, [99u8; 32]);
+    let seq_comm_2 = create_mock_sequencer_commitment(2, 61, [98u8; 32]);
+    let seq_comm_3 = create_mock_sequencer_commitment(3, 101, [2u8; 32]);
+
+    let seq_comm_1_blob = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
+    let seq_comm_2_blob = create_mock_sequencer_commitment_blob(seq_comm_2.clone());
+    let seq_comm_3_blob = create_mock_sequencer_commitment_blob(seq_comm_3.clone());
+
+    let state_diff = create_random_state_diff(1100);
+    let serialized_mock_proof = create_serialized_mock_proof(
+        l2_genesis_state_root,
+        101,
+        true,
+        Some(state_diff),
+        block_header_1.hash.0,
+        vec![seq_comm_1.clone(), seq_comm_2.clone(), seq_comm_3.clone()],
+        None,
+    );
+
+    let mut chunk_blobs = vec![];
+
+    for (i, chunk) in serialized_mock_proof.chunks(39700).enumerate() {
+        let chunk_da_data = DataOnDa::Chunk(chunk.to_vec());
+        let chunk_serialized = borsh::to_vec(&chunk_da_data).expect("should serialize");
+
+        let blob = MockBlob::new(
+            chunk_serialized,
+            MockAddress::new([9u8; 32]),
+            [0u8; 32],
+            [(i + 1) as u8; 32],
+        );
+        blob.full_data();
+        chunk_blobs.push(blob);
+    }
+
+    let chunk_wtxids: Vec<[u8; 32]> = chunk_blobs.iter().map(|b| b.wtxid()).collect();
+
+    let aggregate_da_data = DataOnDa::Aggregate(chunk_wtxids.clone(), chunk_wtxids);
+
+    let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
+
+    let blob_aggregate = MockBlob::new(
+        aggregate_serialized,
+        MockAddress::new([9u8; 32]),
+        [0u8; 32],
+        [4; 32],
+    );
+    blob_aggregate.full_data();
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: [seq_comm_1_blob, seq_comm_2_blob, seq_comm_3_blob]
+                .into_iter()
+                .chain(chunk_blobs)
+                .chain([blob_aggregate])
+                .collect(),
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        &method_id_upgrade_authority,
+    );
+
+    let output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &sequencer_da_pub_key,
+            &method_id_upgrade_authority,
+        )
+        .unwrap();
+
+    // aggregate too large, should not be processed
+    assert_eq!(output.l2_state_root, l2_genesis_state_root);
+    assert_eq!(output.last_l2_height, 0);
+    assert_eq!(output.last_sequencer_commitment_index, 0);
+}
+
+#[test]
 fn test_malicious_aggregate_should_not_work() {
     let db_dir = tempdir().unwrap();
     let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
