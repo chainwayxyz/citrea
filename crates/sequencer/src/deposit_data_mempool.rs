@@ -143,7 +143,7 @@ impl DepositDataMempool {
     /// `Err` if deposit data are invalid.
     fn calc_tx_id(req: &Deposit) -> anyhow::Result<[u8; 32]> {
         let call = BridgeContract::depositCall::abi_decode_raw(req, true)
-            .expect("TODO: proper error handling");
+            .map_err(|e| anyhow::anyhow!("Could not decode DepositCall ABI: {:?}", e))?;
 
         let tx = call.moveTx;
 
