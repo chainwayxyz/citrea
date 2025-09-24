@@ -267,7 +267,7 @@ impl Default for SequencerConfig {
             da_update_interval_ms: 100,
             bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
             mempool_conf: Default::default(),
-            l1_fee_rate_multiplier: 0.75,
+            l1_fee_rate_multiplier: 1.0,
         }
     }
 }
@@ -536,7 +536,7 @@ mod tests {
             base_fee_tx_limit = 100000
             base_fee_tx_size = 200
             max_account_slots = 16
-            l1_fee_rate_multiplier = 0.85
+            l1_fee_rate_multiplier = 0.75
         "#;
 
         let config_file = create_config_from(config);
@@ -561,7 +561,7 @@ mod tests {
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
             bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
-            l1_fee_rate_multiplier: 0.85,
+            l1_fee_rate_multiplier: 0.75,
         };
         assert_eq!(config, expected);
     }
@@ -621,7 +621,7 @@ mod tests {
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
             bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
-            l1_fee_rate_multiplier: 0.75,
+            l1_fee_rate_multiplier: 1.0,
         };
         assert_eq!(sequencer_config, expected);
     }
