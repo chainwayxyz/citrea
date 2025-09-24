@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
 
-use alloy_primitives::{U32, U64};
+use alloy_primitives::{eip191_hash_message, U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
@@ -42,9 +42,10 @@ use sov_rollup_interface::Network;
 use super::get_citrea_path;
 use super::utils::PROVER_DA_PRIVATE_KEY;
 use crate::bitcoin::utils::{
-    eip191_sign, from_vec_to_sigs, spawn_bitcoin_da_prover_service,
-    spawn_bitcoin_da_sequencer_service, spawn_bitcoin_da_service, wait_for_prover_job,
-    wait_for_zkproofs, DaServiceKeyKind, BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS,
+    create_valid_signatures, generate_initial_pub_keys_with_signers_from_pks,
+    spawn_bitcoin_da_prover_service, spawn_bitcoin_da_sequencer_service, spawn_bitcoin_da_service,
+    wait_for_prover_job, wait_for_zkproofs, DaServiceKeyKind,
+    BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS,
 };
 
 pub const TEN_MINS: Duration = Duration::from_secs(10 * 60);
@@ -665,21 +666,22 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             activation_l2_height: 210,
         };
 
-        let signatures = {
-            let secret_keys: [[u8; 32]; 5] =
-                BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
-                    .map(|k| hex::decode(k).unwrap().try_into().unwrap());
-            secret_keys
-                .iter()
-                .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0.to_vec())
-                .collect::<Vec<_>>()
-        };
+        let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+            .map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+        let (_initial_pubkeys, signers) =
+            generate_initial_pub_keys_with_signers_from_pks(pk_bytes_arr);
+
+        let msg = method_id_body.serialize();
+        let prehash = eip191_hash_message(msg.as_slice());
+
+        let signatures_with_index = create_valid_signatures(&signers, &prehash);
 
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     body: method_id_body,
-                    signatures: from_vec_to_sigs(signatures),
+                    signatures_with_index,
                 }),
                 1,
             )
@@ -892,17 +894,21 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             method_id: new_batch_proof_method_id,
             activation_l2_height: 220,
         };
-        let secret_keys: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
-            .map(|k| hex::decode(k).unwrap().try_into().unwrap());
-        let signatures = secret_keys
-            .iter()
-            .map(|sk| eip191_sign(&method_id_body.serialize(), sk).0.to_vec())
-            .collect::<Vec<_>>();
+        let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+            .map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+        let (_initial_pubkeys, signers) =
+            generate_initial_pub_keys_with_signers_from_pks(pk_bytes_arr);
+
+        let msg = method_id_body.serialize();
+        let prehash = eip191_hash_message(msg.as_slice());
+
+        let signatures_with_index = create_valid_signatures(&signers, &prehash);
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     body: method_id_body.clone(),
-                    signatures: from_vec_to_sigs(signatures.clone()),
+                    signatures_with_index,
                 }),
                 1,
             )
@@ -924,27 +930,25 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .iter()
             .any(|x| x.method_id == new_batch_proof_method_id.into()));
 
-        // --- CASE 2: Less than 3 valid signatures (should be rejected) ---
+        // --- CASE 2: Invalid signature (should be rejected) ---
         let new_batch_proof_method_id2 = [3u32; 8];
         let method_id_body2 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id2,
             activation_l2_height: 230,
         };
-        let signatures = secret_keys
-            .iter()
-            .map(|sk| eip191_sign(&method_id_body2.serialize(), sk).0.to_vec())
-            .collect::<Vec<_>>();
-        let mut broken_signatures = signatures.clone();
+        let msg2 = method_id_body2.serialize();
+        let prehash2 = eip191_hash_message(msg2.as_slice());
 
-        broken_signatures[0][0] ^= 0xFF;
-        broken_signatures[1][0] ^= 0xFF;
-        broken_signatures[2][0] ^= 0xFF;
+        let mut signatures_with_index = create_valid_signatures(&signers, &prehash2);
+
+        // Corrupt one signature
+        signatures_with_index[0].0[0] ^= 0xFF;
 
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     body: method_id_body2.clone(),
-                    signatures: from_vec_to_sigs(broken_signatures.clone()),
+                    signatures_with_index,
                 }),
                 1,
             )
@@ -967,26 +971,24 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .iter()
             .any(|x| x.method_id == new_batch_proof_method_id2.into()));
 
-        // --- CASE 3: 3 valid, 2 invalid signatures (should be accepted) ---
+        // --- CASE 3: Test signature with duplicate pubkey index (should be rejected) ---
         let new_batch_proof_method_id3 = [4u32; 8];
         let method_id_body3 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
         };
-        let signatures = secret_keys
-            .iter()
-            .map(|sk| eip191_sign(&method_id_body3.serialize(), sk).0.to_vec())
-            .collect::<Vec<_>>();
-        let mut three_valid_signatures = signatures.clone();
+        let msg3 = method_id_body3.serialize();
+        let prehash3 = eip191_hash_message(msg3.as_slice());
 
-        three_valid_signatures[3][0] ^= 0xFF;
-        three_valid_signatures[4][0] ^= 0xFF;
+        let mut signatures_with_index = create_valid_signatures(&signers, &prehash3);
 
+        // Corrupt one signature
+        signatures_with_index[0].1 = signatures_with_index[2].1;
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     body: method_id_body3.clone(),
-                    signatures: from_vec_to_sigs(three_valid_signatures.clone()),
+                    signatures_with_index,
                 }),
                 1,
             )
@@ -1004,7 +1006,89 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .http_client()
             .get_batch_proof_method_ids()
             .await?;
-        assert!(batch_proof_method_ids3
+        assert!(!batch_proof_method_ids3
+            .iter()
+            .any(|x| x.method_id == new_batch_proof_method_id3.into()));
+
+        // --- CASE 4: Test signature with pubkey index out of bounds (should be rejected) ---
+        let new_batch_proof_method_id3 = [4u32; 8];
+        let method_id_body3 = BatchProofMethodIdBody {
+            method_id: new_batch_proof_method_id3,
+            activation_l2_height: 240,
+        };
+        let msg3 = method_id_body3.serialize();
+        let prehash3 = eip191_hash_message(msg3.as_slice());
+
+        let mut signatures_with_index = create_valid_signatures(&signers, &prehash3);
+
+        // Corrupt one signature
+        signatures_with_index[2].1 = 5; // out of bounds
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+                    body: method_id_body3.clone(),
+                    signatures_with_index,
+                }),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let method_id_l1_height3 = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(method_id_l1_height3, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let batch_proof_method_ids3 = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert!(!batch_proof_method_ids3
+            .iter()
+            .any(|x| x.method_id == new_batch_proof_method_id3.into()));
+
+        // --- CASE 4: Test signature with pubkey index Swapped (should be rejected) ---
+        let new_batch_proof_method_id3 = [4u32; 8];
+        let method_id_body3 = BatchProofMethodIdBody {
+            method_id: new_batch_proof_method_id3,
+            activation_l2_height: 240,
+        };
+        let msg3 = method_id_body3.serialize();
+        let prehash3 = eip191_hash_message(msg3.as_slice());
+
+        let mut signatures_with_index = create_valid_signatures(&signers, &prehash3);
+
+        // Swap pubkey indices of the first and last signature
+        // This should be rejected as now signatures will point to wrong pubkeys
+        let tmp = signatures_with_index[0].1;
+        signatures_with_index[0].1 = signatures_with_index[2].1;
+        signatures_with_index[2].1 = tmp;
+
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+                    body: method_id_body3.clone(),
+                    signatures_with_index,
+                }),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let method_id_l1_height3 = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(method_id_l1_height3, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let batch_proof_method_ids3 = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert!(!batch_proof_method_ids3
             .iter()
             .any(|x| x.method_id == new_batch_proof_method_id3.into()));
 
