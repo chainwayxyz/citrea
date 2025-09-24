@@ -25,7 +25,7 @@ use bitcoincore_rpc::{Client, Error as BitcoinError, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
 use citrea_common::utils::read_env;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
-use citrea_primitives::MAX_TX_BODY_SIZE;
+use citrea_primitives::{MAX_COMPRESSED_BLOB_SIZE, MAX_TX_BODY_SIZE};
 use lru::LruCache;
 use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
@@ -428,6 +428,7 @@ impl BitcoinService {
                 .filter(|utxo| {
                     utxo.spendable
                         && utxo.solvable
+                        && utxo.safe
                         && utxo.amount > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
                 })
                 .map(Into::into)
@@ -455,6 +456,7 @@ impl BitcoinService {
                 utxos.into_iter().filter(|utxo| {
                     utxo.spendable
                     && utxo.solvable
+                    && utxo.safe
                     && utxo.amount > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
                     // Remove utxo already in use by queued txs
                     && !txids.contains(&utxo.txid)
@@ -1117,6 +1119,12 @@ impl DaService for BitcoinService {
                             warn!("{tx_id}: Chunk: unexpected kind",);
                             continue 'aggregate;
                         };
+
+                        if chunk.len() + body.len() > MAX_COMPRESSED_BLOB_SIZE {
+                            warn!("{tx_id}: Compressed aggregate too large");
+                            continue 'aggregate;
+                        }
+
                         body.extend(chunk);
                     }
                     ParsedTransaction::Complete(_)

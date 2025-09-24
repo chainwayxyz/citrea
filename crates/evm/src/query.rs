@@ -1358,9 +1358,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Returns the trace of a call
     /// Returns trace for given tx request call.
-    ///
-    /// Handler for `debug_traceCall`
-    #[rpc_method(name = "debug_traceCall")]
     pub fn debug_trace_call(
         &self,
         request: TransactionRequest,
