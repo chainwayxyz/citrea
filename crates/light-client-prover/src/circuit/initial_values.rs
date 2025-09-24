@@ -373,12 +373,11 @@ pub mod bitcoinda {
         },
     ];
 
-    // TODO: Update with real keys
-    /// Public key of the method ID upgrade authority in the Bitcoin DA on Testnet.
+    /// Public keys of the method ID upgrade authority in the Bitcoin DA on Testnet.
     /// 3 out of 5 signatures are required to upgrade method IDs.
     pub const TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8; 33]; 5] = [
         match const_hex::const_decode_to_array(
-            b"03796a3a8a86ff1cc37437585f0450f6059c397c01bce06bfbaaa36242f7ebfc02",
+            b"03fd24a8555cd34585b80c826f25f7df42862a4f97b6bdaf263a3d1bb368f09790",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -386,7 +385,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"03796a3a8a86ff1cc37437585f0450f6059c397c01bce06bfbaaa36242f7ebfc02",
+            b"02a23601cb326cc09f9de3f542b4d8f49216ddf273cfe7e40f50f531a32fc2e78d",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -394,7 +393,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"03796a3a8a86ff1cc37437585f0450f6059c397c01bce06bfbaaa36242f7ebfc02",
+            b"033398b6e26dfa0af531bdab96ee926c10b934ea32b38910ba8d444f5f840efd2d",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -402,7 +401,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"03796a3a8a86ff1cc37437585f0450f6059c397c01bce06bfbaaa36242f7ebfc02",
+            b"02666dba8e07a8bd4aeb4d2b3b6cda814f8b814e7052ac97a928b01a41a80adea4",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -410,7 +409,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"03796a3a8a86ff1cc37437585f0450f6059c397c01bce06bfbaaa36242f7ebfc02",
+            b"03f42d911bb7d9910b026621d20c133b1b193004f043797e472bb2c821e5703716",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -419,12 +418,11 @@ pub mod bitcoinda {
         },
     ];
 
-    // TODO: Update with real keys
-    /// Public key of the method ID upgrade authority in the Bitcoin DA on Devnet.
+    /// Public keys of the method ID upgrade authority in the Bitcoin DA on Devnet.
     /// 3 out of 5 signatures are required to upgrade method IDs.
     pub const DEVNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8; 33]; 5] = [
         match const_hex::const_decode_to_array(
-            b"0388e988066db18e19750fa92aa0fbf9c85104be2b5b507ce0aa7f30f3fe24b1ac",
+            b"03fd24a8555cd34585b80c826f25f7df42862a4f97b6bdaf263a3d1bb368f09790",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -432,7 +430,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"0388e988066db18e19750fa92aa0fbf9c85104be2b5b507ce0aa7f30f3fe24b1ac",
+            b"02a23601cb326cc09f9de3f542b4d8f49216ddf273cfe7e40f50f531a32fc2e78d",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -440,7 +438,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"0388e988066db18e19750fa92aa0fbf9c85104be2b5b507ce0aa7f30f3fe24b1ac",
+            b"033398b6e26dfa0af531bdab96ee926c10b934ea32b38910ba8d444f5f840efd2d",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -448,7 +446,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"0388e988066db18e19750fa92aa0fbf9c85104be2b5b507ce0aa7f30f3fe24b1ac",
+            b"02666dba8e07a8bd4aeb4d2b3b6cda814f8b814e7052ac97a928b01a41a80adea4",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -456,7 +454,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"0388e988066db18e19750fa92aa0fbf9c85104be2b5b507ce0aa7f30f3fe24b1ac",
+            b"03f42d911bb7d9910b026621d20c133b1b193004f043797e472bb2c821e5703716",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -465,8 +463,7 @@ pub mod bitcoinda {
         },
     ];
 
-    // TODO: Update with real keys
-    /// Public key of the method ID upgrade authority in the Bitcoin DA on Nightly.
+    /// Public keys of the method ID upgrade authority in the Bitcoin DA on Nightly.
     /// This public key is set at compile time via the `METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY` environment variable.
     /// If the variable is not set, it defaults to a predefined value.
     /// 3 out of 5 signatures are required to upgrade method IDs.
@@ -538,8 +535,7 @@ pub mod bitcoinda {
         },
     ];
 
-    // TODO: Update with real keys
-    /// Public key of the method ID upgrade authority in the Bitcoin DA on Test Network with Forks.
+    /// Public keys of the method ID upgrade authority in the Bitcoin DA on Test Network with Forks.
     /// This public key is set at compile time via the `METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY` environment variable.
     /// If the variable is not set, it defaults to a predefined value.
     /// 3 out of 5 signatures are required to upgrade method IDs.
