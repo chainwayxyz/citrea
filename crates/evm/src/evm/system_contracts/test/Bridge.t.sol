@@ -10,6 +10,7 @@ import "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
+import "openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 
 
 
@@ -620,12 +621,16 @@ contract BridgeTest is Test {
 
         vm.stopPrank();
     }
-
-    function testSafeWithdraw() public {
-        doDeposit();
+    
+    // divided withdraw into two functions
+    // so that we can expectRevert on doSafeWithdraw
+    function prepareBitcoinLightClientForSafeWithdraw() public {
         vm.prank(SYSTEM_CALLER);
         bitcoinLightClient.setBlockInfo(hex"d740c1b74570c512cb79c8b3f5d3ccaa515059c49dd51b01c5b2ec56bfb9ee37", witnessRoot, 2);
-        vm.startPrank(receiver);
+    }
+
+    function doSafeWithdraw() public {
+        vm.prank(receiver);
         Bridge.Transaction memory prepareTx = Bridge.Transaction(
             hex"02000000", 
             hex"0001", 
@@ -649,6 +654,14 @@ contract BridgeTest is Test {
         );
         bytes memory header = hex"00000030a49f936b31bbd053f48f8b3e55666124607917271e93d1d4c942f2139bbe9a2e402f348e5912a77a6273511b017659b8fcb9484b73241527178e4b924848e9b062802c68ffff7f2001000000";
         bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"51209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90");
+    }
+
+    function testSafeWithdraw() public {
+        doDeposit();
+        assertEq(receiver.balance, DEPOSIT_AMOUNT);
+        prepareBitcoinLightClientForSafeWithdraw();
+        doSafeWithdraw();
+        
         assertEq(receiver.balance, 0);
         // Assert if withdrawal UTXO is stored properly
         uint256 withdrawalCount = bridge.getWithdrawalCount();
@@ -691,5 +704,116 @@ contract BridgeTest is Test {
         vm.expectRevert("Deposit amount divided by SAT_TO_WEI must fit in uint64");
         bridge.initialize(depositPrefix, depositSuffix, overflowingDepositAmount);
         vm.stopPrank();
+    }
+
+    function testBridgePausability() public {
+        // random user cannot pause/unpause
+        vm.prank(address(0x123));
+        vm.expectRevert("caller is not the owner or operator");
+        bridge.pause();
+        vm.prank(owner);
+        bridge.pause();
+        vm.prank(address(0x123));
+        vm.expectRevert("caller is not the owner or operator");
+        bridge.unpause();
+        vm.prank(owner);
+        bridge.unpause();
+
+
+        // operator can pause/unpause
+        vm.startPrank(operator);
+        bridge.pause();
+        assert(bridge.paused());
+        bridge.unpause();
+        assert(!bridge.paused());
+        vm.stopPrank();
+
+
+        // owner can pause/unpause
+        vm.startPrank(owner);
+        bridge.pause();
+        assert(bridge.paused());
+        bridge.unpause();
+        assert(!bridge.paused());
+        vm.stopPrank();
+
+
+        // when paused, can't deposit, but can when unpaused
+        vm.prank(owner);
+        bridge.pause();
+        vm.expectRevert("EnforcedPause()");
+        doDeposit();
+        assertEq(receiver.balance, 0);
+        assertFalse(bridge.processedTxIds(hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929"));
+        vm.prank(owner);
+        bridge.unpause();
+        doDeposit();
+        assertEq(receiver.balance, DEPOSIT_AMOUNT);
+        assertTrue(bridge.processedTxIds(hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929"));
+        assertEq(bridge.depositTxIds(0), hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929");
+
+
+        // can't process any of the withdrawal functions when paused
+
+        // first test normal withdraw
+        vm.prank(operator);
+        bridge.pause();
+        vm.prank(receiver);
+        vm.expectRevert("EnforcedPause()");
+        bytes32 txId = hex"1234"; // Dummy txId
+        bytes4 outputId = hex"01"; // Dummy outputId
+        bridge.withdraw{value: DEPOSIT_AMOUNT}(txId, outputId);
+        // assert if user still has its balance
+        assertEq(receiver.balance, DEPOSIT_AMOUNT);
+
+        // now test safe withdraw;
+        prepareBitcoinLightClientForSafeWithdraw();
+        vm.expectRevert("EnforcedPause()");
+        doSafeWithdraw();
+        // assert if user still has its balance
+        assertEq(receiver.balance, DEPOSIT_AMOUNT);
+
+        // now batch withdraw
+        vm.startPrank(user);
+        vm.deal(address(user), DEPOSIT_AMOUNT * 10);
+        bytes32[] memory btc_addresses = new bytes32[](10);
+        bytes4[] memory output_ids = new bytes4[](10);
+        for (uint i = 0; i < 10; i++) {
+            btc_addresses[i] = bytes32(abi.encodePacked(i));
+            output_ids[i] = bytes4(uint32(i));
+        }
+        
+        vm.expectRevert("EnforcedPause()");
+        bridge.batchWithdraw{value: DEPOSIT_AMOUNT * 10}(btc_addresses, output_ids);
+        // assert if user still has its balance
+        assertEq(user.balance, DEPOSIT_AMOUNT * 10);
+        vm.stopPrank();
+
+        // now unpause again and test all withdrawal functions
+        vm.prank(operator);
+        bridge.unpause();
+
+        // normal withdraw
+        uint256 snapshot = vm.snapshot();
+        vm.prank(receiver);
+        txId = hex"1234"; // Dummy txId
+        outputId = hex"01"; // Dummy outputId
+        bridge.withdraw{value: DEPOSIT_AMOUNT}(txId, outputId);
+        assertEq(receiver.balance, 0);
+        // reverting to snapshot, so we don't deposit again
+        vm.revertTo(snapshot);
+
+        // safe withdraw
+        prepareBitcoinLightClientForSafeWithdraw();
+        doSafeWithdraw();
+        assertEq(receiver.balance, 0);
+        vm.revertTo(snapshot);
+
+        // batch withdraw
+        vm.startPrank(user);
+        vm.deal(address(user), DEPOSIT_AMOUNT * 10);
+        bridge.batchWithdraw{value: DEPOSIT_AMOUNT * 10}(btc_addresses, output_ids);
+        // assert if user still has its balance
+        assertEq(user.balance, 0);
     }
 }
