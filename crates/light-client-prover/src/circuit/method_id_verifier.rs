@@ -1,6 +1,6 @@
 use alloy_primitives::eip191_hash_message;
 use k256::ecdsa::signature::hazmat::PrehashVerifier;
-use k256::ecdsa::{signature, Signature, VerifyingKey};
+use k256::ecdsa::{Signature, VerifyingKey};
 
 /// The three out of 5 signatures should be verified for the method id upgrade to be valid.
 /// The signatures should be in the same order as the one in the initial values constants.
@@ -55,52 +55,10 @@ pub fn verify_method_id_security_council(
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::B256;
-    use alloy_signer::SignerSync;
-    use alloy_signer_local::PrivateKeySigner;
     use sov_rollup_interface::da::{BatchProofMethodId, BatchProofMethodIdBody};
 
     use super::*;
-
-    fn from_vec_to_sigs(vec: Vec<(Vec<u8>, u8)>) -> [([u8; 64], u8); 3] {
-        let mut sigs = Vec::new();
-        for (v, i) in vec.into_iter() {
-            sigs.push((v.try_into().unwrap(), i));
-        }
-        sigs.try_into().unwrap()
-    }
-
-    fn generate_initial_pub_keys_with_signers() -> ([[u8; 33]; 5], Vec<PrivateKeySigner>) {
-        let mut initial_da_pubkeys = [[0u8; 33]; 5];
-        let mut signers = Vec::new();
-
-        // Generate 5 valid keypairs and signatures
-        for i in 0..5 {
-            let secret_key = [i as u8 + 1; 32];
-            let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
-            let verifying_key = signer.credential().verifying_key();
-            let pubkey = verifying_key.to_sec1_bytes();
-            initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
-            signers.push(signer);
-        }
-
-        (initial_da_pubkeys, signers)
-    }
-
-    fn create_valid_signatures(
-        signers: &Vec<PrivateKeySigner>,
-        prehash: &B256,
-    ) -> [([u8; 64], u8); 3] {
-        let mut signatures_in_inscription = Vec::new();
-
-        for (i, signer) in signers.iter().enumerate().take(3) {
-            let sig = signer.sign_hash_sync(prehash).unwrap();
-            let signature = sig.as_bytes()[0..64].to_vec();
-            signatures_in_inscription.push((signature, i as u8));
-        }
-
-        from_vec_to_sigs(signatures_in_inscription)
-    }
+    use crate::{create_valid_signatures, generate_initial_pub_keys_with_signers};
 
     #[test]
     fn test_valid_signatures() {
