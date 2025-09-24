@@ -27,7 +27,7 @@ pub fn verify_method_id_security_council(
         || signatures_with_idx[0].1 == signatures_with_idx[2].1
         || signatures_with_idx[1].1 == signatures_with_idx[2].1
     {
-        println!("Duplicate signature indexes found");
+        log!("Duplicate signature indexes found");
         return false;
     }
 
@@ -41,7 +41,7 @@ pub fn verify_method_id_security_council(
             .expect("Initial DA pubkeys must be parsable to k256 VerifyingKey form sec1 bytes");
 
         let Ok(parsed_sig) = Signature::from_bytes(&signature.into()) else {
-            println!("Invalid signature format");
+            log!("Invalid signature format");
             return false; // invalid signature format, fail
         };
 
@@ -50,7 +50,7 @@ pub fn verify_method_id_security_council(
             .verify_prehash(prehash.as_slice(), &parsed_sig)
             .is_err()
         {
-            println!("Signature verification failed for index: {}", pubkey_idx);
+            log!("Signature verification failed for index: {}", pubkey_idx);
             return false;
         }
     }
