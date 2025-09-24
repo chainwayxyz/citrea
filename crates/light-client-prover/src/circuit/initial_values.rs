@@ -338,12 +338,12 @@ pub mod bitcoinda {
             }
         },
     ];
-
+    // TODO: Update with real keys
     /// Public keys of the method ID upgrade authority in the Bitcoin DA on Testnet.
     /// 3 out of 5 signatures are required to upgrade method IDs.
     pub const TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8; 33]; 5] = [
         match const_hex::const_decode_to_array(
-            b"03fd24a8555cd34585b80c826f25f7df42862a4f97b6bdaf263a3d1bb368f09790",
+            b"000000000000000000000000000000000000000000000000000000000000000000",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -351,7 +351,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"02a23601cb326cc09f9de3f542b4d8f49216ddf273cfe7e40f50f531a32fc2e78d",
+            b"000000000000000000000000000000000000000000000000000000000000000000",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -359,7 +359,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"033398b6e26dfa0af531bdab96ee926c10b934ea32b38910ba8d444f5f840efd2d",
+            b"000000000000000000000000000000000000000000000000000000000000000000",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -367,7 +367,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"02666dba8e07a8bd4aeb4d2b3b6cda814f8b814e7052ac97a928b01a41a80adea4",
+            b"000000000000000000000000000000000000000000000000000000000000000000",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -375,7 +375,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"03f42d911bb7d9910b026621d20c133b1b193004f043797e472bb2c821e5703716",
+            b"000000000000000000000000000000000000000000000000000000000000000000",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
