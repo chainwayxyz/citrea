@@ -28,11 +28,6 @@ impl BitcoinRpcClient {
             timeout_duration,
         }
     }
-
-    /// Get inner client
-    pub fn inner(&self) -> &Arc<Client> {
-        &self.inner
-    }
 }
 
 #[async_trait]

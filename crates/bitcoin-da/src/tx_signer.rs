@@ -6,13 +6,14 @@ use std::sync::Arc;
 use bitcoin::consensus::encode;
 use bitcoin::{Transaction, Txid};
 use bitcoincore_rpc::json::SignRawTransactionInput;
-use bitcoincore_rpc::{Client, RpcApi};
+use bitcoincore_rpc::RpcApi;
 use tracing::trace;
 
 use crate::error::BitcoinServiceError;
 use crate::helpers::builders::body_builders::DaTxs;
 use crate::helpers::builders::TxWithId;
 use crate::helpers::TransactionKind;
+use crate::rpc_client::BitcoinRpcClient;
 
 pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
 
@@ -62,11 +63,11 @@ impl SignedTxPair {
 
 #[derive(Debug)]
 pub(crate) struct TxSigner {
-    client: Arc<Client>,
+    client: Arc<BitcoinRpcClient>,
 }
 
 impl TxSigner {
-    pub fn new(client: Arc<Client>) -> Self {
+    pub fn new(client: Arc<BitcoinRpcClient>) -> Self {
         Self { client }
     }
 

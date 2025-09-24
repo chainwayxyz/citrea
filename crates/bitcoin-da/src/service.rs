@@ -184,7 +184,7 @@ impl BitcoinService {
         utxo_selection_mode: UtxoSelectionMode,
     ) -> Self {
         Self {
-            tx_signer: TxSigner::new(client.inner().clone()),
+            tx_signer: TxSigner::new(client.clone()),
             client,
             network_constants,
             network,
