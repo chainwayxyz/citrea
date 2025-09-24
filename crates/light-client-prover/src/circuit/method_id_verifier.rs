@@ -14,13 +14,21 @@ pub fn verify_method_id_security_council(
     // EIP-191 prefix + keccak256 → 32-byte prehash
     let prehash = eip191_hash_message(msg);
 
-    // Check that signature indexes are not same and within bounds
-    let mut seen_indexes = std::collections::BTreeSet::new();
+    // Check that signature indices are within bounds
     for &(_, index) in signatures_with_idx {
-        if index >= 5 || !seen_indexes.insert(index) {
-            println!("Invalid or duplicate signature index: {}", index);
+        if index >= 5 {
+            log!("Invalid signature index: {}", index);
             return false;
         }
+    }
+
+    // Check for duplicate indices
+    if signatures_with_idx[0].1 == signatures_with_idx[1].1
+        || signatures_with_idx[0].1 == signatures_with_idx[2].1
+        || signatures_with_idx[1].1 == signatures_with_idx[2].1
+    {
+        println!("Duplicate signature indexes found");
+        return false;
     }
 
     for signature_with_idx in signatures_with_idx.iter() {
