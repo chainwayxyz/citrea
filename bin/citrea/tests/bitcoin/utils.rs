@@ -8,6 +8,7 @@ use anyhow::bail;
 use bitcoin_da::fee::FeeService;
 use bitcoin_da::monitoring::{MonitoringConfig, MonitoringService};
 use bitcoin_da::network_constants::get_network_constants;
+use bitcoin_da::rpc_client::BitcoinRpcClient;
 use bitcoin_da::service::{
     network_to_bitcoin_network, BitcoinService, BitcoinServiceConfig, UtxoSelectionMode,
 };
@@ -174,6 +175,7 @@ pub async fn spawn_bitcoin_da_service(
         }),
         mempool_space_url: None,
         utxo_selection_mode,
+        rpc_timeout_seconds: Some(30),
     };
 
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -184,7 +186,7 @@ pub async fn spawn_bitcoin_da_service(
         network,
     };
 
-    let client = Arc::new(
+    let bitcoin_rpc_client = Arc::new(
         Client::new(
             &da_config.node_url,
             Auth::UserPass(
@@ -196,16 +198,25 @@ pub async fn spawn_bitcoin_da_service(
         .unwrap(),
     );
 
+    let client = Arc::new(BitcoinRpcClient::new(
+        bitcoin_rpc_client.clone(),
+        da_config.rpc_timeout_seconds,
+    ));
+
     let network = network_to_bitcoin_network(&chain_params.network);
     let network_constants = get_network_constants(&network);
     let (monitoring_service, block_rx) = MonitoringService::new(
-        client.clone(),
+        bitcoin_rpc_client.clone(),
         da_config.monitoring.clone(),
         network_constants.finality_depth,
     );
     let monitoring_service = Arc::new(monitoring_service);
 
-    let fee_service = FeeService::new(client.clone(), network, da_config.mempool_space_url.clone());
+    let fee_service = FeeService::new(
+        bitcoin_rpc_client.clone(),
+        network,
+        da_config.mempool_space_url.clone(),
+    );
 
     let service = Arc::new(
         BitcoinService::from_config(
