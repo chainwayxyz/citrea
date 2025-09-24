@@ -6,11 +6,12 @@ import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 import "../lib/WitnessUtils.sol";
 import "./BitcoinLightClient.sol";
 import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
+import "openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 
 /// @title Bridge contract for the Citrea end of Citrea <> Bitcoin bridge
 /// @author Citrea
 
-contract Bridge is Ownable2StepUpgradeable {
+contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     using BTCUtils for bytes;
     using BytesLib for bytes;
     using WitnessUtils for bytes;
@@ -89,6 +90,11 @@ contract Bridge is Ownable2StepUpgradeable {
         _;
     }
 
+    modifier onlyOwnerOrOperator() {
+        require(msg.sender == owner() || msg.sender == operator, "caller is not the owner or operator");
+        _;
+    }
+
     /// @notice Initializes the bridge contract and sets the deposit script
     /// @param _depositPrefix First part of the deposit script expected in the witness field for all L1 deposits 
     /// @param _depositSuffix The suffix of the deposit script that follows the receiver address
@@ -160,7 +166,7 @@ contract Bridge is Ownable2StepUpgradeable {
         Transaction calldata moveTx,
         MerkleProof calldata proof,
         bytes32 shaScriptPubkeys
-    ) external onlySystemOrOperator {
+    ) external onlySystemOrOperator whenNotPaused {
         // We don't need to check if the contract is initialized, as without an `initialize` call and `deposit` calls afterwards,
         // only the system caller can execute a transaction on Citrea, as no addresses have any balance. Thus there's no risk of 
         // `deposit` being called before `initialize` maliciously.
@@ -214,7 +220,7 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @notice Accepts `depositAmount` cBTC from the sender and inserts this withdrawal request of `depositAmount` BTC on Bitcoin into the withdrawals array so that later on can be processed by the operator 
     /// @param txId The txId of the withdrawal transaction on Bitcoin
     /// @param outputId The outputId of the output in the withdrawal transaction
-    function withdraw(bytes32 txId, bytes4 outputId) public payable {
+    function withdraw(bytes32 txId, bytes4 outputId) public payable whenNotPaused {
         require(msg.value == depositAmount, "Invalid withdraw amount");
 
         bytes32 utxoKey = sha256(abi.encodePacked(txId, outputId));
@@ -236,7 +242,7 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param payoutTx Transaction parameters of the payout transaction on Bitcoin
     /// @param blockHeader Block header of the associated Bitcoin block
     /// @param withdrawalAddressPubKey The script pubkey of the user that BTC is withdrawn to, included for extra validation
-    function safeWithdraw(Transaction calldata prepareTx, MerkleProof calldata prepareProof, Transaction calldata payoutTx, bytes calldata blockHeader, bytes memory withdrawalAddressPubKey) external payable {
+    function safeWithdraw(Transaction calldata prepareTx, MerkleProof calldata prepareProof, Transaction calldata payoutTx, bytes calldata blockHeader, bytes memory withdrawalAddressPubKey) external payable whenNotPaused {
         // Validate format and inclusion of the prepare transaction
         require(BTCUtils.validateVin(prepareTx.vin), "Vin is not properly formatted");
         require(BTCUtils.validateVout(prepareTx.vout), "Vout is not properly formatted");
@@ -294,7 +300,7 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @dev Takes in multiple Bitcoin addresses as recipient addresses should be unique
     /// @param txIds the txIds of the withdrawal transactions on Bitcoin
     /// @param outputIds the outputIds of the outputs in the withdrawal transactions
-    function batchWithdraw(bytes32[] calldata txIds, bytes4[] calldata outputIds) external payable {
+    function batchWithdraw(bytes32[] calldata txIds, bytes4[] calldata outputIds) external payable whenNotPaused {
         require(txIds.length == outputIds.length, "Length mismatch");
         require(msg.value == depositAmount * txIds.length, "Invalid withdraw amount");
         uint256 index = withdrawalUTXOs.length;
@@ -405,6 +411,14 @@ contract Bridge is Ownable2StepUpgradeable {
 
     function getAggregatedKey() public view returns (bytes memory) {
         return depositPrefix.slice(2, 32);
+    }
+
+    function pause() external onlyOwnerOrOperator {
+        _pause();
+    }
+
+    function unpause() external onlyOwnerOrOperator {
+        _unpause();
     }
 
     /// @notice Checks if two byte sequences are equal in chunks of 32 bytes
