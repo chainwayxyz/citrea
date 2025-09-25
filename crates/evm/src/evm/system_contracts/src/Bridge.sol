@@ -119,7 +119,8 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         depositSuffix = _depositSuffix;
         depositAmount = _depositAmount;
         // Set initial optimistic withdraw amount to deposit amount minus `payoutTx`'s anchor output amount
-        optimisticWithdrawAmount = _depositAmount - PAYOUT_ANCHOR_OUTPUT_AMOUNT;
+        uint256 _optimisticWithdrawAmount = _depositAmount - PAYOUT_ANCHOR_OUTPUT_AMOUNT;
+        optimisticWithdrawAmount = _optimisticWithdrawAmount;
 
         // Set initial operator to SYSTEM_CALLER
         operator = SYSTEM_CALLER;
@@ -129,7 +130,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         emit OperatorUpdated(address(0), SYSTEM_CALLER);
         emit DepositScriptUpdate(_depositPrefix, _depositSuffix);
         emit FailedDepositVaultUpdated(address(0), address(0x3100000000000000000000000000000000000007));
-        emit OptimisticWithdrawAmountSet(_depositAmount);
+        emit OptimisticWithdrawAmountSet(_optimisticWithdrawAmount);
     }
 
     /// @notice Sets the expected deposit script of the deposit transaction on Bitcoin, contained in the witness
