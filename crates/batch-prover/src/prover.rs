@@ -369,7 +369,11 @@ where
 
         *commitments = filtered_commitments;
 
-        let partitions = self.partition_commitments(commitments, mode)?;
+        let partitions = self.partition_commitments(
+            commitments,
+            mode,
+            self.prover_config.max_commitments_per_proof,
+        )?;
         info!("Partitioned commitments into {} parts", partitions.len());
 
         Ok(partitions)
@@ -477,10 +481,12 @@ where
     /// # Arguments
     /// * `commitments` - A slice of sequencer commitments to partition
     /// * `mode` - The partition mode to use for partitioning the commitments
+    /// * `max_commitments_per_proof` - Optional maximum number of commitments per proof partition
     fn partition_commitments<'a>(
         &self,
         commitments: &'a [SequencerCommitment],
         mode: PartitionMode,
+        max_commitments_per_proof: Option<usize>,
     ) -> anyhow::Result<Vec<Partition<'a>>> {
         let mut state = PartitionState::new(commitments, self.ledger_db.clone())?;
 
@@ -495,6 +501,7 @@ where
 
         let mut cumulative_state_diff = StateDiff::new();
         let mut commitment_start_height = state.next_partition_start_height();
+        let mut commitments_in_current_partition = 0usize;
 
         for (i, commitment) in commitments.iter().enumerate() {
             let commitment_end_height = commitment.l2_end_block_number;
@@ -507,6 +514,7 @@ where
             // if first commitment, no need to check any condition
             if i == 0 {
                 cumulative_state_diff = commitment_state_diff;
+                commitments_in_current_partition = 1;
                 continue;
             }
 
@@ -516,11 +524,22 @@ where
                 "Commitments with index gap must be filtered before calling partition"
             );
 
+            // check commitment count limit, before adding the current commitment.
+            if let Some(max_count) = max_commitments_per_proof {
+                if commitments_in_current_partition >= max_count {
+                    cumulative_state_diff = commitment_state_diff;
+                    state.add_partition(i - 1, PartitionReason::CommitmentCount)?;
+                    commitments_in_current_partition = 1;
+                    continue;
+                }
+            }
+
             // check spec change
             let current_spec = fork_from_block_number(commitment_end_height);
             if current_spec != fork_from_block_number(commitments[i - 1].l2_end_block_number) {
                 cumulative_state_diff = commitment_state_diff;
                 state.add_partition(i - 1, PartitionReason::SpecChange)?;
+                commitments_in_current_partition = 1;
                 continue;
             }
 
@@ -535,8 +554,11 @@ where
             if compressed_diff.len() > MAX_TX_BODY_SIZE {
                 cumulative_state_diff = commitment_state_diff;
                 state.add_partition(i - 1, PartitionReason::StateDiff)?;
+                commitments_in_current_partition = 1;
                 continue;
             }
+
+            commitments_in_current_partition += 1;
         }
 
         // Add all remaining commitments as last partition
