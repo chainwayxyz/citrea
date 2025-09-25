@@ -67,6 +67,8 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
 
     mapping(bytes32 => bool) public processedTxIds;
     mapping(bytes32 => bool) public usedWithdrawalUTXO;
+
+    uint256 public optimisticWithdrawAmount;
     
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
@@ -77,6 +79,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     event OperatorUpdated(address oldOperator, address newOperator);
     event FailedDepositVaultUpdated(address oldVault, address newVault);
     event DepositTransferFailed(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
+    event OptimisticWithdrawAmountSet(uint256 amount);
 
     modifier onlySystem() {
         require(msg.sender == SYSTEM_CALLER, "caller is not the system caller");
@@ -114,6 +117,8 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         depositPrefix = _depositPrefix;
         depositSuffix = _depositSuffix;
         depositAmount = _depositAmount;
+        // Set initial optimistic withdraw amount to deposit amount
+        optimisticWithdrawAmount = _depositAmount;
 
         // Set initial operator to SYSTEM_CALLER
         operator = SYSTEM_CALLER;
@@ -123,6 +128,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         emit OperatorUpdated(address(0), SYSTEM_CALLER);
         emit DepositScriptUpdate(_depositPrefix, _depositSuffix);
         emit FailedDepositVaultUpdated(address(0), address(0x3100000000000000000000000000000000000007));
+        emit OptimisticWithdrawAmountSet(_depositAmount);
     }
 
     /// @notice Sets the expected deposit script of the deposit transaction on Bitcoin, contained in the witness
@@ -159,6 +165,15 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         address oldVault = failedDepositVault;
         failedDepositVault = _failedDepositVault;
         emit FailedDepositVaultUpdated(oldVault, _failedDepositVault);
+    }
+
+    /// @notice Sets the expected withdraw amount in the output of `payoutTx` in `safeWithdraw`
+    /// @notice This is the BTC amount user actually receives on Bitcoin when they withdraw
+    /// @param _optimisticWithdrawAmount The new optimistic withdraw amount
+    function setOptimisticWithdrawAmount(uint256 _optimisticWithdrawAmount) external onlyOwner {
+        require(_optimisticWithdrawAmount != 0, "Optimistic withdraw amount cannot be 0");
+        optimisticWithdrawAmount = _optimisticWithdrawAmount;
+        emit OptimisticWithdrawAmountSet(_optimisticWithdrawAmount);
     }
 
     /// @notice Checks if the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
@@ -265,6 +280,9 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         bytes memory payoutInput = payoutTx.vin.extractInputAtIndex(0);
         bytes memory payoutOutput = payoutTx.vout.extractOutputAtIndex(0);
         bytes memory payoutWitness = WitnessUtils.extractWitnessAtIndex(payoutTx.witness, 0);
+
+        // Assert that the payout output has the expected optimistic withdraw amount
+        require(uint256(payoutOutput.extractValue()) == optimisticWithdrawAmount, "Payout output value does not match optimistic withdraw amount");
 
         // Assert the user provided script pubkey is the same as the one in the payout transaction's output
         (uint256 varIntDataLen, uint256 pubKeyLen) = BTCUtils.parseVarIntAt(payoutOutput, 8);
