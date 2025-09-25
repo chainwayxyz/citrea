@@ -13,6 +13,7 @@ use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_evm::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
 use citrea_sequencer::MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK;
 use citrea_stf::genesis_config::GenesisPaths;
+use sov_db::ledger_db::migrations::copy_db_dir_recursive;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::services::da::DaService;
 use tokio::time::sleep;
@@ -783,5 +784,106 @@ async fn test_sequencer_halt_resume_commitments() -> Result<(), anyhow::Error> {
     assert_eq!(commitment.l2_end_block_number, 6);
 
     seq_task.graceful_shutdown();
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging(tracing::Level::DEBUG);
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
+
+    let assert_fee_rate_of_sequencer = async |sequencer_db_dir: &std::path::PathBuf, sequencer_config: SequencerConfig, expected_l1_fee_rate: u128| {
+        let rollup_config = create_default_rollup_config(
+            true,
+            &sequencer_db_dir,
+            &da_db_dir,
+            NodeMode::SequencerNode,
+            None,
+        );
+
+        let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+        let seq_task = start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
+            None,
+            rollup_config,
+            Some(sequencer_config),
+            None,
+            false,
+        )
+        .await;
+
+        let seq_port = seq_port_rx.await.unwrap();
+        let seq_test_client = make_test_client(seq_port).await.unwrap();
+        {
+            let current_height = seq_test_client.ledger_get_head_l2_block_height().await.unwrap();
+            seq_test_client.send_publish_batch_request().await;
+            wait_for_l2_block(&seq_test_client, current_height + 1, None).await;
+        }
+
+        let block = seq_test_client
+            .ledger_get_head_l2_block()
+            .await
+            .expect("Could not get head block")
+            .expect("There should be a head block");
+
+        let l1_fee_rate: u128 = block.header.l1_fee_rate.to();
+
+        assert_eq!(expected_l1_fee_rate, l1_fee_rate);
+        // close sequencer
+        seq_task.graceful_shutdown();
+    };
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let fee_rate_from_da = da_service.get_fee_rate().await?;
+
+    assert_fee_rate_of_sequencer(&sequencer_db_dir, SequencerConfig::default(), fee_rate_from_da).await;
+    println!("First fee rate is as expected: {fee_rate_from_da}");
+    
+    // Copy the db to a new path with the same contents because
+    // the lock is not released on the db directory even though the task is aborted
+    let _ = copy_db_dir_recursive(
+        &sequencer_db_dir,
+        &storage_dir.path().join("sequencer_copy"),
+    );
+    let sequencer_db_dir = storage_dir.path().join("sequencer_copy");
+
+    let l1_fee_rate_multiplier = 0.8;
+    let expected_rate = (l1_fee_rate_multiplier * fee_rate_from_da as f64) as u128;
+
+    assert_fee_rate_of_sequencer(
+        &sequencer_db_dir,
+        SequencerConfig {
+            l1_fee_rate_multiplier,
+            ..Default::default()
+        },
+        expected_rate
+    ).await;
+    println!("Second fee rate is as expected: {expected_rate}");
+
+    let _ = copy_db_dir_recursive(
+        &sequencer_db_dir,
+        &storage_dir.path().join("sequencer_copy2"),
+    );
+    let sequencer_db_dir = storage_dir.path().join("sequencer_copy2");
+
+    let l1_fee_rate_multiplier = 10u64.pow(10) as f64 / 4.0; // 10^10/4: sat/vb -> wei/byte
+    let max_l1_fee_rate = fee_rate_from_da as u64 / 2; // sat/vb
+    let expected_rate =  max_l1_fee_rate as u128 * l1_fee_rate_multiplier as u128;
+
+    assert_fee_rate_of_sequencer(
+        &sequencer_db_dir,
+        SequencerConfig {
+            l1_fee_rate_multiplier,
+            max_l1_fee_rate,
+            ..Default::default()
+        },
+        expected_rate
+    ).await;
+    println!("Third fee rate is as expected: {expected_rate}");
+
     Ok(())
 }
