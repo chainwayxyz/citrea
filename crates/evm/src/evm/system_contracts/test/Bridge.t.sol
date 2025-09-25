@@ -148,6 +148,12 @@ contract MockSchnorrPrecompile {
   }
 }
 
+contract MockSchnorrPrecompileAlwaysAccept {
+    fallback(bytes calldata) external returns (bytes memory) {
+        return abi.encode(bytes32(hex"0000000000000000000000000000000000000000000000000000000000000001"));
+    }
+}
+
 contract BridgeTest is Test {
     using BytesLib for bytes;
     using BTCUtils for bytes;
@@ -679,6 +685,34 @@ contract BridgeTest is Test {
         assertEq(_outputId, hex"01000000");
     }
 
+    function testSafeWithdrawWithLargeVarIntInPayoutOutput() public {
+        doDeposit();
+        assertEq(receiver.balance, DEPOSIT_AMOUNT);
+        prepareBitcoinLightClientForSafeWithdraw();
+        vm.prank(receiver);
+        (Bridge.Transaction memory prepareTx, Bridge.MerkleProof memory proof, Bridge.Transaction memory payoutTx) = safeWithdrawTxInfo();
+        // varInt for the script pubkey is changed from `0x22` to `0xfd2200` to simulate a larger varint
+        payoutTx.vout = hex"016043993b00000000fd220051209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90";
+        bytes memory header = hex"00000030a49f936b31bbd053f48f8b3e55666124607917271e93d1d4c942f2139bbe9a2e402f348e5912a77a6273511b017659b8fcb9484b73241527178e4b924848e9b062802c68ffff7f2001000000";
+        // Effectively disabling the signature check as we are only testing the varint parsing
+        vm.etch(bridge.SCHNORR_VERIFIER_PRECOMPILE(), address(new MockSchnorrPrecompileAlwaysAccept()).code);
+        bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"51209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90");
+    }
+
+    function testSafeWithdrawWithArbitraryVarIntInPayoutOutput() public {
+        doDeposit();
+        assertEq(receiver.balance, DEPOSIT_AMOUNT);
+        prepareBitcoinLightClientForSafeWithdraw();
+        vm.prank(receiver);
+        (Bridge.Transaction memory prepareTx, Bridge.MerkleProof memory proof, Bridge.Transaction memory payoutTx) = safeWithdrawTxInfo();
+        // varInt for the script pubkey is changed from `0x22` to `0x25` to simulate a non P2TR script pubkey, added `aabbcc` as the extra 3 bytes
+        payoutTx.vout = hex"016043993b0000000025aabbcc51209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90";
+        bytes memory header = hex"00000030a49f936b31bbd053f48f8b3e55666124607917271e93d1d4c942f2139bbe9a2e402f348e5912a77a6273511b017659b8fcb9484b73241527178e4b924848e9b062802c68ffff7f2001000000";
+        // Effectively disabling the signature check as we are only testing the varint parsing
+        vm.etch(bridge.SCHNORR_VERIFIER_PRECOMPILE(), address(new MockSchnorrPrecompileAlwaysAccept()).code);
+        bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"aabbcc51209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90");
+    }
+
     function testP2TRTransactionTypeConfusionAttack() public {
         /// This attack was the reason why we are checking the signature in the deposit
         /// Block: 00000020f085f6d9937a2b0c7fa26b6ff01f68d4402f7c623c6ef7d3d823eb72b93e810ebbadea60e50c38e15ed0d73f2eba6f19a610197df375ff6dc660e146f164e3be13c7e267ffff7f200100000003020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff0402794500ffffffff023854000000000000160014248d318545a234807b681bf73a3f15b05059b26c0000000000000000266a24aa21a9edae04630ee1c87c9dd0081ff8e4282a1b57b5e347d44393bcad95a6f9da493a91012000000000000000000000000000000000000000000000000000000000000000000000000002000000000113a4712210173459f60030b23df8d16b4c54c0c954e9973e90553af461ccb8d7e20000000000fdffffff417ac57b8ab32af59b63ba76de04a520d74c671dd96167b6eda6b604a03b99930000000000fdffffff489f8c5445b02331739c197b49f3138de3ed7572bd0a921100160a4773bdab6a0000000000fdffffffec523d11ba4596d1be19d542b84cd07f2a640e336c7af3905419de497541059e0000000000fdffffff7f91260e6d3dcd8245fe5188070dbed4df8c06e8cb76ab8d4ffc165da631e5f30000000000fdffffff928b2dab41372bbb59ece7d4a8fa7cc353b1eb9cb60f52e8a44a8ccb95cf48240000000000fdffffffd99af548dfe6253a789719d34b92313930c64e726e3f76f36b946f1c86918f330000000000fdffffff816ad1df63ccbc6c95ac2d93cee9d8449d734d5848b180f36cccb06d15101f200000000000fdfffffff5005b06c476ead74043fdde6c9dffd96f06b4f14f01e492af3231ae46f393c60000000000fdffffff15affb2e934b58085b4614d96873d8af931ce805204496e6005174059235fc7a0000000000fdffffff10ec887391420258f2aeddacf84a8d2303eeb80bc7139231a21b57dd4a7d32d70000000000fdffffff677d05a677be69bff1ec637c3ff3a265cdbffa8777f2e79d31365d40c94c43880000000000fdffffff080edddbc74d980964f052f32245abae7b157d9871b9722c6e0ddbdbbe9d53a70000000000fdffffff4c53c8af116eec8d120de8a3b978744992d7a1edfe35c6412533451c02573f6c0000000000fdffffffa64a5ccfd5df652b392ebac670c5d70be4249682bacd3bda89a17aa995c5a4ca0000000000fdffffff40355c68d7a1b1f6e9052aa6a7ad7f974831b265c6f1a1be8474f9a0903c2d930000000000fdffffff6a0ea43a7905d2c984b5aaff03dcf2e2c80de3fcdc5781b7d790e6ab15b816860000000000fdffffff94a28bb9ad967039e53b5060d8acbdd2605a8af057eccee82b8b16fd0dfd7f600000000000fdffffffed2f9c66a4fa254f90b2072b25c458bc1f470f009a761de2770d5b8912a915d60000000000fdffffff0100ca9a3b00000000220020f786191b137fda9907fcaa13d402eb7ecda3f30ea4c9712cc9f1d21255a6575901408619f0c6243850afd3f15bcb7f3f2a603241a4c226285e78bb02ec4670f48224a13f8006ea1d07677f1c0b393d047cb44e0091e45d11aed2fccf046ff7386df8014081bcde3cc854bdd3ff5b707ff7288f933951d1154a9caccb8ab5182f96ee40537b97510fd8b26ef1e464c03794bf323a402c5c722dd945892e729a8273fc7bc70140b757ba284bcac649fa87c4aca1dbe5327815cd2666dcddf2064eb7dbeb43844e412291a65640367025ea9a9a5be2d2c2f9178749c574c8c6ed0ebc6be3848f3a0140372ea9d07078f8931903910e985246d8342e32183381c1048d3633468cdc66cb84b18bb2eb48ecc5c25558c2a475ccf56b0c9a0a7e1be9074fa4914fefca926601407a0ac9a61168e99b388b66ca702013f7337e7623ccd0c0096dffb1f2570e8cfbf9131b5a0e9a0348e3693c3c767ef99d774bc5ec796c17561ccb3f124b4563de01403b43becb1e2386c1d0309d159286ad30d09bcce6e7dca0c2166ebddaeaca4da00d2334a47247bb9fafe8206f15b176a97c223aba31117b83c07eac3f33fc44270140d7693b302b0ebde832b079d91635d8de3441b408d1732672656e24bc0ff716de512d62a1bb3212d509d599df6f329858198607bd74a36a9d1f3105c19632f7de01400cd818c0b9fc8cdf0ad97c23fada539277dd6dfbd8682c49158769cd5387fdefd135bc6b518c838e6056325a24243e76e715b418d5de313dd8ee7a9eff8e82b80140c2ca419d28872521a841085f8f41aaacb0b58cc47fab0bd119e5f3097a0564bda7b83094f210ef18a0a17c1d9bbd58b59ed9e4b77374beb4977d02ac4b71d83601409485c252427102e71df32e977d600031d09c08fd94f0e874e237d427b2f06ccfb51ef52c9b49da1be9df9999da96650f1416cf9067cd0bebf3bac84d2dafa4ca0140a232453a3fbcebc8397dee7362fe29ce2c2f904ef41a5c7c51d47a1b6c88f9e72ba144db9af3f146eda5b156bdc18dcf9b18fbf519872a1049165b0dbf230eb701407073a81e41f62bf6202358d1e4a4ff60800b3f930c61fafd8bb44ed34ca7efec9133b5f4a01bdf194a27a154ef719119514a393bae5722e7c66de62a9baa2ffd0140b4364ca6bfae918cffafafe8fad58029c0d211c04f1d20ce62216fc99358961ec25431e349d94777c535b0c1f9208c12c24fb3d5900d22f74d558323a2c3a6520140b0c324436528a3715b64e4f1ed549679c9018372d6441cb1c583dd12333d00d7ffdd00003901219dba09688216ff6fe332124f54c89dea14deecfe9d44af482e0140885b46403a09faecef159257935088e43f407db47ce7311e82690bafd53e7027340b4f2d85f4e1290ea6a83d0d4e2c591f2c0997a5aeacd9ddb3c598003c94940140e4f5edeab5e683eaaac16a1cf41ae20c463946f70f558ae92c58668099a467bad8a826f5a3ab0b6376ff5d0fadf690644b1efbc5d0f05d0c3faf7ac291bd4b010140ca0ee6c9bbce463899774580c92419b6c25842c39ee4470bdbdbef493ac9135c82bf21a337e6fb00a755c99db57181bc41bb991e4021bd2294c2a80e6be1aef3014083483a725d27b5023a2fd4f1b55fdc602e98ca476e9d25c6ac5387418295af9ffdabdc7cc82d5b5948cd2c8aacc14ffadb92abe8ffe3a90a457b300129283212014091e54e3ac1dedec411462059fa1e7be7ab14d8add572229b4f3003af04ce241b1753bc648738f3514704b2a1f73cef7b5ea9542fb6927e649a2067ed96a70d227845000002000000000101eb8e8bf82230bd190803be04f9a52e0264b7b6a8f0f09e8c3d68b9eb1ebb36be0000000000fdffffff01f0a29a3b00000000160014f702d81dbc52b016d339b966ad160e0a810c899a0301014a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac00630663697472656114310000000000000000000000000000000000006908000000003b9aca0068026d5100000000
@@ -869,7 +903,13 @@ contract BridgeTest is Test {
 
     function doSafeWithdraw() public {
         vm.prank(receiver);
-        Bridge.Transaction memory prepareTx = Bridge.Transaction(
+        (Bridge.Transaction memory prepareTx, Bridge.MerkleProof memory proof, Bridge.Transaction memory payoutTx) = safeWithdrawTxInfo();
+        bytes memory header = hex"00000030a49f936b31bbd053f48f8b3e55666124607917271e93d1d4c942f2139bbe9a2e402f348e5912a77a6273511b017659b8fcb9484b73241527178e4b924848e9b062802c68ffff7f2001000000";
+        bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"51209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90");
+    }
+
+    function safeWithdrawTxInfo() public returns (Bridge.Transaction memory prepareTx, Bridge.MerkleProof memory proof, Bridge.Transaction memory payoutTx) {
+        prepareTx = Bridge.Transaction(
             hex"02000000", 
             hex"0001", 
             hex"0180f01d40c4c53e10a58e0e63d84ee369173c3b03e9c4787f33416beefac82f910000000000fdffffff", 
@@ -877,12 +917,12 @@ contract BridgeTest is Test {
             hex"01404344971b6185f8724449b964393220cf37cbc124727ad29df7540ee9048f47a704845f8f3d7c2c240ae904c45de08b0187cc41745d5266b8e5a5d092d30ed19b",
             hex"d5000000"
         );
-        Bridge.MerkleProof memory proof = Bridge.MerkleProof(
+        proof = Bridge.MerkleProof(
             hex"f70aa9fc12ea0cea3947a2892e8b4c2970b1d7f1cb3e2411dc83141d17b1ce5573a03a23cb4e62a4ae2eb692ff0cef81f6289472694613dd83a3e40251ad6dbf",
             INITIAL_BLOCK_NUMBER + 1,
             2
         );
-        Bridge.Transaction memory payoutTx = Bridge.Transaction(
+        payoutTx = Bridge.Transaction(
             hex"02000000", 
             hex"0001", 
             hex"019e7138d6bebcc9cab3de962a1d2dd35163d49a0f9053ad1afc9cd5539249af780100000000fdffffff", 
@@ -890,8 +930,6 @@ contract BridgeTest is Test {
             hex"0141834e7a701035bb446dd4112c3a0498c1d7b44f89000f2c14e9a3ef8c04a05e6b1faa5727d1a7a62e6d46b7942ee17cb6766bde46f5b5d1e4337c57240e3c712a83",
             hex"00000000"
         );
-        bytes memory header = hex"00000030a49f936b31bbd053f48f8b3e55666124607917271e93d1d4c942f2139bbe9a2e402f348e5912a77a6273511b017659b8fcb9484b73241527178e4b924848e9b062802c68ffff7f2001000000";
-        bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"51209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90");
     }
 
     function doBatchWithdraw() public returns (bytes32[] memory txIds, bytes4[] memory outputIds) {

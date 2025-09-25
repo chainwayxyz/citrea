@@ -267,7 +267,8 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         bytes memory payoutWitness = WitnessUtils.extractWitnessAtIndex(payoutTx.witness, 0);
 
         // Assert the user provided script pubkey is the same as the one in the payout transaction's output
-        require(isBytesEqual(payoutOutput.slice(9, 34), withdrawalAddressPubKey), "Invalid payout output script pubkey");
+        (uint256 varIntDataLen, uint256 pubKeyLen) = BTCUtils.parseVarIntAt(payoutOutput, 8);
+        require(isBytesEqual(payoutOutput.slice(9 + varIntDataLen, pubKeyLen), withdrawalAddressPubKey), "Invalid payout output script pubkey");
 
         // Payout tx should spend the prepare tx, so we need to check if the txId of the input matches the txId of the prepare transaction
         bytes32 spentTxId = payoutInput.extractInputTxIdLE();
