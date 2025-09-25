@@ -15,6 +15,7 @@ abstract contract FeeVault is Ownable2StepUpgradeable {
 
     uint256[50] private __gap;
 
+    event Withdrawal(address recipient, uint256 amount);
     event RecipientUpdated(address oldRecipient, address newRecipient);
     event MinWithdrawUpdated(uint256 oldMinWithdraw, uint256 newMinWithdraw);
     
@@ -22,10 +23,13 @@ abstract contract FeeVault is Ownable2StepUpgradeable {
 
     /// @notice Withdraws accumulated fees to recipient if enough funds are accumulated
     function withdraw() external {
-        require(recipient != address(0), "Recipient is not set");
-        require(address(this).balance >= minWithdraw, "Withdrawal amount must be greater than minimum withdraw amount");
-        (bool success, ) = payable(recipient).call{value: address(this).balance}("");
+        address _recipient = recipient;
+        require(_recipient != address(0), "Recipient is not set");
+        uint256 amount = address(this).balance;
+        require(amount >= minWithdraw, "Withdrawal amount must be greater than minimum withdraw amount");
+        (bool success, ) = payable(_recipient).call{value: amount}("");
         require(success, "Transfer failed");
+        emit Withdrawal(_recipient, amount);
     }
 
     /// @notice Sets the new recipient address for the withdrawn fees
