@@ -281,7 +281,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         bytes memory payoutOutput = payoutTx.vout.extractOutputAtIndex(0);
         bytes memory payoutWitness = WitnessUtils.extractWitnessAtIndex(payoutTx.witness, 0);
 
-        // Assert that the payout output has the expected optimistic withdraw amount
+        // Assert that the payout output value is the expected optimistic withdraw amount
         require(uint256(payoutOutput.extractValue()) == optimisticWithdrawAmount, "Payout output value does not match optimistic withdraw amount");
 
         // Assert the user provided script pubkey is the same as the one in the payout transaction's output
