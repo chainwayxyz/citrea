@@ -117,7 +117,7 @@ struct BatchProofMethodIdBody {
     /// New method id of upcoming fork
     method_id: [u32; 8],
     /// Activation L2 height of the new method id
-    activation_height: u64,
+    activation_l2_height: u64,
 }
 ```
 
