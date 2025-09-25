@@ -908,7 +908,7 @@ contract BridgeTest is Test {
         bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"51209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90");
     }
 
-    function safeWithdrawTxInfo() public returns (Bridge.Transaction memory prepareTx, Bridge.MerkleProof memory proof, Bridge.Transaction memory payoutTx) {
+    function safeWithdrawTxInfo() public pure returns (Bridge.Transaction memory prepareTx, Bridge.MerkleProof memory proof, Bridge.Transaction memory payoutTx) {
         prepareTx = Bridge.Transaction(
             hex"02000000", 
             hex"0001", 
