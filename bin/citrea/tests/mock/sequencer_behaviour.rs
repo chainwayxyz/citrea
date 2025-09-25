@@ -788,13 +788,17 @@ async fn test_sequencer_halt_resume_commitments() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
+async fn test_sequencer_l1_fee_params() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
 
+    // starts sequencer task
+    // publishes one L2 block
+    // checks the L1 fee rate of the block
+    // stops the sequencer task
     let assert_fee_rate_of_sequencer = async |sequencer_db_dir: &std::path::PathBuf, sequencer_config: SequencerConfig, expected_l1_fee_rate: u128| {
         let rollup_config = create_default_rollup_config(
             true,
@@ -830,7 +834,6 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             .await
             .expect("Could not get head block")
             .expect("There should be a head block");
-
         let l1_fee_rate: u128 = block.header.l1_fee_rate.to();
 
         assert_eq!(expected_l1_fee_rate, l1_fee_rate);
@@ -841,7 +844,6 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     let fee_rate_from_da = da_service.get_fee_rate().await?;
 
     assert_fee_rate_of_sequencer(&sequencer_db_dir, SequencerConfig::default(), fee_rate_from_da).await;
-    println!("First fee rate is as expected: {fee_rate_from_da}");
     
     // Copy the db to a new path with the same contents because
     // the lock is not released on the db directory even though the task is aborted
@@ -851,8 +853,9 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     );
     let sequencer_db_dir = storage_dir.path().join("sequencer_copy");
 
+    // Note that mock da returns 10 wei/byte as the mock fee rate
     let l1_fee_rate_multiplier = 0.8;
-    let expected_rate = (l1_fee_rate_multiplier * fee_rate_from_da as f64) as u128;
+    let expected_rate = 8; 
 
     assert_fee_rate_of_sequencer(
         &sequencer_db_dir,
@@ -862,7 +865,6 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
         },
         expected_rate
     ).await;
-    println!("Second fee rate is as expected: {expected_rate}");
 
     let _ = copy_db_dir_recursive(
         &sequencer_db_dir,
@@ -870,8 +872,12 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
     );
     let sequencer_db_dir = storage_dir.path().join("sequencer_copy2");
 
-    let l1_fee_rate_multiplier = 10u64.pow(10) as f64 / 4.0; // 10^10/4: sat/vb -> wei/byte
-    let max_l1_fee_rate = fee_rate_from_da as u64 / 2; // sat/vb
+    // 10^10/4: sat/vb -> wei/byte
+    let l1_fee_rate_multiplier = 10u64.pow(10) as f64 / 4.0; // so l1 fee rate becomes 10 sat/vb
+
+    let max_l1_fee_rate = 5; // set max to 5 sat/vb
+
+    // we expect l1 fee rate to be limited by 5 sat/vb =  5 * 10^10 /4 wei/sat
     let expected_rate =  max_l1_fee_rate as u128 * l1_fee_rate_multiplier as u128;
 
     assert_fee_rate_of_sequencer(
@@ -883,7 +889,6 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
         },
         expected_rate
     ).await;
-    println!("Third fee rate is as expected: {expected_rate}");
 
     Ok(())
 }
