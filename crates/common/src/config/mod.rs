@@ -253,6 +253,8 @@ pub struct SequencerConfig {
     pub bridge_initialize_params: String,
     /// L1 fee rate multiplier
     pub l1_fee_rate_multiplier: f64,
+    /// Maximum L1 fee rate (sat/vbyte)
+    pub max_l1_fee_rate: u64,
 }
 
 impl Default for SequencerConfig {
@@ -268,6 +270,7 @@ impl Default for SequencerConfig {
             bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
             mempool_conf: Default::default(),
             l1_fee_rate_multiplier: 1.0,
+            max_l1_fee_rate: 40, // mock da returns 10 sat/byte, so we set it to 40/4 = 10 sat/byte
         }
     }
 }
@@ -284,6 +287,7 @@ impl FromEnv for SequencerConfig {
             block_production_interval_ms: read_env("BLOCK_PRODUCTION_INTERVAL_MS")?.parse()?,
             bridge_initialize_params: read_env("BRIDGE_INITIALIZE_PARAMS")?,
             l1_fee_rate_multiplier: read_env("L1_FEE_RATE_MULTIPLIER")?.parse()?,
+            max_l1_fee_rate: read_env("MAX_L1_FEE_RATE")?.parse()?,
         })
     }
 }
@@ -537,6 +541,7 @@ mod tests {
             base_fee_tx_size = 200
             max_account_slots = 16
             l1_fee_rate_multiplier = 0.75
+            max_l1_fee_rate = 10
         "#;
 
         let config_file = create_config_from(config);
@@ -562,6 +567,7 @@ mod tests {
             block_production_interval_ms: 1000,
             bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
             l1_fee_rate_multiplier: 0.75,
+            max_l1_fee_rate: 10,
         };
         assert_eq!(config, expected);
     }
@@ -601,7 +607,8 @@ mod tests {
         std::env::set_var("MAX_ACCOUNT_SLOTS", "16");
         std::env::set_var("BRIDGE_INITIALIZE_PARAMS", "000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000");
         std::env::set_var("L1_FEE_RATE_MULTIPLIER", "1.0");
-        
+        std::env::set_var("MAX_L1_FEE_RATE", "40");
+
         let sequencer_config = SequencerConfig::from_env().unwrap();
 
         let expected = SequencerConfig {
@@ -623,6 +630,7 @@ mod tests {
             block_production_interval_ms: 1000,
             bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
             l1_fee_rate_multiplier: 1.0,
+            max_l1_fee_rate: 40,
         };
         assert_eq!(sequencer_config, expected);
     }
