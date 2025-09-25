@@ -465,7 +465,7 @@ async fn test_l1_fee_failed_transactions() {
 
 /// Test that persistent storage cleanup works correctly after restart
 ///
-/// This test verifies that Reth's mempool maintenance properly synchronizes with
+/// This test verifies that Citrea properly synchronizes with
 /// persistent storage and correctly handles the mempool state across node restarts.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_persistent_storage_cleanup() {
