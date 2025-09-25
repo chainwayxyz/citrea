@@ -2,6 +2,9 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use alloy_primitives::{eip191_hash_message, B256};
+use alloy_signer::SignerSync;
+use alloy_signer_local::PrivateKeySigner;
 use rand::{thread_rng, Rng};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
@@ -9,7 +12,8 @@ use sov_modules_api::{WorkingSet, Zkvm};
 use sov_modules_core::Storage;
 use sov_prover_storage_manager::{Config, ProverStorage, ProverStorageManager};
 use sov_rollup_interface::da::{
-    BatchProofMethodId, BlobReaderTrait, DaVerifier, DataOnDa, SequencerCommitment,
+    BatchProofMethodId, BatchProofMethodIdBody, BlobReaderTrait, DaVerifier, DataOnDa,
+    SequencerCommitment,
 };
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
@@ -18,6 +22,15 @@ use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutp
 
 use crate::circuit::accessors::ChunkAccessor;
 use crate::circuit::LightClientProofCircuit;
+
+/// Test private keys used for generating signatures in tests
+pub const TEST_PRIVATE_KEYS: [&str; 5] = [
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9076",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9075",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9074",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9073",
+];
 
 pub(crate) fn create_mock_sequencer_commitment(
     index: u32,
@@ -189,14 +202,92 @@ pub(crate) fn create_prev_lcp_serialized(
     mock_proof.encode_to_vec()
 }
 
+/// Converts a vector of signatures in Vec<u8> format to an array of signatures in [u8; 64] format
+pub(crate) fn from_vec_to_sigs(vec: Vec<(Vec<u8>, u8)>) -> [([u8; 64], u8); 3] {
+    let mut sigs = Vec::new();
+    for (v, i) in vec.into_iter() {
+        sigs.push((v.try_into().unwrap(), i));
+    }
+    sigs.try_into().unwrap()
+}
+
+/// Generates 5 valid keypairs and returns the public keys and signers from the given private keys
+pub(crate) fn generate_initial_pub_keys_with_signers_from_pks(
+    private_keys: [[u8; 32]; 5],
+) -> ([[u8; 33]; 5], Vec<PrivateKeySigner>) {
+    let mut initial_da_pubkeys = [[0u8; 33]; 5];
+    let mut signers = Vec::new();
+
+    // Generate 5 valid keypairs and signatures
+    for (i, secret_key) in private_keys.iter().enumerate() {
+        let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+        let verifying_key = signer.credential().verifying_key();
+        let pubkey = verifying_key.to_sec1_bytes();
+        initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+        signers.push(signer);
+    }
+
+    (initial_da_pubkeys, signers)
+}
+
+/// Generates 5 valid keypairs and returns the public keys and signers
+pub(crate) fn generate_initial_pub_keys_with_signers() -> ([[u8; 33]; 5], Vec<PrivateKeySigner>) {
+    let mut initial_da_pubkeys = [[0u8; 33]; 5];
+    let mut signers = Vec::new();
+
+    // Generate 5 valid keypairs and signatures
+    for (i, public_key) in initial_da_pubkeys.iter_mut().enumerate() {
+        let secret_key = [i as u8 + 1; 32];
+        let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+        let verifying_key = signer.credential().verifying_key();
+        let pubkey = verifying_key.to_sec1_bytes();
+        *public_key = pubkey.to_vec().try_into().unwrap();
+        signers.push(signer);
+    }
+
+    (initial_da_pubkeys, signers)
+}
+
+/// Creates 3 valid signatures from the first 3 signers for the given prehash
+pub(crate) fn create_valid_signatures(
+    signers: &[PrivateKeySigner],
+    prehash: &B256,
+) -> [([u8; 64], u8); 3] {
+    let mut signatures_in_inscription = Vec::new();
+
+    for (i, signer) in signers.iter().enumerate().take(3) {
+        let sig = signer.sign_hash_sync(prehash).unwrap();
+        let signature = sig.as_bytes()[0..64].to_vec();
+        signatures_in_inscription.push((signature, i as u8));
+    }
+
+    from_vec_to_sigs(signatures_in_inscription)
+}
+
 pub(crate) fn create_new_method_id_tx(
     activation_height: u64,
     new_method_id: [u32; 8],
     pub_key: [u8; 32],
 ) -> MockBlob {
-    let da_data = DataOnDa::BatchProofMethodId(BatchProofMethodId {
-        method_id: new_method_id,
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let msg = borsh::to_vec(&BatchProofMethodIdBody {
         activation_l2_height: activation_height,
+        method_id: new_method_id,
+    })
+    .unwrap();
+
+    let (_initial_pubkeys, signers) = generate_initial_pub_keys_with_signers_from_pks(pk_bytes_arr);
+    let prehash = eip191_hash_message(&msg);
+    let signatures_with_index = create_valid_signatures(&signers, &prehash);
+
+    let da_data = DataOnDa::BatchProofMethodId(BatchProofMethodId {
+        body: BatchProofMethodIdBody {
+            method_id: new_method_id,
+            activation_l2_height: activation_height,
+        },
+        signatures_with_index,
     });
 
     let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
@@ -277,7 +368,7 @@ impl NativeCircuitRunner {
         inital_batch_proof_method_ids: Vec<(u64, [u32; 8])>,
         batch_prover_da_pub_key: &[u8],
         sequencer_da_pub_key: &[u8],
-        method_id_upgrade_authority: &[u8],
+        method_id_upgrade_authority: &[[u8; 33]; 5],
     ) -> LightClientCircuitInput<MockDaSpec> {
         let prover_storage = self
             .prover_storage_manager

@@ -107,7 +107,7 @@ fn log_filter_test_at_block_hash() {
         // the last topic will be Keccak256("hello")
         // call the contract function
         // the last topic will be Keccak256("hi")
-        let rlp_transcations = vec![
+        let rlp_transactions = vec![
             create_contract_message(&dev_signer, 0, LogsContract::default()),
             publish_event_message(contract_addr, &dev_signer, 1, "hello".to_string()),
             publish_event_message(contract_addr, &dev_signer, 2, "hi".to_string()),
@@ -115,7 +115,7 @@ fn log_filter_test_at_block_hash() {
 
         evm.call(
             CallMessage {
-                txs: rlp_transcations,
+                txs: rlp_transactions,
             },
             &context,
             &mut working_set,

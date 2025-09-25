@@ -14,7 +14,7 @@ jobs:
   performance-comparison:
     runs-on: ubicloud-standard-16
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Fetch latest nightly
         run: |
           git fetch origin nightly:nightly
