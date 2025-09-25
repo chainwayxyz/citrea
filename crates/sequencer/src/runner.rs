@@ -627,7 +627,7 @@ where
         // Use the transactions we already have from dry_run (txs_to_run)
         // and build block structure without DB reads
         let (reth_block, reth_receipts, evm_block_hash) =
-            self.build_reth_block_data(l2_height, &txs_to_run, &senders, &receipts)?;
+            self.build_reth_block_data(l2_height, &txs_to_run, &senders, &receipts);
 
         // Create the Chain notification with the produced block data
         let chain = self.create_chain_notification(
@@ -965,7 +965,7 @@ where
         txs: &[RlpEvmTransaction],
         _senders: &[alloy_primitives::Address],
         receipts: &[reth_primitives::Receipt],
-    ) -> anyhow::Result<(reth_primitives::Block, Vec<Receipt>, alloy_primitives::B256)> {
+    ) -> (reth_primitives::Block, Vec<Receipt>, alloy_primitives::B256) {
         // For now, we still need one DB read to get the block header
         // In a future optimization, we could cache this in memory too
         let mut working_set = WorkingSet::new(self.db_provider.storage.clone());
@@ -1001,7 +1001,7 @@ where
             },
         };
 
-        Ok((block, reth_receipts, evm_block_hash))
+        (block, reth_receipts, evm_block_hash)
     }
 
     /// Creates a Chain notification from the produced L2 block
