@@ -11,11 +11,14 @@ use tracing::{debug, instrument};
 
 use crate::metrics::SEQUENCER_METRICS as SM;
 
+/// Type alias for deposit transaction data
+pub type Deposit = Vec<u8>;
+
 /// A mempool specifically for handling deposit transaction data
 #[derive(Clone, Debug, Default)]
 pub struct DepositDataMempool {
     /// Queue of accepted deposit transaction data
-    accepted_deposit_txs: VecDeque<Vec<u8>>,
+    accepted_deposit_txs: VecDeque<Deposit>,
     /// Set of pending deposit TxIds to prevent duplicates
     pending_deposits: HashSet<Vec<u8>>,
 }
@@ -33,7 +36,7 @@ impl DepositDataMempool {
     ///
     /// # Returns
     /// A transaction request configured for the bridge contract
-    pub fn make_deposit_tx_from_data(&mut self, deposit_tx_data: Vec<u8>) -> TransactionRequest {
+    pub fn make_deposit_tx_from_data(&mut self, deposit_tx_data: Deposit) -> TransactionRequest {
         TransactionRequest {
             from: Some(SYSTEM_SIGNER),
             to: Some(TxKind::Call(BridgeWrapper::address())),
@@ -42,30 +45,65 @@ impl DepositDataMempool {
         }
     }
 
-    /// Retrieves a limited number of deposit transactions from the mempool
+    /// Retrieves a limited number of deposit transactions from the mempool without removing them
     ///
     /// # Arguments
     /// * `limit_per_block` - Maximum number of deposits to return
     ///
     /// # Returns
     /// A vector of deposit transaction data, limited by the specified amount
-    pub fn fetch_deposits(&mut self, limit_per_block: usize) -> Vec<Vec<u8>> {
+    pub fn fetch_deposits(&mut self, limit_per_block: usize) -> Vec<Deposit> {
         let number_of_deposits = self.accepted_deposit_txs.len().min(limit_per_block);
         SM.deposit_data_mempool_txs
             .set(self.accepted_deposit_txs.len() as f64);
-        let deposits: Vec<Vec<u8>> = self
+        let deposits: Vec<Deposit> = self
             .accepted_deposit_txs
-            .drain(..number_of_deposits)
+            .iter()
+            .take(number_of_deposits)
+            .cloned()
             .collect();
 
-        // Remove fetched deposits from the pending set
-        for deposit in &deposits {
-            if let Ok(txid) = Self::calc_tx_id(deposit) {
-                self.pending_deposits.remove(txid.as_slice());
-            }
+        deposits
+    }
+
+    /// Removes specific deposits from the mempool after they have been successfully included in a block
+    ///
+    /// # Arguments
+    /// * `deposits_to_remove` - The deposits that were successfully included
+    ///
+    /// # Returns
+    /// The number of deposits actually removed
+    #[instrument(level = "trace", skip_all, ret)]
+    pub fn remove_deposits(&mut self, deposits_to_remove: &[Deposit]) -> usize {
+        let mut removed_count = 0;
+
+        // Calculate txids for the deposits to remove
+        let mut txids_to_remove = HashSet::new();
+        for deposit in deposits_to_remove {
+            let txid = Self::calc_tx_id(deposit)
+                .expect("calc_tx_id should never be called on non-deposit");
+            txids_to_remove.insert(txid.to_vec());
         }
 
-        deposits
+        // Retain only deposits that are not in the removal set
+        self.accepted_deposit_txs.retain(|deposit| {
+            let txid = Self::calc_tx_id(deposit)
+                .expect("calc_tx_id should never be called on non-deposit");
+            if txids_to_remove.contains(txid.as_slice()) {
+                // Remove from pending set
+                self.pending_deposits.remove(txid.as_slice());
+                removed_count += 1;
+                return false;
+            }
+            true
+        });
+
+        // Update metrics
+        SM.deposit_data_mempool_txs
+            .set(self.accepted_deposit_txs.len() as f64);
+
+        debug!("Removed {} deposits from mempool", removed_count);
+        removed_count
     }
 
     /// Adds a new deposit transaction to the mempool
@@ -76,7 +114,7 @@ impl DepositDataMempool {
     /// # Returns
     /// `true` if the deposit was added, `false` if it was already pending
     #[instrument(level = "trace", skip_all, ret)]
-    pub fn add_deposit_tx(&mut self, req: Vec<u8>) -> anyhow::Result<bool> {
+    pub fn add_deposit_tx(&mut self, req: Deposit) -> anyhow::Result<bool> {
         let txid = Self::calc_tx_id(&req)?;
 
         debug!("Adding deposit with tx: {}", hex::encode(txid));
@@ -103,7 +141,7 @@ impl DepositDataMempool {
     /// # Returns
     /// `Ok(transaction_id)` if the deposit data are valid
     /// `Err` if deposit data are invalid.
-    fn calc_tx_id(req: &[u8]) -> anyhow::Result<[u8; 32]> {
+    fn calc_tx_id(req: &Deposit) -> anyhow::Result<[u8; 32]> {
         let call = BridgeContract::depositCall::abi_decode_raw(req, true)
             .map_err(|e| anyhow::anyhow!("Could not decode DepositCall ABI: {:?}", e))?;
 
@@ -155,7 +193,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fetch_deposits_removes_from_pending() {
+    fn test_fetch_deposits_does_not_remove() {
         let mut mempool = DepositDataMempool::new();
         let deposit1 = hex::decode(DEPOSIT1).unwrap();
         let deposit2 = hex::decode(DEPOSIT2).unwrap();
@@ -166,6 +204,7 @@ mod tests {
         assert!(mempool.add_deposit_tx(deposit2.clone()).unwrap());
         assert!(mempool.add_deposit_tx(deposit3.clone()).unwrap());
         assert_eq!(mempool.pending_deposits.len(), 3);
+        assert_eq!(mempool.accepted_deposit_txs.len(), 3);
 
         // Fetch 2 deposits
         let fetched = mempool.fetch_deposits(2);
@@ -173,16 +212,52 @@ mod tests {
         assert_eq!(fetched[0], deposit1);
         assert_eq!(fetched[1], deposit2);
 
-        // Check that fetched deposits are removed from pending
+        // Check that fetched deposits are NOT removed
+        assert_eq!(mempool.pending_deposits.len(), 3);
+        assert_eq!(mempool.accepted_deposit_txs.len(), 3);
+
+        // Cannot add same deposits again as they're still pending
+        assert!(!mempool.add_deposit_tx(deposit1.clone()).unwrap());
+        assert!(!mempool.add_deposit_tx(deposit2.clone()).unwrap());
+
+        // Fetch again should return the same deposits
+        let fetched_again = mempool.fetch_deposits(2);
+        assert_eq!(fetched_again.len(), 2);
+        assert_eq!(fetched_again[0], deposit1);
+        assert_eq!(fetched_again[1], deposit2);
+    }
+
+    #[test]
+    fn test_remove_deposits() {
+        let mut mempool = DepositDataMempool::new();
+        let deposit1 = hex::decode(DEPOSIT1).unwrap();
+        let deposit2 = hex::decode(DEPOSIT2).unwrap();
+        let deposit3 = hex::decode(DEPOSIT3).unwrap();
+
+        // Add deposits
+        assert!(mempool.add_deposit_tx(deposit1.clone()).unwrap());
+        assert!(mempool.add_deposit_tx(deposit2.clone()).unwrap());
+        assert!(mempool.add_deposit_tx(deposit3.clone()).unwrap());
+        assert_eq!(mempool.pending_deposits.len(), 3);
+        assert_eq!(mempool.accepted_deposit_txs.len(), 3);
+
+        // Fetch 2 deposits
+        let fetched = mempool.fetch_deposits(2);
+        assert_eq!(fetched.len(), 2);
+
+        // Remove the fetched deposits
+        let removed_count = mempool.remove_deposits(&fetched);
+        assert_eq!(removed_count, 2);
+
+        // Check that only the removed deposits are gone
         assert_eq!(mempool.pending_deposits.len(), 1);
-        // The pending_deposits set now contains txids, not the deposits themselves
-        // We can verify the count and that the queue still has one item
         assert_eq!(mempool.accepted_deposit_txs.len(), 1);
 
         // Now these deposits can be added again
         assert!(mempool.add_deposit_tx(deposit1.clone()).unwrap());
         assert!(mempool.add_deposit_tx(deposit2.clone()).unwrap());
         assert_eq!(mempool.pending_deposits.len(), 3);
+        assert_eq!(mempool.accepted_deposit_txs.len(), 3);
     }
 
     #[test]
@@ -201,6 +276,17 @@ mod tests {
         assert_eq!(fetched.len(), 1);
         assert_eq!(fetched[0], deposit);
 
+        // Deposit is still in mempool after fetch
+        assert_eq!(mempool.pending_deposits.len(), 1);
+        assert_eq!(mempool.accepted_deposit_txs.len(), 1);
+
+        // Still cannot add duplicate
+        assert!(!mempool.add_deposit_tx(deposit.clone()).unwrap());
+
+        // Remove the deposit
+        let removed_count = mempool.remove_deposits(&fetched);
+        assert_eq!(removed_count, 1);
+
         // Now the same deposit can be added again
         assert!(mempool.add_deposit_tx(deposit.clone()).unwrap());
         assert_eq!(mempool.pending_deposits.len(), 1);
@@ -212,7 +298,7 @@ mod tests {
         let data = hex::decode(DEPOSIT1).unwrap();
 
         assert_eq!(
-            DepositDataMempool::calc_tx_id(data.as_slice()).unwrap(),
+            DepositDataMempool::calc_tx_id(&data).unwrap(),
             hex::decode("c1be1ce3ef6be11115274355dade79aad5b34814fccc3912c3cec2c08686fbee")
                 .unwrap()
                 .as_slice()
@@ -221,7 +307,7 @@ mod tests {
         let data = hex::decode(DEPOSIT2).unwrap();
 
         assert_eq!(
-            DepositDataMempool::calc_tx_id(data.as_slice()).unwrap(),
+            DepositDataMempool::calc_tx_id(&data).unwrap(),
             hex::decode("0d7e74f9cf18ae5bfce3855270b909a5142809a302a72093231345989aac9809")
                 .unwrap()
                 .as_slice()

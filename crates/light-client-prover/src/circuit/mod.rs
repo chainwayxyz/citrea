@@ -13,7 +13,7 @@ use initial_values::LCP_JMT_GENESIS_ROOT;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::{BlobReaderTrait, DaSpec, WorkingSet, Zkvm};
 use sov_modules_core::{ReadWriteLog, Storage};
-use sov_rollup_interface::da::{BatchProofMethodId, DaVerifier, DataOnDa};
+use sov_rollup_interface::da::{DaVerifier, DataOnDa};
 use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
@@ -22,6 +22,8 @@ use sov_rollup_interface::zk::light_client_proof::output::{
 };
 use sov_rollup_interface::zk::ZkvmGuest;
 use sov_rollup_interface::Network;
+
+use crate::circuit::method_id_verifier::verify_method_id_security_council;
 
 /// Accessor (helpers) that are used inside the light client proof circuit.
 /// To access certain information that was saved to its state at one point.
@@ -32,6 +34,9 @@ pub mod initial_values;
 /// A macro for logging messages.
 #[macro_use]
 mod log;
+
+/// Verifies method id security council signatures.
+mod method_id_verifier;
 
 /// L2 activation height of the fork, and the batch proof method ID
 type InitialBatchProofMethodIds = Vec<(u64, [u32; 8])>;
@@ -382,7 +387,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
-        method_id_upgrade_authority_da_public_key: &[u8],
+        method_id_upgrade_authority_da_public_keys: &[[u8; 33]; 5],
     ) -> RunL1BlockResult<S> {
         let mut working_set =
             WorkingSet::with_witness(storage.clone(), witness, Default::default());
@@ -514,19 +519,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         }
                     }
                 }
-                DataOnDa::BatchProofMethodId(BatchProofMethodId {
-                    method_id,
-                    activation_l2_height,
-                }) => {
+                DataOnDa::BatchProofMethodId(batch_proof_method_id) => {
                     log!("Found batch proof method id");
-                    if blob.sender().as_ref() != method_id_upgrade_authority_da_public_key {
-                        log!(
-                            "Batch proof method id sender is not upgrade authority, wtxid={:?}",
-                            blob.wtxid()
-                        );
-                        continue;
-                    }
-
                     let batch_proof_method_ids =
                         BatchProofMethodIdAccessor::<S>::get(&mut working_set).unwrap();
 
@@ -535,10 +529,21 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         .expect("Should be at least one")
                         .0;
 
-                    if activation_l2_height > last_activation_height {
+                    if batch_proof_method_id.body.activation_l2_height > last_activation_height {
+                        // Verify the signatures only if the activation height is greater than the last one
+                        // This prevents replay attacks of old method IDs
+                        if !verify_method_id_security_council(
+                            *method_id_upgrade_authority_da_public_keys,
+                            batch_proof_method_id.body.serialize().as_slice(),
+                            batch_proof_method_id.signatures_with_index(),
+                        ) {
+                            log!("Method ID security council verification failed");
+                            continue;
+                        }
+
                         BatchProofMethodIdAccessor::<S>::insert(
-                            activation_l2_height,
-                            method_id,
+                            batch_proof_method_id.body.activation_l2_height,
+                            batch_proof_method_id.body.method_id,
                             &mut working_set,
                         );
                     }
@@ -655,7 +660,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
-        method_id_upgrade_authority_da_public_key: &[u8],
+        method_id_upgrade_authority_da_public_keys: &[[u8; 33]; 5],
     ) -> Result<LightClientCircuitOutput, LightClientVerificationError<DaV>>
     where
         DaV: DaVerifier<Spec = DS>,
@@ -713,7 +718,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             initial_batch_proof_method_ids,
             batch_prover_da_public_key,
             sequencer_da_public_key,
-            method_id_upgrade_authority_da_public_key,
+            method_id_upgrade_authority_da_public_keys,
         );
 
         Ok(LightClientCircuitOutput {

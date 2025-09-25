@@ -64,7 +64,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use crate::commitment::service::CommitmentService;
 use crate::da::{da_block_monitor, get_da_block_data};
 use crate::db_provider::DbProvider;
-use crate::deposit_data_mempool::DepositDataMempool;
+use crate::deposit_data_mempool::{Deposit, DepositDataMempool};
 use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS as SM;
 use crate::types::SequencerRpcMessage;
@@ -203,7 +203,7 @@ where
         >,
         prestate: ProverStorage,
         l2_block_info: HookL2BlockInfo,
-        deposit_data: &[Vec<u8>],
+        deposit_data: &[Deposit],
         da_blocks: Vec<Da::FilteredBlock>,
     ) -> anyhow::Result<(
         Vec<RlpEvmTransaction>,
@@ -611,6 +611,15 @@ where
             .set_state_diff(L2BlockNumber(l2_height), &l2_block_result.state_diff)?;
 
         self.save_l2_block(l2_block, l2_block_result, tx_hashes, blobs)?;
+
+        // Remove successfully included deposits from the mempool
+        if !deposit_data.is_empty() {
+            let removed_count = self.deposit_mempool.lock().remove_deposits(&deposit_data);
+            debug!(
+                "Removed {} deposits from mempool after successful block production",
+                removed_count
+            );
+        }
 
         // Build notification using in-memory data instead of reading from DB
         let start_canonical_notification = Instant::now();
@@ -1458,7 +1467,7 @@ where
         l2_block_info: &HookL2BlockInfo,
         evm: &Evm<DefaultContext>,
         working_set_to_discard: WorkingSet<<DefaultContext as Spec>::Storage>,
-        deposit_data: &[Vec<u8>],
+        deposit_data: &[Deposit],
         da_blocks: Vec<Da::FilteredBlock>,
         nonce: &mut u64,
     ) -> anyhow::Result<(
