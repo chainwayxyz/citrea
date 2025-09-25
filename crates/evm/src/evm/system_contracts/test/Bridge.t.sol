@@ -674,7 +674,7 @@ contract BridgeTest is Test {
     function testSafeWithdraw() public {
         doDeposit();
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
-        prepareBitcoinLightClientForSafeWithdraw();
+        prepareSafeWithdraw();
         doSafeWithdraw();
         
         assertEq(receiver.balance, 0);
@@ -688,7 +688,7 @@ contract BridgeTest is Test {
     function testSafeWithdrawWithLargeVarIntInPayoutOutput() public {
         doDeposit();
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
-        prepareBitcoinLightClientForSafeWithdraw();
+        prepareSafeWithdraw();
         vm.prank(receiver);
         (Bridge.Transaction memory prepareTx, Bridge.MerkleProof memory proof, Bridge.Transaction memory payoutTx) = safeWithdrawTxInfo();
         // varInt for the script pubkey is changed from `0x22` to `0xfd2200` to simulate a larger varint
@@ -702,7 +702,7 @@ contract BridgeTest is Test {
     function testSafeWithdrawWithArbitraryVarIntInPayoutOutput() public {
         doDeposit();
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
-        prepareBitcoinLightClientForSafeWithdraw();
+        prepareSafeWithdraw();
         vm.prank(receiver);
         (Bridge.Transaction memory prepareTx, Bridge.MerkleProof memory proof, Bridge.Transaction memory payoutTx) = safeWithdrawTxInfo();
         // varInt for the script pubkey is changed from `0x22` to `0x25` to simulate a non P2TR script pubkey, added `aabbcc` as the extra 3 bytes
@@ -711,6 +711,21 @@ contract BridgeTest is Test {
         // Effectively disabling the signature check as we are only testing the varint parsing
         vm.etch(bridge.SCHNORR_VERIFIER_PRECOMPILE(), address(new MockSchnorrPrecompileAlwaysAccept()).code);
         bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"aabbcc51209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90");
+    }
+
+    function testNonOwnerCannotSetOptimisticWithdrawAmount() public {
+        vm.prank(user);
+        vm.expectRevert();
+        bridge.setOptimisticWithdrawAmount(1);
+    }
+
+    function testOwnerCanSetOptimisticWithdrawAmount() public {
+        uint256 newAmount = 123456789;
+        vm.prank(owner);
+        vm.expectEmit();
+        emit Bridge.OptimisticWithdrawAmountSet(newAmount);
+        bridge.setOptimisticWithdrawAmount(newAmount);
+        assertEq(bridge.optimisticWithdrawAmount(), newAmount);
     }
 
     function testP2TRTransactionTypeConfusionAttack() public {
@@ -828,7 +843,7 @@ contract BridgeTest is Test {
         doDeposit();
         vm.prank(operator);
         bridge.pause();
-        prepareBitcoinLightClientForSafeWithdraw();
+        prepareSafeWithdraw();
         vm.expectRevert("EnforcedPause()");
         doSafeWithdraw();
         // Assert if user still has its balance
@@ -862,7 +877,7 @@ contract BridgeTest is Test {
         doDeposit();
         vm.prank(operator);
         bridge.pause();
-        prepareBitcoinLightClientForSafeWithdraw();
+        prepareSafeWithdraw();
         vm.expectRevert("EnforcedPause()");
         doSafeWithdraw();
         vm.prank(operator);
@@ -946,7 +961,9 @@ contract BridgeTest is Test {
 
     // divided withdraw into two functions
     // so that we can expectRevert on doSafeWithdraw
-    function prepareBitcoinLightClientForSafeWithdraw() public {
+    function prepareSafeWithdraw() public {
+        vm.prank(owner);
+        bridge.setOptimisticWithdrawAmount(999900000);
         vm.prank(SYSTEM_CALLER);
         bitcoinLightClient.setBlockInfo(hex"d740c1b74570c512cb79c8b3f5d3ccaa515059c49dd51b01c5b2ec56bfb9ee37", witnessRoot, 2);
     }
