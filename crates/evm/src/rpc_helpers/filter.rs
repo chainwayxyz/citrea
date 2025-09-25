@@ -1,4 +1,4 @@
-// https://reth.rs/docs/src/reth_rpc/eth/filter.rs
+https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/filter.rs
 
 use std::env;
 use std::iter::StepBy;
