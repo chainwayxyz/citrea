@@ -198,6 +198,8 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
 
         // In order to verify the P2TR signature, we need to reconstruct the message hash and that is derived from input, output and the corresponding witness field
         bytes memory input = moveTx.vin.extractInputAtIndex(0);
+        // Since `moveTx` is guaranteed to have <= 252 outputs, we can safely assume the compact size to be single byte and skip one byte
+        // `moveTx` is constructed by Clementine so it is also safe to assume minimal encoding of the compact size
         bytes memory outputs = moveTx.vout.slice(1, moveTx.vout.length - 1);
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(moveTx.witness, 0);
 
@@ -373,6 +375,8 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
 
         // In order to verify the P2TR signature, we need to reconstruct the message hash and that is derived from input, output and the corresponding witness field
         bytes memory input = replaceTx.vin.extractInputAtIndex(0);
+        // Since `replaceTx` is guaranteed to have <= 252 outputs, we can safely assume the compact size to be single byte and skip one byte
+        // `replaceTx` is constructed by Clementine so it is also safe to assume minimal encoding of the compact size
         bytes memory outputs = replaceTx.vout.slice(1, replaceTx.vout.length - 1);
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(replaceTx.witness, 0);
 
@@ -504,6 +508,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         bytes memory script = witness0.extractItemFromWitness(1);
         bytes memory controlBlock = witness0.extractItemFromWitness(2);
         // First byte of the parsed control block is the length of it so it is skipped to get the actual first byte
+        // We can safely assume the control block compact size to be single byte as the depth of taproot tree is 1 both for `deposit` and `replaceDeposit`
         bytes1 leafVersion = controlBlock[1] & 0xFE;
         bytes32 tapleafHash = taggedHash("TapLeaf", (abi.encodePacked(leafVersion, script)));
         bytes memory message = abi.encodePacked(EPOCH, SIGHASH_DEFAULT_HASH_TYPE, version, locktime, shaPrevouts, shaAmounts, shaScriptPubkeys, shaSequences, shaOutputs, SPEND_TYPE_EXT, INPUT_INDEX, tapleafHash, KEY_VERSION, CODESEP_POS);
