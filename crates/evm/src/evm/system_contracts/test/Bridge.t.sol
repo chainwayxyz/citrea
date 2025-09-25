@@ -11,12 +11,6 @@ import "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeabl
 
 import "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
 
-
-
-// !!! WARNINGS:
-// !!! - Update `testDepositThenWithdraw` and `testBatchWithdraw` with proper testing of withdrawal tree root if this goes to production
-// !!! - Write fuzz tests for deposit and withdraw actions with random Bitcoin txns if this goes to production
-
 contract BridgeHarness is Bridge {
     // Overriding in harness is needed as internal functions are not accessible in the test
     function isBytesEqual_(bytes memory a, bytes memory b) public pure returns (bool result) {
@@ -235,7 +229,6 @@ contract BridgeTest is Test {
         assertEq(bridge.depositTxIds(0), hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929");
     }
 
-    // TODO: Replace the logic of testing the root of withdrawal tree in a more proper manner if this goes into production
     function testDepositThenWithdraw() public {
         doDeposit();
         // Assert if transferred
