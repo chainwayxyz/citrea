@@ -20,6 +20,8 @@ abstract contract FeeVaultTest is Test {
     function testWithdraw() public {
         vm.deal(address(feeVault), 1 ether);
         vm.prank(owner);
+        vm.expectEmit();
+        emit FeeVault.Withdrawal(recipient, 1 ether);
         feeVault.withdraw();
         assertEq(address(recipient).balance, 1 ether);
     }
