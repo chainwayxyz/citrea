@@ -1601,7 +1601,7 @@ dependencies = [
  "jsonrpsee",
  "k256",
  "lru 0.13.0",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-derive",
  "rand 0.8.5",
  "reqwest",
@@ -2248,6 +2248,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-rpc-types",
  "alloy-rpc-types-trace",
+ "alloy-rpc-types-txpool",
  "alloy-signer",
  "alloy-signer-local",
  "alloy-sol-types",
@@ -2283,7 +2284,7 @@ dependencies = [
  "l2-block-rule-enforcer",
  "log",
  "log-panics",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-exporter-prometheus",
  "metrics-util",
  "prover-services",
@@ -2339,7 +2340,7 @@ dependencies = [
  "futures",
  "hex",
  "jsonrpsee",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-derive",
  "parking_lot",
  "prover-services",
@@ -2403,9 +2404,10 @@ dependencies = [
  "hyper",
  "jsonrpsee",
  "lru 0.13.0",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "reth-primitives",
  "reth-tasks",
+ "reth-transaction-pool",
  "rocksdb",
  "serde",
  "serde_json",
@@ -2475,7 +2477,7 @@ dependencies = [
  "itertools 0.13.0",
  "jsonrpsee",
  "k256",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-derive",
  "rand 0.8.5",
  "rayon",
@@ -2529,7 +2531,7 @@ dependencies = [
  "citrea-storage-ops",
  "hex",
  "jsonrpsee",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-derive",
  "reth-tasks",
  "rs_merkle",
@@ -2566,7 +2568,7 @@ dependencies = [
  "hex",
  "jsonrpsee",
  "k256",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-derive",
  "prover-services",
  "rand 0.8.5",
@@ -2604,7 +2606,7 @@ dependencies = [
  "bonsai-sdk",
  "borsh",
  "hex",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "risc0-zkp",
  "risc0-zkvm",
  "rzup",
@@ -2658,7 +2660,7 @@ dependencies = [
  "hex",
  "jsonrpsee",
  "l2-block-rule-enforcer",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-derive",
  "parking_lot",
  "reth-chainspec",
@@ -2685,6 +2687,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "tokio",
+ "tokio-stream",
  "tracing",
  "tracing-subscriber 0.3.20",
 ]
@@ -3218,7 +3221,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18e4fdb82bd54a12e42fb58a800dcae6b9e13982238ce2296dc3570b92148e1f"
 dependencies = [
  "data-encoding",
- "syn 1.0.109",
+ "syn 2.0.98",
 ]
 
 [[package]]
@@ -5837,9 +5840,9 @@ dependencies = [
 
 [[package]]
 name = "metrics"
-version = "0.23.0"
+version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "884adb57038347dfbaf2d5065887b6cf4312330dc8e94bc30a1a839bd79d3261"
+checksum = "3045b4193fbdc5b5681f32f11070da9be3609f189a79f3390706d42587f46bb5"
 dependencies = [
  "ahash",
  "portable-atomic",
@@ -5880,7 +5883,7 @@ dependencies = [
  "hyper-util",
  "indexmap 2.7.1",
  "ipnet",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-util",
  "quanta",
  "thiserror 1.0.69",
@@ -5899,7 +5902,7 @@ dependencies = [
  "crossbeam-utils",
  "hashbrown 0.14.5",
  "indexmap 2.7.1",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "num_cpus",
  "ordered-float",
  "quanta",
@@ -6807,7 +6810,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "borsh",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-derive",
  "rand 0.8.5",
  "sov-mock-da",
@@ -10155,7 +10158,7 @@ version = "0.7.4"
 dependencies = [
  "anyhow",
  "byteorder",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-derive",
  "rocksdb",
  "sov-schema-db",

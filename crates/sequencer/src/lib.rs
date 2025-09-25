@@ -45,7 +45,9 @@ use deposit_data_mempool::DepositDataMempool;
 use jsonrpsee::RpcModule;
 use mempool::CitreaMempool;
 use parking_lot::Mutex;
+use reth_provider::CanonStateNotification;
 use reth_tasks::TaskExecutor;
+use reth_transaction_pool::maintain::{maintain_transaction_pool_future, MaintainPoolConfig};
 pub use rpc::SequencerRpcClient;
 pub use runner::{CitreaSequencer, MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK};
 use sov_db::ledger_db::LedgerDB;
@@ -53,8 +55,9 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
+use tokio::sync::{broadcast, mpsc};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 /// Module containing commitment-related functionality
 mod commitment;
@@ -127,9 +130,32 @@ where
     let mempool = Arc::new(CitreaMempool::new(
         db_provider.clone(),
         sequencer_config.mempool_conf.clone(),
-        task_executor,
+        task_executor.clone(),
     )?);
     let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
+
+    // Create the canonical state notification channel for mempool maintenance
+    let (canon_state_tx, canon_state_rx) = mpsc::unbounded_channel::<CanonStateNotification>();
+
+    // Spawn the mempool maintenance task
+    {
+        let pool = mempool.inner_pool().clone();
+        let client = db_provider.clone();
+        let events_stream = UnboundedReceiverStream::new(canon_state_rx);
+
+        // Convert MempoolMaintenanceConfig to reth's MaintainPoolConfig
+        let maintain_config: MaintainPoolConfig =
+            sequencer_config.mempool_conf.maintenance.clone().into();
+
+        let maintenance_future = maintain_transaction_pool_future(
+            client,
+            pool,
+            events_stream,
+            task_executor.clone(),
+            maintain_config,
+        );
+        task_executor.spawn_critical("mempool-maintenance", maintenance_future);
+    }
 
     let rpc_storage = storage_manager.create_final_view_storage();
     let rpc_context = rpc::create_rpc_context(
@@ -157,6 +183,7 @@ where
         l2_block_tx,
         backup_manager,
         rpc_message_rx,
+        canon_state_tx,
     )
     .unwrap();
 

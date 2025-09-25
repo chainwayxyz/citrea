@@ -292,6 +292,60 @@ impl FromEnv for SequencerConfig {
     }
 }
 
+/// Mempool maintenance configuration wrapper since the original struct
+/// does not support serialize / deserialize
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct MempoolMaintenanceConfig {
+    /// Maximum accounts to reload from state at once
+    #[serde(default = "default_max_reload_accounts")]
+    pub max_reload_accounts: usize,
+    /// Maximum lifetime for non-executable transactions in seconds
+    #[serde(default = "default_max_tx_lifetime_secs")]
+    pub max_tx_lifetime_secs: u64,
+}
+
+const fn default_max_reload_accounts() -> usize {
+    100
+}
+
+const fn default_max_tx_lifetime_secs() -> u64 {
+    10800
+}
+
+impl Default for MempoolMaintenanceConfig {
+    fn default() -> Self {
+        Self {
+            max_reload_accounts: default_max_reload_accounts(),
+            max_tx_lifetime_secs: default_max_tx_lifetime_secs(),
+        }
+    }
+}
+
+impl FromEnv for MempoolMaintenanceConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            max_reload_accounts: std::env::var("SEQUENCER_MEMPOOL_MAX_RELOAD_ACCOUNTS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_max_reload_accounts),
+            max_tx_lifetime_secs: std::env::var("SEQUENCER_MEMPOOL_MAX_TX_LIFETIME_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_max_tx_lifetime_secs),
+        })
+    }
+}
+
+impl From<MempoolMaintenanceConfig> for reth_transaction_pool::maintain::MaintainPoolConfig {
+    fn from(config: MempoolMaintenanceConfig) -> Self {
+        Self {
+            max_update_depth: Default::default(),
+            max_reload_accounts: config.max_reload_accounts,
+            max_tx_lifetime: std::time::Duration::from_secs(config.max_tx_lifetime_secs),
+        }
+    }
+}
+
 /// Mempool Config for the sequencer
 /// Read: https://github.com/ledgerwatch/erigon/wiki/Transaction-Pool-Design
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -310,6 +364,9 @@ pub struct SequencerMempoolConfig {
     pub base_fee_tx_size: u64,
     /// Max number of executable transaction slots guaranteed per account
     pub max_account_slots: u64,
+    /// Mempool maintenance configuration
+    #[serde(default)]
+    pub maintenance: MempoolMaintenanceConfig,
 }
 
 impl Default for SequencerMempoolConfig {
@@ -322,6 +379,7 @@ impl Default for SequencerMempoolConfig {
             base_fee_tx_limit: 100000,
             base_fee_tx_size: 200,
             max_account_slots: 16,
+            maintenance: MempoolMaintenanceConfig::default(),
         }
     }
 }
@@ -336,6 +394,7 @@ impl FromEnv for SequencerMempoolConfig {
             base_fee_tx_limit: read_env("BASE_FEE_TX_LIMIT")?.parse()?,
             base_fee_tx_size: read_env("BASE_FEE_TX_SIZE")?.parse()?,
             max_account_slots: read_env("MAX_ACCOUNT_SLOTS")?.parse()?,
+            maintenance: MempoolMaintenanceConfig::from_env()?,
         })
     }
 }
@@ -563,6 +622,7 @@ mod tests {
                 base_fee_tx_limit: 100000,
                 base_fee_tx_size: 200,
                 max_account_slots: 16,
+                maintenance: MempoolMaintenanceConfig::default(),
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
@@ -626,6 +686,7 @@ mod tests {
                 base_fee_tx_limit: 100000,
                 base_fee_tx_size: 200,
                 max_account_slots: 16,
+                maintenance: MempoolMaintenanceConfig::default(),
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
