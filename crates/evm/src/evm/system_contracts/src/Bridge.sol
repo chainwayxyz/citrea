@@ -42,7 +42,8 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     BitcoinLightClient public constant LIGHT_CLIENT = BitcoinLightClient(address(0x3100000000000000000000000000000000000001));
     address public constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
     address public constant SCHNORR_VERIFIER_PRECOMPILE = address(0x200);
-    uint256 public constant SAT_TO_WEI = 10**10; 
+    uint256 public constant SAT_TO_WEI = 10**10;
+    uint256 public constant PAYOUT_ANCHOR_OUTPUT_AMOUNT = 240;
 
     bytes public constant EPOCH = hex"00";
     bytes public constant SIGHASH_DEFAULT_HASH_TYPE = hex"00";
@@ -117,8 +118,8 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         depositPrefix = _depositPrefix;
         depositSuffix = _depositSuffix;
         depositAmount = _depositAmount;
-        // Set initial optimistic withdraw amount to deposit amount
-        optimisticWithdrawAmount = _depositAmount;
+        // Set initial optimistic withdraw amount to deposit amount minus `payoutTx`'s anchor output amount
+        optimisticWithdrawAmount = _depositAmount - PAYOUT_ANCHOR_OUTPUT_AMOUNT;
 
         // Set initial operator to SYSTEM_CALLER
         operator = SYSTEM_CALLER;
