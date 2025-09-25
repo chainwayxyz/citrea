@@ -1068,12 +1068,11 @@ where
         let l1_fee_rate_multiplier = self.config.l1_fee_rate_multiplier;
         let max_l1_fee_rate = self.config.max_l1_fee_rate; // sat/vbyte
 
-        let multiplied_l1_fee_rate =
-            |rate: u128| -> u128 { 
-                let multiplied = ((rate as f64) * l1_fee_rate_multiplier).ceil() as u128;
-                let max_fee_wei_per_byte = max_l1_fee_rate as u128 * 10_u128.pow(10) / 4;
-                let capped = multiplied.min(max_fee_wei_per_byte);
-                capped
+        let multiplied_l1_fee_rate = |rate: u128| -> u128 {
+            let multiplied = ((rate as f64) * l1_fee_rate_multiplier).ceil() as u128;
+            let max_fee_wei_per_byte = max_l1_fee_rate as u128 * 10_u128.pow(10) / 4;
+
+            multiplied.min(max_fee_wei_per_byte)
         };
         // TODO: hotfix for mock da
         self.da_service

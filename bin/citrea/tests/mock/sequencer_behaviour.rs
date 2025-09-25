@@ -799,52 +799,63 @@ async fn test_sequencer_l1_fee_params() -> Result<(), anyhow::Error> {
     // publishes one L2 block
     // checks the L1 fee rate of the block
     // stops the sequencer task
-    let assert_fee_rate_of_sequencer = async |sequencer_db_dir: &std::path::PathBuf, sequencer_config: SequencerConfig, expected_l1_fee_rate: u128| {
-        let rollup_config = create_default_rollup_config(
-            true,
-            &sequencer_db_dir,
-            &da_db_dir,
-            NodeMode::SequencerNode,
-            None,
-        );
+    let assert_fee_rate_of_sequencer =
+        async |sequencer_db_dir: &std::path::PathBuf,
+               sequencer_config: SequencerConfig,
+               expected_l1_fee_rate: u128| {
+            let rollup_config = create_default_rollup_config(
+                true,
+                sequencer_db_dir,
+                &da_db_dir,
+                NodeMode::SequencerNode,
+                None,
+            );
 
-        let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
-        let seq_task = start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
+            let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+            let seq_task = start_rollup(
+                seq_port_tx,
+                GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+                None,
+                None,
+                rollup_config,
+                Some(sequencer_config),
+                None,
+                false,
+            )
+            .await;
 
-        let seq_port = seq_port_rx.await.unwrap();
-        let seq_test_client = make_test_client(seq_port).await.unwrap();
-        {
-            let current_height = seq_test_client.ledger_get_head_l2_block_height().await.unwrap();
-            seq_test_client.send_publish_batch_request().await;
-            wait_for_l2_block(&seq_test_client, current_height + 1, None).await;
-        }
+            let seq_port = seq_port_rx.await.unwrap();
+            let seq_test_client = make_test_client(seq_port).await.unwrap();
+            {
+                let current_height = seq_test_client
+                    .ledger_get_head_l2_block_height()
+                    .await
+                    .unwrap();
+                seq_test_client.send_publish_batch_request().await;
+                wait_for_l2_block(&seq_test_client, current_height + 1, None).await;
+            }
 
-        let block = seq_test_client
-            .ledger_get_head_l2_block()
-            .await
-            .expect("Could not get head block")
-            .expect("There should be a head block");
-        let l1_fee_rate: u128 = block.header.l1_fee_rate.to();
+            let block = seq_test_client
+                .ledger_get_head_l2_block()
+                .await
+                .expect("Could not get head block")
+                .expect("There should be a head block");
+            let l1_fee_rate: u128 = block.header.l1_fee_rate.to();
 
-        assert_eq!(expected_l1_fee_rate, l1_fee_rate);
-        // close sequencer
-        seq_task.graceful_shutdown();
-    };
+            assert_eq!(expected_l1_fee_rate, l1_fee_rate);
+            // close sequencer
+            seq_task.graceful_shutdown();
+        };
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let fee_rate_from_da = da_service.get_fee_rate().await?;
 
-    assert_fee_rate_of_sequencer(&sequencer_db_dir, SequencerConfig::default(), fee_rate_from_da).await;
-    
+    assert_fee_rate_of_sequencer(
+        &sequencer_db_dir,
+        SequencerConfig::default(),
+        fee_rate_from_da,
+    )
+    .await;
+
     // Copy the db to a new path with the same contents because
     // the lock is not released on the db directory even though the task is aborted
     let _ = copy_db_dir_recursive(
@@ -855,7 +866,7 @@ async fn test_sequencer_l1_fee_params() -> Result<(), anyhow::Error> {
 
     // Note that mock da returns 10 wei/byte as the mock fee rate
     let l1_fee_rate_multiplier = 0.8;
-    let expected_rate = 8; 
+    let expected_rate = 8;
 
     assert_fee_rate_of_sequencer(
         &sequencer_db_dir,
@@ -863,8 +874,9 @@ async fn test_sequencer_l1_fee_params() -> Result<(), anyhow::Error> {
             l1_fee_rate_multiplier,
             ..Default::default()
         },
-        expected_rate
-    ).await;
+        expected_rate,
+    )
+    .await;
 
     let _ = copy_db_dir_recursive(
         &sequencer_db_dir,
@@ -878,7 +890,7 @@ async fn test_sequencer_l1_fee_params() -> Result<(), anyhow::Error> {
     let max_l1_fee_rate = 5; // set max to 5 sat/vb
 
     // we expect l1 fee rate to be limited by 5 sat/vb =  5 * 10^10 /4 wei/sat
-    let expected_rate =  max_l1_fee_rate as u128 * l1_fee_rate_multiplier as u128;
+    let expected_rate = max_l1_fee_rate as u128 * l1_fee_rate_multiplier as u128;
 
     assert_fee_rate_of_sequencer(
         &sequencer_db_dir,
@@ -887,8 +899,9 @@ async fn test_sequencer_l1_fee_params() -> Result<(), anyhow::Error> {
             max_l1_fee_rate,
             ..Default::default()
         },
-        expected_rate
-    ).await;
+        expected_rate,
+    )
+    .await;
 
     Ok(())
 }
