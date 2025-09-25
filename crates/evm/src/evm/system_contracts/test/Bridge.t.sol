@@ -148,6 +148,12 @@ contract MockSchnorrPrecompile {
   }
 }
 
+contract MockSchnorrPrecompileAlwaysAccept {
+    fallback(bytes calldata) external returns (bytes memory) {
+        return abi.encode(bytes32(hex"0000000000000000000000000000000000000000000000000000000000000001"));
+    }
+}
+
 contract BridgeTest is Test {
     using BytesLib for bytes;
     using BTCUtils for bytes;
@@ -668,7 +674,7 @@ contract BridgeTest is Test {
     function testSafeWithdraw() public {
         doDeposit();
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
-        prepareBitcoinLightClientForSafeWithdraw();
+        prepareSafeWithdraw();
         doSafeWithdraw();
         
         assertEq(receiver.balance, 0);
@@ -677,6 +683,49 @@ contract BridgeTest is Test {
         (bytes32 _txId, bytes4 _outputId) = bridge.withdrawalUTXOs(withdrawalCount - 1);
         assertEq(_txId, hex"9e7138d6bebcc9cab3de962a1d2dd35163d49a0f9053ad1afc9cd5539249af78");
         assertEq(_outputId, hex"01000000");
+    }
+
+    function testSafeWithdrawWithLargeVarIntInPayoutOutput() public {
+        doDeposit();
+        assertEq(receiver.balance, DEPOSIT_AMOUNT);
+        prepareSafeWithdraw();
+        vm.prank(receiver);
+        (Bridge.Transaction memory prepareTx, Bridge.MerkleProof memory proof, Bridge.Transaction memory payoutTx) = safeWithdrawTxInfo();
+        // varInt for the script pubkey is changed from `0x22` to `0xfd2200` to simulate a larger varint
+        payoutTx.vout = hex"016043993b00000000fd220051209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90";
+        bytes memory header = hex"00000030a49f936b31bbd053f48f8b3e55666124607917271e93d1d4c942f2139bbe9a2e402f348e5912a77a6273511b017659b8fcb9484b73241527178e4b924848e9b062802c68ffff7f2001000000";
+        // Effectively disabling the signature check as we are only testing the varint parsing
+        vm.etch(bridge.SCHNORR_VERIFIER_PRECOMPILE(), address(new MockSchnorrPrecompileAlwaysAccept()).code);
+        bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"51209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90");
+    }
+
+    function testSafeWithdrawWithArbitraryVarIntInPayoutOutput() public {
+        doDeposit();
+        assertEq(receiver.balance, DEPOSIT_AMOUNT);
+        prepareSafeWithdraw();
+        vm.prank(receiver);
+        (Bridge.Transaction memory prepareTx, Bridge.MerkleProof memory proof, Bridge.Transaction memory payoutTx) = safeWithdrawTxInfo();
+        // varInt for the script pubkey is changed from `0x22` to `0x25` to simulate a non P2TR script pubkey, added `aabbcc` as the extra 3 bytes
+        payoutTx.vout = hex"016043993b0000000025aabbcc51209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90";
+        bytes memory header = hex"00000030a49f936b31bbd053f48f8b3e55666124607917271e93d1d4c942f2139bbe9a2e402f348e5912a77a6273511b017659b8fcb9484b73241527178e4b924848e9b062802c68ffff7f2001000000";
+        // Effectively disabling the signature check as we are only testing the varint parsing
+        vm.etch(bridge.SCHNORR_VERIFIER_PRECOMPILE(), address(new MockSchnorrPrecompileAlwaysAccept()).code);
+        bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"aabbcc51209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90");
+    }
+
+    function testNonOwnerCannotSetOptimisticWithdrawAmount() public {
+        vm.prank(user);
+        vm.expectRevert();
+        bridge.setOptimisticWithdrawAmount(1);
+    }
+
+    function testOwnerCanSetOptimisticWithdrawAmount() public {
+        uint256 newAmount = 123456789;
+        vm.prank(owner);
+        vm.expectEmit();
+        emit Bridge.OptimisticWithdrawAmountSet(newAmount);
+        bridge.setOptimisticWithdrawAmount(newAmount);
+        assertEq(bridge.optimisticWithdrawAmount(), newAmount);
     }
 
     function testP2TRTransactionTypeConfusionAttack() public {
@@ -794,7 +843,7 @@ contract BridgeTest is Test {
         doDeposit();
         vm.prank(operator);
         bridge.pause();
-        prepareBitcoinLightClientForSafeWithdraw();
+        prepareSafeWithdraw();
         vm.expectRevert("EnforcedPause()");
         doSafeWithdraw();
         // Assert if user still has its balance
@@ -828,7 +877,7 @@ contract BridgeTest is Test {
         doDeposit();
         vm.prank(operator);
         bridge.pause();
-        prepareBitcoinLightClientForSafeWithdraw();
+        prepareSafeWithdraw();
         vm.expectRevert("EnforcedPause()");
         doSafeWithdraw();
         vm.prank(operator);
@@ -869,7 +918,13 @@ contract BridgeTest is Test {
 
     function doSafeWithdraw() public {
         vm.prank(receiver);
-        Bridge.Transaction memory prepareTx = Bridge.Transaction(
+        (Bridge.Transaction memory prepareTx, Bridge.MerkleProof memory proof, Bridge.Transaction memory payoutTx) = safeWithdrawTxInfo();
+        bytes memory header = hex"00000030a49f936b31bbd053f48f8b3e55666124607917271e93d1d4c942f2139bbe9a2e402f348e5912a77a6273511b017659b8fcb9484b73241527178e4b924848e9b062802c68ffff7f2001000000";
+        bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"51209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90");
+    }
+
+    function safeWithdrawTxInfo() public pure returns (Bridge.Transaction memory prepareTx, Bridge.MerkleProof memory proof, Bridge.Transaction memory payoutTx) {
+        prepareTx = Bridge.Transaction(
             hex"02000000", 
             hex"0001", 
             hex"0180f01d40c4c53e10a58e0e63d84ee369173c3b03e9c4787f33416beefac82f910000000000fdffffff", 
@@ -877,12 +932,12 @@ contract BridgeTest is Test {
             hex"01404344971b6185f8724449b964393220cf37cbc124727ad29df7540ee9048f47a704845f8f3d7c2c240ae904c45de08b0187cc41745d5266b8e5a5d092d30ed19b",
             hex"d5000000"
         );
-        Bridge.MerkleProof memory proof = Bridge.MerkleProof(
+        proof = Bridge.MerkleProof(
             hex"f70aa9fc12ea0cea3947a2892e8b4c2970b1d7f1cb3e2411dc83141d17b1ce5573a03a23cb4e62a4ae2eb692ff0cef81f6289472694613dd83a3e40251ad6dbf",
             INITIAL_BLOCK_NUMBER + 1,
             2
         );
-        Bridge.Transaction memory payoutTx = Bridge.Transaction(
+        payoutTx = Bridge.Transaction(
             hex"02000000", 
             hex"0001", 
             hex"019e7138d6bebcc9cab3de962a1d2dd35163d49a0f9053ad1afc9cd5539249af780100000000fdffffff", 
@@ -890,8 +945,6 @@ contract BridgeTest is Test {
             hex"0141834e7a701035bb446dd4112c3a0498c1d7b44f89000f2c14e9a3ef8c04a05e6b1faa5727d1a7a62e6d46b7942ee17cb6766bde46f5b5d1e4337c57240e3c712a83",
             hex"00000000"
         );
-        bytes memory header = hex"00000030a49f936b31bbd053f48f8b3e55666124607917271e93d1d4c942f2139bbe9a2e402f348e5912a77a6273511b017659b8fcb9484b73241527178e4b924848e9b062802c68ffff7f2001000000";
-        bridge.safeWithdraw{value: DEPOSIT_AMOUNT}(prepareTx, proof, payoutTx, header, hex"51209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90");
     }
 
     function doBatchWithdraw() public returns (bytes32[] memory txIds, bytes4[] memory outputIds) {
@@ -908,7 +961,9 @@ contract BridgeTest is Test {
 
     // divided withdraw into two functions
     // so that we can expectRevert on doSafeWithdraw
-    function prepareBitcoinLightClientForSafeWithdraw() public {
+    function prepareSafeWithdraw() public {
+        vm.prank(owner);
+        bridge.setOptimisticWithdrawAmount(999900000);
         vm.prank(SYSTEM_CALLER);
         bitcoinLightClient.setBlockInfo(hex"d740c1b74570c512cb79c8b3f5d3ccaa515059c49dd51b01c5b2ec56bfb9ee37", witnessRoot, 2);
     }
