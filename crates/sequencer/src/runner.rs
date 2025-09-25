@@ -650,7 +650,8 @@ where
 
         // Handle L1 fee failed transactions and persistent storage cleanup
         // Note: Mined transaction removal from mempool is handled by the maintenance task
-        self.maintain_mempool(l1_fee_failed_txs)?;
+        self.maintain_mempool(l1_fee_failed_txs)
+            .expect("Maintain mempool should NOT fail");
 
         SM.no_dry_run_block_production_duration_secs.set(
             Instant::now()
@@ -973,7 +974,7 @@ where
             .db_provider
             .evm
             .get_block_by_height(l2_height, &mut working_set)
-            .ok_or(anyhow!("Block {} must exist after saving", l2_height))?;
+            .unwrap_or_else(|| panic!("Block {} must exist after saving", l2_height));
 
         let evm_block_hash = citrea_block.header.hash();
 
