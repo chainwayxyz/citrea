@@ -23,7 +23,7 @@ use crate::circuit::method_id_verifier::verify_method_id_security_council;
 pub const SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE: usize = 33;
 
 /// Total number of security council members.
-pub const SECURITY_COUNCIL_MEMBERS: usize = 5;
+pub const SECURITY_COUNCIL_MEMBER_COUNT: usize = 5;
 
 /// Accessor (helpers) that are used inside the light client proof circuit.
 /// To access certain information that was saved to its state at one point.
@@ -291,7 +291,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         method_id_upgrade_authority_da_public_keys: &[[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
-             SECURITY_COUNCIL_MEMBERS],
+             SECURITY_COUNCIL_MEMBER_COUNT],
         network: Network,
     ) -> RunL1BlockResult<S> {
         let mut working_set =
@@ -545,7 +545,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         method_id_upgrade_authority_da_public_keys: &[[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
-             SECURITY_COUNCIL_MEMBERS],
+             SECURITY_COUNCIL_MEMBER_COUNT],
     ) -> Result<LightClientCircuitOutput, LightClientVerificationError<DaV>>
     where
         DaV: DaVerifier<Spec = DS>,

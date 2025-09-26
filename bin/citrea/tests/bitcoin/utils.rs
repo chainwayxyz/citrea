@@ -12,7 +12,7 @@ use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_light_client_prover::circuit::{
-    SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBERS,
+    SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT,
 };
 use citrea_primitives::REVEAL_TX_PREFIX;
 use reth_tasks::TaskExecutor;
@@ -198,11 +198,11 @@ fn from_vec_to_sigs(
 pub(crate) fn generate_initial_pub_keys_with_signers_from_pks(
     private_keys: [[u8; 32]; 5],
 ) -> (
-    [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBERS],
+    [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT],
     Vec<PrivateKeySigner>,
 ) {
     let mut initial_da_pubkeys =
-        [[0u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBERS];
+        [[0u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT];
     let mut signers = Vec::new();
 
     // Generate 5 valid keypairs and signatures

@@ -24,7 +24,7 @@ use sov_rollup_interface::Network;
 use crate::circuit::accessors::ChunkAccessor;
 use crate::circuit::{
     citrea_network_to_method_id_upgrade_identifier, LightClientProofCircuit,
-    SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBERS,
+    SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT,
 };
 
 /// Test private keys used for generating signatures in tests
@@ -216,11 +216,11 @@ pub(crate) fn from_vec_to_sigs(
 pub(crate) fn generate_initial_pub_keys_with_signers_from_pks(
     private_keys: [[u8; 32]; 5],
 ) -> (
-    [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBERS],
+    [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT],
     Vec<PrivateKeySigner>,
 ) {
     let mut initial_da_pubkeys =
-        [[0u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBERS];
+        [[0u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT];
     let mut signers = Vec::new();
 
     // Generate 5 valid keypairs and signatures
@@ -237,11 +237,11 @@ pub(crate) fn generate_initial_pub_keys_with_signers_from_pks(
 
 /// Generates 5 valid keypairs and returns the public keys and signers
 pub(crate) fn generate_initial_pub_keys_with_signers() -> (
-    [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBERS],
+    [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT],
     Vec<PrivateKeySigner>,
 ) {
     let mut initial_da_pubkeys =
-        [[0u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBERS];
+        [[0u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT];
     let mut signers = Vec::new();
 
     // Generate 5 valid keypairs and signatures
@@ -382,7 +382,7 @@ impl NativeCircuitRunner {
         batch_prover_da_pub_key: &[u8],
         sequencer_da_pub_key: &[u8],
         method_id_upgrade_authority: &[[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
-             SECURITY_COUNCIL_MEMBERS],
+             SECURITY_COUNCIL_MEMBER_COUNT],
         network: Network,
     ) -> LightClientCircuitInput<MockDaSpec> {
         let prover_storage = self
