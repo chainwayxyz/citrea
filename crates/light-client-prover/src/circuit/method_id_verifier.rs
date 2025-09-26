@@ -22,9 +22,13 @@ pub fn verify_method_id_security_council(
     }
 
     // Make sure the indexes are in ascending order to prevent duplicates
-    for i in 1..signatures_with_idx.len() {
-        if signatures_with_idx[i].1 <= signatures_with_idx[i - 1].1 {
-            log!("Signature indices are not in ascending order");
+    for i in 0..signatures_with_idx.len() - 1 {
+        if signatures_with_idx[i].1 >= signatures_with_idx[i + 1].1 {
+            log!(
+                "Signature indices are not in ascending order, failing indices: {}, {}",
+                signatures_with_idx[i].1,
+                signatures_with_idx[i + 1].1
+            );
             return false;
         }
     }
