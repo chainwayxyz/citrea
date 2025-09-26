@@ -197,6 +197,7 @@ where
             &self.network.batch_prover_da_public_key(),
             &self.network.sequencer_da_public_key(),
             &self.network.method_id_upgrade_authority_da_public_keys(),
+            self.network,
         );
 
         // This is not exactly right, but works for now because we have a single elf for

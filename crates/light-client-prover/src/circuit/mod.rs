@@ -285,6 +285,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         method_id_upgrade_authority_da_public_keys: &[[u8; 33]; 5],
+        network: Network,
     ) -> RunL1BlockResult<S> {
         let mut working_set =
             WorkingSet::with_witness(storage.clone(), witness, Default::default());
@@ -417,24 +418,34 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         .expect("Should be at least one")
                         .0;
 
-                    if batch_proof_method_id.body.activation_l2_height > last_activation_height {
-                        // Verify the signatures only if the activation height is greater than the last one
-                        // This prevents replay attacks of old method IDs
-                        if !verify_method_id_security_council(
-                            *method_id_upgrade_authority_da_public_keys,
-                            batch_proof_method_id.body.serialize().as_slice(),
-                            batch_proof_method_id.signatures_with_index(),
-                        ) {
-                            log!("Method ID security council verification failed");
-                            continue;
-                        }
-
-                        BatchProofMethodIdAccessor::<S>::insert(
-                            batch_proof_method_id.body.activation_l2_height,
-                            batch_proof_method_id.body.method_id,
-                            &mut working_set,
-                        );
+                    if batch_proof_method_id.body.activation_l2_height <= last_activation_height {
+                        log!("Batch proof method id activation height is not greater than the last one");
+                        continue;
                     }
+
+                    let circuit_network_id =
+                        citrea_network_to_method_id_upgrade_identifier(network);
+                    if circuit_network_id != batch_proof_method_id.body.network_id {
+                        log!("Method ID upgrade transactions network ID does not match circuit network ID");
+                        continue;
+                    }
+
+                    // Verify the signatures only if the activation height is greater than the last one
+                    // This prevents replay attacks of old method IDs
+                    if !verify_method_id_security_council(
+                        *method_id_upgrade_authority_da_public_keys,
+                        batch_proof_method_id.body.serialize().as_slice(),
+                        batch_proof_method_id.signatures_with_index(),
+                    ) {
+                        log!("Method ID security council verification failed");
+                        continue;
+                    }
+
+                    BatchProofMethodIdAccessor::<S>::insert(
+                        batch_proof_method_id.body.activation_l2_height,
+                        batch_proof_method_id.body.method_id,
+                        &mut working_set,
+                    );
                 }
                 DataOnDa::SequencerCommitment(commitment) => {
                     log!("Found sequencer commitment with index {}", commitment.index);
@@ -583,6 +594,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             batch_prover_da_public_key,
             sequencer_da_public_key,
             method_id_upgrade_authority_da_public_keys,
+            network,
         );
 
         Ok(LightClientCircuitOutput {
@@ -599,5 +611,17 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 impl<S: Storage, DS: DaSpec, Z: Zkvm> Default for LightClientProofCircuit<S, DS, Z> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+pub fn citrea_network_to_method_id_upgrade_identifier(
+    network: sov_rollup_interface::Network,
+) -> u8 {
+    match network {
+        sov_rollup_interface::Network::Mainnet => 1,
+        sov_rollup_interface::Network::Testnet => 10,
+        sov_rollup_interface::Network::Devnet => 100,
+        sov_rollup_interface::Network::Nightly => 105,
+        sov_rollup_interface::Network::TestNetworkWithForks => 106,
     }
 }

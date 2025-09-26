@@ -61,8 +61,10 @@ pub fn verify_method_id_security_council(
 #[cfg(test)]
 mod tests {
     use sov_rollup_interface::da::{BatchProofMethodId, BatchProofMethodIdBody};
+    use sov_rollup_interface::Network;
 
     use super::*;
+    use crate::circuit::citrea_network_to_method_id_upgrade_identifier;
     use crate::{create_valid_signatures, generate_initial_pub_keys_with_signers};
 
     #[test]
@@ -70,6 +72,7 @@ mod tests {
         let body = BatchProofMethodIdBody {
             method_id: [0u32; 8],
             activation_l2_height: 0,
+            network_id: citrea_network_to_method_id_upgrade_identifier(Network::Nightly),
         };
         let msg = body.serialize();
         let prehash = eip191_hash_message(msg);
@@ -82,6 +85,7 @@ mod tests {
             body: BatchProofMethodIdBody {
                 method_id: [0u32; 8],
                 activation_l2_height: 0,
+                network_id: citrea_network_to_method_id_upgrade_identifier(Network::Nightly),
             },
             signatures_with_index,
         };
@@ -98,6 +102,7 @@ mod tests {
         let body = BatchProofMethodIdBody {
             method_id: [0u32; 8],
             activation_l2_height: 0,
+            network_id: citrea_network_to_method_id_upgrade_identifier(Network::Nightly),
         };
         let msg = body.serialize();
         let prehash = eip191_hash_message(msg);
@@ -125,6 +130,7 @@ mod tests {
         let body = BatchProofMethodIdBody {
             method_id: [0u32; 8],
             activation_l2_height: 0,
+            network_id: citrea_network_to_method_id_upgrade_identifier(Network::Nightly),
         };
         let msg = body.serialize();
         let prehash = eip191_hash_message(msg);
@@ -152,6 +158,7 @@ mod tests {
         let body = BatchProofMethodIdBody {
             method_id: [0u32; 8],
             activation_l2_height: 0,
+            network_id: citrea_network_to_method_id_upgrade_identifier(Network::Nightly),
         };
         let msg = body.serialize();
         let prehash = eip191_hash_message(msg);
@@ -175,6 +182,7 @@ mod tests {
         let body = BatchProofMethodIdBody {
             method_id: [0u32; 8],
             activation_l2_height: 0,
+            network_id: citrea_network_to_method_id_upgrade_identifier(Network::Nightly),
         };
         let msg = body.serialize();
         let prehash = eip191_hash_message(msg);
