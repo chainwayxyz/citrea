@@ -1066,12 +1066,12 @@ where
         mut shutdown_signal: GracefulShutdown,
     ) -> Result<(), anyhow::Error> {
         let l1_fee_rate_multiplier = self.config.l1_fee_rate_multiplier;
-        let max_l1_fee_rate = self.config.max_l1_fee_rate; // sat/vbyte
+        let max_l1_fee_rate_sat_vb = self.config.max_l1_fee_rate_sat_vb;
 
         let multiplied_l1_fee_rate = |rate: u128| -> u128 {
             let multiplied = ((rate as f64) * l1_fee_rate_multiplier).ceil() as u128;
             // multiply with 10^10/4 = 2_500_000_000 to convert sat/vbyte to wei/byte
-            let max_fee_wei_per_byte = max_l1_fee_rate as u128 * 2_500_000_000;
+            let max_fee_wei_per_byte = max_l1_fee_rate_sat_vb as u128 * 2_500_000_000;
 
             multiplied.min(max_fee_wei_per_byte)
         };
