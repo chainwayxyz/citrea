@@ -21,13 +21,12 @@ pub fn verify_method_id_security_council(
         }
     }
 
-    // Check for duplicate indices
-    if signatures_with_idx[0].1 == signatures_with_idx[1].1
-        || signatures_with_idx[0].1 == signatures_with_idx[2].1
-        || signatures_with_idx[1].1 == signatures_with_idx[2].1
-    {
-        log!("Duplicate signature indexes found");
-        return false;
+    // Make sure the indexes are in ascending order to prevent duplicates
+    for i in 1..signatures_with_idx.len() {
+        if signatures_with_idx[i].1 <= signatures_with_idx[i - 1].1 {
+            log!("Signature indices are not in ascending order");
+            return false;
+        }
     }
 
     for signature_with_idx in signatures_with_idx.iter() {
