@@ -1092,6 +1092,42 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .iter()
             .any(|x| x.method_id == new_batch_proof_method_id3.into()));
 
+        // Case 5: Test with wrong network (should be rejected)
+        let new_batch_proof_method_id4 = [5u32; 8];
+        let method_id_body4 = BatchProofMethodIdBody {
+            method_id: new_batch_proof_method_id4,
+            activation_l2_height: 250,
+            network_id: citrea_network_to_method_id_upgrade_identifier(Network::Mainnet),
+        };
+        let msg4 = method_id_body4.serialize();
+        let prehash4 = eip191_hash_message(msg4.as_slice());
+        let signatures_with_index = create_valid_signatures(&signers, &prehash4);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+                    body: method_id_body4.clone(),
+                    signatures_with_index,
+                }),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let method_id_l1_height4 = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(method_id_l1_height4, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let batch_proof_method_ids4 = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert!(!batch_proof_method_ids4
+            .iter()
+            .any(|x| x.method_id == new_batch_proof_method_id4.into()));
+
         Ok(())
     }
 }
