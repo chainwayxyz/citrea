@@ -63,6 +63,7 @@ pub struct BatchProofMethodId {
     /// With it the indexes of the pubkeys that should be used to verify the signatures
     /// The indexes point to the pubkeys in the light client circuit initial values
     /// If one signature verification fails the whole method id update is invalid
+    /// Also assumes the indexes are in ascending order and there are no duplicates
     pub signatures_with_index: [([u8; 64], u8); 3],
 }
 
