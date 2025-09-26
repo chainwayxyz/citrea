@@ -170,7 +170,12 @@ impl TestCase for SequencerL1FeeParamsTest {
         sequencer.client.send_publish_batch_request().await?;
         sequencer.wait_for_l2_height(1, None).await?;
 
-        let block = sequencer.client.http_client().get_head_l2_block().await?.unwrap();
+        let block = sequencer
+            .client
+            .http_client()
+            .get_head_l2_block()
+            .await?
+            .unwrap();
         let initial_fee_rate: u128 = block.header.l1_fee_rate.to();
         assert_eq!(initial_fee_rate, one_sat_vb); // assert we start with 1 sat/vbyte
         sequencer.wait_until_stopped().await?;
@@ -184,11 +189,15 @@ impl TestCase for SequencerL1FeeParamsTest {
         sequencer.client.send_publish_batch_request().await?;
         sequencer.client.wait_for_l2_block(2, None).await?;
         // assert the fee rate has doubled
-        let block = sequencer.client.http_client().get_head_l2_block().await?.unwrap();
+        let block = sequencer
+            .client
+            .http_client()
+            .get_head_l2_block()
+            .await?
+            .unwrap();
         let updated_fee_rate: u128 = block.header.l1_fee_rate.to();
         assert_eq!(updated_fee_rate, 2 * one_sat_vb);
         sequencer.wait_until_stopped().await?;
-
 
         // Test changing max l1 fee rate
         let mut new_config = sequencer.config.clone();
@@ -200,7 +209,12 @@ impl TestCase for SequencerL1FeeParamsTest {
         sequencer.client.send_publish_batch_request().await?;
         sequencer.client.wait_for_l2_block(3, None).await?;
         // assert the fee rate is capped at max l1 fee rate
-        let block = sequencer.client.http_client().get_head_l2_block().await?.unwrap();
+        let block = sequencer
+            .client
+            .http_client()
+            .get_head_l2_block()
+            .await?
+            .unwrap();
         let updated_fee_rate: u128 = block.header.l1_fee_rate.to();
         assert_eq!(updated_fee_rate, one_sat_vb);
 
