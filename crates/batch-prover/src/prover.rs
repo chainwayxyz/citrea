@@ -369,11 +369,7 @@ where
 
         *commitments = filtered_commitments;
 
-        let partitions = self.partition_commitments(
-            commitments,
-            mode,
-            self.prover_config.max_commitments_per_proof,
-        )?;
+        let partitions = self.partition_commitments(commitments, mode)?;
         info!("Partitioned commitments into {} parts", partitions.len());
 
         Ok(partitions)
@@ -486,7 +482,6 @@ where
         &self,
         commitments: &'a [SequencerCommitment],
         mode: PartitionMode,
-        max_commitments_per_proof: Option<usize>,
     ) -> anyhow::Result<Vec<Partition<'a>>> {
         let mut state = PartitionState::new(commitments, self.ledger_db.clone())?;
 
@@ -525,7 +520,7 @@ where
             );
 
             // check commitment count limit, before adding the current commitment.
-            if let Some(max_count) = max_commitments_per_proof {
+            if let Some(max_count) = self.prover_config.max_commitments_per_proof {
                 if commitments_in_current_partition >= max_count {
                     cumulative_state_diff = commitment_state_diff;
                     state.add_partition(i - 1, PartitionReason::CommitmentCount)?;
