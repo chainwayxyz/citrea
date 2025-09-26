@@ -224,9 +224,6 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             .insert_mempool_tx(hash.to_vec(), rlp_encoded_tx)
         {
             tracing::warn!("Failed to insert mempool tx into db: {:?}", e);
-        } else {
-            SM.mempool_txs.increment(1);
-            SM.mempool_txs_inc.increment(1);
         }
 
         Ok(hash)

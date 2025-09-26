@@ -9,7 +9,9 @@ use reth_primitives_traits::SignedTransaction;
 use revm::context::{TransactTo, TxEnv};
 use revm::state::AccountInfo as ReVmAccountInfo;
 
-use super::primitive_types::{RlpEvmTransaction, TransactionSignedAndRecovered};
+use super::primitive_types::{
+    CitreaReceiptWithBloom, RlpEvmTransaction, TransactionSignedAndRecovered,
+};
 use super::system_events::SYSTEM_SIGNATURE;
 use super::AccountInfo;
 use crate::SYSTEM_SIGNER;
@@ -142,5 +144,12 @@ pub(crate) fn sealed_block_to_block_env(
             .excess_blob_gas
             .or(Some(0))
             .map(|gas| BlobExcessGasAndPrice::new(gas, evm_spec_id.is_enabled_in(PRAGUE))),
+    }
+}
+
+/// Converts CitreaReceiptWithBloom to Reth Receipt
+impl From<&CitreaReceiptWithBloom> for reth_primitives::Receipt {
+    fn from(receipt: &CitreaReceiptWithBloom) -> Self {
+        receipt.receipt.receipt.clone()
     }
 }

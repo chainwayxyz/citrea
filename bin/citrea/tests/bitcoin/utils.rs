@@ -186,6 +186,8 @@ pub async fn spawn_bitcoin_da_service(
         }),
         mempool_space_url: None,
         utxo_selection_mode,
+        rpc_timeout_secs: None,
+        rpc_connect_timeout_secs: None,
     };
 
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -196,13 +198,19 @@ pub async fn spawn_bitcoin_da_service(
         network,
     };
 
+    // Use configured timeouts or use library defaults
+    let timeout = da_config.rpc_timeout_secs.map(Duration::from_secs);
+    let connect_timeout = da_config.rpc_connect_timeout_secs.map(Duration::from_secs);
+
     let client = Arc::new(
-        Client::new(
+        Client::with_timeouts(
             &da_config.node_url,
             Auth::UserPass(
                 da_config.node_username.clone(),
                 da_config.node_password.clone(),
             ),
+            timeout,
+            connect_timeout,
         )
         .await
         .unwrap(),

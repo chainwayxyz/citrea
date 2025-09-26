@@ -55,11 +55,11 @@ pub struct BatchProofMethodId {
     /// Body of the method id update, the message to be signed
     /// Includes method id and activation height
     pub body: BatchProofMethodIdBody,
-    /// Signatures of to be verified for the method id update
+    /// Signatures to be verified for the method id update used for a 3 of 5 security council
     /// Consists of 64 byte keccak256(eip191 prefixed message) prehash signed signatures
     /// The public keys can be recovered from the signatures and the prehash
-    /// With it the indexes of the pubkeys that should be used to verify the signatures
-    /// The indexes point to the pubkeys in the light client circuit initial values
+    /// The indices point to the pubkeys in the light client circuit initial values
+    /// To verify the signature the pubkey should be fetched from the initial values corresponding to the signature
     /// If one signature verification fails the whole method id update is invalid
     pub signatures_with_index: [([u8; 64], u8); 3],
 }

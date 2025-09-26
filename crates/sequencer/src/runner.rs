@@ -1,10 +1,11 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
+use std::ops::Range;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
-use alloy_eips::eip2718::Encodable2718;
-use alloy_primitives::{Address, Bytes, TxHash, U256};
+use alloy_eips::eip2718::{Decodable2718, Encodable2718};
+use alloy_primitives::{keccak256, Address, Bytes, TxHash, U256};
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
@@ -22,14 +23,17 @@ use citrea_primitives::merkle::{compute_tx_hashes, compute_tx_merkle_root};
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use parking_lot::Mutex;
-use reth_execution_types::ChangedAccount;
-use reth_provider::{AccountReader, BlockReaderIdExt};
+use reth_execution_types::{Chain, ExecutionOutcome};
+use reth_primitives::{Receipt, RecoveredBlock, SealedBlock};
+use reth_provider::{BlockReaderIdExt, CanonStateNotification};
 use reth_tasks::shutdown::GracefulShutdown;
 use reth_transaction_pool::error::InvalidPoolTransactionError;
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
     ValidPoolTransaction,
 };
+use revm::database::{AccountStatus, BundleAccount, BundleState};
+use revm::state::AccountInfo as ReVmAccountInfo;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps, SharedLedgerOps};
@@ -50,7 +54,7 @@ use sov_rollup_interface::stf::{L2BlockResult, StateTransitionError};
 use sov_rollup_interface::transaction::Transaction;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
-use sov_state::ProverStorage;
+use sov_state::{ProverStorage, ReadWriteLog};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::{broadcast, mpsc};
 use tracing::level_filters::LevelFilter;
@@ -113,6 +117,8 @@ where
     l2_block_tx: broadcast::Sender<u64>,
     /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
+    /// Channel for sending canonical state notifications to mempool maintenance
+    canon_state_tx: mpsc::UnboundedSender<CanonStateNotification>,
 }
 
 impl<Da> CitreaSequencer<Da>
@@ -152,6 +158,7 @@ where
         l2_block_tx: broadcast::Sender<u64>,
         backup_manager: Arc<BackupManager>,
         rpc_message_rx: UnboundedReceiver<SequencerRpcMessage>,
+        canon_state_tx: mpsc::UnboundedSender<CanonStateNotification>,
     ) -> anyhow::Result<Self> {
         let sov_tx_signer_priv_key =
             K256PrivateKey::try_from(hex::decode(&config.private_key)?.as_slice())?;
@@ -173,6 +180,7 @@ where
             fork_manager,
             l2_block_tx,
             backup_manager,
+            canon_state_tx,
         })
     }
 
@@ -197,7 +205,11 @@ where
         l2_block_info: HookL2BlockInfo,
         deposit_data: &[Deposit],
         da_blocks: Vec<Da::FilteredBlock>,
-    ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
+    ) -> anyhow::Result<(
+        Vec<RlpEvmTransaction>,
+        Vec<TxHash>,
+        Vec<alloy_primitives::Address>,
+    )> {
         let start = Instant::now();
 
         // Disable logging during dry run to avoid noise
@@ -240,6 +252,8 @@ where
 
             // Track transactions that failed due to insufficient L1 fee balance
             let mut l1_fee_failed_txs = vec![];
+            // Track senders for successfully validated transactions
+            let mut senders = vec![];
 
             // using .next() instead of a for loop because its the intended
             // behaviour for the BestTransactions implementations
@@ -247,7 +261,9 @@ where
             #[allow(clippy::while_let_on_iterator)]
             while let Some(evm_tx) = transactions.next() {
                 let start_tx = Instant::now();
-                let buf = evm_tx.to_consensus().into_inner().encoded_2718();
+                let recovered = evm_tx.to_consensus();
+                let sender = recovered.signer();
+                let buf = recovered.into_inner().encoded_2718();
                 let rlp_tx = RlpEvmTransaction { rlp: buf };
                 let call_txs = CallMessage {
                     txs: vec![rlp_tx.clone()],
@@ -361,6 +377,7 @@ where
                 // we can include the transaction in the block
                 working_set_to_discard = working_set.checkpoint().to_revertable();
                 all_txs.push(rlp_tx);
+                senders.push(sender);
                 SM.dry_run_single_tx_time.record(
                     Instant::now()
                         .saturating_duration_since(start_tx)
@@ -375,7 +392,7 @@ where
             SM.l1_fee_failed_txs_count
                 .set(l1_fee_failed_txs.len() as f64);
 
-            Ok((all_txs, l1_fee_failed_txs))
+            Ok((all_txs, l1_fee_failed_txs, senders))
         })
     }
 
@@ -508,7 +525,7 @@ where
         // Dry running transactions would basically allow for figuring out a list of
         // all transactions that would fit into the current block and the list of transactions
         // which do not have enough balance to pay for the L1 fee.
-        let (txs_to_run, l1_fee_failed_txs) = self
+        let (txs_to_run, l1_fee_failed_txs, senders) = self
             .dry_run_transactions(
                 evm_txs,
                 prestate.clone(),
@@ -535,11 +552,22 @@ where
         let (signed_txs, blobs) = self.encode_and_sign_evm_txs_into_sov_txs(
             &mut working_set,
             &l2_block_info,
-            txs_to_run,
+            txs_to_run.clone(),
         )?;
 
         self.instrumented_apply_l2_block_txs(&l2_block_info, &signed_txs, &mut working_set)?;
         self.instrumented_end_l2_block(l2_block_info, &mut working_set)?;
+
+        let receipts = self.extract_receipts_from_working_set(l2_height, &mut working_set);
+
+        assert_eq!(
+            receipts.len(),
+            evm_txs_count,
+            "Expected {} receipts but extracted {}",
+            evm_txs_count,
+            receipts.len()
+        );
+
         let l2_block_result =
             self.instrumented_finalize_l2_block(active_fork_spec, working_set, prestate);
 
@@ -567,6 +595,15 @@ where
             evm_txs_count
         );
 
+        // Extract account state changes for mempool maintenance
+        let start_extract_bundle = Instant::now();
+        let bundle_state = self.extract_bundle_state_from_state_log(&l2_block_result.state_log);
+        SM.mempool_extract_bundle_state_time.set(
+            Instant::now()
+                .saturating_duration_since(start_extract_bundle)
+                .as_secs_f64(),
+        );
+
         // First set the state diff before committing the L2 block
         // This prevents race conditions where the sequencer might shut down
         // between committing the L2 block and saving the state diff
@@ -584,9 +621,37 @@ where
             );
         }
 
+        // Build notification using in-memory data instead of reading from DB
+        let start_canonical_notification = Instant::now();
+
+        // Use the transactions we already have from dry_run (txs_to_run)
+        // and build block structure without DB reads
+        let (reth_block, reth_receipts, evm_block_hash) =
+            self.build_reth_block_data(l2_height, &txs_to_run, &senders, &receipts);
+
+        // Create the Chain notification with the produced block data
+        let chain = self.create_chain_notification(
+            l2_height,
+            evm_block_hash,
+            reth_block,
+            senders,
+            reth_receipts,
+            bundle_state,
+        );
+        // Send canonical state notification for mempool maintenance task
+        let _ = self.canon_state_tx.send(CanonStateNotification::Commit {
+            new: Arc::new(chain),
+        });
+        SM.mempool_canonical_notification_time.set(
+            Instant::now()
+                .saturating_duration_since(start_canonical_notification)
+                .as_secs_f64(),
+        );
+
         // Handle L1 fee failed transactions and persistent storage cleanup
         // Note: Mined transaction removal from mempool is handled by the maintenance task
-        self.maintain_mempool(l1_fee_failed_txs)?;
+        self.maintain_mempool(l1_fee_failed_txs)
+            .expect("Maintain mempool should NOT fail");
 
         SM.no_dry_run_block_production_duration_secs.set(
             Instant::now()
@@ -710,6 +775,32 @@ where
         Ok(())
     }
 
+    /// Extracts receipts from the working set's accessory cache after end_l2_block
+    fn extract_receipts_from_working_set(
+        &self,
+        _l2_height: u64,
+        working_set: &mut WorkingSet<ProverStorage>,
+    ) -> Vec<reth_primitives::Receipt> {
+        let block = self
+            .db_provider
+            .evm
+            .get_head_block(working_set)
+            .expect("Head block must exist after end_l2_block");
+
+        let Range { start, end } = block.transaction_range();
+
+        let citrea_receipts =
+            self.db_provider
+                .evm
+                .get_block_receipts_range(start, end, working_set);
+
+        // Convert to reth receipts
+        citrea_receipts
+            .iter()
+            .map(|r| r.receipt.receipt.clone())
+            .collect()
+    }
+
     /// Finalizes the L2 block and records the time taken
     fn instrumented_finalize_l2_block(
         &mut self,
@@ -790,23 +881,164 @@ where
         Ok(())
     }
 
-    /// Maintains the mempool by removing failed transactions
+    /// Extracts EVM account changes from the state log to create a BundleState
+    fn extract_bundle_state_from_state_log(&self, state_log: &ReadWriteLog) -> BundleState {
+        let mut bundle_state = BundleState::default();
+        let mut account_id_to_address: HashMap<u64, alloy_primitives::Address> = HashMap::new();
+        let mut account_id_to_info: HashMap<u64, AccountInfo> = HashMap::new();
+        let mut account_id_to_status: HashMap<u64, AccountStatus> = HashMap::new();
+
+        // Parse reads for existing account mappings - these accounts are Loaded
+        for (cache_key, cache_value) in state_log.ordered_reads() {
+            if cache_key.key.starts_with(b"E/i/") {
+                if let Some(value) = cache_value {
+                    let encoded_addr = &cache_key.key[4..];
+                    let addr_bytes = borsh::from_slice::<[u8; 20]>(encoded_addr)
+                        .expect("Failed to borsh deserialize address");
+                    let address = Address::from_slice(&addr_bytes);
+                    let account_id = borsh::from_slice::<u64>(&value.value)
+                        .expect("Failed to borsh deserialize account ID");
+                    account_id_to_address.insert(account_id, address);
+                }
+            }
+        }
+
+        // Parse writes for new mappings and account info changes - these override status to Changed
+        for (cache_key, cache_value) in state_log.iter_ordered_writes() {
+            if cache_key.key.starts_with(b"E/i/") {
+                if let Some(value) = cache_value {
+                    let encoded_addr = &cache_key.key[4..];
+                    let addr_bytes = borsh::from_slice::<[u8; 20]>(encoded_addr)
+                        .expect("Failed to borsh deserialize address");
+                    let address = Address::from_slice(&addr_bytes);
+                    let account_id = borsh::from_slice::<u64>(&value.value)
+                        .expect("Failed to borsh deserialize account ID");
+                    account_id_to_address.insert(account_id, address);
+                }
+            } else if cache_key.key.starts_with(b"E/a/") {
+                if let Some(value) = cache_value {
+                    let encoded_id = &cache_key.key[4..];
+                    let account_id =
+                        borsh::from_slice::<u64>(encoded_id).expect("Failed to parse account ID");
+                    let account_info = borsh::from_slice::<AccountInfo>(&value.value)
+                        .expect("Failed to borsh deserialize account inf");
+                    account_id_to_info.insert(account_id, account_info);
+                    // Account was written to, so it's Changed (overrides Loaded if it was read)
+                    account_id_to_status.insert(account_id, AccountStatus::Changed);
+                }
+            }
+        }
+
+        for (account_id, account_info) in account_id_to_info {
+            if let Some(&address) = account_id_to_address.get(&account_id) {
+                let revm_info = ReVmAccountInfo {
+                    balance: account_info.balance,
+                    nonce: account_info.nonce,
+                    code_hash: account_info.code_hash.unwrap_or_else(|| keccak256([])),
+                    code: None,
+                };
+
+                // Get the status for this account (will be Changed since we only process written accounts)
+                let status = account_id_to_status
+                    .get(&account_id)
+                    .copied()
+                    .unwrap_or(AccountStatus::Changed);
+
+                let bundle_account = BundleAccount {
+                    info: Some(revm_info),
+                    storage: Default::default(),
+                    original_info: None,
+                    status,
+                };
+
+                bundle_state.state.insert(address, bundle_account);
+            }
+        }
+
+        bundle_state
+    }
+
+    /// Build block data from in-memory transactions without DB reads
+    fn build_reth_block_data(
+        &self,
+        l2_height: u64,
+        txs: &[RlpEvmTransaction],
+        _senders: &[alloy_primitives::Address],
+        receipts: &[reth_primitives::Receipt],
+    ) -> (reth_primitives::Block, Vec<Receipt>, alloy_primitives::B256) {
+        // For now, we still need one DB read to get the block header
+        // In a future optimization, we could cache this in memory too
+        let mut working_set = WorkingSet::new(self.db_provider.storage.clone());
+
+        let citrea_block = self
+            .db_provider
+            .evm
+            .get_block_by_height(l2_height, &mut working_set)
+            .unwrap_or_else(|| panic!("Block {} must exist after saving", l2_height));
+
+        let evm_block_hash = citrea_block.header.hash();
+
+        let header = citrea_block.header.clone().unseal();
+
+        let reth_transactions: Vec<reth_primitives::TransactionSigned> = txs
+            .iter()
+            .map(|tx| {
+                // Decode RLP bytes to TransactionSigned
+                reth_primitives::TransactionSigned::decode_2718(&mut tx.rlp.as_ref())
+                    .expect("Transaction decoding should succeed")
+            })
+            .collect();
+
+        // Use receipts directly - no DB reads or serialization needed!
+        let reth_receipts = receipts.to_vec();
+
+        let block = reth_primitives::Block {
+            header,
+            body: reth_primitives::BlockBody {
+                transactions: reth_transactions,
+                ommers: Vec::new(),
+                withdrawals: None,
+            },
+        };
+
+        (block, reth_receipts, evm_block_hash)
+    }
+
+    /// Creates a Chain notification from the produced L2 block
+    fn create_chain_notification(
+        &self,
+        l2_height: u64,
+        block_hash: alloy_primitives::B256,
+        block: reth_primitives::Block,
+        senders: Vec<alloy_primitives::Address>,
+        receipts: Vec<Receipt>,
+        bundle_state: BundleState,
+    ) -> Chain {
+        let sealed_block = SealedBlock::new_unchecked(block, block_hash);
+        let recovered_block = RecoveredBlock::new_sealed(sealed_block, senders);
+
+        let execution_outcome =
+            ExecutionOutcome::new(bundle_state, vec![receipts], l2_height, vec![]);
+
+        Chain::from_block(recovered_block, execution_outcome, None)
+    }
+
+    /// Handles cleanup for L1 fee failed transactions and persistent storage
     ///
     /// # Arguments
     /// * `l1_fee_failed_txs` - Transactions that failed due to L1 fee issues
     pub(crate) fn maintain_mempool(&self, l1_fee_failed_txs: Vec<TxHash>) -> anyhow::Result<()> {
         let start_maintain_mempool = Instant::now();
-        // Combine transactions from last block and those that failed L1 fee check
+
+        // Remove L1 fee failed transactions from the mempool
+        // These are not handled by the maintenance task
+        if !l1_fee_failed_txs.is_empty() {
+            self.mempool.remove_transactions(l1_fee_failed_txs.clone());
+        }
+
+        // Clean up persistent storage for both included and failed transactions
         let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
         txs_to_remove.extend(l1_fee_failed_txs);
-
-        // Remove processed/failed transactions from mempool
-        self.mempool.remove_transactions(txs_to_remove.clone());
-
-        // Update account states in mempool
-        let account_updates = self.get_account_updates()?;
-
-        self.mempool.update_accounts(account_updates);
 
         // Remove transactions from persistent storage
         let txs = txs_to_remove
@@ -817,7 +1049,6 @@ where
             warn!("Failed to remove txs from mempool: {:?}", e);
         }
 
-        SM.mempool_txs.set(self.mempool.len() as f64);
         SM.maintain_mempool_time.set(
             Instant::now()
                 .saturating_duration_since(start_maintain_mempool)
@@ -1132,46 +1363,6 @@ where
         self.ledger_db.remove_mempool_txs(failed_txs)?;
 
         Ok(())
-    }
-
-    /// Gets account updates for mempool maintenance
-    ///
-    /// This method retrieves account updates that occurred in the last block
-    /// to help maintain accurate account states in the mempool.
-    ///
-    /// # Returns
-    /// A vector of changed accounts with their updated states
-    fn get_account_updates(&self) -> Result<Vec<ChangedAccount>, anyhow::Error> {
-        // Get the most recent block
-        let head = self
-            .db_provider
-            .last_block()?
-            .expect("Unrecoverable: Head must exist");
-
-        // Extract unique addresses from block transactions
-        let addresses: HashSet<Address> = match head.transactions {
-            alloy_rpc_types::BlockTransactions::Full(ref txs) => {
-                txs.iter().map(|tx| tx.inner.signer()).collect()
-            }
-            _ => panic!("Block should have full transactions"),
-        };
-
-        let mut updates = vec![];
-
-        // Get updated account state for each address
-        for address in addresses {
-            let account = self
-                .db_provider
-                .basic_account(&address)?
-                .expect("Account must exist");
-            updates.push(ChangedAccount {
-                address,
-                nonce: account.nonce,
-                balance: account.balance,
-            });
-        }
-
-        Ok(updates)
     }
 
     /// Processes missed DA blocks to catch up with L1
