@@ -298,8 +298,14 @@ impl FromEnv for SequencerConfig {
             da_update_interval_ms: read_env("DA_UPDATE_INTERVAL_MS")?.parse()?,
             block_production_interval_ms: read_env("BLOCK_PRODUCTION_INTERVAL_MS")?.parse()?,
             bridge_initialize_params: read_env("BRIDGE_INITIALIZE_PARAMS")?,
-            l1_fee_rate_multiplier: read_env("L1_FEE_RATE_MULTIPLIER")?.parse()?,
-            max_l1_fee_rate: read_env("MAX_L1_FEE_RATE")?.parse()?,
+            l1_fee_rate_multiplier: read_env("L1_FEE_RATE_MULTIPLIER")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_l1_fee_rate_multiplier),
+            max_l1_fee_rate: read_env("MAX_L1_FEE_RATE")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_max_l1_fee_rate),
         })
     }
 }
