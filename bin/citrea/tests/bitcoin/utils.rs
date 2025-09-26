@@ -21,12 +21,16 @@ use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_e2e::traits::NodeT;
-use citrea_light_client_prover::circuit::citrea_network_to_method_id_upgrade_identifier;
+use citrea_light_client_prover::circuit::{
+    citrea_network_to_method_id_upgrade_identifier, SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE,
+    SECURITY_COUNCIL_MEMBER_COUNT,
+};
 use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
 use reth_tasks::TaskExecutor;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{
     BatchProofMethodId, BatchProofMethodIdBody, DaTxRequest, SequencerCommitment,
+    SECURITY_COUNCIL_SIGNATURE_SIZE, SECURITY_COUNCIL_SIGNATURE_THRESHOLD,
 };
 use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
 use sov_rollup_interface::services::da::DaService;
@@ -357,7 +361,9 @@ async fn create_and_fund_wallet(wallet: String, da_node: &BitcoinNode) {
 }
 
 /// Converts a vector of signatures in Vec<u8> format to an array of signatures in [u8; 64] format
-fn from_vec_to_sigs(vec: Vec<(Vec<u8>, u8)>) -> [([u8; 64], u8); 3] {
+fn from_vec_to_sigs(
+    vec: Vec<(Vec<u8>, u8)>,
+) -> [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
     let mut sigs = Vec::new();
     for (v, i) in vec.into_iter() {
         sigs.push((v.try_into().unwrap(), i));
@@ -368,8 +374,12 @@ fn from_vec_to_sigs(vec: Vec<(Vec<u8>, u8)>) -> [([u8; 64], u8); 3] {
 /// Generates 5 valid keypairs and returns the public keys and signers from the given private keys
 pub(crate) fn generate_initial_pub_keys_with_signers_from_pks(
     private_keys: [[u8; 32]; 5],
-) -> ([[u8; 33]; 5], Vec<PrivateKeySigner>) {
-    let mut initial_da_pubkeys = [[0u8; 33]; 5];
+) -> (
+    [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT],
+    Vec<PrivateKeySigner>,
+) {
+    let mut initial_da_pubkeys =
+        [[0u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT];
     let mut signers = Vec::new();
 
     // Generate 5 valid keypairs and signatures
@@ -388,12 +398,12 @@ pub(crate) fn generate_initial_pub_keys_with_signers_from_pks(
 pub(crate) fn create_valid_signatures(
     signers: &[PrivateKeySigner],
     prehash: &B256,
-) -> [([u8; 64], u8); 3] {
+) -> [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
     let mut signatures_in_inscription = Vec::new();
 
     for (i, signer) in signers.iter().enumerate().take(3) {
         let sig = signer.sign_hash_sync(prehash).unwrap();
-        let signature = sig.as_bytes()[0..64].to_vec();
+        let signature = sig.as_bytes()[0..SECURITY_COUNCIL_SIGNATURE_SIZE].to_vec();
         signatures_in_inscription.push((signature, i as u8));
     }
 

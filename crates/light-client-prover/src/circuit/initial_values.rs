@@ -9,6 +9,8 @@ use sov_rollup_interface::Network;
 
 #[cfg(feature = "native")]
 use self::non_empty_slice::NonEmptySlice;
+#[cfg(feature = "native")]
+use crate::circuit::{SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT};
 
 /// Genesis root for the Light Client Prover's Jellyfish Merkle Tree.
 pub(crate) const LCP_JMT_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
@@ -30,6 +32,7 @@ const fn decode_to_u32_array(hex: &str) -> [u32; 8] {
 /// Module containing initial values for the mock DA specification.
 pub mod mockda {
     use super::non_empty_slice::NonEmptySlice;
+    use crate::circuit::{SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT};
 
     /// Genesis L2 genesis root for the mock DA.
     pub const GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
@@ -61,7 +64,9 @@ pub mod mockda {
 
     /// Public keys of the method ID upgrade authority in the mock DA.
     /// 3 out of 5 signatures are required to upgrade method IDs.
-    pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8; 33]; 5] = [
+    pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8;
+        SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
+        SECURITY_COUNCIL_MEMBER_COUNT] = [
         // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077
         match const_hex::const_decode_to_array(
             b"0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
@@ -104,6 +109,7 @@ pub mod mockda {
 pub mod bitcoinda {
     use super::decode_to_u32_array;
     use super::non_empty_slice::NonEmptySlice;
+    use crate::circuit::{SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT};
 
     /// Genesis L2 root for the Bitcoin DA on Mainnet.
     pub const MAINNET_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
@@ -330,7 +336,9 @@ pub mod bitcoinda {
     // TODO: Update with real keys
     /// Public keys of the method ID upgrade authority in the Bitcoin DA on Mainnet.
     /// 3 out of 5 signatures are required to upgrade method IDs.
-    pub const MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8; 33]; 5] = [
+    pub const MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8;
+        SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
+        SECURITY_COUNCIL_MEMBER_COUNT] = [
         match const_hex::const_decode_to_array(
             b"000000000000000000000000000000000000000000000000000000000000000000",
         ) {
@@ -375,7 +383,9 @@ pub mod bitcoinda {
     // TODO: Update with real keys
     /// Public keys of the method ID upgrade authority in the Bitcoin DA on Testnet.
     /// 3 out of 5 signatures are required to upgrade method IDs.
-    pub const TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8; 33]; 5] = [
+    pub const TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8;
+        SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
+        SECURITY_COUNCIL_MEMBER_COUNT] = [
         match const_hex::const_decode_to_array(
             b"000000000000000000000000000000000000000000000000000000000000000000",
         ) {
@@ -420,7 +430,9 @@ pub mod bitcoinda {
 
     /// Public keys of the method ID upgrade authority in the Bitcoin DA on Devnet.
     /// 3 out of 5 signatures are required to upgrade method IDs.
-    pub const DEVNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8; 33]; 5] = [
+    pub const DEVNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8;
+        SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
+        SECURITY_COUNCIL_MEMBER_COUNT] = [
         match const_hex::const_decode_to_array(
             b"03fd24a8555cd34585b80c826f25f7df42862a4f97b6bdaf263a3d1bb368f09790",
         ) {
@@ -467,7 +479,9 @@ pub mod bitcoinda {
     /// This public key is set at compile time via the `METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY` environment variable.
     /// If the variable is not set, it defaults to a predefined value.
     /// 3 out of 5 signatures are required to upgrade method IDs.
-    pub const NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8; 33]; 5] = [
+    pub const NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8;
+        SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
+        SECURITY_COUNCIL_MEMBER_COUNT] = [
         {
             let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_1") {
                 Some(k) => k,
@@ -539,7 +553,9 @@ pub mod bitcoinda {
     /// This public key is set at compile time via the `METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY` environment variable.
     /// If the variable is not set, it defaults to a predefined value.
     /// 3 out of 5 signatures are required to upgrade method IDs.
-    pub const TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8; 33]; 5] = [
+    pub const TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8;
+        SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
+        SECURITY_COUNCIL_MEMBER_COUNT] = [
         {
             let hex_pub_key = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY_1") {
                 Some(k) => k,
@@ -624,7 +640,9 @@ pub trait InitialValueProvider<Das: DaSpec> {
     fn sequencer_da_public_key(&self) -> [u8; 33];
 
     /// Returns the public key of the method ID upgrade authority.
-    fn method_id_upgrade_authority_da_public_keys(&self) -> [[u8; 33]; 5];
+    fn method_id_upgrade_authority_da_public_keys(
+        &self,
+    ) -> [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT];
 }
 
 #[cfg(feature = "native")]
@@ -644,7 +662,9 @@ impl InitialValueProvider<MockDaSpec> for Network {
         mockda::BATCH_PROVER_DA_PUBLIC_KEY
     }
 
-    fn method_id_upgrade_authority_da_public_keys(&self) -> [[u8; 33]; 5] {
+    fn method_id_upgrade_authority_da_public_keys(
+        &self,
+    ) -> [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT] {
         assert_eq!(self, &Network::Nightly, "Only nightly allowed on mock da!");
         mockda::METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS
     }
@@ -691,7 +711,9 @@ impl InitialValueProvider<BitcoinSpec> for Network {
         }
     }
 
-    fn method_id_upgrade_authority_da_public_keys(&self) -> [[u8; 33]; 5] {
+    fn method_id_upgrade_authority_da_public_keys(
+        &self,
+    ) -> [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT] {
         match self {
             Network::Mainnet => bitcoinda::MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
             Network::Testnet => bitcoinda::TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,

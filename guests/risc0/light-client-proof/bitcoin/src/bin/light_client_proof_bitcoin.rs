@@ -3,7 +3,9 @@ use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_light_client_prover::circuit::initial_values::bitcoinda;
 use citrea_light_client_prover::circuit::initial_values::non_empty_slice::NonEmptySlice;
-use citrea_light_client_prover::circuit::LightClientProofCircuit;
+use citrea_light_client_prover::circuit::{
+    LightClientProofCircuit, SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT,
+};
 use citrea_primitives::REVEAL_TX_PREFIX;
 use citrea_risc0_adapter::guest::Risc0Guest;
 use sov_rollup_interface::da::DaVerifier;
@@ -65,7 +67,9 @@ const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
     }
 };
 
-pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8; 33]; 5] = {
+pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8;
+    SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
+    SECURITY_COUNCIL_MEMBER_COUNT] = {
     match NETWORK {
         Network::Mainnet => bitcoinda::MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         Network::Testnet => bitcoinda::TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
