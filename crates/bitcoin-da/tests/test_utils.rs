@@ -23,6 +23,7 @@ use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
 use reth_tasks::TaskExecutor;
 use sov_rollup_interface::da::{
     BatchProofMethodId, BatchProofMethodIdBody, DaTxRequest, SequencerCommitment,
+    SECURITY_COUNCIL_SIGNATURE_SIZE, SECURITY_COUNCIL_SIGNATURE_THRESHOLD,
 };
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::Network;
@@ -305,7 +306,9 @@ pub async fn generate_mock_txs(
     (block, valid_commitments, valid_proofs, valid_method_ids)
 }
 
-pub(crate) fn from_vec_to_sigs(vec: Vec<(Vec<u8>, u8)>) -> [([u8; 64], u8); 3] {
+pub(crate) fn from_vec_to_sigs(
+    vec: Vec<(Vec<u8>, u8)>,
+) -> [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
     let mut sigs = Vec::new();
     for (v, i) in vec.into_iter() {
         sigs.push((v.try_into().unwrap(), i));
@@ -336,12 +339,12 @@ pub(crate) fn generate_initial_pub_keys_with_signers_from_pks(
 pub(crate) fn create_valid_signatures(
     signers: &[PrivateKeySigner],
     prehash: &B256,
-) -> [([u8; 64], u8); 3] {
+) -> [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
     let mut signatures_in_inscription = Vec::new();
 
     for (i, signer) in signers.iter().enumerate().take(3) {
         let sig = signer.sign_hash_sync(prehash).unwrap();
-        let signature = sig.as_bytes()[0..64].to_vec();
+        let signature = sig.as_bytes()[0..SECURITY_COUNCIL_SIGNATURE_SIZE].to_vec();
         signatures_in_inscription.push((signature, i as u8));
     }
 
