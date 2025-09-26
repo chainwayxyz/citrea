@@ -1128,6 +1128,48 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .iter()
             .any(|x| x.method_id == new_batch_proof_method_id4.into()));
 
+        // Case 6: Test signature indexes not ascending order (should be rejected)
+        let new_batch_proof_method_id5 = [6u32; 8];
+        let method_id_body5 = BatchProofMethodIdBody {
+            method_id: new_batch_proof_method_id5,
+            activation_l2_height: 260,
+
+            network_id: citrea_network_to_method_id_upgrade_identifier(Network::Nightly),
+        };
+        let msg5 = method_id_body5.serialize();
+        let prehash5 = eip191_hash_message(msg5.as_slice());
+        let mut signatures_with_index = create_valid_signatures(&signers, &prehash5);
+        // Make indexes not in ascending order
+        let tmp = signatures_with_index[0];
+        signatures_with_index[0] = signatures_with_index[2];
+        signatures_with_index[2] = tmp;
+
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+                    body: method_id_body5.clone(),
+                    signatures_with_index,
+                }),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let method_id_l1_height5 = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(method_id_l1_height5, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let batch_proof_method_ids5 = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert!(!batch_proof_method_ids5
+            .iter()
+            .any(|x| x.method_id == new_batch_proof_method_id5.into()));
+
         Ok(())
     }
 }
