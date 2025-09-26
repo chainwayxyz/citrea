@@ -1197,6 +1197,68 @@ fn test_new_method_id_txs() {
 }
 
 #[test]
+fn test_wrong_network_method_id_update_should_fail() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_sender = [11u8; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    // Create method id update for a different network
+    let blob = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Mainnet);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
+    );
+
+    let _ = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        )
+        .unwrap();
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+
+    // didn't change
+    assert_eq!(batch_proof_method_ids.len(), 1);
+}
+
+#[test]
 fn test_unverifiable_batch_proof_is_ignored() {
     let db_dir = tempdir().unwrap();
     let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());

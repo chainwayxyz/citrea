@@ -62,6 +62,7 @@ pub fn verify_method_id_security_council(
 mod tests {
     use citrea_primitives::network::citrea_network_to_method_id_upgrade_identifier;
     use sov_rollup_interface::da::{BatchProofMethodId, BatchProofMethodIdBody};
+    use sov_rollup_interface::Network;
 
     use super::*;
     use crate::{create_valid_signatures, generate_initial_pub_keys_with_signers};
