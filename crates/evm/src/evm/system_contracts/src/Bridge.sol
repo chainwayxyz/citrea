@@ -481,7 +481,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         return true;
     }
 
-    function bytesToBytes32(bytes memory _source) pure internal returns (bytes32 result) {
+    function bytesToBytes32(bytes memory _source) internal pure returns (bytes32 result) {
         if (_source.length == 0) {
             return 0x0;
         }
