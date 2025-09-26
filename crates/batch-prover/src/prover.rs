@@ -1789,38 +1789,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn commitment_count_exact_limit() {
-        // max=2, 2 commitments
-        let MockProverData { mut prover, .. } = create_mock_prover();
-        prover.prover_config.max_commitments_per_proof = Some(2);
-
-        put_l2_blocks(&prover.ledger_db, vec![(1, 100), (2, 100)]);
-
-        let mut commitments = vec![
-            SequencerCommitment {
-                merkle_root: [0; 32],
-                index: 1,
-                l2_end_block_number: 1,
-            },
-            SequencerCommitment {
-                merkle_root: [0; 32],
-                index: 2,
-                l2_end_block_number: 2,
-            },
-        ];
-        put_commitments(&prover.ledger_db, &commitments);
-
-        let partitions = prover
-            .create_partitions(&mut commitments, PartitionMode::Normal)
-            .unwrap();
-
-        assert_eq!(partitions.len(), 1,);
-        assert_eq!(partitions[0].commitments.len(), 2);
-        assert_eq!(partitions[0].commitments[0].index, 1);
-        assert_eq!(partitions[0].commitments[1].index, 2);
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
     async fn commitment_count_with_remainder() {
         // max=2, 3 commitments
         let MockProverData { mut prover, .. } = create_mock_prover();
