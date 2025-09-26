@@ -24,6 +24,7 @@ use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
+use citrea_primitives::network::citrea_network_to_method_id_upgrade_identifier;
 use citrea_primitives::REVEAL_TX_PREFIX;
 use rand::{thread_rng, Rng};
 use reth_tasks::TaskManager;
@@ -660,6 +661,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         let method_id_body = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id,
             activation_l2_height: 210,
+            network_id: citrea_network_to_method_id_upgrade_identifier(Network::Nightly),
         };
 
         let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
@@ -886,6 +888,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id,
             activation_l2_height: 220,
+            network_id: citrea_network_to_method_id_upgrade_identifier(Network::Nightly),
         };
         let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
             .map(|s| hex::decode(s).unwrap().try_into().unwrap());
@@ -928,6 +931,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body2 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id2,
             activation_l2_height: 230,
+            network_id: citrea_network_to_method_id_upgrade_identifier(Network::Nightly),
         };
         let msg2 = method_id_body2.serialize();
         let prehash2 = eip191_hash_message(msg2.as_slice());
@@ -969,6 +973,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body3 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
+            network_id: citrea_network_to_method_id_upgrade_identifier(Network::Nightly),
         };
         let msg3 = method_id_body3.serialize();
         let prehash3 = eip191_hash_message(msg3.as_slice());
@@ -1008,6 +1013,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body3 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
+            network_id: citrea_network_to_method_id_upgrade_identifier(Network::Nightly),
         };
         let msg3 = method_id_body3.serialize();
         let prehash3 = eip191_hash_message(msg3.as_slice());
@@ -1047,6 +1053,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body3 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
+            network_id: citrea_network_to_method_id_upgrade_identifier(Network::Nightly),
         };
         let msg3 = method_id_body3.serialize();
         let prehash3 = eip191_hash_message(msg3.as_slice());
