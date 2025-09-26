@@ -3,7 +3,6 @@ use accessors::{
     VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
 use borsh::BorshDeserialize;
-use citrea_primitives::network::citrea_network_to_method_id_upgrade_identifier;
 use initial_values::LCP_JMT_GENESIS_ROOT;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::{BlobReaderTrait, DaSpec, WorkingSet, Zkvm};
@@ -609,5 +608,17 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 impl<S: Storage, DS: DaSpec, Z: Zkvm> Default for LightClientProofCircuit<S, DS, Z> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+pub fn citrea_network_to_method_id_upgrade_identifier(
+    network: sov_rollup_interface::Network,
+) -> u8 {
+    match network {
+        sov_rollup_interface::Network::Mainnet => 0,
+        sov_rollup_interface::Network::Testnet => 1,
+        sov_rollup_interface::Network::Devnet => 2,
+        sov_rollup_interface::Network::Nightly => 3,
+        sov_rollup_interface::Network::TestNetworkWithForks => 4,
     }
 }

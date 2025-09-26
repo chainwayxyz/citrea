@@ -740,7 +740,7 @@ where
                 .base_fee_per_gas
                 .expect("Base fee always set in Citrea"),
             cfg.base_fee_params,
-            spec_id
+            spec_id,
         ) as u64;
 
         let best_txs_with_base_fee = self

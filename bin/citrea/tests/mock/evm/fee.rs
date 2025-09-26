@@ -48,7 +48,7 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
     let test_client = init_test_rollup(port).await;
 
     // use the latest spec id, as the nightly forks start with the latest spec
-    let min_base_fee_per_gas = min_base_fee_per_gas(SpecId::latest()); 
+    let min_base_fee_per_gas = min_base_fee_per_gas(SpecId::latest());
     let block = test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;

@@ -5,7 +5,6 @@ use std::sync::Arc;
 use alloy_primitives::{eip191_hash_message, B256};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
-use citrea_primitives::network::citrea_network_to_method_id_upgrade_identifier;
 use rand::{thread_rng, Rng};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
@@ -23,7 +22,7 @@ use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutp
 use sov_rollup_interface::Network;
 
 use crate::circuit::accessors::ChunkAccessor;
-use crate::circuit::LightClientProofCircuit;
+use crate::circuit::{citrea_network_to_method_id_upgrade_identifier, LightClientProofCircuit};
 
 /// Test private keys used for generating signatures in tests
 pub const TEST_PRIVATE_KEYS: [&str; 5] = [
@@ -361,6 +360,7 @@ impl NativeCircuitRunner {
 
     /// Run the circuit with the given input and return the input with its witness filled
     /// that will be used to run the circuit in ZK context
+    #[allow(clippy::too_many_arguments)]
     pub fn run(
         &self,
         mut input: LightClientCircuitInput<MockDaSpec>,

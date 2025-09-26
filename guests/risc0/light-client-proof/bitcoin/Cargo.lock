@@ -709,7 +709,6 @@ version = "0.7.1"
 dependencies = [
  "alloy-primitives",
  "borsh",
- "citrea-primitives",
  "citrea-risc0-batch-proof",
  "const-hex",
  "constmuck",

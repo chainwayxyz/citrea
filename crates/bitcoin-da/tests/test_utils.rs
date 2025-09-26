@@ -149,6 +149,7 @@ pub async fn generate_mock_txs(
     let method_id_body = BatchProofMethodIdBody {
         method_id: [0; 8],
         activation_l2_height: 0,
+        network_id: citrea_network_to_method_id_upgrade_identifier(Network::Nightly),
     };
 
     let msg = method_id_body.serialize();
@@ -269,6 +270,7 @@ pub async fn generate_mock_txs(
     let method_id_body = BatchProofMethodIdBody {
         method_id: [1; 8],
         activation_l2_height: 100,
+        network_id: citrea_network_to_method_id_upgrade_identifier(Network::Nightly),
     };
 
     let msg = method_id_body.serialize();
@@ -529,4 +531,15 @@ pub mod macros {
     }
 
     pub(crate) use assert_panic;
+}
+
+// This will be removed in nightly since we moved these tests under binary
+fn citrea_network_to_method_id_upgrade_identifier(network: sov_rollup_interface::Network) -> u8 {
+    match network {
+        sov_rollup_interface::Network::Mainnet => 0,
+        sov_rollup_interface::Network::Testnet => 1,
+        sov_rollup_interface::Network::Devnet => 2,
+        sov_rollup_interface::Network::Nightly => 3,
+        sov_rollup_interface::Network::TestNetworkWithForks => 4,
+    }
 }
