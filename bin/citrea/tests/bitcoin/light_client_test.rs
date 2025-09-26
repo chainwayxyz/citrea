@@ -1140,9 +1140,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let prehash5 = eip191_hash_message(msg5.as_slice());
         let mut signatures_with_index = create_valid_signatures(&signers, &prehash5);
         // Make indexes not in ascending order
-        let tmp = signatures_with_index[0];
-        signatures_with_index[0] = signatures_with_index[2];
-        signatures_with_index[2] = tmp;
+        signatures_with_index.swap(0, 2);
 
         bitcoin_da_service
             .send_transaction_with_fee_rate(
