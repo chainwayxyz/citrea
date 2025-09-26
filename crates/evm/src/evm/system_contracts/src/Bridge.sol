@@ -331,7 +331,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         require(txIds.length == outputIds.length, "Length mismatch");
         require(msg.value == depositAmount * txIds.length, "Invalid withdraw amount");
         uint256 index = withdrawalUTXOs.length;
-        for (uint i = 0; i < txIds.length; i++) {
+        for (uint256 i = 0; i < txIds.length; i++) {
             bytes32 utxoKey = sha256(abi.encodePacked(txIds[i], outputIds[i]));
             require(!usedWithdrawalUTXO[utxoKey], "UTXO already used");
             usedWithdrawalUTXO[utxoKey] = true;
@@ -476,7 +476,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         }
 
         // Check remaining bytes (if any)
-        for (uint i = offset - 32; i < len; i++) {
+        for (uint256 i = offset - 32; i < len; i++) {
             if (a[i] != b[i]) {
                 return false;
             }
