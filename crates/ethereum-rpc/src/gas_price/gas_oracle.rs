@@ -176,10 +176,10 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
                 .block_number_for_id(&newest_block, working_set, &self.ledger_db)?;
 
         // need to add 1 to the end block to get the correct (inclusive) range
-        let end_block_plus = end_block + 1;
+        let end_block_plus_one = end_block + 1;
         // Ensure that we would not be querying outside of genesis
-        if end_block_plus < block_count {
-            block_count = end_block_plus;
+        if end_block_plus_one < block_count {
+            block_count = end_block_plus_one;
         }
 
         // If reward percentiles were specified, we
@@ -197,7 +197,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         // Treat a request for 1 block as a request for `newest_block..=newest_block`,
         // otherwise `newest_block - 2
         // SAFETY: We ensured that block count is capped
-        let start_block = end_block_plus - block_count;
+        let start_block = end_block_plus_one - block_count;
 
         // Collect base fees, gas usage ratios and (optionally) reward percentile data
         let mut base_fee_per_gas: Vec<u128> = Vec::new();
@@ -230,7 +230,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
             }
         }
         let last_entry = fee_entries.last().expect("is not empty");
-        let spec_id = fork_from_block_number(end_block_plus).spec_id;
+        let spec_id = fork_from_block_number(end_block_plus_one).spec_id;
         base_fee_per_gas.push(
             calculate_next_block_base_fee(
                 last_entry.gas_used,
