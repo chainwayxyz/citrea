@@ -1,14 +1,20 @@
 use alloy_primitives::eip191_hash_message;
 use k256::ecdsa::signature::hazmat::PrehashVerifier;
 use k256::ecdsa::{Signature, VerifyingKey};
+use sov_rollup_interface::da::{
+    SECURITY_COUNCIL_SIGNATURE_SIZE, SECURITY_COUNCIL_SIGNATURE_THRESHOLD,
+};
+
+use crate::circuit::{SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBERS};
 
 /// The three out of 5 signatures should be verified for the method id upgrade to be valid.
 /// For each signature, the corresponding public key from the initial values constants is used to verify the signature.
 /// If there are less than 3 valid signatures, the verification fails.
 pub fn verify_method_id_security_council(
-    initial_da_pubkeys: [[u8; 33]; 5],
+    initial_da_pubkeys: [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBERS],
     msg: &[u8],
-    signatures_with_idx: &[([u8; 64], u8); 3],
+    signatures_with_idx: &[([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8);
+         SECURITY_COUNCIL_SIGNATURE_THRESHOLD],
 ) -> bool {
     // EIP-191 prefix + keccak256 → 32-byte prehash
     let prehash = eip191_hash_message(msg);
