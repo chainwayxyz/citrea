@@ -232,6 +232,16 @@ pub fn from_toml_path<P: AsRef<Path>, R: DeserializeOwned>(path: P) -> anyhow::R
     Ok(result)
 }
 
+#[inline]
+const fn default_l1_fee_rate_multiplier() -> f64 {
+    1.0
+}
+
+#[inline]
+const fn default_max_l1_fee_rate() -> u64 {
+    15 // sat/vbyte
+}
+
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SequencerConfig {
@@ -252,8 +262,10 @@ pub struct SequencerConfig {
     /// Bridge system contract initialize function parameters
     pub bridge_initialize_params: String,
     /// L1 fee rate multiplier
+    #[serde(default = "default_l1_fee_rate_multiplier")]
     pub l1_fee_rate_multiplier: f64,
     /// Maximum L1 fee rate (sat/vbyte)
+    #[serde(default = "default_max_l1_fee_rate")]
     pub max_l1_fee_rate: u64,
 }
 
