@@ -49,6 +49,33 @@ pub enum BitcoinServiceError {
     /// Transaction rejected by mempool.
     #[error(transparent)]
     MempoolRejection(#[from] MempoolRejection),
+    /// Failed to decompress chunk data.
+    #[error("Failed to parse complete chunks")]
+    ChunkDecompressionError,
+    /// Channel send error.
+    #[error("Failed to send message through channel")]
+    ChannelSendError,
+    /// Tokio channel receive error.
+    #[error("Failed to receive message from channel: {0}")]
+    ChannelRecvError(#[from] tokio::sync::oneshot::error::RecvError),
+    /// Bitcoin transaction encoding/decoding error.
+    #[error("Transaction encoding error: {0}")]
+    TransactionEncodingError(#[from] bitcoin::consensus::encode::Error),
+    /// Bitcoin compact target parsing error.
+    #[error("Compact target parsing error: {0}")]
+    CompactTargetError(#[from] bitcoin::error::UnprefixedHexError),
+    /// Chunk ordering validation error.
+    #[error("Chunk ordering validation error: {0}")]
+    ChunkOrderingError(String),
+    /// Failed to get block information by hash.
+    #[error("Failed to get block info for hash {hash:?}: {source}")]
+    BlockInfoRequestError {
+        /// Requested blockhash
+        hash: bitcoin::BlockHash,
+        /// Source bitcoincore_rpc error
+        #[source]
+        source: bitcoincore_rpc::Error,
+    },
     /// Other error.
     #[error(transparent)]
     Other(#[from] anyhow::Error),

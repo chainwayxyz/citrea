@@ -126,7 +126,7 @@ pub async fn build_services<DA, DB, Vm>(
     RpcModule<()>,
 )>
 where
-    DA: DaService<Error = anyhow::Error>,
+    DA: DaService,
     DB: BatchProverLedgerOps + Clone + 'static,
     Vm: ZkvmHost + Zkvm + 'static,
 {
