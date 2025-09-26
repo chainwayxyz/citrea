@@ -3,6 +3,7 @@ use accessors::{
     VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
 use borsh::BorshDeserialize;
+use citrea_primitives::network::citrea_network_to_method_id_upgrade_identifier;
 use initial_values::LCP_JMT_GENESIS_ROOT;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::{BlobReaderTrait, DaSpec, WorkingSet, Zkvm};
@@ -285,6 +286,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         method_id_upgrade_authority_da_public_keys: &[[u8; 33]; 5],
+        network: Network,
     ) -> RunL1BlockResult<S> {
         let mut working_set =
             WorkingSet::with_witness(storage.clone(), witness, Default::default());
@@ -418,6 +420,13 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         .0;
 
                     if batch_proof_method_id.body.activation_l2_height > last_activation_height {
+                        let circuit_network_id =
+                            citrea_network_to_method_id_upgrade_identifier(network);
+                        if circuit_network_id != batch_proof_method_id.body.network_id {
+                            log!("Method ID upgrade transactions network ID does not match circuit network ID");
+                            continue;
+                        }
+
                         // Verify the signatures only if the activation height is greater than the last one
                         // This prevents replay attacks of old method IDs
                         if !verify_method_id_security_council(
@@ -583,6 +592,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             batch_prover_da_public_key,
             sequencer_da_public_key,
             method_id_upgrade_authority_da_public_keys,
+            network,
         );
 
         Ok(LightClientCircuitOutput {
