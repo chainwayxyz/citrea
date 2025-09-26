@@ -5,6 +5,7 @@ use std::sync::Arc;
 use alloy_primitives::{eip191_hash_message, B256};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
+use citrea_primitives::network::citrea_network_to_method_id_upgrade_identifier;
 use rand::{thread_rng, Rng};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
@@ -19,6 +20,7 @@ use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
+use sov_rollup_interface::Network;
 
 use crate::circuit::accessors::ChunkAccessor;
 use crate::circuit::LightClientProofCircuit;
@@ -263,6 +265,7 @@ pub(crate) fn create_new_method_id_tx(
     activation_height: u64,
     new_method_id: [u32; 8],
     pub_key: [u8; 32],
+    network: Network,
 ) -> MockBlob {
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
@@ -270,6 +273,7 @@ pub(crate) fn create_new_method_id_tx(
     let msg = borsh::to_vec(&BatchProofMethodIdBody {
         activation_l2_height: activation_height,
         method_id: new_method_id,
+        network_id: citrea_network_to_method_id_upgrade_identifier(network),
     })
     .unwrap();
 
@@ -281,6 +285,7 @@ pub(crate) fn create_new_method_id_tx(
         body: BatchProofMethodIdBody {
             method_id: new_method_id,
             activation_l2_height: activation_height,
+            network_id: citrea_network_to_method_id_upgrade_identifier(network),
         },
         signatures_with_index,
     });
@@ -364,6 +369,7 @@ impl NativeCircuitRunner {
         batch_prover_da_pub_key: &[u8],
         sequencer_da_pub_key: &[u8],
         method_id_upgrade_authority: &[[u8; 33]; 5],
+        network: Network,
     ) -> LightClientCircuitInput<MockDaSpec> {
         let prover_storage = self
             .prover_storage_manager
@@ -396,6 +402,7 @@ impl NativeCircuitRunner {
             batch_prover_da_pub_key,
             sequencer_da_pub_key,
             method_id_upgrade_authority,
+            network,
         );
 
         self.prover_storage_manager.finalize_storage(res.change_set);
