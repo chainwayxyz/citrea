@@ -3,7 +3,6 @@ use k256::ecdsa::signature::hazmat::PrehashVerifier;
 use k256::ecdsa::{Signature, VerifyingKey};
 
 /// The three out of 5 signatures should be verified for the method id upgrade to be valid.
-/// The signatures should be in the same order as the one in the initial values constants.
 /// For each signature, the corresponding public key from the initial values constants is used to verify the signature.
 /// If there are less than 3 valid signatures, the verification fails.
 pub fn verify_method_id_security_council(
