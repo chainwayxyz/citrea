@@ -4,6 +4,7 @@ members = [
   # Citrea
   "bin/citrea",
   "bin/cli",
+  "bin/network-test",
   "crates/batch-prover",
   "crates/bitcoin-da",
   "crates/citrea-stf",
@@ -80,6 +81,7 @@ itertools = { version = "0.13.0", default-features = false }
 jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "550a2f2" }
 jsonrpsee = { version = "0.24.8", features = ["jsonrpsee-types"] }
 k256 = { version = "0.13.4" }
+libp2p = "0.56.0"
 lru = "0.13"
 hex = { version = "0.4.3", default-features = false, features = ["alloc", "serde"] }
 log-panics = { version = "2", features = ["with-backtrace"] }
@@ -164,6 +166,8 @@ alloy-consensus = { version = "0.13", default-features = false, features = ["ser
 alloy-network = { version = "0.13", default-features = false }
 alloy-signer = { version = "0.13", default-features = false }
 alloy-signer-local = { version = "0.13.0", default-features = false }
+
+yamux = "=0.13.4"
 
 citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "24a3ea9" }
 

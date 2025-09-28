@@ -1,0 +1,23 @@
+[package]
+name = "network-test"
+version = { workspace = true }
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+publish = false
+resolver = "2"
+
+[package.metadata.release]
+release = false
+
+[dependencies]
+futures = { workspace = true }
+libp2p = { workspace = true, features = ["noise", "ping", "tcp", "tokio", "yamux"]  }
+tokio = { workspace = true, features = ["full"] }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+yamux = { workspace = true }
+
+[[bin]]
+name = "network-test"
+path = "src/main.rs"
