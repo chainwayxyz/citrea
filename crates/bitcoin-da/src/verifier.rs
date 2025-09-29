@@ -649,11 +649,30 @@ pub(crate) const fn target_to_bits(target: &[u8; 32]) -> u32 {
 
 /// Calculates the work done for a block hash that satisfies a given.
 /// Should use the `bits` field of the block header to calculate the target.
+///
+///
+/// This calculation uses the mathematical identity:
+/// 2**256 / (x + 1) == ~x / (x + 1) + 1
 fn target_to_work(target: &[u8; 32]) -> U256 {
+    // We should never have a target/work of zero so this doesn't matter
+    // that much but we define the inverse of 0 as max.
     let target = U256::from_be_slice(target);
-    let target_plus_one = target.saturating_add(&U256::ONE);
+    if target == U256::ZERO {
+        return U256::MAX;
+    }
+    // We define the inverse of 1 as max.
+    if target == U256::ONE {
+        return U256::MAX;
+    }
+    // We define the inverse of max as 1.
+    if target == U256::MAX {
+        return U256::ONE;
+    }
 
-    U256::MAX.wrapping_div(&target_plus_one)
+    let comp = !target;
+
+    let ret = comp.wrapping_div(&target.wrapping_add(&U256::ONE));
+    ret.wrapping_add(&U256::ONE)
 }
 
 /// Calculates the new difficulty target for the next epoch.
