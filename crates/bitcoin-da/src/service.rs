@@ -539,7 +539,7 @@ impl BitcoinService {
             .require_network(network)?;
 
         let prefix = self.reveal_tx_prefix.clone();
-        Ok(tokio::task::spawn_blocking(move || {
+        tokio::task::spawn_blocking(move || {
             // Since this is CPU bound work, we use spawn_blocking
             // to release the tokio runtime execution
             create_inscription_transactions(
@@ -555,7 +555,7 @@ impl BitcoinService {
             )
         })
         .await?
-        .map_err(|e| BitcoinServiceError::TransactionBuilderError(e.to_string()))?)
+        .map_err(|e| BitcoinServiceError::TransactionBuilderError(e.to_string()))
     }
 
     async fn queue_transactions(&self, txs: Vec<SignedTxPair>) {
