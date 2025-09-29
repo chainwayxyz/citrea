@@ -168,7 +168,7 @@ pub(crate) fn prepare_call_env(
 
     create_txn_env(
         block_env,
-        request.clone(),
+        request,
         Some(cap_to_balance),
         nonce,
         chain_id_to_set,
