@@ -513,7 +513,7 @@ where
         let prestate = self.storage_manager.create_storage_for_next_l2_height();
 
         // Get best transactions from mempool based on gas price
-        let evm_txs = self.get_best_transactions()?;
+        let evm_txs = self.get_best_transactions(active_fork_spec)?;
 
         let last_da_block_height = da_blocks.last().map(|b| b.header().height());
         SM.dry_run_preparation_time.set(
@@ -1065,6 +1065,16 @@ where
         &mut self,
         mut shutdown_signal: GracefulShutdown,
     ) -> Result<(), anyhow::Error> {
+        let l1_fee_rate_multiplier = self.config.l1_fee_rate_multiplier;
+        let max_l1_fee_rate_sat_vb = self.config.max_l1_fee_rate_sat_vb;
+
+        let multiplied_l1_fee_rate = |rate: u128| -> u128 {
+            let multiplied = ((rate as f64) * l1_fee_rate_multiplier).ceil() as u128;
+            // multiply with 10^10/4 = 2_500_000_000 to convert sat/vbyte to wei/byte
+            let max_fee_wei_per_byte = max_l1_fee_rate_sat_vb as u128 * 2_500_000_000;
+
+            multiplied.min(max_fee_wei_per_byte)
+        };
         // TODO: hotfix for mock da
         self.da_service
             .get_block_at(1)
@@ -1088,6 +1098,8 @@ where
                     return Err(e);
                 }
             };
+        l1_fee_rate = multiplied_l1_fee_rate(l1_fee_rate);
+
         let mut last_finalized_l1_height = last_finalized_block.header().height();
         let prestate = self.storage_manager.create_final_view_storage();
         let mut working_set = WorkingSet::new(prestate.clone());
@@ -1151,6 +1163,8 @@ where
                 l1_data = da_height_update_rx.recv() => {
                     if let Some(l1_data) = l1_data {
                         (last_finalized_block, l1_fee_rate) = l1_data;
+                        l1_fee_rate = multiplied_l1_fee_rate(l1_fee_rate);
+
                         let new_finalized_l1_height = last_finalized_block.header().height();
                         if new_finalized_l1_height < last_finalized_l1_height {
                             info!("DA potential fork detected, known last finalized L1 height: {last_finalized_l1_height}, new finalized L1 height: {new_finalized_l1_height}")
@@ -1248,6 +1262,7 @@ where
     /// A boxed iterator of valid pool transactions
     pub(crate) fn get_best_transactions(
         &self,
+        spec_id: SpecId,
     ) -> anyhow::Result<
         Box<dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>>,
     > {
@@ -1266,6 +1281,7 @@ where
                 .base_fee_per_gas
                 .expect("Base fee always set in Citrea"),
             cfg.base_fee_params,
+            spec_id,
         ) as u64;
 
         let best_txs_with_base_fee = self

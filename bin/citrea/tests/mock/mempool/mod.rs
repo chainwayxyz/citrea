@@ -309,7 +309,7 @@ async fn test_tx_with_low_base_fee() {
             poor_addr,
             Some(1),
             // normally base fee is 875 000 000
-            Some(1_000_000), // if lower than min allowed, mempool should reject it
+            Some(999_999), // if lower than min allowed, mempool should reject it
             None,
             5_000_000_000_000_000_000u128,
         )
