@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 use async_trait::async_trait;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
@@ -231,7 +231,7 @@ impl BitcoinService {
         let tx_backup_dir = std::path::Path::new(&config.tx_backup_dir);
         if !tx_backup_dir.exists() {
             std::fs::create_dir_all(tx_backup_dir)
-                .context("Failed to create tx backup directory")?;
+                .map_err(BitcoinServiceError::BackupDirectoryError)?;
         }
 
         let da_private_key = config
@@ -239,7 +239,7 @@ impl BitcoinService {
             .as_ref()
             .map(|pk| SecretKey::from_str(pk))
             .transpose()
-            .context("Invalid private key")?;
+            .map_err(|_| BitcoinServiceError::InvalidPrivateKey)?;
 
         let utxo_selection_mode = config.utxo_selection_mode.clone().unwrap_or_default();
         Ok(Self::new(
@@ -535,7 +535,7 @@ impl BitcoinService {
         let address = utxos[0]
             .address
             .clone()
-            .context("Missing address")?
+            .ok_or(BitcoinServiceError::MissingAddress)?
             .require_network(network)?;
 
         let prefix = self.reveal_tx_prefix.clone();
@@ -554,7 +554,8 @@ impl BitcoinService {
                 prefix,
             )
         })
-        .await??)
+        .await?
+        .map_err(|e| BitcoinServiceError::TransactionBuilderError(e.to_string()))?)
     }
 
     async fn queue_transactions(&self, txs: Vec<SignedTxPair>) {
@@ -730,13 +731,13 @@ impl BitcoinService {
                 .monitoring
                 .get_last_tx()
                 .await
-                .context("No monitored tx")?,
+                .ok_or(BitcoinServiceError::NoMonitoredTransaction)?,
             Some(txid) => {
                 let monitored_tx = self
                     .monitoring
                     .get_monitored_tx(&txid)
                     .await
-                    .context("Parent tx not found")?;
+                    .ok_or(BitcoinServiceError::ParentTransactionNotFound(txid))?;
                 (txid, monitored_tx)
             }
         };
@@ -756,7 +757,8 @@ impl BitcoinService {
                     .await
             }
             BumpFeeMethod::Rbf => self.fee.bump_fee_rbf(tx.kind, &txid).await,
-        }?;
+        }
+        .map_err(|e| BitcoinServiceError::FeeBumpFailure(e.to_string()))?;
 
         let wallet_psbt = self
             .client
@@ -1331,7 +1333,7 @@ impl DaService for BitcoinService {
                 notify: tx,
             })
             .map_err(|_| BitcoinServiceError::ChannelSendError)?;
-        Ok(rx.await??)
+        Ok(rx.await?.expect("Queue never sends error"))
     }
 
     fn get_send_transaction_queue(
@@ -1342,7 +1344,11 @@ impl DaService for BitcoinService {
 
     #[instrument(level = "trace", skip(self))]
     async fn get_fee_rate(&self) -> Result<u128> {
-        let sat_vb_ceil = self.fee.get_fee_rate_as_sat_vb().await? as u128;
+        let sat_vb_ceil = self
+            .fee
+            .get_fee_rate_as_sat_vb()
+            .await
+            .map_err(|_| BitcoinServiceError::FeeRateError)? as u128;
 
         // multiply with 10^10/4 = 25*10^8 = 2_500_000_000 for BTC to CBTC conversion (decimals)
         let multiplied_fee = sat_vb_ceil.saturating_mul(2_500_000_000);
@@ -1480,8 +1486,9 @@ impl From<TxidWrapper> for [u8; 32] {
 ///   let compressed = compress(Proof)
 ///   let chunks = compressed.chunks(MAX_TX_BODY_SIZE)
 ///   [borsh(DataOnDa::Chunk(chunk)) for chunk in chunks]
-pub(crate) fn split_proof(zk_proof: Proof) -> anyhow::Result<RawTxData> {
-    let original_compressed = compress_blob(&zk_proof)?;
+pub(crate) fn split_proof(zk_proof: Proof) -> Result<RawTxData> {
+    let original_compressed =
+        compress_blob(&zk_proof).map_err(BitcoinServiceError::CompressionError)?;
 
     if original_compressed.len() < MAX_TX_BODY_SIZE {
         let data = DataOnDa::Complete(original_compressed);

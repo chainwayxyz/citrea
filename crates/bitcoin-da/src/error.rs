@@ -52,6 +52,9 @@ pub enum BitcoinServiceError {
     /// Failed to decompress chunk data.
     #[error("Failed to parse complete chunks")]
     ChunkDecompressionError,
+    /// IO error when compressing blob.
+    #[error("Failure to compress blob: {0}")]
+    CompressionError(std::io::Error),
     /// Channel send error.
     #[error("Failed to send message through channel")]
     ChannelSendError,
@@ -76,9 +79,33 @@ pub enum BitcoinServiceError {
         #[source]
         source: bitcoincore_rpc::Error,
     },
-    /// Other error.
-    #[error(transparent)]
-    Other(#[from] anyhow::Error),
+    /// IO error when creating backup directory.
+    #[error("Failed to create tx backup directory: {0}")]
+    BackupDirectoryError(std::io::Error),
+    /// Invalid private key.
+    #[error("Invalid private key")]
+    InvalidPrivateKey,
+    /// Failed to backup transactions to file.
+    #[error("Failed to backup transactions to file: {0}")]
+    TransactionBackupError(String),
+    /// Missing UTXO address.
+    #[error("Missing address")]
+    MissingAddress,
+    /// No monitored transactions
+    #[error("No monitored transactions")]
+    NoMonitoredTransaction,
+    /// Parent transaction not found.
+    #[error("Parent transaction {0} not found")]
+    ParentTransactionNotFound(bitcoin::Txid),
+    /// Failure to get fee rate
+    #[error("Failed to get fee rate")]
+    FeeRateError,
+    /// Failure to bump TX
+    #[error("Failure to bump TX fee: {0}")]
+    FeeBumpFailure(String),
+    /// Body builders error.
+    #[error("Body builders error: {0}")]
+    TransactionBuilderError(String),
 }
 
 /// Error type for mempool rejections via testmempoolaccept method.

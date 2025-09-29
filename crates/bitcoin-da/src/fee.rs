@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Context};
 use bitcoin::{Amount, Network, Sequence, Txid};
 use bitcoincore_rpc::json::{
     BumpFeeResult, CreateRawTransactionInput, EstimateMode, WalletCreateFundedPsbtOptions,
@@ -67,7 +67,7 @@ impl FeeService {
     /// Get the fee rate in sat/vB from the mempool space or via the Bitcoin Core client.
     /// If the network is regtest or testnet, it returns a default value of 1 sat/vB.
     #[instrument(level = "trace", skip_all, ret)]
-    pub async fn get_fee_rate(&self) -> Result<u64> {
+    pub async fn get_fee_rate(&self) -> anyhow::Result<u64> {
         match self.get_fee_rate_as_sat_vb().await {
             Ok(fee) => Ok(fee),
             Err(e) => {
@@ -84,7 +84,7 @@ impl FeeService {
 
     /// Get the fee rate in sat/vB from the mempool space or via the Bitcoin Core client.
     #[instrument(level = "trace", skip_all, ret)]
-    pub async fn get_fee_rate_as_sat_vb(&self) -> Result<u64> {
+    pub async fn get_fee_rate_as_sat_vb(&self) -> anyhow::Result<u64> {
         // If network is regtest or signet, mempool space is not available
         let smart_fee =
             match get_fee_rate_from_mempool_space(self.network, &self.mempool_space_url).await {
@@ -111,7 +111,7 @@ impl FeeService {
         fee_rate: f64,
         force: Option<bool>,
         utxo: UTXO,
-    ) -> Result<Psbt> {
+    ) -> anyhow::Result<Psbt> {
         let force = force.unwrap_or_default();
         match (monitored_tx.kind, force) {
             (MonitoredTxKind::Commit, false) => {
@@ -159,7 +159,11 @@ impl FeeService {
     }
 
     /// Bump TX fee via rbf.
-    pub async fn bump_fee_rbf(&self, kind: MonitoredTxKind, parent_txid: &Txid) -> Result<Psbt> {
+    pub async fn bump_fee_rbf(
+        &self,
+        kind: MonitoredTxKind,
+        parent_txid: &Txid,
+    ) -> anyhow::Result<Psbt> {
         match kind {
             MonitoredTxKind::Cpfp => {}
             _ => bail!("RBF only supported on cpfp TX"), // TODO Add support for bumping reveal TX
@@ -192,7 +196,7 @@ impl FeeService {
 pub(crate) async fn get_fee_rate_from_mempool_space(
     network: bitcoin::Network,
     mempool_space_url: &str,
-) -> Result<Option<Amount>> {
+) -> anyhow::Result<Option<Amount>> {
     let url = match network {
         bitcoin::Network::Bitcoin => format!(
             // Mainnet
@@ -225,7 +229,7 @@ pub(crate) fn validate_txs_fee_rate(
     fee_rate: u64,
     utxos: Vec<UTXO>,
     prev_utxo: Option<UTXO>,
-) -> Result<(), BitcoinServiceError> {
+) -> anyhow::Result<(), BitcoinServiceError> {
     let mut utxo_map = utxos
         .into_iter()
         .map(|utxo| ((utxo.tx_id, utxo.vout), Amount::from_sat(utxo.amount)))
