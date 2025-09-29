@@ -13,6 +13,8 @@ use tokio::sync::oneshot;
 use tracing::{error, info};
 use uuid::Uuid;
 
+use crate::is_dev_mode_enabled_via_environment;
+
 #[derive(Clone)]
 pub struct BonsaiProver {
     client: Client,
@@ -28,7 +30,7 @@ impl BonsaiProver {
         assert!(env::var("BONSAI_API_URL").is_ok(), "BONSAI_API_URL missing");
         assert!(env::var("BONSAI_API_KEY").is_ok(), "BONSAI_API_KEY missing");
         assert!(
-            env::var("RISC0_DEV_MODE").is_err(),
+            !is_dev_mode_enabled_via_environment(),
             "RISC0_DEV_MODE should not be set for bonsai"
         );
 
