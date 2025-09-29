@@ -722,13 +722,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let nonce = request.nonce.unwrap_or(account.nonce);
         let chain_id = cfg_env.chain_id();
 
-        let tx_env = create_txn_env(
-            &block_env,
-            request.clone(),
-            Some(account.balance),
-            nonce,
-            chain_id,
-        )?;
+        let tx_env = create_txn_env(&block_env, request, Some(account.balance), nonce, chain_id)?;
 
         // can consume the list since we're not using the request anymore
         let access_list = request.access_list.take().unwrap_or_default();
