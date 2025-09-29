@@ -232,6 +232,16 @@ pub fn from_toml_path<P: AsRef<Path>, R: DeserializeOwned>(path: P) -> anyhow::R
     Ok(result)
 }
 
+#[inline]
+const fn default_l1_fee_rate_multiplier() -> f64 {
+    1.0
+}
+
+#[inline]
+const fn default_max_l1_fee_rate_sat_vb() -> u64 {
+    15 // sat/vbyte
+}
+
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SequencerConfig {
@@ -251,6 +261,12 @@ pub struct SequencerConfig {
     pub block_production_interval_ms: u64,
     /// Bridge system contract initialize function parameters
     pub bridge_initialize_params: String,
+    /// L1 fee rate multiplier
+    #[serde(default = "default_l1_fee_rate_multiplier")]
+    pub l1_fee_rate_multiplier: f64,
+    /// Maximum L1 fee rate in sat/vbyte
+    #[serde(default = "default_max_l1_fee_rate_sat_vb")]
+    pub max_l1_fee_rate_sat_vb: u64,
 }
 
 impl Default for SequencerConfig {
@@ -265,6 +281,8 @@ impl Default for SequencerConfig {
             da_update_interval_ms: 100,
             bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
             mempool_conf: Default::default(),
+            l1_fee_rate_multiplier: 1.0,
+            max_l1_fee_rate_sat_vb: 1, // doesn't matter since mock da returns 10 wei/byte
         }
     }
 }
@@ -280,6 +298,14 @@ impl FromEnv for SequencerConfig {
             da_update_interval_ms: read_env("DA_UPDATE_INTERVAL_MS")?.parse()?,
             block_production_interval_ms: read_env("BLOCK_PRODUCTION_INTERVAL_MS")?.parse()?,
             bridge_initialize_params: read_env("BRIDGE_INITIALIZE_PARAMS")?,
+            l1_fee_rate_multiplier: read_env("L1_FEE_RATE_MULTIPLIER")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_l1_fee_rate_multiplier),
+            max_l1_fee_rate_sat_vb: read_env("MAX_L1_FEE_RATE_SAT_VB")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_max_l1_fee_rate_sat_vb),
         })
     }
 }
@@ -583,6 +609,8 @@ mod tests {
             da_update_interval_ms = 1000
             block_production_interval_ms = 1000
             bridge_initialize_params = "000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"
+            l1_fee_rate_multiplier = 0.75
+
             [mempool_conf]
             pending_tx_limit = 100000
             pending_tx_size = 200
@@ -616,6 +644,8 @@ mod tests {
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
             bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            l1_fee_rate_multiplier: 0.75,
+            max_l1_fee_rate_sat_vb: 15,
         };
         assert_eq!(config, expected);
     }
@@ -654,6 +684,7 @@ mod tests {
         std::env::set_var("BASE_FEE_TX_SIZE", "200");
         std::env::set_var("MAX_ACCOUNT_SLOTS", "16");
         std::env::set_var("BRIDGE_INITIALIZE_PARAMS", "000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000");
+        std::env::set_var("MAX_L1_FEE_RATE_SAT_VB", "40");
 
         let sequencer_config = SequencerConfig::from_env().unwrap();
 
@@ -676,6 +707,8 @@ mod tests {
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
             bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            l1_fee_rate_multiplier: 1.0,
+            max_l1_fee_rate_sat_vb: 40,
         };
         assert_eq!(sequencer_config, expected);
     }

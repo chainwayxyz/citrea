@@ -158,3 +158,74 @@ async fn test_sequencer_missed_da_blocks() -> Result<()> {
         .run()
         .await
 }
+
+struct SequencerL1FeeParamsTest;
+
+#[async_trait]
+impl TestCase for SequencerL1FeeParamsTest {
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let one_sat_vb: u128 = 2_500_000_000; // 1 sat/vbyte to wei/byte
+
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer.wait_for_l2_height(1, None).await?;
+
+        let block = sequencer
+            .client
+            .http_client()
+            .get_head_l2_block()
+            .await?
+            .unwrap();
+        let initial_fee_rate: u128 = block.header.l1_fee_rate.to();
+        assert_eq!(initial_fee_rate, one_sat_vb); // assert we start with 1 sat/vbyte
+        sequencer.wait_until_stopped().await?;
+
+        // Test changing l1 fee rate multiplier
+        let mut new_config = sequencer.config.clone();
+        new_config.node.l1_fee_rate_multiplier = 2.0;
+
+        // Restart the sequencer with new config
+        sequencer.start(Some(new_config), None).await?;
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer.client.wait_for_l2_block(2, None).await?;
+        // assert the fee rate has doubled
+        let block = sequencer
+            .client
+            .http_client()
+            .get_head_l2_block()
+            .await?
+            .unwrap();
+        let updated_fee_rate: u128 = block.header.l1_fee_rate.to();
+        assert_eq!(updated_fee_rate, 2 * one_sat_vb);
+        sequencer.wait_until_stopped().await?;
+
+        // Test changing max l1 fee rate
+        let mut new_config = sequencer.config.clone();
+        new_config.node.l1_fee_rate_multiplier = 2.0;
+        new_config.node.max_l1_fee_rate_sat_vb = 1;
+
+        // Restart the sequencer with new config
+        sequencer.start(Some(new_config), None).await?;
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer.client.wait_for_l2_block(3, None).await?;
+        // assert the fee rate is capped at max l1 fee rate
+        let block = sequencer
+            .client
+            .http_client()
+            .get_head_l2_block()
+            .await?
+            .unwrap();
+        let updated_fee_rate: u128 = block.header.l1_fee_rate.to();
+        assert_eq!(updated_fee_rate, one_sat_vb);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_sequencer_l1_fee_params() -> Result<()> {
+    TestCaseRunner::new(SequencerL1FeeParamsTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
