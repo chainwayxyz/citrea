@@ -5,6 +5,7 @@ use bitcoincore_rpc::Error as BitcoinRpcError;
 use thiserror::Error;
 use tokio::task::JoinError;
 
+use crate::fee::FeeServiceError;
 use crate::monitoring::{MonitorError, TxStatus};
 
 /// The top level error type that can be returned by the `BitcoinService`.
@@ -106,6 +107,9 @@ pub enum BitcoinServiceError {
     /// Body builders error.
     #[error("Body builders error: {0}")]
     TransactionBuilderError(String),
+    /// Fee service operation failure.
+    #[error("Fee service error: {0}")]
+    FeeServiceError(#[from] FeeServiceError),
 }
 
 /// Error type for mempool rejections via testmempoolaccept method.
