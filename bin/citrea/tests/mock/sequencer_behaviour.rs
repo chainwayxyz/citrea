@@ -290,7 +290,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 
     let random_wallet_address = random_wallet.address();
 
-    let second_block_base_fee = 768304812;
+    let second_block_base_fee = 768475189;
 
     let _pending = seq_test_client
         .send_eth(
@@ -387,7 +387,7 @@ async fn test_gas_limit_too_high() {
 
     let target_gas_limit: u64 = 30_000_000;
     let transfer_gas_limit = 21_000;
-    let system_txs_gas_used = 345619;
+    let system_txs_gas_used = 369045;
     let tx_count = (target_gas_limit - system_txs_gas_used).div_ceil(transfer_gas_limit);
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
@@ -562,27 +562,27 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await?;
-    // sys tx use L1BlockHash(50759 + 80626 + 21770) + Bridge(192464) = 345619 gas
+    // sys tx use L1BlockHash(50737 + 80626 + 21770) + Bridge(215912) = 369045 gas
     // the block gas limit is 1_500_000 because the system txs gas limit is 1_500_000 (decided with @eyusufatik and @okkothejawa as bridge init takes 1M gas)
-    // 1500000 - 345619 = 1_154_381 gas left in block
-    // 1_154_381 / 21000 =~ 54.97... so 54 ether transfer transactions can be included in the block
+    // 1500000 - 369045 = 1_130_955 gas left in block
+    // 1_130_955 / 21000 =~ 53.85... so 53 ether transfer transactions can be included in the block
 
     // send 53 ether transfer transactions
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    for _ in 0..53 {
+    for _ in 0..52 {
         let _pending = seq_test_client
             .send_eth(addr, None, None, None, 0u128)
             .await
             .unwrap();
     }
 
-    // 56th tx should be the last tx in the l2 block
+    // 53rd tx should be the last tx in the l2 block
     let last_in_tx = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await;
 
-    // 57th tx should not be in l2 block
+    // 54th tx should not be in l2 block
     let not_in_tx = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await;
