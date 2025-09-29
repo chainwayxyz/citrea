@@ -10,6 +10,7 @@ use crate::circuit::{SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_M
 /// The three out of 5 signatures should be verified for the method id upgrade to be valid.
 /// For each signature, the corresponding public key from the initial values constants is used to verify the signature.
 /// If there are less than 3 valid signatures, the verification fails.
+/// Note that the pubkey indices of signatures must be in strict ascending order and within bounds [0,(SECURITY_COUNCIL_MEMBER_COUNT - 1)]
 pub fn verify_method_id_security_council(
     initial_da_pubkeys: [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
         SECURITY_COUNCIL_MEMBER_COUNT],
