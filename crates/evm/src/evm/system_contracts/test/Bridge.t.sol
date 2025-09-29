@@ -748,7 +748,7 @@ contract BridgeTest is Test {
     }
 
     function testDepositAmountDividedBySatToWeiCannotOverflowUint64() public {
-        // Clear out the initilization flag so we can re-initialize
+        // Clear out the initialization flag so we can re-initialize
         vm.store(address(bridge), bytes32(uint256(0)), bytes32(uint256(0)));
         vm.startPrank(SYSTEM_CALLER);
         uint256 overflowingDepositAmount = (uint256(type(uint64).max) + 1) * bridge.SAT_TO_WEI();
