@@ -18,10 +18,12 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-use std::{error::Error, time::Duration};
+use std::error::Error;
+use std::time::Duration;
 
 use futures::prelude::*;
-use libp2p::{noise, ping, swarm::SwarmEvent, tcp, yamux, Multiaddr};
+use libp2p::swarm::SwarmEvent;
+use libp2p::{noise, ping, tcp, yamux, Multiaddr};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
