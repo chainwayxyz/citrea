@@ -311,7 +311,7 @@ impl BitcoinService {
                             };
 
                             if fee_sat_per_vbyte > self.max_fee_rate_sat_vb {
-                                warn!(?e, "Fee rate {} above cap of {}. Waiting before sending transaction", fee_sat_per_vbyte, self.max_fee_rate_sat_vb);
+                                warn!("Fee rate {} above cap of {}. Waiting before sending transaction", fee_sat_per_vbyte, self.max_fee_rate_sat_vb);
                                 tokio::time::sleep(Duration::from_secs(10)).await;
                                 continue;
                             }
