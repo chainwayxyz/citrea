@@ -650,7 +650,6 @@ pub(crate) const fn target_to_bits(target: &[u8; 32]) -> u32 {
 /// Calculates the work done for a block hash that satisfies a given.
 /// Should use the `bits` field of the block header to calculate the target.
 ///
-///
 /// This calculation uses the mathematical identity:
 /// 2**256 / (x + 1) == ~x / (x + 1) + 1
 fn target_to_work(target: &[u8; 32]) -> U256 {
