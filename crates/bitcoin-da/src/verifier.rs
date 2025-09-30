@@ -712,13 +712,16 @@ mod tests {
     use bitcoin::hashes::Hash;
     use bitcoin::CompactTarget;
     use borsh::BorshDeserialize;
+    use crypto_bigint::U256;
+    use hex;
+    use serde_json::json;
     use sov_rollup_interface::da::{DaVerifier, LatestDaState};
     use sov_rollup_interface::Network;
 
     use super::{BitcoinVerifier, ValidationError};
     use crate::spec::header::{BitcoinHeaderWrapper, HeaderWrapper};
     use crate::spec::RollupParams;
-    use crate::verifier::bits_to_target;
+    use crate::verifier::{bits_to_target, target_to_work};
 
     fn get_verifier() -> BitcoinVerifier {
         BitcoinVerifier::new(RollupParams {
@@ -925,5 +928,60 @@ mod tests {
         let result =
             verifier.verify_header_chain_common(&header, &bad_state, target, expected_bits);
         assert_eq!(result, Err(ValidationError::InvalidTimestamp));
+    }
+
+    #[test]
+    fn test_calculate_work() {
+        let mut target: [u8; 32] = [0u8; 32];
+        let work = target_to_work(&target);
+        assert_eq!(work, U256::MAX);
+        target[31] = 1;
+        let work = target_to_work(&target);
+        assert_eq!(work, U256::MAX);
+        let target: [u8; 32] = [0xFF; 32];
+        let work = target_to_work(&target);
+        assert_eq!(work, U256::ONE);
+
+        let target: [u8; 32] =
+            hex::decode("00000000FFFF0000000000000000000000000000000000000000000000000000")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let work = target_to_work(&target);
+        assert_eq!(
+            work,
+            U256::from_be_hex("0000000000000000000000000000000000000000000000000000000100010001")
+        );
+    }
+
+    #[test]
+    fn test_mainnet_chainworks() {
+        let file = File::open("test_data/mainnet/chainwork_test_hashes.json").unwrap();
+        let chain_work_test_hashes_json: serde_json::Value = serde_json::from_reader(file).unwrap();
+        let chain_work_test_hashes: Vec<(&str, &str, &str)> = chain_work_test_hashes_json
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|entry| {
+                let arr = entry.as_array().unwrap();
+                (
+                    arr[0].as_str().unwrap(),
+                    arr[1].as_str().unwrap(),
+                    arr[2].as_str().unwrap(),
+                )
+            })
+            .collect();
+
+        for (bits, expected_chainwork, prev_chainwork) in chain_work_test_hashes {
+            let bits: u32 = u32::from_str_radix(bits, 16).unwrap();
+            let expected_chainwork = U256::from_be_hex(expected_chainwork);
+            let prev_chainwork = U256::from_be_hex(prev_chainwork);
+            let target = bits_to_target(bits);
+            let calculated_chainwork = target_to_work(&target);
+            assert_eq!(
+                calculated_chainwork.wrapping_add(&prev_chainwork),
+                expected_chainwork
+            );
+        }
     }
 }
