@@ -412,12 +412,6 @@ pub trait LedgerRpcProvider {
         index: u32,
     ) -> Result<Option<SequencerCommitmentResponse>, anyhow::Error>;
 
-    /// Get batch proof by l1 height
-    fn get_batch_proof_data_by_l1_height(
-        &self,
-        height: u64,
-    ) -> Result<Option<Vec<BatchProofResponse>>, anyhow::Error>;
-
     /// Get verified proof by l1 height
     fn get_verified_proof_data_by_l1_height(
         &self,

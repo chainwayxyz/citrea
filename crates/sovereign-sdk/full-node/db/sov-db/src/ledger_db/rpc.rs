@@ -1,9 +1,8 @@
 use alloy_primitives::U64;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::rpc::{
-    sequencer_commitment_to_response, BatchProofResponse, L2BlockIdentifier,
-    LastVerifiedBatchProofResponse, LedgerRpcProvider, SequencerCommitmentResponse,
-    VerifiedBatchProofResponse,
+    sequencer_commitment_to_response, L2BlockIdentifier, LastVerifiedBatchProofResponse,
+    LedgerRpcProvider, SequencerCommitmentResponse, VerifiedBatchProofResponse,
 };
 
 use crate::schema::tables::{
@@ -22,7 +21,7 @@ fn check_if_l2_block_pruned(ledger_db: &LedgerDB, l2_height: u64) -> Result<(), 
     Ok(())
 }
 
-use super::{L2GenesisStateRoot, LedgerDB, ProofsBySlotNumberV2, SharedLedgerOps};
+use super::{L2GenesisStateRoot, LedgerDB, SharedLedgerOps};
 
 impl LedgerRpcProvider for LedgerDB {
     fn get_l2_block(
@@ -104,21 +103,6 @@ impl LedgerRpcProvider for LedgerDB {
         match SharedLedgerOps::get_last_scanned_l1_height(self)? {
             Some(height) => Ok(height.0),
             None => Ok(0),
-        }
-    }
-
-    fn get_batch_proof_data_by_l1_height(
-        &self,
-        height: u64,
-    ) -> Result<Option<Vec<BatchProofResponse>>, anyhow::Error> {
-        match self.db.get::<ProofsBySlotNumberV2>(&SlotNumber(height))? {
-            Some(stored_proofs) => Ok(Some(
-                stored_proofs
-                    .into_iter()
-                    .map(BatchProofResponse::from)
-                    .collect(),
-            )),
-            None => Ok(None),
         }
     }
 

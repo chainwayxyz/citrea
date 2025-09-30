@@ -6,7 +6,7 @@ use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_primitives::{address, Address, Bytes, TxKind, B256, U64};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
-use citrea_primitives::MIN_BASE_FEE_PER_GAS;
+use citrea_primitives::min_base_fee_per_gas;
 use rand::thread_rng;
 use revm::bytecode::eip7702::Eip7702Bytecode;
 use revm::primitives::{KECCAK_EMPTY, U256};
@@ -968,7 +968,7 @@ fn test_l1_fee_not_enough_funds() {
     let (mut config, dev_signer, _, _ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("1142350000000").unwrap(), // only covers base fee
         None,
-        MIN_BASE_FEE_PER_GAS,
+        min_base_fee_per_gas(SovSpecId::Tangerine),
     );
     config_push_contracts(&mut config, None);
 
@@ -996,7 +996,7 @@ fn test_l1_fee_not_enough_funds() {
             &dev_signer,
             0,
             BlockHashContract::default(),
-            MIN_BASE_FEE_PER_GAS,
+            min_base_fee_per_gas(l2_block_info.current_spec),
             114235,
         );
 
@@ -1660,4 +1660,65 @@ fn test_eip7702_tx() {
     );
 
     assert_eq!(signer1_account_info_post_tx.nonce, 4);
+}
+
+#[test]
+fn test_min_base_fee_fork3() {
+    let (config, _dev_signer, _contract_addr) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let (mut evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
+    let l1_fee_rate = 0;
+
+    // produce empty blocks to reduce base fee to the minimum for tangerine (10_000_000)
+    for l2_height in 2..1600 {
+        let l2_block_info = HookL2BlockInfo {
+            l2_height,
+            pre_state_root: [10u8; 32],
+            current_spec: SovSpecId::Tangerine,
+            sequencer_pub_key: get_test_seq_pub_key(),
+            l1_fee_rate,
+            timestamp: 0,
+        };
+        evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+        evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+        evm.finalize_hook(&[98u8; 32], &mut working_set.accessory_state());
+    }
+
+    let block = evm
+        .get_block_by_number(
+            Some(BlockNumberOrTag::Latest),
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(block.header.base_fee_per_gas.unwrap(), 10_000_000);
+
+    // produce empty blocks to reduce base fee to the minimum for fork3 (1_000_000)
+    for l2_height in 1600..3200 {
+        let l2_block_info = HookL2BlockInfo {
+            l2_height,
+            pre_state_root: [10u8; 32],
+            current_spec: SovSpecId::Fork3,
+            sequencer_pub_key: get_test_seq_pub_key(),
+            l1_fee_rate,
+            timestamp: 0,
+        };
+        evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+        evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+        evm.finalize_hook(&[98u8; 32], &mut working_set.accessory_state());
+    }
+
+    let block = evm
+        .get_block_by_number(
+            Some(BlockNumberOrTag::Latest),
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(block.header.base_fee_per_gas.unwrap(), 1_000_000);
 }

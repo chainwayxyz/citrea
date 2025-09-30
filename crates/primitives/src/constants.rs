@@ -1,3 +1,5 @@
+use sov_rollup_interface::spec::SpecId;
+
 /// Prefix for the reveal transaction ids.
 #[cfg(feature = "testing")]
 pub const REVEAL_TX_PREFIX: &[u8] = &[2]; // since we changed the prefix to 1 genesis fork proving tests fail
@@ -7,7 +9,13 @@ pub const REVEAL_TX_PREFIX: &[u8] = &[2, 2];
 pub const TEST_PRIVATE_KEY: &str =
     "1212121212121212121212121212121212121212121212121212121212121212";
 
-pub const MIN_BASE_FEE_PER_GAS: u64 = 10_000_000; // 0.01 gwei
+pub fn min_base_fee_per_gas(spec_id: SpecId) -> u64 {
+    if spec_id >= SpecId::Fork3 {
+        1_000_000 // 0.001 gwei
+    } else {
+        10_000_000 // 0.01 gwei
+    }
+}
 
 /// Maximum size of a bitcoin transaction body in bytes
 #[cfg(feature = "testing")]
