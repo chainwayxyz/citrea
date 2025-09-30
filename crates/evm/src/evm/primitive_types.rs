@@ -60,6 +60,11 @@ impl<H> Block<H> {
     pub fn transaction_range(&self) -> Range<u64> {
         self.transactions.clone()
     }
+
+    /// Get the header of this block
+    pub fn header(&self) -> &H {
+        &self.header
+    }
 }
 
 impl Block<AlloyHeader> {

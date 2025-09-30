@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use std::vec;
 
 use alloy_eips::eip2718::{Decodable2718, Encodable2718};
-use alloy_primitives::{keccak256, Address, Bytes, TxHash, U256};
+use alloy_primitives::{keccak256, Address, Bytes, Sealable, TxHash, U256};
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
@@ -558,7 +558,7 @@ where
         self.instrumented_apply_l2_block_txs(&l2_block_info, &signed_txs, &mut working_set)?;
         self.instrumented_end_l2_block(l2_block_info, &mut working_set)?;
 
-        let receipts = self.extract_receipts_from_working_set(l2_height, &mut working_set);
+        let receipts = self.extract_receipts_from_working_set(&mut working_set);
 
         assert_eq!(
             receipts.len(),
@@ -567,6 +567,9 @@ where
             evm_txs_count,
             receipts.len()
         );
+
+        let (reth_block, evm_block_hash) =
+            self.build_reth_block_from_working_set(&txs_to_run, &mut working_set);
 
         let l2_block_result =
             self.instrumented_finalize_l2_block(active_fork_spec, working_set, prestate);
@@ -624,18 +627,13 @@ where
         // Build notification using in-memory data instead of reading from DB
         let start_canonical_notification = Instant::now();
 
-        // Use the transactions we already have from dry_run (txs_to_run)
-        // and build block structure without DB reads
-        let (reth_block, reth_receipts, evm_block_hash) =
-            self.build_reth_block_data(l2_height, &txs_to_run, &senders, &receipts);
-
         // Create the Chain notification with the produced block data
         let chain = self.create_chain_notification(
             l2_height,
             evm_block_hash,
             reth_block,
             senders,
-            reth_receipts,
+            receipts.clone(),
             bundle_state,
         );
         // Send canonical state notification for mempool maintenance task
@@ -778,7 +776,6 @@ where
     /// Extracts receipts from the working set's accessory cache after end_l2_block
     fn extract_receipts_from_working_set(
         &self,
-        _l2_height: u64,
         working_set: &mut WorkingSet<ProverStorage>,
     ) -> Vec<reth_primitives::Receipt> {
         let block = self
@@ -799,6 +796,44 @@ where
             .iter()
             .map(|r| r.receipt.receipt.clone())
             .collect()
+    }
+
+    /// Builds reth block from the working set after end_l2_block
+    fn build_reth_block_from_working_set(
+        &self,
+        txs: &[RlpEvmTransaction],
+        working_set: &mut WorkingSet<ProverStorage>,
+    ) -> (reth_primitives::Block, alloy_primitives::B256) {
+        // Get the unsealed block from working set
+        let citrea_block = self
+            .db_provider
+            .evm
+            .get_head_block(working_set)
+            .expect("Head block must exist after end_l2_block");
+
+        // Seal the header to compute the hash
+        let sealed_header = citrea_block.header().clone().seal_slow();
+        let (header, evm_block_hash) = sealed_header.into_parts();
+
+        let reth_transactions: Vec<reth_primitives::TransactionSigned> = txs
+            .iter()
+            .map(|tx| {
+                // Decode RLP bytes to TransactionSigned
+                reth_primitives::TransactionSigned::decode_2718(&mut tx.rlp.as_ref())
+                    .expect("Transaction decoding should succeed")
+            })
+            .collect();
+
+        let block = reth_primitives::Block {
+            header,
+            body: reth_primitives::BlockBody {
+                transactions: reth_transactions,
+                ommers: Vec::new(),
+                withdrawals: None,
+            },
+        };
+
+        (block, evm_block_hash)
     }
 
     /// Finalizes the L2 block and records the time taken
@@ -956,52 +991,6 @@ where
         }
 
         bundle_state
-    }
-
-    /// Build block data from in-memory transactions without DB reads
-    fn build_reth_block_data(
-        &self,
-        l2_height: u64,
-        txs: &[RlpEvmTransaction],
-        _senders: &[alloy_primitives::Address],
-        receipts: &[reth_primitives::Receipt],
-    ) -> (reth_primitives::Block, Vec<Receipt>, alloy_primitives::B256) {
-        // For now, we still need one DB read to get the block header
-        // In a future optimization, we could cache this in memory too
-        let mut working_set = WorkingSet::new(self.db_provider.storage.clone());
-
-        let citrea_block = self
-            .db_provider
-            .evm
-            .get_block_by_height(l2_height, &mut working_set)
-            .unwrap_or_else(|| panic!("Block {} must exist after saving", l2_height));
-
-        let evm_block_hash = citrea_block.header.hash();
-
-        let header = citrea_block.header.clone().unseal();
-
-        let reth_transactions: Vec<reth_primitives::TransactionSigned> = txs
-            .iter()
-            .map(|tx| {
-                // Decode RLP bytes to TransactionSigned
-                reth_primitives::TransactionSigned::decode_2718(&mut tx.rlp.as_ref())
-                    .expect("Transaction decoding should succeed")
-            })
-            .collect();
-
-        // Use receipts directly - no DB reads or serialization needed!
-        let reth_receipts = receipts.to_vec();
-
-        let block = reth_primitives::Block {
-            header,
-            body: reth_primitives::BlockBody {
-                transactions: reth_transactions,
-                ommers: Vec::new(),
-                withdrawals: None,
-            },
-        };
-
-        (block, reth_receipts, evm_block_hash)
     }
 
     /// Creates a Chain notification from the produced L2 block
