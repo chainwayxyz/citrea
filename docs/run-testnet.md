@@ -51,7 +51,7 @@ Linux: https://github.com/bitcoin/bitcoin/blob/v28.0/doc/build-unix.md
 After the setup, execute these commands to run a Bitcoin testnet4 node:
 
 ```sh
-bitcoind -testnet4 -daemon -txindex=1 -rpcbind=0.0.0.0 -rpcport=18443 -rpcuser=citrea -rpcpassword=citrea 
+bitcoind -testnet4 -daemon -txindex=1 -rpcbind=0.0.0.0 -rpcport=18443 -rpcuser=citrea -rpcpassword=citrea
 ```
 
 You can edit RPC parameters as you wish, but you also have to edit `rollup_config.toml`
@@ -96,7 +96,7 @@ There is three different ways to run a Citra full node: using a [pre-built binar
 
 ### Option 1: Using pre-built binary
 
-Before continueuing we suggest creating a `citrea/` directory and executing these commands in that directory.
+Before continuing we suggest creating a `citrea/` directory and executing these commands in that directory.
 
 #### Step 1.1: Download necessary files
 
