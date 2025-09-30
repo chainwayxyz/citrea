@@ -713,7 +713,6 @@ mod tests {
     use borsh::BorshDeserialize;
     use crypto_bigint::U256;
     use hex;
-    use serde_json::json;
     use sov_rollup_interface::da::{DaVerifier, LatestDaState};
     use sov_rollup_interface::Network;
 
