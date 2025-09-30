@@ -92,7 +92,7 @@ You can edit RPC parameters as you wish, but you have to also edit `rollup_confi
 
 ## Citrea Full Node Setup
 
-There is three different ways to run a Citrea full node: using a [pre-built binary](#option-1-using-pre-built-binary), [building from source](#option-2-build-from-source) and [using docker](#option-3-using-docker).
+There are three different ways to run a Citrea full node: using a [pre-built binary](#option-1-using-pre-built-binary), [building from source](#option-2-build-from-source) and [using docker](#option-3-using-docker).
 
 ### Option 1: Using pre-built binary
 
