@@ -126,7 +126,7 @@ fn log_filter_test_at_block_hash() {
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     // `AnotherLog` topics
-    // [0xf16dfb875e436384c298237e04527f538a5eb71f60593cfbaae1ff23250d22a9, event signature => (kecccak256("AnotherLog(address)")
+    // [0xf16dfb875e436384c298237e04527f538a5eb71f60593cfbaae1ff23250d22a9, event signature => (keccak256("AnotherLog(address)")
     //  0x000000000000000000000000819c5497b157177315e1204f52e588b393771719]
 
     // `Log`topics

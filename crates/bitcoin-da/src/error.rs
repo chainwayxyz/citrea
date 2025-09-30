@@ -43,7 +43,7 @@ pub enum BitcoinServiceError {
     /// Cannot bump fee for TX.
     #[error("Cannot bump fee for TX with status: {0:?}. Transaction must be pending")]
     WrongStatusForBumping(TxStatus),
-    /// Tx requeste when queue is not empty.
+    /// Tx requested when queue is not empty.
     #[error("Cannot create DA transaction while da queue is not empty")]
     QueueNotEmpty,
     /// Transaction rejected by mempool.
