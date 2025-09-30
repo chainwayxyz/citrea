@@ -9,9 +9,13 @@ use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{
     BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter, Index, SyncInfo,
-    SyncStatus as EthSyncStatus, Transaction,
+    SyncStatus as EthSyncStatus, Transaction, TransactionRequest,
 };
-use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
+use alloy_rpc_types_trace::geth::{
+    GethDebugTracerType, GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace,
+    TraceResult,
+};
+use citrea_common::RpcConfig;
 use citrea_evm::{generate_eth_proof, Evm};
 use citrea_sequencer::SequencerRpcClient;
 pub use ethereum::{EthRpcConfig, Ethereum};
@@ -129,6 +133,16 @@ pub trait EthereumRpc {
         opts: Option<GethDebugTracingOptions>,
     ) -> RpcResult<GethTrace>;
 
+    /// Handler for `debug_traceCall`
+    #[method(name = "debug_traceCall")]
+    #[blocking]
+    fn debug_trace_call(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        opts: Option<GethDebugTracingCallOptions>,
+    ) -> RpcResult<GethTrace>;
+
     /// Returns the transaction pool content.
     #[method(name = "txpool_content")]
     fn txpool_content(&self) -> RpcResult<Value>;
@@ -189,6 +203,8 @@ where
 {
     ethereum: Arc<Ethereum<C, Da>>,
     starting_l2_height: U64,
+    trace_chain_block_limit: Option<u64>,
+    enable_js_tracer: bool,
 }
 
 impl<C, Da> EthereumRpcServerImpl<C, Da>
@@ -196,10 +212,17 @@ where
     C: sov_modules_api::Context,
     Da: DaService,
 {
-    pub fn new(ethereum: Arc<Ethereum<C, Da>>, starting_l2_height: U64) -> Self {
+    pub fn new(
+        ethereum: Arc<Ethereum<C, Da>>,
+        starting_l2_height: U64,
+        trace_chain_block_limit: Option<u64>,
+        enable_js_tracer: bool,
+    ) -> Self {
         Self {
             ethereum,
             starting_l2_height,
+            trace_chain_block_limit,
+            enable_js_tracer,
         }
     }
 }
@@ -317,6 +340,7 @@ where
             &evm,
             &mut working_set,
             opts,
+            self.enable_js_tracer,
         )
         .map_err(to_eth_rpc_error)
     }
@@ -345,6 +369,7 @@ where
             &evm,
             &mut working_set,
             opts,
+            self.enable_js_tracer,
         )
         .map_err(to_eth_rpc_error)
     }
@@ -383,6 +408,7 @@ where
             &evm,
             &mut working_set,
             opts,
+            self.enable_js_tracer,
         )
         .map_err(to_eth_rpc_error)?;
 
@@ -393,6 +419,32 @@ where
                 Err(EthApiError::EvmCustom(error.clone()).into())
             }
         }
+    }
+
+    fn debug_trace_call(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        opts: Option<GethDebugTracingCallOptions>,
+    ) -> RpcResult<GethTrace> {
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+        let evm = Evm::<C>::default();
+
+        let is_js_tracer = matches!(
+            opts.as_ref()
+                .and_then(|o| o.tracing_options.tracer.as_ref()),
+            Some(GethDebugTracerType::JsTracer(_))
+        );
+        if is_js_tracer && !self.enable_js_tracer {
+            return Err(EthApiError::Unsupported("JsTracer is disabled.").into());
+        }
+        evm.debug_trace_call(
+            request,
+            block_id,
+            opts,
+            &mut working_set,
+            &self.ethereum.ledger_db,
+        )
     }
 
     // This method is implemented only for full nodes.
@@ -577,8 +629,16 @@ where
         opts: Option<GethDebugTracingOptions>,
     ) -> SubscriptionResult {
         if &topic == "traceChain" {
-            handle_debug_trace_chain(start_block, end_block, opts, pending, self.ethereum.clone())
-                .await;
+            handle_debug_trace_chain(
+                start_block,
+                end_block,
+                opts,
+                pending,
+                self.ethereum.clone(),
+                self.trace_chain_block_limit,
+                self.enable_js_tracer,
+            )
+            .await;
         } else {
             pending
                 .reject(to_eth_rpc_error("Unsupported subscription topic"))
@@ -625,6 +685,7 @@ where
 pub fn create_rpc_module<C, Da>(
     da_service: Arc<Da>,
     eth_rpc_config: EthRpcConfig,
+    rpc_config: RpcConfig,
     storage: C::Storage,
     ledger_db: LedgerDB,
     sequencer_client_url: Option<String>,
@@ -660,7 +721,12 @@ where
         sequencer_client_url.map(|url| HttpClientBuilder::default().build(url).unwrap()),
         l2_block_rx,
     ));
-    let server = EthereumRpcServerImpl::new(ethereum, U64::from(head_l2_block));
+    let server = EthereumRpcServerImpl::new(
+        ethereum,
+        U64::from(head_l2_block),
+        rpc_config.trace_chain_block_limit,
+        rpc_config.enable_js_tracer,
+    );
 
     let mut module = EthereumRpcServer::into_rpc(server);
 

@@ -69,6 +69,8 @@ pub enum ValidationError {
     HeaderInclusionTxCountMismatch,
     /// Failed to deserialize complete chunks.
     FailedToDeserializeCompleteChunks,
+    /// Failed to deserialize batch proof method id body
+    FailedToDeserializeBatchProofMethodIdBody,
 }
 
 impl DaVerifier for BitcoinVerifier {
@@ -148,15 +150,21 @@ impl DaVerifier for BitcoinVerifier {
                             *wtxid,
                         ));
                     }
-                    ParsedTransaction::BatchProverMethodId(method_id) => {
-                        if let Some(hash) = method_id.get_sig_verified_hash() {
-                            blobs.push(BlobWithSender::new(
-                                method_id.body,
-                                method_id.public_key,
-                                hash,
-                                *wtxid,
-                            ))
-                        }
+                    // The signature verification of BatchProverMethodId is done in the circuit
+                    ParsedTransaction::BatchProofMethodId(method_id) => {
+                        // Pubkey here is given as 0 because the security council pub keys are inside the body
+                        let public_key = [0u8; 32].to_vec();
+                        let hash = method_id.hash();
+
+                        blobs.push(BlobWithSender::new(
+                            // Body here is: borsh(DataOnDa::BatchProofMethodId(BatchProofMethodId { ... }))
+                            // The sender field here is not used because this transaction has a security council
+                            // consisting of 5 public keys, this data and signatures are embedded in the body
+                            method_id.body,
+                            public_key,
+                            hash,
+                            *wtxid,
+                        ))
                     }
                     ParsedTransaction::SequencerCommitment(seq_comm) => {
                         if let Some(hash) = seq_comm.get_sig_verified_hash() {
@@ -604,6 +612,12 @@ fn verify_target_hash(hash: [u8; 32], target_bytes: [u8; 32]) -> bool {
 fn bits_to_target(bits: u32) -> [u8; 32] {
     let size = (bits >> 24) as usize;
     let mantissa = bits & 0x00ffffff;
+
+    // Mantissa is signed in Bitcoin core, if the sign bit is set, the target is set to 0.
+    // https://github.com/bitcoin/bitcoin/blob/ee42d59d4de970769ebabf77b89ff4269498f61e/src/arith_uint256.cpp#L175
+    if mantissa > 0x7F_FFFF {
+        return [0; 32];
+    }
 
     // Prepare U256 target
     let target =

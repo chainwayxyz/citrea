@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use alloy::eips::eip2930::AccessListWithGasUsed;
 use alloy::eips::eip7702::SignedAuthorization;
-use alloy::network::{AnyTransactionReceipt, TransactionBuilder7702};
+use alloy::network::{AnyTransactionReceipt, TransactionBuilder7702, TransactionResponse};
 use alloy::providers::network::{Ethereum, EthereumWallet};
 use alloy::providers::{PendingTransactionBuilder, Provider as AlloyProvider, ProviderBuilder};
 use alloy::rpc::types::eth::{Block, Transaction, TransactionRequest};
@@ -18,11 +18,12 @@ use alloy_rpc_types::{BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, Fi
 use alloy_rpc_types_trace::geth::{
     GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
 };
+use alloy_rpc_types_txpool::TxpoolContent;
 use citrea_batch_prover::rpc::{BatchProverRpcClient, ProvingJobResponse};
 use citrea_batch_prover::PartitionMode;
 use citrea_evm::EstimatedDiffSize;
 use ethereum_rpc::SyncStatus;
-use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
+use jsonrpsee::core::client::{ClientT, Error, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
@@ -700,7 +701,7 @@ impl TestClient {
         start_block: BlockNumberOrTag,
         end_block: BlockNumberOrTag,
         opts: Option<GethDebugTracingOptions>,
-    ) -> Vec<TraceResult> {
+    ) -> Result<Vec<TraceResult>, Error> {
         let mut subscription = self
             .ws_client
             .subscribe(
@@ -708,8 +709,7 @@ impl TestClient {
                 rpc_params!["traceChain", start_block, end_block, opts],
                 "debug_unsubscribe",
             )
-            .await
-            .unwrap();
+            .await?;
 
         let BlockNumberOrTag::Number(start_block) = start_block else {
             panic!("Only numbers for start block");
@@ -725,7 +725,7 @@ impl TestClient {
             traces.push(block_traces);
         }
 
-        traces.into_iter().flatten().collect()
+        Ok(traces.into_iter().flatten().collect())
     }
 
     pub(crate) async fn subscribe_new_heads(&self) -> mpsc::Receiver<WithOtherFields<Block>> {
@@ -832,8 +832,15 @@ impl TestClient {
         self.http_client.get_proving_job(id).await.unwrap()
     }
 
-    pub(crate) async fn get_proving_jobs(&self, count: usize) -> Vec<ProvingJobResponse> {
-        self.http_client.get_proving_jobs(count).await.unwrap()
+    pub(crate) async fn get_proving_jobs(
+        &self,
+        limit: usize,
+        skip: Option<usize>,
+    ) -> Vec<ProvingJobResponse> {
+        self.http_client
+            .get_proving_jobs(U64::from(limit as u64), skip.map(|v| U64::from(v as u64)))
+            .await
+            .unwrap()
     }
 
     pub(crate) async fn batch_prover_get_commitments_by_l1(
@@ -879,6 +886,60 @@ impl TestClient {
             .request("citrea_resumeCommitments", rpc_params![])
             .await?;
         Ok(())
+    }
+
+    /// Get the number of transactions in the mempool
+    pub(crate) async fn get_mempool_transaction_count(
+        &self,
+    ) -> Result<usize, Box<dyn std::error::Error>> {
+        let pool_content: TxpoolContent<Transaction> = self
+            .http_client
+            .request("txpool_content", rpc_params![])
+            .await?;
+
+        let pending_count = pool_content
+            .pending
+            .values()
+            .map(|account_txs| account_txs.len())
+            .sum::<usize>();
+        let queued_count = pool_content
+            .queued
+            .values()
+            .map(|account_txs| account_txs.len())
+            .sum::<usize>();
+
+        Ok(pending_count + queued_count)
+    }
+
+    /// Check if a specific transaction is in the mempool
+    pub(crate) async fn is_transaction_in_mempool(
+        &self,
+        tx_hash: TxHash,
+    ) -> Result<bool, Box<dyn std::error::Error>> {
+        let pool_content: TxpoolContent<Transaction> = self
+            .http_client
+            .request("txpool_content", rpc_params![])
+            .await?;
+
+        // Check pending transactions
+        for account_txs in pool_content.pending.values() {
+            for tx in account_txs.values() {
+                if tx.tx_hash() == tx_hash {
+                    return Ok(true);
+                }
+            }
+        }
+
+        // Check queued transactions
+        for account_txs in pool_content.queued.values() {
+            for tx in account_txs.values() {
+                if tx.tx_hash() == tx_hash {
+                    return Ok(true);
+                }
+            }
+        }
+
+        Ok(false)
     }
 }
 

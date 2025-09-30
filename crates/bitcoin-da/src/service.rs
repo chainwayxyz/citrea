@@ -25,7 +25,7 @@ use bitcoincore_rpc::{Client, Error as BitcoinError, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
 use citrea_common::utils::read_env;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
-use citrea_primitives::MAX_TX_BODY_SIZE;
+use citrea_primitives::{MAX_COMPRESSED_BLOB_SIZE, MAX_TX_BODY_SIZE};
 use lru::LruCache;
 use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
@@ -118,6 +118,12 @@ pub struct BitcoinServiceConfig {
 
     /// UTXO selection mode
     pub utxo_selection_mode: Option<UtxoSelectionMode>,
+
+    /// Timeout for RPC requests in seconds
+    pub rpc_timeout_secs: Option<u64>,
+
+    /// Connection timeout for RPC in seconds
+    pub rpc_connect_timeout_secs: Option<u64>,
 }
 
 impl citrea_common::FromEnv for BitcoinServiceConfig {
@@ -137,6 +143,12 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
                         .map_err(|e| anyhow!(e).context("Invalid UTXO_SELECTION_MODE"))
                 })
                 .transpose()?,
+            rpc_timeout_secs: read_env("BITCOIN_RPC_TIMEOUT_SECS")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok()),
+            rpc_connect_timeout_secs: read_env("BITCOIN_RPC_CONNECT_TIMEOUT_SECS")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok()),
         })
     }
 }
@@ -428,6 +440,7 @@ impl BitcoinService {
                 .filter(|utxo| {
                     utxo.spendable
                         && utxo.solvable
+                        && utxo.safe
                         && utxo.amount > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
                 })
                 .map(Into::into)
@@ -455,6 +468,7 @@ impl BitcoinService {
                 utxos.into_iter().filter(|utxo| {
                     utxo.spendable
                     && utxo.solvable
+                    && utxo.safe
                     && utxo.amount > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
                     // Remove utxo already in use by queued txs
                     && !txids.contains(&utxo.txid)
@@ -990,6 +1004,7 @@ impl DaService for BitcoinService {
                         if complete.public_key() == prover_da_pub_key
                             && complete.get_sig_verified_hash().is_some()
                         {
+                            tracing::info!("Found complete tx with tx id: {}", tx_id);
                             let Ok(data) = DataOnDa::try_from_slice(&complete.body) else {
                                 warn!("{tx_id}: Failed to parse complete data");
                                 continue;
@@ -1013,6 +1028,7 @@ impl DaService for BitcoinService {
                         if aggregate.public_key() == prover_da_pub_key
                             && aggregate.get_sig_verified_hash().is_some()
                         {
+                            tracing::info!("Found aggregate tx with tx id: {}", tx_id);
                             // push only when signature is correct
                             // collect tx ids
                             aggregate_idxs.push((i, tx_id, aggregate));
@@ -1021,9 +1037,10 @@ impl DaService for BitcoinService {
                     ParsedTransaction::Chunk(_chunk) => {
                         // This is stored so we can see which chunk has what index
                         // This will help determine which comes first if in the same block aggregate or chunk
+                        tracing::info!("Found chunk tx with tx id: {}", tx_id);
                         chunks.insert(tx_id, i);
                     }
-                    ParsedTransaction::BatchProverMethodId(_) => {
+                    ParsedTransaction::BatchProofMethodId(_) => {
                         // ignore because these are not proofs
                     }
                     ParsedTransaction::SequencerCommitment(_) => {
@@ -1114,11 +1131,17 @@ impl DaService for BitcoinService {
                             warn!("{tx_id}: Chunk: unexpected kind",);
                             continue 'aggregate;
                         };
+
+                        if chunk.len() + body.len() > MAX_COMPRESSED_BLOB_SIZE {
+                            warn!("{tx_id}: Compressed aggregate too large");
+                            continue 'aggregate;
+                        }
+
                         body.extend(chunk);
                     }
                     ParsedTransaction::Complete(_)
                     | ParsedTransaction::Aggregate(_)
-                    | ParsedTransaction::BatchProverMethodId(_)
+                    | ParsedTransaction::BatchProofMethodId(_)
                     | ParsedTransaction::SequencerCommitment(_) => {
                         error!("{}:{}: Expected chunk, got other tx kind", tx_id, chunk_id);
                         continue 'aggregate;
@@ -1269,16 +1292,21 @@ impl DaService for BitcoinService {
                             BlobWithSender::new(chunk.body, vec![], [0; 32], wtxid.to_byte_array());
                         relevant_txs.push(relevant_tx);
                     }
-                    ParsedTransaction::BatchProverMethodId(method_id) => {
-                        if let Some(hash) = method_id.get_sig_verified_hash() {
-                            let relevant_tx = BlobWithSender::new(
-                                method_id.body,
-                                method_id.public_key,
-                                hash,
-                                wtxid.to_byte_array(),
-                            );
-                            relevant_txs.push(relevant_tx);
-                        }
+                    ParsedTransaction::BatchProofMethodId(method_id) => {
+                        // Pubkey here is given as 0 because the security council pub keys are inside the body
+                        let public_key = [0u8; 32].to_vec();
+                        let hash = method_id.hash();
+
+                        let relevant_tx = BlobWithSender::new(
+                            // Body here is: borsh(DataOnDa::BatchProofMethodId(BatchProofMethodId { ... }))
+                            // The sender field here is not used because this transaction has a security council
+                            // consisting of 5 public keys, this data and signatures are embedded in the body
+                            method_id.body,
+                            public_key,
+                            hash,
+                            wtxid.to_byte_array(),
+                        );
+                        relevant_txs.push(relevant_tx);
                     }
                     ParsedTransaction::SequencerCommitment(seq_comm) => {
                         if let Some(hash) = seq_comm.get_sig_verified_hash() {

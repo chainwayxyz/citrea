@@ -499,6 +499,7 @@ async fn test_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
             )),
         )
         .await
+        .expect("Trace chain rpc failed")
         .into_iter()
         .map(|trace| match trace {
             TraceResult::Success { result, .. } => Ok(result),
@@ -1448,6 +1449,62 @@ async fn test_noop_tracer() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     task_manager.graceful_shutdown();
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_trace_chain_block_limit() -> Result<(), Box<dyn std::error::Error>> {
+    let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+
+    let mut rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+    rollup_config.rpc.trace_chain_block_limit = Some(10); // set the limit to 10 blocks
+    let sequencer_config = SequencerConfig::default();
+
+    let rollup_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
+
+    // Wait for rollup task to start:
+    let port = port_rx.await.unwrap();
+
+    let test_client = make_test_client(port).await?;
+
+    for _ in 0..15 {
+        test_client.send_publish_batch_request().await;
+    }
+
+    let result = test_client
+        .debug_trace_chain(
+            BlockNumberOrTag::Number(0),
+            BlockNumberOrTag::Number(15),
+            None,
+        )
+        .await
+        .expect_err("Expected error due to exceeding block limit");
+
+    assert!(result
+        .to_string()
+        .contains("Block range too large. Maximum allowed range is 10 blocks"));
+    rollup_task.graceful_shutdown();
 
     Ok(())
 }

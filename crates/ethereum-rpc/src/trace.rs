@@ -28,6 +28,8 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
     opts: Option<GethDebugTracingOptions>,
     pending: PendingSubscriptionSink,
     ethereum: Arc<Ethereum<C, Da>>,
+    max_blocks: Option<u64>,
+    enable_js_tracer: bool,
 ) {
     // start block is exclusive, hence latest is not supported
     let BlockNumberOrTag::Number(start_block) = start_block else {
@@ -43,6 +45,8 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
         .block_number(&mut working_set)
         .expect("Expected at least one block")
         .saturating_to();
+    let max_blocks = max_blocks.unwrap_or(u64::MAX);
+
     let end_block = match end_block {
         BlockNumberOrTag::Number(end_block) => {
             if end_block > latest_block_number {
@@ -68,6 +72,15 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
         pending.reject(EthApiError::InvalidBlockRange).await;
         return;
     }
+    if (end_block - start_block) > max_blocks {
+        pending
+            .reject(EthApiError::InvalidParams(format!(
+                "Block range too large. Maximum allowed range is {} blocks",
+                max_blocks
+            )))
+            .await;
+        return;
+    }
 
     let subscription = pending.accept().await.unwrap();
 
@@ -84,6 +97,7 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
                 &evm,
                 &mut working_set,
                 opts.clone(),
+                enable_js_tracer,
             );
             match traces {
                 Ok(traces) => {
@@ -124,7 +138,15 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     evm: &Evm<C>,
     working_set: &mut WorkingSet<C::Storage>,
     opts: Option<GethDebugTracingOptions>,
+    enable_js_tracer: bool,
 ) -> Result<Vec<TraceResult>, ErrorObjectOwned> {
+    let is_js_tracer = matches!(
+        opts.as_ref().and_then(|o| o.tracer.as_ref()),
+        Some(GethDebugTracerType::JsTracer(_))
+    );
+    if is_js_tracer && !enable_js_tracer {
+        return Err(EthApiError::Unsupported("JsTracer is disabled.").into());
+    }
     // If tracer option is not specified, or it is JsTracer, then do not check cache or insert cache, just perform the operation
     // Skip cache from JsTracer, MuxTracer and PreStateTracer
     let skip_cache = opts.as_ref().is_none_or(|o| {

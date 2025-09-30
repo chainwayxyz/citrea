@@ -24,7 +24,7 @@ use sov_modules_api::{Spec, WorkingSet};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error};
 
-use crate::deposit_data_mempool::DepositDataMempool;
+use crate::deposit_data_mempool::{Deposit, DepositDataMempool};
 use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS as SM;
 use crate::types::SequencerRpcMessage;
@@ -224,9 +224,6 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             .insert_mempool_tx(hash.to_vec(), rlp_encoded_tx)
         {
             tracing::warn!("Failed to insert mempool tx into db: {:?}", e);
-        } else {
-            SM.mempool_txs.increment(1);
-            SM.mempool_txs_inc.increment(1);
         }
 
         Ok(hash)
@@ -315,7 +312,7 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
                     .context
                     .deposit_mempool
                     .lock()
-                    .add_deposit_tx(deposit.to_vec());
+                    .add_deposit_tx(Deposit::from(deposit.to_vec()));
 
                 match add_result {
                     Ok(true) => Ok(()),

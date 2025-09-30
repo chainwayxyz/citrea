@@ -8,7 +8,7 @@ use std::time::Duration;
 use anyhow::{bail, Context, Result};
 use bitcoin::{Amount, Network, Sequence, Txid};
 use bitcoincore_rpc::json::{
-    BumpFeeResult, CreateRawTransactionInput, WalletCreateFundedPsbtOptions,
+    BumpFeeResult, CreateRawTransactionInput, EstimateMode, WalletCreateFundedPsbtOptions,
 };
 use bitcoincore_rpc::{Client, RpcApi};
 use tracing::{debug, instrument, trace, warn};
@@ -91,7 +91,10 @@ impl FeeService {
                 Ok(fee_rate) => fee_rate,
                 Err(e) => {
                     tracing::error!(?e, "Failed to get fee rate from mempool.space");
-                    self.client.estimate_smart_fee(1, None).await?.fee_rate
+                    self.client
+                        .estimate_smart_fee(1, Some(EstimateMode::Conservative))
+                        .await?
+                        .fee_rate
                 }
             };
         let sat_vkb = smart_fee.map_or(1000, |rate| rate.to_sat());

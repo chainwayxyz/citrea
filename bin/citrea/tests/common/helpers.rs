@@ -211,6 +211,7 @@ pub async fn start_rollup(
         citrea::register_ethereum(
             da_service.clone(),
             rpc_storage,
+            rollup_config.rpc.clone(),
             ledger_db.clone(),
             &mut rpc_module,
             sequencer_client_url,
@@ -449,6 +450,10 @@ pub fn create_default_rollup_config(
             batch_requests_limit: 50,
             enable_subscriptions: true,
             max_subscriptions_per_connection: 100,
+            trace_chain_block_limit: None,
+            proving_jobs_limit: 100,
+            timeout: 30,
+            enable_js_tracer: true,
             api_key: None,
         },
         runner: match node_mode {
@@ -611,7 +616,7 @@ pub async fn wait_for_prover_job_count(
             );
         }
 
-        let jobs = prover_client.get_proving_jobs(count).await;
+        let jobs = prover_client.get_proving_jobs(count, None).await;
         if jobs.len() >= count {
             let job_ids = jobs.into_iter().map(|j| j.job_id).collect();
             return Ok(job_ids);

@@ -78,9 +78,8 @@ jobs:
     name: build
     runs-on: ubicloud-standard-30
     timeout-minutes: 60
-    if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -118,9 +117,8 @@ jobs:
     name: check
     runs-on: ubicloud-standard-4
     timeout-minutes: 60
-    if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -154,7 +152,7 @@ jobs:
     timeout-minutes: 60
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -185,7 +183,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Run cargo-deny
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
@@ -195,9 +193,8 @@ jobs:
     needs:
       - docker-setup
     runs-on: ubicloud-standard-30
-    if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@1.85.0
         with:
           components: llvm-tools-preview
@@ -252,7 +249,7 @@ jobs:
     needs: build
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
           node-version: 18
@@ -294,7 +291,7 @@ jobs:
     needs: build
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
@@ -323,7 +320,7 @@ jobs:
     needs: build
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
           node-version: 18
@@ -354,9 +351,8 @@ jobs:
     name: nextest
     runs-on: ubicloud-standard-30
     timeout-minutes: 60
-    if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -412,7 +408,7 @@ jobs:
     runs-on: ubicloud-standard-2
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -440,7 +436,7 @@ jobs:
     runs-on: ubicloud-standard-2
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -460,7 +456,6 @@ jobs:
 
   docker-setup:
     runs-on: ubicloud-standard-2
-    if: github.event.pull_request.draft == false
     steps:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -497,9 +492,8 @@ jobs:
   codespell:
     name: codespell
     runs-on: ubicloud-standard-2
-    if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -520,7 +514,7 @@ jobs:
     needs: [build, docker-setup]
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'guest-code')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
@@ -553,7 +547,7 @@ jobs:
         run: |
           curl -L -o archive.zip "https://static.testnet.citrea.xyz/proving-stats-data.zip"
           unzip archive.zip -d proving-stats/
-      - name: Run tests on current branch 
+      - name: Run tests on current branch
         run: |
           chmod +x ./.github/scripts/run-proving-test.sh
           ./.github/scripts/run-proving-test.sh patch-stats.json
@@ -613,7 +607,7 @@ jobs:
         if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: ubicloud/rust-cache@v2
         with:
-            shared-key: build  
+            shared-key: build
       - name: Cache ethereum-tests
         if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: actions/cache@v4

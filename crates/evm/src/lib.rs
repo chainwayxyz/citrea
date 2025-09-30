@@ -48,6 +48,8 @@ use alloy_consensus::Header as AlloyHeader;
 use alloy_primitives::{Address, TxHash, B256};
 use evm::db::EvmDb;
 use sov_modules_api::{L2BlockModuleCallError, ModuleInfo, SpecId as CitreaSpecId, WorkingSet};
+#[cfg(feature = "native")]
+use sov_modules_api::{StateValueAccessor, StateVecAccessor};
 use sov_state::codec::{BcsCodec, RlpCodec};
 
 #[cfg(feature = "native")]
@@ -201,6 +203,44 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &'a mut WorkingSet<C::Storage>,
     ) -> EvmDb<'a, C> {
         EvmDb::new(self, working_set)
+    }
+
+    /// Get receipts for a block by transaction index range
+    #[cfg(feature = "native")]
+    pub fn get_block_receipts_range(
+        &self,
+        start_idx: u64,
+        end_idx: u64,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> Vec<CitreaReceiptWithBloom> {
+        let mut accessory_state = working_set.accessory_state();
+        let mut receipts = Vec::new();
+        for idx in start_idx..end_idx {
+            if let Some(receipt) = self.receipts.get(idx as usize, &mut accessory_state) {
+                receipts.push(receipt);
+            }
+        }
+        receipts
+    }
+
+    /// Get a block by height
+    #[cfg(feature = "native")]
+    pub fn get_block_by_height(
+        &self,
+        height: u64,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> Option<SealedBlock> {
+        let mut accessory_state = working_set.accessory_state();
+        self.blocks.get(height as usize, &mut accessory_state)
+    }
+
+    /// Get the current head block from working set
+    #[cfg(feature = "native")]
+    pub fn get_head_block(
+        &self,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> Option<Block<AlloyHeader>> {
+        self.head.get(working_set)
     }
 }
 
