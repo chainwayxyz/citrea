@@ -204,7 +204,7 @@ impl TestSequencerTransactionChaining {
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(2, None).await?;
 
-        // Restart before generating a block to check `get_prev_utxo` prioritisting UTXO from mempool
+        // Restart before generating a block to check `get_prev_utxo` prioritizing UTXO from mempool
         sequencer.restart(None, None).await?;
 
         for _ in 0..max_l2_blocks_per_commitment {
