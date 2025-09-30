@@ -20,6 +20,7 @@ sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 
 citrea-primitives = { path = "../primitives" }
 
+async-trait = { workspace = true, optional = true }
 borsh = { workspace = true, features = ["rc"] }
 hex = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
@@ -29,6 +30,7 @@ serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
 alloy-consensus = { workspace = true }
@@ -104,9 +106,11 @@ native = [
   "dep:metrics",
   "dep:metrics-derive",
 
+  "dep:async-trait",
   "dep:hex",
   "dep:jsonrpsee",
   "dep:itertools",
   "dep:serde_json",
+  "dep:tokio",
   "dep:tracing",
 ]

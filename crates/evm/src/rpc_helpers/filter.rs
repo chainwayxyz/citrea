@@ -1,11 +1,21 @@
 // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-types/src/eth/filter.rs
 
-use std::env;
+use std::collections::HashMap;
 use std::iter::StepBy;
 use std::ops::RangeInclusive;
+use std::sync::Arc;
+use std::time::Instant;
+use std::{env, fmt};
 
 use alloy_eips::BlockNumberOrTag;
+use alloy_primitives::TxHash;
+use alloy_rpc_types::{Filter, FilterChanges, FilterId};
+use async_trait::async_trait;
 use reth_rpc::eth::filter::EthFilterError;
+use reth_rpc_eth_api::TransactionCompat;
+use reth_transaction_pool::{NewSubpoolTransactionStream, PoolTransaction};
+use tokio::sync::mpsc::Receiver;
+use tokio::sync::Mutex;
 
 /// The maximum number of blocks that can be queried in a single eth_getLogs request.
 pub const DEFAULT_MAX_BLOCKS_PER_FILTER: u64 = 1_000;
@@ -115,3 +125,150 @@ pub fn convert_block_number(
     };
     Ok(Some(num))
 }
+
+/// All active filters
+#[derive(Debug, Clone, Default)]
+pub struct ActiveFilters<T> {
+    inner: Arc<Mutex<HashMap<FilterId, ActiveFilter<T>>>>,
+}
+
+impl<T> ActiveFilters<T> {
+    /// Returns an empty instance.
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(HashMap::default())),
+        }
+    }
+}
+
+/// An installed filter
+#[derive(Debug)]
+struct ActiveFilter<T> {
+    /// At which block the filter was polled last.
+    block: u64,
+    /// Last time this filter was polled.
+    last_poll_timestamp: Instant,
+    /// What kind of filter it is.
+    kind: FilterKind<T>,
+}
+
+/// A receiver for pending transactions that returns all new transactions since the last poll.
+#[derive(Debug, Clone)]
+struct PendingTransactionsReceiver {
+    txs_receiver: Arc<Mutex<Receiver<TxHash>>>,
+}
+
+impl PendingTransactionsReceiver {
+    fn new(receiver: Receiver<TxHash>) -> Self {
+        Self {
+            txs_receiver: Arc::new(Mutex::new(receiver)),
+        }
+    }
+
+    /// Returns all new pending transactions received since the last poll.
+    async fn drain<T>(&self) -> FilterChanges<T> {
+        let mut pending_txs = Vec::new();
+        let mut prepared_stream = self.txs_receiver.lock().await;
+
+        while let Ok(tx_hash) = prepared_stream.try_recv() {
+            pending_txs.push(tx_hash);
+        }
+
+        // Convert the vector of hashes into FilterChanges::Hashes
+        FilterChanges::Hashes(pending_txs)
+    }
+}
+
+/// A structure to manage and provide access to a stream of full transaction details.
+#[derive(Debug, Clone)]
+struct FullTransactionsReceiver<T: PoolTransaction, TxCompat> {
+    txs_stream: Arc<Mutex<NewSubpoolTransactionStream<T>>>,
+    tx_resp_builder: TxCompat,
+}
+
+impl<T, TxCompat> FullTransactionsReceiver<T, TxCompat>
+where
+    T: PoolTransaction + 'static,
+    TxCompat: TransactionCompat<T::Consensus>,
+{
+    /// Creates a new `FullTransactionsReceiver` encapsulating the provided transaction stream.
+    fn new(stream: NewSubpoolTransactionStream<T>, tx_resp_builder: TxCompat) -> Self {
+        Self {
+            txs_stream: Arc::new(Mutex::new(stream)),
+            tx_resp_builder,
+        }
+    }
+
+    /// Returns all new pending transactions received since the last poll.
+    async fn drain(&self) -> FilterChanges<TxCompat::Transaction> {
+        let mut pending_txs = Vec::new();
+        let mut prepared_stream = self.txs_stream.lock().await;
+
+        while let Ok(tx) = prepared_stream.try_recv() {
+            match self
+                .tx_resp_builder
+                .fill_pending(tx.transaction.to_consensus())
+            {
+                Ok(tx) => pending_txs.push(tx),
+                Err(err) => {
+                    tracing::error!(target: "rpc",
+                        %err,
+                        "Failed to fill txn with block context"
+                    );
+                }
+            }
+        }
+        FilterChanges::Transactions(pending_txs)
+    }
+}
+
+/// Helper trait for [FullTransactionsReceiver] to erase the `Transaction` type.
+#[async_trait]
+trait FullTransactionsFilter<T>: fmt::Debug + Send + Sync + Unpin + 'static {
+    async fn drain(&self) -> FilterChanges<T>;
+}
+
+#[async_trait]
+impl<T, TxCompat> FullTransactionsFilter<TxCompat::Transaction>
+    for FullTransactionsReceiver<T, TxCompat>
+where
+    T: PoolTransaction + 'static,
+    TxCompat: TransactionCompat<T::Consensus> + 'static,
+{
+    async fn drain(&self) -> FilterChanges<TxCompat::Transaction> {
+        Self::drain(self).await
+    }
+}
+
+/// Represents the kind of pending transaction data that can be retrieved.
+///
+/// This enum differentiates between two kinds of pending transaction data:
+/// - Just the transaction hashes.
+/// - Full transaction details.
+#[derive(Debug, Clone)]
+enum PendingTransactionKind<T> {
+    Hashes(PendingTransactionsReceiver),
+    FullTransaction(Arc<dyn FullTransactionsFilter<T>>),
+}
+
+impl<T: 'static> PendingTransactionKind<T> {
+    async fn drain(&self) -> FilterChanges<T> {
+        match self {
+            Self::Hashes(receiver) => receiver.drain().await,
+            Self::FullTransaction(receiver) => receiver.drain().await,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+enum FilterKind<T> {
+    Log(Box<Filter>),
+    Block,
+    PendingTransaction(PendingTransactionKind<T>),
+}
+
+// TODO:
+/// Idea from: https://github.com/paradigmxyz/reth/blob/ed7da87da4de340a437bf46f39a7e1397ac82065/crates/rpc/rpc/src/eth/filter.rs#L382
+// pub struct CitreaFilter {
+//     pub active_filters:
+// }
