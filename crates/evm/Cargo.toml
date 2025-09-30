@@ -62,6 +62,7 @@ alloy-eips = { workspace = true }
 bcs = { workspace = true }
 bytes = { workspace = true }
 citrea-primitives = { path = "../primitives", features = ["testing"] }
+criterion = { version = "0.5", features = ["html_reports"] }
 hex = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
@@ -110,3 +111,7 @@ native = [
   "dep:serde_json",
   "dep:tracing",
 ]
+
+[[bench]]
+name = "seal_slow_bench"
+harness = false

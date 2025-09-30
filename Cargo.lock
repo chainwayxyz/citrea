@@ -2473,6 +2473,7 @@ dependencies = [
  "borsh",
  "bytes",
  "citrea-primitives",
+ "criterion",
  "hex",
  "itertools 0.13.0",
  "jsonrpsee",

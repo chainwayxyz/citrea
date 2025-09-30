@@ -44,3 +44,7 @@ tempfile = { workspace = true }
 name = "state_db_single_snapshot"
 path = "benches/state_db_bench.rs"
 harness = false
+
+[[bench]]
+name = "db_operations_bench"
+harness = false
