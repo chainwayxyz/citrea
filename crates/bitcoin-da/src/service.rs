@@ -294,7 +294,7 @@ impl BitcoinService {
 
                         loop {
                             // Build and queue tx with retries:
-                            let fee_sat_per_vbyte = match self.fee.get_fee_rate().await {
+                            let mut fee_sat_per_vbyte = match self.fee.get_fee_rate().await {
                                 Ok(rate) => (rate as f64 * fee_rate_multiplier).ceil() as u64,
                                 Err(e) => {
                                     error!(?e, "Failed to call get_fee_rate. Retrying...");
@@ -302,6 +302,9 @@ impl BitcoinService {
                                     continue;
                                 }
                             };
+
+                            fee_sat_per_vbyte = fee_sat_per_vbyte.min(self.config.max_fee_rate_sat_vb);
+
                             match self
                                 .send_transaction_with_fee_rate(
                                     request.tx_request.clone(),
