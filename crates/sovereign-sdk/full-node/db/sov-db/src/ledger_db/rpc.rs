@@ -131,9 +131,9 @@ impl LedgerRpcProvider for LedgerDB {
         iter.seek_to_last();
         match iter.next() {
             Some(Ok(mut item)) => {
-                let firsh_proof = item.value.swap_remove(0);
+                let first_proof = item.value.swap_remove(0);
                 Ok(Some(LastVerifiedBatchProofResponse {
-                    proof: firsh_proof.into(),
+                    proof: first_proof.into(),
                     l1_height: U64::from(item.key.0),
                 }))
             }

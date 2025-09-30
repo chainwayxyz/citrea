@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-use anyhow::{anyhow, bail, Context};
+use anyhow::anyhow;
 use async_trait::async_trait;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
@@ -231,7 +231,7 @@ impl BitcoinService {
         let tx_backup_dir = std::path::Path::new(&config.tx_backup_dir);
         if !tx_backup_dir.exists() {
             std::fs::create_dir_all(tx_backup_dir)
-                .context("Failed to create tx backup directory")?;
+                .map_err(BitcoinServiceError::BackupDirectoryError)?;
         }
 
         let da_private_key = config
@@ -239,7 +239,7 @@ impl BitcoinService {
             .as_ref()
             .map(|pk| SecretKey::from_str(pk))
             .transpose()
-            .context("Invalid private key")?;
+            .map_err(|_| BitcoinServiceError::InvalidPrivateKey)?;
 
         let utxo_selection_mode = config.utxo_selection_mode.clone().unwrap_or_default();
         Ok(Self::new(
@@ -535,11 +535,11 @@ impl BitcoinService {
         let address = utxos[0]
             .address
             .clone()
-            .context("Missing address")?
+            .ok_or(BitcoinServiceError::MissingAddress)?
             .require_network(network)?;
 
         let prefix = self.reveal_tx_prefix.clone();
-        Ok(tokio::task::spawn_blocking(move || {
+        tokio::task::spawn_blocking(move || {
             // Since this is CPU bound work, we use spawn_blocking
             // to release the tokio runtime execution
             create_inscription_transactions(
@@ -554,7 +554,8 @@ impl BitcoinService {
                 prefix,
             )
         })
-        .await??)
+        .await?
+        .map_err(|e| BitcoinServiceError::TransactionBuilderError(e.to_string()))
     }
 
     async fn queue_transactions(&self, txs: Vec<SignedTxPair>) {
@@ -730,13 +731,13 @@ impl BitcoinService {
                 .monitoring
                 .get_last_tx()
                 .await
-                .context("No monitored tx")?,
+                .ok_or(BitcoinServiceError::NoMonitoredTransaction)?,
             Some(txid) => {
                 let monitored_tx = self
                     .monitoring
                     .get_monitored_tx(&txid)
                     .await
-                    .context("Parent tx not found")?;
+                    .ok_or(BitcoinServiceError::ParentTransactionNotFound(txid))?;
                 (txid, monitored_tx)
             }
         };
@@ -756,7 +757,8 @@ impl BitcoinService {
                     .await
             }
             BumpFeeMethod::Rbf => self.fee.bump_fee_rbf(tx.kind, &txid).await,
-        }?;
+        }
+        .map_err(|e| BitcoinServiceError::FeeBumpFailure(e.to_string()))?;
 
         let wallet_psbt = self
             .client
@@ -811,19 +813,17 @@ impl BitcoinService {
         aggregate_idx: usize,
         tx_block_hash: Option<BlockHash>,
         chunks: &HashMap<Txid, usize>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         // If chunk exists, it means it is in the same block as the aggregate
         // Check the order
         if let Some(chunk_idx) = chunks.get(chunk_id) {
             if *chunk_idx >= aggregate_idx {
                 // This means the chunk comes after the aggregate in the same block
                 // This is not a valid case because lcp expects all chunks to come before their aggregate
-                return Err(anyhow!(
+                return Err(BitcoinServiceError::ChunkOrderingError(format!(
                     "{}:{}: Chunk comes after aggregate. Block height: {}",
-                    tx_id,
-                    chunk_id,
-                    block_height,
-                ));
+                    tx_id, chunk_id, block_height,
+                )));
             }
         } else {
             // If chunk does not exist, it means it is in a different block
@@ -831,32 +831,25 @@ impl BitcoinService {
             let tx_block_height = if let Some(tx_block_hash) = tx_block_hash {
                 self.get_block_height_from_block_hash(tx_block_hash).await?
             } else {
-                return Err(anyhow!(
+                return Err(BitcoinServiceError::ChunkOrderingError(format!(
                     "{}:{}: Failed to get block hash for chunk",
-                    tx_id,
-                    chunk_id
-                ));
+                    tx_id, chunk_id
+                )));
             };
             if tx_block_height > block_height as usize {
                 // This means the chunk comes after the aggregate in a future block
                 // This is not a valid case because lcp expects all chunks to come before their aggregate
-                return Err(anyhow!(
+                return Err(BitcoinServiceError::ChunkOrderingError(format!(
                     "{}:{}: Chunk comes after aggregate. Block height: {}, Chunk block height: {}",
-                    tx_id,
-                    chunk_id,
-                    block_height,
-                    tx_block_height
-                ));
+                    tx_id, chunk_id, block_height, tx_block_height
+                )));
             }
         }
 
         Ok(())
     }
 
-    async fn get_block_height_from_block_hash(
-        &self,
-        tx_block_hash: BlockHash,
-    ) -> anyhow::Result<usize> {
+    async fn get_block_height_from_block_hash(&self, tx_block_hash: BlockHash) -> Result<usize> {
         if let Some(height) = self
             .l1_block_hash_to_height
             .lock()
@@ -884,10 +877,10 @@ impl BitcoinService {
                     .put(tx_block_hash, r.height);
                 Ok(r.height)
             }
-            Err(e) => Err(anyhow!(
-                "Failed to request block by block hash:{:?} Error: {e}",
-                tx_block_hash
-            )),
+            Err(e) => Err(BitcoinServiceError::BlockInfoRequestError {
+                hash: tx_block_hash,
+                source: e,
+            }),
         }
     }
 }
@@ -902,12 +895,12 @@ impl DaService for BitcoinService {
 
     type TransactionId = TxidWrapper;
 
-    type Error = anyhow::Error;
+    type Error = BitcoinServiceError;
 
     // Make an RPC call to the node to get the block at the given height
     // If no such block exists, block until one does.
     #[instrument(level = "trace", skip(self), err)]
-    async fn get_block_at(&self, height: u64) -> anyhow::Result<Self::FilteredBlock> {
+    async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock> {
         debug!("Getting block at height {}", height);
 
         let block_hash;
@@ -923,10 +916,12 @@ impl DaService for BitcoinService {
                                 continue;
                             } else {
                                 // other error, return message
-                                bail!(rpc_err.message);
+                                return Err(BitcoinServiceError::RpcError(Error::JsonRpc(
+                                    RpcError::Rpc(rpc_err),
+                                )));
                             }
                         }
-                        _ => bail!(e),
+                        _ => return Err(BitcoinServiceError::RpcError(e)),
                     }
                 }
             };
@@ -940,9 +935,7 @@ impl DaService for BitcoinService {
 
     /// Fetch the [`DaSpec::BlockHeader`] of the last finalized block.
     #[instrument(level = "trace", skip(self), err)]
-    async fn get_last_finalized_block_header(
-        &self,
-    ) -> anyhow::Result<<Self::Spec as DaSpec>::BlockHeader> {
+    async fn get_last_finalized_block_header(&self) -> Result<<Self::Spec as DaSpec>::BlockHeader> {
         let block_count = self.client.get_block_count().await?;
 
         let finalized_blockhash = self
@@ -961,7 +954,7 @@ impl DaService for BitcoinService {
 
     // Fetch the head block of DA.
     #[instrument(level = "trace", skip(self), err)]
-    async fn get_head_block_header(&self) -> anyhow::Result<<Self::Spec as DaSpec>::BlockHeader> {
+    async fn get_head_block_header(&self) -> Result<<Self::Spec as DaSpec>::BlockHeader> {
         let best_blockhash = self.client.get_best_block_hash().await?;
 
         let head_block_header = self.get_block_by_hash(best_blockhash.into()).await?;
@@ -969,9 +962,9 @@ impl DaService for BitcoinService {
         Ok(head_block_header.header)
     }
 
-    fn decompress_chunks(&self, complete_chunks: &[u8]) -> anyhow::Result<Vec<u8>, Self::Error> {
+    fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>> {
         BitcoinSpec::decompress_chunks(complete_chunks)
-            .map_err(|_| anyhow!("Failed to parse complete chunks"))
+            .map_err(|_| BitcoinServiceError::ChunkDecompressionError)
     }
 
     /// Extract zk proofs.
@@ -1331,14 +1324,16 @@ impl DaService for BitcoinService {
     async fn send_transaction(
         &self,
         tx_request: DaTxRequest,
-    ) -> anyhow::Result<<Self as DaService>::TransactionId> {
+    ) -> Result<<Self as DaService>::TransactionId> {
         let queue = self.get_send_transaction_queue();
         let (tx, rx) = oneshot_channel();
-        queue.send(TxRequestWithNotifier {
-            tx_request,
-            notify: tx,
-        })?;
-        rx.await?
+        queue
+            .send(TxRequestWithNotifier {
+                tx_request,
+                notify: tx,
+            })
+            .map_err(|_| BitcoinServiceError::ChannelSendError)?;
+        Ok(rx.await?.expect("Queue never sends error"))
     }
 
     fn get_send_transaction_queue(
@@ -1348,8 +1343,12 @@ impl DaService for BitcoinService {
     }
 
     #[instrument(level = "trace", skip(self))]
-    async fn get_fee_rate(&self) -> anyhow::Result<u128> {
-        let sat_vb_ceil = self.fee.get_fee_rate_as_sat_vb().await? as u128;
+    async fn get_fee_rate(&self) -> Result<u128> {
+        let sat_vb_ceil = self
+            .fee
+            .get_fee_rate_as_sat_vb()
+            .await
+            .map_err(|_| BitcoinServiceError::FeeRateError)? as u128;
 
         // multiply with 10^10/4 = 25*10^8 = 2_500_000_000 for BTC to CBTC conversion (decimals)
         let multiplied_fee = sat_vb_ceil.saturating_mul(2_500_000_000);
@@ -1360,7 +1359,7 @@ impl DaService for BitcoinService {
     async fn get_block_by_hash(
         &self,
         hash: <Self::Spec as DaSpec>::SlotHash,
-    ) -> anyhow::Result<Self::FilteredBlock> {
+    ) -> Result<Self::FilteredBlock> {
         let hash = hash.0;
         debug!("Getting block with hash {:?}", hash);
 
@@ -1487,8 +1486,9 @@ impl From<TxidWrapper> for [u8; 32] {
 ///   let compressed = compress(Proof)
 ///   let chunks = compressed.chunks(MAX_TX_BODY_SIZE)
 ///   [borsh(DataOnDa::Chunk(chunk)) for chunk in chunks]
-pub(crate) fn split_proof(zk_proof: Proof) -> anyhow::Result<RawTxData> {
-    let original_compressed = compress_blob(&zk_proof)?;
+pub(crate) fn split_proof(zk_proof: Proof) -> Result<RawTxData> {
+    let original_compressed =
+        compress_blob(&zk_proof).map_err(BitcoinServiceError::CompressionError)?;
 
     if original_compressed.len() < MAX_TX_BODY_SIZE {
         let data = DataOnDa::Complete(original_compressed);

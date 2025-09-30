@@ -425,6 +425,53 @@ fn test_sys_bitcoin_light_client() {
 
     assert_eq!(block_hash.as_ref(), &[2u8; 32]);
     assert_eq!(merkle_root.as_ref(), &[3u8; 32]);
+
+    // New L1 block #3 with coinbase depth greater than 255 (should fail with EvmSystemTxParseError)
+    l2_height += 1;
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SpecId::Tangerine,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 42,
+    };
+
+    let invalid_coinbase_depth = 256u64;
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+
+        let set_block_info_tx = set_block_info_system_tx(
+            [3; 32],
+            [4; 32],
+            invalid_coinbase_depth,
+            &evm,
+            &mut working_set,
+        );
+
+        let deploy_message = create_contract_message_with_fee(
+            &dev_signer,
+            1,
+            SimpleStorageContract::default(),
+            10000000,
+        );
+
+        assert_eq!(
+            evm.call(
+                CallMessage {
+                    txs: vec![set_block_info_tx, deploy_message],
+                },
+                &context,
+                &mut working_set,
+            )
+            .unwrap_err(),
+            L2BlockModuleCallError::EvmSystemTxParseError
+        );
+    }
 }
 
 #[test]

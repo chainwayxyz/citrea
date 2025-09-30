@@ -446,7 +446,7 @@ where
             Ok(l2_height) => {
                 // Only errors when there are no receivers
                 if let Err(_closed) = self.l2_block_tx.send(l2_height) {
-                    warn!("l2_block_tx is closed");
+                    debug!("l2_block_tx is closed");
                 }
             }
             Err(e) => {

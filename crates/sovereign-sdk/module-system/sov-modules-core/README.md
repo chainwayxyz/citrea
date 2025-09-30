@@ -1,6 +1,6 @@
 # `sov-modules-core`
 
-The `sov-modules-core` crate provides essential traits for Module declaration, with `no-std` compatibilitiy.
+The `sov-modules-core` crate provides essential traits for Module declaration, with `no-std` compatibility.
 
 Here are the key traits defined by the crate:
 
@@ -15,7 +15,7 @@ Here are the key traits defined by the crate:
     - Interaction with user messages: The module must define the `call` method and the `CallMessage` type, which handle
       user messages. These messages typically result in changes to the module's state.
 
-    - Gas configuration: The module may use a `GasConfig` type, annotated by `#[gas]`, that will be loaded from the 
+    - Gas configuration: The module may use a `GasConfig` type, annotated by `#[gas]`, that will be loaded from the
       constants manifest configuration.
 
 1. The `ModuleInfo` trait: Provides additional information related to a module. This trait is automatically derived.
