@@ -733,6 +733,7 @@ where
     if is_sequencer {
         module.remove_method("eth_sendRawTransaction");
         module.remove_method("eth_getTransactionByHash");
+        module.remove_method("eth_syncing");
         module.remove_method("citrea_syncStatus");
         module.remove_method("txpool_content");
     }
