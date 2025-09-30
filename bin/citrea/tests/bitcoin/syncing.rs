@@ -473,3 +473,41 @@ async fn test_healthcheck() -> Result<()> {
         .run()
         .await
 }
+
+struct SequencerEthSyncingTest;
+
+#[async_trait]
+impl TestCase for SequencerEthSyncingTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_sequencer: true,
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let sequencer = f.sequencer.as_ref().unwrap();
+
+        let seq_test_client = make_test_client(SocketAddr::new(
+            sequencer.config.rpc_bind_host().parse()?,
+            sequencer.config.rpc_bind_port(),
+        ))
+        .await?;
+
+        let eth_sync = seq_test_client.eth_syncing().await;
+        assert!(
+            matches!(eth_sync, EthSyncStatus::None),
+            "Sequencer should always return EthSyncStatus::None"
+        );
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_sequencer_eth_syncing() -> Result<()> {
+    TestCaseRunner::new(SequencerEthSyncingTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
