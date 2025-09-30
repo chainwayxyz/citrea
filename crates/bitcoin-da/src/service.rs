@@ -301,7 +301,7 @@ impl BitcoinService {
 
                         loop {
                             // Build and queue tx with retries:
-                            let mut fee_sat_per_vbyte = match self.fee.get_fee_rate().await {
+                            let fee_sat_per_vbyte = match self.fee.get_fee_rate().await {
                                 Ok(rate) => (rate as f64 * fee_rate_multiplier).ceil() as u64,
                                 Err(e) => {
                                     error!(?e, "Failed to call get_fee_rate. Retrying...");
@@ -310,7 +310,12 @@ impl BitcoinService {
                                 }
                             };
 
-                            fee_sat_per_vbyte = fee_sat_per_vbyte.min(self.max_fee_rate_sat_vb);
+                            if fee_sat_per_vbyte > self.max_fee_rate_sat_vb {
+                                warn!(?e, "Fee rate {} above cap of {}. Waiting before sending transaction", fee_sat_per_vbyte, self.max_fee_rate_sat_vb);
+                                tokio::time::sleep(Duration::from_secs(10)).await;
+                                continue;
+                            }
+
 
                             match self
                                 .send_transaction_with_fee_rate(
