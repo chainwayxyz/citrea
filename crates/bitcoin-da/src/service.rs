@@ -40,7 +40,7 @@ use tokio::sync::Mutex;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::error::{BitcoinServiceError, MempoolRejection};
-use crate::fee::{validate_txs_fee_rate, BumpFeeMethod, FeeService};
+use crate::fee::{validate_txs_fee_rate, BumpFeeMethod, FeeService, DEFAULT_MAX_FEE_RATE_SAT_VB};
 use crate::helpers::backup::backup_txs_to_file;
 use crate::helpers::builders::body_builders::{create_inscription_transactions, DaTxs, RawTxData};
 use crate::helpers::builders::TxWithId;
@@ -176,6 +176,7 @@ pub struct BitcoinService {
     tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
     pub(crate) tx_signer: TxSigner,
     utxo_selection_mode: UtxoSelectionMode,
+    max_fee_rate_sat_vb: u64,
 }
 
 impl BitcoinService {
@@ -191,6 +192,7 @@ impl BitcoinService {
         reveal_tx_prefix: Vec<u8>,
         tx_backup_dir: PathBuf,
         utxo_selection_mode: UtxoSelectionMode,
+        max_fee_rate_sat_vb: u64,
     ) -> Self {
         Self {
             tx_signer: TxSigner::new(client.clone()),
@@ -208,6 +210,7 @@ impl BitcoinService {
             ))),
             tx_queue: Arc::new(Mutex::new(VecDeque::new())),
             utxo_selection_mode,
+            max_fee_rate_sat_vb,
         }
     }
 
@@ -248,6 +251,9 @@ impl BitcoinService {
             .context("Invalid private key")?;
 
         let utxo_selection_mode = config.utxo_selection_mode.clone().unwrap_or_default();
+        let max_fee_rate_sat_vb = config
+            .max_fee_rate_sat_vb
+            .unwrap_or(DEFAULT_MAX_FEE_RATE_SAT_VB);
         Ok(Self::new(
             client,
             network,
@@ -259,6 +265,7 @@ impl BitcoinService {
             chain_params.reveal_tx_prefix,
             tx_backup_dir.to_path_buf(),
             utxo_selection_mode,
+            max_fee_rate_sat_vb,
         ))
     }
 
@@ -303,7 +310,7 @@ impl BitcoinService {
                                 }
                             };
 
-                            fee_sat_per_vbyte = fee_sat_per_vbyte.min(self.config.max_fee_rate_sat_vb);
+                            fee_sat_per_vbyte = fee_sat_per_vbyte.min(self.max_fee_rate_sat_vb);
 
                             match self
                                 .send_transaction_with_fee_rate(
