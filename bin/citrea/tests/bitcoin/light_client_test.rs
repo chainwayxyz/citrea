@@ -3426,14 +3426,6 @@ impl TestCase for UndecompressableBlobTest {
         }
     }
 
-    fn batch_prover_config() -> BatchProverConfig {
-        BatchProverConfig {
-            // prevent proving
-            proof_sampling_number: 999_999_999_999,
-            ..Default::default()
-        }
-    }
-
     async fn cleanup(self) -> Result<()> {
         self.task_manager
             .graceful_shutdown_with_timeout(Duration::from_secs(1));
@@ -3473,6 +3465,9 @@ impl TestCase for UndecompressableBlobTest {
         batch_prover
             .wait_for_l1_height(finalized_height, None)
             .await?;
+
+        // Wait for batch prover tx to be sent to DA
+        da.wait_mempool_len(2, None).await?;
 
         // Send a complete tx with dummy body
         Self::send_complete_tx(&batch_prover.da).await?;
@@ -3546,6 +3541,9 @@ impl TestCase for UndecompressableBlobTest {
         batch_prover
             .wait_for_l1_height(finalized_height, None)
             .await?;
+
+        // Wait for batch prover tx to be sent to DA
+        da.wait_mempool_len(2, None).await?;
 
         // Send a chunked tx with dummy body
         let txids = Self::send_chunked_tx(&batch_prover.da).await?;
