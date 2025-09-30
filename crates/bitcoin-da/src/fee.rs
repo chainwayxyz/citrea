@@ -26,8 +26,6 @@ const BASE_FEE_RATE_MULTIPLIER: f64 = 1.0;
 const FEE_RATE_MULTIPLIER_FACTOR: f64 = 1.1;
 const MAX_FEE_RATE_MULTIPLIER: f64 = 2.0;
 
-const DEFAULT_MAX_FEE_RATE_SAT_VB: u64 = 15;
-
 /// Type alias for a Partially Signed Bitcoin Transaction (PSBT).
 pub type Psbt = String;
 
@@ -48,7 +46,6 @@ pub struct FeeService {
     client: Arc<Client>,
     network: Network,
     mempool_space_url: String,
-    max_fee_rate_sat_vb: u64,
 }
 
 impl FeeService {
@@ -57,17 +54,14 @@ impl FeeService {
         client: Arc<Client>,
         network: bitcoin::Network,
         mempool_space_url: Option<String>,
-        max_fee_rate_sat_vb: Option<u64>,
     ) -> Self {
         let mempool_space_url =
             mempool_space_url.unwrap_or_else(|| DEFAULT_MEMPOOL_SPACE_URL.to_string());
 
-        let max_fee_rate_sat_vb = max_fee_rate_sat_vb.unwrap_or(DEFAULT_MAX_FEE_RATE_SAT_VB);
         Self {
             client,
             network,
             mempool_space_url,
-            max_fee_rate_sat_vb,
         }
     }
 
@@ -107,11 +101,10 @@ impl FeeService {
 
         let sat_vkb = smart_fee.map_or(1000, |rate| rate.to_sat());
         let sat_vb = sat_vkb / 1000;
-        let capped_fee_rate = sat_vb.min(self.max_fee_rate_sat_vb);
 
-        tracing::debug!("Fee rate: {capped_fee_rate} sat/vb");
+        tracing::debug!("Fee rate: {sat_vb} sat/vb");
 
-        Ok(capped_fee_rate)
+        Ok(sat_vb)
     }
 
     /// Bump TX fee via cpfp.
