@@ -5,7 +5,7 @@ use crate::tests::queries::init_evm;
 
 #[test]
 fn test_pending_block() {
-    let (evm, mut working_set, _, _, l2_height, ledger_db) = init_evm(SovSpecId::Tangerine);
+    let (evm, mut working_set, _, _, l2_height, ledger_db) = init_evm(SovSpecId::latest());
 
     assert_eq!(l2_height, 4);
 

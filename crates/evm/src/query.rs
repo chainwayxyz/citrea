@@ -194,7 +194,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 nonce: 0u64.into(),
                 logs_bloom: Bloom::default(),
                 ommers_hash: EMPTY_OMMER_ROOT_HASH,
-                beneficiary: Address::ZERO,
+                beneficiary: pending_env.beneficiary,
                 withdrawals_root: None,
                 parent_beacon_block_root: None,
                 blob_gas_used: None,
