@@ -205,10 +205,10 @@ fn test_sys_bitcoin_light_client() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 50714,
+                    cumulative_gas_used: 50737,
                     logs: vec![]
                 }.into(),
-                gas_used: 50714,
+                gas_used: 50737,
                 log_index_start: 0,
                 l1_diff_size: 46,
             },
@@ -216,7 +216,7 @@ fn test_sys_bitcoin_light_client() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 134036,
+                    cumulative_gas_used: 134059,
                     logs: vec![
                         Log {
                             address: BitcoinLightClient::address(),
@@ -235,7 +235,7 @@ fn test_sys_bitcoin_light_client() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 326605,
+                    cumulative_gas_used: 349971,
                     logs: vec![
                         Log {
                             address: BridgeWrapper::address(),
@@ -257,13 +257,19 @@ fn test_sys_bitcoin_light_client() {
                                 vec![b256!("79250b96878fd457364d1c1b77a660973c4f4ab67bda5e2fdb42caaa4d515f9d")],
                                 Bytes::from_static(&hex!("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000003100000000000000000000000000000000000007"))
                             ).unwrap(),
+                        },
+                        Log {
+                            address: BridgeWrapper::address(),
+                            data: LogData::new(
+                                vec![b256!("b5d41f23e03dbe9f07303369446a4eff88ec21acd7ffc066d287ffd56f215f85")],
+                                Bytes::from_static(&hex!("0000000000000000000000000000000000000000000000008ac7230489e7ff10"))
+                            ).unwrap(),
                         }
-
                     ]
                 }.into(),
-                gas_used: 192569,
+                gas_used: 215912,
                 log_index_start: 1,
-                l1_diff_size: 160,
+                l1_diff_size: 182,
             }
         ]
     );
