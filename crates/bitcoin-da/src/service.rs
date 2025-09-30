@@ -124,6 +124,9 @@ pub struct BitcoinServiceConfig {
 
     /// Connection timeout for RPC in seconds
     pub rpc_connect_timeout_secs: Option<u64>,
+
+    /// Max fee rate in sat/vb
+    pub max_fee_rate_sat_vb: Option<u64>,
 }
 
 impl citrea_common::FromEnv for BitcoinServiceConfig {
@@ -147,6 +150,9 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
                 .ok()
                 .and_then(|v| v.parse::<u64>().ok()),
             rpc_connect_timeout_secs: read_env("BITCOIN_RPC_CONNECT_TIMEOUT_SECS")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok()),
+            max_fee_rate_sat_vb: read_env("BITCOIN_MAX_FEE_RATE_SAT_VB")
                 .ok()
                 .and_then(|v| v.parse::<u64>().ok()),
         })
