@@ -4,7 +4,7 @@ use std::time::Instant;
 use alloy_eips::eip2718::Encodable2718;
 use alloy_eips::BlockId;
 use alloy_primitives::{Address, Bytes, B256};
-use alloy_rpc_types::Transaction;
+use alloy_rpc_types::{SyncStatus as EthSyncStatus, Transaction};
 use alloy_rpc_types_txpool::TxpoolContent;
 use citrea_common::rpc::utils::internal_rpc_error;
 use citrea_evm::Evm;
@@ -177,6 +177,10 @@ pub trait SequencerRpc {
     /// Returns the hashes of the removed transactions.
     #[method(name = "txpool_removeTransactionsBySender")]
     async fn txpool_remove_txs_by_sender(&self, sender: Address) -> RpcResult<Vec<B256>>;
+
+    /// Returns the sync status
+    #[method(name = "eth_syncing")]
+    async fn eth_syncing(&self) -> RpcResult<EthSyncStatus>;
 }
 
 /// Sequencer RPC server implementation
@@ -420,6 +424,12 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
         let removed_txs = self.context.mempool.remove_transactions_by_sender(sender);
         let removed_hashes: Vec<B256> = removed_txs.iter().map(|tx| *tx.hash()).collect();
         Ok(removed_hashes)
+    }
+
+    /// Returns the sync status
+    async fn eth_syncing(&self) -> RpcResult<EthSyncStatus> {
+        debug!("Sequencer: eth_syncing");
+        Ok(EthSyncStatus::None)
     }
 }
 
