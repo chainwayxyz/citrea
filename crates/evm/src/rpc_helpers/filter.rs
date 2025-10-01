@@ -16,11 +16,13 @@ use jsonrpsee::server::IdProvider;
 use jsonrpsee::types::SubscriptionId;
 use reth_rpc::eth::filter::EthFilterError;
 use reth_rpc_eth_api::{RpcTransaction, TransactionCompat};
-use reth_rpc_eth_types::EthApiError;
+use reth_rpc_eth_types::{EthApiError, EthSubscriptionIdProvider};
+use reth_tasks::{TaskExecutor, TaskManager};
 use reth_transaction_pool::{NewSubpoolTransactionStream, PoolTransaction};
 use sov_modules_api::{StateVecAccessor, WorkingSet};
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::Mutex;
+use tokio::time::MissedTickBehavior;
 
 use crate::{get_filter_block_range, Evm};
 
@@ -135,11 +137,11 @@ pub fn convert_block_number(
 
 /// All active filters
 #[derive(Debug, Clone, Default)]
-pub struct ActiveFilters<T> {
-    inner: Arc<Mutex<HashMap<FilterId, ActiveFilter<T>>>>,
+pub struct ActiveFilters {
+    inner: Arc<Mutex<HashMap<FilterId, ActiveFilter>>>,
 }
 
-impl<T> ActiveFilters<T> {
+impl ActiveFilters {
     /// Returns an empty instance.
     pub fn new() -> Self {
         Self {
@@ -150,17 +152,17 @@ impl<T> ActiveFilters<T> {
 
 /// An installed filter
 #[derive(Debug)]
-struct ActiveFilter<T> {
+struct ActiveFilter {
     /// At which block the filter was polled last.
     block: u64,
     /// Last time this filter was polled.
     last_poll_timestamp: Instant,
     /// What kind of filter it is.
-    kind: FilterKind<T>,
+    kind: FilterKind,
 }
 
 #[derive(Clone, Debug)]
-enum FilterKind<T> {
+enum FilterKind {
     Log(Box<Filter>),
     Block,
     /// Pending transaction filters are not supported
@@ -169,18 +171,40 @@ enum FilterKind<T> {
 }
 
 /// Idea from: https://github.com/paradigmxyz/reth/blob/ed7da87da4de340a437bf46f39a7e1397ac82065/crates/rpc/rpc/src/eth/filter.rs#L382
+#[derive(Clone)]
 pub struct CitreaFilter {
     /// All currently installed filters.
-    pub active_filters: ActiveFilters<Transaction>,
+    pub active_filters: ActiveFilters,
     /// Provides ids to identify filters
     pub id_provider: Arc<dyn IdProvider>,
+    /// Task executor to spawn the stale filter clearing task
+    pub task_executor: TaskExecutor,
     /// Duration since the last filter poll, after which the filter is considered stale
     pub stale_filter_ttl: Duration,
 }
 
 impl CitreaFilter {
+    /// Creates a new instance of the CitreaFilter.
+    pub fn new() -> CitreaFilter {
+        let citrea_filter = CitreaFilter {
+            active_filters: ActiveFilters::new(),
+            id_provider: Arc::new(EthSubscriptionIdProvider::default()),
+            task_executor: TaskManager::current().executor(),
+            stale_filter_ttl: Duration::from_secs(300),
+        };
+
+        let this = citrea_filter.clone();
+        citrea_filter.task_executor.spawn_critical(
+            "eth-filters_stale-filters-clean",
+            Box::pin(async move {
+                this.watch_and_clear_stale_filters().await;
+            }),
+        );
+        citrea_filter
+    }
+
     /// Returns all currently active filters
-    pub fn active_filters(&self) -> &ActiveFilters<RpcTransaction<Eth::NetworkTypes>> {
+    pub fn active_filters(&self) -> &ActiveFilters {
         &self.active_filters
     }
 
@@ -207,7 +231,8 @@ impl CitreaFilter {
             .lock()
             .await
             .retain(|id, filter| {
-                let is_valid = (now - filter.last_poll_timestamp) < self.stale_filter_ttl;
+                let is_valid = filter.last_poll_timestamp.saturating_duration_since(now)
+                    < self.stale_filter_ttl;
 
                 if !is_valid {
                     tracing::trace!(target: "rpc::eth", "evict filter with id: {:?}", id);
@@ -222,7 +247,7 @@ impl CitreaFilter {
         &self,
         working_set: &mut WorkingSet<C::Storage>,
         evm: &Evm<C>,
-        kind: FilterKind<Transaction>,
+        kind: FilterKind,
     ) -> RpcResult<FilterId> {
         if matches!(kind, FilterKind::PendingTransaction) {
             return Err(EthFilterError::EthAPIError(EthApiError::Unsupported(
@@ -254,9 +279,9 @@ impl CitreaFilter {
         let mut filters = self.active_filters.inner.lock().await;
         if filters.remove(&id).is_some() {
             tracing::trace!(target: "rpc::eth::filter", ?id, "uninstalled filter");
-            Ok(true)
+            return Ok(true);
         } else {
-            Ok(false)
+            return Ok(false);
         }
         let mut filters = self.active_filters.inner.lock().await;
         Ok(filters.remove(&id).is_some())
@@ -282,7 +307,7 @@ impl CitreaFilter {
             let mut filters = self.active_filters.inner.lock().await;
             let filter = filters
                 .get_mut(&id)
-                .ok_or(EthFilterError::FilterNotFound(id))?;
+                .ok_or(EthFilterError::FilterNotFound(id.clone()))?;
 
             if matches!(filter.kind, FilterKind::PendingTransaction) {
                 self.uninstall_filter(id).await.ok();

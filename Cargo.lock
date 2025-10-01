@@ -2493,6 +2493,7 @@ dependencies = [
  "reth-rpc-eth-types",
  "reth-rpc-server-types",
  "reth-rpc-types-compat",
+ "reth-tasks",
  "reth-transaction-pool",
  "revm",
  "revm-inspectors",

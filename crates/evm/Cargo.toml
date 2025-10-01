@@ -53,6 +53,7 @@ reth-rpc-eth-api = { workspace = true, optional = true }
 reth-rpc-eth-types = { workspace = true, optional = true }
 reth-rpc-server-types = { workspace = true, optional = true }
 reth-rpc-types-compat = { workspace = true, optional = true }
+reth-tasks = { workspace = true, optional = true }
 reth-transaction-pool = { workspace = true, optional = true }
 revm = { workspace = true, default-features = false }
 revm-inspectors = { workspace = true, optional = true, features = ["js-tracer"] }
@@ -95,6 +96,7 @@ native = [
   "dep:reth-rpc-server-types",
   "dep:reth-rpc-types-compat",
   "revm/serde",
+  "dep:reth-tasks",
   "dep:reth-transaction-pool",
   "dep:revm-inspectors",
   "dep:reth-provider",
