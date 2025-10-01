@@ -23,8 +23,8 @@ use sov_rollup_interface::Network;
 
 use crate::circuit::accessors::ChunkAccessor;
 use crate::circuit::{
-    citrea_network_to_method_id_upgrade_identifier, LightClientProofCircuit,
-    SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT,
+    citrea_network_to_chain_id, LightClientProofCircuit, SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE,
+    SECURITY_COUNCIL_MEMBER_COUNT,
 };
 
 /// Test private keys used for generating signatures in tests
@@ -285,7 +285,7 @@ pub(crate) fn create_new_method_id_tx(
     let msg = borsh::to_vec(&BatchProofMethodIdBody {
         activation_l2_height: activation_height,
         method_id: new_method_id,
-        network_id: citrea_network_to_method_id_upgrade_identifier(network),
+        chain_id: citrea_network_to_chain_id(network),
     })
     .unwrap();
 
@@ -297,7 +297,7 @@ pub(crate) fn create_new_method_id_tx(
         body: BatchProofMethodIdBody {
             method_id: new_method_id,
             activation_l2_height: activation_height,
-            network_id: citrea_network_to_method_id_upgrade_identifier(network),
+            chain_id: citrea_network_to_chain_id(network),
         },
         signatures_with_index,
     });

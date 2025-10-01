@@ -46,7 +46,7 @@ pub struct BatchProofMethodIdBody {
     /// Activation L2 height of the new method id
     pub activation_l2_height: u64,
     /// Network identifier to prevent cross network replay attacks
-    pub network_id: u8,
+    pub chain_id: u64,
 }
 
 impl BatchProofMethodIdBody {
