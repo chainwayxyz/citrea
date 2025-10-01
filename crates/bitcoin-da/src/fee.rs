@@ -26,8 +26,6 @@ const BASE_FEE_RATE_MULTIPLIER: f64 = 1.0;
 const FEE_RATE_MULTIPLIER_FACTOR: f64 = 1.1;
 const MAX_FEE_RATE_MULTIPLIER: f64 = 2.0;
 
-pub(crate) const DEFAULT_MAX_FEE_RATE_SAT_VB: u64 = 15;
-
 /// Type alias for a Partially Signed Bitcoin Transaction (PSBT).
 pub type Psbt = String;
 

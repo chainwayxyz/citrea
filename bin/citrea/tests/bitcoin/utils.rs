@@ -189,6 +189,7 @@ pub async fn spawn_bitcoin_da_service(
         rpc_timeout_secs: None,
         rpc_connect_timeout_secs: None,
         max_fee_rate_sat_vb: None,
+        fee_rate_cap_duration_secs: None,
     };
 
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
