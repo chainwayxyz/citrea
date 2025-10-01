@@ -494,11 +494,64 @@ impl TestCase for SequencerEthSyncingTest {
         ))
         .await?;
 
+        // First check initial state
         let eth_sync = seq_test_client.eth_syncing().await;
-        assert!(
-            matches!(eth_sync, EthSyncStatus::None),
-            "Sequencer should always return EthSyncStatus::None"
-        );
+        match eth_sync {
+            EthSyncStatus::Info(info) => {
+                assert_eq!(
+                    info.starting_block,
+                    U256::from(0),
+                    "Starting block should be 0 for sequencer"
+                );
+                assert_eq!(
+                    info.current_block, info.highest_block,
+                    "Current and highest blocks should be equal for sequencer"
+                );
+            }
+            _ => panic!(
+                "Sequencer should return EthSyncStatus::Info, got {:?}",
+                eth_sync
+            ),
+        }
+
+        let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+        for _ in 0..10 {
+            let _ = seq_test_client
+                .send_eth(addr, None, None, None, 0u128)
+                .await?;
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        sequencer.wait_for_l2_height(10, None).await?;
+
+        let eth_sync = seq_test_client.eth_syncing().await;
+        match eth_sync {
+            EthSyncStatus::Info(info) => {
+                assert_eq!(
+                    info.starting_block,
+                    U256::from(0),
+                    "Starting block should still be 0 for sequencer"
+                );
+                assert_eq!(
+                    info.highest_block,
+                    U256::from(10),
+                    "Highest block should be 10 after producing 10 blocks"
+                );
+                assert_eq!(
+                    info.current_block,
+                    U256::from(10),
+                    "Current block should be 10 after producing 10 blocks"
+                );
+                assert_eq!(
+                    info.current_block, info.highest_block,
+                    "Current and highest blocks should be equal for sequencer (fully synced)"
+                );
+            }
+            _ => panic!(
+                "Sequencer should return EthSyncStatus::Info, got {:?}",
+                eth_sync
+            ),
+        }
 
         Ok(())
     }
