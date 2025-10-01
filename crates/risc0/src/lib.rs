@@ -56,14 +56,20 @@ pub(crate) fn receipt_from_proof(serialized_proof: &[u8]) -> Result<Receipt, Res
     }
 }
 
-// Copy of https://github.com/risc0/risc0/blob/912c2e198f3abc1094fa55e45840febaee203c22/risc0/zkvm/src/lib.rs#L205
-// Utility function to check if dev mode is enabled via environment variable
-// This function is deprecated in risc0, but we still need it here.
-// Be aware that this function does not check risc0 disable-dev-mode feature flag
-// However in prover and verifier config it does the check automatically,
-// and will panic if env var is set to values below while the feature flag is set in risc0-zkvm.
+/// Check if RISC0_DEV_MODE is enabled via environment variable.
+///
+/// This is a copy of https://github.com/risc0/risc0/blob/912c2e198f3abc1094fa55e45840febaee203c22/risc0/zkvm/src/lib.rs#L205
+/// This function is deprecated in risc0, but we still need it here.
+///
+/// # Note
+/// Be aware that this function does not check risc0 disable-dev-mode feature flag.
+/// However in prover and verifier config it does the check automatically,
+/// and will panic if env var is set to values below while the feature flag is set in risc0-zkvm.
+///
+/// # Returns
+/// Returns `true` if RISC0_DEV_MODE environment variable is set to "1", "true", or "yes".
 #[cfg(feature = "native")]
-pub(crate) fn is_dev_mode_enabled_via_environment() -> bool {
+pub fn is_dev_mode_enabled_via_environment() -> bool {
     std::env::var("RISC0_DEV_MODE")
         .ok()
         .map(|x| x.to_lowercase())

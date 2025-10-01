@@ -363,8 +363,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// * `method_id_upgrade_authority_da_public_key` - The public key of the method ID upgrade authority to check the sender of the batch proof method ID transactions.
     ///
     /// # Logic
-    /// - The block hash of the header is inserted into the JMT.  
-    /// - The last sequencer commitment index, last L2 height, and L2 state root are retrieved from the previous light client proof.  
+    /// - The block hash of the header is inserted into the JMT.
+    /// - The last sequencer commitment index, last L2 height, and L2 state root are retrieved from the previous light client proof.
     /// - If no previous proof exists, (0, 0, genesis root) is used as the starting point, and the initial method IDs are set.
     /// - Relevant transactions are processed:
     ///    - Complete proofs are decompressed, and processed with the `process_complete_proof` method.
@@ -509,7 +509,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         &mut working_set,
                     ) {
                         Ok(()) => {}
-                        // proof resulting from chunk concatanation is not valid
+                        // proof resulting from chunk concatenation is not valid
                         // either due to ZK proof being invalid
                         // a deserialization error
                         // or the resulting output was ZK-valid but included an L1 hash
@@ -637,10 +637,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// * `method_id_upgrade_authority_da_public_key` - The public key of the method ID upgrade authority
     ///
     /// # Logic
-    /// 1. Verifies the previous light client proof and extracts its output.  
+    /// 1. Verifies the previous light client proof and extracts its output.
     /// 2. Uses `DaVerifier::verify_header_chain` to check if the new block header is valid under the Bitcoin consensus rules (including proof-of-work)
     ///    and follows the latest DA block from the previous light client proof. If there is no previous light client proof,
-    ///    a predefined constant initial network state is used.  
+    ///    a predefined constant initial network state is used.
     /// 3. Uses `DaVerifier::verify_transactions` to validate the inclusion and completeness proofs against the block header and retrieve the relevant transactions from the DA block.
     ///    This guarantees that all relevant transactions in the DA block will be processed.
     /// 4. Calls `run_l1_block` to process the DA transactions, and verifying the updates to the L2 state and the JMT state.

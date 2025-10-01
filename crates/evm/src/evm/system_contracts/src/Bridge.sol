@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.26;
 
 import "bitcoin-spv/solidity/contracts/ValidateSPV.sol";
@@ -6,11 +6,15 @@ import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 import "../lib/WitnessUtils.sol";
 import "./BitcoinLightClient.sol";
 import "openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
+import "openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 
 /// @title Bridge contract for the Citrea end of Citrea <> Bitcoin bridge
 /// @author Citrea
 
-contract Bridge is Ownable2StepUpgradeable {
+/// @dev This contract is not intended for regular deployment and can only be used as a predeploy.
+/// @dev It does not utilize OpenZeppelin's initialization chain, thus any modifications that include new OZ logic should be made carefully.
+
+contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     using BTCUtils for bytes;
     using BytesLib for bytes;
     using WitnessUtils for bytes;
@@ -38,10 +42,11 @@ contract Bridge is Ownable2StepUpgradeable {
     BitcoinLightClient public constant LIGHT_CLIENT = BitcoinLightClient(address(0x3100000000000000000000000000000000000001));
     address public constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
     address public constant SCHNORR_VERIFIER_PRECOMPILE = address(0x200);
-    uint256 public constant SAT_TO_WEI = 10**10; 
+    uint256 public constant SAT_TO_WEI = 10**10;
+    uint256 public constant PAYOUT_ANCHOR_OUTPUT_AMOUNT = 240;
 
     bytes public constant EPOCH = hex"00";
-    bytes public constant SIGHASH_ALL_HASH_TYPE = hex"00";
+    bytes public constant SIGHASH_DEFAULT_HASH_TYPE = hex"00";
     bytes public constant SIGHASH_SINGLE_ANYONECANPAY_HASH_TYPE = hex"83";
     bytes public constant SPEND_TYPE_NO_EXT = hex"00";
     bytes public constant SPEND_TYPE_EXT = hex"02";
@@ -62,6 +67,9 @@ contract Bridge is Ownable2StepUpgradeable {
     bytes32[] public depositTxIds;
 
     mapping(bytes32 => bool) public processedTxIds;
+    mapping(bytes32 => bool) public usedWithdrawalUTXO;
+
+    uint256 public optimisticWithdrawAmount;
     
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
@@ -72,6 +80,7 @@ contract Bridge is Ownable2StepUpgradeable {
     event OperatorUpdated(address oldOperator, address newOperator);
     event FailedDepositVaultUpdated(address oldVault, address newVault);
     event DepositTransferFailed(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
+    event OptimisticWithdrawAmountSet(uint256 amount);
 
     modifier onlySystem() {
         require(msg.sender == SYSTEM_CALLER, "caller is not the system caller");
@@ -88,20 +97,30 @@ contract Bridge is Ownable2StepUpgradeable {
         _;
     }
 
+    modifier onlyOwnerOrOperator() {
+        require(msg.sender == owner() || msg.sender == operator, "caller is not the owner or operator");
+        _;
+    }
+
     /// @notice Initializes the bridge contract and sets the deposit script
+    /// @dev This function does not utilize OZ's initialization chain and instead uses a state variable to track initialization status
     /// @param _depositPrefix First part of the deposit script expected in the witness field for all L1 deposits 
     /// @param _depositSuffix The suffix of the deposit script that follows the receiver address
     /// @param _depositAmount The CBTC amount that can be deposited and withdrawn
     function initialize(bytes calldata _depositPrefix, bytes calldata _depositSuffix, uint256 _depositAmount) external onlySystem {
         require(!initialized, "Contract is already initialized");
         require(_depositAmount != 0, "Deposit amount cannot be 0");
-        require(_depositPrefix.length != 0, "Deposit script cannot be empty");
+        require(_depositPrefix.length >= 34, "Deposit script must be longer than 34 bytes");
         require(_depositAmount % SAT_TO_WEI == 0, "Deposit amount must have valid satoshi value");
+        require(_depositAmount / SAT_TO_WEI <= type(uint64).max, "Deposit amount divided by SAT_TO_WEI must fit in uint64");
 
         initialized = true;
         depositPrefix = _depositPrefix;
         depositSuffix = _depositSuffix;
         depositAmount = _depositAmount;
+        // Set initial optimistic withdraw amount to deposit amount minus `payoutTx`'s anchor output amount
+        uint256 _optimisticWithdrawAmount = _depositAmount - PAYOUT_ANCHOR_OUTPUT_AMOUNT;
+        optimisticWithdrawAmount = _optimisticWithdrawAmount;
 
         // Set initial operator to SYSTEM_CALLER
         operator = SYSTEM_CALLER;
@@ -111,6 +130,7 @@ contract Bridge is Ownable2StepUpgradeable {
         emit OperatorUpdated(address(0), SYSTEM_CALLER);
         emit DepositScriptUpdate(_depositPrefix, _depositSuffix);
         emit FailedDepositVaultUpdated(address(0), address(0x3100000000000000000000000000000000000007));
+        emit OptimisticWithdrawAmountSet(_optimisticWithdrawAmount);
     }
 
     /// @notice Sets the expected deposit script of the deposit transaction on Bitcoin, contained in the witness
@@ -118,7 +138,7 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param _depositPrefix The new deposit script prefix
     /// @param _depositSuffix The part of the deposit script that succeeds the receiver address
     function setDepositScript(bytes calldata _depositPrefix, bytes calldata _depositSuffix) external onlyOwner {
-        require(_depositPrefix.length != 0, "Deposit script cannot be empty");
+        require(_depositPrefix.length >= 34, "Deposit script must be longer than 34 bytes");
 
         depositPrefix = _depositPrefix;
         depositSuffix = _depositSuffix;
@@ -131,7 +151,8 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param _replacePrefix The new replace prefix
     /// @param _replaceSuffix The part of the replace script that succeeds the txId
     function setReplaceScript(bytes calldata _replacePrefix, bytes calldata _replaceSuffix) external onlyOwner {
-        require(_replacePrefix.length != 0, "Replace script cannot be empty");
+        require(_replacePrefix.length >= 34, "Replace script must be longer than 34 bytes");
+        require(bytesToBytes32(_replacePrefix.slice(2, 32)) == bytesToBytes32(getAggregatedKey()), "Replace prefix must contain the same aggregated key as deposit prefix");
 
         replacePrefix = _replacePrefix;
         replaceSuffix = _replaceSuffix;
@@ -148,6 +169,15 @@ contract Bridge is Ownable2StepUpgradeable {
         emit FailedDepositVaultUpdated(oldVault, _failedDepositVault);
     }
 
+    /// @notice Sets the expected withdraw amount in the output of `payoutTx` in `safeWithdraw`
+    /// @notice This is the BTC amount user actually receives on Bitcoin when they withdraw
+    /// @param _optimisticWithdrawAmount The new optimistic withdraw amount
+    function setOptimisticWithdrawAmount(uint256 _optimisticWithdrawAmount) external onlyOwner {
+        require(_optimisticWithdrawAmount != 0, "Optimistic withdraw amount cannot be 0");
+        optimisticWithdrawAmount = _optimisticWithdrawAmount;
+        emit OptimisticWithdrawAmountSet(_optimisticWithdrawAmount);
+    }
+
     /// @notice Checks if the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
     /// @param moveTx Transaction parameters of the move transaction on Bitcoin
     /// @param proof Merkle proof of the move transaction
@@ -157,7 +187,7 @@ contract Bridge is Ownable2StepUpgradeable {
         Transaction calldata moveTx,
         MerkleProof calldata proof,
         bytes32 shaScriptPubkeys
-    ) external onlySystemOrOperator {
+    ) external onlySystemOrOperator whenNotPaused {
         // We don't need to check if the contract is initialized, as without an `initialize` call and `deposit` calls afterwards,
         // only the system caller can execute a transaction on Citrea, as no addresses have any balance. Thus there's no risk of 
         // `deposit` being called before `initialize` maliciously.
@@ -168,6 +198,8 @@ contract Bridge is Ownable2StepUpgradeable {
 
         // In order to verify the P2TR signature, we need to reconstruct the message hash and that is derived from input, output and the corresponding witness field
         bytes memory input = moveTx.vin.extractInputAtIndex(0);
+        // Since `moveTx` is guaranteed to have <= 252 outputs, we can safely assume the compact size to be single byte and skip one byte
+        // `moveTx` is constructed by Clementine so it is also safe to assume minimal encoding of the compact size
         bytes memory outputs = moveTx.vout.slice(1, moveTx.vout.length - 1);
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(moveTx.witness, 0);
 
@@ -211,8 +243,13 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @notice Accepts `depositAmount` cBTC from the sender and inserts this withdrawal request of `depositAmount` BTC on Bitcoin into the withdrawals array so that later on can be processed by the operator 
     /// @param txId The txId of the withdrawal transaction on Bitcoin
     /// @param outputId The outputId of the output in the withdrawal transaction
-    function withdraw(bytes32 txId, bytes4 outputId) public payable {
+    function withdraw(bytes32 txId, bytes4 outputId) public payable whenNotPaused {
         require(msg.value == depositAmount, "Invalid withdraw amount");
+
+        bytes32 utxoKey = sha256(abi.encodePacked(txId, outputId));
+        require(!usedWithdrawalUTXO[utxoKey], "UTXO already used");
+        usedWithdrawalUTXO[utxoKey] = true;
+
         UTXO memory utxo = UTXO({
             txId: txId,
             outputId: outputId
@@ -248,8 +285,12 @@ contract Bridge is Ownable2StepUpgradeable {
         bytes memory payoutOutput = payoutTx.vout.extractOutputAtIndex(0);
         bytes memory payoutWitness = WitnessUtils.extractWitnessAtIndex(payoutTx.witness, 0);
 
+        // Assert that the payout output value is the expected optimistic withdraw amount
+        require(uint256(payoutOutput.extractValue()) == optimisticWithdrawAmount, "Payout output value does not match optimistic withdraw amount");
+
         // Assert the user provided script pubkey is the same as the one in the payout transaction's output
-        require(isBytesEqual(payoutOutput.slice(9, 34), withdrawalAddressPubKey), "Invalid payout output script pubkey");
+        (uint256 varIntDataLen, uint256 pubKeyLen) = BTCUtils.parseVarIntAt(payoutOutput, 8);
+        require(isBytesEqual(payoutOutput.slice(9 + varIntDataLen, pubKeyLen), withdrawalAddressPubKey), "Invalid payout output script pubkey");
 
         // Payout tx should spend the prepare tx, so we need to check if the txId of the input matches the txId of the prepare transaction
         bytes32 spentTxId = payoutInput.extractInputTxIdLE();
@@ -286,11 +327,15 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @dev Takes in multiple Bitcoin addresses as recipient addresses should be unique
     /// @param txIds the txIds of the withdrawal transactions on Bitcoin
     /// @param outputIds the outputIds of the outputs in the withdrawal transactions
-    function batchWithdraw(bytes32[] calldata txIds, bytes4[] calldata outputIds) external payable {
+    function batchWithdraw(bytes32[] calldata txIds, bytes4[] calldata outputIds) external payable whenNotPaused {
         require(txIds.length == outputIds.length, "Length mismatch");
         require(msg.value == depositAmount * txIds.length, "Invalid withdraw amount");
         uint256 index = withdrawalUTXOs.length;
-        for (uint i = 0; i < txIds.length; i++) {
+        for (uint256 i = 0; i < txIds.length; i++) {
+            bytes32 utxoKey = sha256(abi.encodePacked(txIds[i], outputIds[i]));
+            require(!usedWithdrawalUTXO[utxoKey], "UTXO already used");
+            usedWithdrawalUTXO[utxoKey] = true;
+
             UTXO memory utxo = UTXO({
                 txId: txIds[i],
                 outputId: outputIds[i]
@@ -308,8 +353,10 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @notice Sets the operator address that can process user deposits
     /// @param _operator Address of the privileged operator
     function setOperator(address _operator) external onlyOwner {
+        require(_operator != address(0), "Operator cannot be zero address");
+        address oldOperator = operator;
         operator = _operator;
-        emit OperatorUpdated(operator, _operator);
+        emit OperatorUpdated(oldOperator, _operator);
     }
 
     /// @notice Operator can replace a deposit transaction with its replacement if the replacement transaction is included in Bitcoin and signed by N-of-N with the replacement script
@@ -323,10 +370,13 @@ contract Bridge is Ownable2StepUpgradeable {
         require(replacePrefix.length != 0, "Replace script is not set");
         
         // Validate that the replace transaction is properly formatted and is included in a Bitcoin block
-        validateAndCheckInclusion(replaceTx, proof);
+        (, uint256 nIns) = validateAndCheckInclusion(replaceTx, proof);
+        require(nIns == 1, "Only one input allowed");
 
         // In order to verify the P2TR signature, we need to reconstruct the message hash and that is derived from input, output and the corresponding witness field
         bytes memory input = replaceTx.vin.extractInputAtIndex(0);
+        // Since `replaceTx` is guaranteed to have <= 252 outputs, we can safely assume the compact size to be single byte and skip one byte
+        // `replaceTx` is constructed by Clementine so it is also safe to assume minimal encoding of the compact size
         bytes memory outputs = replaceTx.vout.slice(1, replaceTx.vout.length - 1);
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(replaceTx.witness, 0);
 
@@ -393,6 +443,14 @@ contract Bridge is Ownable2StepUpgradeable {
         return depositPrefix.slice(2, 32);
     }
 
+    function pause() external onlyOwnerOrOperator {
+        _pause();
+    }
+
+    function unpause() external onlyOwnerOrOperator {
+        _unpause();
+    }
+
     /// @notice Checks if two byte sequences are equal in chunks of 32 bytes
     /// @dev This approach compares chunks of 32 bytes using bytes32 equality checks for optimization
     /// @param a First byte sequence
@@ -418,7 +476,7 @@ contract Bridge is Ownable2StepUpgradeable {
         }
 
         // Check remaining bytes (if any)
-        for (uint i = offset - 32; i < len; i++) {
+        for (uint256 i = offset - 32; i < len; i++) {
             if (a[i] != b[i]) {
                 return false;
             }
@@ -427,7 +485,7 @@ contract Bridge is Ownable2StepUpgradeable {
         return true;
     }
 
-    function bytesToBytes32(bytes memory _source) pure internal returns (bytes32 result) {
+    function bytesToBytes32(bytes memory _source) internal pure returns (bytes32 result) {
         if (_source.length == 0) {
             return 0x0;
         }
@@ -450,9 +508,10 @@ contract Bridge is Ownable2StepUpgradeable {
         bytes memory script = witness0.extractItemFromWitness(1);
         bytes memory controlBlock = witness0.extractItemFromWitness(2);
         // First byte of the parsed control block is the length of it so it is skipped to get the actual first byte
+        // We can safely assume the control block compact size to be single byte as the depth of taproot tree is 1 both for `deposit` and `replaceDeposit`
         bytes1 leafVersion = controlBlock[1] & 0xFE;
         bytes32 tapleafHash = taggedHash("TapLeaf", (abi.encodePacked(leafVersion, script)));
-        bytes memory message = abi.encodePacked(EPOCH, SIGHASH_ALL_HASH_TYPE, version, locktime, shaPrevouts, shaAmounts, shaScriptPubkeys, shaSequences, shaOutputs, SPEND_TYPE_EXT, INPUT_INDEX, tapleafHash, KEY_VERSION, CODESEP_POS);
+        bytes memory message = abi.encodePacked(EPOCH, SIGHASH_DEFAULT_HASH_TYPE, version, locktime, shaPrevouts, shaAmounts, shaScriptPubkeys, shaSequences, shaOutputs, SPEND_TYPE_EXT, INPUT_INDEX, tapleafHash, KEY_VERSION, CODESEP_POS);
         bytes32 messageHash = taggedHash("TapSighash", message);
         bytes memory signatureWithLen = witness0.extractItemFromWitness(0);
         bytes memory signature = signatureWithLen.slice(1, signatureWithLen.length - 1);

@@ -109,6 +109,7 @@ async fn test_all_flow() {
             proving_mode: citrea_common::ProverGuestRunConfig::Execute,
             proof_sampling_number: 0,
             enable_recovery: true,
+            max_commitments_per_proof: None,
         }),
         None,
         rollup_config,

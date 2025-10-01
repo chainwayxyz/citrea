@@ -1751,7 +1751,7 @@ fn test_malicious_aggregate_should_not_work() {
     let chunk3_da_data = DataOnDa::Chunk(chunk3.clone());
     let chunk3_serialized = borsh::to_vec(&chunk3_da_data).expect("should serialize");
 
-    // Last chhunk
+    // Last chunk
     let blob3 = MockBlob::new(
         chunk3_serialized,
         MockAddress::new([9u8; 32]),

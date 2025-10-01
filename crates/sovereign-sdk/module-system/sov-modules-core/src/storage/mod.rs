@@ -39,7 +39,7 @@ pub use codec::*;
 pub use scratchpad::*;
 
 /// The key type suitable for use in [`Storage::get`] and other getter methods of
-/// [`Storage`]. Cheaply-clonable.
+/// [`Storage`]. Cheaply-cloneable.
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "sync", derive(Serialize, serde::Deserialize))]
 pub struct StorageKey {
