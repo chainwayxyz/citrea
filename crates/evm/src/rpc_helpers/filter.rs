@@ -159,119 +159,13 @@ struct ActiveFilter<T> {
     kind: FilterKind<T>,
 }
 
-/// A receiver for pending transactions that returns all new transactions since the last poll.
-#[derive(Debug, Clone)]
-struct PendingTransactionsReceiver {
-    txs_receiver: Arc<Mutex<Receiver<TxHash>>>,
-}
-
-impl PendingTransactionsReceiver {
-    fn new(receiver: Receiver<TxHash>) -> Self {
-        Self {
-            txs_receiver: Arc::new(Mutex::new(receiver)),
-        }
-    }
-
-    /// Returns all new pending transactions received since the last poll.
-    async fn drain<T>(&self) -> FilterChanges<T> {
-        let mut pending_txs = Vec::new();
-        let mut prepared_stream = self.txs_receiver.lock().await;
-
-        while let Ok(tx_hash) = prepared_stream.try_recv() {
-            pending_txs.push(tx_hash);
-        }
-
-        // Convert the vector of hashes into FilterChanges::Hashes
-        FilterChanges::Hashes(pending_txs)
-    }
-}
-
-/// A structure to manage and provide access to a stream of full transaction details.
-#[derive(Debug, Clone)]
-struct FullTransactionsReceiver<T: PoolTransaction, TxCompat> {
-    txs_stream: Arc<Mutex<NewSubpoolTransactionStream<T>>>,
-    tx_resp_builder: TxCompat,
-}
-
-impl<T, TxCompat> FullTransactionsReceiver<T, TxCompat>
-where
-    T: PoolTransaction + 'static,
-    TxCompat: TransactionCompat<T::Consensus>,
-{
-    /// Creates a new `FullTransactionsReceiver` encapsulating the provided transaction stream.
-    fn new(stream: NewSubpoolTransactionStream<T>, tx_resp_builder: TxCompat) -> Self {
-        Self {
-            txs_stream: Arc::new(Mutex::new(stream)),
-            tx_resp_builder,
-        }
-    }
-
-    /// Returns all new pending transactions received since the last poll.
-    async fn drain(&self) -> FilterChanges<TxCompat::Transaction> {
-        let mut pending_txs = Vec::new();
-        let mut prepared_stream = self.txs_stream.lock().await;
-
-        while let Ok(tx) = prepared_stream.try_recv() {
-            match self
-                .tx_resp_builder
-                .fill_pending(tx.transaction.to_consensus())
-            {
-                Ok(tx) => pending_txs.push(tx),
-                Err(err) => {
-                    tracing::error!(target: "rpc",
-                        %err,
-                        "Failed to fill txn with block context"
-                    );
-                }
-            }
-        }
-        FilterChanges::Transactions(pending_txs)
-    }
-}
-
-/// Helper trait for [FullTransactionsReceiver] to erase the `Transaction` type.
-#[async_trait]
-trait FullTransactionsFilter<T>: fmt::Debug + Send + Sync + Unpin + 'static {
-    async fn drain(&self) -> FilterChanges<T>;
-}
-
-#[async_trait]
-impl<T, TxCompat> FullTransactionsFilter<TxCompat::Transaction>
-    for FullTransactionsReceiver<T, TxCompat>
-where
-    T: PoolTransaction + 'static,
-    TxCompat: TransactionCompat<T::Consensus> + 'static,
-{
-    async fn drain(&self) -> FilterChanges<TxCompat::Transaction> {
-        Self::drain(self).await
-    }
-}
-
-/// Represents the kind of pending transaction data that can be retrieved.
-///
-/// This enum differentiates between two kinds of pending transaction data:
-/// - Just the transaction hashes.
-/// - Full transaction details.
-#[derive(Debug, Clone)]
-enum PendingTransactionKind<T> {
-    Hashes(PendingTransactionsReceiver),
-    FullTransaction(Arc<dyn FullTransactionsFilter<T>>),
-}
-
-impl<T: 'static> PendingTransactionKind<T> {
-    async fn drain(&self) -> FilterChanges<T> {
-        match self {
-            Self::Hashes(receiver) => receiver.drain().await,
-            Self::FullTransaction(receiver) => receiver.drain().await,
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 enum FilterKind<T> {
     Log(Box<Filter>),
     Block,
-    PendingTransaction(PendingTransactionKind<T>),
+    /// Pending transaction filters are not supported
+    /// and will return unsupported error if used.
+    PendingTransaction,
 }
 
 /// Idea from: https://github.com/paradigmxyz/reth/blob/ed7da87da4de340a437bf46f39a7e1397ac82065/crates/rpc/rpc/src/eth/filter.rs#L382
@@ -285,6 +179,44 @@ pub struct CitreaFilter {
 }
 
 impl CitreaFilter {
+    /// Returns all currently active filters
+    pub fn active_filters(&self) -> &ActiveFilters<RpcTransaction<Eth::NetworkTypes>> {
+        &self.active_filters
+    }
+
+    /// Endless future that [`Self::clear_stale_filters`] every `stale_filter_ttl` interval.
+    /// Nonetheless, this endless future frees the thread at every await point.
+    async fn watch_and_clear_stale_filters(&self) {
+        let mut interval = tokio::time::interval_at(
+            tokio::time::Instant::now() + self.stale_filter_ttl,
+            self.stale_filter_ttl,
+        );
+        interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        loop {
+            interval.tick().await;
+            self.clear_stale_filters(Instant::now()).await;
+        }
+    }
+
+    /// Clears all filters that have not been polled for longer than the configured
+    /// `stale_filter_ttl` at the given instant.
+    pub async fn clear_stale_filters(&self, now: Instant) {
+        tracing::trace!(target: "rpc::eth", "clear stale filters");
+        self.active_filters()
+            .inner
+            .lock()
+            .await
+            .retain(|id, filter| {
+                let is_valid = (now - filter.last_poll_timestamp) < self.stale_filter_ttl;
+
+                if !is_valid {
+                    tracing::trace!(target: "rpc::eth", "evict filter with id: {:?}", id);
+                }
+
+                is_valid
+            })
+    }
+
     /// Installs a new filter and returns the new identifier.
     async fn install_filter<C: sov_modules_api::Context>(
         &self,
@@ -292,6 +224,12 @@ impl CitreaFilter {
         evm: &Evm<C>,
         kind: FilterKind<Transaction>,
     ) -> RpcResult<FilterId> {
+        if matches!(kind, FilterKind::PendingTransaction) {
+            return Err(EthFilterError::EthAPIError(EthApiError::Unsupported(
+                "Pending transaction filters are not supported",
+            ))
+            .into());
+        }
         let last_poll_block_number = evm.last_sealed_header(working_set).number;
         let subscription_id = self.id_provider.next_id();
 
@@ -309,6 +247,19 @@ impl CitreaFilter {
             },
         );
         Ok(id)
+    }
+
+    async fn uninstall_filter(&self, id: FilterId) -> RpcResult<bool> {
+        tracing::trace!(target: "rpc::eth", "Serving eth_uninstallFilter");
+        let mut filters = self.active_filters.inner.lock().await;
+        if filters.remove(&id).is_some() {
+            tracing::trace!(target: "rpc::eth::filter", ?id, "uninstalled filter");
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+        let mut filters = self.active_filters.inner.lock().await;
+        Ok(filters.remove(&id).is_some())
     }
 
     /// Returns all the filter changes for the given id, if any
@@ -333,6 +284,14 @@ impl CitreaFilter {
                 .get_mut(&id)
                 .ok_or(EthFilterError::FilterNotFound(id))?;
 
+            if matches!(filter.kind, FilterKind::PendingTransaction) {
+                self.uninstall_filter(id).await.ok();
+                return Err(EthApiError::Unsupported(
+                    "Pending transaction filters are not supported",
+                )
+                .into());
+            }
+
             if filter.block > latest_block_number {
                 // no new blocks since the last poll
                 return Ok(FilterChanges::Empty);
@@ -349,7 +308,8 @@ impl CitreaFilter {
         };
 
         match kind {
-            FilterKind::PendingTransaction(filter) => Ok(filter.drain().await),
+            // Pending transaction filters are not supported
+            FilterKind::PendingTransaction => Ok(FilterChanges::Empty),
             FilterKind::Block => {
                 // Note: we need to fetch the block hashes from inclusive range
                 // [start_block..latest_block_number]
