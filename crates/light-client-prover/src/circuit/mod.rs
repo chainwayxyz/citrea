@@ -541,10 +541,9 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         continue;
                     }
 
-                    let circuit_network_id =
-                        citrea_network_to_method_id_upgrade_identifier(network);
-                    if circuit_network_id != batch_proof_method_id.body.network_id {
-                        log!("Method ID upgrade transactions network ID does not match circuit network ID");
+                    let circuit_chain_id = citrea_network_to_chain_id(network);
+                    if circuit_chain_id != batch_proof_method_id.body.chain_id {
+                        log!("Method ID upgrade transactions chain ID does not match circuit chain ID");
                         continue;
                     }
 
@@ -756,15 +755,18 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> Default for LightClientProofCircuit<S, DS,
     }
 }
 
-/// Maps the Citrea network to a unique identifier used in the batch proof method ID upgrade transactions.
-pub fn citrea_network_to_method_id_upgrade_identifier(
-    network: sov_rollup_interface::Network,
-) -> u8 {
+/// These are chain ids for the citrea networks
+/// This function is mainly used to check the chain id of the
+/// method id upgrade transactions and to prevent cross network replay attacks
+/// The method id upgrade identifiers are not strictly tied to chain ids
+/// but for simplicity we use the same values
+pub fn citrea_network_to_chain_id(network: sov_rollup_interface::Network) -> u64 {
     match network {
+        // TODO: Change when decided
         sov_rollup_interface::Network::Mainnet => 1,
-        sov_rollup_interface::Network::Testnet => 10,
-        sov_rollup_interface::Network::Devnet => 100,
-        sov_rollup_interface::Network::Nightly => 105,
-        sov_rollup_interface::Network::TestNetworkWithForks => 106,
+        sov_rollup_interface::Network::Testnet => 5115,
+        sov_rollup_interface::Network::Devnet => 62298,
+        sov_rollup_interface::Network::Nightly => 5665,
+        sov_rollup_interface::Network::TestNetworkWithForks => 5665,
     }
 }
