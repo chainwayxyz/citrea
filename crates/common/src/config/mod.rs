@@ -160,6 +160,8 @@ pub struct BatchProverConfig {
     pub proof_sampling_number: usize,
     /// If true prover will try to recover ongoing proving sessions
     pub enable_recovery: bool,
+    /// Maximum number of commitments per proof partition
+    pub max_commitments_per_proof: Option<usize>,
 }
 
 /// Prover configuration
@@ -181,6 +183,7 @@ impl Default for BatchProverConfig {
             proving_mode: ProverGuestRunConfig::Execute,
             proof_sampling_number: 0,
             enable_recovery: true,
+            max_commitments_per_proof: None,
         }
     }
 }
@@ -202,6 +205,9 @@ impl FromEnv for BatchProverConfig {
             proving_mode: serde_json::from_str(&format!("\"{}\"", read_env("PROVING_MODE")?))?,
             proof_sampling_number: read_env("PROOF_SAMPLING_NUMBER")?.parse()?,
             enable_recovery: read_env("ENABLE_RECOVERY")?.parse()?,
+            max_commitments_per_proof: read_env("MAX_COMMITMENTS_PER_PROOF")
+                .ok()
+                .and_then(|val| val.parse().ok()),
         })
     }
 }
@@ -596,6 +602,7 @@ mod tests {
             proving_mode: ProverGuestRunConfig::Skip,
             proof_sampling_number: 500,
             enable_recovery: true,
+            max_commitments_per_proof: None,
         };
         assert_eq!(config, expected);
     }
@@ -662,6 +669,7 @@ mod tests {
             proving_mode: ProverGuestRunConfig::Skip,
             proof_sampling_number: 500,
             enable_recovery: true,
+            max_commitments_per_proof: None,
         };
         assert_eq!(prover_config, expected);
     }

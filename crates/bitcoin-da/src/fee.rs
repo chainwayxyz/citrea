@@ -5,12 +5,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{bail, Context, Result};
 use bitcoin::{Amount, Network, Sequence, Txid};
 use bitcoincore_rpc::json::{
     BumpFeeResult, CreateRawTransactionInput, EstimateMode, WalletCreateFundedPsbtOptions,
 };
 use bitcoincore_rpc::{Client, RpcApi};
+use thiserror::Error;
 use tracing::{debug, instrument, trace, warn};
 
 use crate::error::BitcoinServiceError;
@@ -28,6 +28,48 @@ const MAX_FEE_RATE_MULTIPLIER: f64 = 2.0;
 
 /// Type alias for a Partially Signed Bitcoin Transaction (PSBT).
 pub type Psbt = String;
+
+type Result<T> = std::result::Result<T, FeeServiceError>;
+
+/// Fee service error
+#[derive(Error, Debug)]
+pub enum FeeServiceError {
+    /// Attempt to bump commit transaction without force flag.
+    #[error("Cannot bump commit transaction fee without force flag")]
+    CommitBumpNotAllowed,
+
+    /// RBF not supported for this transaction type.
+    #[error("RBF only supported on CPFP transactions")]
+    RbfNotSupported,
+
+    /// Failed to retrieve PSBT from bumpfee RPC.
+    #[error("Failed to retrieve PSBT from bumpfee RPC")]
+    PsbtRetrievalFailure,
+
+    /// Bitcoin RPC error.
+    #[error("Bitcoin RPC error: {0}")]
+    RpcError(#[from] bitcoincore_rpc::Error),
+
+    /// Bitcoin amount parsing error.
+    #[error("Bitcoin amount error: {0}")]
+    AmountError(#[from] bitcoin::amount::ParseAmountError),
+
+    /// Invalid network for address.
+    #[error("Invalid network for address")]
+    InvalidAddressNetwork,
+
+    /// Missing address in UTXO.
+    #[error("Missing address in UTXO")]
+    MissingUtxoAddress,
+
+    /// Mempool space API request error.
+    #[error("Mempool space API request failed: {0}")]
+    MempoolSpaceRequestError(#[from] reqwest::Error),
+
+    /// Mempool space API response parsing error.
+    #[error("Failed to parse mempool space response")]
+    MempoolSpaceParseError,
+}
 
 /// Method to bump the fee of a transaction.
 /// It can be done using Child Pays for Parent (CPFP) or Replace-by-Fee (RBF).
@@ -114,9 +156,7 @@ impl FeeService {
     ) -> Result<Psbt> {
         let force = force.unwrap_or_default();
         match (monitored_tx.kind, force) {
-            (MonitoredTxKind::Commit, false) => {
-                bail!("Trying to bump a commit TX.")
-            }
+            (MonitoredTxKind::Commit, false) => return Err(FeeServiceError::CommitBumpNotAllowed),
             (MonitoredTxKind::Commit, true) => {
                 warn!("Force creating CPFP TX for commit TX {parent_txid}");
             }
@@ -127,9 +167,9 @@ impl FeeService {
         let change_address = utxo
             .address
             .clone()
-            .context("Missing address")?
+            .ok_or(FeeServiceError::MissingUtxoAddress)?
             .require_network(self.network)
-            .context("Invalid network for address")?;
+            .map_err(|_| FeeServiceError::InvalidAddressNetwork)?;
 
         let mut outputs = HashMap::new();
         outputs.insert(change_address.to_string(), parent_tx.output[0].value);
@@ -162,7 +202,7 @@ impl FeeService {
     pub async fn bump_fee_rbf(&self, kind: MonitoredTxKind, parent_txid: &Txid) -> Result<Psbt> {
         match kind {
             MonitoredTxKind::Cpfp => {}
-            _ => bail!("RBF only supported on cpfp TX"), // TODO Add support for bumping reveal TX
+            _ => return Err(FeeServiceError::RbfNotSupported), // TODO Add support for bumping reveal TX
         }
 
         let BumpFeeResult {
@@ -170,7 +210,7 @@ impl FeeService {
             ..
         } = self.client.psbt_bump_fee(parent_txid, None).await?
         else {
-            bail!("Not able to retrieve funded_psbt from bumpfee RPC")
+            return Err(FeeServiceError::PsbtRetrievalFailure);
         };
 
         Ok(funded_psbt)
@@ -215,7 +255,7 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
         .get("fastestFee")
         .and_then(|fee| fee.as_u64())
         .map(|fee| Amount::from_sat(fee * 1000)) // multiply by 1000 to convert to sat/vkb
-        .context("Failed to get fee rate from mempool space")?;
+        .ok_or(FeeServiceError::MempoolSpaceParseError)?;
 
     Ok(Some(fee_rate))
 }
@@ -225,7 +265,7 @@ pub(crate) fn validate_txs_fee_rate(
     fee_rate: u64,
     utxos: Vec<UTXO>,
     prev_utxo: Option<UTXO>,
-) -> Result<(), BitcoinServiceError> {
+) -> std::result::Result<(), BitcoinServiceError> {
     let mut utxo_map = utxos
         .into_iter()
         .map(|utxo| ((utxo.tx_id, utxo.vout), Amount::from_sat(utxo.amount)))

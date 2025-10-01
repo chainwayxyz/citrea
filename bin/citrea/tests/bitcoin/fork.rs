@@ -224,7 +224,7 @@ impl ForkActivationTest {
     ) -> Result<()> {
         let height = sequencer.client.ledger_get_head_l2_block_height().await?;
         println!("Running test_kumquat_features at height {height}");
-        // Test schnoor in Kumquat
+        // Test schnorr in Kumquat
         {
             let input = Bytes::from_str(SCHNORR_INPUT).unwrap();
             let schnorr_result = client
