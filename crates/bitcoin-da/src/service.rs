@@ -66,10 +66,10 @@ use crate::REVEAL_OUTPUT_AMOUNT;
 
 pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
 
-const POLLING_INTERVAL: u64 = 10; // seconds
+const POLLING_INTERVAL: u64 = 10; // 10 seconds
 
-const DEFAULT_FEE_RATE_CAP_DURATION_SECS: u64 = 3600; // 1hour default cap duration
-const DEFAULT_MAX_FEE_RATE_SAT_VB: u64 = 15;
+const DEFAULT_FEE_RATE_CAP_DURATION_SECS: u64 = 3600; // 1 hour default cap duration
+const DEFAULT_MAX_FEE_RATE_SAT_VB: u64 = 15; // 15sat/vb default max fee rate
 
 /// Map sov Network to Bitcoin Network.
 pub fn network_to_bitcoin_network(network: &Network) -> bitcoin::Network {
