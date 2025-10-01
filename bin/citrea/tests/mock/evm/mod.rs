@@ -1405,6 +1405,7 @@ async fn test_safe_finalized_tags() {
             // Make it impossible for proving to happen
             proof_sampling_number: 1_000_000,
             enable_recovery: true,
+            max_commitments_per_proof: None,
         }),
         None,
         rollup_config,

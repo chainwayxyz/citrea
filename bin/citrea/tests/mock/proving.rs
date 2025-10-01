@@ -74,6 +74,7 @@ async fn full_node_verify_proof_and_store() {
             proving_mode: citrea_common::ProverGuestRunConfig::Execute,
             proof_sampling_number: 0,
             enable_recovery: true,
+            max_commitments_per_proof: None,
         }),
         None,
         rollup_config,
@@ -243,6 +244,7 @@ async fn test_batch_prover_prove_rpcs() {
             // Make it impossible for proving to happen
             proof_sampling_number: 1_000_000,
             enable_recovery: true,
+            max_commitments_per_proof: None,
         }),
         None,
         rollup_config,

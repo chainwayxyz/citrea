@@ -1357,7 +1357,7 @@ impl TestCase for InvokeCachePruningTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            max_l2_blocks_per_commitment: 60,
+            max_l2_blocks_per_commitment: 55,
             mempool_conf: SequencerMempoolConfig {
                 pending_tx_limit: 1_000_000,
                 pending_tx_size: 100_000_000,
@@ -1392,7 +1392,7 @@ impl TestCase for InvokeCachePruningTest {
         }
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
-        // we publish 60 blocks, but actually, 55th block hits state diff
+        // we publish 55 blocks - this should hit the state diff limit
         for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
@@ -1437,6 +1437,7 @@ impl TestCase for InvokeCachePruningTest {
             .unwrap()
             .unwrap();
         assert_eq!(last_proven_l2_data.commitment_index, 1);
+        // Should be exactly 55 blocks in the commitment
         assert_eq!(last_proven_l2_data.height, 55);
 
         Ok(())
@@ -1446,7 +1447,7 @@ impl TestCase for InvokeCachePruningTest {
 impl InvokeCachePruningTest {
     async fn create_deploy_transactions(&self) -> Vec<Vec<u8>> {
         // 11 tx fits into a single block
-        const DEPLOY_COUNT: usize = 60 * 11;
+        const DEPLOY_COUNT: usize = 55 * 11;
 
         let bytecode_hex = fs::read_to_string("tests/bitcoin/test-data/big-contract.bin").unwrap();
         let bytecode_size = bytecode_hex.len() / 2;

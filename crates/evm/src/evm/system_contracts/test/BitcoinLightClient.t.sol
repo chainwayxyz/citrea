@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
@@ -164,4 +164,33 @@ contract BitcoinLightClientTest is Test {
         proxyAdmin.upgrade(ITransparentUpgradeableProxy(payable(address(bitcoinLightClient))), newImpl);
         assertEq(FalseClient(address(bitcoinLightClient)).getBlockHashFalse(0), keccak256("false"));
     }
+
+   function testMerkleProofIndexExtensionAttack() public {
+      bitcoinLightClient.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
+      bytes32 root = hex"DBEE9A868A8CAA2A1DDF683AF1642A88DFB7AC7CE3ECB5D043586811A41FDBF2";
+      uint256 coinbaseDepth = 2;
+      bitcoinLightClient.setBlockInfo(mockBlockHash, root, coinbaseDepth);
+
+      bytes32[] memory proof = new bytes32[](2);
+      proof[0] = hex"0000000000000000000000000000000000000000000000000000000000000000";
+      proof[1] = hex"6B1DAB5721B7B8D68B2C7F795D689998A35EFED7E5C99E12E6C8D5C587A1628D";
+      bytes32 wtxId = hex"A28E549DC50610430BF7E224EFFD50DB0662356780C934AF0F1A9EB346D50087";
+
+      // The proof is valid for the correct index.
+      uint256 correctIndex = 1;
+      assertTrue(
+         bitcoinLightClient.verifyInclusion(mockBlockHash, wtxId, abi.encodePacked(proof), correctIndex),
+         "Proof should be valid for correct index"
+      );
+
+      // Use the same proof for a malicious, out-of-bounds index.
+      // The tree size is 2**depth = 4. The malicious index is correctIndex + treeSize.
+      uint256 maliciousIndex = correctIndex + (1 << coinbaseDepth); // 1 + 4 = 5
+
+      // The contract shouldn't accept the proof for the wrong index.
+      assertFalse(
+         bitcoinLightClient.verifyInclusion(mockBlockHash, wtxId, abi.encodePacked(proof), maliciousIndex),
+         "Proof should not be valid for out-of-bounds index"
+      );
+   }
 }

@@ -177,7 +177,7 @@ impl DaTransactionQueueingTest {
             .await;
         assert!(res.is_ok());
 
-        // Qeuue is already not empty and proof cannot be sent.
+        // Queue is already not empty and proof cannot be sent.
         let res = da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_400kb_batch_proof), 1)
             .await;

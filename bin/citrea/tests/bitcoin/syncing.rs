@@ -473,3 +473,94 @@ async fn test_healthcheck() -> Result<()> {
         .run()
         .await
 }
+
+struct SequencerEthSyncingTest;
+
+#[async_trait]
+impl TestCase for SequencerEthSyncingTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_sequencer: true,
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let sequencer = f.sequencer.as_ref().unwrap();
+
+        let seq_test_client = make_test_client(SocketAddr::new(
+            sequencer.config.rpc_bind_host().parse()?,
+            sequencer.config.rpc_bind_port(),
+        ))
+        .await?;
+
+        // First check initial state
+        let eth_sync = seq_test_client.eth_syncing().await;
+        match eth_sync {
+            EthSyncStatus::Info(info) => {
+                assert_eq!(
+                    info.starting_block,
+                    U256::from(0),
+                    "Starting block should be 0 for sequencer"
+                );
+                assert_eq!(
+                    info.current_block, info.highest_block,
+                    "Current and highest blocks should be equal for sequencer"
+                );
+            }
+            _ => panic!(
+                "Sequencer should return EthSyncStatus::Info, got {:?}",
+                eth_sync
+            ),
+        }
+
+        let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+        for _ in 0..10 {
+            let _ = seq_test_client
+                .send_eth(addr, None, None, None, 0u128)
+                .await?;
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        sequencer.wait_for_l2_height(10, None).await?;
+
+        let eth_sync = seq_test_client.eth_syncing().await;
+        match eth_sync {
+            EthSyncStatus::Info(info) => {
+                assert_eq!(
+                    info.starting_block,
+                    U256::from(0),
+                    "Starting block should still be 0 for sequencer"
+                );
+                assert_eq!(
+                    info.highest_block,
+                    U256::from(10),
+                    "Highest block should be 10 after producing 10 blocks"
+                );
+                assert_eq!(
+                    info.current_block,
+                    U256::from(10),
+                    "Current block should be 10 after producing 10 blocks"
+                );
+                assert_eq!(
+                    info.current_block, info.highest_block,
+                    "Current and highest blocks should be equal for sequencer (fully synced)"
+                );
+            }
+            _ => panic!(
+                "Sequencer should return EthSyncStatus::Info, got {:?}",
+                eth_sync
+            ),
+        }
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_sequencer_eth_syncing() -> Result<()> {
+    TestCaseRunner::new(SequencerEthSyncingTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}

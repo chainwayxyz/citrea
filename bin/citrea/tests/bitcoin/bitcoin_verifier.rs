@@ -525,7 +525,7 @@ impl BitcoinVerifierTest {
     // Bitcoin core protocol does witness malleation check only if it matches MINIMUM_WITNESS_COMMITMENT_SIZE
     // This witness commitment structure would be ignored from bitcoin core verification logic and is a valid block that needs to be
     // handled on our side. An additional MINIMUM_WITNESS_COMMITMENT_SIZE check is added to find the commitment index.
-    // In that case, no commmitment index is found and this block is treated as one without relevant txs
+    // In that case, no commitment index is found and this block is treated as one without relevant txs
     fn test_malicious_witness_prefix_only(&self, verifier: &BitcoinVerifier) -> Result<()> {
         let coinbase_input = TxIn {
             previous_output: OutPoint::null(),

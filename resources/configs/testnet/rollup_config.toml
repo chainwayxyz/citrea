@@ -52,6 +52,10 @@ bind_port = 8080
 # no limit set by default.
 # trace_chain_block_limit = 100
 
+# enables JS tracer in debug endpoints
+# true by default
+# enable_js_tracer = true
+
 [runner]
 sequencer_client_url = "https://rpc.testnet.citrea.xyz"
 
