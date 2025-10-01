@@ -202,7 +202,7 @@ impl TestCase for SequencerL1FeeParamsTest {
         // Test changing max l1 fee rate
         let mut new_config = sequencer.config.clone();
         new_config.node.l1_fee_rate_multiplier = 2.0;
-        new_config.node.max_l1_fee_rate = 1;
+        new_config.node.max_l1_fee_rate_sat_vb = 1;
 
         // Restart the sequencer with new config
         sequencer.start(Some(new_config), None).await?;
