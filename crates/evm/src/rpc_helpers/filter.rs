@@ -4,18 +4,25 @@ use std::collections::HashMap;
 use std::iter::StepBy;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{env, fmt};
 
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::TxHash;
-use alloy_rpc_types::{Filter, FilterChanges, FilterId};
+use alloy_rpc_types::{Filter, FilterBlockOption, FilterChanges, FilterId, Transaction};
 use async_trait::async_trait;
+use jsonrpsee::core::RpcResult;
+use jsonrpsee::server::IdProvider;
+use jsonrpsee::types::SubscriptionId;
 use reth_rpc::eth::filter::EthFilterError;
-use reth_rpc_eth_api::TransactionCompat;
+use reth_rpc_eth_api::{RpcTransaction, TransactionCompat};
+use reth_rpc_eth_types::EthApiError;
 use reth_transaction_pool::{NewSubpoolTransactionStream, PoolTransaction};
+use sov_modules_api::{StateVecAccessor, WorkingSet};
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::Mutex;
+
+use crate::{get_filter_block_range, Evm};
 
 /// The maximum number of blocks that can be queried in a single eth_getLogs request.
 pub const DEFAULT_MAX_BLOCKS_PER_FILTER: u64 = 1_000;
@@ -267,8 +274,129 @@ enum FilterKind<T> {
     PendingTransaction(PendingTransactionKind<T>),
 }
 
-// TODO:
 /// Idea from: https://github.com/paradigmxyz/reth/blob/ed7da87da4de340a437bf46f39a7e1397ac82065/crates/rpc/rpc/src/eth/filter.rs#L382
-// pub struct CitreaFilter {
-//     pub active_filters:
-// }
+pub struct CitreaFilter {
+    /// All currently installed filters.
+    pub active_filters: ActiveFilters<Transaction>,
+    /// Provides ids to identify filters
+    pub id_provider: Arc<dyn IdProvider>,
+    /// Duration since the last filter poll, after which the filter is considered stale
+    pub stale_filter_ttl: Duration,
+}
+
+impl CitreaFilter {
+    /// Installs a new filter and returns the new identifier.
+    async fn install_filter<C: sov_modules_api::Context>(
+        &self,
+        working_set: &mut WorkingSet<C::Storage>,
+        evm: &Evm<C>,
+        kind: FilterKind<Transaction>,
+    ) -> RpcResult<FilterId> {
+        let last_poll_block_number = evm.last_sealed_header(working_set).number;
+        let subscription_id = self.id_provider.next_id();
+
+        let id = match subscription_id {
+            SubscriptionId::Num(n) => FilterId::Num(n),
+            SubscriptionId::Str(s) => FilterId::Str(s.into_owned()),
+        };
+        let mut filters = self.active_filters.inner.lock().await;
+        filters.insert(
+            id.clone(),
+            ActiveFilter {
+                block: last_poll_block_number,
+                last_poll_timestamp: Instant::now(),
+                kind,
+            },
+        );
+        Ok(id)
+    }
+
+    /// Returns all the filter changes for the given id, if any
+    pub async fn filter_changes<C: sov_modules_api::Context>(
+        &self,
+        working_set: &mut WorkingSet<C::Storage>,
+        evm: &Evm<C>,
+        id: FilterId,
+    ) -> Result<FilterChanges<Transaction>, EthFilterError> {
+        let latest_block_number = evm
+            .blocks
+            .last(&mut working_set.accessory_state())
+            .ok_or(EthFilterError::InternalError)?
+            .header
+            .number;
+
+        // start_block is the block from which we should start fetching changes, the next block from
+        // the last time changes were polled, in other words the best block at last poll + 1
+        let (start_block, kind) = {
+            let mut filters = self.active_filters.inner.lock().await;
+            let filter = filters
+                .get_mut(&id)
+                .ok_or(EthFilterError::FilterNotFound(id))?;
+
+            if filter.block > latest_block_number {
+                // no new blocks since the last poll
+                return Ok(FilterChanges::Empty);
+            }
+
+            // update filter
+            // we fetch all changes from [filter.block..best_block], so we advance the filter's
+            // block to `best_block +1`, the next from which we should start fetching changes again
+            let mut block = latest_block_number + 1;
+            std::mem::swap(&mut filter.block, &mut block);
+            filter.last_poll_timestamp = Instant::now();
+
+            (block, filter.kind.clone())
+        };
+
+        match kind {
+            FilterKind::PendingTransaction(filter) => Ok(filter.drain().await),
+            FilterKind::Block => {
+                // Note: we need to fetch the block hashes from inclusive range
+                // [start_block..latest_block_number]
+                let end_block = latest_block_number;
+                let block_hashes = evm
+                    .sealed_headers_range(start_block..=end_block, working_set)
+                    .map_err(|_| {
+                        EthApiError::HeaderRangeNotFound(start_block.into(), end_block.into())
+                    })?
+                    .iter()
+                    .map(|h| h.header().hash_slow())
+                    .collect::<Vec<_>>();
+
+                Ok(FilterChanges::Hashes(block_hashes))
+            }
+            FilterKind::Log(filter) => {
+                let (from_block_number, to_block_number) = match filter.block_option {
+                    FilterBlockOption::Range {
+                        from_block,
+                        to_block,
+                    } => {
+                        let from = from_block
+                            .map(|num| convert_block_number(num, start_block))
+                            .transpose()?
+                            .flatten();
+                        let to = to_block
+                            .map(|num| convert_block_number(num, latest_block_number))
+                            .transpose()?
+                            .flatten();
+                        get_filter_block_range(from, to, start_block)
+                    }
+                    FilterBlockOption::AtBlockHash(_) => {
+                        // blockHash is equivalent to fromBlock = toBlock = the block number with
+                        // hash blockHash
+                        // get_logs_in_block_range is inclusive
+                        (start_block, latest_block_number)
+                    }
+                };
+                let logs = evm.get_logs_in_block_range(
+                    working_set,
+                    &filter,
+                    from_block_number,
+                    to_block_number,
+                    get_max_logs_per_response(),
+                )?;
+                Ok(FilterChanges::Logs(logs))
+            }
+        }
+    }
+}
