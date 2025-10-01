@@ -1,8 +1,7 @@
 #![no_main]
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
-use citrea_light_client_prover::circuit::initial_values::bitcoinda;
-use citrea_light_client_prover::circuit::initial_values::non_empty_slice::NonEmptySlice;
+use citrea_light_client_prover::circuit::initial_values::{bitcoinda, non_empty_slice::NonEmptySlice};
 use citrea_light_client_prover::circuit::LightClientProofCircuit;
 use citrea_primitives::REVEAL_TX_PREFIX;
 use citrea_risc0_adapter::guest::Risc0Guest;
@@ -65,14 +64,14 @@ const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
     }
 };
 
-pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8; 33]; 5] = {
+pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] = {
     match NETWORK {
-        Network::Mainnet => bitcoinda::MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
-        Network::Testnet => bitcoinda::TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
-        Network::Devnet => bitcoinda::DEVNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
-        Network::Nightly => bitcoinda::NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Mainnet => bitcoinda::MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
+        Network::Testnet => bitcoinda::TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
+        Network::Devnet => bitcoinda::DEVNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
+        Network::Nightly => bitcoinda::NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
         Network::TestNetworkWithForks => {
-            bitcoinda::TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS
+            bitcoinda::TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY
         }
     }
 };
@@ -101,7 +100,7 @@ pub fn main() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &BATCH_PROVER_DA_PUBLIC_KEY,
             &SEQUENCER_DA_PUBLIC_KEY,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
         )
         .unwrap();
 
