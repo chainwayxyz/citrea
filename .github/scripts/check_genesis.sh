@@ -17,7 +17,7 @@ new_wcbtc_before_hash="${new_wcbtc_code_after_hash_removed:0:${#new_wcbtc_code_a
 new_wcbtc_after_hash=${new_wcbtc_code: -23} # Get last 23 characters (after hash)
 
 if [ "$old_wcbtc_before_hash" != "$new_wcbtc_before_hash" ] || [ "$old_wcbtc_after_hash" != "$new_wcbtc_after_hash" ]; then
-  echo "WCBTC bytecode have changed."
+  echo "WCBTC bytecode has changed."
   exit 1
 fi
 
