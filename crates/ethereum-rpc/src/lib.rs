@@ -198,12 +198,12 @@ pub trait EthereumRpc {
     async fn uninstall_filter(&self, filter_id: FilterId) -> RpcResult<bool>;
 
     /// Filter changes
-    #[method(name = "eth_filterChanges")]
-    async fn filter_changes(&self, id: FilterId) -> RpcResult<FilterChanges<Transaction>>;
+    #[method(name = "eth_getFilterChanges")]
+    async fn get_filter_changes(&self, id: FilterId) -> RpcResult<FilterChanges<Transaction>>;
 
     /// Filter logs
     #[method(name = "eth_getFilterLogs")]
-    async fn filter_logs(&self, id: FilterId) -> RpcResult<Vec<Log>>;
+    async fn get_filter_logs(&self, id: FilterId) -> RpcResult<Vec<Log>>;
 
     /// Install a new block filter
     #[method(name = "eth_newBlockFilter")]
@@ -726,7 +726,7 @@ where
             .await
     }
 
-    async fn filter_changes(&self, id: FilterId) -> RpcResult<FilterChanges<Transaction>> {
+    async fn get_filter_changes(&self, id: FilterId) -> RpcResult<FilterChanges<Transaction>> {
         let evm = Evm::<C>::default();
         let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
         Ok(self
@@ -736,7 +736,7 @@ where
             .await?)
     }
 
-    async fn filter_logs(&self, id: FilterId) -> RpcResult<Vec<Log>> {
+    async fn get_filter_logs(&self, id: FilterId) -> RpcResult<Vec<Log>> {
         let evm = Evm::<C>::default();
         let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
         Ok(self

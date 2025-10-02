@@ -12,9 +12,11 @@ use alloy::rpc::types::eth::{Block, Transaction, TransactionRequest};
 use alloy::serde::WithOtherFields;
 use alloy::signers::local::PrivateKeySigner;
 use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U32, U64};
+use alloy_rpc_types::{
+    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, Filter, FilterChanges, Log,
+};
 // use reth_rpc_types::TransactionReceipt;
-use alloy_rpc_types::SyncStatus as EthSyncStatus;
-use alloy_rpc_types::{BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, Filter, Log};
+use alloy_rpc_types::{FilterId, SyncStatus as EthSyncStatus};
 use alloy_rpc_types_trace::geth::{
     GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
 };
@@ -940,6 +942,41 @@ impl TestClient {
         }
 
         Ok(false)
+    }
+
+    pub(crate) async fn install_filter(&self, filter: Filter) -> FilterId {
+        self.http_client
+            .request("eth_newFilter", rpc_params![filter])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn uninstall_filter(&self, id: FilterId) -> bool {
+        self.http_client
+            .request("eth_uninstallFilter", rpc_params![id])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn new_block_filter(&self) -> FilterId {
+        self.http_client
+            .request("eth_newBlockFilter", rpc_params![])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn get_filter_changes(&self, id: FilterId) -> Vec<FilterChanges<Transaction>> {
+        self.http_client
+            .request("eth_getFilterChanges", rpc_params![id])
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn get_filter_logs(&self, id: FilterId) -> Vec<Log> {
+        self.http_client
+            .request("eth_getFilterLogs", rpc_params![id])
+            .await
+            .unwrap()
     }
 }
 
