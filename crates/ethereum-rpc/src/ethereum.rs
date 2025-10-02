@@ -24,6 +24,7 @@ const DEFAULT_PRIORITY_FEE: U256 = U256::from_limbs([100, 0, 0, 0]);
 pub struct EthRpcConfig {
     pub gas_price_oracle_config: GasPriceOracleConfig,
     pub fee_history_cache_config: FeeHistoryCacheConfig,
+    pub stale_filter_ttl: Option<std::time::Duration>,
 }
 
 pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
@@ -43,8 +44,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         da_service: Arc<Da>,
-        gas_price_oracle_config: GasPriceOracleConfig,
-        fee_history_cache_config: FeeHistoryCacheConfig,
+        eth_rpc_config: EthRpcConfig,
         storage: C::Storage,
         ledger_db: LedgerDB,
         sequencer_client: Option<HttpClient>,
@@ -53,8 +53,8 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         let evm = Evm::<C>::default();
         let gas_price_oracle = GasPriceOracle::new(
             evm,
-            gas_price_oracle_config,
-            fee_history_cache_config,
+            eth_rpc_config.gas_price_oracle_config,
+            eth_rpc_config.fee_history_cache_config,
             ledger_db.clone(),
         );
 
@@ -69,7 +69,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         let subscription_manager = l2_block_rx
             .map(|rx| SubscriptionManager::new::<C>(storage.clone(), ledger_db.clone(), rx));
 
-        let citrea_filter = Arc::new(CitreaFilter::new());
+        let citrea_filter = Arc::new(CitreaFilter::new(eth_rpc_config.stale_filter_ttl));
 
         Self {
             da_service,

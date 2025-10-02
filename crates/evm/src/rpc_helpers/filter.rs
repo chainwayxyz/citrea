@@ -27,6 +27,8 @@ pub const DEFAULT_MAX_BLOCKS_PER_FILTER: u64 = 1_000;
 pub const DEFAULT_MAX_LOGS_PER_RESPONSE: usize = 5_000;
 /// The maximum number of headers we read at once when handling a range filter.
 pub const DEFAULT_MAX_HEADERS_RANGE: u64 = 1_000; // with ~530bytes? per header this is ~500kb?
+/// Default value for stale filter ttl
+pub const DEFAULT_STALE_FILTER_TTL: Duration = Duration::from_secs(5 * 60);
 
 /// Retrieves the maximum number of blocks that can be queried in a single eth_getLogs request.
 /// This value can be configured via the `ETH_RPC_MAX_BLOCKS_PER_FILTER` environment variable.
@@ -183,19 +185,19 @@ pub struct CitreaFilter {
 
 impl Default for CitreaFilter {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
     }
 }
 
 impl CitreaFilter {
     /// Creates a new instance of the CitreaFilter.
-    pub fn new() -> CitreaFilter {
+    pub fn new(stale_filter_ttl: Option<Duration>) -> CitreaFilter {
         let citrea_filter = CitreaFilter {
             active_filters: ActiveFilters::new(),
             id_provider: Arc::new(EthSubscriptionIdProvider::default()),
             task_executor: TaskManager::current().executor(),
             // TODO: Get from config
-            stale_filter_ttl: Duration::from_secs(300),
+            stale_filter_ttl: stale_filter_ttl.unwrap_or_else(|| DEFAULT_STALE_FILTER_TTL),
         };
 
         let this = citrea_filter.clone();

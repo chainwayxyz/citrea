@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Context as _;
 use citrea_common::RpcConfig;
@@ -23,6 +24,9 @@ pub fn register_ethereum<Da: DaService>(
         EthRpcConfig {
             gas_price_oracle_config: GasPriceOracleConfig::default(),
             fee_history_cache_config: FeeHistoryCacheConfig::default(),
+            stale_filter_ttl: std::env::var("CITREA_ETH_RPC_STALE_FILTER_TTL")
+                .ok()
+                .and_then(|s| Some(Duration::from_secs(s.parse().ok()?))),
         }
     };
 

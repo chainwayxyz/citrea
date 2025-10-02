@@ -766,12 +766,6 @@ where
         None => 0u64,
     };
 
-    // Unpack config
-    let EthRpcConfig {
-        gas_price_oracle_config,
-        fee_history_cache_config,
-    } = eth_rpc_config;
-
     // If the node does not have a sequencer client, then it is the sequencer.
     let is_sequencer = sequencer_client_url.is_none();
     let enable_subscriptions = l2_block_rx.is_some();
@@ -779,8 +773,7 @@ where
     // If the running node is a full node rpc context should also have sequencer client so that it can send txs to sequencer
     let ethereum = Arc::new(Ethereum::new(
         da_service,
-        gas_price_oracle_config,
-        fee_history_cache_config,
+        eth_rpc_config,
         storage,
         ledger_db,
         sequencer_client_url.map(|url| HttpClientBuilder::default().build(url).unwrap()),
