@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use alloy_primitives::U256;
 use alloy_rpc_types_trace::geth::TraceResult;
-use citrea_evm::Evm;
+use citrea_evm::{CitreaFilter, Evm};
 use jsonrpsee::http_client::HttpClient;
 use rustc_version_runtime::version;
 use schnellru::{ByLength, LruMap};
@@ -36,6 +36,7 @@ pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
     pub(crate) web3_client_version: String,
     pub(crate) trace_cache: Mutex<LruMap<u64, Vec<TraceResult>, ByLength>>,
     pub(crate) subscription_manager: Option<SubscriptionManager>,
+    pub(crate) citrea_filter: Arc<CitreaFilter>,
 }
 
 impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
@@ -68,6 +69,8 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         let subscription_manager = l2_block_rx
             .map(|rx| SubscriptionManager::new::<C>(storage.clone(), ledger_db.clone(), rx));
 
+        let citrea_filter = Arc::new(CitreaFilter::new());
+
         Self {
             da_service,
             gas_price_oracle,
@@ -77,6 +80,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
             web3_client_version: current_version,
             trace_cache,
             subscription_manager,
+            citrea_filter,
         }
     }
 

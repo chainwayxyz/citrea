@@ -1508,8 +1508,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         Ok(trace)
     }
 
-    // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L349
-    fn logs_for_filter(
+    /// https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L349
+    pub fn logs_for_filter(
         &self,
         filter: Filter,
         working_set: &mut WorkingSet<C::Storage>,

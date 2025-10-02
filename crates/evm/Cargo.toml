@@ -20,7 +20,6 @@ sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 
 citrea-primitives = { path = "../primitives" }
 
-async-trait = { workspace = true, optional = true }
 borsh = { workspace = true, features = ["rc"] }
 hex = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
@@ -108,7 +107,6 @@ native = [
   "dep:metrics",
   "dep:metrics-derive",
 
-  "dep:async-trait",
   "dep:hex",
   "dep:jsonrpsee",
   "dep:itertools",

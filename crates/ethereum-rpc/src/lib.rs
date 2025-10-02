@@ -8,15 +8,15 @@ use std::sync::Arc;
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{
-    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter, Index, SyncInfo,
-    SyncStatus as EthSyncStatus, Transaction, TransactionRequest,
+    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter, FilterChanges,
+    FilterId, Index, Log, SyncInfo, SyncStatus as EthSyncStatus, Transaction, TransactionRequest,
 };
 use alloy_rpc_types_trace::geth::{
     GethDebugTracerType, GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace,
     TraceResult,
 };
 use citrea_common::RpcConfig;
-use citrea_evm::{generate_eth_proof, Evm};
+use citrea_evm::{generate_eth_proof, Evm, FilterKind};
 use citrea_sequencer::SequencerRpcClient;
 pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
@@ -188,6 +188,26 @@ pub trait EthereumRpc {
     /// Subscribe to Ethereum events.
     #[subscription(name = "eth_subscribe" => "eth_subscription", unsubscribe = "eth_unsubscribe", item = Value)]
     async fn subscribe_eth(&self, topic: String, filter: Option<Filter>) -> SubscriptionResult;
+
+    /// Install a new filter.
+    #[method(name = "eth_newFilter")]
+    async fn new_filter(&self, filter: Filter) -> RpcResult<FilterId>;
+
+    /// Uninstall a filter
+    #[method(name = "eth_uninstallFilter")]
+    async fn uninstall_filter(&self, filter_id: FilterId) -> RpcResult<bool>;
+
+    /// Filter changes
+    #[method(name = "eth_filterChanges")]
+    async fn filter_changes(&self, id: FilterId) -> RpcResult<FilterChanges<Transaction>>;
+
+    /// Filter logs
+    #[method(name = "eth_getFilterLogs")]
+    async fn filter_logs(&self, id: FilterId) -> RpcResult<Vec<Log>>;
+
+    /// Install a new block filter
+    #[method(name = "eth_newBlockFilter")]
+    async fn new_block_filter(&self) -> RpcResult<FilterId>;
 }
 
 const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
@@ -679,6 +699,51 @@ where
             }
         }
         Ok(())
+    }
+
+    async fn new_filter(&self, filter: Filter) -> RpcResult<FilterId> {
+        let evm = Evm::<C>::default();
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+        self.ethereum
+            .citrea_filter
+            .install_filter(&mut working_set, &evm, FilterKind::Log(Box::new(filter)))
+            .await
+    }
+
+    async fn new_block_filter(&self) -> RpcResult<FilterId> {
+        let evm = Evm::<C>::default();
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+        self.ethereum
+            .citrea_filter
+            .install_filter(&mut working_set, &evm, FilterKind::Block)
+            .await
+    }
+
+    async fn uninstall_filter(&self, filter_id: FilterId) -> RpcResult<bool> {
+        self.ethereum
+            .citrea_filter
+            .uninstall_filter(filter_id)
+            .await
+    }
+
+    async fn filter_changes(&self, id: FilterId) -> RpcResult<FilterChanges<Transaction>> {
+        let evm = Evm::<C>::default();
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+        Ok(self
+            .ethereum
+            .citrea_filter
+            .filter_changes(&mut working_set, &evm, id)
+            .await?)
+    }
+
+    async fn filter_logs(&self, id: FilterId) -> RpcResult<Vec<Log>> {
+        let evm = Evm::<C>::default();
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+        Ok(self
+            .ethereum
+            .citrea_filter
+            .filter_logs(&mut working_set, &evm, id)
+            .await?)
     }
 }
 

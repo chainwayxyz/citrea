@@ -1,26 +1,21 @@
 // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-types/src/eth/filter.rs
 
 use std::collections::HashMap;
+use std::env;
 use std::iter::StepBy;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use std::{env, fmt};
 
 use alloy_eips::BlockNumberOrTag;
-use alloy_primitives::TxHash;
-use alloy_rpc_types::{Filter, FilterBlockOption, FilterChanges, FilterId, Transaction};
-use async_trait::async_trait;
+use alloy_rpc_types::{Filter, FilterBlockOption, FilterChanges, FilterId, Log, Transaction};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::server::IdProvider;
 use jsonrpsee::types::SubscriptionId;
 use reth_rpc::eth::filter::EthFilterError;
-use reth_rpc_eth_api::{RpcTransaction, TransactionCompat};
 use reth_rpc_eth_types::{EthApiError, EthSubscriptionIdProvider};
 use reth_tasks::{TaskExecutor, TaskManager};
-use reth_transaction_pool::{NewSubpoolTransactionStream, PoolTransaction};
 use sov_modules_api::{StateVecAccessor, WorkingSet};
-use tokio::sync::mpsc::Receiver;
 use tokio::sync::Mutex;
 use tokio::time::MissedTickBehavior;
 
@@ -162,8 +157,11 @@ struct ActiveFilter {
 }
 
 #[derive(Clone, Debug)]
-enum FilterKind {
+/// The kind of filter
+pub enum FilterKind {
+    /// Log filter
     Log(Box<Filter>),
+    /// Block filter
     Block,
     /// Pending transaction filters are not supported
     /// and will return unsupported error if used.
@@ -183,6 +181,12 @@ pub struct CitreaFilter {
     pub stale_filter_ttl: Duration,
 }
 
+impl Default for CitreaFilter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CitreaFilter {
     /// Creates a new instance of the CitreaFilter.
     pub fn new() -> CitreaFilter {
@@ -190,6 +194,7 @@ impl CitreaFilter {
             active_filters: ActiveFilters::new(),
             id_provider: Arc::new(EthSubscriptionIdProvider::default()),
             task_executor: TaskManager::current().executor(),
+            // TODO: Get from config
             stale_filter_ttl: Duration::from_secs(300),
         };
 
@@ -243,7 +248,7 @@ impl CitreaFilter {
     }
 
     /// Installs a new filter and returns the new identifier.
-    async fn install_filter<C: sov_modules_api::Context>(
+    pub async fn install_filter<C: sov_modules_api::Context>(
         &self,
         working_set: &mut WorkingSet<C::Storage>,
         evm: &Evm<C>,
@@ -274,17 +279,17 @@ impl CitreaFilter {
         Ok(id)
     }
 
-    async fn uninstall_filter(&self, id: FilterId) -> RpcResult<bool> {
+    /// Uninstalls a filter with the given id. Returns true if the filter was found and removed,
+    /// false otherwise.
+    pub async fn uninstall_filter(&self, id: FilterId) -> RpcResult<bool> {
         tracing::trace!(target: "rpc::eth", "Serving eth_uninstallFilter");
         let mut filters = self.active_filters.inner.lock().await;
         if filters.remove(&id).is_some() {
             tracing::trace!(target: "rpc::eth::filter", ?id, "uninstalled filter");
-            return Ok(true);
+            Ok(true)
         } else {
-            return Ok(false);
+            Ok(false)
         }
-        let mut filters = self.active_filters.inner.lock().await;
-        Ok(filters.remove(&id).is_some())
     }
 
     /// Returns all the filter changes for the given id, if any
@@ -383,5 +388,29 @@ impl CitreaFilter {
                 Ok(FilterChanges::Logs(logs))
             }
         }
+    }
+
+    /// Returns all the logs for the given filter id, if any
+    pub async fn filter_logs<C: sov_modules_api::Context>(
+        &self,
+        working_set: &mut WorkingSet<C::Storage>,
+        evm: &Evm<C>,
+        id: FilterId,
+    ) -> Result<Vec<Log>, EthFilterError> {
+        let filter = {
+            let filters = self.active_filters.inner.lock().await;
+            if let FilterKind::Log(ref filter) = filters
+                .get(&id)
+                .ok_or_else(|| EthFilterError::FilterNotFound(id.clone()))?
+                .kind
+            {
+                *filter.clone()
+            } else {
+                // Not a log filter
+                return Err(EthFilterError::FilterNotFound(id));
+            }
+        };
+
+        evm.logs_for_filter(filter, working_set)
     }
 }
