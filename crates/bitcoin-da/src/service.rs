@@ -129,7 +129,7 @@ pub struct BitcoinServiceConfig {
     pub rpc_connect_timeout_secs: Option<u64>,
 
     /// Max fee rate in sat/vb
-    pub max_fee_rate_sat_vb: Option<u64>,
+    pub max_fee_rate_sat_to_pay: Option<u64>,
 
     /// Fee rate cap duration in seconds
     pub fee_rate_cap_duration_secs: Option<u64>,
@@ -158,7 +158,7 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
             rpc_connect_timeout_secs: read_env("BITCOIN_RPC_CONNECT_TIMEOUT_SECS")
                 .ok()
                 .and_then(|v| v.parse::<u64>().ok()),
-            max_fee_rate_sat_vb: read_env("BITCOIN_MAX_FEE_RATE_SAT_VB")
+            max_fee_rate_sat_to_pay: read_env("BITCOIN_MAX_FEE_RATE_SAT_TO_PAY")
                 .ok()
                 .and_then(|v| v.parse::<u64>().ok()),
             fee_rate_cap_duration_secs: read_env("BITCOIN_FEE_RATE_CAP_DURATION_SECS")
@@ -185,7 +185,7 @@ pub struct BitcoinService {
     tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
     pub(crate) tx_signer: TxSigner,
     utxo_selection_mode: UtxoSelectionMode,
-    max_fee_rate_sat_vb: u64,
+    max_fee_rate_sat_to_pay: u64,
     fee_rate_cap_duration_secs: u64,
 }
 
@@ -202,7 +202,7 @@ impl BitcoinService {
         reveal_tx_prefix: Vec<u8>,
         tx_backup_dir: PathBuf,
         utxo_selection_mode: UtxoSelectionMode,
-        max_fee_rate_sat_vb: u64,
+        max_fee_rate_sat_to_pay: u64,
         fee_rate_cap_duration_secs: u64,
     ) -> Self {
         Self {
@@ -221,7 +221,7 @@ impl BitcoinService {
             ))),
             tx_queue: Arc::new(Mutex::new(VecDeque::new())),
             utxo_selection_mode,
-            max_fee_rate_sat_vb,
+            max_fee_rate_sat_to_pay,
             fee_rate_cap_duration_secs,
         }
     }
@@ -263,8 +263,8 @@ impl BitcoinService {
             .map_err(|_| BitcoinServiceError::InvalidPrivateKey)?;
 
         let utxo_selection_mode = config.utxo_selection_mode.clone().unwrap_or_default();
-        let max_fee_rate_sat_vb = config
-            .max_fee_rate_sat_vb
+        let max_fee_rate_sat_to_pay = config
+            .max_fee_rate_sat_to_pay
             .unwrap_or(DEFAULT_MAX_FEE_RATE_SAT_VB);
         let fee_rate_cap_duration_secs = config
             .fee_rate_cap_duration_secs
@@ -280,7 +280,7 @@ impl BitcoinService {
             chain_params.reveal_tx_prefix,
             tx_backup_dir.to_path_buf(),
             utxo_selection_mode,
-            max_fee_rate_sat_vb,
+            max_fee_rate_sat_to_pay,
             fee_rate_cap_duration_secs,
         ))
     }
@@ -327,22 +327,22 @@ impl BitcoinService {
                                 }
                             };
 
-                            // Cap fee at self.max_fee_rate_sat_vb for a maximum of `self.fee_rate_cap_duration_secs`.
-                            // If `self.fee_rate_cap_duration_secs` is exceeded, send transaction with fee rate above `self.max_fee_rate_sat_vb` anyway
+                            // Cap fee at self.max_fee_rate_sat_to_pay for a maximum of `self.fee_rate_cap_duration_secs`.
+                            // If `self.fee_rate_cap_duration_secs` is exceeded, send transaction with fee rate above `self.max_fee_rate_sat_to_pay` anyway
                             let elapsed = start.elapsed().as_secs();
 
-                            if fee_sat_per_vbyte > self.max_fee_rate_sat_vb
+                            if fee_sat_per_vbyte > self.max_fee_rate_sat_to_pay
                             && elapsed < self.fee_rate_cap_duration_secs {
-                                warn!("Fee rate {} sat/vb above cap of {}. Waiting (elapsed: {}s / max: {}s)", fee_sat_per_vbyte, self.max_fee_rate_sat_vb, elapsed, self.fee_rate_cap_duration_secs);
+                                warn!("Fee rate {} sat/vb above cap of {}. Waiting (elapsed: {}s / max: {}s)", fee_sat_per_vbyte, self.max_fee_rate_sat_to_pay, elapsed, self.fee_rate_cap_duration_secs);
                                 tokio::time::sleep(Duration::from_secs(10)).await;
                                 continue;
                             }
 
-                            if fee_sat_per_vbyte > self.max_fee_rate_sat_vb
+                            if fee_sat_per_vbyte > self.max_fee_rate_sat_to_pay
                             && elapsed >= self.fee_rate_cap_duration_secs {
                                 warn!(
                                     "Fee rate {} sat/vb above cap of {} sat/vb, but cap duration of {}s exceeded. Sending transaction anyway",
-                                    fee_sat_per_vbyte, self.max_fee_rate_sat_vb, self.fee_rate_cap_duration_secs
+                                    fee_sat_per_vbyte, self.max_fee_rate_sat_to_pay, self.fee_rate_cap_duration_secs
                                 );
                             }
 
