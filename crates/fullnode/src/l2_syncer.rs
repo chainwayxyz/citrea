@@ -26,7 +26,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::StorageRootHash;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
-use tracing::{error, info, instrument};
+use tracing::{debug, error, info, instrument};
 
 use crate::metrics::FULLNODE_METRICS;
 use crate::{InitParams, RollupPublicKeys, RunnerConfig};
