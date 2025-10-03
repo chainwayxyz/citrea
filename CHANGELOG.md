@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.5 (2025-10-02)
+- New config `RPC_ENABLE_JS_TRACER` to enable/disable `JsTracer` for EVM trace RPCs. (Default true).
+- Better mempool handling in the sequencer.
+- `eth_getBlockByNumber` now supports `pending` block tag.
+- Miscellaneous security fixes.
+
 ## v0.7.4 (2025-09-08)
 Release for improved memory usage in L1 syncing. Node operators on v0.7.3 are highly recommended to upgrade to v0.7.4.
 
@@ -7,6 +13,7 @@ Shutdown pre-v0.7.4 node run below citrea-cli command before running v0.7.4:
 ```sh
 citrea-cli rollback --node-type fullnode --db-path path/to/db --l2-target 9999999999 --l1-target 74247 --sequencer-commitment-index 0
 ```
+
 ## v0.7.3 (2025-08-28)
 Release for various bug & vulnerability fixes.
 
