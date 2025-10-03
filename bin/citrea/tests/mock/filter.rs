@@ -1,30 +1,15 @@
-/// Testing specific features of the sequencer
-use std::str::FromStr;
 use std::time::Duration;
 
-use alloy::consensus::{Signed, TxEip1559, TxEnvelope};
-use alloy::signers::local::PrivateKeySigner;
-use alloy::signers::Signer;
-use alloy_primitives::Address;
-use alloy_rlp::{BytesMut, Encodable};
-use alloy_rpc_types::{BlockNumberOrTag, Filter};
-use citrea_common::{SequencerConfig, SequencerMempoolConfig};
-use citrea_evm::system_contracts::BitcoinLightClient;
-use citrea_evm::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
-use citrea_sequencer::MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK;
+use alloy_rpc_types::Filter;
+use citrea_common::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
-use sov_mock_da::{MockAddress, MockDaService};
-use sov_rollup_interface::services::da::DaService;
 use tokio::time::sleep;
 
 use super::evm::init_test_rollup;
-use super::{initialize_test, TestConfig};
-use crate::common::client::TestClient;
 use crate::common::helpers::{
-    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment,
-    wait_for_l1_block, wait_for_l2_block, NodeMode,
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
 };
-use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
+use crate::common::TEST_DATA_GENESIS_PATH;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_filter_changes() -> Result<(), anyhow::Error> {
@@ -51,7 +36,7 @@ async fn test_filter_changes() -> Result<(), anyhow::Error> {
         block_production_interval_ms: 500,
         ..Default::default()
     };
-    let seq_task = start_rollup(
+    let _seq_task = start_rollup(
         seq_port_tx,
         GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
         None,
@@ -94,7 +79,6 @@ async fn test_filter_changes() -> Result<(), anyhow::Error> {
     // Should not be found as it should be removed due to TTL expiry
     assert!(!res);
     // create a block filter and check it works
-    let filter = Filter::default();
     let filter_id = seq_test_client.new_block_filter().await;
 
     // Publish some blocks

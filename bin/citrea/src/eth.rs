@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::Context as _;
 use citrea_common::RpcConfig;
@@ -12,6 +11,7 @@ use sov_state::ProverStorage;
 use tokio::sync::broadcast;
 
 /// Register ethereum methods.
+#[allow(clippy::too_many_arguments)]
 pub fn register_ethereum<Da: DaService>(
     da_service: Arc<Da>,
     storage: ProverStorage,

@@ -584,7 +584,7 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
             Filter::default()
                 .from_block(BlockNumberOrTag::Latest)
                 .to_block(BlockNumberOrTag::Latest)
-                .topic0(
+                .event_signature(
                     U256::from_str(
                         "0xa9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7",
                     )

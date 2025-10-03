@@ -518,6 +518,7 @@ mod tests {
             max_subscriptions_per_connection = 200
             trace_chain_block_limit = 100
             proving_jobs_limit = 50
+            stale_filter_ttl = 300
 
             [da]
             sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
@@ -573,6 +574,7 @@ mod tests {
                 timeout: 30,
                 enable_js_tracer: true,
                 api_key: None,
+                stale_filter_ttl: Some(300),
             },
             public_keys: RollupPublicKeys {
                 sequencer_public_key: vec![0; 33],
@@ -776,6 +778,7 @@ mod tests {
                 timeout: 30,
                 enable_js_tracer: true,
                 api_key: None,
+                stale_filter_ttl: None,
             },
             storage: StorageConfig {
                 path: "/tmp/rollup".into(),

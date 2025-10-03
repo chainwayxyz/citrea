@@ -747,6 +747,7 @@ where
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn create_rpc_module<C, Da>(
     da_service: Arc<Da>,
     eth_rpc_config: EthRpcConfig,
