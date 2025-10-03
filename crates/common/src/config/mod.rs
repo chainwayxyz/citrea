@@ -161,6 +161,8 @@ pub struct BatchProverConfig {
     pub proof_sampling_number: usize,
     /// If true prover will try to recover ongoing proving sessions
     pub enable_recovery: bool,
+    /// Maximum number of commitments per proof partition
+    pub max_commitments_per_proof: Option<usize>,
 }
 
 /// Prover configuration
@@ -182,6 +184,7 @@ impl Default for BatchProverConfig {
             proving_mode: ProverGuestRunConfig::Execute,
             proof_sampling_number: 0,
             enable_recovery: true,
+            max_commitments_per_proof: None,
         }
     }
 }
@@ -203,6 +206,9 @@ impl FromEnv for BatchProverConfig {
             proving_mode: serde_json::from_str(&format!("\"{}\"", read_env("PROVING_MODE")?))?,
             proof_sampling_number: read_env("PROOF_SAMPLING_NUMBER")?.parse()?,
             enable_recovery: read_env("ENABLE_RECOVERY")?.parse()?,
+            max_commitments_per_proof: read_env("MAX_COMMITMENTS_PER_PROOF")
+                .ok()
+                .and_then(|val| val.parse().ok()),
         })
     }
 }
@@ -233,6 +239,16 @@ pub fn from_toml_path<P: AsRef<Path>, R: DeserializeOwned>(path: P) -> anyhow::R
     Ok(result)
 }
 
+#[inline]
+const fn default_l1_fee_rate_multiplier() -> f64 {
+    1.0
+}
+
+#[inline]
+const fn default_max_l1_fee_rate_sat_vb() -> u64 {
+    15 // sat/vbyte
+}
+
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SequencerConfig {
@@ -252,6 +268,12 @@ pub struct SequencerConfig {
     pub block_production_interval_ms: u64,
     /// Bridge system contract initialize function parameters
     pub bridge_initialize_params: String,
+    /// L1 fee rate multiplier
+    #[serde(default = "default_l1_fee_rate_multiplier")]
+    pub l1_fee_rate_multiplier: f64,
+    /// Maximum L1 fee rate in sat/vbyte
+    #[serde(default = "default_max_l1_fee_rate_sat_vb")]
+    pub max_l1_fee_rate_sat_vb: u64,
 }
 
 impl Default for SequencerConfig {
@@ -266,6 +288,8 @@ impl Default for SequencerConfig {
             da_update_interval_ms: 100,
             bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
             mempool_conf: Default::default(),
+            l1_fee_rate_multiplier: 1.0,
+            max_l1_fee_rate_sat_vb: 1, // doesn't matter since mock da returns 10 wei/byte
         }
     }
 }
@@ -281,7 +305,69 @@ impl FromEnv for SequencerConfig {
             da_update_interval_ms: read_env("DA_UPDATE_INTERVAL_MS")?.parse()?,
             block_production_interval_ms: read_env("BLOCK_PRODUCTION_INTERVAL_MS")?.parse()?,
             bridge_initialize_params: read_env("BRIDGE_INITIALIZE_PARAMS")?,
+            l1_fee_rate_multiplier: read_env("L1_FEE_RATE_MULTIPLIER")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_l1_fee_rate_multiplier),
+            max_l1_fee_rate_sat_vb: read_env("MAX_L1_FEE_RATE_SAT_VB")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_max_l1_fee_rate_sat_vb),
         })
+    }
+}
+
+/// Mempool maintenance configuration wrapper since the original struct
+/// does not support serialize / deserialize
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct MempoolMaintenanceConfig {
+    /// Maximum accounts to reload from state at once
+    #[serde(default = "default_max_reload_accounts")]
+    pub max_reload_accounts: usize,
+    /// Maximum lifetime for non-executable transactions in seconds
+    #[serde(default = "default_max_tx_lifetime_secs")]
+    pub max_tx_lifetime_secs: u64,
+}
+
+const fn default_max_reload_accounts() -> usize {
+    100
+}
+
+const fn default_max_tx_lifetime_secs() -> u64 {
+    10800
+}
+
+impl Default for MempoolMaintenanceConfig {
+    fn default() -> Self {
+        Self {
+            max_reload_accounts: default_max_reload_accounts(),
+            max_tx_lifetime_secs: default_max_tx_lifetime_secs(),
+        }
+    }
+}
+
+impl FromEnv for MempoolMaintenanceConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            max_reload_accounts: std::env::var("SEQUENCER_MEMPOOL_MAX_RELOAD_ACCOUNTS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_max_reload_accounts),
+            max_tx_lifetime_secs: std::env::var("SEQUENCER_MEMPOOL_MAX_TX_LIFETIME_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_max_tx_lifetime_secs),
+        })
+    }
+}
+
+impl From<MempoolMaintenanceConfig> for reth_transaction_pool::maintain::MaintainPoolConfig {
+    fn from(config: MempoolMaintenanceConfig) -> Self {
+        Self {
+            max_update_depth: Default::default(),
+            max_reload_accounts: config.max_reload_accounts,
+            max_tx_lifetime: std::time::Duration::from_secs(config.max_tx_lifetime_secs),
+        }
     }
 }
 
@@ -303,6 +389,9 @@ pub struct SequencerMempoolConfig {
     pub base_fee_tx_size: u64,
     /// Max number of executable transaction slots guaranteed per account
     pub max_account_slots: u64,
+    /// Mempool maintenance configuration
+    #[serde(default)]
+    pub maintenance: MempoolMaintenanceConfig,
 }
 
 impl Default for SequencerMempoolConfig {
@@ -315,6 +404,7 @@ impl Default for SequencerMempoolConfig {
             base_fee_tx_limit: 100000,
             base_fee_tx_size: 200,
             max_account_slots: 16,
+            maintenance: MempoolMaintenanceConfig::default(),
         }
     }
 }
@@ -329,6 +419,7 @@ impl FromEnv for SequencerMempoolConfig {
             base_fee_tx_limit: read_env("BASE_FEE_TX_LIMIT")?.parse()?,
             base_fee_tx_size: read_env("BASE_FEE_TX_SIZE")?.parse()?,
             max_account_slots: read_env("MAX_ACCOUNT_SLOTS")?.parse()?,
+            maintenance: MempoolMaintenanceConfig::from_env()?,
         })
     }
 }
@@ -427,6 +518,7 @@ mod tests {
             enable_subscriptions = true
             max_subscriptions_per_connection = 200
             trace_chain_block_limit = 100
+            proving_jobs_limit = 50
 
             [da]
             sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
@@ -478,7 +570,9 @@ mod tests {
                 enable_subscriptions: true,
                 max_subscriptions_per_connection: 200,
                 trace_chain_block_limit: Some(100),
+                proving_jobs_limit: 50,
                 timeout: 30,
+                enable_js_tracer: true,
                 api_key: None,
             },
             public_keys: RollupPublicKeys {
@@ -509,6 +603,7 @@ mod tests {
             proving_mode: ProverGuestRunConfig::Skip,
             proof_sampling_number: 500,
             enable_recovery: true,
+            max_commitments_per_proof: None,
         };
         assert_eq!(config, expected);
     }
@@ -522,6 +617,8 @@ mod tests {
             da_update_interval_ms = 1000
             block_production_interval_ms = 1000
             bridge_initialize_params = "000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"
+            l1_fee_rate_multiplier = 0.75
+
             [mempool_conf]
             pending_tx_limit = 100000
             pending_tx_size = 200
@@ -550,10 +647,13 @@ mod tests {
                 base_fee_tx_limit: 100000,
                 base_fee_tx_size: 200,
                 max_account_slots: 16,
+                maintenance: MempoolMaintenanceConfig::default(),
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
             bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            l1_fee_rate_multiplier: 0.75,
+            max_l1_fee_rate_sat_vb: 15,
         };
         assert_eq!(config, expected);
     }
@@ -570,6 +670,7 @@ mod tests {
             proving_mode: ProverGuestRunConfig::Skip,
             proof_sampling_number: 500,
             enable_recovery: true,
+            max_commitments_per_proof: None,
         };
         assert_eq!(prover_config, expected);
     }
@@ -592,6 +693,7 @@ mod tests {
         std::env::set_var("BASE_FEE_TX_SIZE", "200");
         std::env::set_var("MAX_ACCOUNT_SLOTS", "16");
         std::env::set_var("BRIDGE_INITIALIZE_PARAMS", "000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000");
+        std::env::set_var("MAX_L1_FEE_RATE_SAT_VB", "40");
 
         let sequencer_config = SequencerConfig::from_env().unwrap();
 
@@ -609,10 +711,13 @@ mod tests {
                 base_fee_tx_limit: 100000,
                 base_fee_tx_size: 200,
                 max_account_slots: 16,
+                maintenance: MempoolMaintenanceConfig::default(),
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
             bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            l1_fee_rate_multiplier: 1.0,
+            max_l1_fee_rate_sat_vb: 40,
         };
         assert_eq!(sequencer_config, expected);
     }
@@ -634,6 +739,8 @@ mod tests {
         std::env::set_var("RPC_MAX_CONNECTIONS", "500");
         std::env::set_var("RPC_ENABLE_SUBSCRIPTIONS", "true");
         std::env::set_var("RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION", "200");
+        std::env::set_var("RPC_ENABLE_JS_TRACER", "true");
+        std::env::set_var("RPC_PROVING_JOBS_LIMIT", "50");
         std::env::set_var("RPC_TIMEOUT", "30");
 
         std::env::set_var(
@@ -666,7 +773,9 @@ mod tests {
                 enable_subscriptions: true,
                 max_subscriptions_per_connection: 200,
                 trace_chain_block_limit: None,
+                proving_jobs_limit: 50,
                 timeout: 30,
+                enable_js_tracer: true,
                 api_key: None,
             },
             storage: StorageConfig {

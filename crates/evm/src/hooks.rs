@@ -71,6 +71,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             parent_block_gas_limit,
             parent_block_base_fee_per_gas,
             cfg.base_fee_params,
+            l2_block_info.current_spec,
         );
 
         let evm_spec = citrea_spec_id_to_evm_spec_id(l2_block_info.current_spec);

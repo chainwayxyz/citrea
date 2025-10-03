@@ -12,6 +12,8 @@ use tokio::sync::oneshot;
 use tracing::error;
 use uuid::Uuid;
 
+use crate::is_dev_mode_enabled_via_environment;
+
 #[derive(Clone)]
 pub struct LocalProver {
     dev_mode: bool,
@@ -27,7 +29,7 @@ impl LocalProver {
             "Only supported RISC0_PROVER for LocalProver is ipc"
         );
 
-        let dev_mode = env::var("RISC0_DEV_MODE").is_ok();
+        let dev_mode = is_dev_mode_enabled_via_environment();
         let r0vm_path = get_r0vm_path().expect("Could not get r0vm path");
 
         // Check if the version of the r0vm matches the version of the risc0 crate

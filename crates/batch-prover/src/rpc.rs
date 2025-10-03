@@ -16,6 +16,7 @@ use alloy_primitives::{U32, U64};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use citrea_common::rpc::utils::internal_rpc_error;
+use citrea_common::RpcConfig;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_stf::runtime::DefaultContext;
 use citrea_stf::verifier::get_last_l1_hash_on_contract;
@@ -57,7 +58,7 @@ pub struct ProverInputResponse {
 
 /// Response type for the proving job status.
 /// Contains the job ID and its current status.
-#[derive(Clone, Copy, Deserialize, Serialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvingJobResponse {
     /// The unique identifier for the proving job
@@ -83,6 +84,8 @@ where
     pub storage_manager: ProverStorageManager,
     /// Code commitments for different specs, used to verify the proofs
     pub code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
+    /// RPC config
+    pub rpc_config: RpcConfig,
 }
 
 /// Creates a shared RpcContext with all required data.
@@ -108,6 +111,7 @@ pub fn create_rpc_context<Da, DB, Vm>(
     da_service: Arc<Da>,
     storage_manager: ProverStorageManager,
     code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
+    rpc_config: RpcConfig,
 ) -> RpcContext<Da, DB, Vm>
 where
     Da: DaService,
@@ -120,6 +124,7 @@ where
         da_service,
         storage_manager,
         code_commitments,
+        rpc_config,
     }
 }
 
@@ -221,12 +226,17 @@ pub trait BatchProverRpc {
     /// Gets last `count` number of job ids. Returns ids in descending order, so latest job is the first index.
     ///
     /// # Arguments
-    /// * `count` - The number of latest proving jobs to retrieve.
+    /// * `limit` - The number of latest proving jobs to retrieve.
+    /// * `skip` - The number of latest proving jobs to skip for pagination (default is 0).
     ///
     /// # Returns
     /// A vector of `ProvingJobResponse` containing job IDs and their statuses.
     #[method(name = "getProvingJobs")]
-    async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<ProvingJobResponse>>;
+    async fn get_proving_jobs(
+        &self,
+        limit: U64,
+        skip: Option<U64>,
+    ) -> RpcResult<Vec<ProvingJobResponse>>;
 
     /// Gets proving job details of the commitment index.
     ///
@@ -578,11 +588,19 @@ where
         }))
     }
 
-    async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<ProvingJobResponse>> {
+    async fn get_proving_jobs(
+        &self,
+        limit: U64,
+        skip: Option<U64>,
+    ) -> RpcResult<Vec<ProvingJobResponse>> {
+        let skip = skip.unwrap_or(U64::ZERO).to::<usize>();
+        let limit = limit.to::<usize>();
+        let limit = limit.min(self.context.rpc_config.proving_jobs_limit);
+
         let jobs = self
             .context
             .ledger_db
-            .get_latest_jobs(count)
+            .get_latest_jobs(limit, skip)
             .map_err(internal_rpc_error)?;
         let jobs = jobs
             .into_iter()

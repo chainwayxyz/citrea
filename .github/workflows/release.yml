@@ -10,7 +10,7 @@ jobs:
     runs-on: ubicloud-standard-30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Dependencies
         run: |
@@ -50,7 +50,7 @@ jobs:
     runs-on: self-hosted-citrea-osx-arm64
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust
         run: |
@@ -149,7 +149,7 @@ jobs:
     needs: [ release ]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download Citrea binary and Move required resources
         run: |

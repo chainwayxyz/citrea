@@ -205,10 +205,10 @@ fn test_sys_bitcoin_light_client() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 50714,
+                    cumulative_gas_used: 50737,
                     logs: vec![]
                 }.into(),
-                gas_used: 50714,
+                gas_used: 50737,
                 log_index_start: 0,
                 l1_diff_size: 46,
             },
@@ -216,7 +216,7 @@ fn test_sys_bitcoin_light_client() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 134036,
+                    cumulative_gas_used: 134059,
                     logs: vec![
                         Log {
                             address: BitcoinLightClient::address(),
@@ -235,7 +235,7 @@ fn test_sys_bitcoin_light_client() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 326605,
+                    cumulative_gas_used: 349971,
                     logs: vec![
                         Log {
                             address: BridgeWrapper::address(),
@@ -257,13 +257,19 @@ fn test_sys_bitcoin_light_client() {
                                 vec![b256!("79250b96878fd457364d1c1b77a660973c4f4ab67bda5e2fdb42caaa4d515f9d")],
                                 Bytes::from_static(&hex!("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000003100000000000000000000000000000000000007"))
                             ).unwrap(),
+                        },
+                        Log {
+                            address: BridgeWrapper::address(),
+                            data: LogData::new(
+                                vec![b256!("b5d41f23e03dbe9f07303369446a4eff88ec21acd7ffc066d287ffd56f215f85")],
+                                Bytes::from_static(&hex!("0000000000000000000000000000000000000000000000008ac7230489e7ff10"))
+                            ).unwrap(),
                         }
-
                     ]
                 }.into(),
-                gas_used: 192569,
+                gas_used: 215912,
                 log_index_start: 1,
-                l1_diff_size: 160,
+                l1_diff_size: 182,
             }
         ]
     );
@@ -419,6 +425,53 @@ fn test_sys_bitcoin_light_client() {
 
     assert_eq!(block_hash.as_ref(), &[2u8; 32]);
     assert_eq!(merkle_root.as_ref(), &[3u8; 32]);
+
+    // New L1 block #3 with coinbase depth greater than 255 (should fail with EvmSystemTxParseError)
+    l2_height += 1;
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SpecId::Tangerine,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 42,
+    };
+
+    let invalid_coinbase_depth = 256u64;
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+
+        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+
+        let set_block_info_tx = set_block_info_system_tx(
+            [3; 32],
+            [4; 32],
+            invalid_coinbase_depth,
+            &evm,
+            &mut working_set,
+        );
+
+        let deploy_message = create_contract_message_with_fee(
+            &dev_signer,
+            1,
+            SimpleStorageContract::default(),
+            10000000,
+        );
+
+        assert_eq!(
+            evm.call(
+                CallMessage {
+                    txs: vec![set_block_info_tx, deploy_message],
+                },
+                &context,
+                &mut working_set,
+            )
+            .unwrap_err(),
+            L2BlockModuleCallError::EvmSystemTxParseError
+        );
+    }
 }
 
 #[test]

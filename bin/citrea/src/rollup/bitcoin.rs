@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use bitcoin_da::fee::FeeService;
@@ -113,13 +114,20 @@ impl RollupBlueprint for BitcoinRollup {
             network,
         };
         let da_config = &rollup_config.da;
+
+        // Use configured timeouts or defaults
+        let timeout = da_config.rpc_timeout_secs.map(Duration::from_secs);
+        let connect_timeout = da_config.rpc_connect_timeout_secs.map(Duration::from_secs);
+
         let client = Arc::new(
-            Client::new(
+            Client::with_timeouts(
                 &da_config.node_url,
                 Auth::UserPass(
                     da_config.node_username.clone(),
                     da_config.node_password.clone(),
                 ),
+                timeout,
+                connect_timeout,
             )
             .await?,
         );

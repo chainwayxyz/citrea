@@ -2842,7 +2842,7 @@ dependencies = [
 
 [[package]]
 name = "bitcoin-da"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2859,7 +2859,7 @@ dependencies = [
  "jsonrpsee",
  "k256",
  "lru 0.13.0",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-derive",
  "rand 0.8.5",
  "reqwest",
@@ -2913,7 +2913,7 @@ dependencies = [
 [[package]]
 name = "bitcoincore-rpc"
 version = "0.18.0"
-source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=72dbe74#72dbe748759a5129d877dcac117f70ecb28e676f"
+source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=a6e011a#a6e011abec5e345c6474dd47a0b58fd93d486193"
 dependencies = [
  "async-trait",
  "bitcoincore-rpc-json",
@@ -2928,7 +2928,7 @@ dependencies = [
 [[package]]
 name = "bitcoincore-rpc-json"
 version = "0.18.0"
-source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=72dbe74#72dbe748759a5129d877dcac117f70ecb28e676f"
+source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=a6e011a#a6e011abec5e345c6474dd47a0b58fd93d486193"
 dependencies = [
  "bitcoin",
  "serde",
@@ -3565,13 +3565,16 @@ dependencies = [
 
 [[package]]
 name = "citrea"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy 0.13.0",
  "alloy-primitives 0.8.25",
  "alloy-rlp",
  "alloy-rpc-types 0.13.0",
  "alloy-rpc-types-trace",
+ "alloy-rpc-types-txpool",
+ "alloy-signer 0.13.0",
+ "alloy-signer-local 0.13.0",
  "alloy-sol-types 0.8.25",
  "anyhow",
  "async-trait",
@@ -3601,10 +3604,11 @@ dependencies = [
  "hex",
  "jmt",
  "jsonrpsee",
+ "k256",
  "l2-block-rule-enforcer",
  "log",
  "log-panics",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-exporter-prometheus",
  "metrics-util",
  "prover-services",
@@ -3644,7 +3648,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-batch-prover"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-primitives 0.8.25",
  "anyhow",
@@ -3660,7 +3664,7 @@ dependencies = [
  "futures",
  "hex",
  "jsonrpsee",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-derive",
  "parking_lot",
  "prover-services",
@@ -3692,7 +3696,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-cli"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "citrea-common",
@@ -3707,7 +3711,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-common"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-consensus 0.13.0",
  "alloy-primitives 0.8.25",
@@ -3724,9 +3728,10 @@ dependencies = [
  "hyper 1.6.0",
  "jsonrpsee",
  "lru 0.13.0",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "reth-primitives",
  "reth-tasks",
+ "reth-transaction-pool",
  "rocksdb",
  "serde",
  "serde_json",
@@ -3751,7 +3756,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=859cddf#859cddf2f7f6ecc92be0cd5f99d282bff2b632ce"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=31c25bc#31c25bcb06eaea7c83ddf80c0daf901bfb512fdd"
 dependencies = [
  "alloy-primitives 0.8.25",
  "anyhow",
@@ -3775,7 +3780,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-evm"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy 0.13.0",
  "alloy-consensus 0.13.0",
@@ -3796,7 +3801,7 @@ dependencies = [
  "itertools 0.13.0",
  "jsonrpsee",
  "k256",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-derive",
  "rand 0.8.5",
  "rayon",
@@ -3836,7 +3841,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-fullnode"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-primitives 0.8.25",
  "anyhow",
@@ -3850,7 +3855,7 @@ dependencies = [
  "citrea-storage-ops",
  "hex",
  "jsonrpsee",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-derive",
  "reth-tasks",
  "rs_merkle",
@@ -3870,9 +3875,11 @@ dependencies = [
 
 [[package]]
 name = "citrea-light-client-prover"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-primitives 0.8.25",
+ "alloy-signer 0.13.0",
+ "alloy-signer-local 0.13.0",
  "anyhow",
  "async-trait",
  "bitcoin-da",
@@ -3884,7 +3891,8 @@ dependencies = [
  "constmuck",
  "hex",
  "jsonrpsee",
- "metrics 0.23.0",
+ "k256",
+ "metrics 0.23.1",
  "metrics-derive",
  "prover-services",
  "rand 0.8.5",
@@ -3904,7 +3912,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-eips 0.13.0",
  "brotli",
@@ -3915,7 +3923,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-adapter"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-primitives 0.8.25",
  "anyhow",
@@ -3927,7 +3935,7 @@ dependencies = [
  "boundless-market",
  "citrea-common",
  "hex",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "reqwest",
  "risc0-zkp",
  "risc0-zkvm",
@@ -3944,21 +3952,21 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-batch-proof"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "risc0-build",
 ]
 
 [[package]]
 name = "citrea-risc0-light-client"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "risc0-build",
 ]
 
 [[package]]
 name = "citrea-sequencer"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-eips 0.13.0",
  "alloy-genesis 0.13.0",
@@ -3983,7 +3991,7 @@ dependencies = [
  "hex",
  "jsonrpsee",
  "l2-block-rule-enforcer",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-derive",
  "parking_lot",
  "reth-chainspec",
@@ -4010,13 +4018,14 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "tokio",
+ "tokio-stream",
  "tracing",
  "tracing-subscriber 0.3.20",
 ]
 
 [[package]]
 name = "citrea-stf"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "borsh",
@@ -4046,7 +4055,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-storage-ops"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "citrea-common",
@@ -5124,7 +5133,7 @@ dependencies = [
 
 [[package]]
 name = "ethereum-rpc"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-consensus 0.13.0",
  "alloy-network 0.13.0",
@@ -6633,7 +6642,7 @@ dependencies = [
 
 [[package]]
 name = "integration-tests"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "borsh",
@@ -7070,7 +7079,7 @@ dependencies = [
 
 [[package]]
 name = "l2-block-rule-enforcer"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "borsh",
  "chrono",
@@ -7549,9 +7558,9 @@ dependencies = [
 
 [[package]]
 name = "metrics"
-version = "0.23.0"
+version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "884adb57038347dfbaf2d5065887b6cf4312330dc8e94bc30a1a839bd79d3261"
+checksum = "3045b4193fbdc5b5681f32f11070da9be3609f189a79f3390706d42587f46bb5"
 dependencies = [
  "ahash",
  "portable-atomic",
@@ -7592,7 +7601,7 @@ dependencies = [
  "hyper-util",
  "indexmap 2.7.1",
  "ipnet",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-util",
  "quanta",
  "thiserror 1.0.69",
@@ -7611,7 +7620,7 @@ dependencies = [
  "crossbeam-utils",
  "hashbrown 0.14.5",
  "indexmap 2.7.1",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "num_cpus",
  "ordered-float",
  "quanta",
@@ -8674,12 +8683,12 @@ dependencies = [
 
 [[package]]
 name = "prover-services"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "async-trait",
  "borsh",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-derive",
  "rand 0.8.5",
  "sov-mock-da",
@@ -11876,7 +11885,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "short-header-proof-provider"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "borsh",
  "futures",
@@ -12017,7 +12026,7 @@ dependencies = [
 
 [[package]]
 name = "sov-accounts"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "borsh",
  "hex",
@@ -12037,7 +12046,7 @@ dependencies = [
 
 [[package]]
 name = "sov-db"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-primitives 0.8.25",
  "anyhow",
@@ -12060,7 +12069,7 @@ dependencies = [
 
 [[package]]
 name = "sov-keys"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "borsh",
  "derive_more 1.0.0",
@@ -12077,7 +12086,7 @@ dependencies = [
 
 [[package]]
 name = "sov-ledger-rpc"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-primitives 0.8.25",
  "anyhow",
@@ -12093,7 +12102,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-da"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12112,7 +12121,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-zkvm"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12125,7 +12134,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -12156,7 +12165,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -12182,7 +12191,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-macros"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "borsh",
  "jsonrpsee",
@@ -12200,7 +12209,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-rollup-blueprint"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12222,7 +12231,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "borsh",
@@ -12242,7 +12251,7 @@ dependencies = [
 
 [[package]]
 name = "sov-prover-storage-manager"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -12256,7 +12265,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-primitives 0.8.25",
  "anyhow",
@@ -12280,11 +12289,11 @@ dependencies = [
 
 [[package]]
 name = "sov-schema-db"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "byteorder",
- "metrics 0.23.0",
+ "metrics 0.23.1",
  "metrics-derive",
  "rocksdb",
  "sov-schema-db",
@@ -12296,7 +12305,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-primitives 0.8.25",
  "alloy-rlp",

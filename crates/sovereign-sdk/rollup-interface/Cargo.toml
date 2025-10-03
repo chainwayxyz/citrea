@@ -8,9 +8,7 @@ repository = { workspace = true }
 description = "Defines interfaces for building rollups with the Sovereign SDK"
 
 version = { workspace = true }
-exclude = [
-  "specs/assets/*",
-]
+exclude = ["specs/assets/*"]
 readme = "README.md"
 resolver = "2"
 

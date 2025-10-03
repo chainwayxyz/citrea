@@ -88,20 +88,32 @@ for chunk in chunk_bodies:
 ```
 OP_FALSE
 OP_IF
-OP_PUSHDATA(signature)
-OP_PUSHDATA(batch_prover_public_key)
 OP_PUSHDATA(up to 520-bytes chunk of blob)
 OP_ENDIF
 OP_PUSHDATA(8 random bytes [nonce, nonce > 15 to avoid script parsing issues ])
 OP_NIP
 ```
 
-Where `blob` is `borsh(DataOnDa::BatchProofMethodId(BatchProofMethodId))`, `signature` is the signature of the `blob`.
+Where `blob` is `borsh(DataOnDa::BatchProofMethodId(BatchProofMethodId))`.
 
 And `BatchProofMethodId` is:
 
 ```rust
-struct BatchProofMethodId {
+/// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
+pub struct BatchProofMethodId {
+    /// Body of the method id update, the message to be signed
+    /// Includes method id and activation height
+    pub body: BatchProofMethodIdBody,
+    /// Signatures to be verified for the method id update used for a 3 of 5 security council
+    /// Consists of 64 byte keccak256(eip191 prefixed message) prehash signed signatures
+    /// The public keys can be recovered from the signatures and the prehash
+    /// The indices point to the pubkeys in the light client circuit initial values
+    /// To verify the signature the pubkey should be fetched from the initial values corresponding to the signature
+    /// If one signature verification fails the whole method id update is invalid
+    pub signatures_with_index: [([u8; 64], u8); 3],
+}
+/// Body of the batch proof method id update for light client
+struct BatchProofMethodIdBody {
     /// New method id of upcoming fork
     method_id: [u32; 8],
     /// Activation L2 height of the new method id
