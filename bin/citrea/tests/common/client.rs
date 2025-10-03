@@ -965,11 +965,14 @@ impl TestClient {
             .unwrap()
     }
 
-    pub(crate) async fn get_filter_changes(&self, id: FilterId) -> Vec<FilterChanges<Transaction>> {
+    pub(crate) async fn get_filter_changes(
+        &self,
+        id: FilterId,
+    ) -> Result<FilterChanges<Transaction>, Box<dyn std::error::Error>> {
         self.http_client
             .request("eth_getFilterChanges", rpc_params![id])
             .await
-            .unwrap()
+            .map_err(|e| e.into())
     }
 
     pub(crate) async fn get_filter_logs(&self, id: FilterId) -> Vec<Log> {
