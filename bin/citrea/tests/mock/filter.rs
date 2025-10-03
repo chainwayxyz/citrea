@@ -44,7 +44,7 @@ async fn test_filter_changes() -> Result<(), anyhow::Error> {
         None,
     );
     // Update the stale filter TTL to 10 seconds for testing purposes
-    rollup_config.rpc.stale_filter_ttl = Some(Duration::from_secs(10));
+    rollup_config.rpc.stale_filter_ttl = Some(10);
     let sequencer_config = SequencerConfig {
         max_l2_blocks_per_commitment: 1000,
         da_update_interval_ms: 500,
@@ -67,7 +67,9 @@ async fn test_filter_changes() -> Result<(), anyhow::Error> {
     let seq_test_client = init_test_rollup(seq_port).await;
 
     seq_test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&seq_test_client, 1, None).await;
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 3, None).await;
 
     let filter = Filter::default();
     let filter_id = seq_test_client.install_filter(filter).await;
@@ -91,5 +93,24 @@ async fn test_filter_changes() -> Result<(), anyhow::Error> {
     let res = seq_test_client.uninstall_filter(filter_id).await;
     // Should not be found as it should be removed due to TTL expiry
     assert!(!res);
+    // create a block filter and check it works
+    let filter = Filter::default();
+    let filter_id = seq_test_client.new_block_filter().await;
+
+    // Publish some blocks
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+    seq_test_client.send_publish_batch_request().await;
+
+    wait_for_l2_block(&seq_test_client, 8, None).await;
+
+    // Get filter changes
+    let changes = seq_test_client.get_filter_changes(filter_id).await.unwrap();
+
+    // It should return 6 blocks, the one at which the filter was created + 5 new ones
+    assert_eq!(changes.as_hashes().unwrap().iter().len(), 6);
+
     Ok(())
 }
