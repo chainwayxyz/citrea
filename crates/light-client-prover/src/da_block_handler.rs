@@ -27,7 +27,7 @@ use sov_rollup_interface::zk::{ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
 use tokio::select;
 use tokio::sync::{Mutex, Notify};
-use tracing::{error, instrument};
+use tracing::{debug, error, instrument};
 
 use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
@@ -139,6 +139,20 @@ where
         last_l1_height_scanned: StartVariant,
         mut shutdown_signal: GracefulShutdown,
     ) {
+        if let Ok(Some(proven_height)) = self
+            .ledger_db
+            .get_highest_l2_height_for_status(sov_db::schema::types::L2HeightStatus::Proven, None)
+        {
+            LPM.highest_proven_l2_height
+                .set(proven_height.height as f64);
+            LPM.highest_proven_index
+                .set(proven_height.commitment_index as f64);
+            debug!(
+                "Initialized highest_proven_l2_height metric: {} at index {}",
+                proven_height.height, proven_height.commitment_index
+            );
+        }
+
         // if self.prover_config.enable_recovery {
         //     if let Err(e) = self.check_and_recover_ongoing_proving_sessions().await {
         //         error!("Failed to recover ongoing proving sessions: {:?}", e);

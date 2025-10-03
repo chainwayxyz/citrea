@@ -1065,6 +1065,22 @@ where
         &mut self,
         mut shutdown_signal: GracefulShutdown,
     ) -> Result<(), anyhow::Error> {
+        if let Ok(Some(commitment)) = self.ledger_db.get_last_commitment() {
+            SM.latest_sequencer_commitment_index
+                .set(commitment.index as f64);
+            SM.latest_sequencer_commitment_l2_end_height
+                .set(commitment.l2_end_block_number as f64);
+            debug!(
+                "Initialized sequencer commitment metrics: index={}, end_height={}",
+                commitment.index, commitment.l2_end_block_number
+            );
+        }
+
+        if let Ok(Some(head_l2_height)) = self.ledger_db.get_head_l2_block_height() {
+            SM.current_l2_block.set(head_l2_height as f64);
+            debug!("Initialized current_l2_block metric: {}", head_l2_height);
+        }
+
         let l1_fee_rate_multiplier = self.config.l1_fee_rate_multiplier;
         let max_l1_fee_rate_sat_vb = self.config.max_l1_fee_rate_sat_vb;
 
