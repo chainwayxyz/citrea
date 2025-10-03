@@ -22,7 +22,7 @@ use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_e2e::traits::NodeT;
 use citrea_light_client_prover::circuit::{
-    citrea_network_to_method_id_upgrade_identifier, SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE,
+    citrea_network_to_chain_id, SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE,
     SECURITY_COUNCIL_MEMBER_COUNT,
 };
 use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
@@ -481,7 +481,7 @@ pub async fn generate_mock_txs(
     let method_id_body = BatchProofMethodIdBody {
         method_id: [0; 8],
         activation_l2_height: 0,
-        network_id: citrea_network_to_method_id_upgrade_identifier(Network::Nightly),
+        chain_id: citrea_network_to_chain_id(Network::Nightly),
     };
 
     let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
@@ -601,7 +601,7 @@ pub async fn generate_mock_txs(
     let method_id_body = BatchProofMethodIdBody {
         method_id: [1; 8],
         activation_l2_height: 100,
-        network_id: citrea_network_to_method_id_upgrade_identifier(Network::Nightly),
+        chain_id: citrea_network_to_chain_id(Network::Nightly),
     };
 
     let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
