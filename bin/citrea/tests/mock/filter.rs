@@ -1,0 +1,95 @@
+/// Testing specific features of the sequencer
+use std::str::FromStr;
+use std::time::Duration;
+
+use alloy::consensus::{Signed, TxEip1559, TxEnvelope};
+use alloy::signers::local::PrivateKeySigner;
+use alloy::signers::Signer;
+use alloy_primitives::Address;
+use alloy_rlp::{BytesMut, Encodable};
+use alloy_rpc_types::{BlockNumberOrTag, Filter};
+use citrea_common::{SequencerConfig, SequencerMempoolConfig};
+use citrea_evm::system_contracts::BitcoinLightClient;
+use citrea_evm::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
+use citrea_sequencer::MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK;
+use citrea_stf::genesis_config::GenesisPaths;
+use sov_mock_da::{MockAddress, MockDaService};
+use sov_rollup_interface::services::da::DaService;
+use tokio::time::sleep;
+
+use super::evm::init_test_rollup;
+use super::{initialize_test, TestConfig};
+use crate::common::client::TestClient;
+use crate::common::helpers::{
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment,
+    wait_for_l1_block, wait_for_l2_block, NodeMode,
+};
+use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_filter_changes() -> Result<(), anyhow::Error> {
+    citrea::initialize_logging(tracing::Level::INFO);
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let mut rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+    // Update the stale filter TTL to 10 seconds for testing purposes
+    rollup_config.rpc.stale_filter_ttl = Some(Duration::from_secs(10));
+    let sequencer_config = SequencerConfig {
+        max_l2_blocks_per_commitment: 1000,
+        da_update_interval_ms: 500,
+        block_production_interval_ms: 500,
+        ..Default::default()
+    };
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_test_client = init_test_rollup(seq_port).await;
+
+    seq_test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&seq_test_client, 1, None).await;
+
+    let filter = Filter::default();
+    let filter_id = seq_test_client.install_filter(filter).await;
+    // Try to remove filter
+    let res = seq_test_client.uninstall_filter(filter_id.clone()).await;
+    // Should be found and removed
+    assert!(res);
+
+    // Try to remove again
+    let res = seq_test_client.uninstall_filter(filter_id).await;
+    // Should not be found
+    assert!(!res);
+
+    // Create a new filter
+    let filter = Filter::default();
+    let filter_id = seq_test_client.install_filter(filter).await;
+
+    // Wait for 21 seconds (2*ttl+1 second more than the TTL)
+    sleep(Duration::from_secs(21)).await;
+    // Try to remove filter
+    let res = seq_test_client.uninstall_filter(filter_id).await;
+    // Should not be found as it should be removed due to TTL expiry
+    assert!(!res);
+    Ok(())
+}
