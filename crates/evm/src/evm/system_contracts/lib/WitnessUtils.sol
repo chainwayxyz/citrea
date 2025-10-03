@@ -5,7 +5,6 @@ pragma solidity ^0.8.4;
 /** @author Citrea, modified from Bitcoin-SPV */
 
 import {BytesLib} from "bitcoin-spv/solidity/contracts/BytesLib.sol";
-import {SafeMath} from "bitcoin-spv/solidity/contracts/SafeMath.sol";
 import "bitcoin-spv/solidity/contracts/BTCUtils.sol";
 
 library WitnessUtils {
@@ -74,7 +73,7 @@ library WitnessUtils {
 
         for (uint256 i = 0; i < _nStackItems; i++) {
             (_varIntDataLen, _itemLen) = BTCUtils.parseVarIntAt(_witness, _at + _offset);
-            if (_itemLen == BTCUtils.ERR_BAD_ARG) {
+            if (_varIntDataLen == BTCUtils.ERR_BAD_ARG) {
                 return BTCUtils.ERR_BAD_ARG;
             }
 
@@ -115,19 +114,19 @@ library WitnessUtils {
         
         (_varIntDataLen, _nItems) = BTCUtils.parseVarInt(_witness);
         require(_varIntDataLen != BTCUtils.ERR_BAD_ARG, "Read overrun during VarInt parsing");
-        require(_index < _nItems, "Vin read overrun");
+        require(_index < _nItems, "Witness read overrun");
 
         uint256 _itemLen = 0;
         uint256 _offset = 1 + _varIntDataLen;
 
         for (uint256 i = 0; i < _index; i++) {
             (_varIntDataLen, _itemLen) = BTCUtils.parseVarIntAt(_witness, _offset);
-            require(_itemLen != BTCUtils.ERR_BAD_ARG, "Bad VarInt in item");
+            require(_varIntDataLen != BTCUtils.ERR_BAD_ARG, "Bad VarInt in item");
             _offset += 1 + _varIntDataLen + _itemLen;
         }
 
         (_varIntDataLen, _itemLen) = BTCUtils.parseVarIntAt(_witness, _offset);
-        require(_itemLen != BTCUtils.ERR_BAD_ARG, "Bad VarInt in item");
+        require(_varIntDataLen != BTCUtils.ERR_BAD_ARG, "Bad VarInt in item");
         return _witness.slice(_offset, _itemLen + _varIntDataLen + 1);
     }
 }

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
@@ -20,8 +20,25 @@ abstract contract FeeVaultTest is Test {
     function testWithdraw() public {
         vm.deal(address(feeVault), 1 ether);
         vm.prank(owner);
+        vm.expectEmit();
+        emit FeeVault.Withdrawal(recipient, 1 ether);
         feeVault.withdraw();
         assertEq(address(recipient).balance, 1 ether);
+    }
+
+    function testCannotSetRecipientToZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert("Recipient cannot be zero address");
+        feeVault.setRecipient(address(0));
+    }
+
+    function testCannotWithdrawToZeroRecipient() public {
+        vm.deal(address(feeVault), 1 ether);
+        vm.prank(owner);
+        // Directly store as `setRecipient` will revert if zero address is provided
+        vm.store(address(feeVault), bytes32(uint256(0)), bytes32(uint256(0)));
+        vm.expectRevert("Recipient is not set");
+        feeVault.withdraw();
     }
 
     function testCannotWithdrawLessThanMinWithdraw() public {

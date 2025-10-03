@@ -644,7 +644,7 @@ pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Op
 
         sleep(Duration::from_secs(1)).await;
     }
-    // Let knowledgage of the new DA block propagate
+    // Let knowledge of the new DA block propagate
     sleep(Duration::from_secs(2)).await;
 }
 

@@ -54,7 +54,7 @@ impl KeyCodec<AccountBalanceSchema> for Account {
 	}
 }
 
-impl ValueCode<AccountBlanceSchema> for u64 {
+impl ValueCode<AccountBalanceSchema> for u64 {
 	// elided
 }
 ```

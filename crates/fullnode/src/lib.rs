@@ -207,7 +207,7 @@ pub fn build_services<DA, DB, Vm>(
     RpcModule<()>,
 )>
 where
-    DA: DaService<Error = anyhow::Error>,
+    DA: DaService,
     DB: NodeLedgerOps + Send + Sync + Clone + 'static,
     Vm: ZkvmHost + Zkvm,
 {

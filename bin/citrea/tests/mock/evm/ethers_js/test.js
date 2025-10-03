@@ -12,7 +12,7 @@ describe("RpcTests", function() {
     //Makes an initial tx to test for later, used to prevent waiting for a block to mine in each such test
     before(async function() {
         this.timeout(0);
-        let tx = await generateTransaction('10');
+        let tx = await generateTransaction('10', '0x01');
         let signer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
         tx = await signer.signTransaction(tx);
         let tx_response = await provider.broadcastTransaction(tx);
@@ -73,7 +73,7 @@ describe("RpcTests", function() {
         const contractAddress = '0x3100000000000000000000000000000000000002';
         const contract = new ethers.Contract(contractAddress, abi, wallet);
         const txId = ethers.encodeBytes32String('0x1234');
-        const outputId = ethers.zeroPadBytes(ethers.toUtf8Bytes('0x01'), 4);
+        const outputId = ethers.zeroPadBytes(ethers.toUtf8Bytes('0x05'), 4);
 
         let gasEstimate = await contract.withdraw.estimateGas(txId, outputId, {value: ethers.parseEther('10')});
         expect(gasEstimate > 0n).to.be.true;
@@ -111,7 +111,7 @@ describe("RpcTests", function() {
 
     it("broadcastTransaction publishes a txn and it gets mined", async function() {
         this.timeout(0);
-        let tx = await generateTransaction('10');
+        let tx = await generateTransaction('10', '0x02');
         let signer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
         tx = await signer.signTransaction(tx);
         let tx_response = await provider.broadcastTransaction(tx);
@@ -246,7 +246,7 @@ describe("RpcTests", function() {
 
     it("broadcastTransaction with wrong function parameters errors with the correct message", async function() {
         this.timeout(0);
-        let tx = await generateTransaction('0.9');
+        let tx = await generateTransaction('0.9', '0x03');
         let signer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
         tx = await signer.signTransaction(tx);
         try {
@@ -292,7 +292,7 @@ describe("RpcTests", function() {
         expect(balanceNow > ethers.parseEther('21000000')).to.be.true;
     });
 
-const generateTransaction = async (ether_value) => {
+const generateTransaction = async (ether_value, _outputId) => {
     const abi = [
         {
             "type": "function",
@@ -319,7 +319,7 @@ const generateTransaction = async (ether_value) => {
     const contractAddress = '0x3100000000000000000000000000000000000002';
     const contract = new ethers.Contract(contractAddress, abi, wallet);
     const txId = ethers.encodeBytes32String('0x1234');
-    const outputId = ethers.zeroPadBytes(ethers.toUtf8Bytes('0x01'), 4);
+    const outputId = ethers.zeroPadBytes(ethers.toUtf8Bytes(_outputId), 4);
 
     let tx = {
         to: contractAddress,

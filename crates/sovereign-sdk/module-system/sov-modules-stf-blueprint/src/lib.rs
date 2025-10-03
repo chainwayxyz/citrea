@@ -545,7 +545,7 @@ where
         assert_eq!(group_count, sequencer_commitments.len() as u32);
         // Proofs start when Tangerine fork is activated.
         // As proofs are only generated post tangerine, >= is safe to do
-        // As with the introudction of Fork3, nightly tests run on Fork3 fork only
+        // As with the introduction of Fork3, nightly tests run on Fork3 fork only
         let proving_activation_height = forks
             .iter()
             .find(|f| f.spec_id >= SpecId::Tangerine)
