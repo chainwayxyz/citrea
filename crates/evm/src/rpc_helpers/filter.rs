@@ -183,24 +183,22 @@ pub struct CitreaFilter {
     pub stale_filter_ttl: Duration,
 }
 
-impl Default for CitreaFilter {
-    fn default() -> Self {
-        Self::new(None)
-    }
-}
-
 impl CitreaFilter {
     /// Creates a new instance of the CitreaFilter.
-    pub fn new(stale_filter_ttl: Option<Duration>) -> CitreaFilter {
+    pub fn new(
+        task_executor: reth_tasks::TaskExecutor,
+        stale_filter_ttl: Option<Duration>,
+    ) -> CitreaFilter {
         let citrea_filter = CitreaFilter {
             active_filters: ActiveFilters::new(),
             id_provider: Arc::new(EthSubscriptionIdProvider::default()),
-            task_executor: TaskManager::current().executor(),
+            task_executor,
             // TODO: Get from config
             stale_filter_ttl: stale_filter_ttl.unwrap_or_else(|| DEFAULT_STALE_FILTER_TTL),
         };
 
         let this = citrea_filter.clone();
+        tracing::info!("AAStarting stale filter clearing task ");
         citrea_filter.task_executor.spawn_critical(
             "eth-filters_stale-filters-clean",
             Box::pin(async move {
@@ -218,6 +216,10 @@ impl CitreaFilter {
     /// Endless future that [`Self::clear_stale_filters`] every `stale_filter_ttl` interval.
     /// Nonetheless, this endless future frees the thread at every await point.
     async fn watch_and_clear_stale_filters(&self) {
+        tracing::info!(
+            "Starting stale filter clearing task with ttl: {:?}",
+            self.stale_filter_ttl
+        );
         let mut interval = tokio::time::interval_at(
             tokio::time::Instant::now() + self.stale_filter_ttl,
             self.stale_filter_ttl,
@@ -232,14 +234,13 @@ impl CitreaFilter {
     /// Clears all filters that have not been polled for longer than the configured
     /// `stale_filter_ttl` at the given instant.
     pub async fn clear_stale_filters(&self, now: Instant) {
-        tracing::trace!(target: "rpc::eth", "clear stale filters");
+        tracing::info!(target: "rpc::eth", "clear stale filters");
         self.active_filters()
             .inner
             .lock()
             .await
             .retain(|id, filter| {
-                let is_valid = filter.last_poll_timestamp.saturating_duration_since(now)
-                    < self.stale_filter_ttl;
+                let is_valid = (now - filter.last_poll_timestamp) < self.stale_filter_ttl;
 
                 if !is_valid {
                     tracing::trace!(target: "rpc::eth", "evict filter with id: {:?}", id);

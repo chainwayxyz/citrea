@@ -3730,6 +3730,7 @@ dependencies = [
  "reth-rpc-eth-api",
  "reth-rpc-eth-types",
  "reth-rpc-types-compat",
+ "reth-tasks",
  "rustc_version_runtime",
  "schnellru",
  "serde",

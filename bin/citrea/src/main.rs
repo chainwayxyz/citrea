@@ -238,6 +238,8 @@ where
         rollup_config.rpc.clone(),
     )?;
 
+    let task_executor = task_manager.executor();
+
     if matches!(node_type, NodeWithConfig::LightClientProver(_)) {
         register_healthcheck_rpc_light_client_prover(&mut rpc_module, da_service.clone())
             .expect("Failed to register healthcheck RPC for light client prover");
@@ -252,10 +254,9 @@ where
             &mut rpc_module,
             sequencer_client_url,
             l2_block_rx,
+            task_executor.clone(),
         )?;
     }
-
-    let task_executor = task_manager.executor();
 
     match node_type {
         NodeWithConfig::Sequencer(sequencer_config) => {

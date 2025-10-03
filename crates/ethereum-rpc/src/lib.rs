@@ -755,6 +755,7 @@ pub fn create_rpc_module<C, Da>(
     ledger_db: LedgerDB,
     sequencer_client_url: Option<String>,
     l2_block_rx: Option<broadcast::Receiver<u64>>,
+    task_executor: reth_tasks::TaskExecutor,
 ) -> RpcModule<EthereumRpcServerImpl<C, Da>>
 where
     C: sov_modules_api::Context,
@@ -771,13 +772,16 @@ where
     let enable_subscriptions = l2_block_rx.is_some();
 
     // If the running node is a full node rpc context should also have sequencer client so that it can send txs to sequencer
+    tracing::info!("ttl: {:?}", rpc_config.stale_filter_ttl);
     let ethereum = Arc::new(Ethereum::new(
         da_service,
         eth_rpc_config,
+        rpc_config.stale_filter_ttl,
         storage,
         ledger_db,
         sequencer_client_url.map(|url| HttpClientBuilder::default().build(url).unwrap()),
         l2_block_rx,
+        task_executor,
     ));
     let server = EthereumRpcServerImpl::new(
         ethereum,

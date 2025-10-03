@@ -4,6 +4,7 @@ use std::time::Duration;
 use anyhow::Context as _;
 use citrea_common::RpcConfig;
 use ethereum_rpc::{EthRpcConfig, FeeHistoryCacheConfig, GasPriceOracleConfig};
+use reth_tasks::TaskExecutor;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
 use sov_rollup_interface::services::da::DaService;
@@ -19,14 +20,12 @@ pub fn register_ethereum<Da: DaService>(
     methods: &mut jsonrpsee::RpcModule<()>,
     sequencer_client_url: Option<String>,
     l2_block_rx: Option<broadcast::Receiver<u64>>,
+    task_executor: TaskExecutor,
 ) -> Result<(), anyhow::Error> {
     let eth_rpc_config = {
         EthRpcConfig {
             gas_price_oracle_config: GasPriceOracleConfig::default(),
             fee_history_cache_config: FeeHistoryCacheConfig::default(),
-            stale_filter_ttl: std::env::var("CITREA_ETH_RPC_STALE_FILTER_TTL")
-                .ok()
-                .and_then(|s| Some(Duration::from_secs(s.parse().ok()?))),
         }
     };
 
@@ -38,6 +37,7 @@ pub fn register_ethereum<Da: DaService>(
         ledger_db,
         sequencer_client_url,
         l2_block_rx,
+        task_executor,
     );
     methods
         .merge(ethereum_rpc)
