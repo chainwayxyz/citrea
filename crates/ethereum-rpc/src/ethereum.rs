@@ -44,7 +44,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
     pub(crate) fn new(
         da_service: Arc<Da>,
         eth_rpc_config: EthRpcConfig,
-        stale_filter_ttl: Option<std::time::Duration>,
+        stale_filter_ttl: Option<usize>,
         storage: C::Storage,
         ledger_db: LedgerDB,
         sequencer_client: Option<HttpClient>,

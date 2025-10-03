@@ -80,7 +80,7 @@ pub struct RpcConfig {
     /// Maximum number of L2 blocks to be traced with debug_traceChain
     pub trace_chain_block_limit: Option<u64>,
     /// Duration after which a filter is considered stale and removed
-    pub stale_filter_ttl: Option<std::time::Duration>,
+    pub stale_filter_ttl: Option<usize>,
     /// Maximum number of responded proving jobs in RPC batchProver_getProvingJobs
     #[serde(default = "default_proving_jobs_limit")]
     pub proving_jobs_limit: usize,
@@ -137,7 +137,7 @@ impl FromEnv for RpcConfig {
                 .and_then(|val| val.parse().ok()),
             stale_filter_ttl: read_env("RPC_STALE_FILTER_TTL")
                 .ok()
-                .and_then(|s| Some(std::time::Duration::from_secs(s.parse().ok()?))),
+                .and_then(|s| s.parse().ok()),
             proving_jobs_limit: read_env("RPC_PROVING_JOBS_LIMIT")
                 .ok()
                 .and_then(|val| val.parse().ok())

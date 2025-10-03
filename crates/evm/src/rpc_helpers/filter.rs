@@ -14,7 +14,7 @@ use jsonrpsee::server::IdProvider;
 use jsonrpsee::types::SubscriptionId;
 use reth_rpc::eth::filter::EthFilterError;
 use reth_rpc_eth_types::{EthApiError, EthSubscriptionIdProvider};
-use reth_tasks::{TaskExecutor, TaskManager};
+use reth_tasks::TaskExecutor;
 use sov_modules_api::{StateVecAccessor, WorkingSet};
 use tokio::sync::Mutex;
 use tokio::time::MissedTickBehavior;
@@ -187,14 +187,15 @@ impl CitreaFilter {
     /// Creates a new instance of the CitreaFilter.
     pub fn new(
         task_executor: reth_tasks::TaskExecutor,
-        stale_filter_ttl: Option<Duration>,
+        stale_filter_ttl: Option<usize>,
     ) -> CitreaFilter {
         let citrea_filter = CitreaFilter {
             active_filters: ActiveFilters::new(),
             id_provider: Arc::new(EthSubscriptionIdProvider::default()),
             task_executor,
-            // TODO: Get from config
-            stale_filter_ttl: stale_filter_ttl.unwrap_or_else(|| DEFAULT_STALE_FILTER_TTL),
+            stale_filter_ttl: stale_filter_ttl
+                .map(|d| Duration::from_secs(d as u64))
+                .unwrap_or_else(|| DEFAULT_STALE_FILTER_TTL),
         };
 
         let this = citrea_filter.clone();

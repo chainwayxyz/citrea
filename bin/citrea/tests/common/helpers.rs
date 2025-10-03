@@ -454,7 +454,7 @@ pub fn create_default_rollup_config(
             trace_chain_block_limit: None,
             proving_jobs_limit: 100,
             timeout: 30,
-            stale_filter_ttl: Some(Duration::from_secs(10)),
+            stale_filter_ttl: Some(10),
             enable_js_tracer: true,
             api_key: None,
         },
