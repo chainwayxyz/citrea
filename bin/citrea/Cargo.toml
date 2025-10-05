@@ -106,6 +106,7 @@ revm = { workspace = true }
 log = "0.4.22"
 regex = "1.10"
 rustc_version_runtime = { workspace = true }
+serial_test = "3.0"
 
 # bitcoin-e2e dependencies
 bitcoin.workspace = true
