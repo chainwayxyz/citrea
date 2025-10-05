@@ -13,7 +13,7 @@ use citrea_common::LightClientProverConfig;
 use citrea_primitives::forks::fork_from_block_number;
 use prover_services::{ParallelProverService, ProofData, ProofWithDuration};
 use reth_tasks::shutdown::GracefulShutdown;
-use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
+use sov_db::ledger_db::{LightClientProverLedgerOps, NodeLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::light_client_proof::StoredLightClientProofOutput;
 use sov_db::schema::types::SlotNumber;
 use sov_modules_api::Zkvm;
@@ -82,7 +82,7 @@ impl<Vm, Da, DB> L1BlockHandler<Vm, Da, DB>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
+    DB: LightClientProverLedgerOps + SharedLedgerOps + Clone + NodeLedgerOps + NodeLedgerOps,
     Network: InitialValueProvider<Da::Spec>,
 {
     /// Creates a new instance of the L1BlockHandler
