@@ -18,7 +18,7 @@ env:
 
 jobs:
   linux_amd64_binary_extraction:
-    runs-on: tenki-standard-large-plus-16c-32g
+    runs-on: ubicloud-standard-30
     steps:
       - name: Checkout
         uses: actions/checkout@v5
