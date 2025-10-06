@@ -14,10 +14,10 @@ use crate::helpers::builders::body_builders::DaTxs;
 use crate::helpers::builders::TxWithId;
 use crate::helpers::TransactionKind;
 
-pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
+pub type Result<T> = std::result::Result<T, BitcoinServiceError>;
 
 #[derive(Debug, Clone)]
-pub(crate) struct SignedTxWithId {
+pub struct SignedTxWithId {
     hex: Vec<u8>,
     pub tx: Transaction,
     pub id: Txid,
@@ -25,7 +25,7 @@ pub(crate) struct SignedTxWithId {
 
 /// Pair of commit/reveal signed transactions
 #[derive(Debug, Clone)]
-pub(crate) struct SignedTxPair {
+pub struct SignedTxPair {
     pub commit: SignedTxWithId,
     pub reveal: SignedTxWithId,
     pub kind: TransactionKind,
@@ -61,8 +61,8 @@ impl SignedTxPair {
 }
 
 #[derive(Debug)]
-pub(crate) struct TxSigner {
-    client: Arc<Client>,
+pub struct TxSigner {
+    pub client: Arc<Client>,
 }
 
 impl TxSigner {
@@ -70,7 +70,7 @@ impl TxSigner {
         Self { client }
     }
 
-    pub(crate) async fn sign_da_txs(&self, da_txs: DaTxs) -> Result<Vec<SignedTxPair>> {
+    pub async fn sign_da_txs(&self, da_txs: DaTxs) -> Result<Vec<SignedTxPair>> {
         let queued_txs = match da_txs {
             DaTxs::Complete { commit, reveal } => {
                 vec![
@@ -112,7 +112,7 @@ impl TxSigner {
         Ok(queued_txs)
     }
 
-    async fn sign_complete_transaction(
+    pub async fn sign_complete_transaction(
         &self,
         commit: Transaction,
         reveal: TxWithId,
@@ -148,7 +148,7 @@ impl TxSigner {
         })
     }
 
-    async fn sign_chunked_transaction(
+    pub async fn sign_chunked_transaction(
         &self,
         commit_chunks: Vec<Transaction>,
         reveal_chunks: Vec<Transaction>,
