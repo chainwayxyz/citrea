@@ -114,7 +114,11 @@ impl BoundlessProver {
 
         // If we are not using presigned:
         if !s3_use_presigned {
-            let s3_path = image_url.as_str().to_string().replace("s3://", "");
+            let s3_path = image_url
+                .as_str()
+                .to_string()
+                .strip_prefix("s3://")
+                .unwrap_or(&image_url);
             image_url = Url::parse(&format!("{s3_url}{s3_path}"))?;
             tracing::info!("Downloadable Image URL: {}", image_url);
         }
@@ -129,7 +133,11 @@ impl BoundlessProver {
 
         // If we are not using presigned:
         if !s3_use_presigned {
-            let s3_path = input_url.as_str().to_string().replace("s3://", "");
+            let s3_path = input_url
+                .as_str()
+                .to_string()
+                .strip_prefix("s3://")
+                .unwrap_or(&input_url);
             input_url = Url::parse(&format!("{s3_url}{s3_path}"))?;
             tracing::info!("Downloadable Input URL: {}", input_url);
         }
