@@ -30,6 +30,9 @@ use uuid::Uuid;
 use super::config::{get_boundless_builtin_storage_provider, BoundlessConfig};
 use crate::host::pricing_service::{PriceResponse, PricingService};
 
+/// Using 200 seconds here as this is a decentralized market and we want to give enough time for provers to pick up the job.
+const MIN_LOCK_TIMEOUT: u64 = 200; // seconds
+
 enum ResubmitResult {
     Retry,
     Success,
@@ -199,7 +202,7 @@ impl BoundlessProver {
             )
         })?;
 
-        let lock_timeout = cmp::max(lock_timeout, 200); // at least 200 seconds
+        let lock_timeout = cmp::max(lock_timeout, MIN_LOCK_TIMEOUT); // at least 200 seconds
 
         let request = self.build_proof_request(
             image_id,
@@ -516,22 +519,20 @@ impl BoundlessProver {
         // TODO: https://github.com/chainwayxyz/citrea/issues/2417
         // Define new request with updated parameters
         let (new_min_price_per_mcycle, new_max_price_per_mcycle, new_lock_timeout) = {
-            let is_locked = match self
+            let result = self
                 .client
                 .boundless_market
                 .is_locked(U256::from_str(request_id).unwrap())
-                .await
-            {
-                Ok(locked) => locked,
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to check if request is locked for job: {} request_id: {} | err={}",
-                        job_id,
-                        request_id,
-                        e
-                    );
-                    return Ok(ResubmitResult::Retry);
-                }
+                .await;
+
+            let Ok(is_locked) = result else {
+                tracing::error!(
+                    "Failed to check if request is locked for job: {} request_id: {} | err={}",
+                    job_id,
+                    request_id,
+                    result.as_ref().err().unwrap()
+                );
+                return Ok(ResubmitResult::Retry);
             };
             // Get old parameters from the failed order
             let min_price_per_mcycle = failed_request
