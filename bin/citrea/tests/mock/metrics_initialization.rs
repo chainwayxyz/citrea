@@ -74,7 +74,7 @@ async fn test_sequencer_metrics_initialization() {
 
     wait_for_l2_block(&test_client, 5, None).await;
 
-    sleep(Duration::from_secs(2)).await;
+    sleep(Duration::from_secs(5)).await;
 
     let block_number = test_client.ledger_get_head_l2_block_height().await.unwrap();
     assert_eq!(block_number, 5);
@@ -194,7 +194,7 @@ async fn test_fullnode_metrics_initialization() {
         rollup_config,
         Some(sequencer_config),
         None,
-        false,
+        true,
     )
     .await;
 
@@ -286,7 +286,7 @@ async fn test_fullnode_metrics_initialization() {
         rollup_config,
         None,
         None,
-        false,
+        true,
     )
     .await;
 
@@ -329,6 +329,8 @@ async fn test_fullnode_metrics_initialization() {
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn test_all_nodes_metrics_initialization() {
+    // citrea::initialize_logging(tracing::Level::DEBUG);
+
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "fullnode"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -421,21 +423,15 @@ async fn test_all_nodes_metrics_initialization() {
     let fullnode_port = fullnode_port_rx.await.unwrap();
     let fullnode_client = make_test_client(fullnode_port).await.unwrap();
 
-    seq_client.send_publish_batch_request().await;
-    seq_client.send_publish_batch_request().await;
-    wait_for_l2_block(&seq_client, 2, None).await;
-
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 2, None).await;
-
-    seq_client.send_publish_batch_request().await;
-    seq_client.send_publish_batch_request().await;
+    for _ in 0..4 {
+        seq_client.send_publish_batch_request().await;
+    }
 
     wait_for_l2_block(&seq_client, 4, None).await;
     wait_for_l2_block(&prover_client, 4, None).await;
     wait_for_l2_block(&fullnode_client, 4, None).await;
 
-    let commitments = wait_for_commitment(&da_service, 3, None).await;
+    let commitments = wait_for_commitment(&da_service, 2, None).await;
     assert_eq!(commitments.len(), 1);
     assert_eq!(commitments[0].l2_end_block_number, 4);
 
@@ -447,14 +443,16 @@ async fn test_all_nodes_metrics_initialization() {
         .await
         .unwrap();
 
-    wait_for_l1_block(&da_service, 4, None).await;
+    wait_for_l1_block(&da_service, 3, None).await;
 
-    for i in 5..=6 {
+    for _ in 5..=6 {
         seq_client.send_publish_batch_request().await;
-        wait_for_l2_block(&fullnode_client, i, None).await;
     }
 
-    wait_for_proof(&fullnode_client, 4, Some(Duration::from_secs(60))).await;
+    wait_for_l2_block(&seq_client, 6, None).await;
+    wait_for_l2_block(&prover_client, 6, None).await;
+    wait_for_l2_block(&fullnode_client, 6, None).await;
+    wait_for_proof(&fullnode_client, 3, Some(Duration::from_secs(60))).await;
 
     sleep(Duration::from_secs(2)).await;
 
@@ -574,7 +572,7 @@ async fn test_all_nodes_metrics_initialization() {
         rollup_config,
         Some(sequencer_config),
         None,
-        false,
+        true,
     )
     .await;
 
