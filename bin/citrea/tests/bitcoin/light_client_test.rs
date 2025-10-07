@@ -22,6 +22,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
+use citrea_light_client_prover::circuit::citrea_network_to_chain_id;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::REVEAL_TX_PREFIX;
@@ -664,6 +665,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         let method_id_body = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id,
             activation_l2_height: 210,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
 
         let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
@@ -893,6 +895,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id,
             activation_l2_height: 220,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
         let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
             .map(|s| hex::decode(s).unwrap().try_into().unwrap());
@@ -935,6 +938,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body2 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id2,
             activation_l2_height: 230,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
         let msg2 = method_id_body2.serialize();
         let prehash2 = eip191_hash_message(msg2.as_slice());
@@ -976,6 +980,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body3 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
         let msg3 = method_id_body3.serialize();
         let prehash3 = eip191_hash_message(msg3.as_slice());
@@ -1015,6 +1020,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body3 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
         let msg3 = method_id_body3.serialize();
         let prehash3 = eip191_hash_message(msg3.as_slice());
@@ -1054,6 +1060,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body3 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
         let msg3 = method_id_body3.serialize();
         let prehash3 = eip191_hash_message(msg3.as_slice());
@@ -1091,6 +1098,82 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         assert!(!batch_proof_method_ids3
             .iter()
             .any(|x| x.method_id == new_batch_proof_method_id3.into()));
+
+        // Case 5: Test with wrong network (should be rejected)
+        let new_batch_proof_method_id4 = [5u32; 8];
+        let method_id_body4 = BatchProofMethodIdBody {
+            method_id: new_batch_proof_method_id4,
+            activation_l2_height: 250,
+            chain_id: citrea_network_to_chain_id(Network::Mainnet),
+        };
+        let msg4 = method_id_body4.serialize();
+        let prehash4 = eip191_hash_message(msg4.as_slice());
+        let signatures_with_index = create_valid_signatures(&signers, &prehash4);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+                    body: method_id_body4.clone(),
+                    signatures_with_index,
+                }),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let method_id_l1_height4 = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(method_id_l1_height4, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let batch_proof_method_ids4 = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert!(!batch_proof_method_ids4
+            .iter()
+            .any(|x| x.method_id == new_batch_proof_method_id4.into()));
+
+        // Case 6: Test signature indexes not ascending order (should be rejected)
+        let new_batch_proof_method_id5 = [6u32; 8];
+        let method_id_body5 = BatchProofMethodIdBody {
+            method_id: new_batch_proof_method_id5,
+            activation_l2_height: 260,
+
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
+        };
+        let msg5 = method_id_body5.serialize();
+        let prehash5 = eip191_hash_message(msg5.as_slice());
+        let mut signatures_with_index = create_valid_signatures(&signers, &prehash5);
+        // Make indexes not in ascending order
+        signatures_with_index.swap(0, 2);
+
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+                    body: method_id_body5.clone(),
+                    signatures_with_index,
+                }),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let method_id_l1_height5 = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(method_id_l1_height5, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let batch_proof_method_ids5 = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert!(!batch_proof_method_ids5
+            .iter()
+            .any(|x| x.method_id == new_batch_proof_method_id5.into()));
 
         Ok(())
     }
