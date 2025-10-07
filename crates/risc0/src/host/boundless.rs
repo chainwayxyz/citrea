@@ -29,6 +29,7 @@ use uuid::Uuid;
 
 use super::config::{get_boundless_builtin_storage_provider, BoundlessConfig};
 use crate::host::pricing_service::{PriceResponse, PricingService};
+use crate::is_dev_mode_enabled_via_environment;
 
 /// Using 200 seconds here as this is a decentralized market and we want to give enough time for provers to pick up the job.
 const MIN_LOCK_TIMEOUT: u64 = 200; // seconds
@@ -108,7 +109,7 @@ impl BoundlessProver {
         let image_id = compute_image_id(&elf).expect("Invalid elf program");
 
         assert!(
-            !is_dev_mode(),
+            !is_dev_mode_enabled_via_environment(),
             "RISC0_DEV_MODE should not be set for boundless"
         );
 
@@ -707,12 +708,4 @@ impl BoundlessProver {
         }
         Ok(rxs)
     }
-}
-
-fn is_dev_mode() -> bool {
-    std::env::var("RISC0_DEV_MODE")
-        .ok()
-        .map(|x| x.to_lowercase())
-        .filter(|x| x == "1" || x == "true" || x == "yes")
-        .is_some()
 }
