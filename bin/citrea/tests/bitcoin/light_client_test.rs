@@ -2002,24 +2002,20 @@ impl TestCase for UnchainedBatchProofsTest {
             Some(fake_sequencer_commitment.serialize_and_calculate_sha_256()),
         );
 
-        let mut txs = bitcoin_da_service
+        bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp1), 1)
             .await
             .unwrap();
 
-        txs.extend(
-            bitcoin_da_service
-                .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2), 1)
-                .await
-                .unwrap(),
-        );
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2), 1)
+            .await
+            .unwrap();
 
-        txs.extend(
-            bitcoin_da_service
-                .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp3), 1)
-                .await
-                .unwrap(),
-        );
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp3), 1)
+            .await
+            .unwrap();
 
         da.wait_mempool_len(6, None).await?;
 
