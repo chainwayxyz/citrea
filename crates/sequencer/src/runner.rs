@@ -391,7 +391,7 @@ where
 
         let prestate = self.storage_manager.create_storage_for_next_l2_height();
 
-        let evm_txs = self.get_best_transactions()?;
+        let evm_txs = self.get_best_transactions(active_fork_spec)?;
 
         let last_da_block_height = da_blocks.last().map(|b| b.header().height());
 
@@ -721,6 +721,7 @@ where
 
     pub(crate) fn get_best_transactions(
         &self,
+        spec_id: SpecId,
     ) -> anyhow::Result<
         Box<dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>>,
     > {
@@ -739,6 +740,7 @@ where
                 .base_fee_per_gas
                 .expect("Base fee always set in Citrea"),
             cfg.base_fee_params,
+            spec_id,
         ) as u64;
 
         let best_txs_with_base_fee = self

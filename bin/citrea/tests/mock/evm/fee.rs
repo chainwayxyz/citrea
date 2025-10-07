@@ -2,7 +2,9 @@ use std::time::Duration;
 
 use alloy_rpc_types::BlockNumberOrTag;
 use citrea_common::SequencerConfig;
+use citrea_primitives::min_base_fee_per_gas;
 use citrea_stf::genesis_config::GenesisPaths;
+use sov_modules_api::SpecId;
 
 use super::init_test_rollup;
 use crate::common::helpers::{
@@ -45,10 +47,12 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
     let port = port_rx.await.unwrap();
     let test_client = init_test_rollup(port).await;
 
+    // use the latest spec id, as the nightly forks start with the latest spec
+    let min_base_fee_per_gas = min_base_fee_per_gas(SpecId::latest());
     let block = test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
-    assert!(block.header.base_fee_per_gas.unwrap() >= 10000000);
+    assert!(block.header.base_fee_per_gas.unwrap() >= min_base_fee_per_gas);
 
     // we used to have 10k here, and the test would finish execution
     // before sequencer was done with all 10k blocks
@@ -62,8 +66,8 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
     let block = test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
-    // Base fee should at most be 0.01 gwei
-    assert_eq!(block.header.base_fee_per_gas.unwrap(), 10000000);
+    // Base fee should at least be the minimum base fee
+    assert_eq!(block.header.base_fee_per_gas.unwrap(), min_base_fee_per_gas);
 
     seq_task.graceful_shutdown();
     Ok(())

@@ -10,6 +10,11 @@ use sha2::{Digest, Sha256};
 use crate::zk::Proof;
 use crate::{BasicAddress, Network};
 
+/// Minimum number of verified signatures required to approve a method id upgrade.
+pub const SECURITY_COUNCIL_SIGNATURE_THRESHOLD: usize = 3;
+/// Size of a signature in bytes.
+pub const SECURITY_COUNCIL_SIGNATURE_SIZE: usize = 64;
+
 /// Commitments made to the DA layer from the sequencer.
 /// Has merkle root of l2 block hashes from L1 start block to L1 end block (inclusive)
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
@@ -33,16 +38,56 @@ impl SequencerCommitment {
         hash.into()
     }
 }
-
-/// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
+/// Body of the batch proof method id update for light client
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
-pub struct BatchProofMethodId {
+pub struct BatchProofMethodIdBody {
     /// New method id of upcoming fork
     pub method_id: [u32; 8],
     /// Activation L2 height of the new method id
     pub activation_l2_height: u64,
+    /// Network identifier to prevent cross network replay attacks
+    pub chain_id: u64,
 }
 
+impl BatchProofMethodIdBody {
+    /// Serialize the body using borsh
+    pub fn serialize(&self) -> Vec<u8> {
+        borsh::to_vec(self).expect("BatchProofMethodIdBody serialization cannot fail")
+    }
+}
+
+/// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
+#[derive(Debug, Clone, Eq, PartialEq, BorshSerialize, BorshDeserialize)]
+pub struct BatchProofMethodId {
+    /// Body of the method id update, the message to be signed
+    /// Includes method id and activation height
+    pub body: BatchProofMethodIdBody,
+    /// Signatures of to be verified for the method id update
+    /// Consists of 64 byte keccak256(eip191 prefixed message) prehash signed signatures
+    /// The public keys can be recovered from the signatures and the prehash
+    /// With it the indexes of the pubkeys that should be used to verify the signatures
+    /// The indexes point to the pubkeys in the light client circuit initial values
+    /// If one signature verification fails the whole method id update is invalid
+    /// Also assumes the indexes are in ascending order and there are no duplicates
+    pub signatures_with_index:
+        [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD],
+}
+
+impl BatchProofMethodId {
+    /// Returns the signatures in the transaction.
+    pub fn signatures_with_index(
+        &self,
+    ) -> &[([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
+        &self.signatures_with_index
+    }
+
+    /// Returns the body of the transaction.
+    pub fn body(&self) -> BatchProofMethodIdBody {
+        self.body.clone()
+    }
+}
+
+/// SequencerCommitment's are ordered by their index
 impl core::cmp::PartialOrd for SequencerCommitment {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
@@ -56,7 +101,8 @@ impl core::cmp::Ord for SequencerCommitment {
 }
 
 /// Transaction request to send to the DA queue.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub enum DaTxRequest {
     /// A commitment from the sequencer
     SequencerCommitment(SequencerCommitment),
@@ -67,7 +113,8 @@ pub enum DaTxRequest {
 }
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum DataOnDa {
     /// A zk proof and state diff
     Complete(Proof),

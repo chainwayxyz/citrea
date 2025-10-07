@@ -12,6 +12,7 @@ use alloy_rpc_types::{
 };
 use citrea_evm::{Evm, SYSTEM_SIGNER};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
+use citrea_primitives::forks::fork_from_block_number;
 use parking_lot::Mutex;
 use reth_rpc_eth_api::RpcTransaction;
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
@@ -228,12 +229,14 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
             }
         }
         let last_entry = fee_entries.last().expect("is not empty");
+        let spec_id = fork_from_block_number(end_block_plus).spec_id;
         base_fee_per_gas.push(
             calculate_next_block_base_fee(
                 last_entry.gas_used,
                 last_entry.gas_limit,
                 last_entry.base_fee_per_gas,
                 self.provider.get_chain_config(working_set).base_fee_params,
+                spec_id,
             )
             .into(),
         );

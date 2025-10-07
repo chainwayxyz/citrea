@@ -1586,6 +1586,9 @@ dependencies = [
 name = "bitcoin-da"
 version = "0.7.1"
 dependencies = [
+ "alloy-primitives",
+ "alloy-signer",
+ "alloy-signer-local",
  "anyhow",
  "async-trait",
  "backoff",
@@ -2249,6 +2252,8 @@ dependencies = [
  "alloy-rlp",
  "alloy-rpc-types",
  "alloy-rpc-types-trace",
+ "alloy-signer",
+ "alloy-signer-local",
  "alloy-sol-types",
  "anyhow",
  "async-trait",
@@ -2278,6 +2283,7 @@ dependencies = [
  "hex",
  "jmt",
  "jsonrpsee",
+ "k256",
  "l2-block-rule-enforcer",
  "lazy_static",
  "log",
@@ -2554,6 +2560,8 @@ name = "citrea-light-client-prover"
 version = "0.7.1"
 dependencies = [
  "alloy-primitives",
+ "alloy-signer",
+ "alloy-signer-local",
  "anyhow",
  "async-trait",
  "bitcoin-da",
@@ -2565,6 +2573,7 @@ dependencies = [
  "constmuck",
  "hex",
  "jsonrpsee",
+ "k256",
  "metrics 0.23.0",
  "metrics-derive",
  "once_cell",
