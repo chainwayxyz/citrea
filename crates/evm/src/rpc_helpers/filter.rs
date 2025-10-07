@@ -336,10 +336,10 @@ impl CitreaFilter {
             // Pending transaction filters are not supported
             FilterKind::PendingTransaction => {
                 let _ = self.uninstall_filter(id).await;
-                return Err(EthApiError::Unsupported(
-                    "Pending transaction filters are not supported",
+                Err(
+                    EthApiError::Unsupported("Pending transaction filters are not supported")
+                        .into(),
                 )
-                .into());
             }
             FilterKind::Block => {
                 // Note: we need to fetch the block hashes from inclusive range
