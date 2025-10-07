@@ -773,7 +773,6 @@ where
     let enable_subscriptions = l2_block_rx.is_some();
 
     // If the running node is a full node rpc context should also have sequencer client so that it can send txs to sequencer
-    tracing::info!("ttl: {:?}", rpc_config.stale_filter_ttl);
     let ethereum = Arc::new(Ethereum::new(
         da_service,
         eth_rpc_config,
