@@ -194,8 +194,7 @@ impl CitreaFilter {
             id_provider: Arc::new(EthSubscriptionIdProvider::default()),
             task_executor,
             stale_filter_ttl: stale_filter_ttl
-                .map(|d| Duration::from_secs(d as u64))
-                .unwrap_or_else(|| DEFAULT_STALE_FILTER_TTL),
+                .map_or(DEFAULT_STALE_FILTER_TTL, |d| Duration::from_secs(d as u64)),
         };
 
         let this = citrea_filter.clone();
