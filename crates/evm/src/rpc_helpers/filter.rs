@@ -351,7 +351,7 @@ impl CitreaFilter {
                         EthApiError::HeaderRangeNotFound(start_block.into(), end_block.into())
                     })?
                     .iter()
-                    .map(|h| h.header().hash_slow())
+                    .map(|h| h.hash())
                     .collect::<Vec<_>>();
 
                 Ok(FilterChanges::Hashes(block_hashes))
