@@ -33,6 +33,19 @@ use crate::host::pricing_service::{PriceResponse, PricingService};
 /// Using 200 seconds here as this is a decentralized market and we want to give enough time for provers to pick up the job.
 const MIN_LOCK_TIMEOUT: u64 = 200; // seconds
 
+/// If a proof was not picked up by any prover within lock timeout, we increase the max price by 2x
+const MAX_PRICE_INCREASE_RATIO: u32 = 2; // 2x
+
+/// The total timeout must be greater than lock timeout, currently it is 2x of lock timeout
+const TIMEOUT_IS_N_LOCK_TIMEOUT: u64 = 2; // Total timeout is 2x of lock timeout
+
+/// We also ensure that the min price increases by at least 1.5x
+const MIN_PRICE_INCREASE_MULTIPLIER: u32 = 15; // 1.5x
+const MIN_PRICE_INCREASE_DIVISOR: u32 = 10;
+
+/// If a proof was picked up by a prover but not delivered within lock timeout, we increase the timeout by 2x
+const LOCKTIME_INCREASE_RATIO: u32 = 2; // 2x
+
 enum ResubmitResult {
     Retry,
     Success,
@@ -548,17 +561,17 @@ impl BoundlessProver {
             if is_locked {
                 // If locked, that means a prover worked on the request but failed to deliver it on time.
                 // Increase the lock timeout.
-                let lock_timeout = lock_timeout.saturating_mul(2);
+                let lock_timeout = lock_timeout.saturating_mul(LOCKTIME_INCREASE_RATIO);
                 (min_price_per_mcycle, max_price_per_mcycle, lock_timeout)
             } else {
                 // If not locked, that means the request was never taken by a prover.
                 // Increase the min and max price per mcycle.
                 let min_price_per_mcycle = min_price_per_mcycle
-                    .saturating_mul(U256::from(15))
-                    .div_ceil(U256::from(10))
+                    .saturating_mul(U256::from(MIN_PRICE_INCREASE_MULTIPLIER))
+                    .div_ceil(U256::from(MIN_PRICE_INCREASE_DIVISOR))
                     .min(U256::from(max_possible_price));
                 let max_price_per_mcycle = max_price_per_mcycle
-                    .saturating_mul(U256::from(2))
+                    .saturating_mul(U256::from(MAX_PRICE_INCREASE_RATIO))
                     .min(U256::from(max_possible_price));
                 (min_price_per_mcycle, max_price_per_mcycle, lock_timeout)
             }
@@ -581,7 +594,7 @@ impl BoundlessProver {
             new_max_price_per_mcycle,
             mcycles_count,
             new_lock_timeout as u64,
-            (new_lock_timeout * 2) as u64,
+            (new_lock_timeout * TIMEOUT_IS_N_LOCK_TIMEOUT) as u64,
             failed_request.offer.rampUpPeriod as u64,
             lock_stake,
             price_response.bidding_start,
