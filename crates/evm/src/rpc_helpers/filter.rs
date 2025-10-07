@@ -199,7 +199,7 @@ impl CitreaFilter {
         };
 
         let this = citrea_filter.clone();
-        tracing::info!("AAStarting stale filter clearing task ");
+        tracing::trace!("Starting stale filter clearing task ");
         citrea_filter.task_executor.spawn_critical(
             "eth-filters_stale-filters-clean",
             Box::pin(async move {
