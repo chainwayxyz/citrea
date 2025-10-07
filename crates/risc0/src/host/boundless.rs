@@ -532,20 +532,22 @@ impl BoundlessProver {
         // TODO: https://github.com/chainwayxyz/citrea/issues/2417
         // Define new request with updated parameters
         let (new_min_price_per_mcycle, new_max_price_per_mcycle, new_lock_timeout) = {
-            let result = self
+            let is_locked = match self
                 .client
                 .boundless_market
                 .is_locked(U256::from_str(request_id).unwrap())
-                .await;
-
-            let Ok(is_locked) = result else {
-                tracing::error!(
-                    "Failed to check if request is locked for job: {} request_id: {} | err={}",
-                    job_id,
-                    request_id,
-                    result.as_ref().err().unwrap()
-                );
-                return Ok(ResubmitResult::Retry);
+                .await
+            {
+                Ok(locked) => locked,
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to check if request is locked for job: {} request_id: {} | err={}",
+                        job_id,
+                        request_id,
+                        e
+                    );
+                    return Ok(ResubmitResult::Retry);
+                }
             };
             // Get old parameters from the failed order
             let min_price_per_mcycle = failed_request
