@@ -66,11 +66,8 @@ impl BoundlessProver {
     async fn boundless_client() -> anyhow::Result<Client> {
         let config = BoundlessConfig::from_env().expect("Failed to load boundless config");
 
-        // If in dev mode, uses a temporary file as storage provider
-        // Otherwise first tries to parse pinata env variables
-        // If fails then tries to parse s3 env variables
-        // If the environment variable `RISC0_DEV_MODE` is set, a temporary file storage provider is used.
-        // Otherwise, the environment variables in `BoundlessPinataStorageConfig` or `BoundlessS3StorageConfig` is checked
+        // First tries to parse s3 env variables
+        // If fails then tries to parse pinata env variables
         let storage_provider = get_boundless_builtin_storage_provider().await?;
 
         // Create a Boundless client from the provided parameters.
