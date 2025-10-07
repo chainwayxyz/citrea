@@ -114,11 +114,10 @@ impl BoundlessProver {
 
         // If we are not using presigned:
         if !s3_use_presigned {
-            let s3_path = image_url
-                .as_str()
-                .to_string()
+            let image_url_string = image_url.as_str().to_string();
+            let s3_path = image_url_string
                 .strip_prefix("s3://")
-                .unwrap_or(&image_url);
+                .unwrap_or(&image_url_string);
             image_url = Url::parse(&format!("{s3_url}{s3_path}"))?;
             tracing::info!("Downloadable Image URL: {}", image_url);
         }
@@ -133,11 +132,10 @@ impl BoundlessProver {
 
         // If we are not using presigned:
         if !s3_use_presigned {
-            let s3_path = input_url
-                .as_str()
-                .to_string()
+            let input_url_string = input_url.as_str().to_string();
+            let s3_path = input_url_string
                 .strip_prefix("s3://")
-                .unwrap_or(&input_url);
+                .unwrap_or(&input_url_string);
             input_url = Url::parse(&format!("{s3_url}{s3_path}"))?;
             tracing::info!("Downloadable Input URL: {}", input_url);
         }
@@ -165,9 +163,7 @@ impl BoundlessProver {
                     .sum::<u64>();
                 let mcycles_count = total_cycles_approx.div_ceil(1_000_000);
                 tracing::info!(
-                    "Boundless proving session with job id: {} takes {} cycles",
-                    job_id,
-                    total_cycles_approx
+                    "Boundless proving session with job id: {job_id} takes {total_cycles_approx} cycles"
                 );
 
                 Ok((session_info.journal, mcycles_count, total_cycles_approx))
