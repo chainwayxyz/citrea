@@ -597,7 +597,7 @@ impl BoundlessProver {
             new_max_price_per_mcycle,
             mcycles_count,
             new_lock_timeout as u64,
-            (new_lock_timeout * TIMEOUT_IS_N_LOCK_TIMEOUT) as u64,
+            new_lock_timeout as u64 * TIMEOUT_IS_N_LOCK_TIMEOUT,
             failed_request.offer.rampUpPeriod as u64,
             lock_stake,
             price_response.bidding_start,

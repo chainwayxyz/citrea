@@ -182,6 +182,7 @@ impl Zkvm for Risc0Host {
 
 /// Supported `Prover` types
 #[derive(Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum Prover {
     /// Local prover
     Local(LocalProver),
