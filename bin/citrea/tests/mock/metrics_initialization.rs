@@ -128,7 +128,7 @@ async fn test_sequencer_metrics_initialization() {
         rollup_config,
         Some(sequencer_config),
         None,
-        false,
+        true,
     )
     .await;
 
