@@ -123,15 +123,6 @@ impl BoundlessProver {
             .encode()
             .context("Failed to encode input for boundless proving")?;
 
-        // Deposit to contract
-        // let deposit_amount = U256::from(1e16 as u64); // 0.01eth
-        // let market = self.client.boundless_market.clone();
-        // market.deposit(deposit_amount).await?;
-        // tracing::info!(
-        //     "Successfully deposited {} ETH",
-        //     alloy_primitives::utils::format_units(deposit_amount, "ether")?
-        // );
-
         // Upload input
         let mut input_url = self.client.upload_input(&guest_env).await?;
         tracing::info!("Uploaded input to {}", input_url);
