@@ -317,14 +317,6 @@ impl CitreaFilter {
                 .get_mut(&id)
                 .ok_or(EthFilterError::FilterNotFound(id.clone()))?;
 
-            if matches!(filter.kind, FilterKind::PendingTransaction) {
-                self.uninstall_filter(id).await.ok();
-                return Err(EthApiError::Unsupported(
-                    "Pending transaction filters are not supported",
-                )
-                .into());
-            }
-
             if filter.block > latest_block_number {
                 // no new blocks since the last poll
                 return Ok(FilterChanges::Empty);
@@ -342,7 +334,13 @@ impl CitreaFilter {
 
         match kind {
             // Pending transaction filters are not supported
-            FilterKind::PendingTransaction => Ok(FilterChanges::Empty),
+            FilterKind::PendingTransaction => {
+                let _ = self.uninstall_filter(id).await;
+                return Err(EthApiError::Unsupported(
+                    "Pending transaction filters are not supported",
+                )
+                .into());
+            }
             FilterKind::Block => {
                 // Note: we need to fetch the block hashes from inclusive range
                 // [start_block..latest_block_number]
