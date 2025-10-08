@@ -17,11 +17,11 @@ use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
     CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber,
-    DaJobById, DaJobProgressById, ExecutedMigrations, JobIdOfCommitment, L2BlockByHash,
-    L2BlockByNumber, L2GenesisStateRoot, L2RangeByL1Height, L2StatusHeights, LastPrunedBlock,
-    LightClientProofBySlotNumber, MempoolTxs, PendingBonsaiSessionByJobId, PendingL1SubmissionJobs,
-    PendingProofs, PendingSequencerCommitments, ProofByJobId, ProverLastScannedSlot,
-    ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
+    DaJobById, DaJobProgressById, DaJobStatusIndex, ExecutedMigrations, JobIdOfCommitment,
+    L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot, L2RangeByL1Height, L2StatusHeights,
+    LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs, PendingBonsaiSessionByJobId,
+    PendingL1SubmissionJobs, PendingProofs, PendingSequencerCommitments, ProofByJobId,
+    ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
     ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
     VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
@@ -995,16 +995,35 @@ impl DaLedgerOps for LedgerDB {
         self.db.get::<DaJobProgressById>(job_id)
     }
 
-    fn all_jobs(&self) -> anyhow::Result<Vec<Uuid>> {
-        let mut iter = self.db.iter::<DaJobById>()?;
-        iter.seek_to_first();
+    fn insert_job_status_index(&self, status: u8, job_id: Uuid) -> anyhow::Result<()> {
+        let mut batch = SchemaBatch::new();
+        batch.put::<DaJobStatusIndex>(&(status, job_id), &())?;
+        self.db.write_schemas(batch)?;
+        Ok(())
+    }
 
-        let mut jobs = Vec::new();
-        for job in iter {
-            let (job_id, _) = job?.into_tuple();
-            jobs.push(job_id);
+    fn remove_job_status_index(&self, status: u8, job_id: Uuid) -> anyhow::Result<()> {
+        let mut batch = SchemaBatch::new();
+        batch.delete::<DaJobStatusIndex>(&(status, job_id))?;
+        self.db.write_schemas(batch)?;
+        Ok(())
+    }
+
+    fn get_job_ids_by_status(&self, status: u8) -> anyhow::Result<Vec<Uuid>> {
+        let mut iter = self.db.iter::<DaJobStatusIndex>()?;
+
+        iter.seek(&(status, Uuid::nil()))?;
+
+        let mut job_ids = Vec::new();
+        for item in iter {
+            let ((item_status, job_id), _) = item?.into_tuple();
+
+            if item_status != status {
+                break;
+            }
+
+            job_ids.push(job_id);
         }
-
-        Ok(jobs)
+        Ok(job_ids)
     }
 }

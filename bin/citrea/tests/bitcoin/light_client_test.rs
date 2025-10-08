@@ -1092,13 +1092,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let prehash4 = eip191_hash_message(msg4.as_slice());
         let signatures_with_index = create_valid_signatures(&signers, &prehash4);
         bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body4.clone(),
-                    signatures_with_index,
-                }),
-                1,
-            )
+            .send_transaction(DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+                body: method_id_body4.clone(),
+                signatures_with_index,
+            }))
             .await
             .unwrap();
         da.wait_mempool_len(2, None).await?;
@@ -1132,13 +1129,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         signatures_with_index.swap(0, 2);
 
         bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body5.clone(),
-                    signatures_with_index,
-                }),
-                1,
-            )
+            .send_transaction(DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+                body: method_id_body5.clone(),
+                signatures_with_index,
+            }))
             .await
             .unwrap();
         da.wait_mempool_len(2, None).await?;

@@ -302,18 +302,13 @@ impl BitcoinService {
         };
 
         // Get all pending/in-progress jobs
-        let all_job_ids = self.job_service.get_all_job_ids()?;
+        let active_job_ids = self.job_service.get_all_active_job_ids()?;
         let mut jobs_to_process = Vec::new();
 
-        for job_id in all_job_ids {
-            if let Some(progress) = self.job_service.get_progress(&job_id)? {
-                match progress.status {
-                    JobStatus::Pending | JobStatus::InProgress => {
-                        if let Some(job) = self.job_service.get_job(&job_id)? {
-                            jobs_to_process.push((job, progress));
-                        }
-                    }
-                    _ => {} // Skip completed/cancelled/failed
+        for job_id in active_job_ids {
+            if let Some(job) = self.job_service.get_job(&job_id)? {
+                if let Some(progress) = self.job_service.get_progress(&job_id)? {
+                    jobs_to_process.push((job, progress));
                 }
             }
         }
@@ -532,7 +527,7 @@ impl BitcoinService {
             // To make sure there are no conflicts between parallel utxos chain,
             // this additional filters out any UTXO used by queued txs and any change UTXO that are not finalized
             UtxoSelectionMode::Oldest => {
-                let txids = self.job_service.get_pending_chunks();
+                let txids = self.job_service.get_pending_chunks()?;
 
                 utxos.into_iter().filter(|utxo| {
                     utxo.spendable
@@ -1290,13 +1285,9 @@ impl DaService for BitcoinService {
     async fn send_transaction(&self, tx_request: DaTxRequest) -> Result<JobId> {
         // TODO handle chaining job request
         if self.utxo_selection_mode == UtxoSelectionMode::Chained {
-            let all_job_ids = self.job_service.get_all_job_ids()?;
-            for job_id in all_job_ids {
-                if let Some(progress) = self.job_service.get_progress(&job_id)? {
-                    if matches!(progress.status, JobStatus::Pending | JobStatus::InProgress) {
-                        return Err(BitcoinServiceError::PreviousJobInProgress);
-                    }
-                }
+            let active_jobs = self.job_service.get_all_active_job_ids()?;
+            if !active_jobs.is_empty() {
+                return Err(BitcoinServiceError::PreviousJobInProgress);
             }
         }
 

@@ -45,6 +45,7 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     CommitmentsByNumber::table_name(),
     DaJobById::table_name(),
     DaJobProgressById::table_name(),
+    DaJobStatusIndex::table_name(),
     ExecutedMigrations::table_name(),
     L2BlockByHash::table_name(),
     L2BlockByNumber::table_name(),
@@ -97,6 +98,7 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     CommitmentIndicesByL1::table_name(),
     DaJobById::table_name(),
     DaJobProgressById::table_name(),
+    DaJobStatusIndex::table_name(),
     ExecutedMigrations::table_name(),
     JobIdOfCommitment::table_name(),
     L2BlockByHash::table_name(),
@@ -148,6 +150,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     CommitmentsByNumber::table_name(),
     DaJobById::table_name(),
     DaJobProgressById::table_name(),
+    DaJobStatusIndex::table_name(),
     ExecutedMigrations::table_name(),
     JobIdOfCommitment::table_name(),
     L2BlockByHash::table_name(),
@@ -507,6 +510,11 @@ define_table_with_seek_key_codec!(
 define_table_with_seek_key_codec!(
     /// Da job progress by uuid
     (DaJobProgressById) Uuid => Vec<u8>
+);
+
+define_table_with_seek_key_codec!(
+    /// Index by (status, jobid)
+    (DaJobStatusIndex) (u8, Uuid) => ()
 );
 
 #[cfg(test)]

@@ -327,18 +327,25 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
 
 /// Bitcoin da ledger operations
 pub trait DaLedgerOps {
+    /// DaJobById related methods
     /// Insert a DA job by id
     fn insert_job(&self, job_id: Uuid, job: Vec<u8>) -> Result<()>;
     /// Get a DA job by id
     fn get_job(&self, job_id: &Uuid) -> Result<Option<Vec<u8>>>;
 
+    /// DaJobProgressById related methods
     /// Update a DA job progress by id
     fn upsert_progress(&self, job_id: &Uuid, progress: Vec<u8>) -> Result<()>;
     /// Get a DA job progress by id
     fn get_progress(&self, job_id: &Uuid) -> Result<Option<Vec<u8>>>;
 
-    /// Get all DA job ids
-    fn all_jobs(&self) -> Result<Vec<Uuid>>;
+    /// DaJobStatusIndex related methods
+    /// Insert a job status index entry
+    fn insert_job_status_index(&self, status: u8, job_id: Uuid) -> Result<()>;
+    /// Remove a job status index entry
+    fn remove_job_status_index(&self, status: u8, job_id: Uuid) -> Result<()>;
+    /// Get all job ids for a specific status
+    fn get_job_ids_by_status(&self, status: u8) -> Result<Vec<Uuid>>;
 }
 
 /// Test ledger operations

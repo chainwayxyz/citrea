@@ -33,17 +33,18 @@ pub enum JobStatus {
     },
 }
 
-// impl JobStatus {
-//     pub fn as_u8(&self) -> u8 {
-//         match self {
-//             JobStatus::Pending => 0,
-//             JobStatus::InProgress => 1,
-//             JobStatus::Completed => 2,
-//             JobStatus::Cancelled => 3,
-//             JobStatus::Failed { .. } => 4,
-//         }
-//     }
-// }
+impl JobStatus {
+    /// u8 representation of `JobStatus`
+    pub fn as_u8(&self) -> u8 {
+        match self {
+            JobStatus::Pending => 0,
+            JobStatus::InProgress => 1,
+            JobStatus::Completed => 2,
+            JobStatus::Cancelled => 3,
+            JobStatus::Failed { .. } => 4,
+        }
+    }
+}
 
 /// Tracks progress of a job including sent transactions for recovery.
 ///
@@ -140,6 +141,8 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
 
         self.insert_job(&job)?;
         self.upsert_progress(&progress)?;
+        self.ledger_db
+            .insert_job_status_index(progress.status.as_u8(), job_id)?;
 
         info!("Job {job_id} submitted and persisted");
         Ok(job)
@@ -187,22 +190,46 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         Ok(progress)
     }
 
-    /// Get all job ids from storage
-    /// TODO Optimize with status indexing and query only Pending and InProgress status
+    /// Get all `Pending` and `InProgress` job ids from storage
     #[instrument(level = "trace", skip(self), ret)]
-    pub(crate) fn get_all_job_ids(&self) -> Result<Vec<JobId>> {
-        self.ledger_db
-            .all_jobs()
-            .map_err(JobServiceError::DatabaseError)
+    pub(crate) fn get_all_active_job_ids(&self) -> Result<Vec<JobId>> {
+        let mut active_jobs = Vec::new();
+
+        active_jobs.extend(
+            self.ledger_db
+                .get_job_ids_by_status(JobStatus::Pending.as_u8())?,
+        );
+
+        active_jobs.extend(
+            self.ledger_db
+                .get_job_ids_by_status(JobStatus::InProgress.as_u8())?,
+        );
+
+        // Sort uuidv7 chronogically
+        active_jobs.sort();
+
+        Ok(active_jobs)
     }
 
     /// Update job status by id
     #[instrument(level = "debug", skip(self))]
     pub fn update_job_status(&self, progress: &mut JobProgress, status: JobStatus) -> Result<()> {
+        let old_status = progress.status.as_u8();
+        let new_status = status.as_u8();
+
         progress.status = status;
         progress.last_updated = get_timestamp();
 
         self.upsert_progress(progress)?;
+
+        // Update status indexing
+        if old_status != new_status {
+            self.ledger_db
+                .remove_job_status_index(old_status, progress.job_id)?;
+            self.ledger_db
+                .insert_job_status_index(new_status, progress.job_id)?;
+        }
+
         Ok(())
     }
 
@@ -225,33 +252,32 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     /// Get all pending commit and reveals txids.
     /// This is required for removing from the utxo set and prevent selecting UTXOs twice
     #[instrument(level = "trace", skip_all, ret)]
-    pub(crate) fn get_pending_chunks(&self) -> Vec<Txid> {
+    pub(crate) fn get_pending_chunks(&self) -> Result<Vec<Txid>> {
         let mut txids = Vec::new();
 
-        if let Ok(all_job_ids) = self.get_all_job_ids() {
-            for job_id in all_job_ids {
-                if let Ok(Some(progress)) = self.get_progress(&job_id) {
-                    if matches!(progress.status, JobStatus::InProgress) {
-                        txids.extend(
-                            progress
-                                .sent_chunks
-                                .commit_txs
-                                .iter()
-                                .map(|tx| tx.compute_txid()),
-                        );
-                        txids.extend(
-                            progress
-                                .sent_chunks
-                                .reveal_txs
-                                .iter()
-                                .map(|tx| tx.compute_txid()),
-                        );
-                    }
+        let active_job_ids = self.get_all_active_job_ids()?;
+        for job_id in active_job_ids {
+            if let Some(progress) = self.get_progress(&job_id)? {
+                if matches!(progress.status, JobStatus::InProgress) {
+                    txids.extend(
+                        progress
+                            .sent_chunks
+                            .commit_txs
+                            .iter()
+                            .map(|tx| tx.compute_txid()),
+                    );
+                    txids.extend(
+                        progress
+                            .sent_chunks
+                            .reveal_txs
+                            .iter()
+                            .map(|tx| tx.compute_txid()),
+                    );
                 }
             }
         }
 
-        txids
+        Ok(txids)
     }
 
     /// Wait for job completion and return the transaction ID
