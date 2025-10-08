@@ -287,20 +287,6 @@ impl BitcoinService {
 
     // Process job queue
     async fn process_job_service(&self) -> Result<()> {
-        let fee_rate_multiplier = self.fee.base_fee_rate_multiplier();
-
-        let fee_sat_per_vbyte = loop {
-            match self.fee.get_fee_rate().await {
-                Ok(rate) => {
-                    break (rate as f64 * fee_rate_multiplier).ceil() as u64;
-                }
-                Err(e) => {
-                    error!(?e, "Failed to call get_fee_rate. Retrying...");
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-                }
-            }
-        };
-
         // Get all pending/in-progress jobs
         let active_job_ids = self.job_service.get_all_active_job_ids()?;
         let mut jobs_to_process = Vec::new();
@@ -319,12 +305,7 @@ impl BitcoinService {
             info!("Processing job {}", job.id);
 
             match self
-                .process_job(
-                    &job,
-                    &mut progress,
-                    fee_sat_per_vbyte,
-                    previous_job_was_partially_sent,
-                )
+                .process_job(&job, &mut progress, previous_job_was_partially_sent)
                 .await
             {
                 Ok(completed) => {
@@ -356,7 +337,6 @@ impl BitcoinService {
         &self,
         job: &Job,
         progress: &mut JobProgress,
-        fee_sat_per_vbyte: u64,
         previous_job_was_partially_sent: bool,
     ) -> Result<bool> {
         info!(
@@ -376,7 +356,8 @@ impl BitcoinService {
         // get all available utxos
         let utxos = self.get_utxos().await?;
 
-        let current_idx = progress.sent_chunks.count();
+        /// Get current fee rate as sat/vb
+        let fee_sat_per_vbyte = self.fee.get_fee_rate().await?;
 
         let da_txs = self
             .create_da_transactions_with_fee_rate(
@@ -388,6 +369,7 @@ impl BitcoinService {
             )
             .await?;
 
+        let current_idx = progress.sent_chunks.count();
         let signed_txs = self
             .tx_signer
             .sign_da_txs(da_txs.clone(), current_idx)
