@@ -823,11 +823,11 @@ where
         // submit all proofs to da
         for (job_id, proof) in proofs {
             let prover_service = self.prover_service.clone();
-            let ledger_db = self.ledger_db.clone();
+            let _ledger_db = self.ledger_db.clone();
             info!("Submitting recovered proof for job {}", job_id);
             // submit in the background
             tokio::spawn(async move {
-                let id = prover_service
+                let _id = prover_service
                     .submit_proof(proof)
                     .await
                     .expect("Failed to submit transaction");
