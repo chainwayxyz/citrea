@@ -356,7 +356,7 @@ impl BitcoinService {
         // get all available utxos
         let utxos = self.get_utxos().await?;
 
-        /// Get current fee rate as sat/vb
+        // Get current fee rate as sat/vb
         let fee_sat_per_vbyte = self.fee.get_fee_rate().await?;
 
         let da_txs = self
