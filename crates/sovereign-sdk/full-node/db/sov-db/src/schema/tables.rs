@@ -43,6 +43,8 @@ pub const STATE_TABLES: &[&str] = &[
 /// Note: Please keep the list sorted alphabetically
 pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     CommitmentsByNumber::table_name(),
+    DaJobById::table_name(),
+    DaJobProgressById::table_name(),
     ExecutedMigrations::table_name(),
     L2BlockByHash::table_name(),
     L2BlockByNumber::table_name(),
@@ -93,6 +95,8 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
 pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     CommitmentIndicesByJobId::table_name(),
     CommitmentIndicesByL1::table_name(),
+    DaJobById::table_name(),
+    DaJobProgressById::table_name(),
     ExecutedMigrations::table_name(),
     JobIdOfCommitment::table_name(),
     L2BlockByHash::table_name(),
@@ -142,6 +146,8 @@ pub const LEDGER_TABLES: &[&str] = &[
     CommitmentIndicesByL1::table_name(),
     CommitmentMerkleRoots::table_name(),
     CommitmentsByNumber::table_name(),
+    DaJobById::table_name(),
+    DaJobProgressById::table_name(),
     ExecutedMigrations::table_name(),
     JobIdOfCommitment::table_name(),
     L2BlockByHash::table_name(),
@@ -491,6 +497,16 @@ define_table_with_seek_key_codec!(
 define_table_with_seek_key_codec!(
     /// Out of order proofs
     (PendingProofs) (u32, u32) => (Proof, L1Height)
+);
+
+define_table_with_seek_key_codec!(
+    /// Da job by uuid
+    (DaJobById) Uuid => Vec<u8>
+);
+
+define_table_with_seek_key_codec!(
+    /// Da job progress by uuid
+    (DaJobProgressById) Uuid => Vec<u8>
 );
 
 #[cfg(test)]

@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use anyhow::anyhow;
 use bitcoin::address::NetworkUnchecked;
@@ -24,6 +24,7 @@ use tokio::time::interval;
 use tracing::{debug, error, info, instrument, trace};
 
 use crate::helpers::builders::TxWithId;
+use crate::helpers::get_timestamp;
 use crate::helpers::parsers::parse_relevant_transaction;
 use crate::spec::utxo::UTXO;
 
@@ -32,20 +33,12 @@ type Result<T> = std::result::Result<T, MonitorError>;
 
 const REBROADCAST_EACH_N_BLOCK: u64 = 1;
 
-/// Return UNIX timestamp in seconds
-fn get_timestamp() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Cannot fail because there is always a UNIX epoch")
-        .as_secs()
-}
-
 /// Transaction status in the monitoring service.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TxStatus {
-    /// Queued tx, not already broadcasted
-    Queued,
+    /// Pending status updated
+    Pending,
     /// Tx in mempool
     #[serde(rename_all = "camelCase")]
     InMempool {
@@ -126,7 +119,7 @@ impl MonitoredTx {
     /// Return the UTXOs for this transaction if it's not replaced or evicted.
     pub fn to_utxos(&self) -> Option<Vec<UTXO>> {
         let confirmations = match self.status {
-            TxStatus::Queued | TxStatus::InMempool { .. } => 0,
+            TxStatus::InMempool { .. } => 0,
             TxStatus::Confirmed { confirmations, .. }
             | TxStatus::Finalized { confirmations, .. } => confirmations,
             _ => return None,
@@ -174,8 +167,8 @@ impl Default for ChainState {
 #[derive(Error, Debug)]
 pub enum MonitorError {
     /// Already monitored.
-    #[error("Transaction already monitored")]
-    AlreadyMonitored,
+    #[error("Transaction {0} already monitored")]
+    AlreadyMonitored(Txid),
     /// Transaction not found.
     #[error("Transaction not found")]
     TxNotFound,
@@ -485,7 +478,7 @@ impl MonitoringService {
 
         let mut monitored_txs = self.monitored_txs.write().await;
         if monitored_txs.contains_key(&txid) {
-            return Err(MonitorError::AlreadyMonitored);
+            return Err(MonitorError::AlreadyMonitored(txid));
         }
 
         if let Some(prev_tx_id) = prev_txid {
@@ -497,10 +490,14 @@ impl MonitoringService {
 
         let current_height = self.client.get_block_count().await?;
 
+        let tx_result = self.client.get_transaction(&txid, None).await?;
+
         self.total_size
             .fetch_add(tx.tx.total_size(), Ordering::SeqCst);
 
-        let status = TxStatus::Queued;
+        let status = self
+            .determine_tx_status(&tx_result, &TxStatus::Pending)
+            .await?;
         let monitored_tx = MonitoredTx {
             tx: tx.tx,
             txid,
@@ -649,7 +646,7 @@ impl MonitoringService {
         for (txid, monitored_tx) in txs.iter_mut() {
             match &monitored_tx.status {
                 // Check non-finalized TXs
-                TxStatus::Queued | TxStatus::Confirmed { .. } | TxStatus::Replaced { .. } => {
+                TxStatus::Confirmed { .. } | TxStatus::Replaced { .. } => {
                     if let Ok(tx_result) = self.client.get_transaction(txid, None).await {
                         let new_status = self
                             .determine_tx_status(&tx_result, &monitored_tx.status)
@@ -738,7 +735,7 @@ impl MonitoringService {
                 // Tx not found in mempool
                 Err(_) => match current_status {
                     // If transaction is queued or evicted, keep status as is
-                    TxStatus::Queued | TxStatus::Evicted { .. } => current_status.clone(),
+                    TxStatus::Evicted { .. } => current_status.clone(),
                     // If transaction was previously in mempool or confirmed, re-org happened and it got evicted from mempool
                     _ => {
                         tracing::info!("Tx {} was evicted from mempool.", tx_result.info.txid);

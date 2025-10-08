@@ -2,9 +2,11 @@
 //! It includes transaction kind definitions, transaction builders, parsers, and Merkle tree utilities.
 
 use core::num::NonZero;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use bitcoin::consensus::Encodable;
 use bitcoin::Transaction;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 #[cfg(feature = "native")]
@@ -16,7 +18,7 @@ pub mod merkle_tree;
 pub mod parsers;
 
 /// Type represents a typed enum for transaction kind
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[repr(u16)]
 pub(crate) enum TransactionKind {
     /// This type of transaction includes full body (< 400kb)
@@ -66,6 +68,14 @@ impl TransactionKind {
             )),
         }
     }
+}
+
+/// Return UNIX timestamp in seconds
+pub(crate) fn get_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Cannot fail because there is always a UNIX epoch")
+        .as_secs()
 }
 
 /// Calculate SHA-256d with the patched sha256 impl.

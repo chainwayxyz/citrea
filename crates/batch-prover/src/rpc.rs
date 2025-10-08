@@ -479,15 +479,22 @@ where
         let receipt = InnerReceipt::Fake(fake_receipt);
         let proof = bincode::serialize(&receipt).expect("Receipt serialization cannot fail");
 
-        let tx_id = self
+        let job_id = self
             .context
             .da_service
             .send_transaction(DaTxRequest::ZKProof(proof.clone()))
             .await
             .map_err(internal_rpc_error)?;
 
+        let txid = self
+            .context
+            .da_service
+            .wait_for_completion(job_id, None)
+            .await
+            .map_err(internal_rpc_error)?;
+
         Ok(BatchProofResponse {
-            l1_tx_id: Some(tx_id.into()),
+            l1_tx_id: Some(txid.into()),
             proof,
             proof_output: StoredBatchProofOutput::from(output).into(),
         })

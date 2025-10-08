@@ -8,12 +8,12 @@ use sha2::Digest;
 use sov_rollup_interface::da::{
     BlobReaderTrait, BlockHeaderTrait, DaSpec, DaTxRequest, DataOnDa, SequencerCommitment, Time,
 };
-use sov_rollup_interface::services::da::{DaService, SlotData, TxRequestWithNotifier};
+use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::{broadcast, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use tokio::time;
 use tracing::instrument::Instrument;
+use uuid::Uuid;
 
 use crate::db_connector::DbConnector;
 use crate::types::{MockAddress, MockBlob, MockBlock, MockDaVerifier};
@@ -427,10 +427,7 @@ impl DaService for MockDaService {
     }
 
     #[tracing::instrument(name = "MockDA", level = "debug", skip_all)]
-    async fn send_transaction(
-        &self,
-        tx_request: DaTxRequest,
-    ) -> Result<Self::TransactionId, Self::Error> {
+    async fn send_transaction(&self, tx_request: DaTxRequest) -> Result<Uuid, Self::Error> {
         let blob = match tx_request {
             DaTxRequest::ZKProof(proof) => {
                 tracing::debug!("Adding a zkproof");
@@ -450,21 +447,15 @@ impl DaService for MockDaService {
         };
         let blocks = self.blocks.lock().await;
         let _ = self.add_blob(&blocks, blob, Default::default())?;
-        Ok(MockHash([0; 32]))
+        Ok(Uuid::default())
     }
 
-    fn get_send_transaction_queue(
+    async fn wait_for_completion(
         &self,
-    ) -> UnboundedSender<TxRequestWithNotifier<Self::TransactionId>> {
-        let (tx, mut rx) = unbounded_channel::<TxRequestWithNotifier<Self::TransactionId>>();
-        let this = self.clone();
-        tokio::spawn(async move {
-            while let Some(req) = rx.recv().await {
-                let res = this.send_transaction(req.tx_request).await;
-                let _ = req.notify.send(res);
-            }
-        });
-        tx
+        _job_id: Uuid,
+        _timeout: Option<Duration>,
+    ) -> Result<Self::TransactionId, Self::Error> {
+        Ok(MockHash([0; 32]))
     }
 
     async fn get_fee_rate(&self) -> Result<u128, Self::Error> {
@@ -583,8 +574,8 @@ mod tests {
             let block_3_before = da.get_block_at(3).await.unwrap();
 
             // Disabling this check because our modified mock da creates blocks when a transaction is sent
-            // let result = da.get_block_at(4).await;
-            // assert!(result.is_err());
+            let result = da.get_block_at(4).await;
+            assert!(result.is_err());
 
             let block_1_after = da.get_block_at(1).await.unwrap();
             let block_2_after = da.get_block_at(2).await.unwrap();

@@ -23,6 +23,8 @@ use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_e2e::traits::NodeT;
 use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
 use reth_tasks::TaskExecutor;
+use sov_db::ledger_db::LedgerDB;
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{
     BatchProofMethodId, BatchProofMethodIdBody, DaTxRequest, SequencerCommitment,
@@ -190,8 +192,6 @@ pub async fn spawn_bitcoin_da_service(
         rpc_connect_timeout_secs: None,
     };
 
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
     let network = Network::Nightly;
     let chain_params = RollupParams {
         reveal_tx_prefix,
@@ -227,6 +227,10 @@ pub async fn spawn_bitcoin_da_service(
 
     let fee_service = FeeService::new(client.clone(), network, da_config.mempool_space_url.clone());
 
+    let ledger_db_path = test_dir.join("da_ledger_db");
+    let rocksdb_config = RocksdbConfig::new(&ledger_db_path, None, None);
+    let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
+
     let service = Arc::new(
         BitcoinService::from_config(
             &da_config,
@@ -237,14 +241,14 @@ pub async fn spawn_bitcoin_da_service(
             monitoring_service,
             fee_service,
             true,
-            tx,
+            ledger_db,
         )
         .await
         .unwrap(),
     );
 
     task_executor
-        .spawn_with_graceful_shutdown_signal(|tk| service.clone().run_da_queue(rx, block_rx, tk));
+        .spawn_with_graceful_shutdown_signal(|tk| service.clone().run_da_queue(block_rx, tk));
 
     service.monitoring.restore().await.unwrap();
     task_executor.spawn_with_graceful_shutdown_signal(|tk| Arc::clone(&service.monitoring).run(tk));

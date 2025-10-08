@@ -744,7 +744,7 @@ impl BitcoinVerifierTest {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_bitcoin_verifier() -> Result<()> {
     TestCaseRunner::new(BitcoinVerifierTest {
         task_manager: TaskManager::current(),

@@ -735,16 +735,16 @@ where
 
                 // submit the proof to the DA service in the background
                 tokio::spawn(async move {
-                    let tx_id = prover_service
-                        .submit_proof(proof_with_duration.proof, job_id)
+                    let txid = prover_service
+                        .submit_proof(proof_with_duration.proof)
                         .await
                         .expect("Failed to submit proof");
 
-                    info!("Job {} proof sent to DA", job_id);
+                    info!("Job {} proof submitted to DA", job_id);
 
-                    // stores tx id and removes job from pending da submission
+                    // // stores tx id and removes job from pending da submission
                     ledger_db
-                        .finalize_proving_job(job_id, tx_id.into())
+                        .finalize_proving_job(job_id, txid.into())
                         .expect("Should update proving job tx id");
                 });
             }
@@ -827,17 +827,17 @@ where
             info!("Submitting recovered proof for job {}", job_id);
             // submit in the background
             tokio::spawn(async move {
-                let tx_id = prover_service
-                    .submit_proof(proof, job_id)
+                let id = prover_service
+                    .submit_proof(proof)
                     .await
                     .expect("Failed to submit transaction");
                 info!("Recovered Job {} proof sent to DA", job_id);
 
-                // stores tx id and removes job from pending da submission
-                ledger_db
-                    .finalize_proving_job(job_id, tx_id.into())
-                    .expect("Should update proving job tx id");
-                info!("Finalized recovered proving job: {}", job_id);
+                // // stores tx id and removes job from pending da submission
+                // ledger_db
+                //     .finalize_proving_job(job_id, tx_id.into())
+                //     .expect("Should update proving job tx id");
+                // info!("Finalized recovered proving job: {}", job_id);
             });
         }
     }

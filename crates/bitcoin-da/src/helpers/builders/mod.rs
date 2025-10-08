@@ -2,6 +2,7 @@
 //! related to commit-reveal pattern for Citrea rollup.
 
 pub mod body_builders;
+
 #[cfg(feature = "testing")]
 pub mod test_utils;
 

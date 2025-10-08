@@ -14,17 +14,21 @@ use bitcoin::secp256k1::{SecretKey, XOnlyPublicKey};
 use bitcoin::{Address, Amount, Network, Transaction};
 use metrics::histogram;
 use secp256k1::SECP256K1;
-use serde::Serialize;
-use sov_rollup_interface::da::DataOnDa;
+use serde::{Deserialize, Serialize};
+use sov_rollup_interface::da::{DaTxRequest, DataOnDa};
 use tracing::{info, instrument, trace, warn};
 
 use super::{
     build_commit_transaction, build_control_block, build_reveal_transaction, build_witness,
     get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind, TxWithId,
 };
+use crate::error::BitcoinServiceError;
+use crate::job::service::SentChunks;
+use crate::service::split_proof;
 use crate::spec::utxo::UTXO;
 use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 /// These are real blobs we put on DA.
 pub(crate) enum RawTxData {
     /// borsh(DataOnDa::Complete(compress(Proof)))
@@ -37,6 +41,26 @@ pub(crate) enum RawTxData {
     BatchProofMethodId(Vec<u8>),
     /// borsh(DataOnDa::SequencerCommitment(SequencerCommitment))
     SequencerCommitment(Vec<u8>),
+}
+
+impl TryFrom<DaTxRequest> for RawTxData {
+    type Error = BitcoinServiceError;
+
+    fn try_from(request: DaTxRequest) -> Result<Self, Self::Error> {
+        match request {
+            DaTxRequest::ZKProof(zkproof) => split_proof(zkproof),
+            DaTxRequest::SequencerCommitment(comm) => {
+                let blob = borsh::to_vec(&DataOnDa::SequencerCommitment(comm))
+                    .expect("SequencerCommitment serialize must not fail");
+                Ok(RawTxData::SequencerCommitment(blob))
+            }
+            DaTxRequest::BatchProofMethodId(id) => {
+                let blob = borsh::to_vec(&DataOnDa::BatchProofMethodId(id))
+                    .expect("BatchProofMethodId serialize must not fail");
+                Ok(RawTxData::BatchProofMethodId(blob))
+            }
+        }
+    }
 }
 
 /// This is a list of txs we need to send to DA
@@ -76,6 +100,19 @@ pub enum DaTxs {
     },
 }
 
+impl DaTxs {
+    /// Number of commit/reveal pair
+    pub fn count(&self) -> usize {
+        match self {
+            // Number of required chunks + 1 for aggregate
+            DaTxs::Chunked { commit_chunks, .. } => commit_chunks.len() + 1,
+            DaTxs::Complete { .. }
+            | DaTxs::BatchProofMethodId { .. }
+            | DaTxs::SequencerCommitment { .. } => 1,
+        }
+    }
+}
+
 /// Creates the light client transactions (commit and reveal).
 /// Based on data type, the number of transactions may vary.
 /// In the end, reveal txs will be mined with a nonce to have
@@ -84,6 +121,7 @@ pub enum DaTxs {
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_transactions(
     data: RawTxData,
+    sent_chunks: SentChunks,
     da_private_key: SecretKey,
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
@@ -105,8 +143,8 @@ pub fn create_inscription_transactions(
             network,
             &reveal_tx_prefix,
         ),
-        RawTxData::Chunks(body) => create_inscription_type_1(
-            body,
+        RawTxData::Chunks(data) => create_inscription_type_1(
+            data,
             &da_private_key,
             prev_utxo,
             utxos,
@@ -115,6 +153,8 @@ pub fn create_inscription_transactions(
             reveal_fee_rate,
             network,
             &reveal_tx_prefix,
+            sent_chunks.commit_txs,
+            sent_chunks.reveal_txs,
         ),
         RawTxData::BatchProofMethodId(body) => create_inscription_type_3(
             body,
@@ -326,17 +366,33 @@ pub fn create_inscription_type_1(
     reveal_fee_rate: u64,
     network: Network,
     reveal_tx_prefix: &[u8],
+    previous_commit_chunks: Vec<Transaction>,
+    previous_reveal_chunks: Vec<Transaction>,
 ) -> Result<DaTxs, anyhow::Error> {
     // Create reveal key
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
-    let mut commit_chunks: Vec<Transaction> = vec![];
-    let mut reveal_chunks: Vec<Transaction> = vec![];
+    let current_idx = previous_commit_chunks.len();
+    let mut commit_chunks = previous_commit_chunks;
+    let mut reveal_chunks = previous_reveal_chunks;
+
+    if let Some(reveal_tx) = reveal_chunks.last() {
+        prev_utxo = Some(UTXO {
+            tx_id: reveal_tx.compute_txid(),
+            vout: 0,
+            script_pubkey: reveal_tx.output[0].script_pubkey.to_hex_string(),
+            address: None,
+            amount: reveal_tx.output[0].value.to_sat(),
+            confirmations: 0,
+            spendable: true,
+            solvable: true,
+        });
+    }
 
     let start = Instant::now();
 
-    for body in chunks {
+    for body in chunks.into_iter().skip(current_idx) {
         let kind = TransactionKind::Chunks;
         let kind_bytes = kind.to_bytes();
 
@@ -647,6 +703,7 @@ pub fn create_inscription_type_1(
                 if let Some(root) = merkle_root {
                     info!("Taproot merkle root for inscription - Aggregate: {}", root);
                 }
+
                 return Ok(DaTxs::Chunked {
                     commit_chunks,
                     reveal_chunks,

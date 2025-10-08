@@ -325,6 +325,22 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
     fn get_mempool_txs(&self) -> anyhow::Result<Vec<(Vec<u8>, Vec<u8>)>>;
 }
 
+/// Bitcoin da ledger operations
+pub trait DaLedgerOps {
+    /// Insert a DA job by id
+    fn insert_job(&self, job_id: Uuid, job: Vec<u8>) -> Result<()>;
+    /// Get a DA job by id
+    fn get_job(&self, job_id: &Uuid) -> Result<Option<Vec<u8>>>;
+
+    /// Update a DA job progress by id
+    fn upsert_progress(&self, job_id: &Uuid, progress: Vec<u8>) -> Result<()>;
+    /// Get a DA job progress by id
+    fn get_progress(&self, job_id: &Uuid) -> Result<Option<Vec<u8>>>;
+
+    /// Get all DA job ids
+    fn all_jobs(&self) -> Result<Vec<Uuid>>;
+}
+
 /// Test ledger operations
 #[cfg(test)]
 pub trait TestLedgerOps {

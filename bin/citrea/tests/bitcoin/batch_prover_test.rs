@@ -311,7 +311,7 @@ async fn basic_prover_test() -> Result<()> {
 
 //         // Send the same commitment that was already proven.
 //         bitcoin_da_service
-//             .send_transaction_with_fee_rate(
+//             .send_transaction(
 //                 DaTxRequest::SequencerCommitment(commitments.first().unwrap().clone()),
 //                 1,
 //             )

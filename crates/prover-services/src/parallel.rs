@@ -203,30 +203,31 @@ where
     }
 
     /// Submits the zk proof to the DA service, returning transaction id.
-    #[instrument(name = "ParallelProverService", skip_all, fields(job_id = _job_id.to_string()))]
+    #[instrument(name = "ParallelProverService", skip_all)]
     pub async fn submit_proof(
         &self,
         proof: Proof,
-        _job_id: Uuid,
     ) -> anyhow::Result<<Da as DaService>::TransactionId> {
         let tx_request = DaTxRequest::ZKProof(proof);
         info!("Submitting proof to DA service");
-        self.da_service
+        let job_id = self
+            .da_service
             .send_transaction(tx_request)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
+
+        self.da_service
+            .wait_for_completion(job_id, None)
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }
 
     // Only used in tests
-    pub async fn submit_proofs(
-        &self,
-        proofs: Vec<Proof>,
-    ) -> anyhow::Result<Vec<(<Da as DaService>::TransactionId, Proof)>> {
+    pub async fn submit_proofs(&self, proofs: Vec<Proof>) -> anyhow::Result<Vec<Proof>> {
         let mut tx_and_proof = Vec::with_capacity(proofs.len());
-        let job_id = Uuid::nil();
         for proof in proofs {
-            let tx_id = self.submit_proof(proof.clone(), job_id).await?;
-            tx_and_proof.push((tx_id, proof));
+            self.submit_proof(proof.clone()).await?;
+            tx_and_proof.push(proof);
         }
         Ok(tx_and_proof)
     }

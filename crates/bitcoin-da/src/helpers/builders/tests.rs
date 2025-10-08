@@ -11,6 +11,7 @@ use citrea_primitives::compression::{compress_blob, decompress_blob};
 use super::body_builders::{DaTxs, RawTxData};
 use crate::helpers::builders::sign_blob_with_private_key;
 use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
+use crate::job::service::SentChunks;
 use crate::spec::utxo::UTXO;
 use crate::REVEAL_OUTPUT_AMOUNT;
 
@@ -509,6 +510,7 @@ fn create_inscription_transactions() {
     let tx_prefix = &[0u8];
     let DaTxs::Complete { commit, reveal } = super::body_builders::create_inscription_transactions(
         RawTxData::Complete(body.clone()),
+        SentChunks::default(),
         da_private_key,
         None,
         utxos.clone(),

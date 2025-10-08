@@ -107,6 +107,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         require_wallet_check: bool,
         task_manager: TaskExecutor,
         network: Network,
+        ledger_db: LedgerDB,
     ) -> Result<Arc<Self::DaService>, anyhow::Error>;
 
     /// Creates instance of [`ProverService`].

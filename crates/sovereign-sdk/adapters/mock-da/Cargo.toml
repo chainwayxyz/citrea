@@ -22,6 +22,8 @@ tokio = { workspace = true, optional = true }
 rusqlite = { version = "0.34.0", features = ["bundled"], optional = true }
 serde_json = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true, features = ["attributes"]}
+uuid = { workspace = true, optional = true }
+
 
 sov-rollup-interface = { path = "../../rollup-interface" }
 
@@ -35,5 +37,6 @@ native = [
     "dep:serde_json",
     "dep:tokio",
     "dep:tracing",
+    "dep:uuid",
     "sov-rollup-interface/native",
 ]

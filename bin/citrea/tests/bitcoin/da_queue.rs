@@ -63,19 +63,13 @@ impl DaTransactionQueueingTest {
         // Fill mempool
         for i in 1..=3 {
             da_service
-                .send_transaction_with_fee_rate(
-                    DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                    1,
-                )
+                .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
                 .await?;
             da.wait_mempool_len(8 * i, None).await?;
         }
 
         da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                1,
-            )
+            .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
             .await?;
 
         // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
@@ -83,30 +77,22 @@ impl DaTransactionQueueingTest {
         da.wait_mempool_len(8 * 3 + 2, None).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 26);
 
-        // Assert that all queued txs are monitored
+        // Assert that all sent txs are monitored
         let monitored_txs = da_service.monitoring.get_monitored_txs().await;
-        assert_eq!(monitored_txs.len(), 32);
+        assert_eq!(monitored_txs.len(), 26);
 
         // Try to send when queue is already filled up.
         // This is to test that utxos is correctly selected and that it's doesn't hang on waiting for list of queued txids to be returned
         let res = da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                1,
-            )
+            .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
             .await;
 
-        assert!(matches!(res, Err(BitcoinServiceError::QueueNotEmpty)));
+        assert!(matches!(
+            res,
+            Err(BitcoinServiceError::PreviousJobInProgress)
+        ));
 
-        // Send transaction hangs until a new block is detected
-        // Tests that transactions properly waits for block notification
-        tokio::select! {
-            _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {
-                da.generate(1).await?;
-            }
-            _ = da_service.send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone())) => {
-            }
-        }
+        da.generate(1).await?;
 
         // We mine the first three proofs + the 1 chunk pair and make sure that the remaining chunks and aggregate
         // and the extra proof is properly queued and sent on next block when mempool size is freed
@@ -119,6 +105,14 @@ impl DaTransactionQueueingTest {
         let (relevant_txs, _, _) = da_service.extract_relevant_blobs_with_proof(&block);
 
         assert_eq!(relevant_txs.len(), 13);
+
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        // Send additional proof and make sure it doesn't hit PreviousJobInProgress error
+        let res = da_service
+            .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
+            .await;
+
+        assert!(res.is_ok());
 
         // Remaining chunks and aggregate + extra queued proof should now hit the mempool
         da.wait_mempool_len(8 + 6, None).await?;
@@ -170,25 +164,22 @@ impl DaTransactionQueueingTest {
 
         // This over the mempool limit proof should be accepted and split up over multiple blocks
         let res = da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::ZKProof(verifiable_400kb_batch_proof.clone()),
-                1,
-            )
+            .send_transaction(DaTxRequest::ZKProof(verifiable_400kb_batch_proof.clone()))
             .await;
         assert!(res.is_ok());
 
         // Queue is already not empty and proof cannot be sent.
         let res = da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_400kb_batch_proof), 1)
+            .send_transaction(DaTxRequest::ZKProof(verifiable_400kb_batch_proof))
             .await;
         assert!(res.is_err());
 
         da.wait_mempool_len(18, None).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 18);
 
-        // Assert that all queued txs are monitored
+        // Assert that all sent txs are monitored
         let monitored_txs = da_service.monitoring.get_monitored_txs().await;
-        assert_eq!(monitored_txs.len(), 64);
+        assert_eq!(monitored_txs.len(), 58);
 
         da.generate(1).await?;
         // Assert that all chunks were mined and mempool space is freed
@@ -380,7 +371,7 @@ impl TestCase for DaTransactionQueueingTest {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_queue_da_transactions() -> Result<()> {
     TestCaseRunner::new(DaTransactionQueueingTest {
         task_manager: TaskManager::current(),
@@ -429,19 +420,13 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         // Fill mempool
         for i in 1..=3 {
             da_service
-                .send_transaction_with_fee_rate(
-                    DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                    1,
-                )
+                .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
                 .await?;
             da.wait_mempool_len(8 * i, None).await?;
         }
 
         da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                1,
-            )
+            .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
             .await?;
 
         // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
@@ -449,23 +434,20 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         da.wait_mempool_len(8 * 3 + 2, None).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 26);
 
-        // Assert that all queued txs are monitored
+        // Assert that all sent txs are monitored
         let monitored_txs = da_service.monitoring.get_monitored_txs().await;
-        assert_eq!(monitored_txs.len(), 32);
+        assert_eq!(monitored_txs.len(), 26);
 
         // Try to send when queue is already filled up.
         // This is to test that utxos is correctly selected and that it's doesn't hang on waiting for list of queued txids to be returned
         let res = da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                1,
-            )
+            .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
             .await;
 
         assert!(res.is_ok());
 
         let monitored_txs = da_service.monitoring.get_monitored_txs().await;
-        assert_eq!(monitored_txs.len(), 40);
+        assert_eq!(monitored_txs.len(), 34);
 
         // Txs starting from a new chain should be accepted to mempool
         da.wait_mempool_len(8 * 3 + 2 + 8, None).await?;
@@ -533,27 +515,25 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
 
         // This over the mempool limit proof should be accepted and split up over multiple blocks
         let res = da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::ZKProof(verifiable_400kb_batch_proof.clone()),
-                1,
-            )
+            .send_transaction(DaTxRequest::ZKProof(verifiable_400kb_batch_proof.clone()))
             .await;
         assert!(res.is_ok());
 
         // Should be able to send another proof that is also split up over multiple blocks
         let res = da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_400kb_batch_proof), 1)
+            .send_transaction(DaTxRequest::ZKProof(verifiable_400kb_batch_proof))
             .await;
         assert!(res.is_ok());
 
         da.wait_mempool_len(18 * 2, None).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 18 * 2);
 
-        // Assert that all queued txs are monitored
+        // Assert that all sent txs are monitored
         let monitored_txs = da_service.monitoring.get_monitored_txs().await;
-        assert_eq!(monitored_txs.len(), 88);
+        assert_eq!(monitored_txs.len(), 76);
 
         da.generate(1).await?;
+
         // Assert that all chunks were mined and mempool space is freed
         assert_eq!(da.get_raw_mempool().await?.len(), 0);
 
@@ -567,8 +547,10 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         let rollback_first_hash = hash;
 
         da.wait_mempool_len(6 * 2, None).await?;
+
         assert_eq!(da.get_raw_mempool().await?.len(), 6 * 2);
         da.generate(1).await?;
+
         // Assert that all chunks and aggregate were mined
         assert_eq!(da.get_raw_mempool().await?.len(), 0);
 
@@ -589,6 +571,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         let dropped_txs = &da.get_raw_mempool().await?[2..];
 
         da.invalidate_block(&rollback_first_hash).await?;
+
         // Should be (6 + 18) * 2 if all mined txs were restored to mempool but 5 * 2 txs are dropped due to being over mempool policy limit
         assert_eq!(da.get_raw_mempool().await?.len(), (18 + 1) * 2);
         let remaining_txs = da.get_raw_mempool().await?;
@@ -599,6 +582,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
 
         // Make sure txs are rebroadcasted from monitoring service
         da.wait_mempool_len(5 * 2, None).await?;
+
         let raw_mempool = da.get_raw_mempool().await?;
         assert_eq!(dropped_txs, raw_mempool);
 
@@ -696,6 +680,7 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
         }
 
         da.wait_mempool_len(2, None).await?;
+
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
@@ -749,7 +734,7 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_queue_da_transactions_oldest_mode() -> Result<()> {
     TestCaseRunner::new(DaTransactionQueueingUtxoSelectionModeOldestTest {
         task_manager: TaskManager::current(),

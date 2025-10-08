@@ -6,6 +6,7 @@ use thiserror::Error;
 use tokio::task::JoinError;
 
 use crate::fee::FeeServiceError;
+use crate::job::error::JobServiceError;
 use crate::monitoring::{MonitorError, TxStatus};
 
 /// The top level error type that can be returned by the `BitcoinService`.
@@ -44,9 +45,9 @@ pub enum BitcoinServiceError {
     /// Cannot bump fee for TX.
     #[error("Cannot bump fee for TX with status: {0:?}. Transaction must be pending")]
     WrongStatusForBumping(TxStatus),
-    /// Tx requested when queue is not empty.
-    #[error("Cannot create DA transaction while da queue is not empty")]
-    QueueNotEmpty,
+    /// Tx request when previous job is not fully sent.
+    #[error("Cannot create DA transaction while other job is in progress")]
+    PreviousJobInProgress,
     /// Transaction rejected by mempool.
     #[error(transparent)]
     MempoolRejection(#[from] MempoolRejection),
@@ -110,6 +111,11 @@ pub enum BitcoinServiceError {
     /// Fee service operation failure.
     #[error("Fee service error: {0}")]
     FeeServiceError(#[from] FeeServiceError),
+    // #[error(transparent)]
+    // Other(#[from] anyhow::Error),
+    /// Job service error
+    #[error("Job service error: {0}")]
+    JobService(#[from] JobServiceError),
 }
 
 /// Error type for mempool rejections via testmempoolaccept method.

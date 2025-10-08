@@ -17,12 +17,13 @@ use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
     CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber,
-    ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot,
-    L2RangeByL1Height, L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs,
-    PendingBonsaiSessionByJobId, PendingL1SubmissionJobs, PendingProofs,
-    PendingSequencerCommitments, ProofByJobId, ProverLastScannedSlot, ProverPendingCommitments,
-    ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
-    StateDiffByBlockNumber, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    DaJobById, DaJobProgressById, ExecutedMigrations, JobIdOfCommitment, L2BlockByHash,
+    L2BlockByNumber, L2GenesisStateRoot, L2RangeByL1Height, L2StatusHeights, LastPrunedBlock,
+    LightClientProofBySlotNumber, MempoolTxs, PendingBonsaiSessionByJobId, PendingL1SubmissionJobs,
+    PendingProofs, PendingSequencerCommitments, ProofByJobId, ProverLastScannedSlot,
+    ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
+    ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
+    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -968,5 +969,42 @@ impl ForkMigration for LedgerDB {
     fn fork_activated(&self, _fork: &Fork) -> anyhow::Result<()> {
         // TODO: Implement later
         Ok(())
+    }
+}
+
+impl DaLedgerOps for LedgerDB {
+    fn insert_job(&self, job_id: Uuid, job: Vec<u8>) -> anyhow::Result<()> {
+        let mut batch = SchemaBatch::new();
+        batch.put::<DaJobById>(&job_id, &job)?;
+        self.db.write_schemas(batch)?;
+        Ok(())
+    }
+
+    fn get_job(&self, job_id: &Uuid) -> anyhow::Result<Option<Vec<u8>>> {
+        self.db.get::<DaJobById>(job_id)
+    }
+
+    fn upsert_progress(&self, job_id: &Uuid, progress: Vec<u8>) -> anyhow::Result<()> {
+        let mut batch = SchemaBatch::new();
+        batch.put::<DaJobProgressById>(job_id, &progress)?;
+        self.db.write_schemas(batch)?;
+        Ok(())
+    }
+
+    fn get_progress(&self, job_id: &Uuid) -> anyhow::Result<Option<Vec<u8>>> {
+        self.db.get::<DaJobProgressById>(job_id)
+    }
+
+    fn all_jobs(&self) -> anyhow::Result<Vec<Uuid>> {
+        let mut iter = self.db.iter::<DaJobById>()?;
+        iter.seek_to_first();
+
+        let mut jobs = Vec::new();
+        for job in iter {
+            let (job_id, _) = job?.into_tuple();
+            jobs.push(job_id);
+        }
+
+        Ok(jobs)
     }
 }

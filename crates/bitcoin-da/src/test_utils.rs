@@ -76,7 +76,7 @@ impl BitcoinService {
                                 }
                                 .unwrap();
 
-                            let signed_txs = self.tx_signer.sign_da_txs(da_txs).await?;
+                            let signed_txs = self.tx_signer.sign_da_txs(da_txs, 0).await?;
 
                             reveal_chunks.push((txid, wtxid));
 
@@ -119,7 +119,7 @@ impl BitcoinService {
                         )
                         .unwrap();
 
-                        let signed_txs = self.tx_signer.sign_da_txs(da_txs).await?;
+                        let signed_txs = self.tx_signer.sign_da_txs(da_txs, 0).await?;
 
                         txids.extend(self.send_signed_transaction(&signed_txs[0]).await?);
                     }
