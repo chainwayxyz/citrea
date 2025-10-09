@@ -62,25 +62,32 @@ impl DaTransactionQueueingTest {
 
         // Fill mempool
         for i in 1..=3 {
+            println!("i : {:?}", i);
             da_service
                 .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
                 .await?;
             da.wait_mempool_len(8 * i, None).await?;
         }
 
+        println!("22");
         da_service
             .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
             .await?;
 
+        println!("223");
         // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
         // The three first proofs should hit the mempool + 1 chunk
         da.wait_mempool_len(8 * 3 + 2, None).await?;
+
+        println!("33");
         assert_eq!(da.get_raw_mempool().await?.len(), 26);
 
+        println!("44");
         // Assert that all sent txs are monitored
         let monitored_txs = da_service.monitoring.get_monitored_txs().await;
         assert_eq!(monitored_txs.len(), 26);
 
+        println!("55");
         // Try to send when queue is already filled up.
         // This is to test that utxos is correctly selected and that it's doesn't hang on waiting for list of queued txids to be returned
         let res = da_service
@@ -92,8 +99,11 @@ impl DaTransactionQueueingTest {
             Err(BitcoinServiceError::PreviousJobInProgress)
         ));
 
+        println!("66");
+
         da.generate(1).await?;
 
+        println!("77");
         // We mine the first three proofs + the 1 chunk pair and make sure that the remaining chunks and aggregate
         // and the extra proof is properly queued and sent on next block when mempool size is freed
         // Assert that all chunks were mined and mempool space is freed
@@ -106,18 +116,23 @@ impl DaTransactionQueueingTest {
 
         assert_eq!(relevant_txs.len(), 13);
 
+        println!("88");
         tokio::time::sleep(std::time::Duration::from_secs(3)).await;
         // Send additional proof and make sure it doesn't hit PreviousJobInProgress error
         let res = da_service
             .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
             .await;
 
+        println!("99");
         assert!(res.is_ok());
 
+        assert_eq!(da.get_raw_mempool().await?.len(), 8 + 6);
         // Remaining chunks and aggregate + extra queued proof should now hit the mempool
         da.wait_mempool_len(8 + 6, None).await?;
+        println!("1010");
         assert_eq!(da.get_raw_mempool().await?.len(), 8 + 6);
         da.generate(1).await?;
+        println!("1111");
         assert_eq!(da.get_raw_mempool().await?.len(), 0);
 
         let height = da.get_block_count().await?;
@@ -126,7 +141,9 @@ impl DaTransactionQueueingTest {
         let (relevant_txs, _, _) = da_service.extract_relevant_blobs_with_proof(&block);
         assert_eq!(relevant_txs.len(), 7);
 
+        println!("1212");
         da.generate(1).await?;
+        println!("1313");
 
         Ok(())
     }
@@ -346,6 +363,7 @@ impl TestCase for DaTransactionQueueingTest {
             .header
             .state_root;
 
+        println!("1");
         self.test_package_mempool_limits(
             da,
             &da_service,
@@ -357,6 +375,7 @@ impl TestCase for DaTransactionQueueingTest {
         )
         .await?;
 
+        println!("2");
         self.test_package_too_large(
             da,
             &da_service,

@@ -242,14 +242,11 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         reveals: Vec<Transaction>,
     ) -> Result<()> {
         progress.sent_chunks.extend(commits, reveals);
-        progress.status = JobStatus::InProgress;
-        progress.last_updated = get_timestamp();
-
-        self.upsert_progress(progress)?;
-        Ok(())
+        self.update_job_status(progress, JobStatus::InProgress)
     }
 
     /// Get all pending commit and reveals txids.
+    ///
     /// This is required for removing from the utxo set and prevent selecting UTXOs twice
     #[instrument(level = "trace", skip_all, ret)]
     pub(crate) fn get_pending_chunks(&self) -> Result<Vec<Txid>> {
@@ -317,5 +314,14 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
                 }
             }
         }
+    }
+
+    /// Check if any job is in progress.
+    pub async fn has_job_in_progress(&self) -> Result<bool> {
+        let in_progress_jobs = self
+            .ledger_db
+            .get_job_ids_by_status(JobStatus::InProgress.as_u8())?;
+
+        Ok(!in_progress_jobs.is_empty())
     }
 }

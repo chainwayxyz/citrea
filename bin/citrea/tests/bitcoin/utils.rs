@@ -232,7 +232,10 @@ pub async fn spawn_bitcoin_da_service(
 
     let fee_service = FeeService::new(client.clone(), network, da_config.mempool_space_url.clone());
 
-    let ledger_db_path = test_dir.join("da_ledger_db");
+    let ledger_db_dir = tempfile::TempDir::new()
+        .expect("Failed to create temporary directory")
+        .keep();
+    let ledger_db_path = ledger_db_dir.join("da_ledger_db");
     let rocksdb_config = RocksdbConfig::new(&ledger_db_path, None, None);
     let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
 
@@ -461,6 +464,7 @@ pub async fn generate_mock_txs(
     let wrong_key_str = "wrong_key";
     let wrong_key_wallet = PathBuf::from_str(wrong_key_str).unwrap();
     create_and_fund_wallet(wrong_key_str.to_string(), da_node).await;
+
     let wrong_key_da_service = spawn_bitcoin_da_service(
         task_executor,
         &da_node.config,
@@ -504,6 +508,7 @@ pub async fn generate_mock_txs(
         signatures_with_index,
     };
     valid_method_ids.push(method_id.clone());
+
     da_service
         .send_transaction(DaTxRequest::BatchProofMethodId(method_id))
         .await

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use bitcoin::{Amount, Network, Sequence, Txid};
+use bitcoin::{Amount, Network, Sequence, Transaction, Txid};
 use bitcoincore_rpc::json::{
     BumpFeeResult, CreateRawTransactionInput, EstimateMode, WalletCreateFundedPsbtOptions,
 };
@@ -14,6 +14,7 @@ use thiserror::Error;
 use tracing::{debug, instrument, trace, warn};
 
 use crate::error::BitcoinServiceError;
+use crate::job::service::SentChunks;
 use crate::monitoring::{MonitoredTx, MonitoredTxKind};
 use crate::spec::utxo::UTXO;
 use crate::tx_signer::SignedTxPair;
@@ -262,6 +263,7 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
 
 pub(crate) fn validate_txs_fee_rate(
     txs: &[SignedTxPair],
+    sent_chunks: &SentChunks,
     fee_rate: u64,
     utxos: Vec<UTXO>,
     prev_utxo: Option<UTXO>,
@@ -276,6 +278,21 @@ pub(crate) fn validate_txs_fee_rate(
             Amount::from_sat(prev_utxo.amount),
         );
     }
+
+    // Add sent chunks as available inputs
+    let get_tx_outputs = |txs: &[Transaction]| {
+        txs.iter()
+            .flat_map(|tx| {
+                let txid = tx.compute_txid();
+                tx.output
+                    .iter()
+                    .enumerate()
+                    .map(move |(idx, out)| ((txid, idx as u32), out.value))
+            })
+            .collect::<Vec<_>>()
+    };
+    utxo_map.extend(get_tx_outputs(&sent_chunks.commit_txs));
+    utxo_map.extend(get_tx_outputs(&sent_chunks.reveal_txs));
 
     for tx in txs {
         // Validate commit

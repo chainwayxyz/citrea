@@ -299,27 +299,19 @@ impl BitcoinService {
             }
         }
 
-        let mut previous_job_was_partially_sent = false;
-
         for (job, mut progress) in jobs_to_process {
             info!("Processing job {}", job.id);
 
-            match self
-                .process_job(&job, &mut progress, previous_job_was_partially_sent)
-                .await
-            {
+            match self.process_job(&job, &mut progress).await {
                 Ok(completed) => {
                     if completed {
                         info!("Job {} completed successfully", job.id);
-                        previous_job_was_partially_sent = false;
                     } else {
                         info!("Job {} partially sent", job.id);
-                        previous_job_was_partially_sent = true;
                     }
                 }
                 Err(e) => {
                     error!("Error processing job {}: {:?}", job.id, e);
-                    previous_job_was_partially_sent = true;
                     self.job_service.update_job_status(
                         &mut progress,
                         JobStatus::Failed {
@@ -333,28 +325,19 @@ impl BitcoinService {
         Ok(())
     }
 
-    async fn process_job(
-        &self,
-        job: &Job,
-        progress: &mut JobProgress,
-        previous_job_was_partially_sent: bool,
-    ) -> Result<bool> {
+    async fn process_job(&self, job: &Job, progress: &mut JobProgress) -> Result<bool> {
         info!(
             "Processing job {} with status {:?}",
             job.id, progress.status
         );
 
-        if matches!(progress.status, JobStatus::Pending) {
-            self.job_service
-                .update_job_status(progress, JobStatus::InProgress)?;
-        }
-
-        let prev_utxo = self
-            .select_prev_utxo(previous_job_was_partially_sent)
-            .await?;
-
         // get all available utxos
         let utxos = self.get_utxos().await?;
+
+        let prev_utxo = match &progress.status {
+            JobStatus::InProgress => None, // Will use previous reveal utxo in create_inscription_type_1
+            _ => self.select_prev_utxo(&utxos).await?,
+        };
 
         // Get current fee rate as sat/vb
         let fee_sat_per_vbyte = self.fee.get_fee_rate().await?;
@@ -379,7 +362,13 @@ impl BitcoinService {
         if !self.test_mempool_accept_queue_tx(&signed_txs).await? {
             // If it failed on mempool policy limit, it can also fail on meeting min relay fee
             // Stateless validation of signed txs fee
-            validate_txs_fee_rate(&signed_txs, fee_sat_per_vbyte, utxos, prev_utxo)?;
+            validate_txs_fee_rate(
+                &signed_txs,
+                &progress.sent_chunks,
+                fee_sat_per_vbyte,
+                utxos,
+                prev_utxo,
+            )?;
         }
 
         // backup to file after mempool acceptance
@@ -436,6 +425,9 @@ impl BitcoinService {
             info!("Job {} marked as completed", job.id);
         } else if sent_count > 0 {
             // Job partially sent
+            self.job_service
+                .update_job_status(progress, JobStatus::InProgress)?;
+
             info!(
                 "Job {} progress recorded: {}/{} transactions sent",
                 job.id, total_sent, total_needed
@@ -445,9 +437,11 @@ impl BitcoinService {
         Ok(completed)
     }
 
-    async fn select_prev_utxo(&self, should_select_new_utxo: bool) -> Result<Option<UTXO>> {
+    async fn select_prev_utxo(&self, utxos: &[UTXO]) -> Result<Option<UTXO>> {
         let prev_utxo = self.get_prev_utxo().await;
-        if !should_select_new_utxo {
+        let job_in_progress = self.job_service.has_job_in_progress().await?;
+
+        if !job_in_progress {
             return Ok(prev_utxo);
         }
 
@@ -456,14 +450,8 @@ impl BitcoinService {
                 // Prevent UTXO conflicts when queue is not empty and running UtxoSelectionMode::Chained mode
                 Err(BitcoinServiceError::PreviousJobInProgress)
             }
-            UtxoSelectionMode::Oldest => Ok(if should_select_new_utxo {
-                // Latest monitored TX has `Queued` status and internal `get_tx_out` errors.
-
-                self.get_highest_confirmation_utxo().await?
-            } else {
-                // Latest monitored TX has been successfully accepted to mempool and can be used as starting point for another utxo chain
-                prev_utxo
-            }),
+            // Latest monitored TX has `Queued` status and internal `get_tx_out` errors.
+            UtxoSelectionMode::Oldest => self.get_highest_confirmation_utxo(utxos.to_vec()).await,
         }
     }
 
@@ -535,8 +523,7 @@ impl BitcoinService {
 
     /// Returns the UTXO with the highest number of confirmations
     #[instrument(level = "trace", skip_all, ret)]
-    async fn get_highest_confirmation_utxo(&self) -> Result<Option<UTXO>> {
-        let mut utxos = self.get_utxos().await?;
+    async fn get_highest_confirmation_utxo(&self, mut utxos: Vec<UTXO>) -> Result<Option<UTXO>> {
         utxos.sort_by(|a, b| b.confirmations.cmp(&a.confirmations));
         Ok(utxos.first().cloned())
     }
@@ -1268,6 +1255,7 @@ impl DaService for BitcoinService {
         // TODO handle chaining job request
         if self.utxo_selection_mode == UtxoSelectionMode::Chained {
             let active_jobs = self.job_service.get_all_active_job_ids()?;
+
             if !active_jobs.is_empty() {
                 return Err(BitcoinServiceError::PreviousJobInProgress);
             }

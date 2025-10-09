@@ -227,7 +227,6 @@ where
             .await
             .map_err(|e| anyhow!("Failed to submit job to DA {e}"))?;
 
-        println!("sent job");
         info!(
             "Sent commitment to DA queue. L2 range: #{}-{}, index: {}",
             l2_start.0, l2_end.0, commitment_index,
@@ -236,13 +235,11 @@ where
         let start = Instant::now();
         let ledger_db = self.ledger_db.clone();
 
-        println!("awaiting txid");
         let _txid = self
             .da_service
             .wait_for_completion(job_id, None)
             .await
             .map_err(|e| anyhow!(e))?;
-        println!("awaited rx");
 
         SM.send_commitment_execution.record(
             Instant::now()
