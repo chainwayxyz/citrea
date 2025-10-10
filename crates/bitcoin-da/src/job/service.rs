@@ -6,14 +6,14 @@ use sov_db::ledger_db::DaLedgerOps;
 use tracing::{info, instrument};
 use uuid::Uuid;
 
+use super::Result;
 use crate::helpers::builders::body_builders::RawTxData;
 use crate::helpers::get_timestamp;
 use crate::job::error::JobServiceError;
+use crate::job::rpc::{DaJobRpcProvider, JobListFilter};
 
 /// Unique job id using uuidv7 for ordering by creation time
 pub(crate) type JobId = Uuid;
-
-type Result<T> = std::result::Result<T, JobServiceError>;
 
 /// Job status representing the current state of transaction processing
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -323,5 +323,93 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
             .get_job_ids_by_status(JobStatus::InProgress.as_u8())?;
 
         Ok(!in_progress_jobs.is_empty())
+    }
+}
+
+/// Implementation of RPC provider methods
+impl<DB: DaLedgerOps> DaJobRpcProvider for DaJobService<DB> {
+    fn cancel_job(&self, job_id: JobId) -> Result<()> {
+        // Get job progress to check status
+        let mut progress = self
+            .get_progress(&job_id)?
+            .ok_or(JobServiceError::JobNotFound(job_id))?;
+
+        // Only allow cancellation of pending or in-progress jobs
+        match progress.status {
+            JobStatus::Pending | JobStatus::InProgress => {
+                self.update_job_status(&mut progress, JobStatus::Cancelled)?;
+                tracing::info!("Job {job_id} succesfully cancelled");
+                Ok(())
+            }
+            JobStatus::Completed | JobStatus::Cancelled | JobStatus::Failed { .. } => Err(
+                JobServiceError::JobCancellationFailure(job_id, progress.status),
+            ),
+        }
+    }
+
+    fn retry_job(&self, job_id: JobId) -> Result<JobId> {
+        // Get job progress to check status
+        let progress = self
+            .get_progress(&job_id)?
+            .ok_or(JobServiceError::JobNotFound(job_id))?;
+
+        // Only allow retry of failed or cancelled jobs
+        match progress.status {
+            JobStatus::Failed { .. } | JobStatus::Cancelled => {
+                // Get original job to retrieve raw tx data
+                let original_job = self
+                    .get_job(&job_id)?
+                    .ok_or(JobServiceError::JobNotFound(job_id))?;
+                // Create new job with same data
+                let new_job = self.submit_job(original_job.data)?;
+                tracing::info!("Job {job_id} retried as new job {}", new_job.id);
+                Ok(new_job.id)
+            }
+            JobStatus::Pending | JobStatus::InProgress | JobStatus::Completed => {
+                Err(JobServiceError::JobRetryFailure(job_id, progress.status))
+            }
+        }
+    }
+
+    fn list_jobs(&self, filter: JobListFilter) -> Result<Vec<(Job, JobProgress)>> {
+        let limit = filter.limit.unwrap_or(25).min(1000); // Defaults to 25, capped at 1000
+        let offset = filter.offset.unwrap_or(0);
+
+        // Get job ids based on status filter
+        let status_filter = filter.status.unwrap_or_default();
+
+        let mut job_ids = Vec::new();
+        for code in status_filter.to_status_codes() {
+            job_ids.extend(self.ledger_db.get_job_ids_by_status(code)?);
+        }
+        job_ids.sort(); // sort chronologically by uuidv7
+
+        // Apply pagination
+        // TODO paginate at the db level. This should be sufficient for now as we take/skip on uuid before fetching job info
+        let job_ids: Vec<_> = job_ids.into_iter().skip(offset).take(limit).collect();
+
+        // Return (job, progress) per id
+        let mut job_infos = Vec::new();
+        for job_id in job_ids {
+            if let (Some(job), Some(progress)) =
+                (self.get_job(&job_id)?, self.get_progress(&job_id)?)
+            {
+                job_infos.push((job, progress));
+            }
+        }
+
+        Ok(job_infos)
+    }
+
+    fn get_job_info(&self, job_id: JobId) -> Result<(Job, JobProgress)> {
+        let job = self
+            .get_job(&job_id)?
+            .ok_or(JobServiceError::JobNotFound(job_id))?;
+
+        let progress = self
+            .get_progress(&job_id)?
+            .ok_or(JobServiceError::JobNotFound(job_id))?;
+
+        Ok((job, progress))
     }
 }

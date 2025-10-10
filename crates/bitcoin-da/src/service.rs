@@ -169,7 +169,7 @@ pub struct BitcoinService {
     utxo_selection_mode: UtxoSelectionMode,
 
     // Persistent job queue
-    job_service: DaJobService<LedgerDB>,
+    pub(crate) job_service: DaJobService<LedgerDB>,
 }
 
 impl BitcoinService {

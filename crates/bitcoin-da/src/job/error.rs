@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::job::service::JobId;
+use crate::job::service::{JobId, JobStatus};
 
 /// Job errors
 #[derive(Error, Debug)]
@@ -32,4 +32,12 @@ pub enum JobServiceError {
     /// Job was cancelled before completion
     #[error("Job {0} was cancelled")]
     JobCancelled(JobId),
+
+    /// Job cancellation failure
+    #[error("Job {0} cannot be cancelled as it is in status: {1:?}")]
+    JobCancellationFailure(JobId, JobStatus),
+
+    /// Job retry failure
+    #[error("Job {0} cannot be retried as it is in status: {1:?}")]
+    JobRetryFailure(JobId, JobStatus),
 }

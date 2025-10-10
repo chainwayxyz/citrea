@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bitcoin_da::fee::FeeService;
+use bitcoin_da::job::rpc::create_rpc_module as create_da_job_rpc_module;
 use bitcoin_da::monitoring::MonitoringService;
 use bitcoin_da::network_constants::get_network_constants;
 use bitcoin_da::rpc::create_rpc_module as create_da_rpc_module;
@@ -78,6 +79,9 @@ impl RollupBlueprint for BitcoinRollup {
         rpc_methods.merge(backup_methods)?;
 
         let da_methods = create_da_rpc_module(da_service.clone());
+        rpc_methods.merge(da_methods)?;
+
+        let da_methods = create_da_job_rpc_module(da_service.clone());
         rpc_methods.merge(da_methods)?;
 
         Ok(rpc_methods)
