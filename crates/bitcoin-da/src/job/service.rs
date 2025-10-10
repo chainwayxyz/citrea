@@ -16,7 +16,7 @@ use crate::job::rpc::{DaJobRpcProvider, JobListFilter};
 pub(crate) type JobId = Uuid;
 
 /// Job status representing the current state of transaction processing
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum JobStatus {
     /// Job is queued and waiting to be processed
     Pending,
@@ -162,8 +162,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     pub(crate) fn get_job(&self, job_id: &JobId) -> Result<Option<Job>> {
         let job = self
             .ledger_db
-            .get_job(job_id)
-            .map_err(JobServiceError::DatabaseError)?
+            .get_job(job_id)?
             .map(|v| bincode::deserialize(&v))
             .transpose()?;
         Ok(job)
@@ -183,8 +182,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     pub(crate) fn get_progress(&self, job_id: &JobId) -> Result<Option<JobProgress>> {
         let progress = self
             .ledger_db
-            .get_progress(job_id)
-            .map_err(JobServiceError::DatabaseError)?
+            .get_progress(job_id)?
             .map(|v| bincode::deserialize(&v))
             .transpose()?;
         Ok(progress)
@@ -205,7 +203,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
                 .get_job_ids_by_status(JobStatus::InProgress.as_u8())?,
         );
 
-        // Sort uuidv7 chronogically
+        // Sort uuidv7 chronologically
         active_jobs.sort();
 
         Ok(active_jobs)
@@ -338,7 +336,7 @@ impl<DB: DaLedgerOps> DaJobRpcProvider for DaJobService<DB> {
         match progress.status {
             JobStatus::Pending | JobStatus::InProgress => {
                 self.update_job_status(&mut progress, JobStatus::Cancelled)?;
-                tracing::info!("Job {job_id} succesfully cancelled");
+                tracing::info!("Job {job_id} successfully cancelled");
                 Ok(())
             }
             JobStatus::Completed | JobStatus::Cancelled | JobStatus::Failed { .. } => Err(
