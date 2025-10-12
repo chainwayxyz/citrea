@@ -633,7 +633,7 @@ impl MonitoringService {
 
                     if let TxStatus::InMempool { .. } = tx.status {
                         info!("Rebroadcasting tx {} {tx:?}", tx.tx.compute_txid());
-                        self.attempt_rebroadcast(txid, &tx.status).await?;
+                        self.attempt_rebroadcast(txid).await?;
                     }
                 }
             }
@@ -679,7 +679,7 @@ impl MonitoringService {
                     if let TxStatus::InMempool { .. } = new_status {
                         let current_height = self.client.get_block_count().await?;
                         if (current_height.saturating_sub(*height)) >= REBROADCAST_EACH_N_BLOCK {
-                            self.attempt_rebroadcast(txid, &new_status).await?
+                            self.attempt_rebroadcast(txid).await?
                         }
                     }
 
@@ -795,7 +795,7 @@ impl MonitoringService {
                 if *rebroadcast_attempts < self.config.max_rebroadcast_attempts {
                     let now = get_timestamp();
 
-                    match self.attempt_rebroadcast(txid, &monitored_tx.status).await {
+                    match self.attempt_rebroadcast(txid).await {
                         Ok(_) => {
                             info!("Attempted to rebroadcast tx {txid}");
                             monitored_tx.status = TxStatus::Evicted {
@@ -836,9 +836,7 @@ impl MonitoringService {
                 return Ok(());
             }
 
-            let _ = self
-                .attempt_rebroadcast(&current_tx.0, &current_tx.1.status)
-                .await;
+            let _ = self.attempt_rebroadcast(&current_tx.0).await;
 
             let Some(prev_txid) = current_tx.1.prev_txid else {
                 // End of monitored txs chain
@@ -858,8 +856,8 @@ impl MonitoringService {
         Ok(())
     }
 
-    async fn attempt_rebroadcast(&self, txid: &Txid, current_status: &TxStatus) -> Result<()> {
-        debug!("Rebroadcasting txid: {txid} with current_status {current_status:?}");
+    async fn attempt_rebroadcast(&self, txid: &Txid) -> Result<()> {
+        debug!("Rebroadcasting txid: {txid}");
         if let Ok(result) = self.client.get_transaction(txid, None).await {
             self.client.send_raw_transaction(&result.hex).await?;
         } else if let Ok(result) = self.client.get_raw_transaction_hex(txid, None).await {
