@@ -5,6 +5,7 @@ use std::time::Duration;
 use futures::prelude::*;
 use libp2p::swarm::SwarmEvent;
 use libp2p::{noise, ping, tcp, yamux, Multiaddr};
+use reth_tasks::shutdown::GracefulShutdown;
 use tracing_subscriber::EnvFilter;
 
 pub struct Network{
@@ -16,7 +17,7 @@ impl Network {
         Self { dial_addr }
     }
 
-    pub async fn run(&self) -> Result<(), Box<dyn Error>> {
+    pub async fn ping(&self) -> Result<(), Box<dyn Error>> {
         let _ = tracing_subscriber::fmt()
             .with_env_filter(EnvFilter::from_default_env())
             .try_init();
@@ -50,6 +51,21 @@ impl Network {
                 SwarmEvent::NewListenAddr { address, .. } => println!("Listening on {address:?}"),
                 SwarmEvent::Behaviour(event) => println!("{event:?}"),
                 _ => {}
+            }
+        }
+    }
+
+    pub async fn run(self, mut shutdown_signal: GracefulShutdown) {
+        tokio::select! {
+            biased;
+            _ = &mut shutdown_signal => {
+                println!("Shutting down Network");
+                return;
+            }
+            result = self.ping() => {
+                if let Err(e) = result {
+                    eprintln!("Network error: {e}");
+                }
             }
         }
     }

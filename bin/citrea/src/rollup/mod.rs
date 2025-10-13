@@ -14,6 +14,7 @@ use citrea_fullnode::da_block_handler::L1BlockHandler as FullNodeL1BlockHandler;
 use citrea_fullnode::L2Syncer as FullNodeL2Syncer;
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientProverL1BlockHandler;
+use citrea_network::Network as CitreaNetwork;
 use citrea_primitives::forks::get_forks;
 use citrea_sequencer::CitreaSequencer;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
@@ -256,6 +257,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         FullNodeL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         Option<PrunerService>,
         RpcModule<()>,
+        CitreaNetwork,
     )> {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
@@ -275,10 +277,12 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let code_commitments = self.get_batch_proof_code_commitments();
+        let network_config = rollup_config.network.clone();
 
         citrea_fullnode::build_services(
             network,
             runner_config,
+            network_config,
             init_params,
             native_stf,
             rollup_config.public_keys,

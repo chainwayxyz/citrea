@@ -16,3 +16,5 @@ libp2p = { workspace = true, features = ["noise", "ping", "tcp", "tokio", "yamux
 tokio = { workspace = true, features = ["full"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 yamux = { workspace = true }
+
+reth-tasks = { workspace = true }
