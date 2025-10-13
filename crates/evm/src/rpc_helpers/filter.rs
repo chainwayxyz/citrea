@@ -216,7 +216,7 @@ impl CitreaFilter {
     /// Endless future that [`Self::clear_stale_filters`] every `stale_filter_ttl` interval.
     /// Nonetheless, this endless future frees the thread at every await point.
     async fn watch_and_clear_stale_filters(&self) {
-        tracing::info!(
+        tracing::debug!(
             "Starting stale filter clearing task with ttl: {:?}",
             self.stale_filter_ttl
         );
@@ -234,7 +234,7 @@ impl CitreaFilter {
     /// Clears all filters that have not been polled for longer than the configured
     /// `stale_filter_ttl` at the given instant.
     pub async fn clear_stale_filters(&self, now: Instant) {
-        tracing::info!(target: "rpc::eth", "clear stale filters");
+        tracing::debug!(target: "rpc::eth", "clear stale filters");
         self.active_filters()
             .inner
             .lock()
