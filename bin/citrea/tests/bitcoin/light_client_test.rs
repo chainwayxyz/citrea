@@ -2002,39 +2002,24 @@ impl TestCase for UnchainedBatchProofsTest {
             Some(fake_sequencer_commitment.serialize_and_calculate_sha_256()),
         );
 
-        let mut txs = bitcoin_da_service
+        bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp1), 1)
             .await
             .unwrap();
 
-        txs.extend(
-            bitcoin_da_service
-                .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2), 1)
-                .await
-                .unwrap(),
-        );
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2), 1)
+            .await
+            .unwrap();
 
-        txs.extend(
-            bitcoin_da_service
-                .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp3), 1)
-                .await
-                .unwrap(),
-        );
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp3), 1)
+            .await
+            .unwrap();
 
         da.wait_mempool_len(6, None).await?;
 
-        da.generate_block(
-            da.get_new_address(None, None)
-                .await?
-                .assume_checked()
-                .to_string(),
-            txs.into_iter()
-                .flat_map(|tx| [tx[0].id.to_string(), tx[1].id.to_string()])
-                .collect(),
-        )
-        .await?;
-
-        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         light_client_prover
             .wait_for_l1_height(start_l1_height + DEFAULT_FINALITY_DEPTH, None)
@@ -2715,25 +2700,14 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
             None,
         );
 
-        let txs = batch_prover_bitcoin_da_service
+        batch_prover_bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp1), 1)
             .await
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate_block(
-            da.get_new_address(None, None)
-                .await?
-                .assume_checked()
-                .to_string(),
-            txs.into_iter()
-                .flat_map(|tx| [tx[0].id.to_string(), tx[1].id.to_string()])
-                .collect(),
-        )
-        .await?;
-
-        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         light_client_prover
             .wait_for_l1_height(start_l1_height + DEFAULT_FINALITY_DEPTH, None)
@@ -2786,25 +2760,14 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
             None,
         );
 
-        let txs = batch_prover_bitcoin_da_service
+        batch_prover_bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp1), 1)
             .await
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate_block(
-            da.get_new_address(None, None)
-                .await?
-                .assume_checked()
-                .to_string(),
-            txs.into_iter()
-                .flat_map(|tx| [tx[0].id.to_string(), tx[1].id.to_string()])
-                .collect(),
-        )
-        .await?;
-
-        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         light_client_prover
             .wait_for_l1_height(finalized_height + DEFAULT_FINALITY_DEPTH, None)
@@ -2864,25 +2827,14 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
             Some(fake_sequencer_commitment.serialize_and_calculate_sha_256()),
         );
 
-        let txs = malicious_bitcoin_da_service
+        malicious_bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2.clone()), 1)
             .await
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate_block(
-            da.get_new_address(None, None)
-                .await?
-                .assume_checked()
-                .to_string(),
-            txs.into_iter()
-                .flat_map(|tx| [tx[0].id.to_string(), tx[1].id.to_string()])
-                .collect(),
-        )
-        .await?;
-
-        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         light_client_prover
             .wait_for_l1_height(finalized_height + DEFAULT_FINALITY_DEPTH, None)
@@ -2905,25 +2857,14 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
         assert_eq!(lcp_output.last_sequencer_commitment_index, U32::from(1));
 
         // Now send batch proof with the correct da pub key and expect it to transition
-        let txs = batch_prover_bitcoin_da_service
+        batch_prover_bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2.clone()), 1)
             .await
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate_block(
-            da.get_new_address(None, None)
-                .await?
-                .assume_checked()
-                .to_string(),
-            txs.into_iter()
-                .flat_map(|tx| [tx[0].id.to_string(), tx[1].id.to_string()])
-                .collect(),
-        )
-        .await?;
-
-        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
         light_client_prover
