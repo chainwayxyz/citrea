@@ -280,7 +280,7 @@ impl CitreaFilter {
         filters.insert(
             id.clone(),
             ActiveFilter {
-                block: last_poll_block_number + 1,
+                block: last_poll_block_number,
                 last_poll_timestamp: Instant::now(),
                 kind,
             },
