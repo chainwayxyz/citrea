@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::schema::tables::{PendingProofs, PendingSequencerCommitments};
 use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
+use crate::schema::types::da_jobs::{Job, JobProgress};
 use crate::schema::types::job_status::JobStatus;
 use crate::schema::types::l2_block::StoredL2Block;
 use crate::schema::types::light_client_proof::{
@@ -329,15 +330,15 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
 pub trait DaLedgerOps {
     /// DaJobById related methods
     /// Insert a DA job by id
-    fn insert_job(&self, job_id: Uuid, job: Vec<u8>) -> Result<()>;
+    fn insert_job(&self, job_id: Uuid, job: &Job) -> Result<()>;
     /// Get a DA job by id
-    fn get_job(&self, job_id: &Uuid) -> Result<Option<Vec<u8>>>;
+    fn get_job(&self, job_id: &Uuid) -> Result<Option<Job>>;
 
     /// DaJobProgressById related methods
     /// Update a DA job progress by id
-    fn upsert_progress(&self, job_id: &Uuid, progress: Vec<u8>) -> Result<()>;
+    fn upsert_progress(&self, job_id: &Uuid, progress: &JobProgress) -> Result<()>;
     /// Get a DA job progress by id
-    fn get_progress(&self, job_id: &Uuid) -> Result<Option<Vec<u8>>>;
+    fn get_progress(&self, job_id: &Uuid) -> Result<Option<JobProgress>>;
 
     /// DaJobStatusIndex related methods
     /// Insert a job status index entry

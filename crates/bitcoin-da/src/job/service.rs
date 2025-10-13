@@ -3,8 +3,10 @@ use std::time::{Duration, Instant};
 use bitcoin::{Transaction, Txid};
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::DaLedgerOps;
+use sov_db::schema::types::da_jobs::{
+    Job, JobId, JobProgress as DbJobProgress, JobStatus, SentChunks as DbSentChunks,
+};
 use tracing::{info, instrument};
-use uuid::Uuid;
 
 use super::Result;
 use crate::helpers::builders::body_builders::RawTxData;
@@ -12,39 +14,7 @@ use crate::helpers::get_timestamp;
 use crate::job::error::JobServiceError;
 use crate::job::rpc::{DaJobRpcProvider, JobListFilter};
 
-/// Unique job id using uuidv7 for ordering by creation time
-pub(crate) type JobId = Uuid;
-
-/// Job status representing the current state of transaction processing
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum JobStatus {
-    /// Job is queued and waiting to be processed
-    Pending,
-    /// Job is in progress
-    InProgress,
-    /// Job completed successfully
-    Completed,
-    /// Job was cancelled before completion
-    Cancelled,
-    /// Job failed with error
-    Failed {
-        /// Error associated to the failure
-        error: String,
-    },
-}
-
-impl JobStatus {
-    /// u8 representation of `JobStatus`
-    pub fn as_u8(&self) -> u8 {
-        match self {
-            JobStatus::Pending => 0,
-            JobStatus::InProgress => 1,
-            JobStatus::Completed => 2,
-            JobStatus::Cancelled => 3,
-            JobStatus::Failed { .. } => 4,
-        }
-    }
-}
+type Result<T> = std::result::Result<T, JobServiceError>;
 
 /// Tracks progress of a job including sent transactions for recovery.
 ///
@@ -100,22 +70,72 @@ impl SentChunks {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct Job {
-    /// Job id as uuidv7
-    pub id: JobId,
-    /// Raw job data
-    pub data: RawTxData,
-    /// Time of job creation
-    pub created_at: u64,
+impl From<DbSentChunks> for SentChunks {
+    fn from(db_chunks: DbSentChunks) -> Self {
+        let commit_txs = db_chunks
+            .commit_txs
+            .iter()
+            .map(|bytes| {
+                bitcoin::consensus::deserialize(bytes)
+                    .expect("Failed to deserialize commit transaction from database")
+            })
+            .collect();
+
+        let reveal_txs = db_chunks
+            .reveal_txs
+            .iter()
+            .map(|bytes| {
+                bitcoin::consensus::deserialize(bytes)
+                    .expect("Failed to deserialize reveal transaction from database")
+            })
+            .collect();
+
+        Self {
+            commit_txs,
+            reveal_txs,
+        }
+    }
 }
 
-impl Job {
-    pub(crate) fn new(data: RawTxData) -> Self {
+impl From<SentChunks> for DbSentChunks {
+    fn from(chunks: SentChunks) -> Self {
+        let commit_txs = chunks
+            .commit_txs
+            .iter()
+            .map(bitcoin::consensus::serialize)
+            .collect();
+
+        let reveal_txs = chunks
+            .reveal_txs
+            .iter()
+            .map(bitcoin::consensus::serialize)
+            .collect();
+
         Self {
-            id: Uuid::now_v7(),
-            data,
-            created_at: get_timestamp(),
+            commit_txs,
+            reveal_txs,
+        }
+    }
+}
+
+impl From<DbJobProgress> for JobProgress {
+    fn from(db_progress: DbJobProgress) -> Self {
+        Self {
+            job_id: db_progress.job_id,
+            status: db_progress.status,
+            sent_chunks: db_progress.sent_chunks.into(),
+            last_updated: db_progress.last_updated,
+        }
+    }
+}
+
+impl From<JobProgress> for DbJobProgress {
+    fn from(progress: JobProgress) -> Self {
+        Self {
+            job_id: progress.job_id,
+            status: progress.status,
+            sent_chunks: progress.sent_chunks.into(),
+            last_updated: progress.last_updated,
         }
     }
 }
@@ -133,11 +153,15 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
 
     /// Create a new job and save to db
     #[instrument(level = "trace", skip(self), ret)]
-    pub fn submit_job(&self, raw_tx_data: RawTxData) -> Result<Job> {
-        let job = Job::new(raw_tx_data);
-        let job_id = job.id;
+    pub fn submit_job(&self, raw_tx_data: RawTxData) -> Result<JobId> {
+        let job_id = uuid::Uuid::now_v7();
+        let created_at = get_timestamp();
 
-        let progress = JobProgress::new(job_id, job.created_at);
+        // Serialize RawTxData to Vec<u8>
+        let data = borsh::to_vec(&raw_tx_data)?;
+
+        let job = Job::new(job_id, data, created_at);
+        let progress = JobProgress::new(job_id, created_at);
 
         self.insert_job(&job)?;
         self.upsert_progress(&progress)?;
@@ -145,43 +169,53 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
             .insert_job_status_index(progress.status.as_u8(), job_id)?;
 
         info!("Job {job_id} submitted and persisted");
-        Ok(job)
+        Ok(job_id)
     }
 
     /// Save a new job to db
     #[instrument(level = "trace", skip(self))]
     fn insert_job(&self, job: &Job) -> Result<()> {
-        let value = bincode::serialize(job)?;
-        Ok(self.ledger_db.insert_job(job.id, value)?)
+        self.ledger_db
+            .insert_job(job.id, job)
+            .map_err(JobServiceError::DatabaseError)
     }
 
-    /// Get a job by id
+    /// Get a job by id, deserializing RawTxData
     #[instrument(level = "trace", skip(self), ret)]
-    pub(crate) fn get_job(&self, job_id: &JobId) -> Result<Option<Job>> {
+    pub(crate) fn get_job(&self, job_id: &JobId) -> Result<Option<RawTxData>> {
         let job = self
             .ledger_db
-            .get_job(job_id)?
-            .map(|v| bincode::deserialize(&v))
-            .transpose()?;
-        Ok(job)
+            .get_job(job_id)
+            .map_err(JobServiceError::DatabaseError)?;
+
+        match job {
+            Some(j) => {
+                let raw_tx_data = borsh::from_slice(&j.data)?;
+                Ok(Some(raw_tx_data))
+            }
+            None => Ok(None),
+        }
     }
 
-    /// Upsert job progress after serialization
+    /// Upsert job progress - convert local JobProgress to DB format
     #[instrument(level = "trace", skip(self))]
     pub(crate) fn upsert_progress(&self, progress: &JobProgress) -> Result<()> {
-        let value = bincode::serialize(progress)?;
-        Ok(self.ledger_db.upsert_progress(&progress.job_id, value)?)
+        let db_progress: DbJobProgress = progress.clone().into();
+
+        self.ledger_db
+            .upsert_progress(&progress.job_id, &db_progress)
+            .map_err(JobServiceError::DatabaseError)
     }
 
-    /// Retrieve and deserialize job progress by id
+    /// Retrieve job progress by id and convert to local format
     #[instrument(level = "trace", skip(self), ret)]
     pub(crate) fn get_progress(&self, job_id: &JobId) -> Result<Option<JobProgress>> {
-        let progress = self
+        let db_progress = self
             .ledger_db
-            .get_progress(job_id)?
-            .map(|v| bincode::deserialize(&v))
-            .transpose()?;
-        Ok(progress)
+            .get_progress(job_id)
+            .map_err(JobServiceError::DatabaseError)?;
+
+        Ok(db_progress.map(|p| p.into()))
     }
 
     /// Get all `Pending` and `InProgress` job ids from storage

@@ -29,6 +29,7 @@ use lru::LruCache;
 use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::LedgerDB;
+use sov_db::schema::types::da_jobs::{JobId, JobStatus};
 use sov_rollup_interface::da::{DaSpec, DaTxRequest, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::Proof;
@@ -46,7 +47,7 @@ use crate::helpers::builders::TxWithId;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
 use crate::helpers::{merkle_tree, TransactionKind};
-use crate::job::service::{DaJobService, Job, JobId, JobProgress, JobStatus, SentChunks};
+use crate::job::service::{DaJobService, JobProgress, SentChunks};
 use crate::metrics::BITCOIN_DA_METRICS as BM;
 use crate::monitoring::{MonitoredTxKind, MonitoringConfig, MonitoringService, TxStatus};
 use crate::network_constants::NetworkConstants;
@@ -292,26 +293,28 @@ impl BitcoinService {
         let mut jobs_to_process = Vec::new();
 
         for job_id in active_job_ids {
-            if let Some(job) = self.job_service.get_job(&job_id)? {
+            if let Some(job_data) = self.job_service.get_job(&job_id)? {
                 if let Some(progress) = self.job_service.get_progress(&job_id)? {
-                    jobs_to_process.push((job, progress));
+                    // get_progress returns LocalJobProgress directly
+                    jobs_to_process.push((job_data, progress));
                 }
             }
         }
 
-        for (job, mut progress) in jobs_to_process {
-            info!("Processing job {}", job.id);
+        for (job_data, mut progress) in jobs_to_process {
+            let job_id = progress.job_id;
+            info!("Processing job {}", job_id);
 
-            match self.process_job(&job, &mut progress).await {
+            match self.process_job(&job_data, &mut progress).await {
                 Ok(completed) => {
                     if completed {
-                        info!("Job {} completed successfully", job.id);
+                        info!("Job {} completed successfully", job_id);
                     } else {
-                        info!("Job {} partially sent", job.id);
+                        info!("Job {} partially sent", job_id);
                     }
                 }
                 Err(e) => {
-                    error!("Error processing job {}: {:?}", job.id, e);
+                    error!("Error processing job {}: {:?}", job_id, e);
                     self.job_service.update_job_status(
                         &mut progress,
                         JobStatus::Failed {
@@ -325,10 +328,10 @@ impl BitcoinService {
         Ok(())
     }
 
-    async fn process_job(&self, job: &Job, progress: &mut JobProgress) -> Result<bool> {
+    async fn process_job(&self, job_data: &RawTxData, progress: &mut JobProgress) -> Result<bool> {
         info!(
             "Processing job {} with status {:?}",
-            job.id, progress.status
+            progress.job_id, progress.status
         );
 
         // get all available utxos
@@ -347,7 +350,7 @@ impl BitcoinService {
                 fee_sat_per_vbyte,
                 utxos.clone(),
                 prev_utxo.clone(),
-                job.data.clone(),
+                job_data.clone(),
                 progress.sent_chunks.clone(),
             )
             .await?;
@@ -422,7 +425,7 @@ impl BitcoinService {
             self.job_service
                 .update_job_status(progress, JobStatus::Completed)?;
 
-            info!("Job {} marked as completed", job.id);
+            info!("Job {} marked as completed", progress.job_id);
         } else if sent_count > 0 {
             // Job partially sent
             self.job_service
@@ -430,7 +433,7 @@ impl BitcoinService {
 
             info!(
                 "Job {} progress recorded: {}/{} transactions sent",
-                job.id, total_sent, total_needed
+                progress.job_id, total_sent, total_needed
             );
         }
 
@@ -1261,11 +1264,11 @@ impl DaService for BitcoinService {
             }
         }
 
-        let job = self.job_service.submit_job(tx_request.try_into()?)?;
+        let job_id = self.job_service.submit_job(tx_request.try_into()?)?;
 
         self.process_job_service().await?;
 
-        Ok(job.id)
+        Ok(job_id)
     }
 
     async fn wait_for_completion(

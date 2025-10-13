@@ -20,6 +20,7 @@ use sov_schema_db::{CodecError, SeekKeyEncoder};
 use uuid::Uuid;
 
 use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
+use super::types::da_jobs::{Job, JobProgress};
 use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
@@ -504,12 +505,12 @@ define_table_with_seek_key_codec!(
 
 define_table_with_seek_key_codec!(
     /// Da job by uuid
-    (DaJobById) Uuid => Vec<u8>
+    (DaJobById) Uuid => Job
 );
 
 define_table_with_seek_key_codec!(
     /// Da job progress by uuid
-    (DaJobProgressById) Uuid => Vec<u8>
+    (DaJobProgressById) Uuid => JobProgress
 );
 
 define_table_with_seek_key_codec!(

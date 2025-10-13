@@ -28,6 +28,7 @@ use crate::schema::tables::{
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
 };
+use crate::schema::types::da_jobs::{Job, JobProgress};
 use crate::schema::types::job_status::JobStatus;
 use crate::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use crate::schema::types::light_client_proof::{
@@ -973,25 +974,25 @@ impl ForkMigration for LedgerDB {
 }
 
 impl DaLedgerOps for LedgerDB {
-    fn insert_job(&self, job_id: Uuid, job: Vec<u8>) -> anyhow::Result<()> {
+    fn insert_job(&self, job_id: Uuid, job: &Job) -> anyhow::Result<()> {
         let mut batch = SchemaBatch::new();
-        batch.put::<DaJobById>(&job_id, &job)?;
+        batch.put::<DaJobById>(&job_id, job)?;
         self.db.write_schemas(batch)?;
         Ok(())
     }
 
-    fn get_job(&self, job_id: &Uuid) -> anyhow::Result<Option<Vec<u8>>> {
+    fn get_job(&self, job_id: &Uuid) -> anyhow::Result<Option<Job>> {
         self.db.get::<DaJobById>(job_id)
     }
 
-    fn upsert_progress(&self, job_id: &Uuid, progress: Vec<u8>) -> anyhow::Result<()> {
+    fn upsert_progress(&self, job_id: &Uuid, progress: &JobProgress) -> anyhow::Result<()> {
         let mut batch = SchemaBatch::new();
-        batch.put::<DaJobProgressById>(job_id, &progress)?;
+        batch.put::<DaJobProgressById>(job_id, progress)?;
         self.db.write_schemas(batch)?;
         Ok(())
     }
 
-    fn get_progress(&self, job_id: &Uuid) -> anyhow::Result<Option<Vec<u8>>> {
+    fn get_progress(&self, job_id: &Uuid) -> anyhow::Result<Option<JobProgress>> {
         self.db.get::<DaJobProgressById>(job_id)
     }
 

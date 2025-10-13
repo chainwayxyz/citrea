@@ -1,3 +1,4 @@
+use sov_db::schema::types::da_jobs::JobId;
 use thiserror::Error;
 
 use crate::job::service::{JobId, JobStatus};
@@ -18,8 +19,8 @@ pub enum JobServiceError {
     NoTransactionsFound(JobId),
 
     /// Failed to serialize or deserialize job data
-    #[error("Job serialization failed: {0}")]
-    SerializationError(#[from] bincode::Error),
+    #[error("Job borsh serialization failed: {0}")]
+    SerializationError(#[from] std::io::Error),
 
     /// Database operation failed
     #[error("Database error: {0}")]
