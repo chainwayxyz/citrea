@@ -235,19 +235,20 @@ impl CitreaFilter {
     /// `stale_filter_ttl` at the given instant.
     pub async fn clear_stale_filters(&self, now: Instant) {
         tracing::debug!(target: "rpc::eth", "clear stale filters");
-        self.active_filters()
-            .inner
-            .write()
-            .await
-            .retain(|id, filter| {
-                let is_valid = (now - filter.last_poll_timestamp) < self.stale_filter_ttl;
 
-                if !is_valid {
-                    tracing::trace!(target: "rpc::eth", "evict filter with id: {:?}", id);
-                }
+        let removed_ids: Vec<FilterId> = {
+            let mut filters = self.active_filters().inner.write().await;
+            filters
+                .extract_if(|_, filter| {
+                    (now - filter.last_poll_timestamp) >= self.stale_filter_ttl
+                })
+                .map(|(id, _)| id)
+                .collect()
+        };
 
-                is_valid
-            })
+        for id in removed_ids {
+            tracing::trace!(target: "rpc::eth", "evict filter with id: {:?}", id);
+        }
     }
 
     /// Installs a new filter and returns the new identifier.
