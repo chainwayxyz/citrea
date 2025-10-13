@@ -33,6 +33,17 @@ pub struct JobProgress {
     pub last_updated: u64,
 }
 
+impl JobProgress {
+    fn new(job_id: JobId, last_updated: u64) -> Self {
+        Self {
+            job_id,
+            status: JobStatus::Pending,
+            sent_chunks: SentChunks::new(),
+            last_updated,
+        }
+    }
+}
+
 /// Track sent chunk for partial sending and recovery
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct SentChunks {
@@ -151,10 +162,10 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         let data = borsh::to_vec(&raw_tx_data)?;
 
         let job = Job::new(job_id, data, created_at);
-        let progress = DbJobProgress::new(job_id, created_at);
+        let progress = JobProgress::new(job_id, created_at);
 
         self.insert_job(&job)?;
-        self.upsert_db_progress(&progress)?;
+        self.upsert_progress(&progress)?;
         self.ledger_db
             .insert_job_status_index(progress.status.as_u8(), job_id)?;
 
@@ -228,13 +239,6 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
             .upsert_progress(&progress.job_id, &db_progress)
             .map_err(JobServiceError::DatabaseError)
 >>>>>>> d78b11900 (Convert from to db types)
-    }
-
-    /// Internal helper to upsert DbJobProgress directly
-    fn upsert_db_progress(&self, progress: &DbJobProgress) -> Result<()> {
-        self.ledger_db
-            .upsert_progress(&progress.job_id, progress)
-            .map_err(JobServiceError::DatabaseError)
     }
 
     /// Retrieve job progress by id and convert to local format
