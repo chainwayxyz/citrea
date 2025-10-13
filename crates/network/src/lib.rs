@@ -7,10 +7,16 @@ use libp2p::swarm::SwarmEvent;
 use libp2p::{noise, ping, tcp, yamux, Multiaddr};
 use tracing_subscriber::EnvFilter;
 
-pub struct Network;
+pub struct Network{
+    dial_addr: Option<String>,
+}
 
 impl Network {
-    pub async fn run() -> Result<(), Box<dyn Error>> {
+    pub fn new(dial_addr: Option<String>) -> Self {
+        Self { dial_addr }
+    }
+
+    pub async fn run(&self) -> Result<(), Box<dyn Error>> {
         let _ = tracing_subscriber::fmt()
             .with_env_filter(EnvFilter::from_default_env())
             .try_init();
@@ -32,7 +38,7 @@ impl Network {
 
         // Dial the peer identified by the multi-address given as the second
         // command-line argument, if any.
-        if let Some(addr) = std::env::args().nth(1) {
+        if let Some(addr) = self.dial_addr.as_ref() {
             let remote: Multiaddr = addr.parse()?;
             swarm.dial(remote)?;
             println!("Dialed {addr}")

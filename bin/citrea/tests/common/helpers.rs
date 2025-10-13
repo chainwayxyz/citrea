@@ -477,6 +477,7 @@ pub fn create_default_rollup_config(
             db_path: da_path.to_path_buf(),
         },
         telemetry: Default::default(),
+        network: Default::default(),
     }
 }
 

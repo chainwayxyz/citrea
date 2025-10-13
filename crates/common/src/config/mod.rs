@@ -136,6 +136,9 @@ pub struct FullNodeConfig<BitcoinServiceConfig> {
     /// Telemetry configuration
     #[serde(default)]
     pub telemetry: TelemetryConfig,
+    /// Network configuration
+    #[serde(default)]
+    pub network: NetworkConfig,
 }
 
 impl<DaC: FromEnv> FromEnv for FullNodeConfig<DaC> {
@@ -147,6 +150,7 @@ impl<DaC: FromEnv> FromEnv for FullNodeConfig<DaC> {
             da: DaC::from_env()?,
             public_keys: RollupPublicKeys::from_env()?,
             telemetry: TelemetryConfig::from_env()?,
+            network: NetworkConfig::from_env()?,
         })
     }
 }
@@ -437,6 +441,22 @@ impl FromEnv for TelemetryConfig {
     }
 }
 
+/// Network configuration.
+#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
+pub struct NetworkConfig {
+    /// Optional peer multiaddress.
+    pub bind_addr: Option<String>,
+}
+
+impl FromEnv for NetworkConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        let bind_addr = read_env("NETWORK_BIND_ADDR").ok();
+        Ok(Self {
+            bind_addr,
+        })
+    }
+}
+
 /// The possible configurations of the prover.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -577,6 +597,7 @@ mod tests {
                 bind_host: Some("0.0.0.0".to_owned()),
                 bind_port: Some(8001),
             },
+            network: NetworkConfig::default(),
         };
         assert_eq!(config, expected);
     }
@@ -794,6 +815,7 @@ mod tests {
                 bind_host: Some("0.0.0.0".to_owned()),
                 bind_port: Some(8082),
             },
+            network: NetworkConfig::default(),
         };
         assert_eq!(full_node_config, expected);
     }
