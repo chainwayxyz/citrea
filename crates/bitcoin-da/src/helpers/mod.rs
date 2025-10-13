@@ -2,6 +2,7 @@
 //! It includes transaction kind definitions, transaction builders, parsers, and Merkle tree utilities.
 
 use core::num::NonZero;
+#[cfg(feature = "native")]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use bitcoin::consensus::Encodable;
@@ -71,6 +72,7 @@ impl TransactionKind {
 }
 
 /// Return UNIX timestamp in seconds
+#[cfg(feature = "native")]
 pub(crate) fn get_timestamp() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
