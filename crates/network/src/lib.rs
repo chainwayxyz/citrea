@@ -1,4 +1,3 @@
-
 use std::error::Error;
 use std::time::Duration;
 
@@ -8,7 +7,7 @@ use libp2p::{noise, ping, tcp, yamux, Multiaddr};
 use reth_tasks::shutdown::GracefulShutdown;
 use tracing_subscriber::EnvFilter;
 
-pub struct Network{
+pub struct Network {
     dial_addr: Option<String>,
 }
 
@@ -30,7 +29,9 @@ impl Network {
                 yamux::Config::default,
             )?
             .with_behaviour(|_| ping::Behaviour::default())?
-            .with_swarm_config(|cfg| cfg.with_idle_connection_timeout(Duration::from_secs(u64::MAX)))
+            .with_swarm_config(|cfg| {
+                cfg.with_idle_connection_timeout(Duration::from_secs(u64::MAX))
+            })
             .build();
 
         // Tell the swarm to listen on all interfaces and a random, OS-assigned

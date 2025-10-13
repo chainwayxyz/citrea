@@ -123,11 +123,10 @@ use std::sync::Arc;
 use anyhow::Result;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig, NetworkConfig};
+use citrea_common::{InitParams, NetworkConfig, RollupPublicKeys, RunnerConfig};
+use citrea_network::Network as CitreaNetwork;
 use citrea_stf::runtime::CitreaRuntime;
 use citrea_storage_ops::pruning::{Pruner, PrunerService};
-use citrea_network::Network as CitreaNetwork;
-
 use da_block_handler::L1BlockHandler;
 use jsonrpsee::RpcModule;
 pub use l2_syncer::L2Syncer;
@@ -256,5 +255,11 @@ where
         backup_manager,
     );
     let citrea_network = CitreaNetwork::new(network_config.bind_addr);
-    Ok((l2_syncer, l1_block_handler, pruner, rpc_module, citrea_network))
+    Ok((
+        l2_syncer,
+        l1_block_handler,
+        pruner,
+        rpc_module,
+        citrea_network,
+    ))
 }

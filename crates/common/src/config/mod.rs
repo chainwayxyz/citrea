@@ -451,9 +451,7 @@ pub struct NetworkConfig {
 impl FromEnv for NetworkConfig {
     fn from_env() -> anyhow::Result<Self> {
         let bind_addr = read_env("NETWORK_BIND_ADDR").ok();
-        Ok(Self {
-            bind_addr,
-        })
+        Ok(Self { bind_addr })
     }
 }
 
