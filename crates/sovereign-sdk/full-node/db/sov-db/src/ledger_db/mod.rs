@@ -28,7 +28,7 @@ use crate::schema::tables::{
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
 };
-use crate::schema::types::da_jobs::{Job, JobProgress, JobStatus as DaJobStatus};
+use crate::schema::types::da_jobs::{Job, JobProgress};
 use crate::schema::types::job_status::JobStatus;
 use crate::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use crate::schema::types::light_client_proof::{
@@ -977,7 +977,7 @@ impl DaLedgerOps for LedgerDB {
     fn submit_job(&self, job: &Job, progress: &JobProgress) -> anyhow::Result<()> {
         let mut batch = SchemaBatch::new();
         let job_id = job.id;
-        let status = progress.status.clone();
+        let status = progress.status.as_u8();
 
         batch.put::<DaJobById>(&job_id, job)?;
         batch.put::<DaJobProgressById>(&job_id, progress)?;
@@ -991,21 +991,17 @@ impl DaLedgerOps for LedgerDB {
         self.db.get::<DaJobById>(job_id)
     }
 
-    fn upsert_progress(
-        &self,
-        progress: &JobProgress,
-        previous_status: DaJobStatus,
-    ) -> anyhow::Result<()> {
+    fn upsert_progress(&self, progress: &JobProgress, previous_status: u8) -> anyhow::Result<()> {
         let mut batch = SchemaBatch::new();
 
         let job_id = progress.job_id;
-
-        if previous_status != progress.status {
-            batch.delete::<DaJobStatusIndex>(&(previous_status.clone(), job_id))?;
-            batch.put::<DaJobStatusIndex>(&(progress.status.clone(), job_id), &())?;
-        }
+        let new_status = progress.status.as_u8();
 
         batch.put::<DaJobProgressById>(&job_id, progress)?;
+        if previous_status != new_status {
+            batch.delete::<DaJobStatusIndex>(&(previous_status, job_id))?;
+            batch.put::<DaJobStatusIndex>(&(new_status, job_id), &())?;
+        }
 
         self.db.write_schemas(batch)?;
         Ok(())
@@ -1015,10 +1011,10 @@ impl DaLedgerOps for LedgerDB {
         self.db.get::<DaJobProgressById>(job_id)
     }
 
-    fn get_job_ids_by_status(&self, status: DaJobStatus) -> anyhow::Result<Vec<Uuid>> {
+    fn get_job_ids_by_status(&self, status: u8) -> anyhow::Result<Vec<Uuid>> {
         let mut iter = self.db.iter::<DaJobStatusIndex>()?;
 
-        iter.seek(&(status.clone(), Uuid::nil()))?;
+        iter.seek(&(status, Uuid::nil()))?;
 
         let mut job_ids = Vec::new();
         for item in iter {

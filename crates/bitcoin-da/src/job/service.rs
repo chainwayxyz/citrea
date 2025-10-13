@@ -188,11 +188,14 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     pub(crate) fn get_all_active_job_ids(&self) -> Result<Vec<JobId>> {
         let mut active_jobs = Vec::new();
 
-        active_jobs.extend(self.ledger_db.get_job_ids_by_status(JobStatus::Pending)?);
+        active_jobs.extend(
+            self.ledger_db
+                .get_job_ids_by_status(JobStatus::Pending.as_u8())?,
+        );
 
         active_jobs.extend(
             self.ledger_db
-                .get_job_ids_by_status(JobStatus::InProgress)?,
+                .get_job_ids_by_status(JobStatus::InProgress.as_u8())?,
         );
 
         // Sort uuidv7 chronologically
@@ -208,7 +211,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         progress: &mut JobProgress,
         new_status: JobStatus,
     ) -> Result<()> {
-        let previous_status = progress.status.clone();
+        let previous_status = progress.status.as_u8();
 
         progress.status = new_status;
         progress.last_updated = get_timestamp();
@@ -307,7 +310,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     pub async fn has_job_in_progress(&self) -> Result<bool> {
         let in_progress_jobs = self
             .ledger_db
-            .get_job_ids_by_status(JobStatus::InProgress)?;
+            .get_job_ids_by_status(JobStatus::InProgress.as_u8())?;
 
         Ok(!in_progress_jobs.is_empty())
     }
@@ -370,7 +373,7 @@ impl<DB: DaLedgerOps> DaJobRpcProvider for DaJobService<DB> {
 
         let mut job_ids = Vec::new();
         for code in status_filter.to_job_status() {
-            job_ids.extend(self.ledger_db.get_job_ids_by_status(code)?);
+            job_ids.extend(self.ledger_db.get_job_ids_by_status(code.as_u8())?);
         }
         job_ids.sort(); // sort chronologically by uuidv7
 
