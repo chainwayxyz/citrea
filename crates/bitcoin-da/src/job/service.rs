@@ -14,7 +14,6 @@ use crate::helpers::get_timestamp;
 use crate::job::error::JobServiceError;
 use crate::job::rpc::{DaJobRpcProvider, JobListFilter};
 
-
 type Result<T> = std::result::Result<T, JobServiceError>;
 
 /// Tracks progress of a job including sent transactions for recovery.
@@ -176,19 +175,9 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     /// Save a new job to db
     #[instrument(level = "trace", skip(self))]
     fn insert_job(&self, job: &Job) -> Result<()> {
-<<<<<<< HEAD
-        let value = bincode::serialize(job)?;
-        Ok(self.ledger_db.insert_job(job.id, value)?)
-||||||| parent of d78b11900 (Convert from to db types)
-        let value = bincode::serialize(job)?;
-        self.ledger_db
-            .insert_job(job.id, value)
-            .map_err(JobServiceError::DatabaseError)
-=======
         self.ledger_db
             .insert_job(job.id, job)
             .map_err(JobServiceError::DatabaseError)
->>>>>>> d78b11900 (Convert from to db types)
     }
 
     /// Get a job by id, deserializing RawTxData
@@ -196,18 +185,6 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     pub(crate) fn get_job(&self, job_id: &JobId) -> Result<Option<RawTxData>> {
         let job = self
             .ledger_db
-<<<<<<< HEAD
-            .get_job(job_id)?
-            .map(|v| bincode::deserialize(&v))
-            .transpose()?;
-        Ok(job)
-||||||| parent of d78b11900 (Convert from to db types)
-            .get_job(job_id)
-            .map_err(JobServiceError::DatabaseError)?
-            .map(|v| bincode::deserialize(&v))
-            .transpose()?;
-        Ok(job)
-=======
             .get_job(job_id)
             .map_err(JobServiceError::DatabaseError)?;
 
@@ -218,27 +195,16 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
             }
             None => Ok(None),
         }
->>>>>>> d78b11900 (Convert from to db types)
     }
 
     /// Upsert job progress - convert local JobProgress to DB format
     #[instrument(level = "trace", skip(self))]
     pub(crate) fn upsert_progress(&self, progress: &JobProgress) -> Result<()> {
-<<<<<<< HEAD
-        let value = bincode::serialize(progress)?;
-        Ok(self.ledger_db.upsert_progress(&progress.job_id, value)?)
-||||||| parent of d78b11900 (Convert from to db types)
-        let value = bincode::serialize(progress)?;
-        self.ledger_db
-            .upsert_progress(&progress.job_id, value)
-            .map_err(JobServiceError::DatabaseError)
-=======
         let db_progress: DbJobProgress = progress.clone().into();
 
         self.ledger_db
             .upsert_progress(&progress.job_id, &db_progress)
             .map_err(JobServiceError::DatabaseError)
->>>>>>> d78b11900 (Convert from to db types)
     }
 
     /// Retrieve job progress by id and convert to local format
@@ -246,23 +212,10 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     pub(crate) fn get_progress(&self, job_id: &JobId) -> Result<Option<JobProgress>> {
         let db_progress = self
             .ledger_db
-<<<<<<< HEAD
-            .get_progress(job_id)?
-            .map(|v| bincode::deserialize(&v))
-            .transpose()?;
-        Ok(progress)
-||||||| parent of d78b11900 (Convert from to db types)
-            .get_progress(job_id)
-            .map_err(JobServiceError::DatabaseError)?
-            .map(|v| bincode::deserialize(&v))
-            .transpose()?;
-        Ok(progress)
-=======
             .get_progress(job_id)
             .map_err(JobServiceError::DatabaseError)?;
 
         Ok(db_progress.map(|p| p.into()))
->>>>>>> d78b11900 (Convert from to db types)
     }
 
     /// Get all `Pending` and `InProgress` job ids from storage

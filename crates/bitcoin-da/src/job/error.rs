@@ -1,14 +1,8 @@
 use sov_db::schema::types::da_jobs::JobId;
 use thiserror::Error;
 
-<<<<<<< HEAD
 use crate::job::service::{JobId, JobStatus};
 
-||||||| parent of d78b11900 (Convert from to db types)
-use crate::job::service::JobId;
-
-=======
->>>>>>> d78b11900 (Convert from to db types)
 /// Job errors
 #[derive(Error, Debug)]
 pub enum JobServiceError {
