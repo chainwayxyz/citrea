@@ -8,8 +8,10 @@ use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::bail;
 use bitcoin_da::fee::FeeService;
+use bitcoin_da::job::rpc::create_rpc_module as create_da_job_rpc_module;
 use bitcoin_da::monitoring::{MonitoringConfig, MonitoringService};
 use bitcoin_da::network_constants::get_network_constants;
+use bitcoin_da::rpc::create_rpc_module as create_da_rpc_module;
 use bitcoin_da::service::{
     network_to_bitcoin_network, BitcoinService, BitcoinServiceConfig, UtxoSelectionMode,
 };
@@ -17,6 +19,8 @@ use bitcoin_da::spec::block::BitcoinBlock;
 use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use citrea_batch_prover::rpc::BatchProverRpcClient;
+use citrea_common::rpc::server::start_rpc_server;
+use citrea_common::RpcConfig;
 use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
@@ -26,6 +30,8 @@ use citrea_light_client_prover::circuit::{
     SECURITY_COUNCIL_MEMBER_COUNT,
 };
 use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
+use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+use jsonrpsee::RpcModule;
 use reth_tasks::TaskExecutor;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -144,6 +150,59 @@ pub async fn spawn_bitcoin_da_prover_service(
     .await
 }
 
+pub async fn spawn_bitcoin_da_prover_service_with_rpc_server(
+    task_executor: &TaskExecutor,
+    config: &BitcoinConfig,
+    dir: PathBuf,
+) -> (Arc<BitcoinService>, HttpClient) {
+    let service = spawn_bitcoin_da_service(
+        task_executor,
+        config,
+        dir,
+        DaServiceKeyKind::BatchProver,
+        REVEAL_TX_PREFIX.to_vec(),
+        None,
+        None,
+    )
+    .await;
+
+    let rpc_config = RpcConfig {
+        bind_host: "127.0.0.1".into(),
+        bind_port: 0,
+        max_connections: 100,
+        max_request_body_size: 10 * 1024 * 1024,
+        max_response_body_size: 10 * 1024 * 1024,
+        batch_requests_limit: 50,
+        enable_subscriptions: true,
+        max_subscriptions_per_connection: 100,
+        trace_chain_block_limit: None,
+        proving_jobs_limit: 100,
+        timeout: 30,
+        enable_js_tracer: true,
+        api_key: None,
+    };
+
+    // Add da rpc and da job rpc methods
+    let mut rpc_methods = RpcModule::new(());
+    let da_methods = create_da_rpc_module(service.clone());
+    rpc_methods.merge(da_methods).unwrap();
+
+    let da_methods = create_da_job_rpc_module(service.clone());
+    rpc_methods.merge(da_methods).unwrap();
+
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+    start_rpc_server(rpc_config, task_executor, rpc_methods, Some(port_tx));
+
+    let addr = port_rx.await.unwrap();
+    let http_host = format!("http://localhost:{}", addr.port());
+    let http_client = HttpClientBuilder::default()
+        .request_timeout(Duration::from_secs(120))
+        .build(http_host)
+        .unwrap();
+
+    (service, http_client)
+}
+
 #[cfg(feature = "testing")]
 pub async fn spawn_bitcoin_da_prover_service_with_utxo_selection_mode(
     task_executor: &TaskExecutor,
@@ -165,7 +224,7 @@ pub async fn spawn_bitcoin_da_prover_service_with_utxo_selection_mode(
 
 pub async fn spawn_bitcoin_da_service(
     task_executor: &TaskExecutor,
-    da_config: &BitcoinConfig,
+    bitcoin_config: &BitcoinConfig,
     test_dir: PathBuf,
     kind: DaServiceKeyKind,
     reveal_tx_prefix: Vec<u8>,
@@ -179,9 +238,12 @@ pub async fn spawn_bitcoin_da_service(
     };
     let wallet = wallet.unwrap_or(NodeKind::Bitcoin.to_string());
     let da_config = BitcoinServiceConfig {
-        node_url: format!("http://127.0.0.1:{}/wallet/{}", da_config.rpc_port, wallet),
-        node_username: da_config.rpc_user.clone(),
-        node_password: da_config.rpc_password.clone(),
+        node_url: format!(
+            "http://127.0.0.1:{}/wallet/{}",
+            bitcoin_config.rpc_port, wallet
+        ),
+        node_username: bitcoin_config.rpc_user.clone(),
+        node_password: bitcoin_config.rpc_password.clone(),
         da_private_key: Some(da_private_key),
         tx_backup_dir: test_dir.join("tx_backup_dir").display().to_string(),
         monitoring: Some(MonitoringConfig {
@@ -232,10 +294,7 @@ pub async fn spawn_bitcoin_da_service(
 
     let fee_service = FeeService::new(client.clone(), network, da_config.mempool_space_url.clone());
 
-    let ledger_db_dir = tempfile::TempDir::new()
-        .expect("Failed to create temporary directory")
-        .keep();
-    let ledger_db_path = ledger_db_dir.join("da_ledger_db");
+    let ledger_db_path = bitcoin_config.data_dir.join("da_ledger_db");
     let rocksdb_config = RocksdbConfig::new(&ledger_db_path, None, None);
     let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
 

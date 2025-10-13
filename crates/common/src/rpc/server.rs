@@ -66,6 +66,7 @@ pub fn start_rpc_server(
                             return;
                         }
                     };
+
                     if let Some(channel) = channel {
                         if let Err(e) = channel.send(bound_address) {
                             error!("Could not send bound_address {}: {}", bound_address, e);

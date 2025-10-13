@@ -14,7 +14,7 @@ use super::Result;
 use crate::job::service::{Job, JobId, JobProgress, JobStatus};
 use crate::service::BitcoinService;
 
-/// RPC provider trait for da job da
+/// RPC provider trait for da job service
 pub(super) trait DaJobRpcProvider {
     /// Cancel a pending or in-progress job by job id
     ///
@@ -32,7 +32,7 @@ pub(super) trait DaJobRpcProvider {
     /// * `job_id` - The unique identifier of the job to retry
     ///
     /// # Returns
-    /// * `Ok(JobId)` - The ID of the newly created retry job
+    /// * `Ok(JobId)` - The uuid of the newly created retry job
     /// * `Err` if the job doesn't exist or is not in a retryable state
     fn retry_job(&self, job_id: JobId) -> Result<JobId>;
 
@@ -62,7 +62,7 @@ pub(super) trait DaJobRpcProvider {
 pub struct JobListFilter {
     /// Optional status filter (e.g., only show "Pending" jobs)
     pub status: Option<JobStatusFilter>,
-    /// Maximum number of jobs to return (default: 100, max: 1000)
+    /// Maximum number of jobs to return (default: 25, max: 1000)
     pub limit: Option<usize>,
     /// Skip first N jobs (for pagination)
     pub offset: Option<usize>,
@@ -72,7 +72,7 @@ impl Default for JobListFilter {
     fn default() -> Self {
         Self {
             status: None,
-            limit: Some(100),
+            limit: Some(25),
             offset: None,
         }
     }
@@ -148,9 +148,9 @@ pub struct JobInfoResponse {
     pub job_id: JobId,
     /// Current job status
     pub status: JobStatus,
-    /// Job creation timestamp (Unix seconds)
+    /// Job creation timestamp
     pub created_at: u64,
-    /// Last update timestamp (Unix seconds)
+    /// Last update timestamp
     pub last_updated: u64,
     /// Number of transactions already sent
     pub sent_count: usize,
@@ -190,9 +190,9 @@ pub struct CancelJobResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RetryJobResponse {
-    /// uuid of the newly created retry job
+    /// Uuid of the newly created retry job
     pub new_job_id: JobId,
-    /// uuid of the original job that was retried
+    /// Uuid of the original job that was retried
     pub original_job_id: JobId,
 }
 
@@ -262,13 +262,6 @@ pub struct DaJobRpcServerImpl {
     da: Arc<BitcoinService>,
 }
 
-impl DaJobRpcServerImpl {
-    /// Create a new RPC server implementation
-    pub fn new(da: Arc<BitcoinService>) -> Self {
-        Self { da }
-    }
-}
-
 #[async_trait::async_trait]
 impl DaJobRpcServer for DaJobRpcServerImpl {
     async fn da_job_cancel(&self, job_id: JobId) -> RpcResult<CancelJobResponse> {
@@ -321,14 +314,8 @@ impl DaJobRpcServer for DaJobRpcServerImpl {
     }
 }
 
-/// Creates a new RPC module for the DA Job da.
-///
-/// # Arguments
-/// * `da.job_service` - Arc reference to the job da
-///
-/// # Returns
-/// * JSON-RPC module ready to be merged into the server
+/// Creates a new module for the bitcoin-da job service RPCs.
 pub fn create_rpc_module(da: Arc<BitcoinService>) -> jsonrpsee::RpcModule<DaJobRpcServerImpl> {
-    let server = DaJobRpcServerImpl::new(da);
+    let server = DaJobRpcServerImpl { da };
     DaJobRpcServer::into_rpc(server)
 }
