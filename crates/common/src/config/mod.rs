@@ -445,13 +445,13 @@ impl FromEnv for TelemetryConfig {
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct NetworkConfig {
     /// Optional peer multiaddress.
-    pub bind_addr: Option<String>,
+    pub dial_addr: Option<String>,
 }
 
 impl FromEnv for NetworkConfig {
     fn from_env() -> anyhow::Result<Self> {
-        let bind_addr = read_env("NETWORK_BIND_ADDR").ok();
-        Ok(Self { bind_addr })
+        let dial_addr = read_env("NETWORK_DIAL_ADDR").ok();
+        Ok(Self { dial_addr })
     }
 }
 
