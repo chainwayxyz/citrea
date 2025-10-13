@@ -26,6 +26,7 @@ pub fn register_ethereum<Da: DaService>(
         EthRpcConfig {
             gas_price_oracle_config: GasPriceOracleConfig::default(),
             fee_history_cache_config: FeeHistoryCacheConfig::default(),
+            stale_filter_ttl: rpc_config.stale_filter_ttl,
         }
     };
 

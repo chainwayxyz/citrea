@@ -776,7 +776,6 @@ where
     let ethereum = Arc::new(Ethereum::new(
         da_service,
         eth_rpc_config,
-        rpc_config.stale_filter_ttl,
         storage,
         ledger_db,
         sequencer_client_url.map(|url| HttpClientBuilder::default().build(url).unwrap()),
