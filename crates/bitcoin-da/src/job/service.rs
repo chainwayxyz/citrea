@@ -3,8 +3,8 @@ use std::time::{Duration, Instant};
 use bitcoin::{Transaction, Txid};
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::DaLedgerOps;
+use sov_db::schema::types::da_jobs::{Job, JobId, JobProgress, JobStatus};
 use tracing::{info, instrument};
-use uuid::Uuid;
 
 use super::Result;
 use crate::helpers::builders::body_builders::RawTxData;
@@ -12,39 +12,8 @@ use crate::helpers::get_timestamp;
 use crate::job::error::JobServiceError;
 use crate::job::rpc::{DaJobRpcProvider, JobListFilter};
 
-/// Unique job id using uuidv7 for ordering by creation time
-pub(crate) type JobId = Uuid;
 
-/// Job status representing the current state of transaction processing
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum JobStatus {
-    /// Job is queued and waiting to be processed
-    Pending,
-    /// Job is in progress
-    InProgress,
-    /// Job completed successfully
-    Completed,
-    /// Job was cancelled before completion
-    Cancelled,
-    /// Job failed with error
-    Failed {
-        /// Error associated to the failure
-        error: String,
-    },
-}
-
-impl JobStatus {
-    /// u8 representation of `JobStatus`
-    pub fn as_u8(&self) -> u8 {
-        match self {
-            JobStatus::Pending => 0,
-            JobStatus::InProgress => 1,
-            JobStatus::Completed => 2,
-            JobStatus::Cancelled => 3,
-            JobStatus::Failed { .. } => 4,
-        }
-    }
-}
+type Result<T> = std::result::Result<T, JobServiceError>;
 
 /// Tracks progress of a job including sent transactions for recovery.
 ///
@@ -62,18 +31,6 @@ pub struct JobProgress {
     pub last_updated: u64,
 }
 
-impl JobProgress {
-    fn new(job_id: JobId, last_updated: u64) -> Self {
-        Self {
-            job_id,
-            status: JobStatus::Pending,
-            sent_chunks: SentChunks::new(),
-            last_updated,
-        }
-    }
-}
-
-/// Track sent chunk for partial sending and recovery
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct SentChunks {
     /// Sent commit txs
@@ -98,17 +55,7 @@ impl SentChunks {
         self.commit_txs.extend(commits);
         self.reveal_txs.extend(reveals);
     }
-}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct Job {
-    /// Job id as uuidv7
-    pub id: JobId,
-    /// Raw job data
-    pub data: RawTxData,
-    /// Time of job creation
-    pub created_at: u64,
-}
 
 impl Job {
     pub(crate) fn new(data: RawTxData) -> Self {
