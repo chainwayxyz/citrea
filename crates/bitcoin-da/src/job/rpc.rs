@@ -9,9 +9,10 @@ use citrea_common::rpc::utils::internal_rpc_error;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use serde::{Deserialize, Serialize};
+use sov_db::schema::types::da_jobs::Job;
 
 use super::Result;
-use crate::job::service::{Job, JobId, JobProgress, JobStatus};
+use crate::job::service::{JobId, JobProgress, JobStatus};
 use crate::service::BitcoinService;
 
 /// RPC provider trait for da job service

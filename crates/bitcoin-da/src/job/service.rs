@@ -3,12 +3,10 @@ use std::time::{Duration, Instant};
 use bitcoin::{Transaction, Txid};
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::DaLedgerOps;
-use sov_db::schema::types::da_jobs::{
-    Job, JobId, JobProgress as DbJobProgress, JobStatus, SentChunks as DbSentChunks,
-};
+pub use sov_db::schema::types::da_jobs::{Job, JobId, JobStatus};
+use sov_db::schema::types::da_jobs::{JobProgress as DbJobProgress, SentChunks as DbSentChunks};
 use tracing::{info, instrument};
 
-use super::Result;
 use crate::helpers::builders::body_builders::RawTxData;
 use crate::helpers::get_timestamp;
 use crate::job::error::JobServiceError;
@@ -180,21 +178,12 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
             .map_err(JobServiceError::DatabaseError)
     }
 
-    /// Get a job by id, deserializing RawTxData
+    /// Get a job by id
     #[instrument(level = "trace", skip(self), ret)]
-    pub(crate) fn get_job(&self, job_id: &JobId) -> Result<Option<RawTxData>> {
-        let job = self
-            .ledger_db
+    pub(crate) fn get_job(&self, job_id: &JobId) -> Result<Option<Job>> {
+        self.ledger_db
             .get_job(job_id)
-            .map_err(JobServiceError::DatabaseError)?;
-
-        match job {
-            Some(j) => {
-                let raw_tx_data = borsh::from_slice(&j.data)?;
-                Ok(Some(raw_tx_data))
-            }
-            None => Ok(None),
-        }
+            .map_err(JobServiceError::DatabaseError)
     }
 
     /// Upsert job progress - convert local JobProgress to DB format
@@ -384,14 +373,17 @@ impl<DB: DaLedgerOps> DaJobRpcProvider for DaJobService<DB> {
         // Only allow retry of failed or cancelled jobs
         match progress.status {
             JobStatus::Failed { .. } | JobStatus::Cancelled => {
-                // Get original job to retrieve raw tx data
+                // Get original job and deserialize data
                 let original_job = self
                     .get_job(&job_id)?
                     .ok_or(JobServiceError::JobNotFound(job_id))?;
+
+                let raw_data: RawTxData = borsh::from_slice(&original_job.data)?;
+
                 // Create new job with same data
-                let new_job = self.submit_job(original_job.data)?;
-                tracing::info!("Job {job_id} retried as new job {}", new_job.id);
-                Ok(new_job.id)
+                let new_job_id = self.submit_job(raw_data)?;
+                tracing::info!("Job {job_id} retried as new job {new_job_id}");
+                Ok(new_job_id)
             }
             JobStatus::Pending | JobStatus::InProgress | JobStatus::Completed => {
                 Err(JobServiceError::JobRetryFailure(job_id, progress.status))

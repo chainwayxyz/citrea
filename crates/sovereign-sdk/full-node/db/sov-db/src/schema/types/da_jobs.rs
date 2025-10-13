@@ -50,17 +50,6 @@ impl SentChunks {
     pub fn new() -> Self {
         Self::default()
     }
-
-    /// Return the number of sent chunks
-    pub fn count(&self) -> usize {
-        self.reveal_txs.len()
-    }
-
-    /// Extend with sent commit and reveal chunks
-    pub fn extend(&mut self, commits: Vec<Vec<u8>>, reveals: Vec<Vec<u8>>) {
-        self.commit_txs.extend(commits);
-        self.reveal_txs.extend(reveals);
-    }
 }
 
 /// Tracks progress of a job including sent transactions for recovery.
@@ -77,18 +66,6 @@ pub struct JobProgress {
     pub sent_chunks: SentChunks,
     /// Last update timestamp
     pub last_updated: u64,
-}
-
-impl JobProgress {
-    /// Create a new JobProgress with pending status
-    pub fn new(job_id: JobId, last_updated: u64) -> Self {
-        Self {
-            job_id,
-            status: JobStatus::Pending,
-            sent_chunks: SentChunks::new(),
-            last_updated,
-        }
-    }
 }
 
 /// DA Job representing a transaction to be sent to the DA layer
