@@ -13,6 +13,7 @@ members = [
   "crates/evm",
   "crates/fullnode",
   "crates/light-client-prover",
+  "crates/network",
   "crates/primitives",
   "crates/prover-services",
   "crates/storage-ops",

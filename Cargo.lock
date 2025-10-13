@@ -2683,6 +2683,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "citrea-network"
+version = "0.7.4"
+dependencies = [
+ "futures",
+ "libp2p",
+ "tokio",
+ "tracing-subscriber 0.3.20",
+ "yamux 0.13.4",
+]
+
+[[package]]
 name = "citrea-primitives"
 version = "0.7.4"
 dependencies = [
