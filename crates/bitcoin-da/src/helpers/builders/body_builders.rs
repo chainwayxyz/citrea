@@ -28,7 +28,7 @@ use crate::service::split_proof;
 use crate::spec::utxo::UTXO;
 use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]
 /// These are real blobs we put on DA.
 pub(crate) enum RawTxData {
     /// borsh(DataOnDa::Complete(compress(Proof)))
