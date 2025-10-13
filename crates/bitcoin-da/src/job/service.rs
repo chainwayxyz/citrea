@@ -160,21 +160,10 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         let job = Job::new(job_id, data, created_at);
         let progress = JobProgress::new(job_id, created_at);
 
-        self.insert_job(&job)?;
-        self.upsert_progress(&progress)?;
-        self.ledger_db
-            .insert_job_status_index(progress.status.as_u8(), job_id)?;
+        self.ledger_db.submit_job(&job, &progress.into())?;
 
         info!("Job {job_id} submitted and persisted");
         Ok(job_id)
-    }
-
-    /// Save a new job to db
-    #[instrument(level = "trace", skip(self))]
-    fn insert_job(&self, job: &Job) -> Result<()> {
-        self.ledger_db
-            .insert_job(job.id, job)
-            .map_err(JobServiceError::DatabaseError)
     }
 
     /// Get a job by id
@@ -185,25 +174,13 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
             .map_err(JobServiceError::DatabaseError)
     }
 
-    /// Upsert job progress - convert local JobProgress to DB format
-    #[instrument(level = "trace", skip(self))]
-    pub(crate) fn upsert_progress(&self, progress: &JobProgress) -> Result<()> {
-        let db_progress: DbJobProgress = progress.clone().into();
-
-        self.ledger_db
-            .upsert_progress(&progress.job_id, &db_progress)
-            .map_err(JobServiceError::DatabaseError)
-    }
-
     /// Retrieve job progress by id and convert to local format
     #[instrument(level = "trace", skip(self), ret)]
     pub(crate) fn get_progress(&self, job_id: &JobId) -> Result<Option<JobProgress>> {
-        let db_progress = self
-            .ledger_db
+        self.ledger_db
             .get_progress(job_id)
-            .map_err(JobServiceError::DatabaseError)?;
-
-        Ok(db_progress.map(|p| p.into()))
+            .map_err(JobServiceError::DatabaseError)
+            .map(|opt| opt.map(Into::into))
     }
 
     /// Get all `Pending` and `InProgress` job ids from storage
@@ -211,14 +188,11 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     pub(crate) fn get_all_active_job_ids(&self) -> Result<Vec<JobId>> {
         let mut active_jobs = Vec::new();
 
-        active_jobs.extend(
-            self.ledger_db
-                .get_job_ids_by_status(JobStatus::Pending.as_u8())?,
-        );
+        active_jobs.extend(self.ledger_db.get_job_ids_by_status(JobStatus::Pending)?);
 
         active_jobs.extend(
             self.ledger_db
-                .get_job_ids_by_status(JobStatus::InProgress.as_u8())?,
+                .get_job_ids_by_status(JobStatus::InProgress)?,
         );
 
         // Sort uuidv7 chronologically
@@ -229,22 +203,19 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
 
     /// Update job status by id
     #[instrument(level = "debug", skip(self))]
-    pub fn update_job_status(&self, progress: &mut JobProgress, status: JobStatus) -> Result<()> {
-        let old_status = progress.status.as_u8();
-        let new_status = status.as_u8();
+    pub fn update_job_status(
+        &self,
+        progress: &mut JobProgress,
+        new_status: JobStatus,
+    ) -> Result<()> {
+        let previous_status = progress.status.clone();
 
-        progress.status = status;
+        progress.status = new_status;
         progress.last_updated = get_timestamp();
 
-        self.upsert_progress(progress)?;
-
-        // Update status indexing
-        if old_status != new_status {
-            self.ledger_db
-                .remove_job_status_index(old_status, progress.job_id)?;
-            self.ledger_db
-                .insert_job_status_index(new_status, progress.job_id)?;
-        }
+        let db_progress = progress.clone().into();
+        self.ledger_db
+            .upsert_progress(&db_progress, previous_status)?;
 
         Ok(())
     }
@@ -336,7 +307,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     pub async fn has_job_in_progress(&self) -> Result<bool> {
         let in_progress_jobs = self
             .ledger_db
-            .get_job_ids_by_status(JobStatus::InProgress.as_u8())?;
+            .get_job_ids_by_status(JobStatus::InProgress)?;
 
         Ok(!in_progress_jobs.is_empty())
     }
@@ -398,7 +369,7 @@ impl<DB: DaLedgerOps> DaJobRpcProvider for DaJobService<DB> {
         let status_filter = filter.status.unwrap_or_default();
 
         let mut job_ids = Vec::new();
-        for code in status_filter.to_status_codes() {
+        for code in status_filter.to_job_status() {
             job_ids.extend(self.ledger_db.get_job_ids_by_status(code)?);
         }
         job_ids.sort(); // sort chronologically by uuidv7

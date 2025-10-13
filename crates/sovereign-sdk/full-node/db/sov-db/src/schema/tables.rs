@@ -27,6 +27,7 @@ use super::types::{
     AccessoryKey, AccessoryStateValue, BonsaiSession, DbHash, JmtValue, L1Height, L2BlockNumber,
     L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber, StateKey,
 };
+use crate::schema::types::da_jobs::JobStatus;
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
 /// account balances, nonces, etc.
@@ -515,7 +516,7 @@ define_table_with_seek_key_codec!(
 
 define_table_with_seek_key_codec!(
     /// Index by (status, jobid)
-    (DaJobStatusIndex) (u8, Uuid) => ()
+    (DaJobStatusIndex) (JobStatus, Uuid) => ()
 );
 
 #[cfg(test)]

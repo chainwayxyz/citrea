@@ -103,38 +103,35 @@ pub enum JobStatusFilter {
 
 impl JobStatusFilter {
     /// Convert filter to list of status codes to query
-    pub(super) fn to_status_codes(&self) -> Vec<u8> {
+    pub(super) fn to_job_status(&self) -> Vec<JobStatus> {
         match self {
-            JobStatusFilter::Pending => vec![JobStatus::Pending.as_u8()],
-            JobStatusFilter::InProgress => vec![JobStatus::InProgress.as_u8()],
-            JobStatusFilter::Completed => vec![JobStatus::Completed.as_u8()],
-            JobStatusFilter::Cancelled => vec![JobStatus::Cancelled.as_u8()],
+            JobStatusFilter::Pending => vec![JobStatus::Pending],
+            JobStatusFilter::InProgress => vec![JobStatus::InProgress],
+            JobStatusFilter::Completed => vec![JobStatus::Completed],
+            JobStatusFilter::Cancelled => vec![JobStatus::Cancelled],
             JobStatusFilter::Failed => {
                 vec![JobStatus::Failed {
                     error: Default::default(),
-                }
-                .as_u8()]
+                }]
             }
             JobStatusFilter::Active => {
-                vec![JobStatus::Pending.as_u8(), JobStatus::InProgress.as_u8()]
+                vec![JobStatus::Pending, JobStatus::InProgress]
             }
             JobStatusFilter::Terminal => vec![
-                JobStatus::Completed.as_u8(),
-                JobStatus::Cancelled.as_u8(),
+                JobStatus::Completed,
+                JobStatus::Cancelled,
                 JobStatus::Failed {
                     error: Default::default(),
-                }
-                .as_u8(),
+                },
             ],
             JobStatusFilter::All => vec![
-                JobStatus::Pending.as_u8(),
-                JobStatus::InProgress.as_u8(),
-                JobStatus::Completed.as_u8(),
-                JobStatus::Cancelled.as_u8(),
+                JobStatus::Pending,
+                JobStatus::InProgress,
+                JobStatus::Completed,
+                JobStatus::Cancelled,
                 JobStatus::Failed {
                     error: Default::default(),
-                }
-                .as_u8(),
+                },
             ],
         }
     }

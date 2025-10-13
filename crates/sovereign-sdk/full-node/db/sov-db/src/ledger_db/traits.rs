@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use crate::schema::tables::{PendingProofs, PendingSequencerCommitments};
 use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
-use crate::schema::types::da_jobs::{Job, JobProgress};
+use crate::schema::types::da_jobs::{Job, JobProgress, JobStatus as DaJobStatus};
 use crate::schema::types::job_status::JobStatus;
 use crate::schema::types::l2_block::StoredL2Block;
 use crate::schema::types::light_client_proof::{
@@ -328,25 +328,19 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
 
 /// Bitcoin da ledger operations
 pub trait DaLedgerOps {
-    /// DaJobById related methods
-    /// Insert a DA job by id
-    fn insert_job(&self, job_id: Uuid, job: &Job) -> Result<()>;
+    /// Store a job to db
+    fn submit_job(&self, job: &Job, progress: &JobProgress) -> anyhow::Result<()>;
     /// Get a DA job by id
     fn get_job(&self, job_id: &Uuid) -> Result<Option<Job>>;
 
-    /// DaJobProgressById related methods
     /// Update a DA job progress by id
-    fn upsert_progress(&self, job_id: &Uuid, progress: &JobProgress) -> Result<()>;
+    fn upsert_progress(&self, progress: &JobProgress, previous_status: DaJobStatus) -> Result<()>;
+
     /// Get a DA job progress by id
     fn get_progress(&self, job_id: &Uuid) -> Result<Option<JobProgress>>;
 
-    /// DaJobStatusIndex related methods
-    /// Insert a job status index entry
-    fn insert_job_status_index(&self, status: u8, job_id: Uuid) -> Result<()>;
-    /// Remove a job status index entry
-    fn remove_job_status_index(&self, status: u8, job_id: Uuid) -> Result<()>;
     /// Get all job ids for a specific status
-    fn get_job_ids_by_status(&self, status: u8) -> Result<Vec<Uuid>>;
+    fn get_job_ids_by_status(&self, status: DaJobStatus) -> Result<Vec<Uuid>>;
 }
 
 /// Test ledger operations

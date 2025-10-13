@@ -18,22 +18,9 @@ pub enum JobStatus {
     Cancelled,
     /// Job failed with error
     Failed {
-        /// Error associated to the failure
+        /// Error associated with the failure
         error: String,
     },
-}
-
-impl JobStatus {
-    /// u8 representation of `JobStatus`
-    pub fn as_u8(&self) -> u8 {
-        match self {
-            JobStatus::Pending => 0,
-            JobStatus::InProgress => 1,
-            JobStatus::Completed => 2,
-            JobStatus::Cancelled => 3,
-            JobStatus::Failed { .. } => 4,
-        }
-    }
 }
 
 /// Track sent chunk for partial sending and recovery
