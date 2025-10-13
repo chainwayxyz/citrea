@@ -324,4 +324,65 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
 
         Ok(!in_progress_jobs.is_empty())
     }
+
+    /// Reset stale InProgress jobs to Pending status.
+    ///
+    /// A job is considered stale if it has been InProgress for longer than the timeout.
+    /// Returns the list of job IDs that were reset.
+    #[instrument(level = "debug", skip(self))]
+    pub fn reset_stale_jobs(&self, timeout: Duration) -> Result<Vec<JobId>> {
+        let in_progress_jobs = self
+            .ledger_db
+            .get_job_ids_by_status(JobStatus::InProgress.as_u8())?;
+
+        let current_time = get_timestamp();
+        let timeout_secs = timeout.as_secs();
+        let mut reset_jobs = Vec::new();
+
+        for job_id in in_progress_jobs {
+            if let Some(mut progress) = self.get_progress(&job_id)? {
+                let elapsed = current_time.saturating_sub(progress.last_updated);
+
+                if elapsed > timeout_secs {
+                    info!(
+                        "Resetting stale job {}: last_updated={}, elapsed={}s",
+                        job_id, progress.last_updated, elapsed
+                    );
+
+                    self.update_job_status(&mut progress, JobStatus::Pending)?;
+                    reset_jobs.push(job_id);
+                }
+            }
+        }
+
+        if !reset_jobs.is_empty() {
+            info!("Reset {} stale InProgress jobs", reset_jobs.len());
+        }
+
+        Ok(reset_jobs)
+    }
+
+    /// Get all pending and in-progress jobs for recovery.
+    ///
+    /// Returns jobs sorted by creation time (uuidv7 provides chronological ordering).
+    #[instrument(level = "debug", skip(self), ret)]
+    pub fn get_pending_jobs_for_recovery(&self) -> Result<Vec<(Job, JobProgress)>> {
+        let active_job_ids = self.get_all_active_job_ids()?;
+        let mut jobs = Vec::new();
+
+        for job_id in active_job_ids {
+            if let Some(job) = self.get_job(&job_id)? {
+                if let Some(progress) = self.get_progress(&job_id)? {
+                    jobs.push((job, progress));
+                }
+            }
+        }
+
+        info!(
+            "Recovered {} pending/in-progress jobs for processing",
+            jobs.len()
+        );
+
+        Ok(jobs)
+    }
 }

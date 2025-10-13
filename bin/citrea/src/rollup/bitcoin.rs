@@ -159,6 +159,7 @@ impl RollupBlueprint for BitcoinRollup {
         if require_wallet_check {
             // run only for sequencer and prover
             service.monitoring.restore().await?;
+            service.restore_pending_jobs().await?;
 
             task_executor.spawn_with_graceful_shutdown_signal(|tk| {
                 Arc::clone(&service).run_da_queue(block_rx, tk)

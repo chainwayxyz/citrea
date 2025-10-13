@@ -257,6 +257,34 @@ impl BitcoinService {
         ))
     }
 
+    /// Restore pending jobs from the database and process them.
+    #[instrument(level = "info", skip_all)]
+    pub async fn restore_pending_jobs(&self) -> Result<()> {
+        info!("Restoring pending jobs from database");
+
+        let reset_count = self
+            .job_service
+            .reset_stale_jobs(Duration::from_secs(300))?;
+
+        if !reset_count.is_empty() {
+            info!("Reset {} stale jobs", reset_count.len());
+        }
+
+        let pending_jobs = self.job_service.get_pending_jobs_for_recovery()?;
+
+        if !pending_jobs.is_empty() {
+            info!(
+                "Found {} pending/in-progress jobs, triggering initial processing",
+                pending_jobs.len()
+            );
+            self.process_job_service().await?;
+        } else {
+            info!("No pending jobs to restore");
+        }
+
+        Ok(())
+    }
+
     /// Run the task to process the DA commands from the queue.
     #[instrument(name = "BitcoinDA", skip_all)]
     pub async fn run_da_queue(
@@ -265,6 +293,11 @@ impl BitcoinService {
         mut shutdown: GracefulShutdown,
     ) {
         trace!("BitcoinDA queue is initialized. Waiting for the first request...");
+
+        if let Err(e) = self.process_job_service().await {
+            error!(?e, "Error processing initial job queue");
+        }
+
         loop {
             select! {
                 biased;
