@@ -152,9 +152,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     #[instrument(level = "trace", skip(self))]
     fn insert_job(&self, job: &Job) -> Result<()> {
         let value = bincode::serialize(job)?;
-        self.ledger_db
-            .insert_job(job.id, value)
-            .map_err(JobServiceError::DatabaseError)
+        Ok(self.ledger_db.insert_job(job.id, value)?)
     }
 
     /// Get a job by id
@@ -172,9 +170,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     #[instrument(level = "trace", skip(self))]
     pub(crate) fn upsert_progress(&self, progress: &JobProgress) -> Result<()> {
         let value = bincode::serialize(progress)?;
-        self.ledger_db
-            .upsert_progress(&progress.job_id, value)
-            .map_err(JobServiceError::DatabaseError)
+        Ok(self.ledger_db.upsert_progress(&progress.job_id, value)?)
     }
 
     /// Retrieve and deserialize job progress by id

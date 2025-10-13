@@ -111,7 +111,7 @@ impl JobStatusFilter {
             JobStatusFilter::Cancelled => vec![JobStatus::Cancelled.as_u8()],
             JobStatusFilter::Failed => {
                 vec![JobStatus::Failed {
-                    error: String::new(),
+                    error: Default::default(),
                 }
                 .as_u8()]
             }
@@ -122,7 +122,7 @@ impl JobStatusFilter {
                 JobStatus::Completed.as_u8(),
                 JobStatus::Cancelled.as_u8(),
                 JobStatus::Failed {
-                    error: String::new(),
+                    error: Default::default(),
                 }
                 .as_u8(),
             ],
@@ -132,7 +132,7 @@ impl JobStatusFilter {
                 JobStatus::Completed.as_u8(),
                 JobStatus::Cancelled.as_u8(),
                 JobStatus::Failed {
-                    error: String::new(),
+                    error: Default::default(),
                 }
                 .as_u8(),
             ],
