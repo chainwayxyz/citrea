@@ -1,7 +1,5 @@
-use sov_db::schema::types::da_jobs::JobId;
+use sov_db::schema::types::da_jobs::{JobId, JobStatus};
 use thiserror::Error;
-
-use crate::job::service::{JobId, JobStatus};
 
 /// Job errors
 #[derive(Error, Debug)]

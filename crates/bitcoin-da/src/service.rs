@@ -47,6 +47,7 @@ use crate::helpers::builders::TxWithId;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
 use crate::helpers::{merkle_tree, TransactionKind};
+use crate::job::error::JobServiceError;
 use crate::job::service::{DaJobService, JobProgress, SentChunks};
 use crate::metrics::BITCOIN_DA_METRICS as BM;
 use crate::monitoring::{MonitoredTxKind, MonitoringConfig, MonitoringService, TxStatus};
@@ -293,10 +294,13 @@ impl BitcoinService {
         let mut jobs_to_process = Vec::new();
 
         for job_id in active_job_ids {
-            if let Some(job_data) = self.job_service.get_job(&job_id)? {
+            if let Some(job) = self.job_service.get_job(&job_id)? {
                 if let Some(progress) = self.job_service.get_progress(&job_id)? {
-                    // get_progress returns LocalJobProgress directly
-                    jobs_to_process.push((job_data, progress));
+                    // Deserialize RawTxData from job
+                    let raw_data: RawTxData = borsh::from_slice(&job.data)
+                        .map_err(JobServiceError::SerializationError)?;
+
+                    jobs_to_process.push((raw_data, progress));
                 }
             }
         }
