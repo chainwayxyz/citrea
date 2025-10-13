@@ -70,7 +70,10 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         let subscription_manager = l2_block_rx
             .map(|rx| SubscriptionManager::new::<C>(storage.clone(), ledger_db.clone(), rx));
 
-        let citrea_filter = Arc::new(CitreaFilter::new(task_executor, eth_rpc_config.stale_filter_ttl));
+        let citrea_filter = Arc::new(CitreaFilter::new(
+            task_executor,
+            eth_rpc_config.stale_filter_ttl,
+        ));
 
         Self {
             da_service,
