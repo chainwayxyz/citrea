@@ -16,7 +16,7 @@ use reth_rpc::eth::filter::EthFilterError;
 use reth_rpc_eth_types::{EthApiError, EthSubscriptionIdProvider};
 use reth_tasks::TaskExecutor;
 use sov_modules_api::{StateVecAccessor, WorkingSet};
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use tokio::time::MissedTickBehavior;
 
 use crate::{get_filter_block_range, Evm};
@@ -135,14 +135,14 @@ pub fn convert_block_number(
 /// All active filters
 #[derive(Debug, Clone, Default)]
 pub struct ActiveFilters {
-    inner: Arc<Mutex<HashMap<FilterId, ActiveFilter>>>,
+    inner: Arc<RwLock<HashMap<FilterId, ActiveFilter>>>,
 }
 
 impl ActiveFilters {
     /// Returns an empty instance.
     pub fn new() -> Self {
         Self {
-            inner: Arc::new(Mutex::new(HashMap::default())),
+            inner: Arc::new(RwLock::new(HashMap::default())),
         }
     }
 }
@@ -237,7 +237,7 @@ impl CitreaFilter {
         tracing::debug!(target: "rpc::eth", "clear stale filters");
         self.active_filters()
             .inner
-            .lock()
+            .write()
             .await
             .retain(|id, filter| {
                 let is_valid = (now - filter.last_poll_timestamp) < self.stale_filter_ttl;
@@ -270,7 +270,7 @@ impl CitreaFilter {
             SubscriptionId::Num(n) => FilterId::Num(n),
             SubscriptionId::Str(s) => FilterId::Str(s.into_owned()),
         };
-        let mut filters = self.active_filters.inner.lock().await;
+        let mut filters = self.active_filters.inner.write().await;
         filters.insert(
             id.clone(),
             ActiveFilter {
@@ -286,7 +286,7 @@ impl CitreaFilter {
     /// false otherwise.
     pub async fn uninstall_filter(&self, id: FilterId) -> RpcResult<bool> {
         tracing::trace!(target: "rpc::eth", "Serving eth_uninstallFilter");
-        let mut filters = self.active_filters.inner.lock().await;
+        let mut filters = self.active_filters.inner.write().await;
         if filters.remove(&id).is_some() {
             tracing::trace!(target: "rpc::eth::filter", ?id, "uninstalled filter");
             Ok(true)
@@ -312,7 +312,7 @@ impl CitreaFilter {
         // start_block is the block from which we should start fetching changes, the next block from
         // the last time changes were polled, in other words the best block at last poll + 1
         let (start_block, kind) = {
-            let mut filters = self.active_filters.inner.lock().await;
+            let mut filters = self.active_filters.inner.write().await;
             let filter = filters
                 .get_mut(&id)
                 .ok_or(EthFilterError::FilterNotFound(id.clone()))?;
@@ -399,7 +399,7 @@ impl CitreaFilter {
         id: FilterId,
     ) -> Result<Vec<Log>, EthFilterError> {
         let filter = {
-            let filters = self.active_filters.inner.lock().await;
+            let filters = self.active_filters.inner.read().await;
             if let FilterKind::Log(ref filter) = filters
                 .get(&id)
                 .ok_or_else(|| EthFilterError::FilterNotFound(id.clone()))?
