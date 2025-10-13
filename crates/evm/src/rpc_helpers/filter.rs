@@ -325,11 +325,11 @@ impl CitreaFilter {
             // update filter
             // we fetch all changes from [filter.block..best_block], so we advance the filter's
             // block to `best_block +1`, the next from which we should start fetching changes again
-            let mut block = latest_block_number + 1;
-            std::mem::swap(&mut filter.block, &mut block);
+            let start_block = filter.block;
+            filter.block = latest_block_number + 1;
             filter.last_poll_timestamp = Instant::now();
 
-            (block, filter.kind.clone())
+            (start_block, filter.kind.clone())
         };
 
         match kind {
