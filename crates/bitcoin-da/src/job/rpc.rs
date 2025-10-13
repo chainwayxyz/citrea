@@ -9,7 +9,6 @@ use citrea_common::rpc::utils::internal_rpc_error;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use serde::{Deserialize, Serialize};
-use sov_db::schema::types::da_jobs::Job;
 
 use super::Result;
 use crate::job::service::{JobId, JobProgress, JobStatus};
@@ -45,7 +44,7 @@ pub(super) trait DaJobRpcProvider {
     /// # Returns
     /// * `Ok(Vec<JobInfoResponse>)` - List of jobs matching the filter criteria
     /// * `Err` on database or serialization errors
-    fn list_jobs(&self, filter: JobListFilter) -> Result<Vec<(Job, JobProgress)>>;
+    fn list_jobs(&self, filter: JobListFilter) -> Result<Vec<JobProgress>>;
 
     /// Get detailed information about a specific job
     ///
@@ -55,7 +54,7 @@ pub(super) trait DaJobRpcProvider {
     /// # Returns
     /// * `Ok(JobInfoResponse)` - Detailed information about the job
     /// * `Err` on database error
-    fn get_job_info(&self, job_id: JobId) -> Result<(Job, JobProgress)>;
+    fn get_job_info(&self, job_id: JobId) -> Result<JobProgress>;
 }
 
 /// Filter criteria for listing jobs
@@ -160,20 +159,20 @@ pub struct JobInfoResponse {
     pub error: Option<String>,
 }
 
-impl JobInfoResponse {
-    /// Create JobInfoResponse from Job and JobProgress
-    fn from_job_and_progress((job, progress): (Job, JobProgress)) -> Self {
-        let error = match &progress.status {
+impl From<JobProgress> for JobInfoResponse {
+    fn from(value: JobProgress) -> Self {
+        let error = match &value.status {
             JobStatus::Failed { error } => Some(error.clone()),
             _ => None,
         };
 
+        let created_at = value.job_id.get_timestamp().map_or(0, |ts| ts.to_unix().0);
         Self {
-            job_id: job.id,
-            status: progress.status.clone(),
-            created_at: job.created_at,
-            last_updated: progress.last_updated,
-            sent_count: progress.sent_chunks.count(),
+            job_id: value.job_id,
+            status: value.status.clone(),
+            created_at,
+            last_updated: value.last_updated,
+            sent_count: value.sent_chunks.count(),
             error,
         }
     }
@@ -302,7 +301,7 @@ impl DaJobRpcServer for DaJobRpcServerImpl {
             .list_jobs(filter)
             .map_err(internal_rpc_error)?
             .into_iter()
-            .map(JobInfoResponse::from_job_and_progress)
+            .map(Into::into)
             .collect())
     }
 
@@ -311,7 +310,7 @@ impl DaJobRpcServer for DaJobRpcServerImpl {
             .job_service
             .get_job_info(job_id)
             .map_err(internal_rpc_error)
-            .map(JobInfoResponse::from_job_and_progress)
+            .map(Into::into)
     }
 }
 

@@ -143,7 +143,7 @@ impl JobServiceTest {
 
         // Cancel job
         let cancel_job_response = da_service_client.da_job_cancel(job_id).await?;
-        assert_eq!(cancel_job_response.success, true);
+        assert!(cancel_job_response.success);
 
         let job_by_id: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
         assert_eq!(job_by_id.status, JobStatus::Cancelled);

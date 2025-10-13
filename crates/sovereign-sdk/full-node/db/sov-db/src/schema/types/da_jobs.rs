@@ -6,7 +6,7 @@ use uuid::Uuid;
 pub type JobId = Uuid;
 
 /// Job status representing the current state of transaction processing
-#[derive(Debug, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq)]
 pub enum JobStatus {
     /// Job is queued and waiting to be processed
     Pending,

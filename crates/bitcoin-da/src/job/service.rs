@@ -7,12 +7,11 @@ pub use sov_db::schema::types::da_jobs::{Job, JobId, JobStatus};
 use sov_db::schema::types::da_jobs::{JobProgress as DbJobProgress, SentChunks as DbSentChunks};
 use tracing::{info, instrument};
 
+use super::Result;
 use crate::helpers::builders::body_builders::RawTxData;
 use crate::helpers::get_timestamp;
 use crate::job::error::JobServiceError;
 use crate::job::rpc::{DaJobRpcProvider, JobListFilter};
-
-type Result<T> = std::result::Result<T, JobServiceError>;
 
 /// Tracks progress of a job including sent transactions for recovery.
 ///
@@ -391,7 +390,7 @@ impl<DB: DaLedgerOps> DaJobRpcProvider for DaJobService<DB> {
         }
     }
 
-    fn list_jobs(&self, filter: JobListFilter) -> Result<Vec<(Job, JobProgress)>> {
+    fn list_jobs(&self, filter: JobListFilter) -> Result<Vec<JobProgress>> {
         let limit = filter.limit.unwrap_or(25).min(1000); // Defaults to 25, capped at 1000
         let offset = filter.offset.unwrap_or(0);
 
@@ -411,25 +410,16 @@ impl<DB: DaLedgerOps> DaJobRpcProvider for DaJobService<DB> {
         // Return (job, progress) per id
         let mut job_infos = Vec::new();
         for job_id in job_ids {
-            if let (Some(job), Some(progress)) =
-                (self.get_job(&job_id)?, self.get_progress(&job_id)?)
-            {
-                job_infos.push((job, progress));
+            if let Some(progress) = self.get_progress(&job_id)? {
+                job_infos.push(progress);
             }
         }
 
         Ok(job_infos)
     }
 
-    fn get_job_info(&self, job_id: JobId) -> Result<(Job, JobProgress)> {
-        let job = self
-            .get_job(&job_id)?
-            .ok_or(JobServiceError::JobNotFound(job_id))?;
-
-        let progress = self
-            .get_progress(&job_id)?
-            .ok_or(JobServiceError::JobNotFound(job_id))?;
-
-        Ok((job, progress))
+    fn get_job_info(&self, job_id: JobId) -> Result<JobProgress> {
+        self.get_progress(&job_id)?
+            .ok_or(JobServiceError::JobNotFound(job_id))
     }
 }
