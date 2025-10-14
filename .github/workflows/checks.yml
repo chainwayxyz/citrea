@@ -570,7 +570,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: proving-stats/results/nightly-stats.json
-          key: nightly-proving-stats-${{ steps.nightly-commit.outputs.nightly-hash }}-2
+          key: nightly-proving-stats-${{ steps.nightly-commit.outputs.nightly-hash }}
 
       # --- Run test only if cache missed ---
       - name: Download nightly build artifact
@@ -583,10 +583,7 @@ jobs:
           ref: nightly
           path: target/debug
           if_no_artifact_found: warn
-      - name: Debug outputs
-        run: |
-          echo "cache-hit: ${{ steps.restore-nightly.outputs.cache-hit }}"
-          echo "found_artifact: ${{ steps.download-artifact.outputs.found_artifact }}"
+
       - name: Checkout nightly branch
         if: steps.restore-nightly.outputs.cache-hit != 'true'
         run: git checkout -f ${{ steps.nightly-commit.outputs.nightly-hash }}
@@ -598,7 +595,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-        # --- Build only if the artifact is not found ---
+      # --- Build only if the artifact is not found ---
       - name: Install Rust toolchain
         if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: dtolnay/rust-toolchain@nightly
@@ -629,7 +626,7 @@ jobs:
         run: make build
 
       - name: Checkout to PR branch
-        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        if: steps.restore-nightly.outputs.cache-hit != 'true'
         run: git checkout ${{ steps.current-commit.outputs.head-hash }}
 
       # Sequencer DB is removed in run-proving-test.sh to avoid state corruption
