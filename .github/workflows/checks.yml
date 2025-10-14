@@ -584,11 +584,18 @@ jobs:
           path: target/debug
           if_no_artifact_found: warn
 
-      # --- Build only if the artifact is not found ---
       - name: Checkout nightly branch
-        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != true
+        if: steps.restore-nightly.outputs.cache-hit != 'true'
         run: git checkout -f ${{ steps.nightly-commit.outputs.nightly-hash }}
 
+      # install risc0 again as version may differ between branches
+      - name: Install risc0
+        if: steps.restore-nightly.outputs.cache-hit != 'true'
+        uses: ./.github/actions/install-risc0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+        # --- Build only if the artifact is not found ---
       - name: Install Rust toolchain
         if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != true
         uses: dtolnay/rust-toolchain@nightly
@@ -622,12 +629,6 @@ jobs:
         if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != true
         run: git checkout ${{ steps.current-commit.outputs.head-hash }}
 
-      # install risc0 again as version may differ between branches
-      - name: Install risc0
-        if: steps.restore-nightly.outputs.cache-hit != 'true'
-        uses: ./.github/actions/install-risc0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
       # Sequencer DB is removed in run-proving-test.sh to avoid state corruption
       - name: Restore sequencer DB from test data
         if: steps.restore-nightly.outputs.cache-hit != 'true'
