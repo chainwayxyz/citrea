@@ -43,7 +43,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     address public constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
     address public constant SCHNORR_VERIFIER_PRECOMPILE = address(0x200);
     uint256 public constant SAT_TO_WEI = 10**10;
-    uint256 public constant PAYOUT_ANCHOR_OUTPUT_AMOUNT = 240;
+    uint256 public constant PAYOUT_ANCHOR_OUTPUT_AMOUNT = 240 * SAT_TO_WEI;
 
     bytes public constant EPOCH = hex"00";
     bytes public constant SIGHASH_DEFAULT_HASH_TYPE = hex"00";
@@ -171,9 +171,10 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
 
     /// @notice Sets the expected withdraw amount in the output of `payoutTx` in `safeWithdraw`
     /// @notice This is the BTC amount user actually receives on Bitcoin when they withdraw
-    /// @param _optimisticWithdrawAmount The new optimistic withdraw amount
+    /// @param _optimisticWithdrawAmount The new optimistic withdraw amount in wei
     function setOptimisticWithdrawAmount(uint256 _optimisticWithdrawAmount) external onlyOwner {
         require(_optimisticWithdrawAmount != 0, "Optimistic withdraw amount cannot be 0");
+        require(_optimisticWithdrawAmount % SAT_TO_WEI == 0, "Optimistic withdraw amount must have valid satoshi value");
         optimisticWithdrawAmount = _optimisticWithdrawAmount;
         emit OptimisticWithdrawAmountSet(_optimisticWithdrawAmount);
     }
@@ -286,7 +287,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         bytes memory payoutWitness = WitnessUtils.extractWitnessAtIndex(payoutTx.witness, 0);
 
         // Assert that the payout output value is the expected optimistic withdraw amount
-        require(uint256(payoutOutput.extractValue()) == optimisticWithdrawAmount, "Payout output value does not match optimistic withdraw amount");
+        require((uint256(payoutOutput.extractValue()) * SAT_TO_WEI) == optimisticWithdrawAmount, "Payout output value does not match optimistic withdraw amount");
 
         // Assert the user provided script pubkey is the same as the one in the payout transaction's output
         (uint256 varIntDataLen, uint256 pubKeyLen) = BTCUtils.parseVarIntAt(payoutOutput, 8);

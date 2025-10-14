@@ -713,7 +713,7 @@ contract BridgeTest is Test {
     }
 
     function testOwnerCanSetOptimisticWithdrawAmount() public {
-        uint256 newAmount = 123456789;
+        uint256 newAmount = 123456789 * (10 ** 10);
         vm.prank(owner);
         vm.expectEmit();
         emit Bridge.OptimisticWithdrawAmountSet(newAmount);
@@ -956,7 +956,7 @@ contract BridgeTest is Test {
     // so that we can expectRevert on doSafeWithdraw
     function prepareSafeWithdraw() public {
         vm.prank(owner);
-        bridge.setOptimisticWithdrawAmount(999900000);
+        bridge.setOptimisticWithdrawAmount(999900000 * (10 ** 10));
         vm.prank(SYSTEM_CALLER);
         bitcoinLightClient.setBlockInfo(hex"d740c1b74570c512cb79c8b3f5d3ccaa515059c49dd51b01c5b2ec56bfb9ee37", witnessRoot, 2);
     }
