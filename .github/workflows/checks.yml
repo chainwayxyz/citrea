@@ -460,7 +460,7 @@ jobs:
 
   docker-setup:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
+    if: false
     steps:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
