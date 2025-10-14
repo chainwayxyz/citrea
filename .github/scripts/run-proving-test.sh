@@ -14,7 +14,7 @@ target/debug/citrea --dev --da-layer bitcoin --rollup-config-path $TEST_DIR/conf
 PID_SEQUENCER=$!
 PARALLEL_PROOF_LIMIT=2 target/debug/citrea --dev --da-layer bitcoin --rollup-config-path $TEST_DIR/configs/batch_prover_rollup_config.toml --batch-prover $TEST_DIR/configs/batch_prover_config.toml --genesis-paths bin/citrea/tests/bitcoin/test-data/gen-proof-input-genesis 2>&1 | tee batch-prover.log &
 PID_BATCH_PROVER=$!
-
+ 
 mkdir -p $TEST_DIR/results
 python3 $TEST_DIR/get-proving-stats.py batch-prover.log $TEST_DIR/results/$OUT_FILE_NAME
 
