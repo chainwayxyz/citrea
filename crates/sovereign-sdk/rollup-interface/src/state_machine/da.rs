@@ -10,6 +10,11 @@ use sha2::{Digest, Sha256};
 use crate::zk::Proof;
 use crate::{BasicAddress, Network};
 
+/// Minimum number of verified signatures required to approve a method id upgrade.
+pub const SECURITY_COUNCIL_SIGNATURE_THRESHOLD: usize = 3;
+/// Size of a signature in bytes.
+pub const SECURITY_COUNCIL_SIGNATURE_SIZE: usize = 64;
+
 /// Commitments made to the DA layer from the sequencer.
 /// Has merkle root of l2 block hashes from L1 start block to L1 end block (inclusive)
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
@@ -40,6 +45,8 @@ pub struct BatchProofMethodIdBody {
     pub method_id: [u32; 8],
     /// Activation L2 height of the new method id
     pub activation_l2_height: u64,
+    /// Network identifier to prevent cross network replay attacks
+    pub chain_id: u64,
 }
 
 impl BatchProofMethodIdBody {
@@ -61,12 +68,16 @@ pub struct BatchProofMethodId {
     /// The indices point to the pubkeys in the light client circuit initial values
     /// To verify the signature the pubkey should be fetched from the initial values corresponding to the signature
     /// If one signature verification fails the whole method id update is invalid
-    pub signatures_with_index: [([u8; 64], u8); 3],
+    /// Also assumes the indexes are in ascending order and there are no duplicates
+    pub signatures_with_index:
+        [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD],
 }
 
 impl BatchProofMethodId {
     /// Returns the signatures in the transaction.
-    pub fn signatures_with_index(&self) -> &[([u8; 64], u8); 3] {
+    pub fn signatures_with_index(
+        &self,
+    ) -> &[([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
         &self.signatures_with_index
     }
 
