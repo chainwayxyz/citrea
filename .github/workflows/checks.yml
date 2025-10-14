@@ -570,7 +570,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: proving-stats/results/nightly-stats.json
-          key: nightly-proving-stats-${{ steps.nightly-commit.outputs.nightly-hash }}
+          key: nightly-proving-stats-${{ steps.nightly-commit.outputs.nightly-hash }}-2
 
       # --- Run test only if cache missed ---
       - name: Download nightly build artifact
