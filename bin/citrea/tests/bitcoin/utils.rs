@@ -509,9 +509,13 @@ pub async fn generate_mock_txs(
     let prefix_str = "wrong_prefix";
     let wrong_prefix_wallet = PathBuf::from_str(prefix_str).unwrap();
     create_and_fund_wallet(prefix_str.to_string(), da_node).await;
+
+    let mut first_config = da_node.config.clone();
+    first_config.data_dir = first_config.data_dir.join("1");
+
     let wrong_prefix_da_service = spawn_bitcoin_da_service(
         task_executor,
-        &da_node.config,
+        &first_config,
         wrong_prefix_wallet,
         DaServiceKeyKind::Sequencer,
         vec![6],
@@ -524,9 +528,12 @@ pub async fn generate_mock_txs(
     let wrong_key_wallet = PathBuf::from_str(wrong_key_str).unwrap();
     create_and_fund_wallet(wrong_key_str.to_string(), da_node).await;
 
+    let mut second_config = da_node.config.clone();
+    second_config.data_dir = second_config.data_dir.join("2");
+
     let wrong_key_da_service = spawn_bitcoin_da_service(
         task_executor,
-        &da_node.config,
+        &second_config,
         wrong_key_wallet,
         DaServiceKeyKind::Other(
             "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(),
