@@ -21,6 +21,7 @@ impl BitcoinService {
 
         let da_private_key = self.da_private_key.expect("No private key set");
 
+        let sent_txids = Default::default();
         match tx_request {
             DaTxRequest::ZKProof(zkproof) => {
                 let mut txids = vec![];
@@ -33,7 +34,7 @@ impl BitcoinService {
                     RawTxData::Chunks(chunks) => {
                         for body in chunks {
                             // get all available utxos that are not already spent
-                            let utxos = self.get_utxos().await?;
+                            let utxos = self.get_utxos(&sent_txids).await?;
                             let utxos = utxos
                                 .into_iter()
                                 .filter(|utxo| {
@@ -92,7 +93,7 @@ impl BitcoinService {
                             borsh::to_vec(&aggregate).expect("Aggregate serialize must not fail");
 
                         // get all available utxos that are not already spent
-                        let utxos = self.get_utxos().await?;
+                        let utxos = self.get_utxos(&sent_txids).await?;
                         let utxos = utxos
                             .into_iter()
                             .filter(|utxo| utxo.amount >= 50 * 10_u64.pow(8))

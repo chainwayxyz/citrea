@@ -43,6 +43,8 @@ pub struct SentChunks {
     pub commit_txs: Vec<Vec<u8>>,
     /// Sent reveal txs (serialized bitcoin::Transaction)
     pub reveal_txs: Vec<Vec<u8>>,
+    /// Sent txids
+    pub txids: Vec<[u8; 32]>,
 }
 
 impl SentChunks {

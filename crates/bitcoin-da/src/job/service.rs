@@ -1,5 +1,6 @@
-use std::time::{Duration, Instant};
+use std::collections::HashSet;
 
+use bitcoin::hashes::Hash;
 use bitcoin::{Transaction, Txid};
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::DaLedgerOps;
@@ -47,6 +48,8 @@ pub struct SentChunks {
     pub commit_txs: Vec<Transaction>,
     /// Sent reveal txs
     pub reveal_txs: Vec<Transaction>,
+    /// All sent txids
+    pub txids: HashSet<Txid>,
 }
 
 impl SentChunks {
@@ -61,9 +64,15 @@ impl SentChunks {
     }
 
     /// Extend with sent commit and reveal chunks
-    pub fn extend(&mut self, commits: Vec<Transaction>, reveals: Vec<Transaction>) {
+    pub fn extend(
+        &mut self,
+        commits: Vec<Transaction>,
+        reveals: Vec<Transaction>,
+        txids: Vec<Txid>,
+    ) {
         self.commit_txs.extend(commits);
         self.reveal_txs.extend(reveals);
+        self.txids.extend(txids);
     }
 }
 
@@ -87,9 +96,16 @@ impl From<DbSentChunks> for SentChunks {
             })
             .collect();
 
+        let txids = db_chunks
+            .txids
+            .into_iter()
+            .map(|tx| Txid::from_byte_array(tx))
+            .collect();
+
         Self {
             commit_txs,
             reveal_txs,
+            txids,
         }
     }
 }
@@ -108,9 +124,16 @@ impl From<SentChunks> for DbSentChunks {
             .map(bitcoin::consensus::serialize)
             .collect();
 
+        let txids = chunks
+            .txids
+            .into_iter()
+            .map(|tx| tx.to_byte_array())
+            .collect();
+
         Self {
             commit_txs,
             reveal_txs,
+            txids,
         }
     }
 }
@@ -223,24 +246,12 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         Ok(())
     }
 
-    /// Record sending DA transactions and keep track of sent chunks and reveals
-    #[instrument(level = "debug", skip(self))]
-    pub fn record_sent_transactions(
-        &self,
-        progress: &mut JobProgress,
-        commits: Vec<Transaction>,
-        reveals: Vec<Transaction>,
-    ) -> Result<()> {
-        progress.sent_chunks.extend(commits, reveals);
-        self.update_job_status(progress, JobStatus::InProgress)
-    }
-
     /// Get all pending commit and reveals txids.
     ///
     /// This is required for removing from the utxo set and prevent selecting UTXOs twice
     #[instrument(level = "trace", skip_all, ret)]
-    pub(crate) fn get_pending_chunks(&self) -> Result<Vec<Txid>> {
-        let mut txids = Vec::new();
+    pub(crate) fn get_pending_chunks(&self) -> Result<HashSet<Txid>> {
+        let mut txids = HashSet::new();
 
         let active_job_ids = self.get_all_active_job_ids()?;
         for job_id in active_job_ids {
@@ -265,45 +276,6 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         }
 
         Ok(txids)
-    }
-
-    /// Wait for job completion and return the transaction ID
-    #[instrument(level = "debug", skip(self, timeout), ret)]
-    pub async fn wait_for_completion(
-        &self,
-        job_id: JobId,
-        timeout: Option<Duration>,
-    ) -> Result<Txid> {
-        let start = Instant::now();
-        let timeout = timeout.unwrap_or(Duration::from_secs(600)); // Defaults to 10min
-
-        loop {
-            if start.elapsed() > timeout {
-                return Err(JobServiceError::JobTimeout(job_id, timeout.as_secs()));
-            }
-
-            let progress = self
-                .get_progress(&job_id)?
-                .ok_or(JobServiceError::JobNotFound(job_id))?;
-
-            match progress.status {
-                JobStatus::Completed => {
-                    if let Some(last_reveal) = progress.sent_chunks.reveal_txs.last() {
-                        return Ok(last_reveal.compute_txid());
-                    }
-                    return Err(JobServiceError::NoTransactionsFound(job_id));
-                }
-                JobStatus::Failed { error, .. } => {
-                    return Err(JobServiceError::JobFailed(job_id, error));
-                }
-                JobStatus::Cancelled => {
-                    return Err(JobServiceError::JobCancelled(job_id));
-                }
-                _ => {
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                }
-            }
-        }
     }
 
     /// Check if any job is in progress.

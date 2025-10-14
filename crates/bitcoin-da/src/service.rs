@@ -6,10 +6,11 @@
 use core::result::Result::Ok;
 use core::str::FromStr;
 use core::time::Duration;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -171,7 +172,7 @@ pub struct BitcoinService {
     utxo_selection_mode: UtxoSelectionMode,
 
     // Persistent job queue
-    pub(crate) job_service: DaJobService<LedgerDB>,
+    pub(crate) job_service: Mutex<DaJobService<LedgerDB>>,
 }
 
 impl BitcoinService {
@@ -186,7 +187,7 @@ impl BitcoinService {
         reveal_tx_prefix: Vec<u8>,
         tx_backup_dir: PathBuf,
         utxo_selection_mode: UtxoSelectionMode,
-        job_service: DaJobService<LedgerDB>,
+        job_service: Mutex<DaJobService<LedgerDB>>,
     ) -> Self {
         Self {
             tx_signer: TxSigner::new(client.clone()),
@@ -244,7 +245,7 @@ impl BitcoinService {
 
         let utxo_selection_mode = config.utxo_selection_mode.clone().unwrap_or_default();
 
-        let job_service = DaJobService::new(ledger_db);
+        let job_service = Mutex::new(DaJobService::new(ledger_db));
         Ok(Self::new(
             client,
             network,
@@ -289,38 +290,48 @@ impl BitcoinService {
 
     // Process job queue
     async fn process_job_service(&self) -> Result<()> {
+        let job_service = self.job_service.lock().await;
+
         // Get all pending/in-progress jobs
-        let active_job_ids = self.job_service.get_all_active_job_ids()?;
-        let mut jobs_to_process = Vec::new();
+        let active_job_ids = job_service.get_all_active_job_ids()?;
+        let mut has_job_in_progress = false;
+        let mut sent_txids = job_service.get_pending_chunks()?;
 
         for job_id in active_job_ids {
-            if let Some(job) = self.job_service.get_job(&job_id)? {
-                if let Some(progress) = self.job_service.get_progress(&job_id)? {
-                    // Deserialize RawTxData from job
-                    let raw_data: RawTxData = borsh::from_slice(&job.data)
-                        .map_err(JobServiceError::SerializationError)?;
-
-                    jobs_to_process.push((raw_data, progress));
-                }
-            }
-        }
-
-        for (job_data, mut progress) in jobs_to_process {
-            let job_id = progress.job_id;
             info!("Processing job {}", job_id);
 
-            match self.process_job(&job_data, &mut progress).await {
+            let job = job_service
+                .get_job(&job_id)?
+                .ok_or(JobServiceError::JobNotFound(job_id))?;
+            let progress = &mut job_service
+                .get_progress(&job_id)?
+                .ok_or(JobServiceError::JobNotFound(job_id))?;
+
+            // Deserialize RawTxData from job
+            let job_data: RawTxData =
+                borsh::from_slice(&job.data).map_err(JobServiceError::SerializationError)?;
+
+            has_job_in_progress =
+                has_job_in_progress || matches!(progress.status, JobStatus::InProgress);
+
+            match self
+                .process_job(job_data, progress, has_job_in_progress, &sent_txids)
+                .await
+            {
                 Ok(completed) => {
                     if completed {
+                        job_service.update_job_status(progress, JobStatus::Completed)?;
                         info!("Job {} completed successfully", job_id);
                     } else {
+                        job_service.update_job_status(progress, JobStatus::InProgress)?;
+                        sent_txids.extend(&progress.sent_chunks.txids);
                         info!("Job {} partially sent", job_id);
                     }
                 }
                 Err(e) => {
                     error!("Error processing job {}: {:?}", job_id, e);
-                    self.job_service.update_job_status(
-                        &mut progress,
+                    job_service.update_job_status(
+                        progress,
                         JobStatus::Failed {
                             error: e.to_string(),
                         },
@@ -332,18 +343,24 @@ impl BitcoinService {
         Ok(())
     }
 
-    async fn process_job(&self, job_data: &RawTxData, progress: &mut JobProgress) -> Result<bool> {
+    async fn process_job(
+        &self,
+        job_data: RawTxData,
+        progress: &mut JobProgress,
+        has_job_in_progress: bool,
+        sent_txids: &HashSet<Txid>,
+    ) -> Result<bool> {
         info!(
             "Processing job {} with status {:?}",
             progress.job_id, progress.status
         );
 
         // get all available utxos
-        let utxos = self.get_utxos().await?;
+        let utxos = self.get_utxos(sent_txids).await?;
 
         let prev_utxo = match &progress.status {
             JobStatus::InProgress => None, // Will use previous reveal utxo in create_inscription_type_1
-            _ => self.select_prev_utxo(&utxos).await?,
+            _ => self.select_prev_utxo(&utxos, has_job_in_progress).await?,
         };
 
         // Get current fee rate as sat/vb
@@ -354,7 +371,7 @@ impl BitcoinService {
                 fee_sat_per_vbyte,
                 utxos.clone(),
                 prev_utxo.clone(),
-                job_data.clone(),
+                job_data,
                 progress.sent_chunks.clone(),
             )
             .await?;
@@ -382,8 +399,6 @@ impl BitcoinService {
         backup_txs_to_file(&self.tx_backup_dir, &signed_txs)?;
 
         let mut txids = Vec::new();
-        let mut commits_sent = Vec::new();
-        let mut reveals_sent = Vec::new();
         let mut sent_count = 0;
 
         for signed_tx in &signed_txs {
@@ -396,15 +411,13 @@ impl BitcoinService {
             match self.send_signed_transaction(signed_tx).await {
                 Ok(ids) => {
                     sent_count += 1;
-                    txids.extend(ids);
-                    commits_sent.push(signed_tx.commit.tx.clone());
-                    reveals_sent.push(signed_tx.reveal.tx.clone());
+                    txids.extend(&ids);
 
-                    self.job_service.record_sent_transactions(
-                        progress,
+                    progress.sent_chunks.extend(
                         vec![signed_tx.commit.tx.clone()],
                         vec![signed_tx.reveal.tx.clone()],
-                    )?;
+                        ids,
+                    );
 
                     let txs = signed_tx.clone().into_txs_with_id();
                     self.monitoring.monitor_transaction_chain(vec![txs]).await?;
@@ -424,31 +437,16 @@ impl BitcoinService {
         let total_sent = current_idx + sent_count;
         let completed = total_sent >= total_needed;
 
-        if completed {
-            // Mark job as completed
-            self.job_service
-                .update_job_status(progress, JobStatus::Completed)?;
-
-            info!("Job {} marked as completed", progress.job_id);
-        } else if sent_count > 0 {
-            // Job partially sent
-            self.job_service
-                .update_job_status(progress, JobStatus::InProgress)?;
-
-            info!(
-                "Job {} progress recorded: {}/{} transactions sent",
-                progress.job_id, total_sent, total_needed
-            );
-        }
-
         Ok(completed)
     }
 
-    async fn select_prev_utxo(&self, utxos: &[UTXO]) -> Result<Option<UTXO>> {
+    async fn select_prev_utxo(
+        &self,
+        utxos: &[UTXO],
+        has_job_in_progress: bool,
+    ) -> Result<Option<UTXO>> {
         let prev_utxo = self.get_prev_utxo().await;
-        let job_in_progress = self.job_service.has_job_in_progress().await?;
-
-        if !job_in_progress {
+        if !has_job_in_progress {
             return Ok(prev_utxo);
         }
 
@@ -458,7 +456,13 @@ impl BitcoinService {
                 Err(BitcoinServiceError::PreviousJobInProgress)
             }
             // Latest monitored TX has `Queued` status and internal `get_tx_out` errors.
-            UtxoSelectionMode::Oldest => self.get_highest_confirmation_utxo(utxos.to_vec()).await,
+            UtxoSelectionMode::Oldest => Ok(if prev_utxo.is_some() {
+                // Latest monitored TX has been successfully accepted to mempool and can be used as starting point for another utxo chain
+                prev_utxo
+            } else {
+                // Latest monitored TX has `Queued` status and internal `get_tx_out` errors.
+                self.get_highest_confirmation_utxo(utxos.to_vec()).await?
+            }),
         }
     }
 
@@ -478,7 +482,7 @@ impl BitcoinService {
     }
 
     #[instrument(level = "trace", skip_all, ret)]
-    pub(crate) async fn get_utxos(&self) -> Result<Vec<UTXO>> {
+    pub(crate) async fn get_utxos(&self, sent_txids: &HashSet<Txid>) -> Result<Vec<UTXO>> {
         let utxos = self
             .client
             .list_unspent(Some(0), None, None, None, None)
@@ -504,15 +508,13 @@ impl BitcoinService {
             // To make sure there are no conflicts between parallel utxos chain,
             // this additional filters out any UTXO used by queued txs and any change UTXO that are not finalized
             UtxoSelectionMode::Oldest => {
-                let txids = self.job_service.get_pending_chunks()?;
-
                 utxos.into_iter().filter(|utxo| {
                     utxo.spendable
                     && utxo.solvable
                     && utxo.safe
                     && utxo.amount > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
                     // Remove utxo already in use by queued txs
-                    && !txids.contains(&utxo.txid)
+                    && !sent_txids.contains(&utxo.txid)
                     // Only keep finalized change output
                     && (utxo.vout == 0 || utxo.confirmations as u64 >= self.network_constants.finality_depth)
                 })
@@ -1259,32 +1261,63 @@ impl DaService for BitcoinService {
 
     /// Submit a new job to the queue
     async fn send_transaction(&self, tx_request: DaTxRequest) -> Result<JobId> {
-        // TODO handle chaining job request
-        if self.utxo_selection_mode == UtxoSelectionMode::Chained {
-            let active_jobs = self.job_service.get_all_active_job_ids()?;
+        let job_id = {
+            let job_service = self.job_service.lock().await;
 
-            if !active_jobs.is_empty() {
-                return Err(BitcoinServiceError::PreviousJobInProgress);
+            // TODO handle chaining job request
+            if self.utxo_selection_mode == UtxoSelectionMode::Chained {
+                let active_jobs = job_service.get_all_active_job_ids()?;
+                if !active_jobs.is_empty() {
+                    return Err(BitcoinServiceError::PreviousJobInProgress);
+                }
             }
-        }
-
-        let job_id = self.job_service.submit_job(tx_request.try_into()?)?;
+            job_service.submit_job(tx_request.try_into()?)?
+        };
 
         self.process_job_service().await?;
 
         Ok(job_id)
     }
 
+    /// Wait for job completion by job_id and returns the txid
     async fn wait_for_completion(
         &self,
         job_id: JobId,
         timeout: Option<Duration>,
     ) -> Result<TxidWrapper> {
-        Ok(self
-            .job_service
-            .wait_for_completion(job_id, timeout)
-            .await
-            .map(TxidWrapper)?)
+        let start = Instant::now();
+        let timeout = timeout.unwrap_or(Duration::from_secs(600)); // Defaults to 10min
+
+        loop {
+            if start.elapsed() > timeout {
+                return Err(JobServiceError::JobTimeout(job_id, timeout.as_secs()).into());
+            }
+
+            let progress = self
+                .job_service
+                .lock()
+                .await
+                .get_progress(&job_id)?
+                .ok_or(JobServiceError::JobNotFound(job_id))?;
+
+            match progress.status {
+                JobStatus::Completed => {
+                    if let Some(last_reveal) = progress.sent_chunks.reveal_txs.last() {
+                        return Ok(TxidWrapper(last_reveal.compute_txid()));
+                    }
+                    return Err(JobServiceError::NoTransactionsFound(job_id).into());
+                }
+                JobStatus::Failed { error, .. } => {
+                    return Err(JobServiceError::JobFailed(job_id, error).into());
+                }
+                JobStatus::Cancelled => {
+                    return Err(JobServiceError::JobCancelled(job_id).into());
+                }
+                _ => {
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
+            }
+        }
     }
 
     #[instrument(level = "trace", skip(self))]

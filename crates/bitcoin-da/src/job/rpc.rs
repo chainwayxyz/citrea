@@ -264,6 +264,8 @@ impl DaJobRpcServer for DaJobRpcServerImpl {
     async fn da_job_cancel(&self, job_id: JobId) -> RpcResult<CancelJobResponse> {
         self.da
             .job_service
+            .lock()
+            .await
             .cancel_job(job_id)
             .map(|_| CancelJobResponse { success: true })
             .map_err(internal_rpc_error)
@@ -272,6 +274,8 @@ impl DaJobRpcServer for DaJobRpcServerImpl {
     async fn da_job_retry(&self, job_id: JobId) -> RpcResult<RetryJobResponse> {
         self.da
             .job_service
+            .lock()
+            .await
             .retry_job(job_id)
             .map(|new_job_id| RetryJobResponse {
                 new_job_id,
@@ -295,6 +299,8 @@ impl DaJobRpcServer for DaJobRpcServerImpl {
         Ok(self
             .da
             .job_service
+            .lock()
+            .await
             .list_jobs(filter)
             .map_err(internal_rpc_error)?
             .into_iter()
@@ -305,6 +311,8 @@ impl DaJobRpcServer for DaJobRpcServerImpl {
     async fn da_job_get_info(&self, job_id: JobId) -> RpcResult<JobInfoResponse> {
         self.da
             .job_service
+            .lock()
+            .await
             .get_job_info(job_id)
             .map_err(internal_rpc_error)
             .map(Into::into)
