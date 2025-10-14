@@ -294,9 +294,6 @@ impl BitcoinService {
 
         // Get all pending/in-progress jobs
         let active_job_ids = job_service.get_all_active_job_ids()?;
-        let mut has_job_in_progress = false;
-        let mut sent_txids = job_service.get_pending_chunks()?;
-
         for job_id in active_job_ids {
             info!("Processing job {}", job_id);
 
@@ -311,20 +308,15 @@ impl BitcoinService {
             let job_data: RawTxData =
                 borsh::from_slice(&job.data).map_err(JobServiceError::SerializationError)?;
 
-            has_job_in_progress =
-                has_job_in_progress || matches!(progress.status, JobStatus::InProgress);
+            let sent_txids = job_service.get_pending_chunks()?;
 
-            match self
-                .process_job(job_data, progress, has_job_in_progress, &sent_txids)
-                .await
-            {
+            match self.process_job(job_data, progress, &sent_txids).await {
                 Ok(completed) => {
                     if completed {
                         job_service.update_job_status(progress, JobStatus::Completed)?;
                         info!("Job {} completed successfully", job_id);
                     } else {
                         job_service.update_job_status(progress, JobStatus::InProgress)?;
-                        sent_txids.extend(&progress.sent_chunks.txids);
                         info!("Job {} partially sent", job_id);
                     }
                 }
@@ -347,7 +339,6 @@ impl BitcoinService {
         &self,
         job_data: RawTxData,
         progress: &mut JobProgress,
-        has_job_in_progress: bool,
         sent_txids: &HashSet<Txid>,
     ) -> Result<bool> {
         info!(
@@ -360,7 +351,10 @@ impl BitcoinService {
 
         let prev_utxo = match &progress.status {
             JobStatus::InProgress => None, // Will use previous reveal utxo in create_inscription_type_1
-            _ => self.select_prev_utxo(&utxos, has_job_in_progress).await?,
+            _ => {
+                self.select_prev_utxo(&utxos, !sent_txids.is_empty())
+                    .await?
+            }
         };
 
         // Get current fee rate as sat/vb

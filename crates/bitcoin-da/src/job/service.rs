@@ -255,23 +255,13 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
 
         let active_job_ids = self.get_all_active_job_ids()?;
         for job_id in active_job_ids {
-            if let Some(progress) = self.get_progress(&job_id)? {
-                if matches!(progress.status, JobStatus::InProgress) {
-                    txids.extend(
-                        progress
-                            .sent_chunks
-                            .commit_txs
-                            .iter()
-                            .map(|tx| tx.compute_txid()),
-                    );
-                    txids.extend(
-                        progress
-                            .sent_chunks
-                            .reveal_txs
-                            .iter()
-                            .map(|tx| tx.compute_txid()),
-                    );
-                }
+            if let Some(JobProgress {
+                status: JobStatus::InProgress,
+                sent_chunks,
+                ..
+            }) = self.get_progress(&job_id)?
+            {
+                txids.extend(sent_chunks.txids);
             }
         }
 
