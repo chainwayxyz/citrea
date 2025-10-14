@@ -448,11 +448,11 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
 
         assert!(res.is_ok());
 
-        let monitored_txs = da_service.monitoring.get_monitored_txs().await;
-        assert_eq!(monitored_txs.len(), 34);
-
         // Txs starting from a new chain should be accepted to mempool
         da.wait_mempool_len(8 * 3 + 2 + 8, None).await?;
+
+        let monitored_txs = da_service.monitoring.get_monitored_txs().await;
+        assert_eq!(monitored_txs.len(), 34);
 
         // We mine the first three proofs + the 1 chunk pair + the extra proof starting another UTXO chain
         // and make sure that the remaining chunks and aggregate and sent on next block when mempool size is freed
