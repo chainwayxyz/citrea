@@ -42,18 +42,19 @@ impl CitreaMempool {
         let evm_config = client.cfg();
 
         // Default 10x'ed from standard limits
+        const MB_TO_BYTES: u64 = 1024 * 1024;
         let pool_config = PoolConfig {
             pending_limit: SubPoolLimit {
                 max_txs: mempool_conf.pending_tx_limit as usize,
-                max_size: (mempool_conf.pending_tx_size * 1024 * 1024) as usize,
+                max_size: mempool_conf.pending_tx_size.saturating_mul(MB_TO_BYTES) as usize,
             },
             basefee_limit: SubPoolLimit {
                 max_txs: mempool_conf.base_fee_tx_limit as usize,
-                max_size: (mempool_conf.base_fee_tx_size * 1024 * 1024) as usize,
+                max_size: mempool_conf.base_fee_tx_size.saturating_mul(MB_TO_BYTES) as usize,
             },
             queued_limit: SubPoolLimit {
                 max_txs: mempool_conf.queue_tx_limit as usize,
-                max_size: (mempool_conf.queue_tx_size * 1024 * 1024) as usize,
+                max_size: mempool_conf.queue_tx_size.saturating_mul(MB_TO_BYTES) as usize,
             },
             blob_limit: SubPoolLimit {
                 max_txs: 0,
