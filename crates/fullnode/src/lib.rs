@@ -123,7 +123,8 @@ use std::sync::Arc;
 use anyhow::Result;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
+use citrea_common::{InitParams, NetworkConfig, RollupPublicKeys, RunnerConfig};
+use citrea_network::Network as CitreaNetwork;
 use citrea_stf::runtime::CitreaRuntime;
 use citrea_storage_ops::pruning::{Pruner, PrunerService};
 use da_block_handler::L1BlockHandler;
@@ -185,6 +186,7 @@ pub mod rpc;
 pub fn build_services<DA, DB, Vm>(
     network: Network,
     runner_config: RunnerConfig,
+    network_config: NetworkConfig,
     init_params: InitParams,
     native_stf: StfBlueprint<
         DefaultContext,
@@ -205,6 +207,7 @@ pub fn build_services<DA, DB, Vm>(
     L1BlockHandler<Vm, DA, DB>,
     Option<PrunerService>,
     RpcModule<()>,
+    CitreaNetwork,
 )>
 where
     DA: DaService<Error = anyhow::Error>,
@@ -251,6 +254,12 @@ where
         Arc::new(Mutex::new(L1BlockCache::new())),
         backup_manager,
     );
-
-    Ok((l2_syncer, l1_block_handler, pruner, rpc_module))
+    let citrea_network = CitreaNetwork::new(network_config.dial_addr);
+    Ok((
+        l2_syncer,
+        l1_block_handler,
+        pruner,
+        rpc_module,
+        citrea_network,
+    ))
 }

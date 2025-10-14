@@ -1,0 +1,20 @@
+[package]
+name = "citrea-network"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+version = { workspace = true }
+publish = false
+resolver = "2"
+
+[dependencies]
+futures = { workspace = true }
+libp2p = { workspace = true, features = ["noise", "ping", "tcp", "tokio", "yamux"] }
+tokio = { workspace = true, features = ["full"] }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+yamux = { workspace = true }
+
+reth-tasks = { workspace = true }

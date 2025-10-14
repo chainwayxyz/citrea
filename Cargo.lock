@@ -2363,6 +2363,7 @@ dependencies = [
  "citrea-evm",
  "citrea-fullnode",
  "citrea-light-client-prover",
+ "citrea-network",
  "citrea-primitives",
  "citrea-risc0-adapter",
  "citrea-risc0-batch-proof",
@@ -2622,6 +2623,7 @@ dependencies = [
  "bincode",
  "borsh",
  "citrea-common",
+ "citrea-network",
  "citrea-primitives",
  "citrea-stf",
  "citrea-storage-ops",
@@ -2680,6 +2682,18 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "citrea-network"
+version = "0.7.4"
+dependencies = [
+ "futures",
+ "libp2p",
+ "reth-tasks",
+ "tokio",
+ "tracing-subscriber 0.3.20",
+ "yamux 0.13.4",
 ]
 
 [[package]]

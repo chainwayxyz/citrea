@@ -11,6 +11,7 @@ repository.workspace = true
 [dependencies]
 # Citrea Deps
 citrea-common = { path = "../common" }
+citrea-network = { path = "../network" }
 citrea-primitives = { path = "../primitives" }
 citrea-stf = { path = "../citrea-stf" }
 citrea-storage-ops = { path = "../storage-ops" }

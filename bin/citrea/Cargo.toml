@@ -18,6 +18,7 @@ citrea-batch-prover = { path = "../../crates/batch-prover" }
 citrea-common = { path = "../../crates/common" }
 citrea-fullnode = { path = "../../crates/fullnode" }
 citrea-light-client-prover = { path = "../../crates/light-client-prover", features = ["native"] }
+citrea-network = { path = "../../crates/network" }
 citrea-primitives = { path = "../../crates/primitives" }
 citrea-risc0-adapter = { path = "../../crates/risc0", features = ["native"] }
 citrea-risc0-batch-proof = { path = "../../guests/risc0/batch-proof" }
