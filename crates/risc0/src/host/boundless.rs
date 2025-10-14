@@ -475,8 +475,6 @@ impl BoundlessProver {
             .remove_pending_boundless_session(job_id)
             .expect("Failed to remove pending boundless session on error");
 
-        // TODO: https://github.com/chainwayxyz/citrea/issues/2418
-
         // Get data of failed order
         // Queries first offchain, and then onchain.
         let Ok((failed_request, _signature)) = self
