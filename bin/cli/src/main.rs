@@ -109,7 +109,9 @@ async fn main() -> anyhow::Result<()> {
         } => {
             if l2_target.is_none() && l1_target.is_none() && sequencer_commitment_index.is_none() {
                 // Invalid CLI usage: at least one rollback target must be provided
-                return Err(anyhow::anyhow!("Missing L2/L1 target or sequencer commitment"));
+                return Err(anyhow::anyhow!(
+                    "Missing L2/L1 target or sequencer commitment"
+                ));
             }
             commands::rollback(
                 node_type,

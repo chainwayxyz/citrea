@@ -99,7 +99,7 @@ impl From<DbSentChunks> for SentChunks {
         let txids = db_chunks
             .txids
             .into_iter()
-            .map(|tx| Txid::from_byte_array(tx))
+            .map(Txid::from_byte_array)
             .collect();
 
         Self {
