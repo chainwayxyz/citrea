@@ -33,9 +33,8 @@ impl citrea_common::FromEnv for BoundlessS3StorageConfig {
         let s3_bucket = read_env("BOUNDLESS_S3_BUCKET")?;
         let s3_url = read_env("BOUNDLESS_S3_URL")?;
         let aws_region = read_env("BOUNDLESS_AWS_REGION")?;
-        let s3_use_presigned = read_env("BOUNDLESS_S3_NO_PRESIGNED")
-            .map(|_| false)
-            .unwrap_or(true);
+        let s3_use_presigned = read_env("BOUNDLESS_S3_NO_PRESIGNED").is_err();
+
         Ok(Self {
             s3_access_key,
             s3_secret_key,

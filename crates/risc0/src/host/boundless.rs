@@ -121,9 +121,7 @@ impl BoundlessProver {
         // TODO: Can be done better?
         let s3_url = read_env("BOUNDLESS_S3_URL")?;
 
-        let s3_use_presigned = read_env("BOUNDLESS_S3_NO_PRESIGNED")
-            .map(|_| false)
-            .unwrap_or(true);
+        let s3_use_presigned = read_env("BOUNDLESS_S3_NO_PRESIGNED").is_err();
 
         // Upload the program(elf) to the boundless storage provider
         let mut image_url = self.client.upload_program(&elf).await?;
