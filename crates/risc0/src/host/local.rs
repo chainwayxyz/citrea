@@ -12,6 +12,7 @@ use tokio::sync::oneshot;
 use tracing::error;
 use uuid::Uuid;
 
+use super::config::LocalProverConfig;
 use crate::is_dev_mode_enabled_via_environment;
 
 #[derive(Clone)]
@@ -23,14 +24,11 @@ pub struct LocalProver {
 }
 
 impl LocalProver {
-    pub fn new(network: Network) -> Self {
-        assert!(
-            env::var("RISC0_PROVER").map_or(true, |prover| prover == "ipc"),
-            "Only supported RISC0_PROVER for LocalProver is ipc"
-        );
-
+    pub fn new(network: Network, config: LocalProverConfig) -> Self {
         let dev_mode = is_dev_mode_enabled_via_environment();
-        let r0vm_path = get_r0vm_path().expect("Could not get r0vm path");
+        let r0vm_path = config
+            .r0vm_path
+            .unwrap_or_else(|| get_r0vm_path().expect("Could not get r0vm path"));
 
         // Check if the version of the r0vm matches the version of the risc0 crate
         // the `get_r0vm_path` function will return the path to the r0vm binary with the correct version

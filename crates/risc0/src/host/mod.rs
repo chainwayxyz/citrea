@@ -2,7 +2,8 @@
 
 mod bonsai;
 mod boundless;
-mod config;
+/// Configuration types for RISC0 provers
+pub mod config;
 mod local;
 mod pricing_service;
 
@@ -20,7 +21,7 @@ use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, Zkvm, ZkvmHost};
 use sov_rollup_interface::Network;
 use tokio::sync::oneshot;
-use tracing::{debug, info};
+use tracing::info;
 use uuid::Uuid;
 
 use crate::guest::Risc0Guest;
@@ -36,19 +37,33 @@ pub struct Risc0Host {
 
 impl Risc0Host {
     /// Create a new Risc0Host to prove the given binary.
-    pub async fn new(ledger_db: LedgerDB, network: Network) -> Self {
-        let prover = match std::env::var("RISC0_PROVER") {
-            Ok(prover) => match prover.as_str() {
-                "boundless" => Prover::Boundless(BoundlessProver::new(ledger_db).await),
-                "bonsai" => Prover::Bonsai(BonsaiProver::new(ledger_db)),
-                "ipc" => Prover::Local(LocalProver::new(network)),
-                _ => panic!("Invalid prover specified: {prover}"),
-            },
-            Err(_) => {
-                debug!("No prover specified.");
-                Prover::Local(LocalProver::new(network))
+    pub async fn new(
+        ledger_db: LedgerDB,
+        network: Network,
+        config: config::Risc0HostConfig,
+    ) -> Self {
+        use config::ProverConfig;
+
+        let prover = match config.prover {
+            ProverConfig::Boundless(boundless_config) => {
+                Prover::Boundless(BoundlessProver::new(ledger_db, *boundless_config).await)
+            }
+            ProverConfig::Bonsai(bonsai_config) => {
+                Prover::Bonsai(BonsaiProver::new(ledger_db, bonsai_config))
+            }
+            ProverConfig::Local(local_config) => {
+                Prover::Local(LocalProver::new(network, local_config))
             }
         };
+
+        if config.dev_mode {
+            env::set_var("RISC0_DEV_MODE", "1");
+        }
+
+        // Set TX_BACKUP_DIR if specified
+        if let Some(backup_dir) = config.tx_backup_dir {
+            env::set_var("TX_BACKUP_DIR", backup_dir);
+        }
 
         Self {
             env: Default::default(),
