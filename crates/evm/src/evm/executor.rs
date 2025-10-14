@@ -16,8 +16,8 @@ use tracing::trace_span;
 use super::conversions::create_tx_env;
 use super::db::AccountExistsProvider;
 use super::handler::{CitreaBuilder, CitreaChain, CitreaChainExt, CitreaContext};
-use super::system_contracts::BitcoinLightClientContract;
-use super::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
+use super::system_contracts::{BitcoinLightClientContract, BridgeContract};
+use super::{BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS, BRIDGE_CONTRACT_ADDRESS};
 use crate::{Evm, EvmDb, SYSTEM_SIGNER};
 
 pub(crate) struct CitreaEvm<'a, DB: Database> {
@@ -88,6 +88,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context>(
 
     let mut tx_results = Vec::with_capacity(txs.len());
 
+    #[allow(clippy::unused_enumerate_index)]
     for (_i, tx) in txs.iter().enumerate() {
         #[cfg(feature = "native")]
         let _span =
@@ -157,6 +158,11 @@ fn verify_system_tx<C: sov_modules_api::Context>(
     tx: &Recovered<TransactionSigned>,
     l2_height: u64,
 ) -> Result<(), L2BlockModuleCallError> {
+    // All system transactions should be contract calls to known system contracts
+    let to_address = tx
+        .to()
+        .ok_or(L2BlockModuleCallError::EvmSystemTxParseError)?;
+
     let function_selector: [u8; 4] = tx
         .input()
         .get(0..4)
@@ -164,7 +170,26 @@ fn verify_system_tx<C: sov_modules_api::Context>(
         .try_into()
         .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
 
+    // Bitcoin Light Client: initializeBlockNumber
+    if function_selector == BitcoinLightClientContract::initializeBlockNumberCall::SELECTOR {
+        if to_address != BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS {
+            return Err(L2BlockModuleCallError::EvmSystemTxParseError);
+        }
+
+        // Decode and validate inputs
+        let _ = BitcoinLightClientContract::initializeBlockNumberCall::abi_decode(
+            tx.input(),
+            /*validate*/ true,
+        )
+        .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
+
+        return Ok(());
+    }
+
     if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
+        if to_address != BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS {
+            return Err(L2BlockModuleCallError::EvmSystemTxParseError);
+        }
         let call = BitcoinLightClientContract::setBlockInfoCall::abi_decode(
             tx.input(),
             /*validate*/ true,
@@ -209,9 +234,34 @@ fn verify_system_tx<C: sov_modules_api::Context>(
         }
     }
 
-    // TODO: should we check for other system txs?
+    // Bridge: initialize
+    if function_selector == BridgeContract::initializeCall::SELECTOR {
+        if to_address != BRIDGE_CONTRACT_ADDRESS {
+            return Err(L2BlockModuleCallError::EvmSystemTxParseError);
+        }
 
-    Ok(())
+        let _ = BridgeContract::initializeCall::abi_decode(tx.input(), /*validate*/ true)
+            .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
+
+        return Ok(());
+    }
+
+    // Bridge: deposit
+    if function_selector == BridgeContract::depositCall::SELECTOR {
+        if to_address != BRIDGE_CONTRACT_ADDRESS {
+            return Err(L2BlockModuleCallError::EvmSystemTxParseError);
+        }
+
+        let _ = BridgeContract::depositCall::abi_decode(tx.input(), /*validate*/ true)
+            .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
+
+        return Ok(());
+    }
+
+    // Unknown system transaction selector from system signer is not allowed
+    Err(L2BlockModuleCallError::EvmSystemTxParseError)
+
+    // Ok(())
 }
 
 /// Returns the last set l1 block height in bitcoin light client contract
