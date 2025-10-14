@@ -121,9 +121,12 @@ pub async fn spawn_bitcoin_da_sequencer_service(
     config: &BitcoinConfig,
     dir: PathBuf,
 ) -> Arc<BitcoinService> {
+    let mut sequencer_config = config.clone();
+    sequencer_config.data_dir = sequencer_config.data_dir.join("sequencer");
+
     spawn_bitcoin_da_service(
         task_executor,
-        config,
+        &sequencer_config,
         dir,
         DaServiceKeyKind::Sequencer,
         REVEAL_TX_PREFIX.to_vec(),
@@ -138,9 +141,12 @@ pub async fn spawn_bitcoin_da_prover_service(
     config: &BitcoinConfig,
     dir: PathBuf,
 ) -> Arc<BitcoinService> {
+    let mut prover_config = config.clone();
+    prover_config.data_dir = prover_config.data_dir.join("prover");
+
     spawn_bitcoin_da_service(
         task_executor,
-        config,
+        &prover_config,
         dir,
         DaServiceKeyKind::BatchProver,
         REVEAL_TX_PREFIX.to_vec(),
