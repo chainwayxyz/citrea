@@ -46,7 +46,7 @@ contract BitcoinLightClientTest is Test {
         assertEq(bitcoinLightClient.getWitnessRootByNumber(INITIAL_BLOCK_NUMBER), mockWitnessRoot);
     }
 
-    function testCannotReinitalize() public {
+    function testCannotReinitialize() public {
         bitcoinLightClient.initializeBlockNumber(INITIAL_BLOCK_NUMBER);
         vm.expectRevert("Already initialized");
         bitcoinLightClient.initializeBlockNumber(INITIAL_BLOCK_NUMBER - 10);
