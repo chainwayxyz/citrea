@@ -69,7 +69,10 @@ use crate::REVEAL_OUTPUT_AMOUNT;
 
 pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
 
-const POLLING_INTERVAL: u64 = 10; // seconds
+const POLLING_INTERVAL: u64 = 10; // 10 seconds
+
+const DEFAULT_FEE_RATE_CAP_DURATION_SECS: u64 = 3600; // 1 hour default cap duration
+const DEFAULT_MAX_FEE_RATE_SAT_VB: u64 = 15; // 15sat/vb default max fee rate
 
 /// Map sov Network to Bitcoin Network.
 pub fn network_to_bitcoin_network(network: &Network) -> bitcoin::Network {
@@ -127,6 +130,12 @@ pub struct BitcoinServiceConfig {
 
     /// Connection timeout for RPC in seconds
     pub rpc_connect_timeout_secs: Option<u64>,
+
+    /// Max fee rate in sat/vb
+    pub max_fee_rate_sat_to_pay: Option<u64>,
+
+    /// Fee rate cap duration in seconds
+    pub fee_rate_cap_duration_secs: Option<u64>,
 }
 
 impl citrea_common::FromEnv for BitcoinServiceConfig {
@@ -152,6 +161,12 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
             rpc_connect_timeout_secs: read_env("BITCOIN_RPC_CONNECT_TIMEOUT_SECS")
                 .ok()
                 .and_then(|v| v.parse::<u64>().ok()),
+            max_fee_rate_sat_to_pay: read_env("BITCOIN_MAX_FEE_RATE_SAT_TO_PAY")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok()),
+            fee_rate_cap_duration_secs: read_env("BITCOIN_FEE_RATE_CAP_DURATION_SECS")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok()),
         })
     }
 }
@@ -170,9 +185,10 @@ pub struct BitcoinService {
     l1_block_hash_to_height: Arc<Mutex<LruCache<BlockHash, usize>>>,
     pub(crate) tx_signer: TxSigner,
     utxo_selection_mode: UtxoSelectionMode,
-
     // Persistent job queue
     pub(crate) job_service: Mutex<DaJobService<LedgerDB>>,
+    max_fee_rate_sat_to_pay: u64,
+    fee_rate_cap_duration_secs: u64,
 }
 
 impl BitcoinService {
@@ -188,6 +204,8 @@ impl BitcoinService {
         tx_backup_dir: PathBuf,
         utxo_selection_mode: UtxoSelectionMode,
         job_service: Mutex<DaJobService<LedgerDB>>,
+        max_fee_rate_sat_to_pay: u64,
+        fee_rate_cap_duration_secs: u64,
     ) -> Self {
         Self {
             tx_signer: TxSigner::new(client.clone()),
@@ -204,6 +222,8 @@ impl BitcoinService {
             ))),
             utxo_selection_mode,
             job_service,
+            max_fee_rate_sat_to_pay,
+            fee_rate_cap_duration_secs,
         }
     }
 
@@ -246,6 +266,12 @@ impl BitcoinService {
         let utxo_selection_mode = config.utxo_selection_mode.clone().unwrap_or_default();
 
         let job_service = Mutex::new(DaJobService::new(ledger_db));
+        let max_fee_rate_sat_to_pay = config
+            .max_fee_rate_sat_to_pay
+            .unwrap_or(DEFAULT_MAX_FEE_RATE_SAT_VB);
+        let fee_rate_cap_duration_secs = config
+            .fee_rate_cap_duration_secs
+            .unwrap_or(DEFAULT_FEE_RATE_CAP_DURATION_SECS);
         Ok(Self::new(
             client,
             network,
@@ -257,6 +283,8 @@ impl BitcoinService {
             tx_backup_dir.to_path_buf(),
             utxo_selection_mode,
             job_service,
+            max_fee_rate_sat_to_pay,
+            fee_rate_cap_duration_secs,
         ))
     }
 

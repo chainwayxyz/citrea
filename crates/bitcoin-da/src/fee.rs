@@ -100,6 +100,7 @@ impl FeeService {
     ) -> Self {
         let mempool_space_url =
             mempool_space_url.unwrap_or_else(|| DEFAULT_MEMPOOL_SPACE_URL.to_string());
+
         Self {
             client,
             network,
@@ -140,10 +141,13 @@ impl FeeService {
                         .fee_rate
                 }
             };
-        let sat_vkb = smart_fee.map_or(1000, |rate| rate.to_sat());
 
-        tracing::debug!("Fee rate: {} sat/vb", sat_vkb / 1000);
-        Ok(sat_vkb / 1000)
+        let sat_vkb = smart_fee.map_or(1000, |rate| rate.to_sat());
+        let sat_vb = sat_vkb / 1000;
+
+        tracing::debug!("Fee rate: {sat_vb} sat/vb");
+
+        Ok(sat_vb)
     }
 
     /// Bump TX fee via cpfp.
