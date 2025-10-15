@@ -108,6 +108,18 @@ pub enum BitcoinServiceError {
     /// Body builders error.
     #[error("Body builders error: {0}")]
     TransactionBuilderError(String),
+    /// Fee cap exceeded
+    #[error("Fee cap exceeded: current rate {current_rate} sat/vb > max {max_rate} sat/vb (elapsed: {elapsed_secs}s / max: {max_duration_secs}s)")]
+    FeeCapExceeded {
+        /// Current fee rate as sat/vb
+        current_rate: u64,
+        /// Max fee rate in sat/vb
+        max_rate: u64,
+        /// Duration since the transaction has been blocked by max fee rate cap
+        elapsed_secs: u64,
+        /// Max duration before sending transaction above max fee rate
+        max_duration_secs: u64,
+    },
     /// Fee service operation failure.
     #[error("Fee service error: {0}")]
     FeeServiceError(#[from] FeeServiceError),
