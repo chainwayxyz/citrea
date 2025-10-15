@@ -55,15 +55,10 @@ impl Risc0Host {
             }
         };
 
-        if config.dev_mode {
-            env::set_var("RISC0_DEV_MODE", "1");
-        }
-
         // Set TX_BACKUP_DIR if specified
         if let Some(backup_dir) = config.tx_backup_dir {
             env::set_var("TX_BACKUP_DIR", backup_dir);
         }
-
         Self {
             env: Default::default(),
             assumptions: vec![],
