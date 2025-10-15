@@ -13,4 +13,6 @@ pub mod rpc;
 /// Core job queue implementation and state management
 pub mod service;
 
+mod metrics;
+
 type Result<T> = std::result::Result<T, JobServiceError>;

@@ -12,6 +12,7 @@ use super::Result;
 use crate::helpers::builders::body_builders::RawTxData;
 use crate::helpers::get_timestamp;
 use crate::job::error::JobServiceError;
+use crate::job::metrics::DA_JOB_METRICS as JM;
 use crate::job::rpc::{DaJobRpcProvider, JobListFilter};
 
 /// Tracks progress of a job including sent transactions for recovery.
@@ -185,6 +186,8 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
 
         self.ledger_db.submit_job(&job, &progress.into())?;
 
+        JM.record_job_submitted(job.data.len());
+
         info!("Job {job_id} submitted and persisted");
         Ok(job_id)
     }
@@ -234,14 +237,16 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         progress: &mut JobProgress,
         new_status: JobStatus,
     ) -> Result<()> {
-        let previous_status = progress.status.as_u8();
+        let previous_status = progress.status.clone();
 
         progress.status = new_status;
         progress.last_updated = get_timestamp();
 
         let db_progress = progress.clone().into();
         self.ledger_db
-            .upsert_progress(&db_progress, previous_status)?;
+            .upsert_progress(&db_progress, previous_status.as_u8())?;
+
+        JM.record_status_update(&previous_status, progress);
 
         Ok(())
     }
