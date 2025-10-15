@@ -1,4 +1,3 @@
-use std::env;
 use std::time::Duration;
 
 use anyhow::{anyhow, Context};

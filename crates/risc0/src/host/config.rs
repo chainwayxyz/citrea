@@ -229,7 +229,7 @@ impl citrea_common::FromEnv for BonsaiProverConfig {
 /// Prover configuration enum
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
-pub enum ProverConfig {
+pub enum Risc0ProverConfig {
     /// Local IPC prover
     Local(LocalProverConfig),
     /// Bonsai remote prover
@@ -238,13 +238,13 @@ pub enum ProverConfig {
     Boundless(Box<BoundlessProverConfig>),
 }
 
-impl Default for ProverConfig {
+impl Default for Risc0ProverConfig {
     fn default() -> Self {
         Self::Local(LocalProverConfig::default())
     }
 }
 
-impl citrea_common::FromEnv for ProverConfig {
+impl citrea_common::FromEnv for Risc0ProverConfig {
     fn from_env() -> anyhow::Result<Self> {
         match std::env::var("RISC0_PROVER") {
             Ok(prover) => match prover.as_str() {
@@ -268,7 +268,7 @@ impl citrea_common::FromEnv for ProverConfig {
 pub struct Risc0HostConfig {
     /// Prover config
     #[serde(flatten)]
-    pub prover: ProverConfig,
+    pub prover: Risc0ProverConfig,
     /// Enable dev mode
     #[serde(default)]
     pub dev_mode: bool,
@@ -278,7 +278,7 @@ pub struct Risc0HostConfig {
 
 impl citrea_common::FromEnv for Risc0HostConfig {
     fn from_env() -> anyhow::Result<Self> {
-        let prover = ProverConfig::from_env()?;
+        let prover = Risc0ProverConfig::from_env()?;
         let dev_mode = std::env::var("RISC0_DEV_MODE")
             .ok()
             .map(|x| x.to_lowercase())

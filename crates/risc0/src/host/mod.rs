@@ -14,6 +14,7 @@ use std::{env, fs, mem};
 use bonsai::BonsaiProver;
 use borsh::BorshDeserialize;
 use boundless::BoundlessProver;
+use config::Risc0ProverConfig;
 use local::LocalProver;
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{AssumptionReceipt, VerifierContext};
@@ -42,16 +43,14 @@ impl Risc0Host {
         network: Network,
         config: config::Risc0HostConfig,
     ) -> Self {
-        use config::ProverConfig;
-
         let prover = match config.prover {
-            ProverConfig::Boundless(boundless_config) => {
+            Risc0ProverConfig::Boundless(boundless_config) => {
                 Prover::Boundless(BoundlessProver::new(ledger_db, *boundless_config).await)
             }
-            ProverConfig::Bonsai(bonsai_config) => {
+            Risc0ProverConfig::Bonsai(bonsai_config) => {
                 Prover::Bonsai(BonsaiProver::new(ledger_db, bonsai_config))
             }
-            ProverConfig::Local(local_config) => {
+            Risc0ProverConfig::Local(local_config) => {
                 Prover::Local(LocalProver::new(network, local_config))
             }
         };
