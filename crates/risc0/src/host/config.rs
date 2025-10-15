@@ -279,11 +279,7 @@ pub struct Risc0HostConfig {
 impl citrea_common::FromEnv for Risc0HostConfig {
     fn from_env() -> anyhow::Result<Self> {
         let prover = Risc0ProverConfig::from_env()?;
-        let dev_mode = std::env::var("RISC0_DEV_MODE")
-            .ok()
-            .map(|x| x.to_lowercase())
-            .filter(|x| x == "1" || x == "true" || x == "yes")
-            .is_some();
+        let dev_mode = crate::is_dev_mode_enabled_via_environment();
         let tx_backup_dir = std::env::var("TX_BACKUP_DIR").ok().map(PathBuf::from);
 
         Ok(Self {
