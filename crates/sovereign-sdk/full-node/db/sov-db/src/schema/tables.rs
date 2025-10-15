@@ -387,12 +387,12 @@ define_table_with_default_codec!(
     (PendingL1SubmissionJobs) Uuid => ()
 );
 
-define_table_with_default_codec!(
+define_table_with_seek_key_codec!(
     /// Pending Bonsai proving sessions by job id
     (PendingBonsaiSessionByJobId) Uuid => BonsaiSession
 );
 
-define_table_with_default_codec!(
+define_table_with_seek_key_codec!(
     /// Pending Boundless proving sessions by job id
     (PendingBoundlessSessionByJobId) Uuid => BoundlessSession
 );
