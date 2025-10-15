@@ -43,7 +43,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     address public constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
     address public constant SCHNORR_VERIFIER_PRECOMPILE = address(0x200);
     uint256 public constant SAT_TO_WEI = 10**10;
-    uint256 public constant PAYOUT_ANCHOR_OUTPUT_AMOUNT = 240 * SAT_TO_WEI;
+    uint256 public constant PAYOUT_ANCHOR_OUTPUT_AMOUNT = 240;
 
     bytes public constant EPOCH = hex"00";
     bytes public constant SIGHASH_DEFAULT_HASH_TYPE = hex"00";
@@ -69,7 +69,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     mapping(bytes32 => bool) public processedTxIds;
     mapping(bytes32 => bool) public usedWithdrawalUTXO;
 
-    uint256 public optimisticWithdrawAmount;
+    uint256 public optimisticWithdrawAmountSats;
     
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
@@ -119,8 +119,8 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         depositSuffix = _depositSuffix;
         depositAmount = _depositAmount;
         // Set initial optimistic withdraw amount to deposit amount minus `payoutTx`'s anchor output amount
-        uint256 _optimisticWithdrawAmount = _depositAmount - PAYOUT_ANCHOR_OUTPUT_AMOUNT;
-        optimisticWithdrawAmount = _optimisticWithdrawAmount;
+        uint256 _optimisticWithdrawAmountSats = (_depositAmount / SAT_TO_WEI) - PAYOUT_ANCHOR_OUTPUT_AMOUNT;
+        optimisticWithdrawAmountSats = _optimisticWithdrawAmountSats;
 
         // Set initial operator to SYSTEM_CALLER
         operator = SYSTEM_CALLER;
@@ -130,7 +130,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         emit OperatorUpdated(address(0), SYSTEM_CALLER);
         emit DepositScriptUpdate(_depositPrefix, _depositSuffix);
         emit FailedDepositVaultUpdated(address(0), address(0x3100000000000000000000000000000000000007));
-        emit OptimisticWithdrawAmountSet(_optimisticWithdrawAmount);
+        emit OptimisticWithdrawAmountSet(_optimisticWithdrawAmountSats);
     }
 
     /// @notice Sets the expected deposit script of the deposit transaction on Bitcoin, contained in the witness
@@ -171,12 +171,11 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
 
     /// @notice Sets the expected withdraw amount in the output of `payoutTx` in `safeWithdraw`
     /// @notice This is the BTC amount user actually receives on Bitcoin when they withdraw
-    /// @param _optimisticWithdrawAmount The new optimistic withdraw amount in wei
-    function setOptimisticWithdrawAmount(uint256 _optimisticWithdrawAmount) external onlyOwner {
-        require(_optimisticWithdrawAmount != 0, "Optimistic withdraw amount cannot be 0");
-        require(_optimisticWithdrawAmount % SAT_TO_WEI == 0, "Optimistic withdraw amount must have valid satoshi value");
-        optimisticWithdrawAmount = _optimisticWithdrawAmount;
-        emit OptimisticWithdrawAmountSet(_optimisticWithdrawAmount);
+    /// @param _optimisticWithdrawAmountSats The new optimistic withdraw amount in satoshis
+    function setOptimisticWithdrawAmountSats(uint256 _optimisticWithdrawAmountSats) external onlyOwner {
+        require(_optimisticWithdrawAmountSats != 0, "Optimistic withdraw amount cannot be 0");
+        optimisticWithdrawAmountSats = _optimisticWithdrawAmountSats;
+        emit OptimisticWithdrawAmountSet(_optimisticWithdrawAmountSats);
     }
 
     /// @notice Checks if the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
@@ -287,7 +286,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         bytes memory payoutWitness = WitnessUtils.extractWitnessAtIndex(payoutTx.witness, 0);
 
         // Assert that the payout output value is the expected optimistic withdraw amount
-        require((uint256(payoutOutput.extractValue()) * SAT_TO_WEI) == optimisticWithdrawAmount, "Payout output value does not match optimistic withdraw amount");
+        require(uint256(payoutOutput.extractValue()) == optimisticWithdrawAmountSats, "Payout output value does not match optimistic withdraw amount");
 
         // Assert the user provided script pubkey is the same as the one in the payout transaction's output
         (uint256 varIntDataLen, uint256 pubKeyLen) = BTCUtils.parseVarIntAt(payoutOutput, 8);
