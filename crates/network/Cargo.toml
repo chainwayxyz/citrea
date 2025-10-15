@@ -11,10 +11,12 @@ publish = false
 resolver = "2"
 
 [dependencies]
+anyhow = { workspace = true }
 futures = { workspace = true }
-libp2p = { workspace = true, features = ["noise", "ping", "tcp", "tokio", "yamux"] }
+libp2p = { workspace = true, features = ["tokio", "gossipsub", "noise", "tcp", "yamux", "quic"] }
+reth-tasks = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tracing = { workspace = true }
 yamux = { workspace = true }
 
-reth-tasks = { workspace = true }
+citrea-common = { path = "../common" }

@@ -254,7 +254,7 @@ where
         Arc::new(Mutex::new(L1BlockCache::new())),
         backup_manager,
     );
-    let citrea_network = CitreaNetwork::new(network_config.dial_addr);
+    let citrea_network = CitreaNetwork::build(network_config)?;
     Ok((
         l2_syncer,
         l1_block_handler,
