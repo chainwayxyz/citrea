@@ -52,9 +52,8 @@ on:
   merge_group:
     types: ["checks_requested"]
   push:
-    branches: ["nightly", "devnet-freeze", "release-v*"]
+    branches: ["nightly", "release-v*"]
   pull_request:
-    branches: ["nightly", "devnet-freeze", "release-v*"]
     types: [opened, synchronize, reopened, ready_for_review]
 
 run-name: ${{ inputs.custom_name || github.event.pull_request.title || github.sha }}
@@ -250,7 +249,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 18
       - name: Download artifact
@@ -321,7 +320,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 18
       - name: Download artifact
@@ -584,11 +583,18 @@ jobs:
           path: target/debug
           if_no_artifact_found: warn
 
-      # --- Build only if the artifact is not found ---
       - name: Checkout nightly branch
-        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        if: steps.restore-nightly.outputs.cache-hit != 'true'
         run: git checkout -f ${{ steps.nightly-commit.outputs.nightly-hash }}
 
+      # install risc0 again as version may differ between branches
+      - name: Install risc0
+        if: steps.restore-nightly.outputs.cache-hit != 'true'
+        uses: ./.github/actions/install-risc0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- Build only if the artifact is not found ---
       - name: Install Rust toolchain
         if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: dtolnay/rust-toolchain@nightly
@@ -619,7 +625,7 @@ jobs:
         run: make build
 
       - name: Checkout to PR branch
-        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        if: steps.restore-nightly.outputs.cache-hit != 'true'
         run: git checkout ${{ steps.current-commit.outputs.head-hash }}
 
       # Sequencer DB is removed in run-proving-test.sh to avoid state corruption
