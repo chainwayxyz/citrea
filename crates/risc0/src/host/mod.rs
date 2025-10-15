@@ -2,17 +2,18 @@
 
 mod bonsai;
 mod boundless;
-mod config;
+/// Configuration types for RISC0 provers
+pub mod config;
 mod local;
 mod pricing_service;
 
-use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{env, fs, mem};
+use std::{fs, mem};
 
 use bonsai::BonsaiProver;
 use borsh::BorshDeserialize;
 use boundless::BoundlessProver;
+use config::Risc0ProverConfig;
 use local::LocalProver;
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{AssumptionReceipt, VerifierContext};
@@ -20,7 +21,7 @@ use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, Zkvm, ZkvmHost};
 use sov_rollup_interface::Network;
 use tokio::sync::oneshot;
-use tracing::{debug, info};
+use tracing::info;
 use uuid::Uuid;
 
 use crate::guest::Risc0Guest;
@@ -32,21 +33,25 @@ pub struct Risc0Host {
     env: Vec<u8>,
     assumptions: Vec<AssumptionReceipt>,
     prover: Prover,
+    tx_backup_dir: Option<std::path::PathBuf>,
 }
 
 impl Risc0Host {
     /// Create a new Risc0Host to prove the given binary.
-    pub async fn new(ledger_db: LedgerDB, network: Network) -> Self {
-        let prover = match std::env::var("RISC0_PROVER") {
-            Ok(prover) => match prover.as_str() {
-                "boundless" => Prover::Boundless(BoundlessProver::new(ledger_db).await),
-                "bonsai" => Prover::Bonsai(BonsaiProver::new(ledger_db)),
-                "ipc" => Prover::Local(LocalProver::new(network)),
-                _ => panic!("Invalid prover specified: {prover}"),
-            },
-            Err(_) => {
-                debug!("No prover specified.");
-                Prover::Local(LocalProver::new(network))
+    pub async fn new(
+        ledger_db: LedgerDB,
+        network: Network,
+        config: config::Risc0HostConfig,
+    ) -> Self {
+        let prover = match config.prover {
+            Risc0ProverConfig::Boundless(boundless_config) => {
+                Prover::Boundless(BoundlessProver::new(ledger_db, *boundless_config).await)
+            }
+            Risc0ProverConfig::Bonsai(bonsai_config) => {
+                Prover::Bonsai(BonsaiProver::new(ledger_db, bonsai_config))
+            }
+            Risc0ProverConfig::Local(local_config) => {
+                Prover::Local(LocalProver::new(network, local_config))
             }
         };
 
@@ -54,6 +59,7 @@ impl Risc0Host {
             env: Default::default(),
             assumptions: vec![],
             prover,
+            tx_backup_dir: config.tx_backup_dir,
         }
     }
 }
@@ -88,8 +94,8 @@ impl ZkvmHost for Risc0Host {
         let input = mem::take(&mut self.env);
         let assumptions = mem::take(&mut self.assumptions);
 
-        if let Ok(backup_dir) = env::var("TX_BACKUP_DIR") {
-            let input_path = Path::new(&backup_dir).join(format!(
+        if let Some(backup_dir) = &self.tx_backup_dir {
+            let input_path = backup_dir.join(format!(
                 "{}-proof-input.bin",
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)

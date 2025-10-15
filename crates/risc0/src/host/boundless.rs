@@ -10,9 +10,9 @@ use boundless_market::client::{Client, ClientBuilder, ClientError};
 use boundless_market::contracts::boundless_market::MarketError;
 use boundless_market::contracts::{Offer, Predicate, Requirements};
 use boundless_market::request_builder::{RequestParams, RequirementParams};
-use boundless_market::GuestEnv;
+use boundless_market::storage::{PinataStorageProvider, S3StorageProvider};
+use boundless_market::{GuestEnv, StandardStorageProvider};
 use citrea_common::utils::read_env;
-use citrea_common::FromEnv;
 use metrics::gauge;
 use risc0_zkvm::sha::Digestible;
 use risc0_zkvm::{
@@ -27,7 +27,7 @@ use tracing::Instrument;
 use url::Url;
 use uuid::Uuid;
 
-use super::config::{get_boundless_builtin_storage_provider, BoundlessConfig};
+use super::config::{BoundlessProverConfig, BoundlessStorageConfig};
 use crate::host::pricing_service::{PriceResponse, PricingService};
 use crate::is_dev_mode_enabled_via_environment;
 
@@ -60,12 +60,8 @@ pub struct BoundlessProver {
 }
 
 impl BoundlessProver {
-    pub async fn new(ledger_db: LedgerDB) -> Self {
-        assert!(
-            std::env::var("RISC0_PROVER").is_ok_and(|prover| prover == "boundless"),
-            "RISC0_PROVER must be explicitly set to boundless"
-        );
-        let client = Self::boundless_client()
+    pub async fn new(ledger_db: LedgerDB, prover_config: BoundlessProverConfig) -> Self {
+        let client = Self::boundless_client(prover_config.clone())
             .await
             .expect("Failed to create boundless client");
 
@@ -80,19 +76,37 @@ impl BoundlessProver {
         }
     }
 
-    async fn boundless_client() -> anyhow::Result<Client> {
-        let config = BoundlessConfig::from_env().expect("Failed to load boundless config");
+    async fn boundless_client(prover_config: BoundlessProverConfig) -> anyhow::Result<Client> {
+        let config = &prover_config.boundless;
 
-        // First tries to parse s3 env variables
-        // If fails then tries to parse pinata env variables
-        let storage_provider = get_boundless_builtin_storage_provider().await?;
+        // Get storage provider from config
+        let storage_provider = match prover_config.storage {
+            BoundlessStorageConfig::S3(s3_config) => {
+                StandardStorageProvider::S3(S3StorageProvider::from_parts(
+                    s3_config.s3_access_key,
+                    s3_config.s3_secret_key,
+                    s3_config.s3_bucket,
+                    s3_config.s3_url,
+                    s3_config.aws_region,
+                    s3_config.s3_use_presigned,
+                ))
+            }
+            BoundlessStorageConfig::Pinata(pinata_config) => StandardStorageProvider::Pinata(
+                PinataStorageProvider::from_parts(
+                    pinata_config.pinata_jwt,
+                    pinata_config.pinata_api_url.to_string(),
+                    pinata_config.ipfs_gateway_url.to_string(),
+                )
+                .await?,
+            ),
+        };
 
         // Create a Boundless client from the provided parameters.
         ClientBuilder::new()
-            .with_deployment(config.deployment)
-            .with_rpc_url(config.rpc_url)
+            .with_deployment(config.deployment.clone())
+            .with_rpc_url(config.rpc_url.clone())
             .with_storage_provider(Some(storage_provider))
-            .with_private_key(config.wallet_private_key)
+            .with_private_key(config.wallet_private_key.clone())
             .build()
             .await
     }
