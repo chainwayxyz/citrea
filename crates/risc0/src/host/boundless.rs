@@ -27,7 +27,7 @@ use tracing::Instrument;
 use url::Url;
 use uuid::Uuid;
 
-use super::config::{BoundlessConfig, BoundlessProverConfig, BoundlessStorageConfig};
+use super::config::{BoundlessProverConfig, BoundlessStorageConfig};
 use crate::host::pricing_service::{PriceResponse, PricingService};
 use crate::is_dev_mode_enabled_via_environment;
 
@@ -77,7 +77,7 @@ impl BoundlessProver {
     }
 
     async fn boundless_client(prover_config: BoundlessProverConfig) -> anyhow::Result<Client> {
-        let config: BoundlessConfig = prover_config.clone().into();
+        let config = &prover_config.boundless;
 
         // Get storage provider from config
         let storage_provider = match prover_config.storage {
@@ -103,10 +103,10 @@ impl BoundlessProver {
 
         // Create a Boundless client from the provided parameters.
         ClientBuilder::new()
-            .with_deployment(config.deployment)
-            .with_rpc_url(config.rpc_url)
+            .with_deployment(config.deployment.clone())
+            .with_rpc_url(config.rpc_url.clone())
             .with_storage_provider(Some(storage_provider))
-            .with_private_key(config.wallet_private_key)
+            .with_private_key(config.wallet_private_key.clone())
             .build()
             .await
     }

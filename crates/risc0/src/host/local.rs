@@ -13,7 +13,6 @@ use tracing::error;
 use uuid::Uuid;
 
 use super::config::LocalProverConfig;
-use crate::is_dev_mode_enabled_via_environment;
 
 #[derive(Clone)]
 pub struct LocalProver {
@@ -25,7 +24,7 @@ pub struct LocalProver {
 
 impl LocalProver {
     pub fn new(network: Network, config: LocalProverConfig) -> Self {
-        let dev_mode = is_dev_mode_enabled_via_environment();
+        let dev_mode = config.dev_mode;
         let r0vm_path = config
             .r0vm_path
             .unwrap_or_else(|| get_r0vm_path().expect("Could not get r0vm path"));

@@ -105,27 +105,17 @@ pub enum BoundlessStorageConfig {
 }
 
 /// Configuration for the Boundless prover
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone)]
 pub struct BoundlessProverConfig {
-    /// Wallet private key for signing transactions
-    pub wallet_private_key: String,
-    /// RPC URL for the boundless network
-    #[serde(with = "url_serde")]
-    pub rpc_url: Url,
-    /// Whether to use offchain mode
-    #[serde(default)]
-    pub is_offchain: bool,
+    /// Boundless configuration
+    pub boundless: BoundlessConfig,
     /// Storage configuration
     pub storage: BoundlessStorageConfig,
 }
 
 impl citrea_common::FromEnv for BoundlessProverConfig {
     fn from_env() -> anyhow::Result<Self> {
-        let wallet_private_key = read_env("BOUNDLESS_WALLET_PRIVATE_KEY")?;
-        let rpc_url = read_env("BOUNDLESS_RPC_URL")?;
-        let is_offchain = read_env("BOUNDLESS_IS_OFFCHAIN")
-            .map(|v| v == "1" || v.to_lowercase() == "true")
-            .unwrap_or(false);
+        let boundless = BoundlessConfig::from_env()?;
 
         let storage = if let Ok(config) = BoundlessS3StorageConfig::from_env() {
             BoundlessStorageConfig::S3(config)
@@ -137,12 +127,7 @@ impl citrea_common::FromEnv for BoundlessProverConfig {
             ));
         };
 
-        Ok(Self {
-            wallet_private_key,
-            rpc_url: Url::parse(&rpc_url).context("Invalid RPC URL")?,
-            is_offchain,
-            storage,
-        })
+        Ok(Self { boundless, storage })
     }
 }
 
@@ -152,24 +137,6 @@ pub struct BoundlessConfig {
     pub(crate) wallet_private_key: LocalSigner<SigningKey>,
     pub(crate) rpc_url: Url,
     pub(crate) deployment: Deployment,
-}
-
-impl From<BoundlessProverConfig> for BoundlessConfig {
-    fn from(config: BoundlessProverConfig) -> Self {
-        let wallet_private_key = PrivateKeySigner::from_str(&config.wallet_private_key)
-            .expect("Failed to parse wallet private key");
-
-        let mut deployment = BASE;
-        if !config.is_offchain {
-            deployment.order_stream_url = None;
-        }
-
-        Self {
-            wallet_private_key,
-            rpc_url: config.rpc_url,
-            deployment,
-        }
-    }
 }
 
 impl citrea_common::FromEnv for BoundlessConfig {
@@ -200,12 +167,19 @@ impl citrea_common::FromEnv for BoundlessConfig {
 pub struct LocalProverConfig {
     /// Optional path to the r0vm binary
     pub r0vm_path: Option<PathBuf>,
+    /// Enable dev mode
+    #[serde(default)]
+    pub dev_mode: bool,
 }
 
 impl citrea_common::FromEnv for LocalProverConfig {
     fn from_env() -> anyhow::Result<Self> {
-        let r0vm_path = std::env::var("RISC0_SERVER_PATH").ok().map(PathBuf::from);
-        Ok(Self { r0vm_path })
+        let r0vm_path = read_env("RISC0_SERVER_PATH").ok().map(PathBuf::from);
+        let dev_mode = crate::is_dev_mode_enabled_via_environment();
+        Ok(Self {
+            r0vm_path,
+            dev_mode,
+        })
     }
 }
 
@@ -227,8 +201,7 @@ impl citrea_common::FromEnv for BonsaiProverConfig {
 }
 
 /// Prover configuration enum
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
+#[derive(Debug, Clone)]
 pub enum Risc0ProverConfig {
     /// Local IPC prover
     Local(LocalProverConfig),
@@ -264,27 +237,21 @@ impl citrea_common::FromEnv for Risc0ProverConfig {
 }
 
 /// Configuration for Risc0Host
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Risc0HostConfig {
     /// Prover config
-    #[serde(flatten)]
     pub prover: Risc0ProverConfig,
-    /// Enable dev mode
-    #[serde(default)]
-    pub dev_mode: bool,
-    /// Optional directory to backup transaction inputs
+    /// Optional backup directory for transaction data
     pub tx_backup_dir: Option<PathBuf>,
 }
 
 impl citrea_common::FromEnv for Risc0HostConfig {
     fn from_env() -> anyhow::Result<Self> {
         let prover = Risc0ProverConfig::from_env()?;
-        let dev_mode = crate::is_dev_mode_enabled_via_environment();
         let tx_backup_dir = std::env::var("TX_BACKUP_DIR").ok().map(PathBuf::from);
 
         Ok(Self {
             prover,
-            dev_mode,
             tx_backup_dir,
         })
     }

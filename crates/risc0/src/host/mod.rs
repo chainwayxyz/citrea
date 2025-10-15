@@ -7,9 +7,8 @@ pub mod config;
 mod local;
 mod pricing_service;
 
-use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{env, fs, mem};
+use std::{fs, mem};
 
 use bonsai::BonsaiProver;
 use borsh::BorshDeserialize;
@@ -34,6 +33,7 @@ pub struct Risc0Host {
     env: Vec<u8>,
     assumptions: Vec<AssumptionReceipt>,
     prover: Prover,
+    tx_backup_dir: Option<std::path::PathBuf>,
 }
 
 impl Risc0Host {
@@ -55,14 +55,11 @@ impl Risc0Host {
             }
         };
 
-        // Set TX_BACKUP_DIR if specified
-        if let Some(backup_dir) = config.tx_backup_dir {
-            env::set_var("TX_BACKUP_DIR", backup_dir);
-        }
         Self {
             env: Default::default(),
             assumptions: vec![],
             prover,
+            tx_backup_dir: config.tx_backup_dir,
         }
     }
 }
@@ -97,8 +94,8 @@ impl ZkvmHost for Risc0Host {
         let input = mem::take(&mut self.env);
         let assumptions = mem::take(&mut self.assumptions);
 
-        if let Ok(backup_dir) = env::var("TX_BACKUP_DIR") {
-            let input_path = Path::new(&backup_dir).join(format!(
+        if let Some(backup_dir) = &self.tx_backup_dir {
+            let input_path = backup_dir.join(format!(
                 "{}-proof-input.bin",
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)
