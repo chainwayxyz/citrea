@@ -709,7 +709,7 @@ contract BridgeTest is Test {
     function testNonOwnerCannotSetOptimisticWithdrawAmount() public {
         vm.prank(user);
         vm.expectRevert();
-        bridge.setOptimisticWithdrawAmount(1);
+        bridge.setOptimisticWithdrawAmountSats(1);
     }
 
     function testOwnerCanSetOptimisticWithdrawAmount() public {
@@ -717,8 +717,8 @@ contract BridgeTest is Test {
         vm.prank(owner);
         vm.expectEmit();
         emit Bridge.OptimisticWithdrawAmountSet(newAmount);
-        bridge.setOptimisticWithdrawAmount(newAmount);
-        assertEq(bridge.optimisticWithdrawAmount(), newAmount);
+        bridge.setOptimisticWithdrawAmountSats(newAmount);
+        assertEq(bridge.optimisticWithdrawAmountSats(), newAmount);
     }
 
     function testP2TRTransactionTypeConfusionAttack() public {
@@ -956,7 +956,7 @@ contract BridgeTest is Test {
     // so that we can expectRevert on doSafeWithdraw
     function prepareSafeWithdraw() public {
         vm.prank(owner);
-        bridge.setOptimisticWithdrawAmount(999900000);
+        bridge.setOptimisticWithdrawAmountSats(999900000);
         vm.prank(SYSTEM_CALLER);
         bitcoinLightClient.setBlockInfo(hex"d740c1b74570c512cb79c8b3f5d3ccaa515059c49dd51b01c5b2ec56bfb9ee37", witnessRoot, 2);
     }
