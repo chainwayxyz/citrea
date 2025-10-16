@@ -36,7 +36,7 @@ pub mod mockda {
 
     /// Genesis L2 genesis root for the mock DA.
     pub const GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
-        b"658e15edbc2b4168ac974778a2b516955589122d1a8309a7aa5afe8e22647c18",
+        b"87f4f2b4660485ea3ca667033a7fbd077a627946f0b444da101c6cc23a438382",
     ) {
         Ok(root) => root,
         Err(_) => panic!("Can't happen"),
