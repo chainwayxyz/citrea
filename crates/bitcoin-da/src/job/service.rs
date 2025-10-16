@@ -319,7 +319,6 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         };
 
         if let Some(tx) = self.job_waiters.lock().unwrap().remove(&job_id) {
-            println!("removing tx send");
             let _ = tx.send(result);
         }
     }

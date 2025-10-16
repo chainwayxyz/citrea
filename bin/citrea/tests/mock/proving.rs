@@ -356,7 +356,6 @@ async fn test_batch_prover_prove_rpcs() {
     assert_eq!(job_ids.len(), 1);
     let job_id = job_ids[0];
 
-    println!("111");
     let response = wait_for_prover_job(&prover_client, job_id, None)
         .await
         .unwrap();
@@ -378,7 +377,6 @@ async fn test_batch_prover_prove_rpcs() {
     wait_for_l2_block(&test_client, 8, None).await;
     wait_for_commitment(&da_service, 6, None).await;
 
-    println!("3");
     // invoke proving from RPC, since paused, should not start any job
     let job_ids = prover_client.batch_prover_prove(None).await;
     assert_eq!(job_ids.len(), 0);

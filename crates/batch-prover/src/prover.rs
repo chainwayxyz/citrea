@@ -164,11 +164,8 @@ where
     /// * `shutdown_signal` - A signal to gracefully shut down the prover service
     #[instrument(name = "BatchProver", skip_all)]
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
-        println!("recovering session");
         self.recover_proving_sessions(self.prover_config.enable_recovery)
             .await;
-
-        println!("recovered proving session");
 
         'run_loop: loop {
             select! {
@@ -747,10 +744,7 @@ where
                         .await
                         .expect("Failed to submit proof");
 
-                    println!(
-                        "Job {} proof submitted to DA. Da job id {da_job_id}",
-                        proving_job_id
-                    );
+                    info!("Job {provig_job_id} proof submitted to DA. Da job id {da_job_id}");
 
                     ledger_db
                         .set_proving_job_da_job_id(proving_job_id, da_job_id)

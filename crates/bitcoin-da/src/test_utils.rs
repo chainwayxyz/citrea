@@ -16,7 +16,6 @@ impl BitcoinService {
     /// Send a transaction to da and wait until its completion
     pub async fn send_transaction_and_wait(&self, tx_request: DaTxRequest) -> Result<Uuid> {
         let (job_id, rx) = self.send_transaction(tx_request).await?;
-        println!("job_id : {:?}", job_id);
         rx.await??;
         Ok(job_id)
     }
