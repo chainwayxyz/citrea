@@ -2698,7 +2698,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-network"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "citrea-common",
@@ -6670,7 +6670,7 @@ dependencies = [
 
 [[package]]
 name = "network-test"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "futures",
  "libp2p",
