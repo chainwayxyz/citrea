@@ -23,7 +23,6 @@ use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::BatchProofCircuitOutputV3;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
-use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 use tokio::time::sleep;
 
@@ -157,7 +156,7 @@ impl TestCase for PreStateRootMismatchTest {
 
         // Send the first proof
         prover_da_service
-            .send_transaction(DaTxRequest::ZKProof(proof))
+            .send_transaction_and_wait(DaTxRequest::ZKProof(proof))
             .await
             .unwrap();
 
@@ -229,7 +228,7 @@ impl TestCase for PreStateRootMismatchTest {
 
         // Send the invalid proof
         prover_da_service
-            .send_transaction(DaTxRequest::ZKProof(invalid_proof))
+            .send_transaction_and_wait(DaTxRequest::ZKProof(invalid_proof))
             .await
             .unwrap();
 
@@ -375,7 +374,7 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
 
         // Send the `correct_commitment` so it's stored and will trigger the pre-hash mismatch against `wrong_commitment`
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(correct_commitment.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(correct_commitment.clone()))
             .await
             .unwrap();
 
@@ -439,7 +438,7 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
             None,
         );
         prover_da_service
-            .send_transaction(DaTxRequest::ZKProof(fake_proof))
+            .send_transaction_and_wait(DaTxRequest::ZKProof(fake_proof))
             .await
             .unwrap();
 
@@ -535,7 +534,7 @@ impl TestCase for PendingCommitmentHaltingErrorTest {
         };
 
         bitcoin_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(
                 wrong_merkle_root_commitment.clone(),
             ))
             .await
@@ -998,7 +997,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
 
         // Send the zero index commitment first, should be ignored
         bitcoin_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(
                 zero_index_commitment.clone(),
             ))
             .await
@@ -1023,7 +1022,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
 
         // Send the second commitment first
         bitcoin_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(second_commitment.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(second_commitment.clone()))
             .await
             .unwrap();
 
@@ -1047,7 +1046,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
 
         // Send the first commitment
         bitcoin_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(first_commitment.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(first_commitment.clone()))
             .await
             .unwrap();
 
@@ -1177,7 +1176,7 @@ impl TestCase for ConflictingCommitmentsTest {
 
         // Send commitment A
         bitcoin_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment_a.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment_a.clone()))
             .await
             .unwrap();
 
@@ -1199,7 +1198,7 @@ impl TestCase for ConflictingCommitmentsTest {
 
         // Send conflicting commitment with different merkle root, should be ignored
         bitcoin_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(
                 conflicting_commitment_different_root.clone(),
             ))
             .await
@@ -1224,7 +1223,7 @@ impl TestCase for ConflictingCommitmentsTest {
 
         // Send conflicting commitment B
         bitcoin_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment_b.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment_b.clone()))
             .await
             .unwrap();
 
@@ -1269,7 +1268,7 @@ impl TestCase for ConflictingCommitmentsTest {
 
         // Send commitment C that follows A
         bitcoin_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment_c.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment_c.clone()))
             .await
             .unwrap();
 
@@ -1564,7 +1563,7 @@ impl TestCase for OutOfRangeProofTest {
 
         // Send the proof first. It should be discard as none of its commitments exist
         prover_da_service
-            .send_transaction(DaTxRequest::ZKProof(proof1.clone()))
+            .send_transaction_and_wait(DaTxRequest::ZKProof(proof1.clone()))
             .await
             .unwrap();
 
@@ -1585,7 +1584,7 @@ impl TestCase for OutOfRangeProofTest {
         );
 
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment1.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment1.clone()))
             .await
             .unwrap();
 
@@ -1614,7 +1613,7 @@ impl TestCase for OutOfRangeProofTest {
         assert!(proven_height.is_none(), "Proof should have been discarded");
 
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment2.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment2.clone()))
             .await
             .unwrap();
 
@@ -1687,12 +1686,12 @@ impl TestCase for OutOfRangeProofTest {
         full_node.start(None, None).await?;
 
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment1.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment1.clone()))
             .await
             .unwrap();
 
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment2.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment2.clone()))
             .await
             .unwrap();
 
@@ -1715,7 +1714,7 @@ impl TestCase for OutOfRangeProofTest {
 
         // Send the proof first. It should be processed as its commitments exist
         prover_da_service
-            .send_transaction(DaTxRequest::ZKProof(proof1))
+            .send_transaction_and_wait(DaTxRequest::ZKProof(proof1))
             .await
             .unwrap();
 
@@ -1737,12 +1736,12 @@ impl TestCase for OutOfRangeProofTest {
 
         // Send commitments for proof 2 and proof 3
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment3.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment3.clone()))
             .await
             .unwrap();
 
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment4.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment4.clone()))
             .await
             .unwrap();
 
@@ -1795,7 +1794,7 @@ impl TestCase for OutOfRangeProofTest {
         );
         // Send the third proof first. It should be set as pending as its commitments exist but it's starting commitment index is not proven proof last commitment index + 1
         prover_da_service
-            .send_transaction(DaTxRequest::ZKProof(proof3))
+            .send_transaction_and_wait(DaTxRequest::ZKProof(proof3))
             .await
             .unwrap();
 
@@ -1854,7 +1853,7 @@ impl TestCase for OutOfRangeProofTest {
 
         // Now send the second proof. It should be processed and trigger a processing of pending proof3
         prover_da_service
-            .send_transaction(DaTxRequest::ZKProof(proof2))
+            .send_transaction_and_wait(DaTxRequest::ZKProof(proof2))
             .await
             .unwrap();
 
@@ -2090,7 +2089,7 @@ impl TestCase for OverlappingProofRangesTest {
         full_node.start(None, None).await?;
 
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment1.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment1.clone()))
             .await
             .unwrap();
 
@@ -2121,12 +2120,12 @@ impl TestCase for OverlappingProofRangesTest {
             .state_root;
 
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment2.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment2.clone()))
             .await
             .unwrap();
 
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment3.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment3.clone()))
             .await
             .unwrap();
 
@@ -2229,22 +2228,22 @@ impl TestCase for OverlappingProofRangesTest {
 
         // Send all 4 commitments in order
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment1.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment1.clone()))
             .await
             .unwrap();
 
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment2.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment2.clone()))
             .await
             .unwrap();
 
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment3.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment3.clone()))
             .await
             .unwrap();
 
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment4.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment4.clone()))
             .await
             .unwrap();
 
@@ -2290,7 +2289,7 @@ impl TestCase for OverlappingProofRangesTest {
 
         // Send proof_a over commitments [1,2,3]
         prover_da_service
-            .send_transaction(DaTxRequest::ZKProof(proof_a.clone()))
+            .send_transaction_and_wait(DaTxRequest::ZKProof(proof_a.clone()))
             .await
             .unwrap();
 
@@ -2377,7 +2376,7 @@ impl TestCase for OverlappingProofRangesTest {
 
         // Send proof_b with overlapping range of [2,3,4]
         prover_da_service
-            .send_transaction(DaTxRequest::ZKProof(proof_b.clone()))
+            .send_transaction_and_wait(DaTxRequest::ZKProof(proof_b.clone()))
             .await
             .unwrap();
 
@@ -2582,7 +2581,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         };
 
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment_1.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment_1.clone()))
             .await
             .unwrap();
 
@@ -2625,7 +2624,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         /*------- */
 
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment_2.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment_2.clone()))
             .await
             .unwrap();
 
@@ -2667,7 +2666,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         /*------- */
 
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment_3.clone()))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment_3.clone()))
             .await
             .unwrap();
 
@@ -3670,7 +3669,7 @@ impl TestCase for FullNodeL1SyncHaltOnMerkleRootMismatch {
                 .await;
 
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(correct_commitment))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(correct_commitment))
             .await
             .unwrap();
 
@@ -3695,7 +3694,7 @@ impl TestCase for FullNodeL1SyncHaltOnMerkleRootMismatch {
         };
 
         sequencer_da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(
                 wrong_merkle_root_commitment,
             ))
             .await

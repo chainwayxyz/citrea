@@ -63,7 +63,9 @@ impl DaTransactionQueueingTest {
         // Fill mempool
         for i in 1..=3 {
             da_service
-                .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
+                .send_transaction_and_wait(DaTxRequest::ZKProof(
+                    verifiable_100kb_batch_proof.clone(),
+                ))
                 .await?;
             da.wait_mempool_len(8 * i, None).await?;
         }
@@ -85,7 +87,7 @@ impl DaTransactionQueueingTest {
         // Try to send when queue is already filled up.
         // This is to test that utxos is correctly selected and that it's doesn't hang on waiting for list of queued txids to be returned
         let res = da_service
-            .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
+            .send_transaction_and_wait(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
             .await;
 
         assert!(matches!(
@@ -110,7 +112,7 @@ impl DaTransactionQueueingTest {
         tokio::time::sleep(std::time::Duration::from_secs(3)).await;
         // Send additional proof and make sure it doesn't hit PreviousJobInProgress error
         let res = da_service
-            .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
+            .send_transaction_and_wait(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
             .await;
 
         assert!(res.is_ok());
@@ -421,21 +423,29 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
 
         // Fill mempool
         for i in 1..=3 {
+            println!("i : {:?}", i);
             da_service
-                .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
+                .send_transaction_and_wait(DaTxRequest::ZKProof(
+                    verifiable_100kb_batch_proof.clone(),
+                ))
                 .await?;
+
             da.wait_mempool_len(8 * i, None).await?;
         }
 
-        da_service
+        println!("11");
+
+        let (job_id, rx) = da_service
             .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
             .await?;
+        println!("22");
 
         // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
         // The three first proofs should hit the mempool + 1 chunk
         da.wait_mempool_len(8 * 3 + 2, None).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 26);
 
+        println!("33");
         // Assert that all sent txs are monitored
         let monitored_txs = da_service.monitoring.get_monitored_txs().await;
         assert_eq!(monitored_txs.len(), 26);
@@ -446,6 +456,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
             .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
             .await;
 
+        println!("44");
         assert!(res.is_ok());
 
         // Txs starting from a new chain should be accepted to mempool
@@ -454,6 +465,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         let monitored_txs = da_service.monitoring.get_monitored_txs().await;
         assert_eq!(monitored_txs.len(), 34);
 
+        println!("55");
         // We mine the first three proofs + the 1 chunk pair + the extra proof starting another UTXO chain
         // and make sure that the remaining chunks and aggregate and sent on next block when mempool size is freed
         // Assert that all chunks were mined and mempool space is freed
@@ -467,6 +479,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
 
         assert_eq!(relevant_txs.len(), 17);
 
+        println!("66");
         // Remaining chunks and aggregate
         da.wait_mempool_len(6, None).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 6);
@@ -711,6 +724,7 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
             .header
             .state_root;
 
+        println!("1");
         self.test_package_mempool_limits(
             da,
             &da_service,
@@ -722,6 +736,7 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
         )
         .await?;
 
+        println!("2");
         self.test_package_too_large(
             da,
             &da_service,

@@ -207,17 +207,14 @@ where
     pub async fn submit_proof(
         &self,
         proof: Proof,
-    ) -> anyhow::Result<<Da as DaService>::TransactionId> {
+    ) -> anyhow::Result<(
+        Uuid,
+        oneshot::Receiver<Result<<Da as DaService>::TransactionId, <Da as DaService>::Error>>,
+    )> {
         let tx_request = DaTxRequest::ZKProof(proof);
         info!("Submitting proof to DA service");
-        let job_id = self
-            .da_service
-            .send_transaction(tx_request)
-            .await
-            .map_err(|e| anyhow::anyhow!(e))?;
-
         self.da_service
-            .wait_for_completion(job_id, None)
+            .send_transaction(tx_request)
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }
@@ -236,6 +233,17 @@ where
     pub fn start_session_recovery(&self) -> anyhow::Result<Vec<oneshot::Receiver<ProofWithJob>>> {
         let vm = self.vm.clone();
         vm.start_session_recovery()
+    }
+
+    /// Used for recovery
+    pub async fn wait_for_existing_da_job(
+        &self,
+        da_job_id: Uuid,
+    ) -> Result<
+        oneshot::Receiver<Result<<Da as DaService>::TransactionId, <Da as DaService>::Error>>,
+        <Da as DaService>::Error,
+    > {
+        self.da_service.recover_existing_job(da_job_id).await
     }
 }
 

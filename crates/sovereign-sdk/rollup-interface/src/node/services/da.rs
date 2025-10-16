@@ -1,12 +1,8 @@
 //! The da module defines traits used by the full node to interact with the DA layer.
-
-#[cfg(feature = "native")]
-use std::time::Duration;
-
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 #[cfg(feature = "native")]
-use tokio::sync::oneshot::Sender as OneshotSender;
+use tokio::sync::oneshot::{self, Sender as OneshotSender};
 #[cfg(feature = "native")]
 use uuid::Uuid;
 
@@ -107,14 +103,23 @@ pub trait DaService: Send + Sync + 'static {
     /// Send a transaction directly to the DA layer.
     /// blob is the serialized and signed transaction.
     /// Returns nothing if the transaction was successfully sent.
-    async fn send_transaction(&self, tx_request: DaTxRequest) -> Result<Uuid, Self::Error>;
+    async fn send_transaction(
+        &self,
+        tx_request: DaTxRequest,
+    ) -> Result<
+        (
+            Uuid,
+            oneshot::Receiver<Result<Self::TransactionId, Self::Error>>,
+        ),
+        Self::Error,
+    >;
 
-    /// Wait for a job to finish
-    async fn wait_for_completion(
+    /// Recover an ongoing da job sending session
+    /// Returns the receiver if available
+    async fn recover_existing_job(
         &self,
         job_id: Uuid,
-        timeout: Option<Duration>,
-    ) -> Result<Self::TransactionId, Self::Error>;
+    ) -> Result<oneshot::Receiver<Result<Self::TransactionId, Self::Error>>, Self::Error>;
 
     /// Returns fee rate per byte on DA layer.
     async fn get_fee_rate(&self) -> Result<u128, Self::Error>;

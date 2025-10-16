@@ -2,6 +2,8 @@
 
 use bitcoin::hashes::Hash;
 use sov_rollup_interface::da::{DaTxRequest, DataOnDa};
+use sov_rollup_interface::services::da::DaService;
+use uuid::Uuid;
 
 use crate::error::BitcoinServiceError;
 use crate::helpers::builders::body_builders::{DaTxs, RawTxData};
@@ -11,6 +13,14 @@ use crate::helpers::builders::test_utils::{
 use crate::service::{split_proof, BitcoinService, Result};
 
 impl BitcoinService {
+    /// Send a transaction to da and wait until its completion
+    pub async fn send_transaction_and_wait(&self, tx_request: DaTxRequest) -> Result<Uuid> {
+        let (job_id, rx) = self.send_transaction(tx_request).await?;
+        println!("job_id : {:?}", job_id);
+        rx.await??;
+        Ok(job_id)
+    }
+
     /// Sends chunks and aggregate as if they are of a Complete kind.
     pub async fn test_send_separate_chunk_transaction_with_fee_rate(
         &self,

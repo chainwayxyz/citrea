@@ -22,7 +22,6 @@ use rs_merkle::MerkleTree;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BlobReaderTrait, DaTxRequest, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::rpc::SequencerCommitmentResponse;
-use sov_rollup_interface::services::da::DaService;
 use tokio::time::sleep;
 
 use super::get_citrea_path;
@@ -371,7 +370,7 @@ impl TestCase for SequencerCommitmentsFromDaTest {
             index: 1,
         };
         da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment))
             .await
             .unwrap();
         da.wait_mempool_len(2, None).await?;
@@ -384,7 +383,7 @@ impl TestCase for SequencerCommitmentsFromDaTest {
             index: 2,
         };
         da_service
-            .send_transaction(DaTxRequest::SequencerCommitment(commitment))
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment))
             .await
             .unwrap();
         // Restart sequencer, it should fetch commitment with index 1 and 2

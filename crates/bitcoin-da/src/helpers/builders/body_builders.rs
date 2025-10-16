@@ -30,7 +30,7 @@ use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
 #[derive(Debug, Clone, Serialize, Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]
 /// These are real blobs we put on DA.
-pub(crate) enum RawTxData {
+pub enum RawTxData {
     /// borsh(DataOnDa::Complete(compress(Proof)))
     Complete(Vec<u8>),
     /// let compressed = compress(borsh(Proof))

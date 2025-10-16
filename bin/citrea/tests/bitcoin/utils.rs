@@ -584,7 +584,7 @@ pub async fn generate_mock_txs(
     valid_method_ids.push(method_id.clone());
 
     da_service
-        .send_transaction(DaTxRequest::BatchProofMethodId(method_id))
+        .send_transaction_and_wait(DaTxRequest::BatchProofMethodId(method_id))
         .await
         .expect("Failed to send transaction");
 
@@ -596,7 +596,7 @@ pub async fn generate_mock_txs(
     seq_index += 1;
     valid_commitments.push(commitment.clone());
     da_service
-        .send_transaction(DaTxRequest::SequencerCommitment(commitment))
+        .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment))
         .await
         .expect("Failed to send transaction");
 
@@ -608,7 +608,7 @@ pub async fn generate_mock_txs(
     seq_index += 1;
     valid_commitments.push(commitment.clone());
     da_service
-        .send_transaction(DaTxRequest::SequencerCommitment(commitment))
+        .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment))
         .await
         .expect("Failed to send transaction");
 
@@ -617,7 +617,7 @@ pub async fn generate_mock_txs(
 
     valid_proofs.push(blob.clone());
     da_service
-        .send_transaction(DaTxRequest::ZKProof(blob))
+        .send_transaction_and_wait(DaTxRequest::ZKProof(blob))
         .await
         .expect("Failed to send transaction");
 
@@ -627,13 +627,13 @@ pub async fn generate_mock_txs(
 
     valid_proofs.push(blob.clone());
     da_service
-        .send_transaction(DaTxRequest::ZKProof(blob))
+        .send_transaction_and_wait(DaTxRequest::ZKProof(blob))
         .await
         .expect("Failed to send transaction");
 
     // Sequencer commitment with wrong tx prefix
     wrong_prefix_da_service
-        .send_transaction(DaTxRequest::SequencerCommitment(SequencerCommitment {
+        .send_transaction_and_wait(DaTxRequest::SequencerCommitment(SequencerCommitment {
             merkle_root: [15; 32],
             index: seq_index,
             l2_end_block_number: 1268,
@@ -646,13 +646,13 @@ pub async fn generate_mock_txs(
 
     valid_proofs.push(blob.clone());
     da_service
-        .send_transaction(DaTxRequest::ZKProof(blob))
+        .send_transaction_and_wait(DaTxRequest::ZKProof(blob))
         .await
         .expect("Failed to send transaction");
 
     // Sequencer commitment with wrong key and signature
     wrong_key_da_service
-        .send_transaction(DaTxRequest::SequencerCommitment(SequencerCommitment {
+        .send_transaction_and_wait(DaTxRequest::SequencerCommitment(SequencerCommitment {
             merkle_root: [15; 32],
             index: seq_index,
             l2_end_block_number: 1268,
@@ -667,7 +667,7 @@ pub async fn generate_mock_txs(
     };
     valid_commitments.push(commitment.clone());
     da_service
-        .send_transaction(DaTxRequest::SequencerCommitment(commitment))
+        .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment))
         .await
         .expect("Failed to send transaction");
 
@@ -677,7 +677,7 @@ pub async fn generate_mock_txs(
 
     valid_proofs.push(blob.clone());
     da_service
-        .send_transaction(DaTxRequest::ZKProof(blob))
+        .send_transaction_and_wait(DaTxRequest::ZKProof(blob))
         .await
         .expect("Failed to send transaction");
 
@@ -704,7 +704,7 @@ pub async fn generate_mock_txs(
     };
     valid_method_ids.push(method_id.clone());
     da_service
-        .send_transaction(DaTxRequest::BatchProofMethodId(method_id))
+        .send_transaction_and_wait(DaTxRequest::BatchProofMethodId(method_id))
         .await
         .expect("Failed to send transaction");
 

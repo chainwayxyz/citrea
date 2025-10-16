@@ -1,4 +1,5 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex};
 
 use bitcoin::hashes::Hash;
 use bitcoin::{Transaction, Txid};
@@ -6,14 +7,17 @@ use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::DaLedgerOps;
 pub use sov_db::schema::types::da_jobs::{Job, JobId, JobStatus};
 use sov_db::schema::types::da_jobs::{JobProgress as DbJobProgress, SentChunks as DbSentChunks};
+use tokio::sync::oneshot;
 use tracing::{info, instrument};
 
 use super::Result;
+use crate::error::BitcoinServiceError;
 use crate::helpers::builders::body_builders::RawTxData;
 use crate::helpers::get_timestamp;
 use crate::job::error::JobServiceError;
 use crate::job::metrics::DA_JOB_METRICS as JM;
 use crate::job::rpc::{DaJobRpcProvider, JobListFilter};
+use crate::service::TxidWrapper;
 
 /// Tracks progress of a job including sent transactions for recovery.
 ///
@@ -164,17 +168,28 @@ impl From<JobProgress> for DbJobProgress {
 /// Job service
 pub struct DaJobService<DB: DaLedgerOps> {
     ledger_db: DB,
+    job_waiters: Arc<
+        Mutex<
+            HashMap<JobId, oneshot::Sender<std::result::Result<TxidWrapper, BitcoinServiceError>>>,
+        >,
+    >,
 }
 
 impl<DB: DaLedgerOps> DaJobService<DB> {
     /// Creates a new DaJobService with ledger_db
     pub fn new(ledger_db: DB) -> Self {
-        Self { ledger_db }
+        Self {
+            ledger_db,
+            job_waiters: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 
     /// Create a new job and save to db
-    #[instrument(level = "trace", skip(self), ret)]
-    pub fn submit_job(&self, raw_tx_data: RawTxData) -> Result<JobId> {
+    pub fn submit_job(
+        &self,
+        raw_tx_data: RawTxData,
+        tx: oneshot::Sender<std::result::Result<TxidWrapper, BitcoinServiceError>>,
+    ) -> Result<JobId> {
         let job_id = uuid::Uuid::now_v7();
         let created_at = get_timestamp();
 
@@ -187,6 +202,8 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         self.ledger_db.submit_job(&job, &progress.into())?;
 
         JM.record_job_submitted(job.data.len());
+
+        self.job_waiters.lock().unwrap().insert(job_id, tx);
 
         info!("Job {job_id} submitted and persisted");
         Ok(job_id)
@@ -237,6 +254,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         progress: &mut JobProgress,
         new_status: JobStatus,
     ) -> Result<()> {
+        let job_id = progress.job_id;
         let previous_status = progress.status.clone();
 
         progress.status = new_status;
@@ -247,6 +265,8 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
             .upsert_progress(&db_progress, previous_status.as_u8())?;
 
         JM.record_status_update(&previous_status, progress);
+
+        self.notify_new_status(job_id, progress);
 
         Ok(())
     }
@@ -280,6 +300,36 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
             .get_job_ids_by_status(JobStatus::InProgress.as_u8())?;
 
         Ok(!in_progress_jobs.is_empty())
+    }
+
+    fn notify_new_status(&self, job_id: JobId, progress: &JobProgress) {
+        let result = match &progress.status {
+            JobStatus::Completed => {
+                if let Some(last_tx) = progress.sent_chunks.reveal_txs.last() {
+                    Ok(TxidWrapper(last_tx.compute_txid()))
+                } else {
+                    Err(JobServiceError::NoTransactionsFound(job_id).into())
+                }
+            }
+            JobStatus::Cancelled => Err(JobServiceError::JobCancelled(job_id).into()),
+            JobStatus::Failed { error } => {
+                Err(JobServiceError::JobFailed(job_id, error.clone()).into())
+            }
+            JobStatus::Pending | JobStatus::InProgress => return,
+        };
+
+        if let Some(tx) = self.job_waiters.lock().unwrap().remove(&job_id) {
+            println!("removing tx send");
+            let _ = tx.send(result);
+        }
+    }
+
+    pub(crate) fn insert_waiter(
+        &self,
+        job_id: JobId,
+        waiter: oneshot::Sender<std::result::Result<TxidWrapper, BitcoinServiceError>>,
+    ) {
+        self.job_waiters.lock().unwrap().insert(job_id, waiter);
     }
 }
 
@@ -320,9 +370,11 @@ impl<DB: DaLedgerOps> DaJobRpcProvider for DaJobService<DB> {
 
                 let raw_data: RawTxData = borsh::from_slice(&original_job.data)?;
 
+                let (tx, _rx) = oneshot::channel();
                 // Create new job with same data
-                let new_job_id = self.submit_job(raw_data)?;
+                let new_job_id = self.submit_job(raw_data, tx)?;
                 tracing::info!("Job {job_id} retried as new job {new_job_id}");
+
                 Ok(new_job_id)
             }
             JobStatus::Pending | JobStatus::InProgress | JobStatus::Completed => {

@@ -10,7 +10,6 @@ use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -30,15 +29,16 @@ use lru::LruCache;
 use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::LedgerDB;
-use sov_db::schema::types::da_jobs::{JobId, JobStatus};
+use sov_db::schema::types::da_jobs::JobStatus;
 use sov_rollup_interface::da::{DaSpec, DaTxRequest, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::Proof;
 use sov_rollup_interface::Network;
 use tokio::select;
 use tokio::sync::mpsc::UnboundedReceiver;
-use tokio::sync::Mutex;
+use tokio::sync::{oneshot, Mutex};
 use tracing::{debug, error, info, instrument, trace, warn};
+use uuid::Uuid;
 
 use crate::error::{BitcoinServiceError, MempoolRejection};
 use crate::fee::{validate_txs_fee_rate, BumpFeeMethod, FeeService};
@@ -1339,7 +1339,11 @@ impl DaService for BitcoinService {
     }
 
     /// Submit a new job to the queue
-    async fn send_transaction(&self, tx_request: DaTxRequest) -> Result<JobId> {
+    async fn send_transaction(
+        &self,
+        tx_request: DaTxRequest,
+    ) -> Result<(Uuid, oneshot::Receiver<Result<TxidWrapper>>)> {
+        let (tx, rx) = oneshot::channel();
         let job_id = {
             let job_service = self.job_service.lock().await;
 
@@ -1350,53 +1354,52 @@ impl DaService for BitcoinService {
                     return Err(BitcoinServiceError::PreviousJobInProgress);
                 }
             }
-            job_service.submit_job(tx_request.try_into()?)?
+            job_service.submit_job(tx_request.try_into()?, tx)?
         };
 
+        // TODO maybe single job handling here
         self.process_job_service().await?;
 
-        Ok(job_id)
+        Ok((job_id, rx))
     }
 
-    /// Wait for job completion by job_id and returns the txid
-    async fn wait_for_completion(
+    async fn recover_existing_job(
         &self,
-        job_id: JobId,
-        timeout: Option<Duration>,
-    ) -> Result<TxidWrapper> {
-        let start = Instant::now();
-        let timeout = timeout.unwrap_or(Duration::from_secs(600)); // Defaults to 10min
+        job_id: Uuid,
+    ) -> Result<oneshot::Receiver<Result<TxidWrapper>>> {
+        let progress = self
+            .job_service
+            .lock()
+            .await
+            .get_progress(&job_id)?
+            .ok_or(JobServiceError::JobNotFound(job_id))?;
 
-        loop {
-            if start.elapsed() > timeout {
-                return Err(JobServiceError::JobTimeout(job_id, timeout.as_secs()).into());
+        let (tx, rx) = oneshot::channel();
+
+        match progress.status {
+            JobStatus::Completed => {
+                // Job already finished before we subscribed
+                if let Some(last_tx) = progress.sent_chunks.reveal_txs.last() {
+                    let _ = tx.send(Ok(TxidWrapper(last_tx.compute_txid())));
+                } else {
+                    let _ = tx.send(Err(JobServiceError::NoTransactionsFound(job_id).into()));
+                }
             }
-
-            let progress = self
-                .job_service
-                .lock()
-                .await
-                .get_progress(&job_id)?
-                .ok_or(JobServiceError::JobNotFound(job_id))?;
-
-            match progress.status {
-                JobStatus::Completed => {
-                    if let Some(last_reveal) = progress.sent_chunks.reveal_txs.last() {
-                        return Ok(TxidWrapper(last_reveal.compute_txid()));
-                    }
-                    return Err(JobServiceError::NoTransactionsFound(job_id).into());
-                }
-                JobStatus::Failed { error, .. } => {
-                    return Err(JobServiceError::JobFailed(job_id, error).into());
-                }
-                JobStatus::Cancelled => {
-                    return Err(JobServiceError::JobCancelled(job_id).into());
-                }
-                _ => {
-                    tokio::time::sleep(Duration::from_millis(500)).await;
-                }
+            JobStatus::Failed { error } => {
+                // Job already failed
+                let _ = tx.send(Err(JobServiceError::JobFailed(job_id, error).into()));
+            }
+            JobStatus::Cancelled => {
+                // Job already cancelled
+                let _ = tx.send(Err(JobServiceError::JobCancelled(job_id).into()));
+            }
+            JobStatus::Pending | JobStatus::InProgress => {
+                // Job still running, register for notification
+                self.job_service.lock().await.insert_waiter(job_id, tx);
             }
         }
+
+        Ok(rx)
     }
 
     #[instrument(level = "trace", skip(self))]

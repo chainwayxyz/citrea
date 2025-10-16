@@ -10,7 +10,7 @@ use sov_rollup_interface::da::{
 };
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
-use tokio::sync::{broadcast, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
+use tokio::sync::{broadcast, oneshot, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use tokio::time;
 use tracing::instrument::Instrument;
 use uuid::Uuid;
@@ -427,7 +427,16 @@ impl DaService for MockDaService {
     }
 
     #[tracing::instrument(name = "MockDA", level = "debug", skip_all)]
-    async fn send_transaction(&self, tx_request: DaTxRequest) -> Result<Uuid, Self::Error> {
+    async fn send_transaction(
+        &self,
+        tx_request: DaTxRequest,
+    ) -> Result<
+        (
+            Uuid,
+            oneshot::Receiver<Result<Self::TransactionId, Self::Error>>,
+        ),
+        Self::Error,
+    > {
         let blob = match tx_request {
             DaTxRequest::ZKProof(proof) => {
                 tracing::debug!("Adding a zkproof");
@@ -447,15 +456,10 @@ impl DaService for MockDaService {
         };
         let blocks = self.blocks.lock().await;
         let _ = self.add_blob(&blocks, blob, Default::default())?;
-        Ok(Uuid::default())
-    }
+        let (tx, rx) = oneshot::channel();
 
-    async fn wait_for_completion(
-        &self,
-        _job_id: Uuid,
-        _timeout: Option<Duration>,
-    ) -> Result<Self::TransactionId, Self::Error> {
-        Ok(MockHash([0; 32]))
+        let _ = tx.send(Ok(MockHash([0; 32])));
+        Ok((Uuid::default(), rx))
     }
 
     async fn get_fee_rate(&self) -> Result<u128, Self::Error> {
@@ -490,6 +494,13 @@ impl DaService for MockDaService {
             txs_commitment: block.header.txs_commitment.0,
             height: block.header.height,
         }
+    }
+
+    async fn recover_existing_job(
+        &self,
+        _job_id: Uuid,
+    ) -> Result<oneshot::Receiver<Result<Self::TransactionId, Self::Error>>, Self::Error> {
+        unimplemented!()
     }
 }
 

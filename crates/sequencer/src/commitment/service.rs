@@ -221,7 +221,7 @@ where
 
         let tx_request = DaTxRequest::SequencerCommitment(commitment.clone());
 
-        let job_id = self
+        let (_, rx) = self
             .da_service
             .send_transaction(tx_request)
             .await
@@ -235,11 +235,10 @@ where
         let start = Instant::now();
         let ledger_db = self.ledger_db.clone();
 
-        let _txid = self
-            .da_service
-            .wait_for_completion(job_id, None)
+        let _txid = rx
             .await
-            .map_err(|e| anyhow!(e))?;
+            .map_err(|_| anyhow!("DA notification channel closed"))? // Handle RecvError
+            .map_err(|e| anyhow!("DA job failed: {e}"))?;
 
         SM.send_commitment_execution.record(
             Instant::now()
