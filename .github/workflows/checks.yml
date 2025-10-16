@@ -570,7 +570,7 @@ jobs:
         id: restore-test-cache
         uses: actions/cache@v4
         with:
-          path: proving-stats/results/nightly-stats.json
+          path: proving-stats/results/base-stats.json
           key: proving-stats-${{ steps.base-commit.outputs.base-hash }}
 
       # --- Run test only if cache missed ---
@@ -642,7 +642,7 @@ jobs:
         if: steps.restore-test-cache.outputs.cache-hit != 'true'
         run: |
           chmod +x ./.github/scripts/run-proving-test.sh
-          ./.github/scripts/run-proving-test.sh nightly-stats.json
+          ./.github/scripts/run-proving-test.sh base-stats.json
         shell: bash
 
       - name: Compare the results
