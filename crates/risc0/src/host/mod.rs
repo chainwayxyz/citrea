@@ -114,7 +114,9 @@ impl ZkvmHost for Risc0Host {
                     with_prove,
                     "Bonsai prover must always be run with prove set to true"
                 );
-                bonsai.prove(job_id, elf, input, assumptions, receipt_type)
+                bonsai
+                    .prove(job_id, elf, input, assumptions, receipt_type)
+                    .await
             }
             Prover::Boundless(boundless) => {
                 assert!(

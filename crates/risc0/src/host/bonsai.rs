@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use anyhow::{anyhow, Context};
-use bonsai_sdk::blocking::{Client, SessionId, SnarkId};
+use bonsai_sdk::non_blocking::{Client, SessionId, SnarkId};
 use bonsai_sdk::responses::SessionStats;
 use metrics::gauge;
 use risc0_zkvm::{compute_image_id, AssumptionReceipt, Digest, InnerAssumptionReceipt, Receipt};
@@ -34,7 +34,7 @@ impl BonsaiProver {
         Self { client, ledger_db }
     }
 
-    pub fn prove(
+    pub async fn prove(
         &self,
         job_id: Uuid,
         elf: Vec<u8>,
@@ -47,12 +47,14 @@ impl BonsaiProver {
         let image_id_hex = hex::encode(image_id);
         self.client
             .upload_img(&image_id_hex, elf)
+            .await
             .context("Failed to upload img")?;
 
         // Upload input
         let input_id = self
             .client
             .upload_input(input)
+            .await
             .context("Failed to upload input")?;
 
         // Upload assumptions
@@ -63,6 +65,7 @@ impl BonsaiProver {
             let receipt_id = self
                 .client
                 .upload_receipt(serialized_receipt)
+                .await
                 .context("Failed to upload receipt")?;
             receipt_ids.push(receipt_id);
         }
@@ -71,6 +74,7 @@ impl BonsaiProver {
         let session = self
             .client
             .create_session(image_id_hex, input_id, receipt_ids, false)
+            .await
             .context("Failed to create session")?;
         info!(
             "Started bonsai proving session, job_id={} session_id={}",
@@ -163,7 +167,7 @@ impl BonsaiProver {
             return Ok(succinct_receipt);
         }
 
-        let snark_session = self.client.create_snark(session.uuid.clone())?;
+        let snark_session = self.client.create_snark(session.uuid.clone()).await?;
 
         let db_session = BonsaiSession {
             kind: BonsaiSessionKind::SnarkSession(session.uuid, snark_session.uuid.clone()),
@@ -188,7 +192,7 @@ impl BonsaiProver {
     ) -> anyhow::Result<(Receipt, SessionStats)> {
         let polling_interval = Duration::from_secs(1);
         loop {
-            let res = session.status(&self.client)?;
+            let res = session.status(&self.client).await?;
             match res.status.as_str() {
                 "RUNNING" => tokio::time::sleep(polling_interval).await,
                 "SUCCEEDED" => {
@@ -198,6 +202,7 @@ impl BonsaiProver {
                     let receipt_buf = self
                         .client
                         .download(&receipt_url)
+                        .await
                         .context("Failed to download stark receipt")?;
                     let receipt: Receipt = bincode::deserialize(&receipt_buf)
                         .expect("Receipt deserialization cannot fail");
@@ -219,7 +224,7 @@ impl BonsaiProver {
     async fn wait_snark_receipt(&self, session: &SnarkId) -> anyhow::Result<Receipt> {
         let polling_interval = Duration::from_secs(1);
         loop {
-            let res = session.status(&self.client)?;
+            let res = session.status(&self.client).await?;
             match res.status.as_str() {
                 "RUNNING" => tokio::time::sleep(polling_interval).await,
                 "SUCCEEDED" => {
@@ -230,6 +235,7 @@ impl BonsaiProver {
                     let receipt_buf = self
                         .client
                         .download(&receipt_url)
+                        .await
                         .context("Failed to download snark receipt")?;
                     let receipt: Receipt = bincode::deserialize(&receipt_buf)
                         .expect("Receipt deserialization cannot fail");
