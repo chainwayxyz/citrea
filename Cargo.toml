@@ -97,7 +97,7 @@ rlimit = "0.10.2"
 rustc_version_runtime = { version = "0.3.0", default-features = false }
 rs_merkle = "1.4.2"
 reqwest = { version = "0.12.12", features = ["rustls-tls", "json", "http2"], default-features = false }
-rocksdb = { version = "0.24.0", features = ["lz4", "jemalloc"], default-features = false }
+rocksdb = { version = "0.24.0", features = ["lz4", "jemalloc", "bindgen-runtime"], default-features = false }
 serde = { version = "1", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1", default-features = false, features = ["alloc"] }
 sha2 = { version = "0.10.8", default-features = false, features = ["asm"] }
