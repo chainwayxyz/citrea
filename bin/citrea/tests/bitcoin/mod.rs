@@ -11,10 +11,10 @@ pub mod rollback;
 mod utils;
 // pub mod mempool_accept;
 pub mod backup;
-pub mod bitcoin_job;
 pub mod bitcoin_service;
 pub mod bitcoin_test;
 pub mod bitcoin_verifier;
+pub mod da_job;
 #[cfg(feature = "testing")]
 pub mod da_queue;
 pub mod fork;
