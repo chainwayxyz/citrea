@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use sov_db::schema::tables::{
-    CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2RangeByL1Height,
-    SequencerCommitmentByIndex, StateDiffByBlockNumber,
+    CommitmentsByNumber, DaJobById, DaJobProgressById, DaJobStatusIndex, L2BlockByHash,
+    L2BlockByNumber, L2RangeByL1Height, SequencerCommitmentByIndex, StateDiffByBlockNumber,
 };
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_schema_db::{ScanDirection, SchemaBatch, DB};
@@ -112,6 +112,37 @@ impl SequencerLedgerRollback {
         self.ledger_db.write_schemas(batch)?;
         Ok(rollback_result)
     }
+
+    fn rollback_da_jobs(&self, mut rollback_result: RollbackResult) -> Result {
+        let mut batch = SchemaBatch::new();
+
+        // Iterate through all jobs and delete them during rollback
+        let mut jobs_iter = self.ledger_db.iter_with_direction::<DaJobProgressById>(
+            Default::default(),
+            ScanDirection::Backward,
+        )?;
+        jobs_iter.seek_to_last();
+
+        for record in jobs_iter {
+            let record = record?;
+            let job_id = record.key;
+            let progress = record.value;
+            let status_u8 = progress.status.as_u8();
+
+            // Delete from all three tables
+            batch.delete::<DaJobById>(&job_id)?;
+            increment_table_counter!("DaJobById", rollback_result);
+
+            batch.delete::<DaJobProgressById>(&job_id)?;
+            increment_table_counter!("DaJobProgressById", rollback_result);
+
+            batch.delete::<DaJobStatusIndex>(&(status_u8, job_id))?;
+            increment_table_counter!("DaJobStatusIndex", rollback_result);
+        }
+
+        self.ledger_db.write_schemas(batch)?;
+        Ok(rollback_result)
+    }
 }
 
 impl LedgerNodeRollback for SequencerLedgerRollback {
@@ -130,6 +161,9 @@ impl LedgerNodeRollback for SequencerLedgerRollback {
         if let Some(l1_target) = context.l1_target {
             rollback_result = self.rollback_slots(l1_target, rollback_result)?;
         }
+
+        // Rollback DA jobs
+        rollback_result = self.rollback_da_jobs(rollback_result)?;
 
         let _ = self.ledger_db.flush();
 
