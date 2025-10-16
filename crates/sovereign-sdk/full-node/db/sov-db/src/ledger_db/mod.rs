@@ -17,13 +17,13 @@ use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
     CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber,
-    DaJobById, DaJobProgressById, DaJobStatusIndex, ExecutedMigrations, JobIdOfCommitment,
-    L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot, L2RangeByL1Height, L2StatusHeights,
-    LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs, PendingBonsaiSessionByJobId,
-    PendingL1SubmissionJobs, PendingProofs, PendingSequencerCommitments, ProofByJobId,
-    ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
-    ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
-    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    DaJobById, DaJobIdByProvingJobId, DaJobProgressById, DaJobStatusIndex, ExecutedMigrations,
+    JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot, L2RangeByL1Height,
+    L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs,
+    PendingBonsaiSessionByJobId, PendingL1SubmissionJobs, PendingProofs,
+    PendingSequencerCommitments, ProofByJobId, ProverLastScannedSlot, ProverPendingCommitments,
+    ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
+    StateDiffByBlockNumber, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -690,6 +690,22 @@ impl BatchProverLedgerOps for LedgerDB {
         } else {
             JobStatus::Proving
         }
+    }
+
+    fn set_proving_job_da_job_id(
+        &self,
+        proving_job_id: Uuid,
+        da_job_id: Uuid,
+    ) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+
+        schema_batch.put::<DaJobIdByProvingJobId>(&proving_job_id, &da_job_id)?;
+
+        self.db.write_schemas(schema_batch)
+    }
+
+    fn get_proving_job_da_job_id(&self, proving_job_id: Uuid) -> anyhow::Result<Option<Uuid>> {
+        self.db.get::<DaJobIdByProvingJobId>(&proving_job_id)
     }
 }
 

@@ -271,6 +271,12 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
 
     /// Get job status (non-existent job IS RUNNING)
     fn job_status(&self, id: Uuid) -> JobStatus;
+
+    /// Set a da job_id by prover job_id
+    fn set_proving_job_da_job_id(&self, proving_job_id: Uuid, da_job_id: Uuid) -> Result<()>;
+
+    /// Get da job_id by prover job_id
+    fn get_proving_job_da_job_id(&self, proving_job_id: Uuid) -> Result<Option<Uuid>>;
 }
 
 /// Light client prover ledger operations

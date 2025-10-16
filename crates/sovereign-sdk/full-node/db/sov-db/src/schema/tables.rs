@@ -98,6 +98,7 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     CommitmentIndicesByJobId::table_name(),
     CommitmentIndicesByL1::table_name(),
     DaJobById::table_name(),
+    DaJobIdByProvingJobId::table_name(),
     DaJobProgressById::table_name(),
     DaJobStatusIndex::table_name(),
     ExecutedMigrations::table_name(),
@@ -516,6 +517,11 @@ define_table_with_seek_key_codec!(
 define_table_with_seek_key_codec!(
     /// Index by (status, jobid)
     (DaJobStatusIndex) (u8, Uuid) => ()
+);
+
+define_table_with_seek_key_codec!(
+    /// DA job id by proving job id
+    (DaJobIdByProvingJobId) Uuid => Uuid
 );
 
 #[cfg(test)]
