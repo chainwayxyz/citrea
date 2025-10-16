@@ -52,9 +52,8 @@ on:
   merge_group:
     types: ["checks_requested"]
   push:
-    branches: ["nightly", "devnet-freeze", "release-v*"]
+    branches: ["nightly", "release-v*"]
   pull_request:
-    branches: ["nightly", "devnet-freeze", "release-v*", "p2p"]
     types: [opened, synchronize, reopened, ready_for_review]
 
 run-name: ${{ inputs.custom_name || github.event.pull_request.title || github.sha }}
@@ -78,7 +77,6 @@ jobs:
     name: build
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
@@ -118,7 +116,6 @@ jobs:
     name: check
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
@@ -253,7 +250,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 18
       - name: Download artifact
@@ -324,7 +321,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 18
       - name: Download artifact
@@ -354,7 +351,6 @@ jobs:
     name: nextest
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
@@ -420,6 +416,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           cache: false
+          version: "v1.3.6"
 
       - name: Run Forge build
         run: |
@@ -498,7 +495,6 @@ jobs:
   codespell:
     name: codespell
     runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v5
 
@@ -554,7 +550,7 @@ jobs:
         run: |
           curl -L -o archive.zip "https://static.testnet.citrea.xyz/proving-stats-data.zip"
           unzip archive.zip -d proving-stats/
-      - name: Run tests on current branch 
+      - name: Run tests on current branch
         run: |
           chmod +x ./.github/scripts/run-proving-test.sh
           ./.github/scripts/run-proving-test.sh patch-stats.json
@@ -591,11 +587,18 @@ jobs:
           path: target/debug
           if_no_artifact_found: warn
 
-      # --- Build only if the artifact is not found ---
       - name: Checkout nightly branch
-        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        if: steps.restore-nightly.outputs.cache-hit != 'true'
         run: git checkout -f ${{ steps.nightly-commit.outputs.nightly-hash }}
 
+      # install risc0 again as version may differ between branches
+      - name: Install risc0
+        if: steps.restore-nightly.outputs.cache-hit != 'true'
+        uses: ./.github/actions/install-risc0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- Build only if the artifact is not found ---
       - name: Install Rust toolchain
         if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: dtolnay/rust-toolchain@nightly
@@ -614,7 +617,7 @@ jobs:
         if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: ubicloud/rust-cache@v2
         with:
-            shared-key: build  
+            shared-key: build
       - name: Cache ethereum-tests
         if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: actions/cache@v4
@@ -626,7 +629,7 @@ jobs:
         run: make build
 
       - name: Checkout to PR branch
-        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        if: steps.restore-nightly.outputs.cache-hit != 'true'
         run: git checkout ${{ steps.current-commit.outputs.head-hash }}
 
       # Sequencer DB is removed in run-proving-test.sh to avoid state corruption

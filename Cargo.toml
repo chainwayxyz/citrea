@@ -43,7 +43,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.7.4"
+version = "0.7.5"
 edition = "2021"
 license = "GPL-3.0"
 authors = ["Chainway Labs <info@chainway.xyz>"]
@@ -158,9 +158,9 @@ alloy-rpc-types = { version = "0.13", features = ["eth"], default-features = fal
 alloy-rpc-types-eth = { version = "0.13", default-features = false }
 alloy-rpc-types-trace = { version = "0.13", default-features = false }
 alloy-rpc-types-txpool = { version = "0.13", default-features = false }
-alloy-primitives = { version = "0.8.25", default-features = false, features = ["rand", "serde", "tiny-keccak", "k256"] }
+alloy-primitives = { version = "0.8.26", default-features = false, features = ["serde", "tiny-keccak", "k256"] }
 alloy-serde = { version = "0.13", default-features = false }
-alloy-sol-types = { version = "0.8.25", default-features = false, features = ["json"] }
+alloy-sol-types = { version = "0.8.26", default-features = false, features = ["json"] }
 alloy = { version = "0.13", default-features = false }
 alloy-eips = { version = "0.13", default-features = false }
 alloy-consensus = { version = "0.13", default-features = false, features = ["serde", "serde-bincode-compat"] }
@@ -170,7 +170,7 @@ alloy-signer-local = { version = "0.13.0", default-features = false }
 
 yamux = "=0.13.4"
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "24a3ea9" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "31c25bc" }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "a6e011a" }

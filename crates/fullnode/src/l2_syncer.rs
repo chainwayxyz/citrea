@@ -77,7 +77,7 @@ where
 
 impl<DA, DB> L2Syncer<DA, DB>
 where
-    DA: DaService<Error = anyhow::Error>,
+    DA: DaService,
     DB: SharedLedgerOps + Clone + Send + Sync + 'static,
 {
     /// Creates a new L2Syncer instance

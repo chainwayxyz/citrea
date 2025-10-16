@@ -176,9 +176,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-dyn-abi"
-version = "0.8.25"
+version = "0.8.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb8e762aefd39a397ff485bc86df673465c4ad3ec8819cc60833a8a3ba5cdc87"
+checksum = "cf69d3061e2e908a4370bda5d8d6529d5080232776975489eec0b49ce971027e"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
@@ -300,9 +300,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-json-abi"
-version = "0.8.25"
+version = "0.8.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe6beff64ad0aa6ad1019a3db26fef565aefeb011736150ab73ed3366c3cfd1b"
+checksum = "4584e3641181ff073e9d5bec5b3b8f78f9749d9fb108a1cfbc4399a4a139c72a"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-type-parser",
@@ -365,9 +365,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-primitives"
-version = "0.8.25"
+version = "0.8.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c77490fe91a0ce933a1f219029521f20fc28c2c0ca95d53fa4da9c00b8d9d4e"
+checksum = "777d58b30eb9a4db0e5f59bc30e8c2caef877fee7dc8734cf242a51a60f22e05"
 dependencies = [
  "alloy-rlp",
  "bytes",
@@ -375,7 +375,7 @@ dependencies = [
  "const-hex",
  "derive_more 2.0.1",
  "foldhash",
- "getrandom 0.2.15",
+ "getrandom 0.3.2",
  "hashbrown 0.15.2",
  "indexmap 2.7.1",
  "itoa",
@@ -677,9 +677,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-macro"
-version = "0.8.25"
+version = "0.8.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e10ae8e9a91d328ae954c22542415303919aabe976fe7a92eb06db1b68fd59f2"
+checksum = "e68b32b6fa0d09bb74b4cefe35ccc8269d711c26629bc7cd98a47eeb12fe353f"
 dependencies = [
  "alloy-sol-macro-expander",
  "alloy-sol-macro-input",
@@ -691,9 +691,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-macro-expander"
-version = "0.8.25"
+version = "0.8.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83ad5da86c127751bc607c174d6c9fe9b85ef0889a9ca0c641735d77d4f98f26"
+checksum = "2afe6879ac373e58fd53581636f2cce843998ae0b058ebe1e4f649195e2bd23c"
 dependencies = [
  "alloy-json-abi",
  "alloy-sol-macro-input",
@@ -710,9 +710,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-macro-input"
-version = "0.8.25"
+version = "0.8.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba3d30f0d3f9ba3b7686f3ff1de9ee312647aac705604417a2f40c604f409a9e"
+checksum = "c3ba01aee235a8c699d07e5be97ba215607564e71be72f433665329bec307d28"
 dependencies = [
  "alloy-json-abi",
  "const-hex",
@@ -728,9 +728,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-type-parser"
-version = "0.8.25"
+version = "0.8.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d162f8524adfdfb0e4bd0505c734c985f3e2474eb022af32eef0d52a4f3935c"
+checksum = "4c13fc168b97411e04465f03e632f31ef94cad1c7c8951bf799237fd7870d535"
 dependencies = [
  "serde",
  "winnow",
@@ -738,9 +738,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-types"
-version = "0.8.25"
+version = "0.8.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d43d5e60466a440230c07761aa67671d4719d46f43be8ea6e7ed334d8db4a9ab"
+checksum = "6e960c4b52508ef2ae1e37cae5058e905e9ae099b107900067a503f8c454036f"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
@@ -1667,7 +1667,7 @@ dependencies = [
 
 [[package]]
 name = "bitcoin-da"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2349,7 +2349,7 @@ dependencies = [
 
 [[package]]
 name = "citrea"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy",
  "alloy-primitives",
@@ -2433,7 +2433,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-batch-prover"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -2481,7 +2481,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-cli"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "citrea-common",
@@ -2496,7 +2496,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-common"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -2541,7 +2541,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=24a3ea9#24a3ea9e0e150d9ad1dae2021a0ba1078411583d"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=31c25bc#31c25bcb06eaea7c83ddf80c0daf901bfb512fdd"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -2565,7 +2565,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-evm"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy",
  "alloy-consensus",
@@ -2626,7 +2626,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-fullnode"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -2661,7 +2661,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-light-client-prover"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -2712,7 +2712,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-eips",
  "brotli",
@@ -2723,7 +2723,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-adapter"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "bincode",
@@ -2745,21 +2745,21 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-batch-proof"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "risc0-build",
 ]
 
 [[package]]
 name = "citrea-risc0-light-client"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "risc0-build",
 ]
 
 [[package]]
 name = "citrea-sequencer"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-eips",
  "alloy-genesis",
@@ -2818,7 +2818,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-stf"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2848,7 +2848,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-storage-ops"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "citrea-common",
@@ -2947,7 +2947,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
 dependencies = [
  "lazy_static",
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -3849,7 +3849,7 @@ dependencies = [
 
 [[package]]
 name = "ethereum-rpc"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-consensus",
  "alloy-network",
@@ -5234,7 +5234,7 @@ dependencies = [
 
 [[package]]
 name = "integration-tests"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "borsh",
@@ -5653,7 +5653,7 @@ dependencies = [
 
 [[package]]
 name = "l2-block-rule-enforcer"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "borsh",
  "chrono",
@@ -5735,7 +5735,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -7519,7 +7519,7 @@ dependencies = [
 
 [[package]]
 name = "prover-services"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10572,7 +10572,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "short-header-proof-provider"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "borsh",
  "futures",
@@ -10697,7 +10697,7 @@ dependencies = [
 
 [[package]]
 name = "sov-accounts"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "borsh",
  "hex",
@@ -10717,7 +10717,7 @@ dependencies = [
 
 [[package]]
 name = "sov-db"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -10740,7 +10740,7 @@ dependencies = [
 
 [[package]]
 name = "sov-keys"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "borsh",
  "derive_more 1.0.0",
@@ -10757,7 +10757,7 @@ dependencies = [
 
 [[package]]
 name = "sov-ledger-rpc"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -10773,7 +10773,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-da"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10792,7 +10792,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-zkvm"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "borsh",
@@ -10804,7 +10804,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -10835,7 +10835,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -10861,7 +10861,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-macros"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "borsh",
  "jsonrpsee",
@@ -10879,7 +10879,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-rollup-blueprint"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10901,7 +10901,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "borsh",
@@ -10921,7 +10921,7 @@ dependencies = [
 
 [[package]]
 name = "sov-prover-storage-manager"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -10935,7 +10935,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -10959,7 +10959,7 @@ dependencies = [
 
 [[package]]
 name = "sov-schema-db"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -10975,7 +10975,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -11154,9 +11154,9 @@ dependencies = [
 
 [[package]]
 name = "syn-solidity"
-version = "0.8.25"
+version = "0.8.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4560533fbd6914b94a8fb5cc803ed6801c3455668db3b810702c57612bac9412"
+checksum = "ab4e6eed052a117409a1a744c8bda9c3ea6934597cf7419f791cb7d590871c4c"
 dependencies = [
  "paste",
  "proc-macro2",
@@ -12195,7 +12195,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

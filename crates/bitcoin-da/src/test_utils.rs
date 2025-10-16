@@ -1,6 +1,5 @@
 //! This module provides the implementation for sending separate chunk transactions with a specified fee rate.
 
-use anyhow::Context;
 use bitcoin::hashes::Hash;
 use sov_rollup_interface::da::{DaTxRequest, DataOnDa};
 
@@ -50,7 +49,7 @@ impl BitcoinService {
                             let address = utxos[0]
                                 .address
                                 .clone()
-                                .context("Missing address")?
+                                .expect("Missing address")
                                 .require_network(network)?;
 
                             let da_txs = test_create_single_chunk(
@@ -63,7 +62,8 @@ impl BitcoinService {
                                 fee_sat_per_vbyte,
                                 network,
                                 &reveal_light_client_prefix,
-                            )?;
+                            )
+                            .unwrap();
 
                             let (txid, wtxid) =
                                 if let DaTxs::Complete { ref reveal, .. } = da_txs {
@@ -103,7 +103,7 @@ impl BitcoinService {
                         let address = utxos[0]
                             .address
                             .clone()
-                            .context("Missing address")?
+                            .expect("Missing address")
                             .require_network(network)?;
 
                         let da_txs = test_create_single_aggregate(
@@ -116,7 +116,8 @@ impl BitcoinService {
                             fee_sat_per_vbyte,
                             prev_utxo,
                             &self.reveal_tx_prefix,
-                        )?;
+                        )
+                        .unwrap();
 
                         let signed_txs = self.tx_signer.sign_da_txs(da_txs).await?;
 

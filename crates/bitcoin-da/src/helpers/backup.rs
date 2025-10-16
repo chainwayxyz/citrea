@@ -6,6 +6,7 @@ use std::path::Path;
 
 use bitcoin::{consensus, Transaction};
 
+use crate::error::BitcoinServiceError;
 use crate::helpers::TransactionKind;
 use crate::tx_signer::SignedTxPair;
 
@@ -21,27 +22,34 @@ fn transaction_kind_to_backup_name(kind: &TransactionKind) -> &str {
 }
 
 /// Save DaTxs on disk.
-pub(crate) fn backup_txs_to_file(path: &Path, txs: &[SignedTxPair]) -> anyhow::Result<()> {
+pub(crate) fn backup_txs_to_file(
+    path: &Path,
+    txs: &[SignedTxPair],
+) -> Result<(), BitcoinServiceError> {
     if let Some(tx) = txs.first() {
         match &tx.kind {
             TransactionKind::Complete
             | TransactionKind::BatchProofMethodId
             | TransactionKind::SequencerCommitment => {
                 if txs.len() != 1 {
-                    return Err(anyhow::anyhow!(
+                    return Err(BitcoinServiceError::TransactionBackupError(format!(
                         "Expected exactly 2 transactions for {:?}, got {}",
                         tx.kind,
                         txs.len()
-                    ));
+                    )));
                 }
 
                 backup_complete_txs(
                     path,
                     &tx.as_raw_txs(),
                     transaction_kind_to_backup_name(&tx.kind),
-                )?
+                )
+                .map_err(|e| BitcoinServiceError::TransactionBackupError(e.to_string()))?
             }
-            TransactionKind::Aggregate | TransactionKind::Chunks => backup_chunked_txs(path, txs)?,
+            TransactionKind::Aggregate | TransactionKind::Chunks => {
+                backup_chunked_txs(path, txs)
+                    .map_err(|e| BitcoinServiceError::TransactionBackupError(e.to_string()))?
+            }
             TransactionKind::Unknown(_) => unimplemented!(),
         }
     }

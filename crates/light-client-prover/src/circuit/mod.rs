@@ -25,6 +25,12 @@ use sov_rollup_interface::Network;
 
 use crate::circuit::method_id_verifier::verify_method_id_security_council;
 
+/// Size of a compressed public key in bytes.
+pub const SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE: usize = 33;
+
+/// Total number of security council members.
+pub const SECURITY_COUNCIL_MEMBER_COUNT: usize = 5;
+
 /// Accessor (helpers) that are used inside the light client proof circuit.
 /// To access certain information that was saved to its state at one point.
 pub(crate) mod accessors;
@@ -363,8 +369,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// * `method_id_upgrade_authority_da_public_key` - The public key of the method ID upgrade authority to check the sender of the batch proof method ID transactions.
     ///
     /// # Logic
-    /// - The block hash of the header is inserted into the JMT.  
-    /// - The last sequencer commitment index, last L2 height, and L2 state root are retrieved from the previous light client proof.  
+    /// - The block hash of the header is inserted into the JMT.
+    /// - The last sequencer commitment index, last L2 height, and L2 state root are retrieved from the previous light client proof.
     /// - If no previous proof exists, (0, 0, genesis root) is used as the starting point, and the initial method IDs are set.
     /// - Relevant transactions are processed:
     ///    - Complete proofs are decompressed, and processed with the `process_complete_proof` method.
@@ -387,7 +393,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
-        method_id_upgrade_authority_da_public_keys: &[[u8; 33]; 5],
+        method_id_upgrade_authority_da_public_keys: &[[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
+             SECURITY_COUNCIL_MEMBER_COUNT],
     ) -> RunL1BlockResult<S> {
         let mut working_set =
             WorkingSet::with_witness(storage.clone(), witness, Default::default());
@@ -509,7 +516,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         &mut working_set,
                     ) {
                         Ok(()) => {}
-                        // proof resulting from chunk concatanation is not valid
+                        // proof resulting from chunk concatenation is not valid
                         // either due to ZK proof being invalid
                         // a deserialization error
                         // or the resulting output was ZK-valid but included an L1 hash
@@ -529,24 +536,33 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         .expect("Should be at least one")
                         .0;
 
-                    if batch_proof_method_id.body.activation_l2_height > last_activation_height {
-                        // Verify the signatures only if the activation height is greater than the last one
-                        // This prevents replay attacks of old method IDs
-                        if !verify_method_id_security_council(
-                            *method_id_upgrade_authority_da_public_keys,
-                            batch_proof_method_id.body.serialize().as_slice(),
-                            batch_proof_method_id.signatures_with_index(),
-                        ) {
-                            log!("Method ID security council verification failed");
-                            continue;
-                        }
-
-                        BatchProofMethodIdAccessor::<S>::insert(
-                            batch_proof_method_id.body.activation_l2_height,
-                            batch_proof_method_id.body.method_id,
-                            &mut working_set,
-                        );
+                    if batch_proof_method_id.body.activation_l2_height <= last_activation_height {
+                        log!("Batch proof method id activation height is not greater than the last one");
+                        continue;
                     }
+
+                    let circuit_chain_id = citrea_network_to_chain_id(network);
+                    if circuit_chain_id != batch_proof_method_id.body.chain_id {
+                        log!("Method ID upgrade transactions chain ID does not match circuit chain ID");
+                        continue;
+                    }
+
+                    // Verify the signatures only if the activation height is greater than the last one
+                    // This prevents replay attacks of old method IDs
+                    if !verify_method_id_security_council(
+                        *method_id_upgrade_authority_da_public_keys,
+                        batch_proof_method_id.body.serialize().as_slice(),
+                        batch_proof_method_id.signatures_with_index(),
+                    ) {
+                        log!("Method ID security council verification failed");
+                        continue;
+                    }
+
+                    BatchProofMethodIdAccessor::<S>::insert(
+                        batch_proof_method_id.body.activation_l2_height,
+                        batch_proof_method_id.body.method_id,
+                        &mut working_set,
+                    );
                 }
                 DataOnDa::SequencerCommitment(commitment) => {
                     log!("Found sequencer commitment with index {}", commitment.index);
@@ -637,10 +653,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// * `method_id_upgrade_authority_da_public_key` - The public key of the method ID upgrade authority
     ///
     /// # Logic
-    /// 1. Verifies the previous light client proof and extracts its output.  
+    /// 1. Verifies the previous light client proof and extracts its output.
     /// 2. Uses `DaVerifier::verify_header_chain` to check if the new block header is valid under the Bitcoin consensus rules (including proof-of-work)
     ///    and follows the latest DA block from the previous light client proof. If there is no previous light client proof,
-    ///    a predefined constant initial network state is used.  
+    ///    a predefined constant initial network state is used.
     /// 3. Uses `DaVerifier::verify_transactions` to validate the inclusion and completeness proofs against the block header and retrieve the relevant transactions from the DA block.
     ///    This guarantees that all relevant transactions in the DA block will be processed.
     /// 4. Calls `run_l1_block` to process the DA transactions, and verifying the updates to the L2 state and the JMT state.
@@ -660,7 +676,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
-        method_id_upgrade_authority_da_public_keys: &[[u8; 33]; 5],
+        method_id_upgrade_authority_da_public_keys: &[[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
+             SECURITY_COUNCIL_MEMBER_COUNT],
     ) -> Result<LightClientCircuitOutput, LightClientVerificationError<DaV>>
     where
         DaV: DaVerifier<Spec = DS>,
@@ -735,5 +752,21 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 impl<S: Storage, DS: DaSpec, Z: Zkvm> Default for LightClientProofCircuit<S, DS, Z> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// These are chain ids for the citrea networks
+/// This function is mainly used to check the chain id of the
+/// method id upgrade transactions and to prevent cross network replay attacks
+/// The method id upgrade identifiers are not strictly tied to chain ids
+/// but for simplicity we use the same values
+pub fn citrea_network_to_chain_id(network: sov_rollup_interface::Network) -> u64 {
+    match network {
+        // TODO: Change when decided
+        sov_rollup_interface::Network::Mainnet => 1,
+        sov_rollup_interface::Network::Testnet => 5115,
+        sov_rollup_interface::Network::Devnet => 62298,
+        sov_rollup_interface::Network::Nightly => 5665,
+        sov_rollup_interface::Network::TestNetworkWithForks => 5665,
     }
 }

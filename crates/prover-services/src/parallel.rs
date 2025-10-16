@@ -261,7 +261,7 @@ where
         }
         ProofGenMode::ProveWithSamplingWithFakeProofs(proof_sampling) => {
             // `make_proof` is called unconditionally in this case.
-            // When it's called, we have to calculate the probabiliry for a proof
+            // When it's called, we have to calculate the probability for a proof
             //  and produce a real proof if we are lucky. If unlucky - produce a fake proof.
             proof_sampling == 0 || rand::thread_rng().gen_range(0..proof_sampling) == 0
         }

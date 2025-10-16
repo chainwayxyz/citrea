@@ -51,7 +51,7 @@ Linux: https://github.com/bitcoin/bitcoin/blob/v28.0/doc/build-unix.md
 After the setup, execute these commands to run a Bitcoin testnet4 node:
 
 ```sh
-bitcoind -testnet4 -daemon -txindex=1 -rpcbind=0.0.0.0 -rpcport=18443 -rpcuser=citrea -rpcpassword=citrea 
+bitcoind -testnet4 -daemon -txindex=1 -rpcbind=0.0.0.0 -rpcport=18443 -rpcuser=citrea -rpcpassword=citrea
 ```
 
 You can edit RPC parameters as you wish, but you also have to edit `rollup_config.toml`
@@ -92,11 +92,11 @@ You can edit RPC parameters as you wish, but you have to also edit `rollup_confi
 
 ## Citrea Full Node Setup
 
-There is three different ways to run a Citra full node: using a [pre-built binary](#option-1-using-pre-built-binary), [building from source](#option-2-build-from-source) and [using docker](#option-3-using-docker).
+There are three different ways to run a Citrea full node: using a [pre-built binary](#option-1-using-pre-built-binary), [building from source](#option-2-build-from-source) and [using docker](#option-3-using-docker).
 
 ### Option 1: Using pre-built binary
 
-Before continueuing we suggest creating a `citrea/` directory and executing these commands in that directory.
+Before continuing we suggest creating a `citrea/` directory and executing these commands in that directory.
 
 #### Step 1.1: Download necessary files
 
@@ -117,7 +117,7 @@ Finally run this command to run your Citrea full node:
 
 Mac:
 ```sh
-./citrea-v0.7.4-osx-arm64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+./citrea-v0.7.5-osx-arm64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 or if you wish to use environment variables for configuring your node:
@@ -146,12 +146,12 @@ INCLUDE_TX_BODY=false \
 SYNC_BLOCKS_COUNT=10 \
 RUST_LOG=info \
 JSON_LOGS=1 \
-./citrea-v0.7.4-osx-arm64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
+./citrea-v0.7.5-osx-arm64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
 ```
 
 Linux:
 ```sh
-./citrea-v0.7.4-linux-amd64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+./citrea-v0.7.5-linux-amd64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 or if you wish to use environment variables for configuring your node:
@@ -181,7 +181,7 @@ INCLUDE_TX_BODY=false \
 SYNC_BLOCKS_COUNT=10 \
 RUST_LOG=info \
 JSON_LOGS=1 \
-./citrea-v0.7.4-linux-amd64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
+./citrea-v0.7.5-linux-amd64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
 ```
 
 Your full node should be serving RPC at `http://0.0.0.0:8080` now.
@@ -212,7 +212,7 @@ Compile Citrea by running command:
 SKIP_GUEST_BUILD=1 cargo build --release
 ```
 
-Citrea ZK proof circuits are read from `resuources/guests`. Rebuilding the circuits are unnecessary if you only wish to run a testnet node, that's why build is made with `SKIP_GUEST_BUILD=1`.
+Citrea ZK proof circuits are read from `resources/guests`. Rebuilding the circuits are unnecessary if you only wish to run a testnet node, that's why build is made with `SKIP_GUEST_BUILD=1`.
 
 #### Step 2.4: Run Citrea
 

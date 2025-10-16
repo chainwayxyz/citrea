@@ -14,6 +14,7 @@ use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_ligh
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig, NodeType};
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::StartVariant;
+use citrea_risc0_adapter::is_dev_mode_enabled_via_environment;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use clap::Parser;
@@ -70,6 +71,11 @@ async fn main() -> anyhow::Result<()> {
     }
 
     info!("Starting node on {network}");
+
+    // Prevent dev mode on mainnet
+    if network == Network::Mainnet && is_dev_mode_enabled_via_environment() {
+        panic!("RISC0_DEV_MODE is enabled but network is set to Mainnet. Dev mode SHOULD NOT be used on mainnet.");
+    }
 
     match args.da_layer {
         SupportedDaLayer::Mock => {

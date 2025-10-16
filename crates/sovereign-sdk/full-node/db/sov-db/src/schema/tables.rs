@@ -474,7 +474,7 @@ define_table_with_seek_key_codec!(
 );
 
 define_table_with_default_codec!(
-    /// Stores merkle hash of seuencer commitment => l2 range
+    /// Stores merkle hash of sequencer commitment => l2 range
     (CommitmentMerkleRoots) [u8; 32] => L2HeightRange
 );
 
