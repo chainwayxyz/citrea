@@ -415,6 +415,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           cache: false
+          version: "v1.3.6"
 
       - name: Run Forge build
         run: |
