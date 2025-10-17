@@ -180,10 +180,20 @@ pub mod bitcoinda {
 
     /// Initial batch proof method IDs for the Bitcoin DA on Devnet.
     pub const DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> =
-        NonEmptySlice::new(&[(
-            0,
-            decode_to_u32_array("1c13e18cd83c22eba3f620e8619af49363b240de764f37501fac5d65047146ca"),
-        )]);
+        NonEmptySlice::new(&[
+            (
+                0,
+                decode_to_u32_array(
+                    "1c13e18cd83c22eba3f620e8619af49363b240de764f37501fac5d65047146ca",
+                ),
+            ),
+            (
+                8063000,
+                decode_to_u32_array(
+                    "4fd55fa2b30e2886367a55800aa8b69341eb6d4e02dbfce945fe468f579522d7",
+                ),
+            ),
+        ]);
 
     /// Initial batch proof method IDs for the Bitcoin DA on Nightly.
     /// This method ID is set at compile time via the `BATCH_PROOF_METHOD_ID` environment variable.
