@@ -565,6 +565,7 @@ jobs:
             BASE_REF="${{ github.event.pull_request.base.ref }}"
             git fetch origin $BASE_REF
             echo "base-hash=$(git rev-parse origin/$BASE_REF)" >> $GITHUB_OUTPUT
+            echo "base-ref=$BASE_REF" >> $GITHUB_OUTPUT
 
       - name: Restore base branch test cache
         id: restore-test-cache
@@ -576,12 +577,12 @@ jobs:
       # --- Run test only if cache missed ---
       - name: Download base build artifact
         id: download-artifact
-        if: steps.restore-test-cache.outputs.cache-hit != 'true'
+      # if steps.restore-test-cache.outputs.cache-hit != 'true'
         continue-on-error: true
         uses: dawidd6/action-download-artifact@v11
         with:
           name: citrea-build
-          ref: ${{ steps.base-commit.outputs.base-hash }}
+          ref: ${{ steps.base-commit.outputs.base-ref }}
           path: target/debug
           if_no_artifact_found: warn
 
