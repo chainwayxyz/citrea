@@ -13,6 +13,9 @@ use uuid::Uuid;
 use crate::metrics::PARALLEL_PROVER_METRICS;
 use crate::{ProofData, ProofGenMode, ProofWithDuration};
 
+type DaJobWaiter<Da> =
+    oneshot::Receiver<Result<<Da as DaService>::TransactionId, <Da as DaService>::Error>>;
+
 /// Prover service capable of invoking the zkVM proving sessions in parallel.
 pub struct ParallelProverService<Da, Vm>
 where
@@ -204,13 +207,7 @@ where
 
     /// Submits the zk proof to the DA service, returning transaction id.
     #[instrument(name = "ParallelProverService", skip_all)]
-    pub async fn submit_proof(
-        &self,
-        proof: Proof,
-    ) -> anyhow::Result<(
-        Uuid,
-        oneshot::Receiver<Result<<Da as DaService>::TransactionId, <Da as DaService>::Error>>,
-    )> {
+    pub async fn submit_proof(&self, proof: Proof) -> anyhow::Result<(Uuid, DaJobWaiter<Da>)> {
         let tx_request = DaTxRequest::ZKProof(proof);
         info!("Submitting proof to DA service");
         self.da_service
@@ -239,10 +236,7 @@ where
     pub async fn wait_for_existing_da_job(
         &self,
         da_job_id: Uuid,
-    ) -> Result<
-        oneshot::Receiver<Result<<Da as DaService>::TransactionId, <Da as DaService>::Error>>,
-        <Da as DaService>::Error,
-    > {
+    ) -> Result<DaJobWaiter<Da>, <Da as DaService>::Error> {
         self.da_service.recover_existing_job(da_job_id).await
     }
 }

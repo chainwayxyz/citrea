@@ -19,6 +19,8 @@ use crate::job::metrics::DA_JOB_METRICS as JM;
 use crate::job::rpc::{DaJobRpcProvider, JobListFilter};
 use crate::service::TxidWrapper;
 
+type JobWaiters =
+    HashMap<JobId, oneshot::Sender<std::result::Result<TxidWrapper, BitcoinServiceError>>>;
 /// Tracks progress of a job including sent transactions for recovery.
 ///
 /// This state is persisted to the database and updated as transactions
@@ -168,11 +170,7 @@ impl From<JobProgress> for DbJobProgress {
 /// Job service
 pub struct DaJobService<DB: DaLedgerOps> {
     ledger_db: DB,
-    job_waiters: Arc<
-        Mutex<
-            HashMap<JobId, oneshot::Sender<std::result::Result<TxidWrapper, BitcoinServiceError>>>,
-        >,
-    >,
+    job_waiters: Arc<Mutex<JobWaiters>>,
 }
 
 impl<DB: DaLedgerOps> DaJobService<DB> {

@@ -432,7 +432,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
             da.wait_mempool_len(8 * i, None).await?;
         }
 
-        let (job_id, rx) = da_service
+        da_service
             .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
             .await?;
 
