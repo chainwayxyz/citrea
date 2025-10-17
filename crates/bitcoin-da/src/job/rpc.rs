@@ -1,5 +1,5 @@
 //! Provides the RPC interface for the bitcoin-da job da.
-//! The namespace for these RPC methods is "da" (Data Availability).
+//! The namespace for these RPC methods is `daJob`
 //! This module defines methods to interact with bitcoin-da jobs,
 //! including cancelling, retrying and listing jobs.
 

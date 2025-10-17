@@ -8,7 +8,6 @@ use crate::job::error::JobServiceError;
 
 /// Job related error types
 pub mod error;
-/// TODO: RPC API
 pub mod rpc;
 /// Core job queue implementation and state management
 pub mod service;
