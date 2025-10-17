@@ -552,7 +552,7 @@ jobs:
           chmod +x ./.github/scripts/run-proving-test.sh
           ./.github/scripts/run-proving-test.sh patch-stats.json
         shell: bash
-      # Run / recover tests on the base branch
+      # Run/recover tests on the base branch
       - name: Get current commit hash
         id: current-commit
         run: |
