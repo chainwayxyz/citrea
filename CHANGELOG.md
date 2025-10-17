@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.7.5 (2025-10-02)
+## v0.8.0-rc.1 (2025-10-02)
 - New config `RPC_ENABLE_JS_TRACER` to enable/disable `JsTracer` for EVM trace RPCs. (Default true).
 - Better mempool handling in the sequencer.
 - `eth_getBlockByNumber` now supports `pending` block tag.
