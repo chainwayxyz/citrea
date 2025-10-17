@@ -744,7 +744,7 @@ where
                         .await
                         .expect("Failed to submit proof");
 
-                    info!("Job {provig_job_id} proof submitted to DA. Da job id {da_job_id}");
+                    info!("Job {proving_job_id} proof submitted to DA. Da job id {da_job_id}");
 
                     ledger_db
                         .set_proving_job_da_job_id(proving_job_id, da_job_id)
