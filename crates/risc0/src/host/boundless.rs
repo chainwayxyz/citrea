@@ -12,7 +12,6 @@ use boundless_market::contracts::{Offer, Predicate, Requirements};
 use boundless_market::request_builder::{RequestParams, RequirementParams};
 use boundless_market::storage::{PinataStorageProvider, S3StorageProvider};
 use boundless_market::{GuestEnv, StandardStorageProvider};
-use citrea_common::utils::read_env;
 use metrics::gauge;
 use risc0_zkvm::sha::Digestible;
 use risc0_zkvm::{
@@ -57,6 +56,7 @@ pub struct BoundlessProver {
     pub client: Client,
     pub ledger_db: LedgerDB,
     pub pricing_service: PricingService,
+    config: BoundlessProverConfig,
 }
 
 impl BoundlessProver {
@@ -73,6 +73,7 @@ impl BoundlessProver {
             client,
             ledger_db,
             pricing_service: PricingService::new(),
+            config: prover_config,
         }
     }
 
@@ -132,10 +133,13 @@ impl BoundlessProver {
             "Currently, only Groth16 receipts are supported for boundless"
         );
 
-        // TODO: Can be done better?
-        let s3_url = read_env("BOUNDLESS_S3_URL")?;
+        let BoundlessStorageConfig::S3(s3_config) = &self.config.storage else {
+            anyhow::bail!("Boundless prover only supports s3 provider for now");
+        };
 
-        let s3_use_presigned = read_env("BOUNDLESS_S3_NO_PRESIGNED").is_err();
+        let s3_url = s3_config.s3_url.clone();
+
+        let s3_use_presigned = s3_config.s3_use_presigned;
 
         // Upload the program(elf) to the boundless storage provider
         let mut image_url = self.client.upload_program(&elf).await?;
