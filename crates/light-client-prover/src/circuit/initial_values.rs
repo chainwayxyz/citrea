@@ -434,7 +434,7 @@ pub mod bitcoinda {
         SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
         SECURITY_COUNCIL_MEMBER_COUNT] = [
         match const_hex::const_decode_to_array(
-            b"03fd24a8555cd34585b80c826f25f7df42862a4f97b6bdaf263a3d1bb368f09790",
+            b"038bd8c3227297d59b6b64dd41c38b9d3b72202d7ecb87f65de99d397d76872cbd",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -442,7 +442,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"02a23601cb326cc09f9de3f542b4d8f49216ddf273cfe7e40f50f531a32fc2e78d",
+            b"0266be33af7844b1d9b0732fe1ae4c1a1dd5fd21c8901e015cee87076cf6cafcc6",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -450,7 +450,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"033398b6e26dfa0af531bdab96ee926c10b934ea32b38910ba8d444f5f840efd2d",
+            b"02f3ee46b8e82c526a3c9b5db63a5220decdbd6289f7a31c1ce73bd8683abae272",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -458,7 +458,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"02666dba8e07a8bd4aeb4d2b3b6cda814f8b814e7052ac97a928b01a41a80adea4",
+            b"027b89f75fd042874b8ee9fa3d6429c3d7b71c2d5de953800df1c0169156f1cea7",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -466,7 +466,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"03f42d911bb7d9910b026621d20c133b1b193004f043797e472bb2c821e5703716",
+            b"03a955c047a3fefdcd0548d91ed83e865436fbfa19138179af0cf1db83c694a0e1",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
