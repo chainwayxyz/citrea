@@ -53,8 +53,7 @@ where
             }
             return fib(n - 1) + fib(n - 2);
         }
-        println!("{}", fib(42)); // to burn some cycles
-
+        println!("{}", fib(30)); // to burn some cycles
 
         println!("Running sequencer commitments in DA slot");
 
