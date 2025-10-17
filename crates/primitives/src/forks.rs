@@ -61,7 +61,10 @@ pub const TESTNET_FORKS: [Fork; 3] = [
     Fork::new(SpecId::Tangerine, 9057000), // will be reached Apr 18 2025 6.30 AM
 ];
 
-pub const DEVNET_FORKS: [Fork; 1] = [Fork::new(SpecId::Tangerine, 0)];
+pub const DEVNET_FORKS: [Fork; 2] = [
+    Fork::new(SpecId::Tangerine, 0),
+    Fork::new(SpecId::Fork3, 8063000), // will be reached Oct 18 2025 ~12 PM
+];
 
 pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::latest(), 0)];
 
