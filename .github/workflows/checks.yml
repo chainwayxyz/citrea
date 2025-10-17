@@ -585,6 +585,7 @@ jobs:
           ref: ${{ steps.base-commit.outputs.base-ref }}
           path: target/debug
           if_no_artifact_found: warn
+          workflow_conclusion: ""
 
       - name: Checkout to base branch
         if: steps.restore-test-cache.outputs.cache-hit != 'true'
