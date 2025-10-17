@@ -4,6 +4,7 @@ use std::time::Duration;
 use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
+use bitcoin_da::job::rpc::RetryJobResponse;
 use bitcoin_da::job::rpc::{DaJobRpcClient, JobInfoResponse, JobStatusFilter};
 use bitcoin_da::job::service::JobStatus;
 use bitcoin_da::service::BitcoinService;
@@ -154,40 +155,36 @@ impl JobServiceTest {
         let res = rx.await.unwrap();
         assert!(res.is_err());
 
-        // // TODO find a way to deterministically wait for retry
+        let retry_job_response: RetryJobResponse = da_service_client.da_job_retry(job_id).await?;
 
-        // let retry_job_response: RetryJobResponse = da_service_client.da_job_retry(job_id).await?;
+        let old_job_by_id: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
+        assert_eq!(old_job_by_id.status, JobStatus::Cancelled);
 
-        // let old_job_by_id: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
-        // assert_eq!(old_job_by_id.status, JobStatus::Cancelled);
+        let new_job_by_id: JobInfoResponse = da_service_client
+            .da_job_get_info(retry_job_response.new_job_id)
+            .await?;
+        assert_eq!(new_job_by_id.status, JobStatus::Pending);
+        da.generate(1).await?;
 
-        // let new_job_by_id: JobInfoResponse = da_service_client
-        //     .da_job_get_info(retry_job_response.new_job_id)
-        //     .await?;
-        // assert_eq!(new_job_by_id.status, JobStatus::Pending);
-        // da.generate(1).await?;
+        // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
+        // The three first proofs should hit the mempool + 1 chunk
+        da.wait_mempool_len(18, None).await?;
 
-        // // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
-        // // The three first proofs should hit the mempool + 1 chunk
-        // da.wait_mempool_len(18, None).await?;
+        assert_eq!(da.get_raw_mempool().await?.len(), 18);
 
-        // assert_eq!(da.get_raw_mempool().await?.len(), 18);
+        let new_job_by_id: JobInfoResponse = da_service_client
+            .da_job_get_info(retry_job_response.new_job_id)
+            .await?;
+        assert_eq!(new_job_by_id.status, JobStatus::InProgress);
+        da.generate(1).await?;
 
-        // let new_job_by_id: JobInfoResponse = da_service_client
-        //     .da_job_get_info(retry_job_response.new_job_id)
-        //     .await?;
-        // assert_eq!(new_job_by_id.status, JobStatus::InProgress);
-        // da.generate(1).await?;
+        // TODO find a way to deterministically wait for retry completion
+        tokio::time::sleep(Duration::from_secs(3)).await;
 
-        // let res = da_service
-        //     .wait_for_completion(retry_job_response.new_job_id, None)
-        //     .await;
-        // assert!(res.is_ok());
-
-        // let new_job_by_id: JobInfoResponse = da_service_client
-        //     .da_job_get_info(retry_job_response.new_job_id)
-        //     .await?;
-        // assert_eq!(new_job_by_id.status, JobStatus::Completed);
+        let new_job_by_id: JobInfoResponse = da_service_client
+            .da_job_get_info(retry_job_response.new_job_id)
+            .await?;
+        assert_eq!(new_job_by_id.status, JobStatus::Completed);
 
         Ok(())
     }
@@ -285,7 +282,7 @@ impl JobServiceTest {
         let completed_jobs = da_service_client
             .da_job_list(Some(JobStatusFilter::Completed), None, None)
             .await?;
-        assert_eq!(completed_jobs.len(), 2);
+        assert_eq!(completed_jobs.len(), 3);
 
         Ok(())
     }
@@ -334,54 +331,50 @@ impl JobServiceTest {
         assert_eq!(active_jobs_before.len(), 1);
         assert_eq!(active_jobs_before[0].job_id, job_id);
 
-        // TODO handle proper recovery
+        // Send graceful shutdown to da_service and drop da_service
+        drop(da_service);
+        drop(da_service_client);
+        self.task_manager.take().unwrap().graceful_shutdown();
+        tokio::time::sleep(Duration::from_secs(5)).await;
 
-        // // Send graceful shutdown to da_service and drop da_service
-        // drop(da_service);
-        // drop(da_service_client);
-        // self.task_manager.take().unwrap().graceful_shutdown();
-        // sleep(Duration::from_secs(5)).await;
+        // Create a new task_manager as previous was consumed
+        self.task_manager = Some(TaskManager::current());
+        let task_executor = self.task_manager.as_ref().unwrap().executor();
 
-        // // Create a new task_manager as previous was consumed
-        // self.task_manager = Some(TaskManager::current());
-        // let task_executor = self.task_manager.as_ref().unwrap().executor();
+        let (_, da_service_client) = spawn_bitcoin_da_prover_service_with_rpc_server(
+            &task_executor,
+            &da.config,
+            Self::test_config().dir,
+        )
+        .await;
 
-        // let (da_service, da_service_client) = spawn_bitcoin_da_prover_service_with_rpc_server(
-        //     &task_executor,
-        //     &da.config,
-        //     Self::test_config().dir,
-        // )
-        // .await;
+        let job_after: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
 
-        // let job_after: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
+        assert_eq!(job_after.job_id, job_before.job_id);
+        assert_eq!(job_after.status, job_before.status);
+        assert_eq!(job_after.created_at, job_before.created_at);
+        assert_eq!(job_after.sent_count, job_before.sent_count);
 
-        // assert_eq!(job_after.job_id, job_before.job_id);
-        // assert_eq!(job_after.status, job_before.status);
-        // assert_eq!(job_after.created_at, job_before.created_at);
-        // assert_eq!(job_after.sent_count, job_before.sent_count);
+        let active_jobs_after = da_service_client
+            .da_job_list(Some(JobStatusFilter::Active), None, None)
+            .await?;
+        assert_eq!(active_jobs_after.len(), 1);
+        assert_eq!(active_jobs_after[0].job_id, job_id);
+        assert_eq!(active_jobs_after[0].status, JobStatus::InProgress);
 
-        // let active_jobs_after = da_service_client
-        //     .da_job_list(Some(JobStatusFilter::Active), None, None)
-        //     .await?;
-        // assert_eq!(active_jobs_after.len(), 1);
-        // assert_eq!(active_jobs_after[0].job_id, job_id);
-        // assert_eq!(active_jobs_after[0].status, JobStatus::InProgress);
+        da.generate(1).await?;
 
-        // da.generate(1).await?;
+        da.wait_mempool_len(6, None).await?;
 
-        // da.wait_mempool_len(6, None).await?;
-        // let res = da_service.wait_for_completion(job_id, None).await;
-        // assert!(res.is_ok());
+        let completed_job: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
+        assert_eq!(completed_job.status, JobStatus::Completed);
+        assert_eq!(completed_job.created_at, job_before.created_at);
+        assert_eq!(completed_job.error, None);
 
-        // let completed_job: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
-        // assert_eq!(completed_job.status, JobStatus::Completed);
-        // assert_eq!(completed_job.created_at, job_before.created_at);
-        // assert_eq!(completed_job.error, None);
-
-        // let active_jobs_final = da_service_client
-        //     .da_job_list(Some(JobStatusFilter::Active), None, None)
-        //     .await?;
-        // assert_eq!(active_jobs_final.len(), 0);
+        let active_jobs_final = da_service_client
+            .da_job_list(Some(JobStatusFilter::Active), None, None)
+            .await?;
+        assert_eq!(active_jobs_final.len(), 0);
 
         Ok(())
     }
