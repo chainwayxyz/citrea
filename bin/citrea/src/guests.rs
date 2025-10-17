@@ -132,7 +132,7 @@ pub(crate) static BATCH_PROOF_DEVNET_GUESTS: LazyLock<HashMap<SpecId, (Digest, V
             guest!("../../../resources/guests/risc0/devnet/batch-proof-0.bin"),
         );
         m.insert(
-            SpecId::Tangerine,
+            SpecId::Fork3,
             guest!("../../../resources/guests/risc0/devnet/batch-proof-1.bin"),
         );
 
