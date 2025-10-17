@@ -47,14 +47,6 @@ where
         initial_prev_l2_block_hash: Option<[u8; 32]>,
         forks: &[Fork],
     ) -> BatchProofCircuitOutput {
-        fn fib(n: i32) -> i32 {
-            if n <= 1 {
-                return n;
-            }
-            return fib(n - 1) + fib(n - 2);
-        }
-        println!("{}", fib(40)); // to burn some cycles
-
         println!("Running sequencer commitments in DA slot");
 
         let mut data: BatchProofCircuitInputV3Part1 = guest.read_from_host();
