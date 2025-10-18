@@ -565,7 +565,6 @@ jobs:
             BASE_REF="${{ github.event.pull_request.base.ref }}"
             git fetch origin $BASE_REF
             echo "base-hash=$(git rev-parse origin/$BASE_REF)" >> $GITHUB_OUTPUT
-            echo "base-ref=$BASE_REF" >> $GITHUB_OUTPUT
 
       - name: Restore base branch test cache
         id: restore-test-cache
@@ -582,7 +581,7 @@ jobs:
         uses: dawidd6/action-download-artifact@v11
         with:
           name: citrea-build
-          ref: ${{ steps.base-commit.outputs.base-ref }}
+          ref: ${{ steps.base-commit.outputs.base-hash }}
           path: target/debug
           if_no_artifact_found: warn
           workflow_conclusion: ""
