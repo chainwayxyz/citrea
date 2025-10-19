@@ -2,11 +2,9 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use bitcoin::hashes::Hash;
-use bitcoin::{Transaction, Txid};
-use serde::{Deserialize, Serialize};
+use bitcoin::Txid;
 use sov_db::ledger_db::DaLedgerOps;
-pub use sov_db::schema::types::da_jobs::{Job, JobId, JobStatus};
-use sov_db::schema::types::da_jobs::{JobProgress as DbJobProgress, SentChunks as DbSentChunks};
+use sov_db::schema::types::da_jobs::{DaJobStatus, Job, JobId, JobProgress};
 use tokio::sync::oneshot;
 use tracing::{info, instrument};
 
@@ -21,151 +19,6 @@ use crate::service::TxidWrapper;
 
 type JobWaiters =
     HashMap<JobId, oneshot::Sender<std::result::Result<TxidWrapper, BitcoinServiceError>>>;
-/// Tracks progress of a job including sent transactions for recovery.
-///
-/// This state is persisted to the database and updated as transactions
-/// are sent to bitcoin da.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JobProgress {
-    /// Job id as uuidv7
-    pub job_id: JobId,
-    /// Current job status
-    pub status: JobStatus,
-    /// Partially sent commit/reveal chunks for partial sending and recovery
-    pub sent_chunks: SentChunks,
-    /// Last update timestamp
-    pub last_updated: u64,
-}
-
-impl JobProgress {
-    fn new(job_id: JobId, last_updated: u64) -> Self {
-        Self {
-            job_id,
-            status: JobStatus::Pending,
-            sent_chunks: SentChunks::new(),
-            last_updated,
-        }
-    }
-}
-
-/// Track sent chunk for partial sending and recovery
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct SentChunks {
-    /// Sent commit txs
-    pub commit_txs: Vec<Transaction>,
-    /// Sent reveal txs
-    pub reveal_txs: Vec<Transaction>,
-    /// All sent txids
-    pub txids: HashSet<Txid>,
-}
-
-impl SentChunks {
-    /// Return a default SentChunk with empty vectors
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Return the number of sent chunks
-    pub fn count(&self) -> usize {
-        self.reveal_txs.len()
-    }
-
-    /// Extend with sent commit and reveal chunks
-    pub fn extend(
-        &mut self,
-        commits: Vec<Transaction>,
-        reveals: Vec<Transaction>,
-        txids: Vec<Txid>,
-    ) {
-        self.commit_txs.extend(commits);
-        self.reveal_txs.extend(reveals);
-        self.txids.extend(txids);
-    }
-}
-
-impl From<DbSentChunks> for SentChunks {
-    fn from(db_chunks: DbSentChunks) -> Self {
-        let commit_txs = db_chunks
-            .commit_txs
-            .iter()
-            .map(|bytes| {
-                bitcoin::consensus::deserialize(bytes)
-                    .expect("Failed to deserialize commit transaction from database")
-            })
-            .collect();
-
-        let reveal_txs = db_chunks
-            .reveal_txs
-            .iter()
-            .map(|bytes| {
-                bitcoin::consensus::deserialize(bytes)
-                    .expect("Failed to deserialize reveal transaction from database")
-            })
-            .collect();
-
-        let txids = db_chunks
-            .txids
-            .into_iter()
-            .map(Txid::from_byte_array)
-            .collect();
-
-        Self {
-            commit_txs,
-            reveal_txs,
-            txids,
-        }
-    }
-}
-
-impl From<SentChunks> for DbSentChunks {
-    fn from(chunks: SentChunks) -> Self {
-        let commit_txs = chunks
-            .commit_txs
-            .iter()
-            .map(bitcoin::consensus::serialize)
-            .collect();
-
-        let reveal_txs = chunks
-            .reveal_txs
-            .iter()
-            .map(bitcoin::consensus::serialize)
-            .collect();
-
-        let txids = chunks
-            .txids
-            .into_iter()
-            .map(|tx| tx.to_byte_array())
-            .collect();
-
-        Self {
-            commit_txs,
-            reveal_txs,
-            txids,
-        }
-    }
-}
-
-impl From<DbJobProgress> for JobProgress {
-    fn from(db_progress: DbJobProgress) -> Self {
-        Self {
-            job_id: db_progress.job_id,
-            status: db_progress.status,
-            sent_chunks: db_progress.sent_chunks.into(),
-            last_updated: db_progress.last_updated,
-        }
-    }
-}
-
-impl From<JobProgress> for DbJobProgress {
-    fn from(progress: JobProgress) -> Self {
-        Self {
-            job_id: progress.job_id,
-            status: progress.status,
-            sent_chunks: progress.sent_chunks.into(),
-            last_updated: progress.last_updated,
-        }
-    }
-}
 
 /// Job service
 pub struct DaJobService<DB: DaLedgerOps> {
@@ -197,7 +50,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         let job = Job::new(job_id, data, created_at);
         let progress = JobProgress::new(job_id, created_at);
 
-        self.ledger_db.submit_job(&job, &progress.into())?;
+        self.ledger_db.submit_job(&job, &progress)?;
 
         JM.record_job_submitted(job.data.len());
 
@@ -221,7 +74,6 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         self.ledger_db
             .get_progress(job_id)
             .map_err(JobServiceError::DatabaseError)
-            .map(|opt| opt.map(Into::into))
     }
 
     /// Get all `Pending` and `InProgress` job ids from storage
@@ -231,12 +83,12 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
 
         active_jobs.extend(
             self.ledger_db
-                .get_job_ids_by_status(JobStatus::Pending.as_u8())?,
+                .get_job_ids_by_status(DaJobStatus::Pending.as_u8())?,
         );
 
         active_jobs.extend(
             self.ledger_db
-                .get_job_ids_by_status(JobStatus::InProgress.as_u8())?,
+                .get_job_ids_by_status(DaJobStatus::InProgress.as_u8())?,
         );
 
         // Sort uuidv7 chronologically
@@ -250,7 +102,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     pub fn update_job_status(
         &self,
         progress: &mut JobProgress,
-        new_status: JobStatus,
+        new_status: DaJobStatus,
     ) -> Result<()> {
         let job_id = progress.job_id;
         let previous_status = progress.status.clone();
@@ -258,7 +110,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         progress.status = new_status;
         progress.last_updated = get_timestamp();
 
-        let db_progress = progress.clone().into();
+        let db_progress = progress.clone();
         self.ledger_db
             .upsert_progress(&db_progress, previous_status.as_u8())?;
 
@@ -279,12 +131,23 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         let active_job_ids = self.get_all_active_job_ids()?;
         for job_id in active_job_ids {
             if let Some(JobProgress {
-                status: JobStatus::InProgress,
+                status: DaJobStatus::InProgress,
                 sent_chunks,
                 ..
             }) = self.get_progress(&job_id)?
             {
-                txids.extend(sent_chunks.txids);
+                txids.extend(
+                    sent_chunks
+                        .commit_txs
+                        .into_iter()
+                        .map(Txid::from_byte_array),
+                );
+                txids.extend(
+                    sent_chunks
+                        .reveal_txs
+                        .into_iter()
+                        .map(Txid::from_byte_array),
+                );
             }
         }
 
@@ -295,25 +158,25 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     pub async fn has_job_in_progress(&self) -> Result<bool> {
         let in_progress_jobs = self
             .ledger_db
-            .get_job_ids_by_status(JobStatus::InProgress.as_u8())?;
+            .get_job_ids_by_status(DaJobStatus::InProgress.as_u8())?;
 
         Ok(!in_progress_jobs.is_empty())
     }
 
     fn notify_new_status(&self, job_id: JobId, progress: &JobProgress) {
         let result = match &progress.status {
-            JobStatus::Completed => {
+            DaJobStatus::Completed => {
                 if let Some(last_tx) = progress.sent_chunks.reveal_txs.last() {
-                    Ok(TxidWrapper(last_tx.compute_txid()))
+                    Ok(TxidWrapper(Txid::from_byte_array(*last_tx)))
                 } else {
                     Err(JobServiceError::NoTransactionsFound(job_id).into())
                 }
             }
-            JobStatus::Cancelled => Err(JobServiceError::JobCancelled(job_id).into()),
-            JobStatus::Failed { error } => {
+            DaJobStatus::Cancelled => Err(JobServiceError::JobCancelled(job_id).into()),
+            DaJobStatus::Failed { error } => {
                 Err(JobServiceError::JobFailed(job_id, error.clone()).into())
             }
-            JobStatus::Pending | JobStatus::InProgress => return,
+            DaJobStatus::Pending | DaJobStatus::InProgress => return,
         };
 
         if let Some(tx) = self.job_waiters.lock().unwrap().remove(&job_id) {
@@ -340,12 +203,12 @@ impl<DB: DaLedgerOps> DaJobRpcProvider for DaJobService<DB> {
 
         // Only allow cancellation of pending or in-progress jobs
         match progress.status {
-            JobStatus::Pending | JobStatus::InProgress => {
-                self.update_job_status(&mut progress, JobStatus::Cancelled)?;
+            DaJobStatus::Pending | DaJobStatus::InProgress => {
+                self.update_job_status(&mut progress, DaJobStatus::Cancelled)?;
                 tracing::info!("Job {job_id} successfully cancelled");
                 Ok(())
             }
-            JobStatus::Completed | JobStatus::Cancelled | JobStatus::Failed { .. } => Err(
+            DaJobStatus::Completed | DaJobStatus::Cancelled | DaJobStatus::Failed { .. } => Err(
                 JobServiceError::JobCancellationFailure(job_id, progress.status),
             ),
         }
@@ -359,7 +222,7 @@ impl<DB: DaLedgerOps> DaJobRpcProvider for DaJobService<DB> {
 
         // Only allow retry of failed or cancelled jobs
         match progress.status {
-            JobStatus::Failed { .. } | JobStatus::Cancelled => {
+            DaJobStatus::Failed { .. } | DaJobStatus::Cancelled => {
                 // Get original job and deserialize data
                 let original_job = self
                     .get_job(&job_id)?
@@ -374,7 +237,7 @@ impl<DB: DaLedgerOps> DaJobRpcProvider for DaJobService<DB> {
 
                 Ok(new_job_id)
             }
-            JobStatus::Pending | JobStatus::InProgress | JobStatus::Completed => {
+            DaJobStatus::Pending | DaJobStatus::InProgress | DaJobStatus::Completed => {
                 Err(JobServiceError::JobRetryFailure(job_id, progress.status))
             }
         }

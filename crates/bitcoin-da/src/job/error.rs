@@ -1,4 +1,4 @@
-use sov_db::schema::types::da_jobs::{JobId, JobStatus};
+use sov_db::schema::types::da_jobs::{DaJobStatus, JobId};
 use thiserror::Error;
 
 /// Job errors
@@ -34,9 +34,9 @@ pub enum JobServiceError {
 
     /// Job cancellation failure
     #[error("Job {0} cannot be cancelled as it is in status: {1:?}")]
-    JobCancellationFailure(JobId, JobStatus),
+    JobCancellationFailure(JobId, DaJobStatus),
 
     /// Job retry failure
     #[error("Job {0} cannot be retried as it is in status: {1:?}")]
-    JobRetryFailure(JobId, JobStatus),
+    JobRetryFailure(JobId, DaJobStatus),
 }

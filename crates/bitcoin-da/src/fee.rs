@@ -5,16 +5,18 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use bitcoin::{Amount, Network, Sequence, Transaction, Txid};
+use bitcoin::hashes::Hash;
+use bitcoin::{Amount, Network, Sequence, Txid};
 use bitcoincore_rpc::json::{
     BumpFeeResult, CreateRawTransactionInput, EstimateMode, WalletCreateFundedPsbtOptions,
 };
 use bitcoincore_rpc::{Client, RpcApi};
+use sov_db::schema::types::da_jobs::SentChunks;
 use thiserror::Error;
 use tracing::{debug, instrument, trace, warn};
 
 use crate::error::BitcoinServiceError;
-use crate::job::service::SentChunks;
+use crate::helpers::builders::TxWithId;
 use crate::monitoring::{MonitoredTx, MonitoredTxKind};
 use crate::spec::utxo::UTXO;
 use crate::tx_signer::SignedTxPair;
@@ -232,6 +234,102 @@ impl FeeService {
     pub fn get_next_fee_rate_multiplier(&self, multiplier: f64) -> f64 {
         (multiplier * FEE_RATE_MULTIPLIER_FACTOR).min(MAX_FEE_RATE_MULTIPLIER)
     }
+
+    pub(crate) async fn validate_txs_fee_rate(
+        &self,
+        txs: &[SignedTxPair],
+        sent_chunks: &SentChunks,
+        fee_rate: u64,
+        utxos: Vec<UTXO>,
+        prev_utxo: Option<UTXO>,
+    ) -> std::result::Result<(), BitcoinServiceError> {
+        let mut utxo_map = utxos
+            .into_iter()
+            .map(|utxo| ((utxo.tx_id, utxo.vout), Amount::from_sat(utxo.amount)))
+            .collect::<HashMap<_, _>>();
+        if let Some(prev_utxo) = prev_utxo {
+            utxo_map.insert(
+                (prev_utxo.tx_id, prev_utxo.vout),
+                Amount::from_sat(prev_utxo.amount),
+            );
+        }
+
+        // Recover sent chunks
+        let mut commit_txs: Vec<TxWithId> = vec![];
+        for tx in &sent_chunks.commit_txs {
+            let id = Txid::from_byte_array(*tx);
+            let tx = self
+                .client
+                .get_transaction(&id, None)
+                .await?
+                .transaction()?;
+            commit_txs.push(TxWithId { tx, id });
+        }
+        let mut reveal_txs: Vec<TxWithId> = vec![];
+        for tx in &sent_chunks.reveal_txs {
+            let id = Txid::from_byte_array(*tx);
+            let tx = self
+                .client
+                .get_transaction(&id, None)
+                .await?
+                .transaction()?;
+            reveal_txs.push(TxWithId { tx, id });
+        }
+
+        // Add sent chunks as available inputs
+        let get_tx_outputs = |txs: &[TxWithId]| {
+            txs.iter()
+                .flat_map(|tx| {
+                    let txid = tx.id;
+                    tx.tx
+                        .output
+                        .iter()
+                        .enumerate()
+                        .map(move |(idx, out)| ((txid, idx as u32), out.value))
+                })
+                .collect::<Vec<_>>()
+        };
+        utxo_map.extend(get_tx_outputs(&commit_txs));
+        utxo_map.extend(get_tx_outputs(&reveal_txs));
+
+        for tx in txs {
+            // Validate commit
+            let commit_tx = &tx.commit.tx;
+            let input_amount: Amount = commit_tx
+                .input
+                .iter()
+                .flat_map(|input| {
+                    utxo_map
+                        .get(&(input.previous_output.txid, input.previous_output.vout))
+                        .cloned()
+                })
+                .sum();
+            let output_amount = commit_tx.output.iter().map(|tx| tx.value).sum();
+
+            if (input_amount - output_amount) < Amount::from_sat(commit_tx.vsize() as u64) {
+                return Err(BitcoinServiceError::FeeCalculation(fee_rate));
+            }
+
+            // Add commit change output to utxo_map
+            if let Some(change_output) = commit_tx.output.get(1) {
+                utxo_map.insert((tx.commit_txid(), 1), change_output.value);
+            }
+
+            // Validate reveal
+            let reveal_tx = &tx.reveal.tx;
+            let input_amount = commit_tx.output[0].value;
+            let output_amount = reveal_tx.output[0].value;
+
+            // Add reveal utxo to utxo_map, used by chunking txs
+            utxo_map.insert((tx.reveal_txid(), 0), output_amount);
+
+            if (input_amount - output_amount) < Amount::from_sat(reveal_tx.vsize() as u64) {
+                return Err(BitcoinServiceError::FeeCalculation(fee_rate));
+            }
+        }
+
+        Ok(())
+    }
 }
 
 pub(crate) async fn get_fee_rate_from_mempool_space(
@@ -263,78 +361,6 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
         .ok_or(FeeServiceError::MempoolSpaceParseError)?;
 
     Ok(Some(fee_rate))
-}
-
-pub(crate) fn validate_txs_fee_rate(
-    txs: &[SignedTxPair],
-    sent_chunks: &SentChunks,
-    fee_rate: u64,
-    utxos: Vec<UTXO>,
-    prev_utxo: Option<UTXO>,
-) -> std::result::Result<(), BitcoinServiceError> {
-    let mut utxo_map = utxos
-        .into_iter()
-        .map(|utxo| ((utxo.tx_id, utxo.vout), Amount::from_sat(utxo.amount)))
-        .collect::<HashMap<_, _>>();
-    if let Some(prev_utxo) = prev_utxo {
-        utxo_map.insert(
-            (prev_utxo.tx_id, prev_utxo.vout),
-            Amount::from_sat(prev_utxo.amount),
-        );
-    }
-
-    // Add sent chunks as available inputs
-    let get_tx_outputs = |txs: &[Transaction]| {
-        txs.iter()
-            .flat_map(|tx| {
-                let txid = tx.compute_txid();
-                tx.output
-                    .iter()
-                    .enumerate()
-                    .map(move |(idx, out)| ((txid, idx as u32), out.value))
-            })
-            .collect::<Vec<_>>()
-    };
-    utxo_map.extend(get_tx_outputs(&sent_chunks.commit_txs));
-    utxo_map.extend(get_tx_outputs(&sent_chunks.reveal_txs));
-
-    for tx in txs {
-        // Validate commit
-        let commit_tx = &tx.commit.tx;
-        let input_amount: Amount = commit_tx
-            .input
-            .iter()
-            .flat_map(|input| {
-                utxo_map
-                    .get(&(input.previous_output.txid, input.previous_output.vout))
-                    .cloned()
-            })
-            .sum();
-        let output_amount = commit_tx.output.iter().map(|tx| tx.value).sum();
-
-        if (input_amount - output_amount) < Amount::from_sat(commit_tx.vsize() as u64) {
-            return Err(BitcoinServiceError::FeeCalculation(fee_rate));
-        }
-
-        // Add commit change output to utxo_map
-        if let Some(change_output) = commit_tx.output.get(1) {
-            utxo_map.insert((tx.commit_txid(), 1), change_output.value);
-        }
-
-        // Validate reveal
-        let reveal_tx = &tx.reveal.tx;
-        let input_amount = commit_tx.output[0].value;
-        let output_amount = reveal_tx.output[0].value;
-
-        // Add reveal utxo to utxo_map, used by chunking txs
-        utxo_map.insert((tx.reveal_txid(), 0), output_amount);
-
-        if (input_amount - output_amount) < Amount::from_sat(reveal_tx.vsize() as u64) {
-            return Err(BitcoinServiceError::FeeCalculation(fee_rate));
-        }
-    }
-
-    Ok(())
 }
 
 async fn get_with_timeout<T: reqwest::IntoUrl>(

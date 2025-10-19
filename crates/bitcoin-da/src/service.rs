@@ -29,7 +29,7 @@ use lru::LruCache;
 use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::LedgerDB;
-use sov_db::schema::types::da_jobs::JobStatus;
+use sov_db::schema::types::da_jobs::{DaJobStatus, JobProgress, SentChunks};
 use sov_rollup_interface::da::{DaSpec, DaTxRequest, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::Proof;
@@ -41,7 +41,7 @@ use tracing::{debug, error, info, instrument, trace, warn};
 use uuid::Uuid;
 
 use crate::error::{BitcoinServiceError, MempoolRejection};
-use crate::fee::{validate_txs_fee_rate, BumpFeeMethod, FeeService};
+use crate::fee::{BumpFeeMethod, FeeService};
 use crate::helpers::backup::backup_txs_to_file;
 use crate::helpers::builders::body_builders::{create_inscription_transactions, DaTxs, RawTxData};
 use crate::helpers::builders::TxWithId;
@@ -49,7 +49,7 @@ use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
 use crate::helpers::{get_timestamp, merkle_tree, TransactionKind};
 use crate::job::error::JobServiceError;
-use crate::job::service::{DaJobService, JobProgress, SentChunks};
+use crate::job::service::DaJobService;
 use crate::metrics::BITCOIN_DA_METRICS as BM;
 use crate::monitoring::{MonitoredTxKind, MonitoringConfig, MonitoringService, TxStatus};
 use crate::network_constants::NetworkConstants;
@@ -349,12 +349,12 @@ impl BitcoinService {
             {
                 Ok(completed) => {
                     if completed {
-                        job_service.update_job_status(progress, JobStatus::Completed)?;
+                        job_service.update_job_status(progress, DaJobStatus::Completed)?;
                         info!("Job {} completed successfully", job_id);
 
                         previous_job_in_progress = false;
                     } else {
-                        job_service.update_job_status(progress, JobStatus::InProgress)?;
+                        job_service.update_job_status(progress, DaJobStatus::InProgress)?;
                         info!("Job {} partially sent", job_id);
 
                         previous_job_in_progress = true;
@@ -372,7 +372,7 @@ impl BitcoinService {
                     error!("Error processing job {}: {:?}", job_id, e);
                     job_service.update_job_status(
                         progress,
-                        JobStatus::Failed {
+                        DaJobStatus::Failed {
                             error: e.to_string(),
                         },
                     )?;
@@ -443,7 +443,7 @@ impl BitcoinService {
         let utxos = self.get_utxos(sent_txids).await?;
 
         let prev_utxo = match &progress.status {
-            JobStatus::InProgress => None, // Will use previous reveal utxo in create_inscription_type_1
+            DaJobStatus::InProgress => None, // Will use previous reveal utxo in create_inscription_type_1
             _ => {
                 self.select_prev_utxo(&utxos, previous_job_in_progress)
                     .await?
@@ -469,14 +469,15 @@ impl BitcoinService {
         // Test whether signed_txs should be accepted in queue
         if !self.test_mempool_accept_queue_tx(&signed_txs).await? {
             // If it failed on mempool policy limit, it can also fail on meeting min relay fee
-            // Stateless validation of signed txs fee
-            validate_txs_fee_rate(
-                &signed_txs,
-                &progress.sent_chunks,
-                fee_sat_per_vbyte,
-                utxos,
-                prev_utxo,
-            )?;
+            self.fee
+                .validate_txs_fee_rate(
+                    &signed_txs,
+                    &progress.sent_chunks,
+                    fee_sat_per_vbyte,
+                    utxos,
+                    prev_utxo,
+                )
+                .await?;
         }
 
         // backup to file after mempool acceptance
@@ -498,9 +499,8 @@ impl BitcoinService {
                     txids.extend(&ids);
 
                     progress.sent_chunks.extend(
-                        vec![signed_tx.commit.tx.clone()],
-                        vec![signed_tx.reveal.tx.clone()],
-                        ids,
+                        vec![signed_tx.commit.tx.compute_txid().to_byte_array()],
+                        vec![signed_tx.reveal.tx.compute_txid().to_byte_array()],
                     );
 
                     let txs = signed_tx.clone().into_txs_with_id();
@@ -647,12 +647,36 @@ impl BitcoinService {
             .require_network(network)?;
 
         let prefix = self.reveal_tx_prefix.clone();
+
+        let mut previous_commit_chunks = Vec::new();
+        for txid in &sent_chunks.commit_txs {
+            let txid = Txid::from_byte_array(*txid);
+            previous_commit_chunks.push(
+                self.client
+                    .get_transaction(&txid, None)
+                    .await?
+                    .transaction()?,
+            )
+        }
+
+        let mut previous_reveal_chunks = Vec::new();
+        for txid in &sent_chunks.reveal_txs {
+            let txid = Txid::from_byte_array(*txid);
+            previous_reveal_chunks.push(
+                self.client
+                    .get_transaction(&txid, None)
+                    .await?
+                    .transaction()?,
+            )
+        }
+
         tokio::task::spawn_blocking(move || {
             // Since this is CPU bound work, we use spawn_blocking
             // to release the tokio runtime execution
             create_inscription_transactions(
                 data,
-                sent_chunks,
+                previous_commit_chunks,
+                previous_reveal_chunks,
                 da_private_key,
                 prev_utxo,
                 utxos,
@@ -1377,23 +1401,23 @@ impl DaService for BitcoinService {
         let (tx, rx) = oneshot::channel();
 
         match progress.status {
-            JobStatus::Completed => {
+            DaJobStatus::Completed => {
                 // Job already finished before we subscribed
                 if let Some(last_tx) = progress.sent_chunks.reveal_txs.last() {
-                    let _ = tx.send(Ok(TxidWrapper(last_tx.compute_txid())));
+                    let _ = tx.send(Ok(TxidWrapper(Txid::from_byte_array(*last_tx))));
                 } else {
                     let _ = tx.send(Err(JobServiceError::NoTransactionsFound(job_id).into()));
                 }
             }
-            JobStatus::Failed { error } => {
+            DaJobStatus::Failed { error } => {
                 // Job already failed
                 let _ = tx.send(Err(JobServiceError::JobFailed(job_id, error).into()));
             }
-            JobStatus::Cancelled => {
+            DaJobStatus::Cancelled => {
                 // Job already cancelled
                 let _ = tx.send(Err(JobServiceError::JobCancelled(job_id).into()));
             }
-            JobStatus::Pending | JobStatus::InProgress => {
+            DaJobStatus::Pending | DaJobStatus::InProgress => {
                 // Job still running, register for notification
                 self.job_service.lock().await.insert_waiter(job_id, tx);
             }

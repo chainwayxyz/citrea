@@ -23,7 +23,6 @@ use super::{
     get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind, TxWithId,
 };
 use crate::error::BitcoinServiceError;
-use crate::job::service::SentChunks;
 use crate::service::split_proof;
 use crate::spec::utxo::UTXO;
 use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
@@ -121,7 +120,8 @@ impl DaTxs {
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_transactions(
     data: RawTxData,
-    sent_chunks: SentChunks,
+    previous_commit_chunks: Vec<Transaction>,
+    previous_reveal_chunks: Vec<Transaction>,
     da_private_key: SecretKey,
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
@@ -153,8 +153,8 @@ pub fn create_inscription_transactions(
             reveal_fee_rate,
             network,
             &reveal_tx_prefix,
-            sent_chunks.commit_txs,
-            sent_chunks.reveal_txs,
+            previous_commit_chunks,
+            previous_reveal_chunks,
         ),
         RawTxData::BatchProofMethodId(body) => create_inscription_type_3(
             body,

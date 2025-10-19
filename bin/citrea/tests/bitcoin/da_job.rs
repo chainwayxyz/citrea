@@ -5,7 +5,6 @@ use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin_da::job::rpc::{DaJobRpcClient, JobInfoResponse, JobStatusFilter, RetryJobResponse};
-use bitcoin_da::job::service::JobStatus;
 use bitcoin_da::service::BitcoinService;
 use bitcoincore_rpc::RpcApi;
 use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
@@ -16,6 +15,7 @@ use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use jsonrpsee::http_client::HttpClient;
 use reth_tasks::TaskManager;
+use sov_db::schema::types::da_jobs::DaJobStatus;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
@@ -89,7 +89,7 @@ impl JobServiceTest {
 
         let job_by_id: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
 
-        assert_eq!(job_by_id.status, JobStatus::Completed);
+        assert_eq!(job_by_id.status, DaJobStatus::Completed);
         assert_eq!(job_by_id.sent_count, 1);
         assert_eq!(job_by_id.error, None);
 
@@ -137,7 +137,7 @@ impl JobServiceTest {
         assert_eq!(da.get_raw_mempool().await?.len(), 18);
 
         let job_by_id: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
-        assert_eq!(job_by_id.status, JobStatus::InProgress);
+        assert_eq!(job_by_id.status, DaJobStatus::InProgress);
         assert_eq!(job_by_id.sent_count, 9); // 9 commit/reveal pair
 
         // Cancel job
@@ -145,7 +145,7 @@ impl JobServiceTest {
         assert!(cancel_job_response.success);
 
         let job_by_id: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
-        assert_eq!(job_by_id.status, JobStatus::Cancelled);
+        assert_eq!(job_by_id.status, DaJobStatus::Cancelled);
 
         // Mine sent txs
         da.generate(1).await?;
@@ -157,12 +157,12 @@ impl JobServiceTest {
         let retry_job_response: RetryJobResponse = da_service_client.da_job_retry(job_id).await?;
 
         let old_job_by_id: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
-        assert_eq!(old_job_by_id.status, JobStatus::Cancelled);
+        assert_eq!(old_job_by_id.status, DaJobStatus::Cancelled);
 
         let new_job_by_id: JobInfoResponse = da_service_client
             .da_job_get_info(retry_job_response.new_job_id)
             .await?;
-        assert_eq!(new_job_by_id.status, JobStatus::Pending);
+        assert_eq!(new_job_by_id.status, DaJobStatus::Pending);
         da.generate(1).await?;
 
         // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
@@ -174,7 +174,7 @@ impl JobServiceTest {
         let new_job_by_id: JobInfoResponse = da_service_client
             .da_job_get_info(retry_job_response.new_job_id)
             .await?;
-        assert_eq!(new_job_by_id.status, JobStatus::InProgress);
+        assert_eq!(new_job_by_id.status, DaJobStatus::InProgress);
         da.generate(1).await?;
 
         // TODO find a way to deterministically wait for retry completion
@@ -183,7 +183,7 @@ impl JobServiceTest {
         let new_job_by_id: JobInfoResponse = da_service_client
             .da_job_get_info(retry_job_response.new_job_id)
             .await?;
-        assert_eq!(new_job_by_id.status, JobStatus::Completed);
+        assert_eq!(new_job_by_id.status, DaJobStatus::Completed);
 
         Ok(())
     }
@@ -321,7 +321,7 @@ impl JobServiceTest {
 
         let job_before: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
         assert_eq!(job_before.job_id, job_id);
-        assert_eq!(job_before.status, JobStatus::InProgress);
+        assert_eq!(job_before.status, DaJobStatus::InProgress);
         assert_eq!(job_before.sent_count, 9);
 
         let active_jobs_before = da_service_client
@@ -359,14 +359,14 @@ impl JobServiceTest {
             .await?;
         assert_eq!(active_jobs_after.len(), 1);
         assert_eq!(active_jobs_after[0].job_id, job_id);
-        assert_eq!(active_jobs_after[0].status, JobStatus::InProgress);
+        assert_eq!(active_jobs_after[0].status, DaJobStatus::InProgress);
 
         da.generate(1).await?;
 
         da.wait_mempool_len(6, None).await?;
 
         let completed_job: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
-        assert_eq!(completed_job.status, JobStatus::Completed);
+        assert_eq!(completed_job.status, DaJobStatus::Completed);
         assert_eq!(completed_job.created_at, job_before.created_at);
         assert_eq!(completed_job.error, None);
 

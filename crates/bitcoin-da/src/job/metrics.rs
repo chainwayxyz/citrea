@@ -2,10 +2,9 @@ use std::sync::LazyLock;
 
 use metrics::{Counter, Gauge, Histogram};
 use metrics_derive::Metrics;
-use sov_db::schema::types::da_jobs::JobStatus;
+use sov_db::schema::types::da_jobs::{DaJobStatus, JobProgress};
 
 use crate::helpers::get_timestamp;
-use crate::job::service::JobProgress;
 
 /// Defines the metrics being collected for the DA job service
 #[derive(Metrics)]
@@ -61,28 +60,28 @@ pub struct DaJobMetrics {
 }
 
 impl DaJobMetrics {
-    pub fn record_status_update(&self, old_status: &JobStatus, progress: &JobProgress) {
+    pub fn record_status_update(&self, old_status: &DaJobStatus, progress: &JobProgress) {
         let new_status = &progress.status;
         if old_status == new_status {
             return;
         }
 
         match old_status {
-            JobStatus::Pending => self.jobs_pending.decrement(1.0),
-            JobStatus::InProgress => self.jobs_in_progress.decrement(1.0),
-            JobStatus::Completed => self.jobs_completed.decrement(1.0),
-            JobStatus::Cancelled => self.jobs_cancelled.decrement(1.0),
-            JobStatus::Failed { .. } => self.jobs_failed.decrement(1.0),
+            DaJobStatus::Pending => self.jobs_pending.decrement(1.0),
+            DaJobStatus::InProgress => self.jobs_in_progress.decrement(1.0),
+            DaJobStatus::Completed => self.jobs_completed.decrement(1.0),
+            DaJobStatus::Cancelled => self.jobs_cancelled.decrement(1.0),
+            DaJobStatus::Failed { .. } => self.jobs_failed.decrement(1.0),
         }
 
         match new_status {
-            JobStatus::Pending => {
+            DaJobStatus::Pending => {
                 self.jobs_pending.increment(1.0);
             }
-            JobStatus::InProgress => {
+            DaJobStatus::InProgress => {
                 self.jobs_in_progress.increment(1.0);
             }
-            JobStatus::Completed => {
+            DaJobStatus::Completed => {
                 self.jobs_completed.increment(1.0);
                 self.jobs_completed_total.increment(1);
 
@@ -96,11 +95,11 @@ impl DaJobMetrics {
                 self.job_chunks_sent
                     .record(progress.sent_chunks.count() as f64);
             }
-            JobStatus::Cancelled => {
+            DaJobStatus::Cancelled => {
                 self.jobs_cancelled.increment(1.0);
                 self.jobs_cancelled_total.increment(1);
             }
-            JobStatus::Failed { .. } => {
+            DaJobStatus::Failed { .. } => {
                 self.jobs_failed.increment(1.0);
                 self.jobs_failed_total.increment(1);
             }

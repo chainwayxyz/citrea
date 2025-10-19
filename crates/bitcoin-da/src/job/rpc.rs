@@ -9,9 +9,9 @@ use citrea_common::rpc::utils::internal_rpc_error;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use serde::{Deserialize, Serialize};
+use sov_db::schema::types::da_jobs::{DaJobStatus, JobId, JobProgress};
 
 use super::Result;
-use crate::job::service::{JobId, JobProgress, JobStatus};
 use crate::service::BitcoinService;
 
 /// RPC provider trait for da job service
@@ -103,33 +103,33 @@ pub enum JobStatusFilter {
 
 impl JobStatusFilter {
     /// Convert filter to list of status codes to query
-    pub(super) fn to_job_status(&self) -> Vec<JobStatus> {
+    pub(super) fn to_job_status(&self) -> Vec<DaJobStatus> {
         match self {
-            JobStatusFilter::Pending => vec![JobStatus::Pending],
-            JobStatusFilter::InProgress => vec![JobStatus::InProgress],
-            JobStatusFilter::Completed => vec![JobStatus::Completed],
-            JobStatusFilter::Cancelled => vec![JobStatus::Cancelled],
+            JobStatusFilter::Pending => vec![DaJobStatus::Pending],
+            JobStatusFilter::InProgress => vec![DaJobStatus::InProgress],
+            JobStatusFilter::Completed => vec![DaJobStatus::Completed],
+            JobStatusFilter::Cancelled => vec![DaJobStatus::Cancelled],
             JobStatusFilter::Failed => {
-                vec![JobStatus::Failed {
+                vec![DaJobStatus::Failed {
                     error: Default::default(),
                 }]
             }
             JobStatusFilter::Active => {
-                vec![JobStatus::Pending, JobStatus::InProgress]
+                vec![DaJobStatus::Pending, DaJobStatus::InProgress]
             }
             JobStatusFilter::Terminal => vec![
-                JobStatus::Completed,
-                JobStatus::Cancelled,
-                JobStatus::Failed {
+                DaJobStatus::Completed,
+                DaJobStatus::Cancelled,
+                DaJobStatus::Failed {
                     error: Default::default(),
                 },
             ],
             JobStatusFilter::All => vec![
-                JobStatus::Pending,
-                JobStatus::InProgress,
-                JobStatus::Completed,
-                JobStatus::Cancelled,
-                JobStatus::Failed {
+                DaJobStatus::Pending,
+                DaJobStatus::InProgress,
+                DaJobStatus::Completed,
+                DaJobStatus::Cancelled,
+                DaJobStatus::Failed {
                     error: Default::default(),
                 },
             ],
@@ -144,7 +144,7 @@ pub struct JobInfoResponse {
     /// Unique job identifier
     pub job_id: JobId,
     /// Current job status
-    pub status: JobStatus,
+    pub status: DaJobStatus,
     /// Job creation timestamp
     pub created_at: u64,
     /// Last update timestamp
@@ -159,7 +159,7 @@ pub struct JobInfoResponse {
 impl From<JobProgress> for JobInfoResponse {
     fn from(value: JobProgress) -> Self {
         let error = match &value.status {
-            JobStatus::Failed { error } => Some(error.clone()),
+            DaJobStatus::Failed { error } => Some(error.clone()),
             _ => None,
         };
 
