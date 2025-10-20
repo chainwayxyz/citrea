@@ -563,8 +563,8 @@ jobs:
         id: base-commit
         run: |
             BASE_REF="${{ github.event.pull_request.base.ref }}"
-            git fetch origin $BASE_REF
-            echo "base-hash=$(git rev-parse origin/$BASE_REF)" >> $GITHUB_OUTPUT
+            git fetch origin "$BASE_REF"
+            echo "base-hash=$(git rev-parse origin/"$BASE_REF")" >> $GITHUB_OUTPUT
 
       - name: Restore base branch test cache
         id: restore-test-cache
