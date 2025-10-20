@@ -6,6 +6,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+#[cfg(feature = "native")]
 use uuid::Uuid;
 
 use crate::zk::Proof;
@@ -103,6 +104,7 @@ impl core::cmp::Ord for SequencerCommitment {
 }
 
 /// Transaction request to send to the DA queue.
+#[cfg(feature = "native")]
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub enum DaTxRequest {
