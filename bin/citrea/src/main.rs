@@ -124,7 +124,7 @@ where
     if rollup_config.telemetry.bind_host.is_some() && rollup_config.telemetry.bind_port.is_some() {
         let bind_host = rollup_config.telemetry.bind_host.as_ref().unwrap();
         let bind_port = rollup_config.telemetry.bind_port.as_ref().unwrap();
-        let telemetry_addr: SocketAddr = format!("{}:{}", bind_host, bind_port)
+        let telemetry_addr: SocketAddr = format!("{bind_host}:{bind_port}")
             .parse()
             .map_err(|_| anyhow!("Invalid telemetry address"))?;
 

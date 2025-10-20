@@ -138,8 +138,7 @@ impl TxSigner {
 
         if let Some(errors) = signed_raw_commit_tx.errors {
             return Err(BitcoinServiceError::InvalidTransaction(format!(
-                "Failed to sign commit transaction: {:?}",
-                errors
+                "Failed to sign commit transaction: {errors:?}"
             )));
         }
 
@@ -221,8 +220,7 @@ impl TxSigner {
 
             if let Some(errors) = signed_raw_commit_tx.errors {
                 return Err(BitcoinServiceError::InvalidTransaction(format!(
-                    "Failed to sign commit transaction: {:?}",
-                    errors
+                    "Failed to sign commit transaction: {errors:?}"
                 )));
             }
 
@@ -264,8 +262,7 @@ impl TxSigner {
 
         if let Some(errors) = signed_raw_commit_tx.errors {
             return Err(BitcoinServiceError::InvalidTransaction(format!(
-                "Failed to sign the aggregate commit transaction: {:?}",
-                errors
+                "Failed to sign the aggregate commit transaction: {errors:?}"
             )));
         }
 

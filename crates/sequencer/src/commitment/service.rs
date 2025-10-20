@@ -317,8 +317,7 @@ where
             commitments_to_store
                 .windows(2)
                 .all(|w| w[0].index + 1 == w[1].index),
-            "Commitments to store must be consecutive {:?}",
-            commitments_to_store
+            "Commitments to store must be consecutive {commitments_to_store:?}"
         );
 
         info!("Commitments from DA to store: {:?}", commitments_to_store);

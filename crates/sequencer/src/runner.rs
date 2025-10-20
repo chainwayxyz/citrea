@@ -288,10 +288,10 @@ where
                     match e {
                         // Since this is the sequencer, it should never get a soft confirmation error or a hook error
                         StateTransitionError::L2BlockError(l2_block_error) => {
-                            panic!("L2 block error: {:?}", l2_block_error)
+                            panic!("L2 block error: {l2_block_error:?}")
                         }
                         StateTransitionError::HookError(soft_confirmation_hook_error) => {
-                            panic!("Hook error: {:?}", soft_confirmation_hook_error)
+                            panic!("Hook error: {soft_confirmation_hook_error:?}")
                         }
                         StateTransitionError::ModuleCallError(
                             soft_confirmation_module_call_error,
@@ -367,7 +367,7 @@ where
                                 panic!("System tx failed")
                             }
                             L2BlockModuleCallError::ShortHeaderProofAllocationError(e) => {
-                                panic!("Short header proof error: {:?}", e);
+                                panic!("Short header proof error: {e:?}");
                             }
                         },
                     }
@@ -974,7 +974,7 @@ where
             .db_provider
             .evm
             .get_block_by_height(l2_height, &mut working_set)
-            .unwrap_or_else(|| panic!("Block {} must exist after saving", l2_height));
+            .unwrap_or_else(|| panic!("Block {l2_height} must exist after saving"));
 
         let evm_block_hash = citrea_block.header.hash();
 

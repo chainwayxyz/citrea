@@ -286,7 +286,7 @@ impl SequencerSendCommitmentsToDaTest {
         let commitment = DataOnDa::try_from_slice(data).unwrap();
 
         let DataOnDa::SequencerCommitment(commitment) = commitment else {
-            panic!("Expected SequencerCommitment, got {:?}", commitment);
+            panic!("Expected SequencerCommitment, got {commitment:?}");
         };
 
         let mut l2_blocks = Vec::new();
