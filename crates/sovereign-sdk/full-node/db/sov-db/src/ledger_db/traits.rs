@@ -347,6 +347,9 @@ pub trait DaLedgerOps {
 
     /// Get all job ids for a specific status
     fn get_job_ids_by_status(&self, status: u8) -> Result<Vec<Uuid>>;
+
+    /// Get stored proof by proof_id
+    fn get_proof_by_proof_id(&self, proof_id: Uuid) -> Result<Vec<u8>>;
 }
 
 /// Test ledger operations

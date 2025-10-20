@@ -740,7 +740,7 @@ where
                 // submit the proof to the DA service in the background
                 tokio::spawn(async move {
                     let (da_job_id, rx) = prover_service
-                        .submit_proof(proof_with_duration.proof)
+                        .submit_proof_by_id(proving_job_id)
                         .await
                         .expect("Failed to submit proof");
 
@@ -836,7 +836,7 @@ where
         }
 
         // submit all proofs to da
-        for (proving_job_id, proof) in proofs {
+        for (proving_job_id, _) in proofs {
             let prover_service = self.prover_service.clone();
             let ledger_db = self.ledger_db.clone();
             info!("Submitting recovered proof for job {}", proving_job_id);
@@ -857,7 +857,7 @@ where
             } else {
                 // No on going da job, submit a new one
                 let (da_job_id, rx) = prover_service
-                    .submit_proof(proof)
+                    .submit_proof_by_id(proving_job_id)
                     .await
                     .expect("Failed to submit proof");
 

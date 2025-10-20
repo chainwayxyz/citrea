@@ -255,7 +255,7 @@ impl FeeService {
         }
 
         // Recover sent chunks
-        let mut commit_txs: Vec<TxWithId> = vec![];
+        let mut commit_txs = vec![];
         for tx in &sent_chunks.commit_txs {
             let id = Txid::from_byte_array(*tx);
             let tx = self
@@ -265,7 +265,7 @@ impl FeeService {
                 .transaction()?;
             commit_txs.push(TxWithId { tx, id });
         }
-        let mut reveal_txs: Vec<TxWithId> = vec![];
+        let mut reveal_txs = vec![];
         for tx in &sent_chunks.reveal_txs {
             let id = Txid::from_byte_array(*tx);
             let tx = self

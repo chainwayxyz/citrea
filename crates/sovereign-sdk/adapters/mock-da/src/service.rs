@@ -443,6 +443,9 @@ impl DaService for MockDaService {
                 let req = DataOnDa::Complete(proof);
                 borsh::to_vec(&req).unwrap()
             }
+            DaTxRequest::StoredProof(_) => {
+                unimplemented!()
+            }
             DaTxRequest::SequencerCommitment(seq_comm) => {
                 tracing::debug!("Adding a sequencer commitment");
                 let req = DataOnDa::SequencerCommitment(seq_comm);

@@ -6,6 +6,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use uuid::Uuid;
 
 use crate::zk::Proof;
 use crate::{BasicAddress, Network};
@@ -109,6 +110,8 @@ pub enum DaTxRequest {
     SequencerCommitment(SequencerCommitment),
     /// Or a zk proof and state diff
     ZKProof(Proof),
+    /// Or a job id for a stored proof
+    StoredProof(Uuid),
     /// Batch proof method id update for light client
     BatchProofMethodId(BatchProofMethodId),
 }

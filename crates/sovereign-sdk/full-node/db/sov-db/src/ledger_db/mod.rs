@@ -2,6 +2,7 @@ use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::Arc;
 
+use anyhow::Context;
 use rocksdb::{ReadOptions, WriteBatch};
 use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
@@ -1043,5 +1044,12 @@ impl DaLedgerOps for LedgerDB {
             job_ids.push(job_id);
         }
         Ok(job_ids)
+    }
+
+    fn get_proof_by_proof_id(&self, proof_id: Uuid) -> anyhow::Result<Vec<u8>> {
+        self.db
+            .get::<ProofByJobId>(&proof_id)?
+            .map(|stored_batch_proof| stored_batch_proof.proof)
+            .context("Failed to retrieve proof by id")
     }
 }

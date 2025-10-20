@@ -216,6 +216,20 @@ where
             .map_err(|e| anyhow::anyhow!(e))
     }
 
+    /// Submits the zk proof by id to the DA service, returning transaction id.
+    #[instrument(name = "ParallelProverService", skip_all)]
+    pub async fn submit_proof_by_id(
+        &self,
+        proof_id: Uuid,
+    ) -> anyhow::Result<(Uuid, DaJobWaiter<Da>)> {
+        let tx_request = DaTxRequest::StoredProof(proof_id);
+        info!("Submitting proof to DA service");
+        self.da_service
+            .send_transaction(tx_request)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+
     // Only used in tests
     pub async fn submit_proofs(&self, proofs: Vec<Proof>) -> anyhow::Result<Vec<Proof>> {
         let mut tx_and_proof = Vec::with_capacity(proofs.len());

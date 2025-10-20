@@ -15,15 +15,13 @@ use bitcoin::{Address, Amount, Network, Transaction};
 use metrics::histogram;
 use secp256k1::SECP256K1;
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{DaTxRequest, DataOnDa};
+use sov_rollup_interface::da::DataOnDa;
 use tracing::{info, instrument, trace, warn};
 
 use super::{
     build_commit_transaction, build_control_block, build_reveal_transaction, build_witness,
     get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind, TxWithId,
 };
-use crate::error::BitcoinServiceError;
-use crate::service::split_proof;
 use crate::spec::utxo::UTXO;
 use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
@@ -40,26 +38,6 @@ pub enum RawTxData {
     BatchProofMethodId(Vec<u8>),
     /// borsh(DataOnDa::SequencerCommitment(SequencerCommitment))
     SequencerCommitment(Vec<u8>),
-}
-
-impl TryFrom<DaTxRequest> for RawTxData {
-    type Error = BitcoinServiceError;
-
-    fn try_from(request: DaTxRequest) -> Result<Self, Self::Error> {
-        match request {
-            DaTxRequest::ZKProof(zkproof) => split_proof(zkproof),
-            DaTxRequest::SequencerCommitment(comm) => {
-                let blob = borsh::to_vec(&DataOnDa::SequencerCommitment(comm))
-                    .expect("SequencerCommitment serialize must not fail");
-                Ok(RawTxData::SequencerCommitment(blob))
-            }
-            DaTxRequest::BatchProofMethodId(id) => {
-                let blob = borsh::to_vec(&DataOnDa::BatchProofMethodId(id))
-                    .expect("BatchProofMethodId serialize must not fail");
-                Ok(RawTxData::BatchProofMethodId(blob))
-            }
-        }
-    }
 }
 
 /// This is a list of txs we need to send to DA

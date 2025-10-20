@@ -265,7 +265,7 @@ impl BitcoinService {
 
         let utxo_selection_mode = config.utxo_selection_mode.clone().unwrap_or_default();
 
-        let job_service = Mutex::new(DaJobService::new(ledger_db));
+        let job_service = Mutex::new(DaJobService::new(ledger_db, None));
         let max_fee_rate_sat_to_pay = config
             .max_fee_rate_sat_to_pay
             .unwrap_or(DEFAULT_MAX_FEE_RATE_SAT_VB);
@@ -337,9 +337,7 @@ impl BitcoinService {
                 .get_progress(&job_id)?
                 .ok_or(JobServiceError::JobNotFound(job_id))?;
 
-            // Deserialize RawTxData from job
-            let job_data: RawTxData =
-                borsh::from_slice(&job.data).map_err(JobServiceError::SerializationError)?;
+            let job_data = job_service.get_job_data(&job)?;
 
             let sent_txids = job_service.get_pending_chunks()?;
 
@@ -1378,7 +1376,7 @@ impl DaService for BitcoinService {
                     return Err(BitcoinServiceError::PreviousJobInProgress);
                 }
             }
-            job_service.submit_job(tx_request.try_into()?, tx)?
+            job_service.submit_job(tx_request, tx)?
         };
 
         // TODO maybe single job handling here

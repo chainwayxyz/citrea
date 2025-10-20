@@ -1,10 +1,14 @@
 use std::collections::{HashMap, HashSet};
+use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex};
 
+use anyhow::Context;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
+use lru::LruCache;
 use sov_db::ledger_db::DaLedgerOps;
 use sov_db::schema::types::da_jobs::{DaJobStatus, Job, JobId, JobProgress};
+use sov_rollup_interface::da::{DaTxRequest, DataOnDa};
 use tokio::sync::oneshot;
 use tracing::{info, instrument};
 
@@ -15,7 +19,7 @@ use crate::helpers::get_timestamp;
 use crate::job::error::JobServiceError;
 use crate::job::metrics::DA_JOB_METRICS as JM;
 use crate::job::rpc::{DaJobRpcProvider, JobListFilter};
-use crate::service::TxidWrapper;
+use crate::service::{split_proof, TxidWrapper};
 
 type JobWaiters =
     HashMap<JobId, oneshot::Sender<std::result::Result<TxidWrapper, BitcoinServiceError>>>;
@@ -24,28 +28,32 @@ type JobWaiters =
 pub struct DaJobService<DB: DaLedgerOps> {
     ledger_db: DB,
     job_waiters: Arc<Mutex<JobWaiters>>,
+    raw_tx_data_cache: Arc<Mutex<LruCache<JobId, RawTxData>>>,
 }
 
 impl<DB: DaLedgerOps> DaJobService<DB> {
     /// Creates a new DaJobService with ledger_db
-    pub fn new(ledger_db: DB) -> Self {
+    pub fn new(ledger_db: DB, cache_size: Option<NonZeroUsize>) -> Self {
+        let cache_size = cache_size.unwrap_or_else(|| NonZeroUsize::new(10).unwrap());
+
         Self {
             ledger_db,
             job_waiters: Arc::new(Mutex::new(HashMap::new())),
+            raw_tx_data_cache: Arc::new(Mutex::new(LruCache::new(cache_size))),
         }
     }
 
     /// Create a new job and save to db
     pub fn submit_job(
         &self,
-        raw_tx_data: RawTxData,
+        da_tx_request: DaTxRequest,
         tx: oneshot::Sender<std::result::Result<TxidWrapper, BitcoinServiceError>>,
     ) -> Result<JobId> {
         let job_id = uuid::Uuid::now_v7();
         let created_at = get_timestamp();
 
         // Serialize RawTxData to Vec<u8>
-        let data = borsh::to_vec(&raw_tx_data)?;
+        let data = borsh::to_vec(&da_tx_request)?;
 
         let job = Job::new(job_id, data, created_at);
         let progress = JobProgress::new(job_id, created_at);
@@ -74,6 +82,60 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         self.ledger_db
             .get_progress(job_id)
             .map_err(JobServiceError::DatabaseError)
+    }
+
+    /// Get the raw transaction data for a job
+    ///
+    /// This function attempts to retrieve the data from cache first.
+    /// If not found in cache, it deserializes from the job data and
+    /// transforms it into the appropriate RawTxData format.
+    ///
+    /// For StoredProof requests, it retrieves the actual proof from the database
+    /// using the proof_id reference.
+    ///
+    /// # Arguments
+    ///
+    /// * `job` - The job containing serialized DaTxRequest data
+    ///
+    /// # Returns
+    ///
+    /// * `Result<RawTxData>` - The raw transaction data or an error
+    #[instrument(level = "trace", skip(self), ret)]
+    pub(crate) fn get_job_data(&self, job: &Job) -> Result<RawTxData> {
+        if let Some(data) = self.raw_tx_data_cache.lock().unwrap().get(&job.id) {
+            return Ok(data.to_owned());
+        };
+
+        // Deserialize RawTxData from job
+        let job_data: DaTxRequest =
+            borsh::from_slice(&job.data).map_err(JobServiceError::SerializationError)?;
+
+        let raw_tx_data = match job_data {
+            DaTxRequest::ZKProof(zkproof) => split_proof(zkproof),
+            DaTxRequest::StoredProof(proof_id) => {
+                // Retrieve proof via secondary index
+                let zkproof = self.ledger_db.get_proof_by_proof_id(proof_id)?;
+                split_proof(zkproof)
+            }
+            DaTxRequest::SequencerCommitment(comm) => {
+                let blob = borsh::to_vec(&DataOnDa::SequencerCommitment(comm))
+                    .expect("SequencerCommitment serialize must not fail");
+                Ok(RawTxData::SequencerCommitment(blob))
+            }
+            DaTxRequest::BatchProofMethodId(id) => {
+                let blob = borsh::to_vec(&DataOnDa::BatchProofMethodId(id))
+                    .expect("BatchProofMethodId serialize must not fail");
+                Ok(RawTxData::BatchProofMethodId(blob))
+            }
+        }
+        .context("Failed to retrieve RawTxData from DaTxRequest")?;
+
+        self.raw_tx_data_cache
+            .lock()
+            .unwrap()
+            .push(job.id, raw_tx_data.clone());
+
+        Ok(raw_tx_data)
     }
 
     /// Get all `Pending` and `InProgress` job ids from storage
@@ -228,7 +290,7 @@ impl<DB: DaLedgerOps> DaJobRpcProvider for DaJobService<DB> {
                     .get_job(&job_id)?
                     .ok_or(JobServiceError::JobNotFound(job_id))?;
 
-                let raw_data: RawTxData = borsh::from_slice(&original_job.data)?;
+                let raw_data: DaTxRequest = borsh::from_slice(&original_job.data)?;
 
                 let (tx, _rx) = oneshot::channel();
                 // Create new job with same data

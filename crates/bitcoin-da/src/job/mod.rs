@@ -8,10 +8,14 @@ use crate::job::error::JobServiceError;
 
 /// Job related error types
 pub mod error;
+
+/// Job related RPC endpoints
 pub mod rpc;
+
 /// Core job queue implementation and state management
 pub mod service;
 
+/// Job related metrics
 mod metrics;
 
 type Result<T> = std::result::Result<T, JobServiceError>;
