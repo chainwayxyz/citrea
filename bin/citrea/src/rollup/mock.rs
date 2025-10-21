@@ -7,7 +7,7 @@ use citrea_common::config::ProverGuestRunConfig;
 use citrea_common::{FromEnv, FullNodeConfig, RpcConfig};
 use citrea_primitives::forks::use_network_forks;
 // use citrea_sp1::host::SP1Host;
-use citrea_risc0_adapter::host::config::Risc0HostConfig;
+use citrea_common::config::risc0::Risc0HostConfig;
 use citrea_risc0_adapter::host::Risc0Host;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::CitreaRuntime;

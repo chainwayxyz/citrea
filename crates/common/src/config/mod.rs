@@ -10,6 +10,8 @@ pub use crate::config::rpc::RpcConfig;
 use crate::utils::read_env;
 
 mod rpc;
+/// Configuration types for RISC0 provers
+pub mod risc0;
 
 pub trait FromEnv: Sized {
     fn from_env() -> anyhow::Result<Self>;

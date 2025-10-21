@@ -12,7 +12,7 @@ use tokio::sync::oneshot;
 use tracing::{error, info};
 use uuid::Uuid;
 
-use super::config::BonsaiProverConfig;
+use citrea_common::config::risc0::BonsaiProverConfig;
 use crate::is_dev_mode_enabled_via_environment;
 
 #[derive(Clone)]

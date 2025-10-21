@@ -12,7 +12,7 @@ use tokio::sync::oneshot;
 use tracing::error;
 use uuid::Uuid;
 
-use super::config::LocalProverConfig;
+use citrea_common::config::risc0::LocalProverConfig;
 
 #[derive(Clone)]
 pub struct LocalProver {

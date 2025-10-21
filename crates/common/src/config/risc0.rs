@@ -1,6 +1,7 @@
 use std::path::PathBuf;
-use citrea_common::utils::read_env;
 use serde::{Deserialize, Serialize};
+
+use crate::{utils::read_env, FromEnv};
 
 /// Boundless storage configuration for S3
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -19,7 +20,7 @@ pub struct BoundlessS3StorageConfig {
     pub s3_use_presigned: bool,
 }
 
-impl citrea_common::FromEnv for BoundlessS3StorageConfig {
+impl FromEnv for BoundlessS3StorageConfig {
     fn from_env() -> anyhow::Result<Self> {
         let s3_access_key = read_env("BOUNDLESS_S3_ACCESS_KEY")?;
         let s3_secret_key = read_env("BOUNDLESS_S3_SECRET_KEY")?;
@@ -52,7 +53,7 @@ pub struct BoundlessPinataStorageConfig {
     pub ipfs_gateway_url: String,
 }
 
-impl citrea_common::FromEnv for BoundlessPinataStorageConfig {
+impl FromEnv for BoundlessPinataStorageConfig {
     fn from_env() -> anyhow::Result<Self> {
         let pinata_jwt = read_env("BOUNDLESS_PINATA_JWT")?;
         let pinata_api_url = read_env("BOUNDLESS_PINATA_API_URL")?;
@@ -85,7 +86,7 @@ pub struct BoundlessProverConfig {
     pub storage: BoundlessStorageConfig,
 }
 
-impl citrea_common::FromEnv for BoundlessProverConfig {
+impl FromEnv for BoundlessProverConfig {
     fn from_env() -> anyhow::Result<Self> {
         let boundless = BoundlessConfig::from_env()?;
 
@@ -106,12 +107,12 @@ impl citrea_common::FromEnv for BoundlessProverConfig {
 #[derive(Debug, Clone)]
 /// Configuration for the Boundless Market client
 pub struct BoundlessConfig {
-    pub(crate) wallet_private_key: String,
-    pub(crate) rpc_url: String,
-    pub(crate) is_offchain: bool,
+    pub wallet_private_key: String,
+    pub rpc_url: String,
+    pub is_offchain: bool,
 }
 
-impl citrea_common::FromEnv for BoundlessConfig {
+impl FromEnv for BoundlessConfig {
     fn from_env() -> anyhow::Result<Self> {
         let wallet_private_key = read_env("BOUNDLESS_WALLET_PRIVATE_KEY")?;
         let rpc_url = read_env("BOUNDLESS_RPC_URL")?;
@@ -137,10 +138,17 @@ pub struct LocalProverConfig {
     pub dev_mode: bool,
 }
 
-impl citrea_common::FromEnv for LocalProverConfig {
+impl FromEnv for LocalProverConfig {
     fn from_env() -> anyhow::Result<Self> {
         let r0vm_path = read_env("RISC0_SERVER_PATH").ok().map(PathBuf::from);
-        let dev_mode = crate::is_dev_mode_enabled_via_environment();
+
+        // tmp fix: use is_dev_mode_enabled_via_environment
+        let dev_mode = std::env::var("RISC0_DEV_MODE")
+            .ok()
+            .map(|x| x.to_lowercase())
+            .filter(|x| x == "1" || x == "true" || x == "yes")
+            .is_some();
+
         Ok(Self {
             r0vm_path,
             dev_mode,
@@ -157,7 +165,7 @@ pub struct BonsaiProverConfig {
     pub api_key: String,
 }
 
-impl citrea_common::FromEnv for BonsaiProverConfig {
+impl FromEnv for BonsaiProverConfig {
     fn from_env() -> anyhow::Result<Self> {
         let api_url = read_env("BONSAI_API_URL")?;
         let api_key = read_env("BONSAI_API_KEY")?;
@@ -182,7 +190,7 @@ impl Default for Risc0ProverConfig {
     }
 }
 
-impl citrea_common::FromEnv for Risc0ProverConfig {
+impl FromEnv for Risc0ProverConfig {
     fn from_env() -> anyhow::Result<Self> {
         match std::env::var("RISC0_PROVER") {
             Ok(prover) => match prover.as_str() {
@@ -210,7 +218,7 @@ pub struct Risc0HostConfig {
     pub tx_backup_dir: Option<PathBuf>,
 }
 
-impl citrea_common::FromEnv for Risc0HostConfig {
+impl FromEnv for Risc0HostConfig {
     fn from_env() -> anyhow::Result<Self> {
         let prover = Risc0ProverConfig::from_env()?;
         let tx_backup_dir = std::env::var("TX_BACKUP_DIR").ok().map(PathBuf::from);

@@ -29,7 +29,7 @@ use uuid::Uuid;
 use boundless_market::alloy::signers::local::PrivateKeySigner;
 
 
-use super::config::{BoundlessProverConfig, BoundlessStorageConfig};
+use citrea_common::config::risc0::{BoundlessProverConfig, BoundlessStorageConfig};
 use crate::host::pricing_service::{PriceResponse, PricingService};
 use crate::is_dev_mode_enabled_via_environment;
 
