@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use citrea_common::backup::BackupManager;
+use citrea_common::risc0::Risc0HostConfig;
 use citrea_common::{FullNodeConfig, ProverGuestRunConfig, RpcConfig};
 use citrea_stf::runtime::CitreaRuntime;
 use prover_services::ParallelProverService;
@@ -113,6 +114,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     async fn create_prover_service(
         &self,
         proving_mode: ProverGuestRunConfig,
+        risc0_host_config: Risc0HostConfig,
         da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,
         proof_sampling_number: usize,
