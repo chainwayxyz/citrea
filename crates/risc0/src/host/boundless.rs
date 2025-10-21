@@ -15,6 +15,7 @@ use boundless_market::request_builder::{RequestParams, RequirementParams};
 use boundless_market::storage::{PinataStorageProvider, S3StorageProvider};
 use boundless_market::{GuestEnv, StandardStorageProvider};
 use citrea_common::config::risc0::{BoundlessProverConfig, BoundlessStorageConfig};
+use citrea_common::utils::is_dev_mode_enabled_via_environment;
 use metrics::gauge;
 use risc0_zkvm::sha::Digestible;
 use risc0_zkvm::{
@@ -30,7 +31,6 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::host::pricing_service::{PriceResponse, PricingService};
-use crate::is_dev_mode_enabled_via_environment;
 
 /// Using 200 seconds here as this is a decentralized market and we want to give enough time for provers to pick up the job.
 const MIN_LOCK_TIMEOUT: u64 = 200; // seconds

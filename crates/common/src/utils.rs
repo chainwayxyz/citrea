@@ -164,3 +164,23 @@ pub fn get_tangerine_activation_height_non_zero() -> u64 {
     }
     fork.activation_height
 }
+
+/// Check if RISC0_DEV_MODE is enabled via environment variable.
+///
+/// This is a copy of https://github.com/risc0/risc0/blob/912c2e198f3abc1094fa55e45840febaee203c22/risc0/zkvm/src/lib.rs#L205
+/// This function is deprecated in risc0, but we still need it here.
+///
+/// # Note
+/// Be aware that this function does not check risc0 disable-dev-mode feature flag.
+/// However in prover and verifier config it does the check automatically,
+/// and will panic if env var is set to values below while the feature flag is set in risc0-zkvm.
+///
+/// # Returns
+/// Returns `true` if RISC0_DEV_MODE environment variable is set to "1", "true", or "yes".
+pub fn is_dev_mode_enabled_via_environment() -> bool {
+    std::env::var("RISC0_DEV_MODE")
+        .ok()
+        .map(|x| x.to_lowercase())
+        .filter(|x| x == "1" || x == "true" || x == "yes")
+        .is_some()
+}
