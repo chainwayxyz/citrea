@@ -129,3 +129,22 @@ pub enum BonsaiSessionKind {
     /// Both Stark and Snark session id if the prover crashed during stark to snarkconversion.
     SnarkSession(StarkSessionId, SnarkSessionId),
 }
+
+/// Type alias for boundless request id
+pub type BoundlessRequestId = String;
+
+/// Boundless session to be recovered in case of a crash.
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
+pub struct BoundlessSession {
+    /// Boundless request id if the prover crashed during proof generation.
+    pub request_id: BoundlessRequestId,
+    /// Image id to verify this session receipt
+    pub image_id: [u8; 32],
+    /// Expiry time of the request
+    pub request_expiry: u64,
+    /// Expected receipt type of the session
+    /// Can only be groth16 for now
+    pub receipt_type: ReceiptType,
+    /// Number of mcycles used for the proof generation
+    pub mcycles_count: u64,
+}

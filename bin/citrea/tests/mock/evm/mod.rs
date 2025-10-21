@@ -1333,8 +1333,7 @@ async fn test_safe_finalized_tags() {
             .await
             .unwrap();
         println!(
-            "Expected safe block nonce: {}, expected finalized block nonce: {}",
-            expected_safe_block_nonce, expected_finalized_block_nonce
+            "Expected safe block nonce: {expected_safe_block_nonce}, expected finalized block nonce: {expected_finalized_block_nonce}"
         );
 
         let safe_block_nonce = test_client

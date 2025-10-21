@@ -264,7 +264,7 @@ impl<'a, C: Context> ModuleVisitor<'a, C> {
         if self.visited.insert(address) {
             for dependency_address in module.dependencies() {
                 let dependency_module = *module_map.get(dependency_address).ok_or_else(|| {
-                    anyhow::Error::msg(format!("Module not found: {:?}", dependency_address))
+                    anyhow::Error::msg(format!("Module not found: {dependency_address:?}"))
                 })?;
                 self.visit_module(dependency_module, module_map)?;
             }
