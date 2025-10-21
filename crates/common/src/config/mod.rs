@@ -499,7 +499,7 @@ mod tests {
     use tempfile::NamedTempFile;
 
     use super::*;
-    use crate::config::rpc::*;
+    use crate::{config::rpc::*, risc0::{BonsaiProverConfig, BoundlessConfig, BoundlessPinataStorageConfig, BoundlessS3StorageConfig, LocalProverConfig}};
 
     fn create_config_from(content: &str) -> NamedTempFile {
         let mut config_file = NamedTempFile::new().unwrap();
@@ -834,4 +834,130 @@ mod tests {
         };
         assert_eq!(telemetry_config, expected);
     }
+
+    
+    #[test]
+    fn test_correct_prover_config_local(){
+        let config = r#"
+            [prover.Local]
+            r0vm_path = "path/to/vm"
+            dev_mode = false
+        "#;
+
+        let config_file = create_config_from(config);
+
+        let config: Risc0HostConfig = from_toml_path(config_file.path()).unwrap();
+        let expected = Risc0HostConfig {
+            prover: risc0::Risc0ProverConfig::Local(LocalProverConfig{
+                r0vm_path: Some("path/to/vm".into()),
+                dev_mode: false,
+            }),
+            tx_backup_dir: None
+        };
+        assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_correct_prover_config_bonsai(){
+        let config = r#"
+            [prover.Bonsai]
+            api_url = "http://127.0.0.1"
+            api_key = "testkey"
+        "#;
+
+        let config_file = create_config_from(config);
+
+        let config: Risc0HostConfig = from_toml_path(config_file.path()).unwrap();
+        let expected = Risc0HostConfig {
+            prover: risc0::Risc0ProverConfig::Bonsai(BonsaiProverConfig{
+                api_url: "http://127.0.0.1".to_string(),
+                api_key: "testkey".to_string(),
+            }),
+            tx_backup_dir: None
+        };
+        assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_correct_prover_config_boundless_s3(){
+        let config = r#"
+            [prover.Boundless.boundless]
+            wallet_private_key = "abcd"
+            rpc_url = "127.0.0.1"
+            is_offchain = true
+
+            [prover.Boundless.storage]
+            type = "s3"
+            s3_access_key = "access_key"
+            s3_secret_key = "secret_key"
+            s3_bucket = "bucket"
+            s3_url = "url"
+            aws_region = "region"
+            s3_use_presigned = true
+        "#;
+
+        let config_file = create_config_from(config);
+
+        let config: Risc0HostConfig = from_toml_path(config_file.path()).unwrap();
+        let boundless_prover_config = risc0::BoundlessProverConfig { 
+            boundless: BoundlessConfig{
+                wallet_private_key: "abcd".to_string(),
+                rpc_url: "127.0.0.1".to_string(),
+                is_offchain: true                
+            },
+            storage: risc0::BoundlessStorageConfig::S3(BoundlessS3StorageConfig { 
+                s3_access_key: "access_key".to_string(),
+                s3_secret_key: "secret_key".to_string(),
+                s3_bucket: "bucket".to_string(),
+                s3_url: "url".to_string(),
+                aws_region: "region".to_string(),
+                s3_use_presigned: true 
+            })
+        };
+
+        let expected = Risc0HostConfig {
+            prover: risc0::Risc0ProverConfig::Boundless(Box::new(boundless_prover_config)),
+            tx_backup_dir: None
+        };
+        assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_correct_prover_config_boundless_pinata(){
+        let config = r#"
+            [prover.Boundless.boundless]
+            wallet_private_key = "abcd"
+            rpc_url = "127.0.0.1"
+            is_offchain = true
+
+            [prover.Boundless.storage]
+            type = "pinata"
+            pinata_jwt = "jwt"
+            pinata_api_url = "http://0.0.0.1"
+            ipfs_gateway_url= "http://127.0.0.1"
+        "#;
+
+        let config_file = create_config_from(config);
+
+        let config: Risc0HostConfig = from_toml_path(config_file.path()).unwrap();
+        let boundless_prover_config = risc0::BoundlessProverConfig { 
+            boundless: BoundlessConfig{
+                wallet_private_key: "abcd".to_string(),
+                rpc_url: "127.0.0.1".to_string(),
+                is_offchain: true                
+            },
+            storage: risc0::BoundlessStorageConfig::Pinata(BoundlessPinataStorageConfig { 
+                pinata_jwt: "jwt".to_string(),
+                pinata_api_url: "http://0.0.0.1".to_string(),
+                ipfs_gateway_url: "http://127.0.0.1".to_string()
+            })
+        };
+
+        let expected = Risc0HostConfig {
+            prover: risc0::Risc0ProverConfig::Boundless(Box::new(boundless_prover_config)),
+            tx_backup_dir: None
+        };
+        assert_eq!(config, expected);
+    }
+
 }
