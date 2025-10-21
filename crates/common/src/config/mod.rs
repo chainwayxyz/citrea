@@ -7,6 +7,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 pub use crate::config::rpc::RpcConfig;
+use crate::risc0::Risc0HostConfig;
 use crate::utils::read_env;
 
 mod rpc;
@@ -164,6 +165,7 @@ pub struct BatchProverConfig {
     pub enable_recovery: bool,
     /// Maximum number of commitments per proof partition
     pub max_commitments_per_proof: Option<usize>,
+    pub risc0_host_config: Risc0HostConfig,
 }
 
 /// Prover configuration
@@ -186,6 +188,7 @@ impl Default for BatchProverConfig {
             proof_sampling_number: 0,
             enable_recovery: true,
             max_commitments_per_proof: None,
+            risc0_host_config: Default::default(),
         }
     }
 }
@@ -210,6 +213,7 @@ impl FromEnv for BatchProverConfig {
             max_commitments_per_proof: read_env("MAX_COMMITMENTS_PER_PROOF")
                 .ok()
                 .and_then(|val| val.parse().ok()),
+            risc0_host_config: Risc0HostConfig::from_env()?,
         })
     }
 }
@@ -605,6 +609,7 @@ mod tests {
             proof_sampling_number: 500,
             enable_recovery: true,
             max_commitments_per_proof: None,
+            risc0_host_config: Default::default(),
         };
         assert_eq!(config, expected);
     }
@@ -672,6 +677,7 @@ mod tests {
             proof_sampling_number: 500,
             enable_recovery: true,
             max_commitments_per_proof: None,
+            risc0_host_config: Default::default(),
         };
         assert_eq!(prover_config, expected);
     }

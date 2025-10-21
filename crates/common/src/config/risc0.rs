@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{utils::read_env, FromEnv};
 
 /// Boundless storage configuration for S3
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct BoundlessS3StorageConfig {
     /// S3 access key
     pub s3_access_key: String,
@@ -43,7 +43,7 @@ impl FromEnv for BoundlessS3StorageConfig {
 }
 
 /// Boundless storage configuration for Pinata
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct BoundlessPinataStorageConfig {
     /// Pinata JWT for authentication
     pub pinata_jwt: String,
@@ -68,7 +68,7 @@ impl FromEnv for BoundlessPinataStorageConfig {
 }
 
 /// Boundless storage configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum BoundlessStorageConfig {
     /// S3 storage provider
@@ -78,7 +78,7 @@ pub enum BoundlessStorageConfig {
 }
 
 /// Configuration for the Boundless prover
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct BoundlessProverConfig {
     /// Boundless configuration
     pub boundless: BoundlessConfig,
@@ -104,7 +104,7 @@ impl FromEnv for BoundlessProverConfig {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 /// Configuration for the Boundless Market client
 pub struct BoundlessConfig {
     pub wallet_private_key: String,
@@ -129,7 +129,7 @@ impl FromEnv for BoundlessConfig {
 }
 
 /// Configuration for the local (IPC) prover
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]
 pub struct LocalProverConfig {
     /// Optional path to the r0vm binary
     pub r0vm_path: Option<PathBuf>,
@@ -157,7 +157,7 @@ impl FromEnv for LocalProverConfig {
 }
 
 /// Configuration for the Bonsai prover
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct BonsaiProverConfig {
     /// Bonsai API URL
     pub api_url: String,
@@ -174,7 +174,7 @@ impl FromEnv for BonsaiProverConfig {
 }
 
 /// Prover configuration enum
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub enum Risc0ProverConfig {
     /// Local IPC prover
     Local(LocalProverConfig),
@@ -210,7 +210,7 @@ impl FromEnv for Risc0ProverConfig {
 }
 
 /// Configuration for Risc0Host
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Risc0HostConfig {
     /// Prover config
     pub prover: Risc0ProverConfig,
