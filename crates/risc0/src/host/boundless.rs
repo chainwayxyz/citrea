@@ -98,10 +98,11 @@ impl BoundlessProver {
             BoundlessStorageConfig::Pinata(pinata_config) => StandardStorageProvider::Pinata(
                 PinataStorageProvider::from_parts(
                     pinata_config.pinata_jwt,
-                    pinata_config.pinata_api_url.to_string(),
-                    pinata_config.ipfs_gateway_url.to_string(),
+                    pinata_config.pinata_api_url,
+                    pinata_config.ipfs_gateway_url,
                 )
-                .await?,
+                .await
+                .context("Failed to create Pinata storage provider")?,
             ),
         };
         
@@ -114,10 +115,11 @@ impl BoundlessProver {
         let private_key = PrivateKeySigner::from_str(&config.wallet_private_key)
             .context("Failed to parse wallet private key")?;
 
+        let rpc_url = Url::parse(&config.rpc_url).context("Invalid boundless RPC URL")?;
         // Create a Boundless client from the provided parameters.
         ClientBuilder::new()
             .with_deployment(deployment)
-            .with_rpc_url(config.rpc_url.clone())
+            .with_rpc_url(rpc_url)
             .with_storage_provider(Some(storage_provider))
             .with_private_key(private_key)
             .build()

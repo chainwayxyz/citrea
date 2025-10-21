@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use citrea_common::utils::read_env;
 use serde::{Deserialize, Serialize};
-use url::Url;
 
 /// Boundless storage configuration for S3
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -48,31 +47,9 @@ pub struct BoundlessPinataStorageConfig {
     /// Pinata JWT for authentication
     pub pinata_jwt: String,
     /// Pinata API URL
-    #[serde(with = "url_serde")]
-    pub pinata_api_url: Url,
+    pub pinata_api_url: String,
     /// IPFS Gateway URL
-    #[serde(with = "url_serde")]
-    pub ipfs_gateway_url: Url,
-}
-
-mod url_serde {
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-    use url::Url;
-
-    pub fn serialize<S>(url: &Url, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        url.as_str().serialize(serializer)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Url, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Url::parse(&s).map_err(serde::de::Error::custom)
-    }
+    pub ipfs_gateway_url: String,
 }
 
 impl citrea_common::FromEnv for BoundlessPinataStorageConfig {
@@ -83,8 +60,8 @@ impl citrea_common::FromEnv for BoundlessPinataStorageConfig {
 
         Ok(Self {
             pinata_jwt,
-            pinata_api_url: Url::parse(&pinata_api_url).expect("Invalid Pinata API URL"),
-            ipfs_gateway_url: Url::parse(&ipfs_gateway_url).expect("Invalid IPFS Gateway URL"),
+            pinata_api_url,
+            ipfs_gateway_url
         })
     }
 }
@@ -130,7 +107,7 @@ impl citrea_common::FromEnv for BoundlessProverConfig {
 /// Configuration for the Boundless Market client
 pub struct BoundlessConfig {
     pub(crate) wallet_private_key: String,
-    pub(crate) rpc_url: Url,
+    pub(crate) rpc_url: String,
     pub(crate) is_offchain: bool,
 }
 
@@ -144,7 +121,7 @@ impl citrea_common::FromEnv for BoundlessConfig {
 
         Ok(Self {
             wallet_private_key,
-            rpc_url: Url::parse(&rpc_url).expect("Invalid RPC URL"),
+            rpc_url,
             is_offchain,
         })
     }
