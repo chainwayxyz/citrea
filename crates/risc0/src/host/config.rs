@@ -1,11 +1,4 @@
 use std::path::PathBuf;
-use std::str::FromStr;
-
-use anyhow::Context;
-use boundless_market::alloy::signers::k256::ecdsa::SigningKey;
-use boundless_market::alloy::signers::local::{LocalSigner, PrivateKeySigner};
-use boundless_market::deployments::BASE;
-use boundless_market::Deployment;
 use citrea_common::utils::read_env;
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -136,9 +129,9 @@ impl citrea_common::FromEnv for BoundlessProverConfig {
 #[derive(Debug, Clone)]
 /// Configuration for the Boundless Market client
 pub struct BoundlessConfig {
-    pub(crate) wallet_private_key: LocalSigner<SigningKey>,
+    pub(crate) wallet_private_key: String,
     pub(crate) rpc_url: Url,
-    pub(crate) deployment: Deployment,
+    pub(crate) is_offchain: bool,
 }
 
 impl citrea_common::FromEnv for BoundlessConfig {
@@ -149,17 +142,10 @@ impl citrea_common::FromEnv for BoundlessConfig {
             .map(|v| v == "1" || v.to_lowercase() == "true")
             .unwrap_or(false);
 
-        // TODO: Switch to Deployment::builder after boundless 1.0 release to switch between base mainnet and sepolia
-        let mut deployment = BASE;
-        if !is_offchain {
-            deployment.order_stream_url = None;
-        }
-
         Ok(Self {
-            wallet_private_key: PrivateKeySigner::from_str(&wallet_private_key)
-                .context("Failed to parse wallet private key")?,
+            wallet_private_key,
             rpc_url: Url::parse(&rpc_url).expect("Invalid RPC URL"),
-            deployment,
+            is_offchain,
         })
     }
 }

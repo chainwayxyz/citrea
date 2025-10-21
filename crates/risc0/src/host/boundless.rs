@@ -9,6 +9,7 @@ use boundless_market::alloy::primitives::U256;
 use boundless_market::client::{Client, ClientBuilder, ClientError};
 use boundless_market::contracts::boundless_market::MarketError;
 use boundless_market::contracts::{Offer, Predicate, Requirements};
+use boundless_market::deployments::BASE;
 use boundless_market::request_builder::{RequestParams, RequirementParams};
 use boundless_market::storage::{PinataStorageProvider, S3StorageProvider};
 use boundless_market::{GuestEnv, StandardStorageProvider};
@@ -25,6 +26,8 @@ use tokio::sync::oneshot;
 use tracing::Instrument;
 use url::Url;
 use uuid::Uuid;
+use boundless_market::alloy::signers::local::PrivateKeySigner;
+
 
 use super::config::{BoundlessProverConfig, BoundlessStorageConfig};
 use crate::host::pricing_service::{PriceResponse, PricingService};
@@ -101,13 +104,22 @@ impl BoundlessProver {
                 .await?,
             ),
         };
+        
+        // TODO: Switch to Deployment::builder after boundless 1.0 release to switch between base mainnet and sepolia
+        let mut deployment = BASE;
+        if !config.is_offchain {
+            deployment.order_stream_url = None;
+        }
+
+        let private_key = PrivateKeySigner::from_str(&config.wallet_private_key)
+            .context("Failed to parse wallet private key")?;
 
         // Create a Boundless client from the provided parameters.
         ClientBuilder::new()
-            .with_deployment(config.deployment.clone())
+            .with_deployment(deployment)
             .with_rpc_url(config.rpc_url.clone())
             .with_storage_provider(Some(storage_provider))
-            .with_private_key(config.wallet_private_key.clone())
+            .with_private_key(private_key)
             .build()
             .await
     }
