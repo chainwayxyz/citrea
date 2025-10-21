@@ -2,10 +2,11 @@ use std::str::FromStr;
 
 use alloy_eips::eip2930::{AccessList, AccessListItem, AccessListWithGasUsed};
 use alloy_eips::BlockNumberOrTag;
-use alloy_primitives::{address, b256, Address, TxKind, U256};
+use alloy_primitives::{address, b256, Address, Bytes, TxKind, U256};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
+use revm::primitives::KECCAK_EMPTY;
 use serde_json::json;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
@@ -15,8 +16,8 @@ use crate::query::MIN_TRANSACTION_GAS;
 use crate::smart_contracts::{CallerContract, SimpleStorageContract};
 use crate::tests::queries::{init_evm, init_evm_single_block, init_evm_with_caller_contract};
 use crate::tests::test_signer::TestSigner;
-use crate::tests::utils::get_fork_fn_latest;
-use crate::{EstimatedDiffSize, Evm};
+use crate::tests::utils::{get_evm, get_fork_fn_latest};
+use crate::{AccountData, EstimatedDiffSize, Evm, EvmConfig};
 
 type C = DefaultContext;
 
@@ -571,4 +572,281 @@ fn test_estimate_gas_with_value(
         ledger_db,
         get_fork_fn_latest(),
     )
+}
+
+#[test]
+fn test_eip7702_gas_with_authorization_and_call_data() {
+    let signer = TestSigner::new_random();
+    let delegator = TestSigner::new_random();
+
+    let config = EvmConfig {
+        data: vec![
+            AccountData {
+                address: signer.address(),
+                balance: U256::from_str("100000000000000000000").unwrap(),
+                code_hash: KECCAK_EMPTY,
+                code: Bytes::default(),
+                nonce: 0,
+                storage: Default::default(),
+            },
+            AccountData {
+                address: delegator.address(),
+                balance: U256::from_str("100000000000000000000").unwrap(),
+                code_hash: KECCAK_EMPTY,
+                code: Bytes::default(),
+                nonce: 0,
+                storage: Default::default(),
+            },
+        ],
+        ..Default::default()
+    };
+
+    let (evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
+
+    let storage_contract_address = address!("819c5497b157177315e1204f52e588b393771719");
+    let call_data = SimpleStorageContract::default().set_call_data(42);
+
+    let tx_req_no_auth = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(storage_contract_address)),
+        gas: Some(1_000_000),
+        gas_price: Some(100_000_000),
+        value: None,
+        input: TransactionInput::new(call_data.clone().into()),
+        nonce: Some(0u64),
+        chain_id: Some(1u64),
+        access_list: None,
+        authorization_list: None,
+        ..Default::default()
+    };
+
+    let gas_without_auth = evm
+        .eth_estimate_gas_inner(
+            tx_req_no_auth,
+            Some(BlockNumberOrTag::Latest),
+            &mut working_set,
+            &ledger_db,
+            get_fork_fn_latest(),
+        )
+        .expect("Gas estimation without auth should succeed");
+
+    let auth = delegator
+        .get_signed_authorization(storage_contract_address, 0)
+        .expect("Should create signed authorization");
+
+    let tx_req_with_auth = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(delegator.address())), // Call the delegator's address
+        gas: Some(1_000_000),
+        gas_price: Some(100_000_000),
+        value: None,
+        input: TransactionInput::new(call_data.into()),
+        nonce: Some(0u64),
+        chain_id: Some(1u64),
+        access_list: None,
+        authorization_list: Some(vec![auth]),
+        ..Default::default()
+    };
+
+    let gas_with_auth = evm
+        .eth_estimate_gas_inner(
+            tx_req_with_auth,
+            Some(BlockNumberOrTag::Latest),
+            &mut working_set,
+            &ledger_db,
+            get_fork_fn_latest(),
+        )
+        .expect("Gas estimation with auth should succeed");
+
+    assert!(gas_with_auth > gas_without_auth,);
+}
+
+#[test]
+fn test_eip7702_gas_with_authorization_empty_data() {
+    let signer = TestSigner::new_random();
+    let delegator = TestSigner::new_random();
+
+    let config = EvmConfig {
+        data: vec![
+            AccountData {
+                address: signer.address(),
+                balance: U256::from_str("100000000000000000000").unwrap(),
+                code_hash: KECCAK_EMPTY,
+                code: Bytes::default(),
+                nonce: 0,
+                storage: Default::default(),
+            },
+            AccountData {
+                address: delegator.address(),
+                balance: U256::from_str("100000000000000000000").unwrap(),
+                code_hash: KECCAK_EMPTY,
+                code: Bytes::default(),
+                nonce: 0,
+                storage: Default::default(),
+            },
+        ],
+        ..Default::default()
+    };
+
+    let (evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
+
+    let storage_contract_address = address!("819c5497b157177315e1204f52e588b393771719");
+
+    let simple_transfer_req = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(delegator.address())),
+        gas: None,
+        gas_price: Some(100_000_000),
+        value: Some(U256::from(1_000_000)),
+        input: TransactionInput::default(), // Empty data
+        nonce: Some(0u64),
+        chain_id: Some(1u64),
+        access_list: None,
+        authorization_list: None,
+        ..Default::default()
+    };
+
+    let gas_simple_transfer = evm
+        .eth_estimate_gas_inner(
+            simple_transfer_req,
+            Some(BlockNumberOrTag::Latest),
+            &mut working_set,
+            &ledger_db,
+            get_fork_fn_latest(),
+        )
+        .expect("Simple transfer gas estimation should succeed");
+
+    assert_eq!(gas_simple_transfer, U256::from(MIN_TRANSACTION_GAS + 1),);
+
+    let auth = delegator
+        .get_signed_authorization(storage_contract_address, 0)
+        .expect("Should create signed authorization");
+
+    let tx_req_auth_empty_data = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(delegator.address())),
+        gas: None,
+        gas_price: Some(100_000_000),
+        value: Some(U256::from(1_000_000)),
+        input: TransactionInput::default(), // Empty data
+        nonce: Some(0u64),
+        chain_id: Some(1u64),
+        access_list: None,
+        authorization_list: Some(vec![auth]),
+        ..Default::default()
+    };
+
+    let gas_auth_empty_data = evm
+        .eth_estimate_gas_inner(
+            tx_req_auth_empty_data,
+            Some(BlockNumberOrTag::Latest),
+            &mut working_set,
+            &ledger_db,
+            get_fork_fn_latest(),
+        )
+        .expect("Gas estimation with auth and empty data should succeed");
+
+    assert!(gas_auth_empty_data > gas_simple_transfer,);
+}
+
+#[test]
+fn test_eip7702_gas_multiple_authorizations() {
+    let signer = TestSigner::new_random();
+    let delegator1 = TestSigner::new_random();
+    let delegator2 = TestSigner::new_random();
+
+    let config = EvmConfig {
+        data: vec![
+            AccountData {
+                address: signer.address(),
+                balance: U256::from_str("100000000000000000000").unwrap(),
+                code_hash: KECCAK_EMPTY,
+                code: Bytes::default(),
+                nonce: 0,
+                storage: Default::default(),
+            },
+            AccountData {
+                address: delegator1.address(),
+                balance: U256::from_str("100000000000000000000").unwrap(),
+                code_hash: KECCAK_EMPTY,
+                code: Bytes::default(),
+                nonce: 0,
+                storage: Default::default(),
+            },
+            AccountData {
+                address: delegator2.address(),
+                balance: U256::from_str("100000000000000000000").unwrap(),
+                code_hash: KECCAK_EMPTY,
+                code: Bytes::default(),
+                nonce: 0,
+                storage: Default::default(),
+            },
+        ],
+        ..Default::default()
+    };
+
+    let (evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
+
+    let storage_contract_address = address!("819c5497b157177315e1204f52e588b393771719");
+
+    // Test with single authorization
+    let auth1 = delegator1
+        .get_signed_authorization(storage_contract_address, 0)
+        .expect("Should create signed authorization 1");
+
+    let tx_req_single_auth = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(delegator1.address())),
+        gas: None,
+        gas_price: Some(100_000_000),
+        value: None,
+        input: TransactionInput::default(),
+        nonce: Some(0u64),
+        chain_id: Some(1u64),
+        access_list: None,
+        authorization_list: Some(vec![auth1.clone()]),
+        ..Default::default()
+    };
+
+    let gas_single_auth = evm
+        .eth_estimate_gas_inner(
+            tx_req_single_auth,
+            Some(BlockNumberOrTag::Latest),
+            &mut working_set,
+            &ledger_db,
+            get_fork_fn_latest(),
+        )
+        .expect("Gas estimation with single auth should succeed");
+
+    // Test with multiple authorizations
+    let auth2 = delegator2
+        .get_signed_authorization(storage_contract_address, 0)
+        .expect("Should create signed authorization 2");
+
+    let tx_req_multiple_auth = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(delegator1.address())),
+        gas: None,
+        gas_price: Some(100_000_000),
+        value: None,
+        input: TransactionInput::default(),
+        nonce: Some(0u64),
+        chain_id: Some(1u64),
+        access_list: None,
+        authorization_list: Some(vec![auth1, auth2]),
+        ..Default::default()
+    };
+
+    let gas_multiple_auth = evm
+        .eth_estimate_gas_inner(
+            tx_req_multiple_auth,
+            Some(BlockNumberOrTag::Latest),
+            &mut working_set,
+            &ledger_db,
+            get_fork_fn_latest(),
+        )
+        .expect("Gas estimation with multiple auth should succeed");
+
+    // Verify that gas increases with more authorizations
+    assert!(gas_multiple_auth > gas_single_auth,);
 }

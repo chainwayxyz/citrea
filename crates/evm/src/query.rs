@@ -1036,7 +1036,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
             create_txn_env(&block_env, request, Some(account.balance), nonce, chain_id)?;
 
         // if the request is a simple transfer we can optimize
-        if tx_env.data.is_empty() {
+        // but not if there's an authorization list as it adds significant gas costs
+        if tx_env.data.is_empty() && tx_env.authorization_list.is_empty() {
             if let TransactTo::Call(to) = tx_env.kind {
                 let to_account = self.account_info(&to, working_set).unwrap_or_default();
                 if to_account.code_hash.is_none() {
