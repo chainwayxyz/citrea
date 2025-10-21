@@ -165,6 +165,7 @@ pub struct BatchProverConfig {
     pub enable_recovery: bool,
     /// Maximum number of commitments per proof partition
     pub max_commitments_per_proof: Option<usize>,
+    /// Configuration for Risc0Host
     #[serde(default)]
     pub risc0_host_config: Risc0HostConfig,
 }
@@ -180,6 +181,9 @@ pub struct LightClientProverConfig {
     pub enable_recovery: bool,
     /// The starting DA block to sync from
     pub initial_da_height: u64,
+    /// Configuration for Risc0Host
+    #[serde(default)]
+    pub risc0_host_config: Risc0HostConfig,
 }
 
 impl Default for BatchProverConfig {
@@ -201,6 +205,7 @@ impl Default for LightClientProverConfig {
             proof_sampling_number: 0,
             enable_recovery: true,
             initial_da_height: 1,
+            risc0_host_config: Default::default(),
         }
     }
 }
@@ -226,6 +231,7 @@ impl FromEnv for LightClientProverConfig {
             proof_sampling_number: read_env("PROOF_SAMPLING_NUMBER")?.parse()?,
             enable_recovery: read_env("ENABLE_RECOVERY")?.parse()?,
             initial_da_height: read_env("INITIAL_DA_HEIGHT")?.parse()?,
+            risc0_host_config: Risc0HostConfig::from_env()?,
         })
     }
 }
