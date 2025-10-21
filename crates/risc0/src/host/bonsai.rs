@@ -3,6 +3,7 @@ use std::time::Duration;
 use anyhow::{anyhow, Context};
 use bonsai_sdk::blocking::{Client, SessionId, SnarkId};
 use bonsai_sdk::responses::SessionStats;
+use citrea_common::config::risc0::BonsaiProverConfig;
 use metrics::gauge;
 use risc0_zkvm::{compute_image_id, AssumptionReceipt, Digest, InnerAssumptionReceipt, Receipt};
 use sov_db::ledger_db::{BonsaiLedgerOps, LedgerDB};
@@ -12,7 +13,6 @@ use tokio::sync::oneshot;
 use tracing::{error, info};
 use uuid::Uuid;
 
-use citrea_common::config::risc0::BonsaiProverConfig;
 use crate::is_dev_mode_enabled_via_environment;
 
 #[derive(Clone)]

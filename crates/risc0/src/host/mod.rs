@@ -37,11 +37,7 @@ pub struct Risc0Host {
 
 impl Risc0Host {
     /// Create a new Risc0Host to prove the given binary.
-    pub async fn new(
-        ledger_db: LedgerDB,
-        network: Network,
-        config: Risc0HostConfig,
-    ) -> Self {
+    pub async fn new(ledger_db: LedgerDB, network: Network, config: Risc0HostConfig) -> Self {
         let prover = match config.prover {
             Risc0ProverConfig::Boundless(boundless_config) => {
                 Prover::Boundless(BoundlessProver::new(ledger_db, *boundless_config).await)

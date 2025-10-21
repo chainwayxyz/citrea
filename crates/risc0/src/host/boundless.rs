@@ -6,6 +6,7 @@ use anyhow::Context;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
 use boundless_market::alloy::primitives::U256;
+use boundless_market::alloy::signers::local::PrivateKeySigner;
 use boundless_market::client::{Client, ClientBuilder, ClientError};
 use boundless_market::contracts::boundless_market::MarketError;
 use boundless_market::contracts::{Offer, Predicate, Requirements};
@@ -13,6 +14,7 @@ use boundless_market::deployments::BASE;
 use boundless_market::request_builder::{RequestParams, RequirementParams};
 use boundless_market::storage::{PinataStorageProvider, S3StorageProvider};
 use boundless_market::{GuestEnv, StandardStorageProvider};
+use citrea_common::config::risc0::{BoundlessProverConfig, BoundlessStorageConfig};
 use metrics::gauge;
 use risc0_zkvm::sha::Digestible;
 use risc0_zkvm::{
@@ -26,10 +28,7 @@ use tokio::sync::oneshot;
 use tracing::Instrument;
 use url::Url;
 use uuid::Uuid;
-use boundless_market::alloy::signers::local::PrivateKeySigner;
 
-
-use citrea_common::config::risc0::{BoundlessProverConfig, BoundlessStorageConfig};
 use crate::host::pricing_service::{PriceResponse, PricingService};
 use crate::is_dev_mode_enabled_via_environment;
 
@@ -105,7 +104,7 @@ impl BoundlessProver {
                 .context("Failed to create Pinata storage provider")?,
             ),
         };
-        
+
         // TODO: Switch to Deployment::builder after boundless 1.0 release to switch between base mainnet and sepolia
         let mut deployment = BASE;
         if !config.is_offchain {

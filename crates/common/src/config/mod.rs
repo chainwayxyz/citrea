@@ -10,9 +10,9 @@ pub use crate::config::rpc::RpcConfig;
 use crate::risc0::Risc0HostConfig;
 use crate::utils::read_env;
 
-mod rpc;
 /// Configuration types for RISC0 provers
 pub mod risc0;
+mod rpc;
 
 pub trait FromEnv: Sized {
     fn from_env() -> anyhow::Result<Self>;
@@ -500,7 +500,12 @@ mod tests {
     use tempfile::NamedTempFile;
 
     use super::*;
-    use crate::{config::rpc::*, risc0::{BonsaiProverConfig, BoundlessConfig, BoundlessPinataStorageConfig, BoundlessProverConfig, BoundlessS3StorageConfig, BoundlessStorageConfig, LocalProverConfig, Risc0HostConfig, Risc0ProverConfig}};
+    use crate::config::rpc::*;
+    use crate::risc0::{
+        BonsaiProverConfig, BoundlessConfig, BoundlessPinataStorageConfig, BoundlessProverConfig,
+        BoundlessS3StorageConfig, BoundlessStorageConfig, LocalProverConfig, Risc0HostConfig,
+        Risc0ProverConfig,
+    };
 
     fn create_config_from(content: &str) -> NamedTempFile {
         let mut config_file = NamedTempFile::new().unwrap();
@@ -836,9 +841,8 @@ mod tests {
         assert_eq!(telemetry_config, expected);
     }
 
-    
     #[test]
-    fn test_correct_prover_config_local(){
+    fn test_correct_prover_config_local() {
         let config = r#"
             proving_mode = "execute"
             proof_sampling_number = 42
@@ -872,7 +876,7 @@ mod tests {
     }
 
     #[test]
-    fn test_correct_prover_config_bonsai(){
+    fn test_correct_prover_config_bonsai() {
         let config = r#"
             proving_mode = "execute"
             proof_sampling_number = 42
@@ -904,7 +908,7 @@ mod tests {
     }
 
     #[test]
-    fn test_correct_prover_config_boundless_s3(){
+    fn test_correct_prover_config_boundless_s3() {
         let config = r#"
             proving_mode = "execute"
             proof_sampling_number = 42
@@ -948,9 +952,7 @@ mod tests {
             enable_recovery: true,
             max_commitments_per_proof: None,
             risc0_host_config: Risc0HostConfig {
-                prover: Risc0ProverConfig::Boundless(
-                    Box::new(boundless_prover_config)
-                ),
+                prover: Risc0ProverConfig::Boundless(Box::new(boundless_prover_config)),
                 tx_backup_dir: None,
             },
         };
@@ -958,7 +960,7 @@ mod tests {
     }
 
     #[test]
-    fn test_correct_prover_config_boundless_pinata(){
+    fn test_correct_prover_config_boundless_pinata() {
         let config = r#"
             proving_mode = "execute"
             proof_sampling_number = 42
@@ -1003,5 +1005,4 @@ mod tests {
         };
         assert_eq!(config, expected);
     }
-
 }

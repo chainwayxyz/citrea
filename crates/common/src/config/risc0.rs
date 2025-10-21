@@ -1,7 +1,9 @@
 use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 
-use crate::{utils::read_env, FromEnv};
+use crate::utils::read_env;
+use crate::FromEnv;
 
 /// Boundless storage configuration for S3
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -62,7 +64,7 @@ impl FromEnv for BoundlessPinataStorageConfig {
         Ok(Self {
             pinata_jwt,
             pinata_api_url,
-            ipfs_gateway_url
+            ipfs_gateway_url,
         })
     }
 }
