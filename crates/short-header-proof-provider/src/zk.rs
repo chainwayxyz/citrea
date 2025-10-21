@@ -45,10 +45,7 @@ impl<Da: DaSpec> ShortHeaderProofProvider for ZkShortHeaderProofProviderService<
             .borrow_mut()
             .pop_front()
             .unwrap_or_else(|| {
-                panic!(
-                    "Should have short header proof for l1 hash: {:?}",
-                    block_hash
-                )
+                panic!("Should have short header proof for l1 hash: {block_hash:?}")
             });
 
         let shp = Da::ShortHeaderProof::try_from_slice(&shp)
