@@ -854,12 +854,12 @@ mod tests {
             proof_sampling_number = 42
             enable_recovery = true
 
+            [risc0_host_config]
+            tx_backup_dir = "/tmp/backup"
+            
             [risc0_host_config.prover.Local]
             r0vm_path = "path/to/vm"
             dev_mode = false
-            
-            [risc0_host_config]
-            tx_backup_dir = "/tmp/backup"
         "#;
 
         let config_file = create_config_from(config);
@@ -919,6 +919,7 @@ mod tests {
             proving_mode = "execute"
             proof_sampling_number = 42
             enable_recovery = true
+
             [risc0_host_config.prover.Boundless.boundless]
             wallet_private_key = "abcd"
             rpc_url = "127.0.0.1"
