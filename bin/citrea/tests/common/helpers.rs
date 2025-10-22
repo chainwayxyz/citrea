@@ -80,10 +80,10 @@ pub async fn start_rollup(
         panic!("Both batch prover and light client prover config cannot be set at the same time");
     }
 
-    if rollup_config.telemetry.bind_host.is_some() && rollup_config.telemetry.bind_port.is_some() {
+    if let Some(bind_host) = rollup_config.telemetry.bind_host
+        && let Some(bind_port) = rollup_config.telemetry.bind_port
+    {
         PROMETHEUS_INITIALIZED.get_or_init(|| {
-            let bind_host = rollup_config.telemetry.bind_host.as_ref().unwrap();
-            let bind_port = rollup_config.telemetry.bind_port.unwrap();
             let telemetry_addr: std::net::SocketAddr = format!("{}:{}", bind_host, bind_port)
                 .parse()
                 .expect("Invalid telemetry address");

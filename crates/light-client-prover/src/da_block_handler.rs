@@ -82,7 +82,7 @@ impl<Vm, Da, DB> L1BlockHandler<Vm, Da, DB>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    DB: LightClientProverLedgerOps + SharedLedgerOps + Clone + NodeLedgerOps + NodeLedgerOps,
+    DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
     Network: InitialValueProvider<Da::Spec>,
 {
     /// Creates a new instance of the L1BlockHandler
@@ -139,18 +139,29 @@ where
         last_l1_height_scanned: StartVariant,
         mut shutdown_signal: GracefulShutdown,
     ) {
-        if let Ok(Some(proven_height)) = self
-            .ledger_db
-            .get_highest_l2_height_for_status(sov_db::schema::types::L2HeightStatus::Proven, None)
-        {
-            LPM.highest_proven_l2_height
-                .set(proven_height.height as f64);
-            LPM.highest_proven_index
-                .set(proven_height.commitment_index as f64);
-            debug!(
-                "Initialized highest_proven_l2_height metric: {} at index {}",
-                proven_height.height, proven_height.commitment_index
-            );
+        if let Ok(Some(last_scanned_l1_height)) = self.ledger_db.get_last_scanned_l1_height() {
+            let l1_height = last_scanned_l1_height.0;
+
+            if let Ok(Some(proof_data)) = self
+                .ledger_db
+                .get_light_client_proof_data_by_l1_height(l1_height)
+            {
+                let circuit_output =
+                    LightClientCircuitOutput::from(proof_data.light_client_proof_output);
+
+                LPM.current_l1_block.set(l1_height as f64);
+                LPM.highest_proven_l2_height
+                    .set(circuit_output.last_l2_height as f64);
+                LPM.highest_proven_index
+                    .set(circuit_output.last_sequencer_commitment_index as f64);
+
+                debug!(
+                    "Initialized metrics from L1 block {}: L2 height {} at index {}",
+                    l1_height,
+                    circuit_output.last_l2_height,
+                    circuit_output.last_sequencer_commitment_index
+                );
+            }
         }
 
         // if self.prover_config.enable_recovery {

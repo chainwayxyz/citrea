@@ -96,12 +96,6 @@ impl TestClient {
         Ok(resp.status().as_u16())
     }
 
-    pub(crate) async fn get_metrics(&self) -> Result<String, Box<dyn std::error::Error>> {
-        let metrics_url = "http://localhost:9000/metrics".to_owned();
-        let resp = reqwest::get(metrics_url).await?;
-        Ok(resp.text().await?)
-    }
-
     pub(crate) async fn spam_publish_batch_request(
         &self,
     ) -> Result<(), Box<dyn std::error::Error>> {
