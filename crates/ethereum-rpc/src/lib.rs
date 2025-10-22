@@ -771,6 +771,7 @@ where
     // If the node does not have a sequencer client, then it is the sequencer.
     let is_sequencer = sequencer_client_url.is_none();
     let enable_subscriptions = l2_block_rx.is_some();
+    let enable_filters = eth_rpc_config.enable_filters;
 
     // If the running node is a full node rpc context should also have sequencer client so that it can send txs to sequencer
     let ethereum = Arc::new(Ethereum::new(
@@ -804,6 +805,14 @@ where
         module.remove_method("eth_unsubscribe");
         module.remove_method("debug_subscribe");
         module.remove_method("debug_unsubscribe");
+    }
+
+    if !enable_filters {
+        module.remove_method("eth_newFilter");
+        module.remove_method("eth_newBlockFilter");
+        module.remove_method("eth_uninstallFilter");
+        module.remove_method("eth_getFilterChanges");
+        module.remove_method("eth_getFilterLogs");
     }
 
     module
