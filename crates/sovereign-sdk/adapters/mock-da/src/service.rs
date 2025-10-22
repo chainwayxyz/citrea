@@ -5,6 +5,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use borsh::BorshDeserialize;
 use sha2::Digest;
+use sov_db::ledger_db::{DaLedgerOps, LedgerDB};
 use sov_rollup_interface::da::{
     BlobReaderTrait, BlockHeaderTrait, DaSpec, DaTxRequest, DataOnDa, SequencerCommitment, Time,
 };
@@ -76,12 +77,25 @@ pub struct MockDaService {
     finalized_header_sender: broadcast::Sender<MockBlockHeader>,
     wait_attempts: usize,
     planned_fork: Arc<Mutex<Option<PlannedFork>>>,
+    ledger_db: Option<LedgerDB>,
 }
 
 impl MockDaService {
     /// Creates a new [`MockDaService`] with instant finality.
     pub fn new(sequencer_da_address: MockAddress, db_path: &Path) -> Self {
         Self::with_finality(sequencer_da_address, 0, db_path)
+    }
+
+    /// Creates a new [`MockDaService`] with instant finality and access to LedgerDB for stored proof related functionalities.
+    pub fn new_with_ledger_db(
+        sequencer_da_address: MockAddress,
+        db_path: &Path,
+        ledger_db: LedgerDB,
+    ) -> Self {
+        let mut service = Self::with_finality(sequencer_da_address, 0, db_path);
+
+        service.ledger_db = Some(ledger_db);
+        service
     }
 
     /// Create a new [`MockDaService`] with given finality.
@@ -106,6 +120,7 @@ impl MockDaService {
             finalized_header_sender: tx,
             wait_attempts: 100_0000,
             planned_fork: Arc::new(Mutex::new(None)),
+            ledger_db: None,
         }
     }
 
@@ -443,8 +458,14 @@ impl DaService for MockDaService {
                 let req = DataOnDa::Complete(proof);
                 borsh::to_vec(&req).unwrap()
             }
-            DaTxRequest::StoredProof(_) => {
-                unimplemented!()
+            DaTxRequest::StoredProof(proof_id) => {
+                let proof = self
+                    .ledger_db
+                    .as_ref()
+                    .unwrap()
+                    .get_proof_by_proof_id(proof_id)?;
+                let req = DataOnDa::Complete(proof);
+                borsh::to_vec(&req).unwrap()
             }
             DaTxRequest::SequencerCommitment(seq_comm) => {
                 tracing::debug!("Adding a sequencer commitment");
@@ -462,7 +483,7 @@ impl DaService for MockDaService {
         let (tx, rx) = oneshot::channel();
 
         let _ = tx.send(Ok(MockHash([0; 32])));
-        Ok((Uuid::default(), rx))
+        Ok((Uuid::nil(), rx))
     }
 
     async fn get_fee_rate(&self) -> Result<u128, Self::Error> {
