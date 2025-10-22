@@ -1663,7 +1663,7 @@ fn test_eip7702_tx() {
 }
 
 #[test]
-fn test_min_base_fee_fork3() {
+fn test_min_base_fee_tangelo() {
     let (config, _dev_signer, _contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
@@ -1696,12 +1696,12 @@ fn test_min_base_fee_fork3() {
         .unwrap();
     assert_eq!(block.header.base_fee_per_gas.unwrap(), 10_000_000);
 
-    // produce empty blocks to reduce base fee to the minimum for fork3 (1_000_000)
+    // produce empty blocks to reduce base fee to the minimum for Tangelo (1_000_000)
     for l2_height in 1600..3200 {
         let l2_block_info = HookL2BlockInfo {
             l2_height,
             pre_state_root: [10u8; 32],
-            current_spec: SovSpecId::Fork3,
+            current_spec: SovSpecId::Tangelo,
             sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,
