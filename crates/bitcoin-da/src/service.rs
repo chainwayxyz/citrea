@@ -36,7 +36,7 @@ use sov_rollup_interface::zk::Proof;
 use sov_rollup_interface::Network;
 use tokio::select;
 use tokio::sync::mpsc::UnboundedReceiver;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{oneshot, Mutex, Notify};
 use tracing::{debug, error, info, instrument, trace, warn};
 use uuid::Uuid;
 
@@ -189,6 +189,7 @@ pub struct BitcoinService {
     pub(crate) job_service: Mutex<DaJobService<LedgerDB>>,
     max_fee_rate_sat_to_pay: u64,
     fee_rate_cap_duration_secs: u64,
+    job_notifier: Arc<Notify>,
 }
 
 impl BitcoinService {
@@ -224,6 +225,7 @@ impl BitcoinService {
             job_service,
             max_fee_rate_sat_to_pay,
             fee_rate_cap_duration_secs,
+            job_notifier: Arc::new(Notify::new()),
         }
     }
 
@@ -310,6 +312,13 @@ impl BitcoinService {
                         if let Err(e) = self.process_job_service().await {
                             error!(?e, "Error processing queue on new block");
                         }
+                    }
+                }
+
+                _ = self.job_notifier.notified() => {
+                    trace!("Job submitted, processing queue");
+                    if let Err(e) = self.process_job_service().await {
+                        error!(?e, "Error processing queue on job trigger");
                     }
                 }
             }
@@ -1376,8 +1385,8 @@ impl DaService for BitcoinService {
             job_service.submit_job(tx_request, tx)?
         };
 
-        // TODO maybe single job handling here
-        self.process_job_service().await?;
+        // For now, notify on new job and process all of them in order as this is needed for utxo handling
+        self.job_notifier.notify_one();
 
         Ok((job_id, rx))
     }
