@@ -1037,7 +1037,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         // if the request is a simple transfer we can optimize
         // but not if there's an authorization list as it adds significant gas costs
-        if tx_env.data.is_empty() && tx_env.authorization_list.is_empty() {
+        if tx_env.data.is_empty() {
             if let TransactTo::Call(to) = tx_env.kind {
                 let to_account = self.account_info(&to, working_set).unwrap_or_default();
                 if to_account.code_hash.is_none() {
@@ -1244,6 +1244,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 l1_fee_rate,
                 TracingInspector::new(TracingInspectorConfig::none()),
             );
+
+            println!("Estimated gas try: {:#?}", result);
 
             // Exceptional case: init used too much gas, we need to increase the gas limit and try
             // again

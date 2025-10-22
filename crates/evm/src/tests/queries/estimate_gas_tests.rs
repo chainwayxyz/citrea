@@ -576,44 +576,24 @@ fn test_estimate_gas_with_value(
 
 #[test]
 fn test_eip7702_gas_with_authorization_and_call_data() {
-    let signer = TestSigner::new_random();
-    let delegator = TestSigner::new_random();
+    // address a delegates to contract c
+    // address a sends tx to address a, in the same tx
+    // a delegates to c
 
-    let config = EvmConfig {
-        data: vec![
-            AccountData {
-                address: signer.address(),
-                balance: U256::from_str("100000000000000000000").unwrap(),
-                code_hash: KECCAK_EMPTY,
-                code: Bytes::default(),
-                nonce: 0,
-                storage: Default::default(),
-            },
-            AccountData {
-                address: delegator.address(),
-                balance: U256::from_str("100000000000000000000").unwrap(),
-                code_hash: KECCAK_EMPTY,
-                code: Bytes::default(),
-                nonce: 0,
-                storage: Default::default(),
-            },
-        ],
-        ..Default::default()
-    };
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(sov_modules_api::SpecId::Fork3);
 
-    let (evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
-
-    let storage_contract_address = address!("819c5497b157177315e1204f52e588b393771719");
+    let storage_contract_address = address!("eeb03d20dae810f52111b853b31c8be6f30f4cd3");
     let call_data = SimpleStorageContract::default().set_call_data(42);
+
+    let cur_nonce = evm
+        .get_transaction_count(signer.address(), None, &mut working_set, &ledger_db)
+        .unwrap();
 
     let tx_req_no_auth = TransactionRequest {
         from: Some(signer.address()),
         to: Some(TxKind::Call(storage_contract_address)),
-        gas: Some(1_000_000),
-        gas_price: Some(100_000_000),
         value: None,
         input: TransactionInput::new(call_data.clone().into()),
-        nonce: Some(0u64),
         chain_id: Some(1u64),
         access_list: None,
         authorization_list: None,
@@ -621,7 +601,7 @@ fn test_eip7702_gas_with_authorization_and_call_data() {
     };
 
     let gas_without_auth = evm
-        .eth_estimate_gas_inner(
+        .eth_estimate_diff_size_inner(
             tx_req_no_auth,
             Some(BlockNumberOrTag::Latest),
             &mut working_set,
@@ -630,18 +610,15 @@ fn test_eip7702_gas_with_authorization_and_call_data() {
         )
         .expect("Gas estimation without auth should succeed");
 
-    let auth = delegator
-        .get_signed_authorization(storage_contract_address, 0)
+    let auth = signer
+        .get_signed_authorization(storage_contract_address, cur_nonce.to::<u64>() + 1u64)
         .expect("Should create signed authorization");
 
     let tx_req_with_auth = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(TxKind::Call(delegator.address())), // Call the delegator's address
-        gas: Some(1_000_000),
-        gas_price: Some(100_000_000),
+        to: Some(TxKind::Call(signer.address())), // Call the delegator's address
         value: None,
         input: TransactionInput::new(call_data.into()),
-        nonce: Some(0u64),
         chain_id: Some(1u64),
         access_list: None,
         authorization_list: Some(vec![auth]),
@@ -649,7 +626,7 @@ fn test_eip7702_gas_with_authorization_and_call_data() {
     };
 
     let gas_with_auth = evm
-        .eth_estimate_gas_inner(
+        .eth_estimate_diff_size_inner(
             tx_req_with_auth,
             Some(BlockNumberOrTag::Latest),
             &mut working_set,
@@ -658,7 +635,9 @@ fn test_eip7702_gas_with_authorization_and_call_data() {
         )
         .expect("Gas estimation with auth should succeed");
 
-    assert!(gas_with_auth > gas_without_auth,);
+    println!("Gas without auth: {:?}", gas_without_auth);
+    println!("Gas with auth: {:?}", gas_with_auth);
+    assert!(gas_with_auth.gas > gas_without_auth.gas);
 }
 
 #[test]
@@ -745,6 +724,8 @@ fn test_eip7702_gas_with_authorization_empty_data() {
             get_fork_fn_latest(),
         )
         .expect("Gas estimation with auth and empty data should succeed");
+
+    println!("Gas non-simple transfer: {}", gas_auth_empty_data);
 
     assert!(gas_auth_empty_data > gas_simple_transfer,);
 }
