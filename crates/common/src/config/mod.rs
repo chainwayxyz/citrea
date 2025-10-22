@@ -575,6 +575,7 @@ mod tests {
                 enable_js_tracer: true,
                 api_key: None,
                 stale_filter_ttl: Some(300),
+                enable_filters: true,
             },
             public_keys: RollupPublicKeys {
                 sequencer_public_key: vec![0; 33],
@@ -779,6 +780,7 @@ mod tests {
                 enable_js_tracer: true,
                 api_key: None,
                 stale_filter_ttl: None,
+                enable_filters: true,
             },
             storage: StorageConfig {
                 path: "/tmp/rollup".into(),
@@ -811,6 +813,10 @@ mod tests {
 
     #[test]
     fn test_optional_telemetry_config_from_env() {
+        // Clear env vars that might be set by other tests
+        std::env::remove_var("TELEMETRY_BIND_HOST");
+        std::env::remove_var("TELEMETRY_BIND_PORT");
+
         let telemetry_config = TelemetryConfig::from_env().unwrap();
 
         let expected = TelemetryConfig {

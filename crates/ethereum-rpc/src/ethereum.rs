@@ -25,6 +25,7 @@ pub struct EthRpcConfig {
     pub gas_price_oracle_config: GasPriceOracleConfig,
     pub fee_history_cache_config: FeeHistoryCacheConfig,
     pub stale_filter_ttl: Option<usize>,
+    pub enable_filters: bool,
 }
 
 pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
