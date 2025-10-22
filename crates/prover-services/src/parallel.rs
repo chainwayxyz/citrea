@@ -95,7 +95,7 @@ where
         data: ProofData,
         receipt_type: ReceiptType,
     ) -> anyhow::Result<ProofWithDuration> {
-        let job_id = Uuid::nil();
+        let job_id = Uuid::new_v4();
         let rx = self.start_proving(data, receipt_type, job_id).await?;
         Ok(rx.await?)
     }
