@@ -97,7 +97,7 @@ where
     ) -> anyhow::Result<ProofWithDuration> {
         let job_id = Uuid::nil();
         let rx = self.start_proving(data, receipt_type, job_id).await?;
-        Ok(rx.await.expect("Proof channel should not close"))
+        Ok(rx.await?)
     }
 
     /// Starts the proving task in the background and returns a channel which will resolve
