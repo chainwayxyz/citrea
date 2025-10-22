@@ -160,8 +160,7 @@ async fn test_filters_disabled() -> Result<(), anyhow::Error> {
     let err = result.unwrap_err();
     assert!(
         err.to_string().contains("Method not found") || err.to_string().contains("-32601"),
-        "Expected 'Method not found' error, got: {}",
-        err
+        "Expected 'Method not found' error, got: {err}"
     );
 
     let result = seq_test_client.new_block_filter().await;
@@ -172,8 +171,7 @@ async fn test_filters_disabled() -> Result<(), anyhow::Error> {
     let err = result.unwrap_err();
     assert!(
         err.to_string().contains("Method not found") || err.to_string().contains("-32601"),
-        "Expected 'Method not found' error, got: {}",
-        err
+        "Expected 'Method not found' error, got: {err}"
     );
 
     let dummy_filter_id = "0x1".to_string();
@@ -187,8 +185,7 @@ async fn test_filters_disabled() -> Result<(), anyhow::Error> {
     let err = result.unwrap_err();
     assert!(
         err.to_string().contains("Method not found") || err.to_string().contains("-32601"),
-        "Expected 'Method not found' error, got: {}",
-        err
+        "Expected 'Method not found' error, got: {err}"
     );
 
     let result = seq_test_client
@@ -201,8 +198,7 @@ async fn test_filters_disabled() -> Result<(), anyhow::Error> {
     let err = result.unwrap_err();
     assert!(
         err.to_string().contains("Method not found") || err.to_string().contains("-32601"),
-        "Expected 'Method not found' error, got: {}",
-        err
+        "Expected 'Method not found' error, got: {err}"
     );
 
     let result = seq_test_client
@@ -215,8 +211,7 @@ async fn test_filters_disabled() -> Result<(), anyhow::Error> {
     let err = result.unwrap_err();
     assert!(
         err.to_string().contains("Method not found") || err.to_string().contains("-32601"),
-        "Expected 'Method not found' error, got: {}",
-        err
+        "Expected 'Method not found' error, got: {err}"
     );
 
     Ok(())

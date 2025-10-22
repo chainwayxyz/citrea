@@ -780,7 +780,7 @@ mod tests {
                 enable_js_tracer: true,
                 api_key: None,
                 stale_filter_ttl: None,
-                enable_filters: false,
+                enable_filters: true,
             },
             storage: StorageConfig {
                 path: "/tmp/rollup".into(),
