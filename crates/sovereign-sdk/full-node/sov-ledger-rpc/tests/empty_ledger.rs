@@ -24,7 +24,7 @@ async fn rpc_server() -> (jsonrpsee::server::ServerHandle, SocketAddr) {
 async fn rpc_client(addr: SocketAddr) -> Arc<impl LedgerRpcClient> {
     Arc::new(
         jsonrpsee::ws_client::WsClientBuilder::new()
-            .build(format!("ws://{}", addr))
+            .build(format!("ws://{addr}"))
             .await
             .unwrap(),
     )

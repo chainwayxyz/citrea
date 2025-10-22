@@ -83,9 +83,9 @@ pub fn read_json_file<T: serde::de::DeserializeOwned, P: AsRef<Path>>(
     let path_str = path.as_ref().display();
 
     let data = std::fs::read_to_string(&path)
-        .with_context(|| format!("Failed to read genesis from {}", path_str))?;
+        .with_context(|| format!("Failed to read genesis from {path_str}"))?;
     let config: T = serde_json::from_str(&data)
-        .with_context(|| format!("Failed to parse genesis from {}", path_str))?;
+        .with_context(|| format!("Failed to parse genesis from {path_str}"))?;
 
     Ok(config)
 }
