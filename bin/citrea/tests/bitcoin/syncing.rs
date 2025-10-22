@@ -145,7 +145,7 @@ impl TestCase for SyncStatusTest {
                 assert_eq!(sync_info_box.highest_block, U256::from(300));
                 assert!(sync_info_box.current_block < U256::from(300));
             }
-            _ => panic!("Expected EthSyncStatus::Info variant, got {:?}", eth_sync),
+            _ => panic!("Expected EthSyncStatus::Info variant, got {eth_sync:?}"),
         }
 
         // Check sync status while syncing
@@ -197,7 +197,7 @@ impl TestCase for SyncStatusTest {
                 assert_eq!(sync_info_box.highest_block, U256::from(600));
                 assert!(sync_info_box.current_block < U256::from(600));
             }
-            _ => panic!("Expected EthSyncStatus::Info variant, got {:?}", eth_sync),
+            _ => panic!("Expected EthSyncStatus::Info variant, got {eth_sync:?}"),
         }
 
         // Generate DA blocks and check L1 sync status
@@ -508,10 +508,7 @@ impl TestCase for SequencerEthSyncingTest {
                     "Current and highest blocks should be equal for sequencer"
                 );
             }
-            _ => panic!(
-                "Sequencer should return EthSyncStatus::Info, got {:?}",
-                eth_sync
-            ),
+            _ => panic!("Sequencer should return EthSyncStatus::Info, got {eth_sync:?}"),
         }
 
         let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
@@ -547,10 +544,7 @@ impl TestCase for SequencerEthSyncingTest {
                     "Current and highest blocks should be equal for sequencer (fully synced)"
                 );
             }
-            _ => panic!(
-                "Sequencer should return EthSyncStatus::Info, got {:?}",
-                eth_sync
-            ),
+            _ => panic!("Sequencer should return EthSyncStatus::Info, got {eth_sync:?}"),
         }
 
         Ok(())

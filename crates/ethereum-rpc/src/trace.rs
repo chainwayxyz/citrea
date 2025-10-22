@@ -75,8 +75,7 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
     if (end_block - start_block) > max_blocks {
         pending
             .reject(EthApiError::InvalidParams(format!(
-                "Block range too large. Maximum allowed range is {} blocks",
-                max_blocks
+                "Block range too large. Maximum allowed range is {max_blocks} blocks"
             )))
             .await;
         return;
@@ -483,7 +482,7 @@ fn convert_call_trace_into_4byte_map(
         if input.len() >= 4 {
             let input_size = input.0.len() - 4;
             let four_byte = &input.to_string()[2..10]; // Ignore the 0x
-            let key = format!("{}-{}", four_byte, input_size);
+            let key = format!("{four_byte}-{input_size}");
             let count = four_byte_map.entry(key).or_insert(0);
             *count += 1;
         }

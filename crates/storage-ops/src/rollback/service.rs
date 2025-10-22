@@ -34,7 +34,7 @@ impl RollbackService {
                 Some(signal) = self.receiver.recv() => {
                     info!("Received signal to rollback to L2 {}, L1 {}", signal.target_l2, signal.target_l1);
                     if let Err(e) = self.rollback.execute(node_type, Some(signal.target_l2), Some(signal.target_l1), Some(signal.last_sequencer_commitment_index)).await {
-                        panic!("Could not rollback blocks: {:?}", e);
+                        panic!("Could not rollback blocks: {e:?}");
                     }
                 }
             }

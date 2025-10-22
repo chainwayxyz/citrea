@@ -116,8 +116,7 @@ async fn test_maintenance_removes_published_transactions() {
             .unwrap();
         assert!(
             !in_mempool,
-            "Published transaction {} should be removed from mempool",
-            tx_hash
+            "Published transaction {tx_hash} should be removed from mempool"
         );
     }
 
@@ -125,8 +124,7 @@ async fn test_maintenance_removes_published_transactions() {
     let mempool_count = test_client.get_mempool_transaction_count().await.unwrap();
     assert_eq!(
         mempool_count, 0,
-        "Expected 0 transactions in mempool, but found {}",
-        mempool_count
+        "Expected 0 transactions in mempool, but found {mempool_count}"
     );
 
     seq_task.graceful_shutdown();
@@ -443,8 +441,7 @@ async fn test_l1_fee_failed_transactions() {
 
         assert!(
             !published,
-            "Low L1 fee transaction should never be published (attempt {})",
-            attempt
+            "Low L1 fee transaction should never be published (attempt {attempt})"
         );
     }
 
@@ -783,8 +780,7 @@ async fn test_stale_tx_eviction() {
     let mempool_count = test_client.get_mempool_transaction_count().await.unwrap();
     assert_eq!(
         mempool_count, 0,
-        "All stale transactions should be evicted, but found {} transactions",
-        mempool_count
+        "All stale transactions should be evicted, but found {mempool_count} transactions"
     );
 
     seq_task.graceful_shutdown();

@@ -434,7 +434,7 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             .context
             .ledger
             .get_head_l2_block_height()
-            .map_err(|e| internal_rpc_error(format!("Failed to get head L2 block height: {}", e)))?
+            .map_err(|e| internal_rpc_error(format!("Failed to get head L2 block height: {e}")))?
             .unwrap_or(0);
 
         Ok(EthSyncStatus::Info(Box::new(SyncInfo {

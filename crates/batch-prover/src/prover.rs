@@ -179,7 +179,7 @@ where
 
                     debug!("Got L1 signal to try proving");
                     if let Err(e) = self.try_proving(PartitionMode::Normal, true).await {
-                        error!("Failed to start proving: {}", e);
+                        error!("Failed to start proving: {:?}", e);
                     }
                 },
                 l2_signal = self.l2_block_rx.recv() => {
@@ -203,7 +203,7 @@ where
 
                     debug!("Got L2 signal to try proving");
                     if let Err(e) = self.try_proving(PartitionMode::Normal, true).await {
-                        error!("Failed to start proving: {}", e);
+                        error!("Failed to start proving: {:?}", e);
                     }
                 }
                 request = self.request_rx.recv() => {
@@ -343,7 +343,7 @@ where
     ///
     /// # Arguments
     /// * `commitments` - A mutable reference to the vector of pending commitments
-    ///     This vector is mutable because it will be updated with the filtered commitments.
+    ///    This vector is mutable because it will be updated with the filtered commitments.
     /// * `mode` - The partition mode to use for partitioning the commitments
     ///
     /// # Returns
@@ -463,11 +463,11 @@ where
     /// If there are more than one commitment, the commitments are iterated and following conditions are checked at each iteration:
     /// 0. The state diff is increased at each iteration with the current commitment state diff and reset after each partition to the current commitments state diff.
     /// 1. If other than the first commitment, the index of the current commitment and the previous commitment index is checked,
-    ///     if they are not consecutive, a partition is formed with the IndexGap PartitionReason.
+    ///    if they are not consecutive, a partition is formed with the IndexGap PartitionReason.
     /// 2. If the previous commitment l2 end block number and the current commitment l2 end block number are from different forks,
-    ///     a partition is formed with the SpecChange PartitionReason.
+    ///    a partition is formed with the SpecChange PartitionReason.
     /// 3. If serialized and then compressed cumulative state diff of the (current commitment included) partition exceeds the MAX_TX_BODY_SIZE,
-    ///     a partition is formed with the StateDiff PartitionReason.
+    ///    a partition is formed with the StateDiff PartitionReason.
     /// 4. If there is a remaining commitment after the loop, it is added as a last partition with the Finish PartitionReason.
     ///
     /// # Gotchas:
@@ -1262,7 +1262,7 @@ fn extract_proof_output<Vm: ZkvmHost>(
         code_commitment,
         network_to_dev_mode(network),
     )
-    .unwrap_or_else(|_| panic!("Failed to verify proof with job_id={}", job_id));
+    .unwrap_or_else(|_| panic!("Failed to verify proof with job_id={job_id}"));
 
     debug!("circuit output: {:?}", output);
     output
