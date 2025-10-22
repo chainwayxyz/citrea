@@ -155,13 +155,15 @@ async fn test_eth_get_logs_and_filter_proofs() -> Result<(), anyhow::Error> {
 
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config = create_default_rollup_config(
+    let mut rollup_config = create_default_rollup_config(
         true,
         &sequencer_db_dir,
         &da_db_dir,
         NodeMode::SequencerNode,
         None,
     );
+    // Enable filters for this test
+    rollup_config.rpc.enable_filters = true;
     let sequencer_config = SequencerConfig::default();
 
     let rollup_task = start_rollup(

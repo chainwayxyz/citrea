@@ -457,6 +457,7 @@ pub fn create_default_rollup_config(
             stale_filter_ttl: Some(10),
             enable_js_tracer: true,
             api_key: None,
+            enable_filters: false,
         },
         runner: match node_mode {
             NodeMode::FullNode(socket_addr)

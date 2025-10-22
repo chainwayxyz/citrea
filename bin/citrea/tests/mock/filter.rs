@@ -30,6 +30,8 @@ async fn test_filter_changes() -> Result<(), anyhow::Error> {
     );
     // Update the stale filter TTL to 10 seconds for testing purposes
     rollup_config.rpc.stale_filter_ttl = Some(10);
+    // Enable filters for this test
+    rollup_config.rpc.enable_filters = true;
     let sequencer_config = SequencerConfig {
         max_l2_blocks_per_commitment: 1000,
         da_update_interval_ms: 500,

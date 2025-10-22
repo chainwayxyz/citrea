@@ -575,6 +575,7 @@ mod tests {
                 enable_js_tracer: true,
                 api_key: None,
                 stale_filter_ttl: Some(300),
+                enable_filters: false,
             },
             public_keys: RollupPublicKeys {
                 sequencer_public_key: vec![0; 33],
@@ -779,6 +780,7 @@ mod tests {
                 enable_js_tracer: true,
                 api_key: None,
                 stale_filter_ttl: None,
+                enable_filters: false,
             },
             storage: StorageConfig {
                 path: "/tmp/rollup".into(),
