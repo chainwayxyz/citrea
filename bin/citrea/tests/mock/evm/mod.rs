@@ -562,7 +562,8 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
                 .from_block(BlockNumberOrTag::Latest)
                 .to_block(BlockNumberOrTag::Latest),
         )
-        .await;
+        .await
+        .unwrap();
     let empty_filter = serde_json::json!({});
     // supposed to get all the logs
     let logs = client.eth_get_logs(empty_filter).await;
@@ -593,7 +594,8 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
                     .unwrap(),
                 ),
         )
-        .await;
+        .await
+        .unwrap();
 
     let filter_changes = client
         .get_filter_changes(one_topic_filter_id)
@@ -653,7 +655,8 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
                 .from_block(BlockNumberOrTag::Latest)
                 .to_block(BlockNumberOrTag::Latest),
         )
-        .await;
+        .await
+        .unwrap();
 
     let filter_changes = client
         .get_filter_changes(just_address_filter_id)
@@ -680,7 +683,8 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
                 .from_block(BlockNumberOrTag::Number(1))
                 .to_block(BlockNumberOrTag::Number(4)),
         )
-        .await;
+        .await
+        .unwrap();
 
     let filter_changes = client
         .get_filter_changes(address_and_range_filter_id)

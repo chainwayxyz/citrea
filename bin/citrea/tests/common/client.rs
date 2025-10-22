@@ -944,42 +944,48 @@ impl TestClient {
         Ok(false)
     }
 
-    pub(crate) async fn install_filter(&self, filter: Filter) -> FilterId {
+    pub(crate) async fn install_filter(
+        &self,
+        filter: Filter,
+    ) -> Result<FilterId, jsonrpsee::core::client::Error> {
         self.http_client
             .request("eth_newFilter", rpc_params![filter])
             .await
-            .unwrap()
     }
 
-    pub(crate) async fn uninstall_filter(&self, id: FilterId) -> bool {
+    pub(crate) async fn uninstall_filter(
+        &self,
+        id: FilterId,
+    ) -> Result<bool, jsonrpsee::core::client::Error> {
         self.http_client
             .request("eth_uninstallFilter", rpc_params![id])
             .await
-            .unwrap()
     }
 
-    pub(crate) async fn new_block_filter(&self) -> FilterId {
+    pub(crate) async fn new_block_filter(
+        &self,
+    ) -> Result<FilterId, jsonrpsee::core::client::Error> {
         self.http_client
             .request("eth_newBlockFilter", rpc_params![])
             .await
-            .unwrap()
     }
 
     pub(crate) async fn get_filter_changes(
         &self,
         id: FilterId,
-    ) -> Result<FilterChanges<Transaction>, Box<dyn std::error::Error>> {
+    ) -> Result<FilterChanges<Transaction>, jsonrpsee::core::client::Error> {
         self.http_client
             .request("eth_getFilterChanges", rpc_params![id])
             .await
-            .map_err(|e| e.into())
     }
 
-    pub(crate) async fn get_filter_logs(&self, id: FilterId) -> Vec<Log> {
+    pub(crate) async fn get_filter_logs(
+        &self,
+        id: FilterId,
+    ) -> Result<Vec<Log>, jsonrpsee::core::client::Error> {
         self.http_client
             .request("eth_getFilterLogs", rpc_params![id])
             .await
-            .unwrap()
     }
 }
 
