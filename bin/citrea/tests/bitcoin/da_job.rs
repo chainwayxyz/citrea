@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -7,10 +8,15 @@ use bitcoin::hashes::Hash;
 use bitcoin_da::job::rpc::{DaJobRpcClient, JobInfoResponse, JobStatusFilter, RetryJobResponse};
 use bitcoin_da::service::BitcoinService;
 use bitcoincore_rpc::RpcApi;
+use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
-use citrea_e2e::config::{BitcoinConfig, LightClientProverConfig, TestCaseConfig};
+use citrea_e2e::config::{
+    BatchProverConfig, BitcoinConfig, LightClientProverConfig, TestCaseConfig,
+};
 use citrea_e2e::framework::TestFramework;
+use citrea_e2e::node::BatchProver;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
+use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use jsonrpsee::http_client::HttpClient;
@@ -23,7 +29,10 @@ use sov_rollup_interface::services::da::DaService;
 use super::get_citrea_path;
 use crate::bitcoin::full_node::create_serialized_fake_receipt_batch_proof_with_state_roots;
 use crate::bitcoin::light_client_test::create_random_state_diff;
-use crate::bitcoin::utils::spawn_bitcoin_da_prover_service_with_rpc_server;
+use crate::bitcoin::utils::{
+    create_serialized_fake_receipt_batch_proof_and_serialized_output,
+    spawn_bitcoin_da_prover_service_with_rpc_server, wait_for_prover_job_count,
+};
 
 struct JobServiceTest {
     task_manager: Option<TaskManager>,
@@ -564,4 +573,217 @@ async fn test_bitcoin_job_service() -> Result<()> {
     .set_citrea_path(get_citrea_path())
     .run()
     .await
+}
+
+struct BatchProverRecoveryJobServiceTest;
+
+impl BatchProverRecoveryJobServiceTest {
+    #[allow(clippy::too_many_arguments)]
+    async fn test_batch_prover_da_job_recovery(
+        &mut self,
+        da: &BitcoinNode,
+        batch_prover: &mut BatchProver,
+        genesis_state_root: [u8; 32],
+        batch_proof_method_id: [u32; 8],
+        finalized_height: u64,
+        commitment: &SequencerCommitment,
+        commitment_state_root: [u8; 32],
+    ) -> Result<()> {
+        let batch_prover_client = batch_prover.client.http_client().clone();
+
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+        // Create 400kb proof that should be chunked and sent over multiple bitcoin blocks
+        let state_diff_400kb = create_random_state_diff(400);
+        let (proof, output) = create_serialized_fake_receipt_batch_proof_and_serialized_output(
+            genesis_state_root,
+            20,
+            batch_proof_method_id,
+            Some(state_diff_400kb),
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment.clone()],
+            vec![commitment_state_root],
+            None,
+        );
+
+        let mut tempfile = tempfile::NamedTempFile::new().unwrap();
+        tempfile.write_all(&proof).unwrap();
+
+        let job_id = batch_prover_client
+            .submit_proof_from_file(tempfile.path().to_path_buf(), output)
+            .await?;
+
+        wait_for_prover_job_count(batch_prover, 1, None).await?;
+
+        da.wait_mempool_len(18, None).await?;
+        assert_eq!(da.get_raw_mempool().await?.len(), 18);
+
+        let job_in_progress: JobInfoResponse = batch_prover_client.da_job_get_info(job_id).await?;
+        assert_eq!(job_in_progress.job_id, job_id);
+        assert_eq!(job_in_progress.status, DaJobStatus::InProgress);
+        assert_eq!(job_in_progress.sent_count, 9);
+
+        let active_jobs_before = batch_prover_client
+            .da_job_list(Some(JobStatusFilter::Active), None, None)
+            .await?;
+        assert_eq!(active_jobs_before.len(), 1);
+        assert_eq!(active_jobs_before[0].job_id, job_id);
+
+        batch_prover.restart(None, None).await?;
+
+        // Assert that restart doesn't create any new job
+        let active_jobs_after_restart = batch_prover_client
+            .da_job_list(Some(JobStatusFilter::Active), None, None)
+            .await?;
+        assert_eq!(active_jobs_after_restart.len(), 1);
+        assert_eq!(active_jobs_after_restart[0].job_id, job_id);
+
+        da.generate(1).await?;
+
+        da.wait_mempool_len(6, None).await?;
+
+        let completed_job: JobInfoResponse = batch_prover_client.da_job_get_info(job_id).await?;
+        assert_eq!(completed_job.status, DaJobStatus::Completed);
+        assert_eq!(completed_job.error, None);
+
+        let active_jobs_final = batch_prover_client
+            .da_job_list(Some(JobStatusFilter::Active), None, None)
+            .await?;
+        assert_eq!(active_jobs_final.len(), 0);
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl TestCase for BatchProverRecoveryJobServiceTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_sequencer: true,
+            with_light_client_prover: true,
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec![
+                "-persistmempool=0",
+                "-walletbroadcast=0",
+                "-limitancestorcount=100",
+                "-limitdescendantcount=100",
+                "-fallbackfee=0.00001",
+            ],
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            proof_sampling_number: 99999999, // Prevent prover from proving on its own
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
+        let light_client_prover = f.light_client_prover.as_mut().unwrap();
+        let batch_prover = f.batch_prover.as_mut().unwrap();
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        light_client_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
+            .await?;
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+
+        let batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        let genesis_state_root = lcp_output.l2_state_root;
+
+        // Generate sequencer commitment
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        full_node
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
+            .await?;
+        full_node.wait_for_l1_height(finalized_height, None).await?;
+
+        let commitment = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(1))
+            .await?
+            .map(|c| SequencerCommitment {
+                merkle_root: c.merkle_root,
+                l2_end_block_number: c.l2_end_block_number.to::<u64>(),
+                index: c.index.to::<u32>(),
+            })
+            .unwrap();
+
+        let commitment_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+
+        let batch_proof_method_id: [u32; 8] = batch_proof_method_ids[0].method_id.into();
+
+        self.test_batch_prover_da_job_recovery(
+            da,
+            batch_prover,
+            genesis_state_root,
+            batch_proof_method_id,
+            finalized_height,
+            &commitment,
+            commitment_state_root,
+        )
+        .await?;
+
+        Ok(())
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_batch_prover_job_service_recovery() -> Result<()> {
+    TestCaseRunner::new(BatchProverRecoveryJobServiceTest {})
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
 }

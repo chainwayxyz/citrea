@@ -33,15 +33,18 @@ use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::RpcModule;
 use reth_tasks::TaskExecutor;
+use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::LedgerRpcClient;
+use sov_modules_api::BatchProofCircuitOutputV3;
 use sov_rollup_interface::da::{
     BatchProofMethodId, BatchProofMethodIdBody, DaTxRequest, SequencerCommitment,
     SECURITY_COUNCIL_SIGNATURE_SIZE, SECURITY_COUNCIL_SIGNATURE_THRESHOLD,
 };
 use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 use sov_rollup_interface::Network;
 use tokio::time::sleep;
 use uuid::Uuid;
@@ -763,4 +766,59 @@ pub mod macros {
     }
 
     pub(crate) use assert_panic;
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn create_serialized_fake_receipt_batch_proof_and_serialized_output(
+    initial_state_root: [u8; 32],
+    last_l2_height: u64,
+    method_id: [u32; 8],
+    state_diff: Option<CumulativeStateDiff>,
+    malformed_journal: bool,
+    last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
+    sequencer_commitments: Vec<SequencerCommitment>,
+    state_roots_of_seq_comms: Vec<[u8; 32]>,
+    prev_sequencer_commitment_hash: Option<[u8; 32]>,
+) -> (Vec<u8>, Vec<u8>) {
+    let sequencer_commitment_hashes = sequencer_commitments
+        .iter()
+        .map(|c| c.serialize_and_calculate_sha_256())
+        .collect::<Vec<_>>();
+    let previous_commitment_index = if sequencer_commitments[0].index == 1 {
+        None
+    } else {
+        Some(sequencer_commitments[0].index - 1)
+    };
+    let mut state_roots = vec![initial_state_root];
+
+    // For the sake of easiness of impl tests, we can use merkle root as state root
+    state_roots.extend(state_roots_of_seq_comms);
+
+    let output_v3 = BatchProofCircuitOutputV3 {
+        state_roots,
+        last_l2_height,
+        final_l2_block_hash: [0u8; 32],
+        state_diff: state_diff.unwrap_or_default(),
+        sequencer_commitment_hashes,
+        last_l1_hash_on_bitcoin_light_client_contract,
+        sequencer_commitment_index_range: (
+            sequencer_commitments[0].index,
+            sequencer_commitments[sequencer_commitments.len() - 1].index,
+        ),
+        previous_commitment_index,
+        previous_commitment_hash: prev_sequencer_commitment_hash,
+    };
+    let batch_proof_output = BatchProofCircuitOutput::V3(output_v3);
+    let mut output_serialized = borsh::to_vec(&batch_proof_output).unwrap();
+
+    // Distorts the output and make it unparsable
+    if malformed_journal {
+        output_serialized.push(1u8);
+    }
+
+    let claim = MaybePruned::Value(ReceiptClaim::ok(method_id, output_serialized.clone()));
+    let fake_receipt = FakeReceipt::new(claim);
+    // Receipt with verifiable claim
+    let receipt = InnerReceipt::Fake(fake_receipt);
+    (bincode::serialize(&receipt).unwrap(), output_serialized)
 }

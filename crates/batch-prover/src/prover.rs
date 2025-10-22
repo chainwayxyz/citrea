@@ -1274,7 +1274,7 @@ fn get_prev_hash_proof<DB: BatchProverLedgerOps>(
 ///
 /// # Returns
 /// A `BatchProofCircuitOutput` that contains the extracted output from the proof.
-fn extract_proof_output<Vm: ZkvmHost>(
+pub(crate) fn extract_proof_output<Vm: ZkvmHost>(
     job_id: &Uuid,
     proof: &Proof,
     code_commitments_by_spec: &HashMap<SpecId, Vm::CodeCommitment>,
