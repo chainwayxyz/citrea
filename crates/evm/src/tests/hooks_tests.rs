@@ -340,9 +340,6 @@ fn finalize_hook_creates_final_block() {
 }
 
 #[test]
-// this test is run with Tangerine spec
-// because pre tangerine we were deleting block hashes and
-// we'd still like to test that
 fn begin_l2_block_hook_appends_last_block_hashes() {
     let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&get_evm_test_config());
 
