@@ -7,9 +7,7 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::path::Path;
-#[cfg(feature = "testing")]
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs};
@@ -270,14 +268,14 @@ pub trait BatchProverRpc {
     #[method(name = "retryProvingJob")]
     async fn retry_proving_job(&self, job_id: Uuid) -> RpcResult<Uuid>;
 
-    /// Submit a proof from a file path. For testing/debugging purposes only.
+    /// Submit a proof from a file path. Only available with `testing` feature.
     ///
     /// # Arguments
     /// * `proof_path` - Path to the serialized proof file to submit
+    /// * `output` - Serialized `BatchProofCircuitOutput`
     ///
     /// # Returns
-    /// A `BatchProofResponse` containing the L1 transaction ID and proof.
-    #[cfg(feature = "testing")]
+    /// The bitcoin-da job id
     #[method(name = "submitProofFromFile")]
     async fn submit_proof_from_file(&self, proof_path: PathBuf, output: Vec<u8>)
         -> RpcResult<Uuid>;
@@ -676,6 +674,15 @@ where
         Ok(new_id)
     }
 
+    #[cfg(not(feature = "testing"))]
+    async fn submit_proof_from_file(
+        &self,
+        _proof_path: PathBuf,
+        _output: Vec<u8>,
+    ) -> RpcResult<Uuid> {
+        Err(internal_rpc_error("Unsupported test method"))
+    }
+
     #[cfg(feature = "testing")]
     async fn submit_proof_from_file(
         &self,
@@ -719,13 +726,13 @@ where
     }
 }
 
-/// Creates an RPC module with fullnode methods
+/// Creates an RPC module with batch-prover methods
 ///
 /// # Arguments
 /// * `rpc_context` - Context containing shared data for RPC methods
 ///
 /// # Type Parameters
-/// * `DB` - Database type implementing NodeLedgerOps
+/// * `DB` - Database type implementing BatchProverLedgerOps
 /// * `Da` - Data availability service type implementing DaService
 /// * `Vm` - Virtual machine type implementing Zkvm
 pub fn create_rpc_module<Da, DB, Vm>(
