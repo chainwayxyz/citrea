@@ -53,7 +53,7 @@ const fn default_proving_jobs_limit() -> usize {
 
 #[inline]
 const fn default_enable_filters() -> bool {
-    false
+    true
 }
 
 /// RPC configuration.

@@ -114,13 +114,14 @@ async fn test_filters_disabled() -> Result<(), anyhow::Error> {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config = create_default_rollup_config(
+    let mut rollup_config = create_default_rollup_config(
         true,
         &sequencer_db_dir,
         &da_db_dir,
         NodeMode::SequencerNode,
         None,
     );
+    rollup_config.rpc.enable_filters = false;
 
     let sequencer_config = SequencerConfig {
         max_l2_blocks_per_commitment: 1000,
