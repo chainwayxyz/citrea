@@ -51,6 +51,11 @@ const fn default_proving_jobs_limit() -> usize {
     100
 }
 
+#[inline]
+const fn default_enable_filters() -> bool {
+    false
+}
+
 /// RPC configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize, Default, Serialize)]
 pub struct RpcConfig {
@@ -90,6 +95,9 @@ pub struct RpcConfig {
     /// Enable JS tracer in debug endpoints
     #[serde(default = "default_enable_js_tracer")]
     pub enable_js_tracer: bool,
+    /// Enable filter RPCs
+    #[serde(default = "default_enable_filters")]
+    pub enable_filters: bool,
     /// API key for protected JSON-RPC methods
     pub api_key: Option<String>,
 }
@@ -150,6 +158,10 @@ impl FromEnv for RpcConfig {
                 .ok()
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_enable_js_tracer),
+            enable_filters: read_env("RPC_ENABLE_FILTERS")
+                .ok()
+                .and_then(|val| val.parse().ok())
+                .unwrap_or_else(default_enable_filters),
             api_key: read_env("RPC_API_KEY").ok(),
         })
     }
@@ -173,6 +185,7 @@ impl fmt::Display for RpcConfig {
             .field("trace_chain_block_limit", &self.trace_chain_block_limit)
             .field("proving_jobs_limit", &self.proving_jobs_limit)
             .field("timeout", &self.timeout)
+            .field("enable_filters", &self.enable_filters)
             .finish()
     }
 }
