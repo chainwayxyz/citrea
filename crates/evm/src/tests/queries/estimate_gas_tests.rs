@@ -668,7 +668,7 @@ fn test_eip7702_execute_revert() {
         .unwrap();
 
     let auth = signer
-        .get_signed_authorization(proxy_address, nonce_after_deploy.to::<u64>())
+        .get_signed_authorization(proxy_address, nonce_after_deploy.to::<u64>() + 1)
         .expect("Should create signed authorization");
 
     let reverting_call_data = proxy.reverting_execute_call_data();
