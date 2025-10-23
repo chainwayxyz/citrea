@@ -12,7 +12,7 @@ jobs:
   check-changelog:
     permissions:
       contents: read
-      issues: write
+      pull-requests: write
     name: Check Changelog Entry
     runs-on: ubuntu-latest
     steps:
