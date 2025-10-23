@@ -146,7 +146,7 @@ async fn start_batch_prover(
             proof_sampling_number: 0,
             enable_recovery: true,
             max_commitments_per_proof: None,
-            risc0_host_config: Risc0HostConfig::from_env().expect("Failed to load Risc0HostConfig"),
+            risc0_host: Risc0HostConfig::from_env().expect("Failed to load Risc0HostConfig"),
         }),
         None,
         rollup_config,

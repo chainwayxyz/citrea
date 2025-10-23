@@ -335,7 +335,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let prover_service = Arc::new(
             self.create_prover_service(
                 prover_config.proving_mode,
-                prover_config.risc0_host_config.clone(),
+                prover_config.risc0_host.clone(),
                 &da_service,
                 ledger_db.clone(),
                 prover_config.proof_sampling_number,
@@ -390,7 +390,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let prover_service = Arc::new(
             self.create_prover_service(
                 prover_config.proving_mode,
-                prover_config.risc0_host_config.clone(),
+                prover_config.risc0_host.clone(),
                 &da_service,
                 ledger_db.clone(),
                 prover_config.proof_sampling_number,

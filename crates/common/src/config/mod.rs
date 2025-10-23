@@ -167,7 +167,7 @@ pub struct BatchProverConfig {
     pub max_commitments_per_proof: Option<usize>,
     /// Configuration for Risc0Host
     #[serde(default)]
-    pub risc0_host_config: Risc0HostConfig,
+    pub risc0_host: Risc0HostConfig,
 }
 
 /// Prover configuration
@@ -183,7 +183,7 @@ pub struct LightClientProverConfig {
     pub initial_da_height: u64,
     /// Configuration for Risc0Host
     #[serde(default)]
-    pub risc0_host_config: Risc0HostConfig,
+    pub risc0_host: Risc0HostConfig,
 }
 
 impl Default for BatchProverConfig {
@@ -193,7 +193,7 @@ impl Default for BatchProverConfig {
             proof_sampling_number: 0,
             enable_recovery: true,
             max_commitments_per_proof: None,
-            risc0_host_config: Default::default(),
+            risc0_host: Default::default(),
         }
     }
 }
@@ -205,7 +205,7 @@ impl Default for LightClientProverConfig {
             proof_sampling_number: 0,
             enable_recovery: true,
             initial_da_height: 1,
-            risc0_host_config: Default::default(),
+            risc0_host: Default::default(),
         }
     }
 }
@@ -219,7 +219,7 @@ impl FromEnv for BatchProverConfig {
             max_commitments_per_proof: read_env("MAX_COMMITMENTS_PER_PROOF")
                 .ok()
                 .and_then(|val| val.parse().ok()),
-            risc0_host_config: Risc0HostConfig::from_env()?,
+            risc0_host: Risc0HostConfig::from_env()?,
         })
     }
 }
@@ -231,7 +231,7 @@ impl FromEnv for LightClientProverConfig {
             proof_sampling_number: read_env("PROOF_SAMPLING_NUMBER")?.parse()?,
             enable_recovery: read_env("ENABLE_RECOVERY")?.parse()?,
             initial_da_height: read_env("INITIAL_DA_HEIGHT")?.parse()?,
-            risc0_host_config: Risc0HostConfig::from_env()?,
+            risc0_host: Risc0HostConfig::from_env()?,
         })
     }
 }
@@ -621,7 +621,7 @@ mod tests {
             proof_sampling_number: 500,
             enable_recovery: true,
             max_commitments_per_proof: None,
-            risc0_host_config: Default::default(),
+            risc0_host: Default::default(),
         };
         assert_eq!(config, expected);
     }
@@ -689,7 +689,7 @@ mod tests {
             proof_sampling_number: 500,
             enable_recovery: true,
             max_commitments_per_proof: None,
-            risc0_host_config: Default::default(),
+            risc0_host: Default::default(),
         };
         assert_eq!(prover_config, expected);
     }
@@ -854,10 +854,10 @@ mod tests {
             proof_sampling_number = 42
             enable_recovery = true
 
-            [risc0_host_config]
+            [risc0_host]
             tx_backup_dir = "/tmp/backup"
             
-            [risc0_host_config.prover.Local]
+            [risc0_host.prover.Local]
             r0vm_path = "path/to/vm"
             dev_mode = false
         "#;
@@ -870,7 +870,7 @@ mod tests {
             proof_sampling_number: 42,
             enable_recovery: true,
             max_commitments_per_proof: None,
-            risc0_host_config: Risc0HostConfig {
+            risc0_host: Risc0HostConfig {
                 prover: Risc0ProverConfig::Local(LocalProverConfig {
                     r0vm_path: Some("path/to/vm".into()),
                     dev_mode: false,
@@ -888,7 +888,7 @@ mod tests {
             proof_sampling_number = 42
             enable_recovery = true
 
-            [risc0_host_config.prover.Bonsai]
+            [risc0_host.prover.Bonsai]
             api_url = "http://127.0.0.1"
             api_key = "testkey"
         "#;
@@ -896,7 +896,7 @@ mod tests {
         let config_file = create_config_from(config);
         let config: BatchProverConfig = from_toml_path(config_file.path()).unwrap();
 
-        let risc0_host_config = Risc0HostConfig {
+        let risc0_host = Risc0HostConfig {
             prover: Risc0ProverConfig::Bonsai(BonsaiProverConfig {
                 api_url: "http://127.0.0.1".to_string(),
                 api_key: "testkey".to_string(),
@@ -908,7 +908,7 @@ mod tests {
             proof_sampling_number: 42,
             enable_recovery: true,
             max_commitments_per_proof: None,
-            risc0_host_config,
+            risc0_host,
         };
         assert_eq!(config, expected);
     }
@@ -920,12 +920,12 @@ mod tests {
             proof_sampling_number = 42
             enable_recovery = true
 
-            [risc0_host_config.prover.Boundless.boundless]
+            [risc0_host.prover.Boundless.boundless]
             wallet_private_key = "abcd"
             rpc_url = "127.0.0.1"
             is_offchain = true
 
-            [risc0_host_config.prover.Boundless.storage]
+            [risc0_host.prover.Boundless.storage]
             type = "s3"
             s3_access_key = "access_key"
             s3_secret_key = "secret_key"
@@ -958,7 +958,7 @@ mod tests {
             proof_sampling_number: 42,
             enable_recovery: true,
             max_commitments_per_proof: None,
-            risc0_host_config: Risc0HostConfig {
+            risc0_host: Risc0HostConfig {
                 prover: Risc0ProverConfig::Boundless(Box::new(boundless_prover_config)),
                 tx_backup_dir: None,
             },
@@ -973,12 +973,12 @@ mod tests {
             proof_sampling_number = 42
             enable_recovery = true
 
-            [risc0_host_config.prover.Boundless.boundless]
+            [risc0_host.prover.Boundless.boundless]
             wallet_private_key = "abcd"
             rpc_url = "127.0.0.1"
             is_offchain = true
 
-            [risc0_host_config.prover.Boundless.storage]
+            [risc0_host.prover.Boundless.storage]
             type = "pinata"
             pinata_jwt = "jwt"
             pinata_api_url = "http://0.0.0.1"
@@ -1005,7 +1005,7 @@ mod tests {
             proof_sampling_number: 42,
             enable_recovery: true,
             max_commitments_per_proof: None,
-            risc0_host_config: Risc0HostConfig {
+            risc0_host: Risc0HostConfig {
                 prover: Risc0ProverConfig::Boundless(Box::new(boundless_prover_config)),
                 tx_backup_dir: None,
             },
