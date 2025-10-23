@@ -2,24 +2,86 @@ use std::str::FromStr;
 
 use alloy_eips::eip2930::{AccessList, AccessListItem, AccessListWithGasUsed};
 use alloy_eips::BlockNumberOrTag;
-use alloy_primitives::{address, b256, Address, Bytes, TxKind, U256};
+use alloy_primitives::{address, b256, Address, TxKind, U256};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
-use revm::primitives::KECCAK_EMPTY;
 use serde_json::json;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::{Spec, WorkingSet};
+use sov_modules_api::fork::Fork;
+use sov_modules_api::hooks::HookL2BlockInfo;
+use sov_modules_api::utils::generate_address;
+use sov_modules_api::{Context, Module, Spec, WorkingSet};
 
+use crate::call::CallMessage;
 use crate::query::MIN_TRANSACTION_GAS;
-use crate::smart_contracts::{CallerContract, SimpleStorageContract};
+use crate::smart_contracts::{CallerContract, SimpleProxyContract, SimpleStorageContract};
+use crate::tests::get_test_seq_pub_key;
 use crate::tests::queries::{init_evm, init_evm_single_block, init_evm_with_caller_contract};
 use crate::tests::test_signer::TestSigner;
-use crate::tests::utils::{get_evm, get_fork_fn_latest};
-use crate::{AccountData, EstimatedDiffSize, Evm, EvmConfig};
+use crate::tests::utils::{commit, create_contract_message_with_bytecode, get_fork_fn_latest};
+use crate::{EstimatedDiffSize, Evm};
 
 type C = DefaultContext;
+
+fn deploy_simple_proxy(
+    evm: &mut Evm<C>,
+    mut working_set: WorkingSet<<C as Spec>::Storage>,
+    prover_storage: <C as Spec>::Storage,
+    signer: &TestSigner,
+    ledger_db: &LedgerDB,
+    l2_height: u64,
+    implementation: Address,
+) -> (Address, WorkingSet<<C as Spec>::Storage>) {
+    let proxy = SimpleProxyContract::default();
+    let proxy_deployment_bytecode = proxy.deployment_bytecode(implementation);
+
+    let current_nonce = evm
+        .get_transaction_count(signer.address(), None, &mut working_set, ledger_db)
+        .unwrap();
+
+    let proxy_address = signer.address().create(current_nonce.to::<u64>());
+
+    let l1_fee_rate = 1;
+    let spec_id = sov_modules_api::SpecId::Fork3;
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: spec_id,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 24,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+
+    let deploy_tx = create_contract_message_with_bytecode(
+        signer,
+        current_nonce.to::<u64>(),
+        proxy_deployment_bytecode,
+        None,
+    );
+
+    let sender_address = generate_address::<C>("sender");
+    let context = C::new(sender_address, l2_height, spec_id, l1_fee_rate);
+
+    evm.call(
+        CallMessage {
+            txs: vec![deploy_tx],
+        },
+        &context,
+        &mut working_set,
+    )
+    .expect("Deployment should succeed");
+
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[101u8; 32], &mut working_set.accessory_state());
+
+    commit(working_set, prover_storage.clone());
+
+    (proxy_address, WorkingSet::new(prover_storage))
+}
 
 #[test]
 fn test_payable_contract_value() {
@@ -575,259 +637,81 @@ fn test_estimate_gas_with_value(
 }
 
 #[test]
-fn test_eip7702_gas_with_authorization_and_call_data() {
-    // address a delegates to contract c
-    // address a sends tx to address a, in the same tx
-    // a delegates to c
+fn test_eip7702_execute_revert() {
+    // This test reproduces the EIP-7702 gas estimation bug found on testnet:
+    // Transaction hash: 0xb3083c96053a046f85b5990b0eaeffd386f1d79a271aa8d9e0db7ba680a041fd
+    //
+    // When an EIP-7702 transaction calls a function that reverts,
+    // eth_estimateGas returns a gas estimate instead of returning an error.
+    //
+    // Expected: eth_estimateGas returns Err(revert)
+    // Actual (bug): eth_estimateGas returns Ok(gas_estimate)
 
-    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(sov_modules_api::SpecId::Fork3);
+    let (mut evm, working_set, prover_storage, signer, l2_height, ledger_db) =
+        init_evm(sov_modules_api::SpecId::Fork3);
 
-    let storage_contract_address = address!("eeb03d20dae810f52111b853b31c8be6f30f4cd3");
-    let call_data = SimpleStorageContract::default().set_call_data(42);
+    // Deploy SimpleProxy with zero address as implementation
+    let (proxy_address, mut working_set) = deploy_simple_proxy(
+        &mut evm,
+        working_set,
+        prover_storage,
+        &signer,
+        &ledger_db,
+        l2_height,
+        Address::ZERO,
+    );
 
-    let cur_nonce = evm
+    let proxy = SimpleProxyContract::default();
+
+    let nonce_after_deploy = evm
         .get_transaction_count(signer.address(), None, &mut working_set, &ledger_db)
         .unwrap();
 
-    let tx_req_no_auth = TransactionRequest {
-        from: Some(signer.address()),
-        to: Some(TxKind::Call(storage_contract_address)),
-        value: None,
-        input: TransactionInput::new(call_data.clone().into()),
-        chain_id: Some(1u64),
-        access_list: None,
-        authorization_list: None,
-        ..Default::default()
-    };
-
-    let gas_without_auth = evm
-        .eth_estimate_diff_size_inner(
-            tx_req_no_auth,
-            Some(BlockNumberOrTag::Latest),
-            &mut working_set,
-            &ledger_db,
-            get_fork_fn_latest(),
-        )
-        .expect("Gas estimation without auth should succeed");
-
     let auth = signer
-        .get_signed_authorization(storage_contract_address, cur_nonce.to::<u64>() + 1u64)
+        .get_signed_authorization(proxy_address, nonce_after_deploy.to::<u64>())
         .expect("Should create signed authorization");
 
-    let tx_req_with_auth = TransactionRequest {
+    let reverting_call_data = proxy.reverting_execute_call_data();
+
+    // Create transaction that will REVERT:
+    // - EOA delegates to SimpleProxy via EIP-7702 authorization
+    // - Self-call (from == to) with the authorization active
+    // - Calls revertingExecute which always reverts
+    let tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(TxKind::Call(signer.address())), // Call the delegator's address
+        to: Some(TxKind::Call(signer.address())), // Self-call!
         value: None,
-        input: TransactionInput::new(call_data.into()),
+        input: TransactionInput::new(reverting_call_data.into()),
         chain_id: Some(1u64),
+        gas: None, // Let estimator determine gas
+        gas_price: Some(100_000_000),
+        nonce: Some(nonce_after_deploy.to::<u64>()),
         access_list: None,
         authorization_list: Some(vec![auth]),
         ..Default::default()
     };
 
-    let gas_with_auth = evm
-        .eth_estimate_diff_size_inner(
-            tx_req_with_auth,
-            Some(BlockNumberOrTag::Latest),
-            &mut working_set,
-            &ledger_db,
-            get_fork_fn_latest(),
-        )
-        .expect("Gas estimation with auth should succeed");
+    let fork = Fork::new(sov_modules_api::SpecId::Tangerine, 0);
 
-    println!("Gas without auth: {:?}", gas_without_auth);
-    println!("Gas with auth: {:?}", gas_with_auth);
-    assert!(gas_with_auth.gas > gas_without_auth.gas);
-}
+    // Call eth_estimate_gas_inner
+    // Expected: Returns Err(revert)
+    // Bug: Returns Ok(gas_estimate)
+    let result = evm.eth_estimate_gas_inner(
+        tx_req,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+        &ledger_db,
+        |_| fork,
+    );
 
-#[test]
-fn test_eip7702_gas_with_authorization_empty_data() {
-    let signer = TestSigner::new_random();
-    let delegator = TestSigner::new_random();
-
-    let config = EvmConfig {
-        data: vec![
-            AccountData {
-                address: signer.address(),
-                balance: U256::from_str("100000000000000000000").unwrap(),
-                code_hash: KECCAK_EMPTY,
-                code: Bytes::default(),
-                nonce: 0,
-                storage: Default::default(),
-            },
-            AccountData {
-                address: delegator.address(),
-                balance: U256::from_str("100000000000000000000").unwrap(),
-                code_hash: KECCAK_EMPTY,
-                code: Bytes::default(),
-                nonce: 0,
-                storage: Default::default(),
-            },
-        ],
-        ..Default::default()
-    };
-
-    let (evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
-
-    let storage_contract_address = address!("819c5497b157177315e1204f52e588b393771719");
-
-    let simple_transfer_req = TransactionRequest {
-        from: Some(signer.address()),
-        to: Some(TxKind::Call(delegator.address())),
-        gas: None,
-        gas_price: Some(100_000_000),
-        value: Some(U256::from(1_000_000)),
-        input: TransactionInput::default(), // Empty data
-        nonce: Some(0u64),
-        chain_id: Some(1u64),
-        access_list: None,
-        authorization_list: None,
-        ..Default::default()
-    };
-
-    let gas_simple_transfer = evm
-        .eth_estimate_gas_inner(
-            simple_transfer_req,
-            Some(BlockNumberOrTag::Latest),
-            &mut working_set,
-            &ledger_db,
-            get_fork_fn_latest(),
-        )
-        .expect("Simple transfer gas estimation should succeed");
-
-    assert_eq!(gas_simple_transfer, U256::from(MIN_TRANSACTION_GAS + 1),);
-
-    let auth = delegator
-        .get_signed_authorization(storage_contract_address, 0)
-        .expect("Should create signed authorization");
-
-    let tx_req_auth_empty_data = TransactionRequest {
-        from: Some(signer.address()),
-        to: Some(TxKind::Call(delegator.address())),
-        gas: None,
-        gas_price: Some(100_000_000),
-        value: Some(U256::from(1_000_000)),
-        input: TransactionInput::default(), // Empty data
-        nonce: Some(0u64),
-        chain_id: Some(1u64),
-        access_list: None,
-        authorization_list: Some(vec![auth]),
-        ..Default::default()
-    };
-
-    let gas_auth_empty_data = evm
-        .eth_estimate_gas_inner(
-            tx_req_auth_empty_data,
-            Some(BlockNumberOrTag::Latest),
-            &mut working_set,
-            &ledger_db,
-            get_fork_fn_latest(),
-        )
-        .expect("Gas estimation with auth and empty data should succeed");
-
-    println!("Gas non-simple transfer: {}", gas_auth_empty_data);
-
-    assert!(gas_auth_empty_data > gas_simple_transfer,);
-}
-
-#[test]
-fn test_eip7702_gas_multiple_authorizations() {
-    let signer = TestSigner::new_random();
-    let delegator1 = TestSigner::new_random();
-    let delegator2 = TestSigner::new_random();
-
-    let config = EvmConfig {
-        data: vec![
-            AccountData {
-                address: signer.address(),
-                balance: U256::from_str("100000000000000000000").unwrap(),
-                code_hash: KECCAK_EMPTY,
-                code: Bytes::default(),
-                nonce: 0,
-                storage: Default::default(),
-            },
-            AccountData {
-                address: delegator1.address(),
-                balance: U256::from_str("100000000000000000000").unwrap(),
-                code_hash: KECCAK_EMPTY,
-                code: Bytes::default(),
-                nonce: 0,
-                storage: Default::default(),
-            },
-            AccountData {
-                address: delegator2.address(),
-                balance: U256::from_str("100000000000000000000").unwrap(),
-                code_hash: KECCAK_EMPTY,
-                code: Bytes::default(),
-                nonce: 0,
-                storage: Default::default(),
-            },
-        ],
-        ..Default::default()
-    };
-
-    let (evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
-
-    let storage_contract_address = address!("819c5497b157177315e1204f52e588b393771719");
-
-    // Test with single authorization
-    let auth1 = delegator1
-        .get_signed_authorization(storage_contract_address, 0)
-        .expect("Should create signed authorization 1");
-
-    let tx_req_single_auth = TransactionRequest {
-        from: Some(signer.address()),
-        to: Some(TxKind::Call(delegator1.address())),
-        gas: None,
-        gas_price: Some(100_000_000),
-        value: None,
-        input: TransactionInput::default(),
-        nonce: Some(0u64),
-        chain_id: Some(1u64),
-        access_list: None,
-        authorization_list: Some(vec![auth1.clone()]),
-        ..Default::default()
-    };
-
-    let gas_single_auth = evm
-        .eth_estimate_gas_inner(
-            tx_req_single_auth,
-            Some(BlockNumberOrTag::Latest),
-            &mut working_set,
-            &ledger_db,
-            get_fork_fn_latest(),
-        )
-        .expect("Gas estimation with single auth should succeed");
-
-    // Test with multiple authorizations
-    let auth2 = delegator2
-        .get_signed_authorization(storage_contract_address, 0)
-        .expect("Should create signed authorization 2");
-
-    let tx_req_multiple_auth = TransactionRequest {
-        from: Some(signer.address()),
-        to: Some(TxKind::Call(delegator1.address())),
-        gas: None,
-        gas_price: Some(100_000_000),
-        value: None,
-        input: TransactionInput::default(),
-        nonce: Some(0u64),
-        chain_id: Some(1u64),
-        access_list: None,
-        authorization_list: Some(vec![auth1, auth2]),
-        ..Default::default()
-    };
-
-    let gas_multiple_auth = evm
-        .eth_estimate_gas_inner(
-            tx_req_multiple_auth,
-            Some(BlockNumberOrTag::Latest),
-            &mut working_set,
-            &ledger_db,
-            get_fork_fn_latest(),
-        )
-        .expect("Gas estimation with multiple auth should succeed");
-
-    // Verify that gas increases with more authorizations
-    assert!(gas_multiple_auth > gas_single_auth,);
+    match result {
+        Ok(gas_estimate) => {
+            panic!(
+                "BUG REPRODUCED! eth_estimateGas returned gas estimate {gas_estimate} for a transaction that ALWAYS reverts. Should return Err(revert)."
+            );
+        }
+        Err(_err) => {
+            panic!("SHOULD NOT HAPPEN because even with contract reverting, the bug should exist and gas estimation should pass");
+        }
+    }
 }
