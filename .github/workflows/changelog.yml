@@ -10,6 +10,9 @@ on:
 
 jobs:
   check-changelog:
+    permissions:
+      contents: read
+      issues: write
     name: Check Changelog Entry
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
