@@ -17,43 +17,7 @@ jobs:
       (github.event_name == 'pull_request') ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request)
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Get PR info for comment events
-        if: github.event_name == 'issue_comment'
-        id: pr-info
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const pr = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number
-            });
-            core.setOutput('base_ref', pr.data.base.ref);
-            core.setOutput('head_sha', pr.data.head.sha);
-
-      - name: Checkout PR head for comment events
-        if: github.event_name == 'issue_comment'
-        run: |
-          git fetch origin ${{ steps.pr-info.outputs.head_sha }}
-          git checkout ${{ steps.pr-info.outputs.head_sha }}
-
-      - name: Check if CHANGELOG.md was modified
-        id: changelog-check
-        run: |
-          BASE_REF="${{ github.event.pull_request.base.ref || steps.pr-info.outputs.base_ref }}"
-          git fetch origin $BASE_REF
-          if git diff --name-only origin/$BASE_REF...HEAD | grep -q "^CHANGELOG.md$"; then
-            echo "modified=true" >> $GITHUB_OUTPUT
-          else
-            echo "modified=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Check for dismissal comment
+      - name: Handle dismissal comment
         if: github.event_name == 'issue_comment'
         uses: actions/github-script@v7
         with:
@@ -92,6 +56,23 @@ jobs:
                 });
               }
             }
+
+      - name: Checkout code
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if CHANGELOG.md was modified
+        if: github.event_name == 'pull_request'
+        id: changelog-check
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q "^CHANGELOG.md$"; then
+            echo "modified=true" >> $GITHUB_OUTPUT
+          else
+            echo "modified=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Comment if changelog is missing
         if: |
