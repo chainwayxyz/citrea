@@ -7,7 +7,8 @@ jobs:
   check-changelog:
     permissions:
       contents: read
-      pull-requests: write
+      pull-requests: read
+      issues: write
     name: Check Changelog Entry
     runs-on: ubuntu-latest
     steps:
