@@ -552,96 +552,98 @@ jobs:
           chmod +x ./.github/scripts/run-proving-test.sh
           ./.github/scripts/run-proving-test.sh patch-stats.json
         shell: bash
-
+      # Run/recover tests on the base branch
       - name: Get current commit hash
         id: current-commit
         run: |
           echo "patch-hash=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
           echo "head-hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Get commit hash of nightly branch
-        id: nightly-commit
+      - name: Get commit hash of the base branch
+        id: base-commit
         run: |
-          git fetch origin nightly
-          echo "nightly-hash=$(git rev-parse origin/nightly)" >> $GITHUB_OUTPUT
+            BASE_REF="${{ github.event.pull_request.base.ref }}"
+            git fetch origin "$BASE_REF"
+            echo "base-hash=$(git rev-parse origin/"$BASE_REF")" >> $GITHUB_OUTPUT
 
-      - name: Restore nightly test cache
-        id: restore-nightly
+      - name: Restore base branch test cache
+        id: restore-test-cache
         uses: actions/cache@v4
         with:
-          path: proving-stats/results/nightly-stats.json
-          key: nightly-proving-stats-${{ steps.nightly-commit.outputs.nightly-hash }}
+          path: proving-stats/results/base-stats.json
+          key: proving-stats-${{ steps.base-commit.outputs.base-hash }}
 
       # --- Run test only if cache missed ---
-      - name: Download nightly build artifact
+      - name: Download base build artifact
         id: download-artifact
-        if: steps.restore-nightly.outputs.cache-hit != 'true'
+        if: steps.restore-test-cache.outputs.cache-hit != 'true'
         continue-on-error: true
         uses: dawidd6/action-download-artifact@v11
         with:
           name: citrea-build
-          ref: nightly
+          ref: ${{ steps.base-commit.outputs.base-hash }}
           path: target/debug
           if_no_artifact_found: warn
+          workflow_conclusion: ""
 
-      - name: Checkout nightly branch
-        if: steps.restore-nightly.outputs.cache-hit != 'true'
-        run: git checkout -f ${{ steps.nightly-commit.outputs.nightly-hash }}
+      - name: Checkout to base branch
+        if: steps.restore-test-cache.outputs.cache-hit != 'true'
+        run: git checkout -f ${{ steps.base-commit.outputs.base-hash }}
 
       # install risc0 again as version may differ between branches
       - name: Install risc0
-        if: steps.restore-nightly.outputs.cache-hit != 'true'
+        if: steps.restore-test-cache.outputs.cache-hit != 'true'
         uses: ./.github/actions/install-risc0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       # --- Build only if the artifact is not found ---
       - name: Install Rust toolchain
-        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: dtolnay/rust-toolchain@nightly
 
       - name: Setup mold linker
-        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: rui314/setup-mold@v1
 
       - name: Install Protoc
-        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: arduino/setup-protoc@v3
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Rust cache
-        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: ubicloud/rust-cache@v2
         with:
             shared-key: build
       - name: Cache ethereum-tests
-        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: actions/cache@v4
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
-      - name: Build citrea on nightly
-        if: steps.restore-nightly.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+      - name: Build citrea on the base branch
+        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         run: make build
 
       - name: Checkout to PR branch
-        if: steps.restore-nightly.outputs.cache-hit != 'true'
+        if: steps.restore-test-cache.outputs.cache-hit != 'true'
         run: git checkout ${{ steps.current-commit.outputs.head-hash }}
 
       # Sequencer DB is removed in run-proving-test.sh to avoid state corruption
       - name: Restore sequencer DB from test data
-        if: steps.restore-nightly.outputs.cache-hit != 'true'
+        if: steps.restore-test-cache.outputs.cache-hit != 'true'
         run: |
           unzip archive.zip "dbs/*" -d proving-stats/
       - name: Make citrea executable
-        if: steps.restore-nightly.outputs.cache-hit != 'true'
+        if: steps.restore-test-cache.outputs.cache-hit != 'true'
         run: chmod +x target/debug/citrea
-      - name: Run tests on nightly
-        if: steps.restore-nightly.outputs.cache-hit != 'true'
+      - name: Run tests on the base branch
+        if: steps.restore-test-cache.outputs.cache-hit != 'true'
         run: |
           chmod +x ./.github/scripts/run-proving-test.sh
-          ./.github/scripts/run-proving-test.sh nightly-stats.json
+          ./.github/scripts/run-proving-test.sh base-stats.json
         shell: bash
 
       - name: Compare the results
@@ -649,9 +651,9 @@ jobs:
         run: |
           python compare-results.py \
             --patch-file results/patch-stats.json \
-            --nightly-file results/nightly-stats.json \
+            --base-file results/base-stats.json \
             --patch-commit ${{ steps.current-commit.outputs.patch-hash }} \
-            --nightly-commit ${{ steps.nightly-commit.outputs.nightly-hash }}
+            --base-commit ${{ steps.base-commit.outputs.base-hash }}
       - name: Find Comment
         uses: peter-evans/find-comment@v3
         id: fc
