@@ -113,7 +113,7 @@ jobs:
             ${prTitle}
             \`\`\`
 
-            Please add an entry to the CHANGELOG.md or dismiss this if the change doesn't require documentation.`;
+            Please add an entry to the CHANGELOG.md or dismiss this if the change doesn't require documentation.
             **To dismiss:** Reply with \`/skip-changelog\` in any comment.`;
 
               await github.rest.issues.createComment({
