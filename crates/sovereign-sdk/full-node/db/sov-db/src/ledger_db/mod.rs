@@ -695,7 +695,7 @@ impl BatchProverLedgerOps for LedgerDB {
         }
     }
 
-    fn set_proving_job_da_job_id(
+    fn set_da_job_id_by_prover_job_id(
         &self,
         proving_job_id: Uuid,
         da_job_id: Uuid,
@@ -707,7 +707,7 @@ impl BatchProverLedgerOps for LedgerDB {
         self.db.write_schemas(schema_batch)
     }
 
-    fn get_proving_job_da_job_id(&self, proving_job_id: Uuid) -> anyhow::Result<Option<Uuid>> {
+    fn get_da_job_id_by_prover_job_id(&self, proving_job_id: Uuid) -> anyhow::Result<Option<Uuid>> {
         self.db.get::<DaJobIdByProvingJobId>(&proving_job_id)
     }
 }

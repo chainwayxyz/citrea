@@ -747,7 +747,7 @@ where
                     info!("Job {proving_job_id} proof submitted to DA. Da job id {da_job_id}");
 
                     ledger_db
-                        .set_proving_job_da_job_id(proving_job_id, da_job_id)
+                        .set_da_job_id_by_prover_job_id(proving_job_id, da_job_id)
                         .expect("Failed to save da job by id");
 
                     // Todo handle da job sending failure
@@ -843,7 +843,7 @@ where
 
             // Recovery on-going in progress proof on DA
             let rx = if let Some(da_job_id) = ledger_db
-                .get_proving_job_da_job_id(proving_job_id)
+                .get_da_job_id_by_prover_job_id(proving_job_id)
                 .expect("DB call shouldn't fail")
             {
                 info!(
@@ -862,7 +862,7 @@ where
                     .expect("Failed to submit proof");
 
                 ledger_db
-                    .set_proving_job_da_job_id(proving_job_id, da_job_id)
+                    .set_da_job_id_by_prover_job_id(proving_job_id, da_job_id)
                     .expect("Failed to set da job_id");
                 info!("Recovered Job {} proof sent to DA", proving_job_id);
                 rx

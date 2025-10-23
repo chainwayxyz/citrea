@@ -1555,6 +1555,12 @@ impl TestCase for RetryProvingTest {
             .unwrap();
         assert_eq!(proving_job.commitments.len(), 4);
 
+        let da_job_id = batch_prover
+            .client
+            .http_client()
+            .get_da_job_id_by_job_id(proving_job.id)
+            .await?;
+
         // retry proving the same job
         let new_job_id = batch_prover
             .client
@@ -1564,6 +1570,16 @@ impl TestCase for RetryProvingTest {
         assert_ne!(new_job_id, proving_job.id, "new job id should be different");
 
         wait_for_prover_job(batch_prover, new_job_id, None).await?;
+
+        let retried_da_job_id = batch_prover
+            .client
+            .http_client()
+            .get_da_job_id_by_job_id(new_job_id)
+            .await?;
+        assert_ne!(
+            da_job_id, retried_da_job_id,
+            "new da job id should be different"
+        );
 
         // check the commitments of the new proving job
         let new_proving_job = batch_prover

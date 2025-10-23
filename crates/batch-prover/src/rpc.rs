@@ -223,6 +223,16 @@ pub trait BatchProverRpc {
     #[method(name = "getProvingJob")]
     async fn get_proving_job(&self, job_id: Uuid) -> RpcResult<Option<JobRpcResponse>>;
 
+    /// Get da job id by job id.
+    ///
+    /// # Arguments
+    /// * `job_id` - The unique identifier of the proving job to retrieve.
+    ///
+    /// # Returns
+    /// An optional `Uuid` for the associated da job.
+    #[method(name = "getDaJobIdByJobId")]
+    async fn get_da_job_id_by_job_id(&self, job_id: Uuid) -> RpcResult<Option<Uuid>>;
+
     /// Gets last `count` number of job ids. Returns ids in descending order, so latest job is the first index.
     ///
     /// # Arguments
@@ -674,6 +684,13 @@ where
         Ok(new_id)
     }
 
+    async fn get_da_job_id_by_job_id(&self, job_id: Uuid) -> RpcResult<Option<Uuid>> {
+        self.context
+            .ledger_db
+            .get_da_job_id_by_prover_job_id(job_id)
+            .map_err(internal_rpc_error)
+    }
+
     #[cfg(not(feature = "testing"))]
     async fn submit_proof_from_file(
         &self,
@@ -717,7 +734,7 @@ where
             .map_err(internal_rpc_error)?;
 
         ledger_db
-            .set_proving_job_da_job_id(proving_job_id, da_job_id)
+            .set_da_job_id_by_prover_job_id(proving_job_id, da_job_id)
             .expect("Failed to save da job by id");
 
         info!("Submitted proof from file, da job id: {da_job_id}");
