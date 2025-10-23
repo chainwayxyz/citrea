@@ -9,6 +9,8 @@ on:
 jobs:
   validate:
     name: Validate PR Title
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - name: Check PR Title
