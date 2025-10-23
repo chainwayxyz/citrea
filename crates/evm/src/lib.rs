@@ -137,8 +137,8 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[state(rename = "h")]
     pub(crate) head: sov_modules_api::StateValue<Block<AlloyHeader>, RlpCodec>,
 
-    /// Last 256 block hashes. Latest blockhash is populated in `begin_slot_hook`.
-    /// Removes the oldest blockhash in `finalize_hook`
+    /// Last 256 block hashes. A ring buffer with size 256.
+    /// See `blockhash_set` in `provider_functions.rs`.
     /// Used by the EVM to calculate the `blockhash` opcode.
     #[state(rename = "H")]
     pub(crate) latest_block_hashes: sov_modules_api::StateMap<u64, B256, BorshCodec>,
