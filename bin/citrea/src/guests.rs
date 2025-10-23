@@ -132,7 +132,7 @@ pub(crate) static BATCH_PROOF_DEVNET_GUESTS: LazyLock<HashMap<SpecId, (Digest, V
             guest!("../../../resources/guests/risc0/devnet/batch-proof-0.bin"),
         );
         m.insert(
-            SpecId::Fork3,
+            SpecId::Tangelo,
             guest!("../../../resources/guests/risc0/devnet/batch-proof-1.bin"),
         );
 
@@ -181,7 +181,7 @@ pub(crate) static LIGHT_CLIENT_DEVNET_GUESTS: LazyLock<HashMap<SpecId, (Digest, 
             guest!("../../../resources/guests/risc0/devnet/light-client-proof-1.bin"),
         );
         m.insert(
-            SpecId::Fork3,
+            SpecId::Tangelo,
             guest!("../../../resources/guests/risc0/devnet/light-client-proof-1.bin"),
         );
         m
