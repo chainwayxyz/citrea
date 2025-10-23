@@ -1,12 +1,7 @@
 name: Changelog Check
 on:
   pull_request:
-    types:
-      - opened
-      - edited
-      - synchronize
-      - ready_for_review
-      - draft
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   check-changelog:
@@ -37,7 +32,7 @@ jobs:
         with:
           script: |
             const prTitle = context.payload.pull_request.title;
-            const commentBody = `## Changelog Entry Missing
+            const commentBody = `## Changelog entry missing
 
             No changes detected in \`CHANGELOG.md\`.
 
@@ -46,7 +41,7 @@ jobs:
             ${prTitle}
             \`\`\`
 
-            Please add an entry to the changelog or dismiss this if the change doesn't require documentation.`;
+            Please add an entry to the CHANGELOG.md or dismiss this if the change doesn't require documentation.`;
 
             // Check if we already commented
             const { data: comments } = await github.rest.issues.listComments({
@@ -57,7 +52,7 @@ jobs:
 
             const botComment = comments.find(comment =>
               comment.user.type === 'Bot' &&
-              comment.body.includes('Changelog Entry Missing')
+              comment.body.includes('Changelog entry missing')
             );
 
             if (botComment) {
@@ -75,5 +70,29 @@ jobs:
                 repo: context.repo.repo,
                 issue_number: context.payload.pull_request.number,
                 body: commentBody
+              });
+            }
+
+      - name: Remove comment if changelog was added
+        if: steps.changelog-check.outputs.modified == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Changelog entry missing')
+            );
+
+            if (botComment) {
+              await github.rest.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id
               });
             }
