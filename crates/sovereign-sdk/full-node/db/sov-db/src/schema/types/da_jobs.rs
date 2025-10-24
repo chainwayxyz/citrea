@@ -90,25 +90,3 @@ impl JobProgress {
         }
     }
 }
-
-/// DA Job representing a transaction to be sent to the DA layer
-#[derive(Debug, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-pub struct Job {
-    /// Job id as uuidv7
-    pub id: JobId,
-    /// Raw job data (serialized RawTxData)
-    pub data: Vec<u8>,
-    /// Time of job creation
-    pub created_at: u64,
-}
-
-impl Job {
-    /// Create a new job with the given serialized data
-    pub fn new(id: JobId, data: Vec<u8>, created_at: u64) -> Self {
-        Self {
-            id,
-            data,
-            created_at,
-        }
-    }
-}

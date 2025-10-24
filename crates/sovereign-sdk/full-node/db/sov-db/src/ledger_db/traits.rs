@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use sov_rollup_interface::block::L2Block;
-use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use sov_schema_db::SchemaIterator;
@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use crate::schema::tables::{PendingProofs, PendingSequencerCommitments};
 use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
-use crate::schema::types::da_jobs::{Job, JobProgress};
+use crate::schema::types::da_jobs::JobProgress;
 use crate::schema::types::job_status::JobStatus;
 use crate::schema::types::l2_block::StoredL2Block;
 use crate::schema::types::light_client_proof::{
@@ -352,9 +352,15 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
 /// Bitcoin da ledger operations
 pub trait DaLedgerOps {
     /// Store a job to db
-    fn submit_job(&self, job: &Job, progress: &JobProgress) -> anyhow::Result<()>;
-    /// Get a DA job by id
-    fn get_job(&self, job_id: &Uuid) -> Result<Option<Job>>;
+    fn submit_job(
+        &self,
+        job_id: Uuid,
+        job: &DaTxRequest,
+        progress: &JobProgress,
+    ) -> anyhow::Result<()>;
+
+    /// Get a DA job request by id
+    fn get_job_request(&self, job_id: &Uuid) -> Result<Option<DaTxRequest>>;
 
     /// Update a DA job progress by id
     fn upsert_progress(&self, progress: &JobProgress, previous_status: u8) -> Result<()>;

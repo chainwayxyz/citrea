@@ -53,10 +53,6 @@ pub struct DaJobMetrics {
     /// Number of chunks sent per job
     #[metric(describe = "Number of commit/reveal pairs sent per job")]
     pub job_chunks_sent: Histogram,
-
-    /// Size of job data in bytes
-    #[metric(describe = "Size of job data in bytes")]
-    pub job_data_size: Histogram,
 }
 
 impl DaJobMetrics {
@@ -107,10 +103,9 @@ impl DaJobMetrics {
     }
 
     /// Record a job submission
-    pub fn record_job_submitted(&self, data_size: usize) {
+    pub fn record_job_submitted(&self) {
         self.jobs_submitted_total.increment(1);
         self.jobs_pending.increment(1.0);
-        self.job_data_size.record(data_size as f64);
     }
 }
 

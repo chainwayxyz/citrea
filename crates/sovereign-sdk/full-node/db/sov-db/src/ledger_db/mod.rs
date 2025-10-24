@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use rocksdb::{ReadOptions, WriteBatch};
 use sov_rollup_interface::block::L2Block;
-use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
@@ -18,9 +18,9 @@ use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
     CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber,
-    DaJobById, DaJobIdByProvingJobId, DaJobProgressById, DaJobStatusIndex, ExecutedMigrations,
-    JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot, L2RangeByL1Height,
-    L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs,
+    DaJobIdByProvingJobId, DaJobProgressById, DaJobStatusIndex, DaTxRequestByJobId,
+    ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot,
+    L2RangeByL1Height, L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs,
     PendingBonsaiSessionByJobId, PendingBoundlessSessionByJobId, PendingL1SubmissionJobs,
     PendingProofs, PendingSequencerCommitments, ProofByJobId, ProverLastScannedSlot,
     ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
@@ -30,7 +30,7 @@ use crate::schema::tables::{
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
 };
-use crate::schema::types::da_jobs::{Job, JobProgress};
+use crate::schema::types::da_jobs::JobProgress;
 use crate::schema::types::job_status::JobStatus;
 use crate::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use crate::schema::types::light_client_proof::{
@@ -1017,12 +1017,16 @@ impl ForkMigration for LedgerDB {
 }
 
 impl DaLedgerOps for LedgerDB {
-    fn submit_job(&self, job: &Job, progress: &JobProgress) -> anyhow::Result<()> {
+    fn submit_job(
+        &self,
+        job_id: Uuid,
+        da_tx_request: &DaTxRequest,
+        progress: &JobProgress,
+    ) -> anyhow::Result<()> {
         let mut batch = SchemaBatch::new();
-        let job_id = job.id;
         let status = progress.status.as_u8();
 
-        batch.put::<DaJobById>(&job_id, job)?;
+        batch.put::<DaTxRequestByJobId>(&job_id, da_tx_request)?;
         batch.put::<DaJobProgressById>(&job_id, progress)?;
         batch.put::<DaJobStatusIndex>(&(status, job_id), &())?;
 
@@ -1030,8 +1034,8 @@ impl DaLedgerOps for LedgerDB {
         Ok(())
     }
 
-    fn get_job(&self, job_id: &Uuid) -> anyhow::Result<Option<Job>> {
-        self.db.get::<DaJobById>(job_id)
+    fn get_job_request(&self, job_id: &Uuid) -> anyhow::Result<Option<DaTxRequest>> {
+        self.db.get::<DaTxRequestByJobId>(job_id)
     }
 
     fn upsert_progress(&self, progress: &JobProgress, previous_status: u8) -> anyhow::Result<()> {

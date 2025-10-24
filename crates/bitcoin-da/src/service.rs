@@ -339,14 +339,14 @@ impl BitcoinService {
         for job_id in active_job_ids {
             info!("Processing job {}", job_id);
 
-            let job = job_service
-                .get_job(&job_id)?
+            let job_request = job_service
+                .get_job_request(&job_id)?
                 .ok_or(JobServiceError::JobNotFound(job_id))?;
             let progress = &mut job_service
                 .get_progress(&job_id)?
                 .ok_or(JobServiceError::JobNotFound(job_id))?;
 
-            let job_data = job_service.get_job_data(&job)?;
+            let job_data = job_service.get_job_data(job_id, job_request)?;
 
             let sent_txids = job_service.get_pending_chunks()?;
 

@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use sov_db::schema::tables::{
-    CommitmentIndicesByJobId, CommitmentIndicesByL1, DaJobById, DaJobIdByProvingJobId,
-    DaJobProgressById, DaJobStatusIndex, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber,
+    CommitmentIndicesByJobId, CommitmentIndicesByL1, DaJobIdByProvingJobId, DaJobProgressById,
+    DaJobStatusIndex, DaTxRequestByJobId, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber,
     PendingL1SubmissionJobs, ProofByJobId, ProverLastScannedSlot, ProverPendingCommitments,
     ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
 };
@@ -208,8 +208,8 @@ impl BatchProverLedgerRollback {
             let status_u8 = progress.status.as_u8();
 
             // Delete from all DA job tables
-            batch.delete::<DaJobById>(&job_id)?;
-            increment_table_counter!("DaJobById", rollback_result);
+            batch.delete::<DaTxRequestByJobId>(&job_id)?;
+            increment_table_counter!("DaTxRequestByJobId", rollback_result);
 
             batch.delete::<DaJobProgressById>(&job_id)?;
             increment_table_counter!("DaJobProgressById", rollback_result);

@@ -7,17 +7,18 @@ use bitcoin::hashes::Hash;
 use bitcoin::Txid;
 use lru::LruCache;
 use sov_db::ledger_db::DaLedgerOps;
-use sov_db::schema::types::da_jobs::{DaJobStatus, Job, JobId, JobProgress};
+use sov_db::schema::types::da_jobs::{DaJobStatus, JobId, JobProgress};
 use sov_rollup_interface::da::{DaTxRequest, DataOnDa};
 use tokio::sync::oneshot;
 use tracing::{info, instrument};
+use uuid::Uuid;
 
 use super::Result;
 use crate::error::BitcoinServiceError;
 use crate::helpers::builders::body_builders::RawTxData;
 use crate::helpers::get_timestamp;
 use crate::job::error::JobServiceError;
-use crate::job::metrics::DA_JOB_METRICS as JM;
+use crate::job::metrics::DA_JOB_METRICS as METRICS;
 use crate::job::rpc::{DaJobRpcProvider, JobListFilter};
 use crate::service::{split_proof, TxidWrapper};
 
@@ -49,18 +50,14 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         da_tx_request: DaTxRequest,
         tx: oneshot::Sender<std::result::Result<TxidWrapper, BitcoinServiceError>>,
     ) -> Result<JobId> {
-        let job_id = uuid::Uuid::now_v7();
-        let created_at = get_timestamp();
+        let job_id = Uuid::now_v7();
 
-        // Serialize RawTxData to Vec<u8>
-        let data = borsh::to_vec(&da_tx_request)?;
+        let progress = JobProgress::new(job_id, get_timestamp());
 
-        let job = Job::new(job_id, data, created_at);
-        let progress = JobProgress::new(job_id, created_at);
+        self.ledger_db
+            .submit_job(job_id, &da_tx_request, &progress)?;
 
-        self.ledger_db.submit_job(&job, &progress)?;
-
-        JM.record_job_submitted(job.data.len());
+        METRICS.record_job_submitted();
 
         self.job_waiters.lock().unwrap().insert(job_id, tx);
 
@@ -68,11 +65,11 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         Ok(job_id)
     }
 
-    /// Get a job by id
+    /// Get a job data by id
     #[instrument(level = "trace", skip(self), ret)]
-    pub(crate) fn get_job(&self, job_id: &JobId) -> Result<Option<Job>> {
+    pub(crate) fn get_job_request(&self, job_id: &JobId) -> Result<Option<DaTxRequest>> {
         self.ledger_db
-            .get_job(job_id)
+            .get_job_request(job_id)
             .map_err(JobServiceError::DatabaseError)
     }
 
@@ -101,14 +98,10 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     ///
     /// * `Result<RawTxData>` - The raw transaction data or an error
     #[instrument(level = "trace", skip(self), ret)]
-    pub(crate) fn get_job_data(&self, job: &Job) -> Result<RawTxData> {
-        if let Some(data) = self.raw_tx_data_cache.lock().unwrap().get(&job.id) {
+    pub(crate) fn get_job_data(&self, job_id: Uuid, job_data: DaTxRequest) -> Result<RawTxData> {
+        if let Some(data) = self.raw_tx_data_cache.lock().unwrap().get(&job_id) {
             return Ok(data.to_owned());
         };
-
-        // Deserialize RawTxData from job
-        let job_data: DaTxRequest =
-            borsh::from_slice(&job.data).map_err(JobServiceError::SerializationError)?;
 
         let raw_tx_data = match job_data {
             DaTxRequest::ZKProof(zkproof) => split_proof(zkproof),
@@ -133,7 +126,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         self.raw_tx_data_cache
             .lock()
             .unwrap()
-            .push(job.id, raw_tx_data.clone());
+            .push(job_id, raw_tx_data.clone());
 
         Ok(raw_tx_data)
     }
@@ -176,7 +169,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         self.ledger_db
             .upsert_progress(&db_progress, previous_status.as_u8())?;
 
-        JM.record_status_update(&previous_status, progress);
+        METRICS.record_status_update(&previous_status, progress);
 
         self.notify_new_status(job_id, progress);
 
@@ -286,15 +279,13 @@ impl<DB: DaLedgerOps> DaJobRpcProvider for DaJobService<DB> {
         match progress.status {
             DaJobStatus::Failed { .. } | DaJobStatus::Cancelled => {
                 // Get original job and deserialize data
-                let original_job = self
-                    .get_job(&job_id)?
+                let da_tx_request = self
+                    .get_job_request(&job_id)?
                     .ok_or(JobServiceError::JobNotFound(job_id))?;
-
-                let raw_data: DaTxRequest = borsh::from_slice(&original_job.data)?;
 
                 let (tx, _rx) = oneshot::channel();
                 // Create new job with same data
-                let new_job_id = self.submit_job(raw_data, tx)?;
+                let new_job_id = self.submit_job(da_tx_request, tx)?;
                 tracing::info!("Job {job_id} retried as new job {new_job_id}");
 
                 Ok(new_job_id)
