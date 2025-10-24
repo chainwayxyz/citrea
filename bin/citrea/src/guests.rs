@@ -119,6 +119,10 @@ pub(crate) static BATCH_PROOF_TESTNET_GUESTS: LazyLock<HashMap<SpecId, (Digest, 
             SpecId::Tangerine,
             guest!("../../../resources/guests/risc0/testnet/batch-proof-0.bin"),
         );
+        m.insert(
+            SpecId::Tangelo,
+            guest!("../../../resources/guests/risc0/testnet/batch-proof-1.bin"),
+        );
 
         m
     });
