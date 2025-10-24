@@ -92,7 +92,7 @@ pub enum JobStatusFilter {
     Cancelled,
     /// Only failed jobs
     Failed,
-    /// All active jobs (Pending + InProgress)
+    /// All active jobs (`Pending` + `InProgress`)
     Active,
     /// All terminal jobs (Completed + Cancelled + Failed)
     Terminal,

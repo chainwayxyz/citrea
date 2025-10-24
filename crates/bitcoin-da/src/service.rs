@@ -337,7 +337,7 @@ impl BitcoinService {
         // Get all pending/in-progress jobs
         let active_job_ids = job_service.get_all_active_job_ids()?;
         for job_id in active_job_ids {
-            info!("Processing job {}", job_id);
+            info!("Processing job {job_id}");
 
             let job_request = job_service
                 .get_job_request(&job_id)?
@@ -357,12 +357,12 @@ impl BitcoinService {
                 Ok(completed) => {
                     if completed {
                         job_service.update_job_status(progress, DaJobStatus::Completed)?;
-                        info!("Job {} completed successfully", job_id);
+                        info!("Job {job_id} completed successfully");
 
                         previous_job_in_progress = false;
                     } else {
                         job_service.update_job_status(progress, DaJobStatus::InProgress)?;
-                        info!("Job {} partially sent", job_id);
+                        info!("Job {job_id} partially sent");
 
                         previous_job_in_progress = true;
                     }
@@ -376,7 +376,7 @@ impl BitcoinService {
                     continue;
                 }
                 Err(e) => {
-                    error!("Error processing job {}: {:?}", job_id, e);
+                    error!("Error processing job {job_id}: {e:?}");
                     job_service.update_job_status(
                         progress,
                         DaJobStatus::Failed {

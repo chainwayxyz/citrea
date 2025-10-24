@@ -33,7 +33,7 @@ pub struct DaJobService<DB: DaLedgerOps> {
 }
 
 impl<DB: DaLedgerOps> DaJobService<DB> {
-    /// Creates a new DaJobService with ledger_db
+    /// Creates a new `DaJobService` with `ledger_db`
     pub fn new(ledger_db: DB, cache_size: Option<NonZeroUsize>) -> Self {
         let cache_size = cache_size.unwrap_or_else(|| NonZeroUsize::new(10).unwrap());
 
@@ -101,7 +101,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     pub(crate) fn get_job_data(&self, job_id: Uuid, job_data: DaTxRequest) -> Result<RawTxData> {
         if let Some(data) = self.raw_tx_data_cache.lock().unwrap().get(&job_id) {
             return Ok(data.to_owned());
-        };
+        }
 
         let raw_tx_data = match job_data {
             DaTxRequest::ZKProof(zkproof) => split_proof(zkproof),
