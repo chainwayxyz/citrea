@@ -1297,7 +1297,7 @@ mod tests {
     // to use different set of forks for any reason.
     const TEST_FORKS: &[Fork] = &[
         Fork::new(SpecId::Tangerine, 0),
-        Fork::new(SpecId::Fork3, 10),
+        Fork::new(SpecId::Tangelo, 10),
     ];
 
     struct MockProverData {
