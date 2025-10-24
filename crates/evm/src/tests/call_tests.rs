@@ -66,7 +66,7 @@ fn call_multiple_test() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -78,7 +78,7 @@ fn call_multiple_test() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer1, 0, SimpleStorageContract::default()),
@@ -200,7 +200,7 @@ fn call_test() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -211,7 +211,7 @@ fn call_test() {
     let set_arg = 999;
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let rlp_transactions = vec![
             create_contract_message(&dev_signer, 0, SimpleStorageContract::default()),
@@ -278,7 +278,7 @@ fn failed_transaction_test() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -287,7 +287,7 @@ fn failed_transaction_test() {
     evm.begin_l2_block_hook(&l2_block_info, working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
         let rlp_transactions = vec![create_contract_message(
             &dev_signer,
             0,
@@ -339,14 +339,14 @@ fn self_destruct_test() {
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) =
-        get_evm_with_spec(&config, SovSpecId::Tangerine);
+        get_evm_with_spec(&config, SovSpecId::latest());
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -355,7 +355,7 @@ fn self_destruct_test() {
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         // deploy selfdestruct contract
         // send some money to the selfdestruct contract
@@ -413,18 +413,18 @@ fn self_destruct_test() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
 
     // Switch to another fork
-    let _spec_id = SovSpecId::Tangerine;
+    let _spec_id = SovSpecId::latest();
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
         // selfdestruct to die to address with someone other than the creator of the contract
         evm.call(
             CallMessage {
@@ -501,7 +501,7 @@ fn test_block_hash_in_evm() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -510,7 +510,7 @@ fn test_block_hash_in_evm() {
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
 
@@ -534,7 +534,7 @@ fn test_block_hash_in_evm() {
         let l2_block_info = HookL2BlockInfo {
             l2_height,
             pre_state_root: [99u8; 32],
-            current_spec: SovSpecId::Tangerine,
+            current_spec: SovSpecId::latest(),
             sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,
@@ -654,7 +654,7 @@ fn test_block_gas_limit() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -663,7 +663,7 @@ fn test_block_gas_limit() {
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(
@@ -715,7 +715,7 @@ fn test_block_gas_limit() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -724,7 +724,7 @@ fn test_block_gas_limit() {
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(
@@ -875,7 +875,7 @@ fn test_l1_fee_success() {
         let l2_block_info = HookL2BlockInfo {
             l2_height: 2,
             pre_state_root: [10u8; 32],
-            current_spec: SovSpecId::Tangerine,
+            current_spec: SovSpecId::latest(),
             sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,
@@ -885,7 +885,7 @@ fn test_l1_fee_success() {
         {
             let sender_address = generate_address::<C>("sender");
 
-            let context = C::new(sender_address, 2, SovSpecId::Tangerine, l1_fee_rate);
+            let context = C::new(sender_address, 2, SovSpecId::latest(), l1_fee_rate);
 
             let deploy_message = create_contract_message_with_priority_fee(
                 &dev_signer,
@@ -947,18 +947,18 @@ fn test_l1_fee_success() {
 
     run_tx(
         0,
-        U256::from(100000000000000u64 - gas_fee_paid * 10000001),
+        U256::from(100000000000000u64 - gas_fee_paid * 1000001),
         // priority fee goes to coinbase
         U256::from(gas_fee_paid),
-        U256::from(gas_fee_paid * 10000000),
+        U256::from(gas_fee_paid * 1000000),
         U256::from(0),
     );
     run_tx(
         1,
-        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 36 - L1_FEE_OVERHEAD as u64),
+        U256::from(100000000000000u64 - gas_fee_paid * 1000001 - 36 - L1_FEE_OVERHEAD as u64),
         // priority fee goes to coinbase
         U256::from(gas_fee_paid),
-        U256::from(gas_fee_paid * 10000000),
+        U256::from(gas_fee_paid * 1000000),
         U256::from(36 + L1_FEE_OVERHEAD as u64),
     );
 }
@@ -966,9 +966,9 @@ fn test_l1_fee_success() {
 #[test]
 fn test_l1_fee_not_enough_funds() {
     let (mut config, dev_signer, _, _ledger_db) = get_evm_config_starting_base_fee(
-        U256::from_str("1142350000000").unwrap(), // only covers base fee
+        U256::from_str("114235000000").unwrap(), // only covers base fee
         None,
-        min_base_fee_per_gas(SovSpecId::Tangerine),
+        min_base_fee_per_gas(SovSpecId::latest()),
     );
     config_push_contracts(&mut config, None);
 
@@ -980,7 +980,7 @@ fn test_l1_fee_not_enough_funds() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -990,7 +990,7 @@ fn test_l1_fee_not_enough_funds() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let deploy_message = create_contract_message_with_fee_and_gas_limit(
             &dev_signer,
@@ -1029,7 +1029,7 @@ fn test_l1_fee_not_enough_funds() {
         .unwrap();
 
     // The account balance is unchanged
-    assert_eq!(db_account.balance, U256::from(1142350000000u64));
+    assert_eq!(db_account.balance, U256::from(114235000000u64));
     assert_eq!(db_account.nonce, 0);
 
     // The coinbase balance is zero
@@ -1053,7 +1053,7 @@ fn test_l1_fee_halt() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1063,7 +1063,7 @@ fn test_l1_fee_halt() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let deploy_message = create_contract_message_with_fee(
             &dev_signer,
@@ -1132,7 +1132,7 @@ fn test_l1_fee_halt() {
         .account_info(&dev_signer.address(), &mut working_set)
         .unwrap();
 
-    let expenses = 1106947_u64 * 10000000 + // evm gas
+    let expenses = 1106947_u64 * 1000000 + // evm gas
         36 + // l1 contract deploy fee
         7 + // l1 contract call fee
         2 * L1_FEE_OVERHEAD as u64; // l1 fee overhead *2
@@ -1146,7 +1146,7 @@ fn test_l1_fee_halt() {
     let base_fee_vault = evm.account_info(&BASE_FEE_VAULT, &mut working_set).unwrap();
     let l1_fee_vault = evm.account_info(&L1_FEE_VAULT, &mut working_set).unwrap();
 
-    assert_eq!(base_fee_vault.balance, U256::from(1106947_u64 * 10000000));
+    assert_eq!(base_fee_vault.balance, U256::from(1106947_u64 * 1000000));
     assert_eq!(
         l1_fee_vault.balance,
         U256::from(36 + 7 + 2 * L1_FEE_OVERHEAD as u64)
@@ -1161,13 +1161,13 @@ fn test_l1_fee_compression_discount() {
     config_push_contracts(&mut config, None);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) =
-        get_evm_with_spec(&config, SovSpecId::Tangerine);
+        get_evm_with_spec(&config, SovSpecId::latest());
     let l1_fee_rate = 1;
 
     let l2_block_info = HookL2BlockInfo {
         l2_height: 2,
         pre_state_root: [99u8; 32],
-        current_spec: SovSpecId::Tangerine, // Compression discount is enabled
+        current_spec: SovSpecId::latest(), // Compression discount is enabled
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1176,7 +1176,7 @@ fn test_l1_fee_compression_discount() {
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 3, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, 3, SovSpecId::latest(), l1_fee_rate);
         let simple_tx = dev_signer
             .sign_default_transaction_with_priority_fee(
                 TxKind::Call(Address::random()),
@@ -1215,9 +1215,9 @@ fn test_l1_fee_compression_discount() {
     let tx_gas = 21000;
 
     let expected_db_balance = U256::from(
-        100000000000000u64 - 1000 - tx_gas * 10000001 - tx2_diff_size - L1_FEE_OVERHEAD as u64,
+        100000000000000u64 - 1000 - tx_gas * 1000001 - tx2_diff_size - L1_FEE_OVERHEAD as u64,
     );
-    let expected_base_fee_vault_balance = U256::from(tx_gas * 10000000);
+    let expected_base_fee_vault_balance = U256::from(tx_gas * 1000000);
     let expected_coinbase_balance = U256::from(tx_gas);
     let expected_l1_fee_vault_balance = U256::from(tx2_diff_size + L1_FEE_OVERHEAD as u64);
 
@@ -1256,7 +1256,7 @@ fn test_blob_tx() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine, // won't be Tangerine at height 2 currently but we can trick the spec id
+        current_spec: SovSpecId::latest(), // won't be Tangerine at height 2 currently but we can trick the spec id
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1265,7 +1265,7 @@ fn test_blob_tx() {
     let sender_address = generate_address::<C>("sender");
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let blob_message = dev_signer
             .sign_blob_transaction(Address::ZERO, vec![B256::random()], 0)
@@ -1332,7 +1332,7 @@ fn test_eip7702_tx() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1343,7 +1343,7 @@ fn test_eip7702_tx() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&signer1, 0, LogsContract::default()),
@@ -1378,7 +1378,7 @@ fn test_eip7702_tx() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1389,7 +1389,7 @@ fn test_eip7702_tx() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![signer2
             .sign_eip7702_transaction(
@@ -1458,7 +1458,7 @@ fn test_eip7702_tx() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![signer2
             .sign_default_transaction(
@@ -1502,7 +1502,7 @@ fn test_eip7702_tx() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1513,7 +1513,7 @@ fn test_eip7702_tx() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             signer2
@@ -1608,7 +1608,7 @@ fn test_eip7702_tx() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1619,7 +1619,7 @@ fn test_eip7702_tx() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![signer2
             .sign_eip7702_transaction(
