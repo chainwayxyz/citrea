@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.8.0 (2025-10-24)
+Release for Citrea Tangelo network upgrade.
+
+With this upgrade:
+- Minimum base fee is reduced to 0.001 Gwei.
+- Security fixes from past audits are applied.
+- Light Client Proof Batch Proof Method ID updates are now done by the security council.
+
 ## v0.7.5 (2025-10-02)
 - New config `RPC_ENABLE_JS_TRACER` to enable/disable `JsTracer` for EVM trace RPCs. (Default true).
 - Better mempool handling in the sequencer.
