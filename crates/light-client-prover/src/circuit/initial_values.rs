@@ -173,10 +173,20 @@ pub mod bitcoinda {
 
     /// Initial batch proof method IDs for the Bitcoin DA on Testnet.
     pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> =
-        NonEmptySlice::new(&[(
-            0,
-            decode_to_u32_array("8d94f41179bbcd57066dadfdc4922a34fea4f32f1ec1ba7ca82c8c644f437013"),
-        )]);
+        NonEmptySlice::new(&[
+            (
+                0,
+                decode_to_u32_array(
+                    "8d94f41179bbcd57066dadfdc4922a34fea4f32f1ec1ba7ca82c8c644f437013",
+                ),
+            ),
+            (
+                17733000,
+                decode_to_u32_array(
+                    "9ce6c22261cc7612b9ecbd1436d822d87a0e10d9a585e97ace73c4f9162d6f8c",
+                ),
+            ),
+        ]);
 
     /// Initial batch proof method IDs for the Bitcoin DA on Devnet.
     pub const DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> =
