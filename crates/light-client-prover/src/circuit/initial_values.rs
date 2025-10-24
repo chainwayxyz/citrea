@@ -397,7 +397,7 @@ pub mod bitcoinda {
         SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
         SECURITY_COUNCIL_MEMBER_COUNT] = [
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"03f56e848d9864362f4925e0d53863902c5f86766ee59359f52647df43a0890ce7",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -405,7 +405,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"03e6028f183993c8fd7bb4082a27c3b44f716bba91dcd8c6f37f7c1e6a77233379",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -413,7 +413,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"02fe5c4d28e173998d148d0cd67f00faa87f2b19e30447bc92c5af431da5106357",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -421,7 +421,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"03840f3d82dcd4c60e86c63df785ed3df06ee3b81f20f179e02fb818cfd123de38",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -429,7 +429,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"02379cb28a72784ce7e13ce6beb4a04e8831db2a61887941e60d905ed59e7e6a22",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
