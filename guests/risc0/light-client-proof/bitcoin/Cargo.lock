@@ -488,7 +488,7 @@ dependencies = [
 
 [[package]]
 name = "bitcoin-da"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "bitcoin",
@@ -743,7 +743,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-light-client-prover"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "alloy-primitives",
  "borsh",
@@ -759,7 +759,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "alloy-eips",
  "brotli",
@@ -770,7 +770,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-adapter"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "bincode",
  "borsh",
@@ -784,7 +784,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-batch-proof"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "risc0-build",
 ]
@@ -1614,7 +1614,7 @@ dependencies = [
 
 [[package]]
 name = "light-client-proof-bitcoin"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "bitcoin-da",
@@ -2626,7 +2626,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "sov-keys"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "borsh",
  "derive_more 1.0.0",
@@ -2642,7 +2642,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -2662,7 +2662,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -2682,7 +2682,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2699,7 +2699,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2713,7 +2713,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
