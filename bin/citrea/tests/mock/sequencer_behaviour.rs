@@ -690,6 +690,7 @@ async fn test_sequencer_halt_resume_commitments() -> Result<(), anyhow::Error> {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
+    println!("1");
     let rollup_config = create_default_rollup_config(
         true,
         &sequencer_db_dir,
@@ -705,6 +706,7 @@ async fn test_sequencer_halt_resume_commitments() -> Result<(), anyhow::Error> {
         ..Default::default()
     };
 
+    println!("2");
     let seq_task = start_rollup(
         seq_port_tx,
         GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -722,14 +724,18 @@ async fn test_sequencer_halt_resume_commitments() -> Result<(), anyhow::Error> {
 
     let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
 
+    println!("3");
     // Publish initial DA block
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 2, None).await;
 
+    println!("33");
     // Create first 2 L2 blocks to trigger initial commitment
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 2, None).await;
+
+    println!("34");
 
     // Wait for first commitment to be published
     let initial_commitments =
@@ -740,6 +746,7 @@ async fn test_sequencer_halt_resume_commitments() -> Result<(), anyhow::Error> {
         "Expected 1 initial commitment"
     );
 
+    println!("4");
     // Halt commitments via RPC
     seq_test_client.sequencer_halt_commitments().await.unwrap();
 
@@ -750,6 +757,8 @@ async fn test_sequencer_halt_resume_commitments() -> Result<(), anyhow::Error> {
     for _ in 0..3 {
         seq_test_client.send_publish_batch_request().await;
     }
+
+    println!("5");
 
     // Wait for potential commitments (should not happen)
     tokio::time::sleep(Duration::from_secs(3)).await;
@@ -763,12 +772,14 @@ async fn test_sequencer_halt_resume_commitments() -> Result<(), anyhow::Error> {
         "No L1 block should have been produced while halted"
     );
 
+    println!("6");
     // Resume commitments via RPC
     seq_test_client
         .sequencer_resume_commitments()
         .await
         .unwrap();
 
+    println!("7");
     // Wait a bit for the resume signal to be processed
     tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -778,10 +789,13 @@ async fn test_sequencer_halt_resume_commitments() -> Result<(), anyhow::Error> {
     // We should have a single commitment at block 5
     assert_eq!(resumed_commitments.len(), 1);
 
+    println!("8");
     // Verify the commitment is for the correct block range
     let commitment = &resumed_commitments[0];
     assert_eq!(commitment.l2_end_block_number, 6);
 
+    println!("9");
     seq_task.graceful_shutdown();
+    println!("10");
     Ok(())
 }
