@@ -842,7 +842,7 @@ checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 
 [[package]]
 name = "batch-proof-mock"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "citrea-primitives",
@@ -1138,7 +1138,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-evm"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -1163,7 +1163,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "alloy-eips",
  "brotli",
@@ -1174,7 +1174,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-adapter"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "bincode",
  "borsh",
@@ -1188,7 +1188,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-stf"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "borsh",
  "citrea-evm",
@@ -2063,7 +2063,7 @@ dependencies = [
 
 [[package]]
 name = "l2-block-rule-enforcer"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "borsh",
  "citrea-evm",
@@ -3610,7 +3610,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "short-header-proof-provider"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "borsh",
  "sov-modules-api",
@@ -3645,7 +3645,7 @@ dependencies = [
 
 [[package]]
 name = "sov-accounts"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "borsh",
  "hex",
@@ -3659,7 +3659,7 @@ dependencies = [
 
 [[package]]
 name = "sov-keys"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "borsh",
  "derive_more 1.0.0",
@@ -3675,7 +3675,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-da"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3689,7 +3689,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "bech32",
@@ -3710,7 +3710,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "bech32",
@@ -3730,7 +3730,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-macros"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3740,7 +3740,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3757,7 +3757,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3771,7 +3771,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
