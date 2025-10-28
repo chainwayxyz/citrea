@@ -39,7 +39,9 @@ pub enum SpecId {
     /// 2. Sov-tx signature serialization
     /// 3. Sov-tx serialization to generate signature
     /// 4. L2 merkle tree separators
-    Fork3 = 3,
+    /// 5. LCP Method ID update is now done with 3/5 multisig of security council
+    /// 6. Minimum base fee is now set to 0.001 gwei
+    Tangelo = 3,
     /// Fork4 spec
     #[cfg(feature = "testing")]
     Fork4 = 4,
@@ -48,6 +50,6 @@ pub enum SpecId {
 impl SpecId {
     /// Get the latest active (official) SpecId.
     pub const fn latest() -> Self {
-        Self::Fork3
+        Self::Tangelo
     }
 }

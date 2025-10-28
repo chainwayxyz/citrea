@@ -62,7 +62,7 @@ pub(crate) fn get_evm(
     SovSpecId,
     LedgerDB,
 ) {
-    get_evm_with_spec(config, SovSpecId::Tangerine)
+    get_evm_with_spec(config, SovSpecId::latest())
 }
 
 pub(crate) fn get_evm_with_spec(
