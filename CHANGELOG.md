@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.8.1 (2025-10-25)
+Fixes Testnet guest list for Light Client Prover.
+
 ## v0.8.0 (2025-10-24)
 Release for Citrea Tangelo network upgrade.
 

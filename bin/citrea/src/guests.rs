@@ -159,6 +159,14 @@ pub(crate) static LIGHT_CLIENT_TESTNET_GUESTS: LazyLock<HashMap<SpecId, (Digest,
         let mut m = HashMap::new();
 
         m.insert(
+            SpecId::Genesis,
+            guest!("../../../resources/guests/risc0/testnet/light-client-proof-1.bin"),
+        );
+        m.insert(
+            SpecId::Kumquat,
+            guest!("../../../resources/guests/risc0/testnet/light-client-proof-1.bin"),
+        );
+        m.insert(
             SpecId::Tangerine,
             guest!("../../../resources/guests/risc0/testnet/light-client-proof-1.bin"),
         );

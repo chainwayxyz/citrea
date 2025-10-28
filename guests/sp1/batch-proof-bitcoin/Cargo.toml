@@ -2,7 +2,7 @@
 
 [package]
 name = "sp1-batch-prover-bitcoin"
-version = "0.8.0"
+version = "0.8.1"
 edition = "2021"
 resolver = "2"
 
@@ -37,7 +37,7 @@ curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", br
 # ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", branch = "patch-v2.1.0" }
 ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "patch-ecdsa-v0.16.9" }
 substrate-bn = { git = "https://github.com/sp1-patches/bn", branch = "patch-v0.6.0" }
-bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", branch = "patch-v0.8.0" }
+bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", branch = "patch-v0.8.1" }
 
 [profile.release]
 debug = 0
