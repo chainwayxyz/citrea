@@ -152,7 +152,17 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         Ok(active_jobs)
     }
 
-    /// Update job status by id
+    /// Save job progress
+    #[instrument(level = "debug", skip(self))]
+    pub fn upsert_job_progress(&self, progress: &mut JobProgress) -> Result<()> {
+        progress.last_updated = get_timestamp();
+
+        self.ledger_db.upsert_progress(progress)?;
+
+        Ok(())
+    }
+
+    /// Update and save job progress to a new status
     #[instrument(level = "debug", skip(self))]
     pub fn update_job_status(
         &self,
@@ -167,7 +177,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
 
         let db_progress = progress.clone();
         self.ledger_db
-            .upsert_progress(&db_progress, previous_status.as_u8())?;
+            .upsert_progress_new_status(&db_progress, previous_status.as_u8())?;
 
         METRICS.record_status_update(&previous_status, progress);
 

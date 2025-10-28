@@ -737,6 +737,7 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
             commitment_1_state_root,
         )
         .await?;
+
         Ok(())
     }
 }

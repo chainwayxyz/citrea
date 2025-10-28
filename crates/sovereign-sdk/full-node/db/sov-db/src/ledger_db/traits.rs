@@ -362,8 +362,12 @@ pub trait DaLedgerOps {
     /// Get a DA job request by id
     fn get_job_request(&self, job_id: &Uuid) -> Result<Option<DaTxRequest>>;
 
-    /// Update a DA job progress by id
-    fn upsert_progress(&self, progress: &JobProgress, previous_status: u8) -> Result<()>;
+    /// Upsert a DA job progress
+    fn upsert_progress(&self, progress: &JobProgress) -> Result<()>;
+
+    /// Upsert a DA job progress with a status change
+    fn upsert_progress_new_status(&self, progress: &JobProgress, previous_status: u8)
+        -> Result<()>;
 
     /// Get a DA job progress by id
     fn get_progress(&self, job_id: &Uuid) -> Result<Option<JobProgress>>;

@@ -77,6 +77,8 @@ pub struct JobProgress {
     pub sent_chunks: SentChunks,
     /// Last update timestamp
     pub last_updated: u64,
+    /// Last recoverable error message
+    pub last_error: Option<String>,
 }
 
 impl JobProgress {
@@ -87,6 +89,7 @@ impl JobProgress {
             status: DaJobStatus::Pending,
             sent_chunks: SentChunks::new(),
             last_updated,
+            last_error: None,
         }
     }
 }

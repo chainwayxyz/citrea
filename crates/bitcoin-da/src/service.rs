@@ -355,6 +355,8 @@ impl BitcoinService {
                 .await
             {
                 Ok(completed) => {
+                    progress.last_error = None;
+
                     if completed {
                         job_service.update_job_status(progress, DaJobStatus::Completed)?;
                         info!("Job {job_id} completed successfully");
@@ -372,17 +374,15 @@ impl BitcoinService {
 
                     // Save updated progress with last sent attempt value and continue
                     // Fee cap errors should be retried on next `process_job_service` call
-                    job_service.update_job_status(progress, progress.status.clone())?;
+                    job_service.upsert_job_progress(progress)?;
                     continue;
                 }
                 Err(e) => {
+                    // TODO make the distinction between recoverable and unrecoverable error.
+                    // The latter should be updated to Failed status
                     error!("Error processing job {job_id}: {e:?}");
-                    job_service.update_job_status(
-                        progress,
-                        DaJobStatus::Failed {
-                            error: e.to_string(),
-                        },
-                    )?;
+                    progress.last_error = Some(e.to_string());
+                    job_service.upsert_job_progress(progress)?;
                 }
             }
         }

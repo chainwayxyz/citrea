@@ -158,19 +158,14 @@ pub struct JobInfoResponse {
 
 impl From<JobProgress> for JobInfoResponse {
     fn from(value: JobProgress) -> Self {
-        let error = match &value.status {
-            DaJobStatus::Failed { error } => Some(error.clone()),
-            _ => None,
-        };
-
         let created_at = value.job_id.get_timestamp().map_or(0, |ts| ts.to_unix().0);
         Self {
             job_id: value.job_id,
-            status: value.status.clone(),
+            status: value.status,
             created_at,
             last_updated: value.last_updated,
             sent_count: value.sent_chunks.count(),
-            error,
+            error: value.last_error,
         }
     }
 }

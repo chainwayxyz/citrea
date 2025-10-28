@@ -1038,7 +1038,20 @@ impl DaLedgerOps for LedgerDB {
         self.db.get::<DaTxRequestByJobId>(job_id)
     }
 
-    fn upsert_progress(&self, progress: &JobProgress, previous_status: u8) -> anyhow::Result<()> {
+    fn upsert_progress(&self, progress: &JobProgress) -> anyhow::Result<()> {
+        let mut batch = SchemaBatch::new();
+
+        batch.put::<DaJobProgressById>(&progress.job_id, progress)?;
+
+        self.db.write_schemas(batch)?;
+        Ok(())
+    }
+
+    fn upsert_progress_new_status(
+        &self,
+        progress: &JobProgress,
+        previous_status: u8,
+    ) -> anyhow::Result<()> {
         let mut batch = SchemaBatch::new();
 
         let job_id = progress.job_id;

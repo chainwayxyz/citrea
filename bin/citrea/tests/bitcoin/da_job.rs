@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -386,6 +387,100 @@ impl JobServiceTest {
 
         Ok(())
     }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn test_job_error_recovery(
+        &mut self,
+        da: &mut BitcoinNode,
+        tx_backup_dir: PathBuf,
+        da_service: &Arc<BitcoinService>,
+        da_service_client: &HttpClient,
+        genesis_state_root: [u8; 32],
+        batch_proof_method_id: [u32; 8],
+        finalized_height: u64,
+        commitment: &SequencerCommitment,
+        commitment_state_root: [u8; 32],
+    ) -> Result<()> {
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+        let state_diff_400kb = create_random_state_diff(400);
+        let proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            genesis_state_root,
+            20,
+            batch_proof_method_id,
+            Some(state_diff_400kb),
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment.clone()],
+            vec![commitment_state_root],
+            None,
+        );
+
+        let (job_id, _) = da_service
+            .send_transaction(DaTxRequest::ZKProof(proof))
+            .await?;
+
+        da.wait_mempool_len(18, None).await?;
+        assert_eq!(da.get_raw_mempool().await?.len(), 18);
+
+        let job_before: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
+        assert_eq!(job_before.job_id, job_id);
+        assert_eq!(job_before.status, DaJobStatus::InProgress);
+        assert_eq!(job_before.sent_count, 9);
+
+        // Make `tx_backup_dir` read-only to trigger a failure.
+        // Should make the next job processing fail with `There are no UTXOs`
+        let metadata = tokio::fs::metadata(&tx_backup_dir).await?;
+        let mut permissions = metadata.permissions();
+
+        // Keep original perms for resetting
+        let original_perms = permissions.clone();
+
+        permissions.set_readonly(true);
+        tokio::fs::set_permissions(&tx_backup_dir, permissions.clone()).await?;
+
+        // Mine chunks
+        da.generate(1).await?;
+
+        // Wait for job processing
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+
+        let in_progress_jobs = da_service_client
+            .da_job_list(Some(JobStatusFilter::InProgress), None, None)
+            .await?;
+        assert_eq!(in_progress_jobs.len(), 1);
+        assert_eq!(in_progress_jobs[0].job_id, job_id);
+
+        let failed_job: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
+        assert!(matches!(failed_job.status, DaJobStatus::InProgress));
+        assert_eq!(failed_job.created_at, job_before.created_at);
+        assert_eq!(
+            failed_job.error,
+            Some(
+                "Failed to backup transactions to file: Permission denied (os error 13)"
+                    .to_string()
+            )
+        );
+
+        // Reset permissions
+        tokio::fs::set_permissions(&tx_backup_dir, original_perms).await?;
+
+        // Trigger job processing
+        da.generate(1).await?;
+
+        da.wait_mempool_len(6, None).await?;
+
+        let completed_job: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
+        assert_eq!(completed_job.status, DaJobStatus::Completed);
+        assert_eq!(completed_job.created_at, job_before.created_at);
+        assert_eq!(completed_job.sent_count, 12);
+        assert_eq!(completed_job.error, None);
+
+        let active_jobs_final = da_service_client
+            .da_job_list(Some(JobStatusFilter::Active), None, None)
+            .await?;
+        assert_eq!(active_jobs_final.len(), 0);
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -423,6 +518,13 @@ impl TestCase for JobServiceTest {
         }
     }
 
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            proof_sampling_number: 999_999_999,
+            ..Default::default()
+        }
+    }
+
     async fn cleanup(self) -> Result<()> {
         self.task_manager
             .unwrap()
@@ -437,13 +539,13 @@ impl TestCase for JobServiceTest {
         let full_node = f.full_node.as_mut().unwrap();
         let light_client_prover = f.light_client_prover.as_mut().unwrap();
 
+        let test_dir = Self::test_config().dir;
+        let tx_backup_dir = test_dir.join("tx_backup_dir");
+
         // Common setup
-        let (da_service, da_service_client) = spawn_bitcoin_da_prover_service_with_rpc_server(
-            &task_executor,
-            &da.config,
-            Self::test_config().dir,
-        )
-        .await;
+        let (da_service, da_service_client) =
+            spawn_bitcoin_da_prover_service_with_rpc_server(&task_executor, &da.config, test_dir)
+                .await;
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
@@ -546,6 +648,23 @@ impl TestCase for JobServiceTest {
             commitment_state_root,
         )
         .await?;
+
+        // Clean mempool between each step
+        da.generate(1).await?;
+
+        self.test_job_error_recovery(
+            da,
+            tx_backup_dir,
+            &da_service,
+            &da_service_client,
+            genesis_state_root,
+            batch_proof_method_id,
+            finalized_height,
+            &commitment,
+            commitment_state_root,
+        )
+        .await?;
+
         // Clean mempool between each step
         da.generate(1).await?;
 
