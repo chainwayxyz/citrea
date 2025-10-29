@@ -475,6 +475,13 @@ impl TestSequencerTransactionChaining {
             .await?;
         da.generate(1).await?;
 
+        // Assert that we now have a single utxo
+        let unspent = sequencer
+            .da
+            .list_unspent(None, None, None, None, None)
+            .await?;
+        assert_eq!(unspent.len(), 1);
+
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         // Generate multiple sequencer commitments and chain them in mempool
