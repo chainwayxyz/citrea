@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use anyhow::bail;
+// use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::{Amount, Txid};
