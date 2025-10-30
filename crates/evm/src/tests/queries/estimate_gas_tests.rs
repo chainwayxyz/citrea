@@ -10,10 +10,10 @@ use reth_rpc_eth_types::RpcInvalidTransactionError;
 use serde_json::json;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, Spec, SpecId, StateVecAccessor, WorkingSet};
-use sov_rollup_interface::fork::Fork;
 
 use crate::call::CallMessage;
 use crate::query::MIN_TRANSACTION_GAS;
@@ -1440,4 +1440,283 @@ fn test_eip7702_exact_testnet_reproduction() {
 
     // Verify transaction result
     call_result.expect("Transaction should execute");
+}
+
+#[test]
+fn test_eip7702_warm_reauthorization() {
+    let (mut evm, working_set, prover_storage, signer, mut l2_height, ledger_db) =
+        init_evm(SpecId::latest());
+
+    let token_impl = ERC20ImplementationContract::default();
+    let token_impl_bytecode = token_impl.byte_code();
+    let (token_impl_address, working_set) = deploy_contract(
+        &mut evm,
+        &signer,
+        token_impl_bytecode,
+        l2_height,
+        &prover_storage,
+        &ledger_db,
+        working_set,
+        [101u8; 32],
+        Some([102u8; 32]),
+        SpecId::latest(),
+        1,
+        10,
+    );
+    l2_height += 1;
+
+    let token_proxy = SimpleTokenProxyContract::default();
+    let initial_supply = U256::from(1_000_000_000_000_000_000_000u128);
+    let token_proxy_bytecode = token_proxy.deployment_bytecode(token_impl_address, initial_supply);
+    let (token_proxy_address, working_set) = deploy_contract(
+        &mut evm,
+        &signer,
+        token_proxy_bytecode,
+        l2_height,
+        &prover_storage,
+        &ledger_db,
+        working_set,
+        [102u8; 32],
+        Some([103u8; 32]),
+        SpecId::latest(),
+        1,
+        11,
+    );
+    l2_height += 1;
+
+    let wallet = MinimalBatchWalletContract::default();
+    let wallet_bytecode = wallet.byte_code();
+    let (wallet_address, working_set) = deploy_contract(
+        &mut evm,
+        &signer,
+        wallet_bytecode,
+        l2_height,
+        &prover_storage,
+        &ledger_db,
+        working_set,
+        [103u8; 32],
+        Some([104u8; 32]),
+        SpecId::latest(),
+        1,
+        12,
+    );
+    l2_height += 1;
+
+    // First delegation to establish warm state
+    let (_, working_set) = {
+        let mut working_set = working_set;
+        let nonce_before_first_auth = evm
+            .get_transaction_count(signer.address(), None, &mut working_set, &ledger_db)
+            .unwrap();
+
+        let first_auth = signer
+            .get_signed_authorization(wallet_address, nonce_before_first_auth.to::<u64>() + 1)
+            .expect("Should create signed authorization");
+
+        let first_auth_tx = signer
+            .sign_eip7702_transaction_with_gas_limit(
+                signer.address(),
+                vec![], // Empty calldata
+                nonce_before_first_auth.to::<u64>(),
+                vec![first_auth],
+                100000u64,
+            )
+            .expect("Should sign transaction");
+
+        let l2_block_info_first = HookL2BlockInfo {
+            l2_height,
+            pre_state_root: [104u8; 32],
+            current_spec: SpecId::latest(),
+            sequencer_pub_key: get_test_seq_pub_key(),
+            l1_fee_rate: 1,
+            timestamp: 13,
+        };
+
+        evm.begin_l2_block_hook(&l2_block_info_first, &mut working_set);
+
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SpecId::latest(), 1);
+
+        evm.call(
+            CallMessage {
+                txs: vec![first_auth_tx],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+
+        evm.end_l2_block_hook(&l2_block_info_first, &mut working_set);
+        evm.finalize_hook(&[105u8; 32], &mut working_set.accessory_state());
+
+        let receipts: Vec<_> = evm
+            .receipts
+            .iter(&mut working_set.accessory_state())
+            .collect();
+
+        let first_auth_gas = receipts
+            .last()
+            .map(|r| r.receipt.receipt.cumulative_gas_used)
+            .unwrap_or(0);
+
+        let ps = prover_storage.clone();
+        commit(working_set, ps.clone());
+        l2_height += 1;
+
+        let mut working_set = WorkingSet::new(ps);
+
+        // Verify EOA now has delegation code
+        let eoa_code = evm
+            .get_code(signer.address(), None, &mut working_set, &ledger_db)
+            .unwrap();
+
+        assert!(
+            eoa_code.starts_with(&EIP7702_DELEGATION_PREFIX),
+            "EOA should have EIP-7702 delegation code, got: 0x{}",
+            hex::encode(&eoa_code[..eoa_code.len().min(10)])
+        );
+
+        (first_auth_gas, working_set)
+    };
+
+    let mut working_set = working_set;
+    let nonce_after_first_auth = evm
+        .get_transaction_count(signer.address(), None, &mut working_set, &ledger_db)
+        .unwrap()
+        .to::<u64>();
+
+    let spender1 = Address::from([0x20; 20]); // Example spender addresses
+    let approve_amount1 = U256::from(10_000u128);
+
+    let token_approve_call_data1 = token_impl.approve_call_data(spender1, approve_amount1);
+
+    let batch_executions = vec![
+        Execution {
+            target: token_proxy_address,
+            value: U256::ZERO,
+            call_data: token_approve_call_data1.clone(),
+        },
+        Execution {
+            target: spender1,
+            value: U256::from(2_000_000_000_000_000u128),
+            call_data: vec![],
+        },
+    ];
+
+    let execute_call_data = wallet.execute_batch_call_data(batch_executions.clone());
+
+    let second_auth = signer
+        .get_signed_authorization(wallet_address, nonce_after_first_auth + 1)
+        .expect("Should create signed authorization");
+
+    let tx_req = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(signer.address())),
+        value: None,
+        input: TransactionInput::new(execute_call_data.clone().into()),
+        chain_id: Some(1u64),
+        gas: None,
+        gas_price: Some(100_000_000),
+        nonce: Some(nonce_after_first_auth),
+        access_list: None,
+        authorization_list: Some(vec![second_auth.clone()]),
+        ..Default::default()
+    };
+
+    let gas_estimate = evm
+        .eth_estimate_gas(tx_req, None, &mut working_set, &ledger_db)
+        .expect("Gas estimation should succeed");
+
+    let reauth_tx = signer
+        .sign_eip7702_transaction_with_gas_limit(
+            signer.address(),
+            execute_call_data.clone(),
+            nonce_after_first_auth,
+            vec![second_auth],
+            gas_estimate.to::<u64>(),
+        )
+        .expect("Should sign transaction");
+
+    let l2_block_info_reauth = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [105u8; 32], // previous finalize state root from block 7
+        current_spec: SpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate: 1,
+        timestamp: 14,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info_reauth, &mut working_set);
+
+    let sender_address = generate_address::<C>("sender");
+    let context = C::new(sender_address, l2_height, SpecId::latest(), 1);
+
+    let reauth_result = evm.call(
+        CallMessage {
+            txs: vec![reauth_tx],
+        },
+        &context,
+        &mut working_set,
+    );
+
+    evm.end_l2_block_hook(&l2_block_info_reauth, &mut working_set);
+    evm.finalize_hook(&[106u8; 32], &mut working_set.accessory_state());
+
+    match reauth_result {
+        Ok(_) => {
+            let receipts: Vec<_> = evm
+                .receipts
+                .iter(&mut working_set.accessory_state())
+                .collect();
+
+            if let Some(receipt) = receipts.last() {
+                let warm_gas = receipt.receipt.receipt.cumulative_gas_used;
+                let owner = signer.address();
+
+                if receipt.receipt.receipt.success {
+                    let eoa_code_after = evm
+                        .get_code(signer.address(), None, &mut working_set, &ledger_db)
+                        .unwrap();
+                    assert!(
+                        eoa_code_after.starts_with(&EIP7702_DELEGATION_PREFIX),
+                        "Delegation code should persist after re-authorization"
+                    );
+
+                    // EIP-7702 format: 0xef01 (2 bytes) + version (1 byte) + address (20 bytes)
+                    let delegated_address = Address::from_slice(&eoa_code_after[3..23]);
+                    assert_eq!(
+                        delegated_address, wallet_address,
+                        "Delegation should still point to wallet contract"
+                    );
+
+                    assert!(
+                        warm_gas <= gas_estimate.to::<u64>(),
+                        "Gas used ({}) should not exceed estimate ({})",
+                        warm_gas,
+                        gas_estimate.to::<u64>()
+                    );
+
+                    if batch_executions
+                        .iter()
+                        .any(|e| e.target == token_proxy_address)
+                    {
+                        verify_approval_events(
+                            &receipt.receipt,
+                            token_proxy_address,
+                            owner,
+                            spender1,
+                            approve_amount1,
+                            "First approval event in warm re-auth",
+                        );
+                    }
+                } else {
+                    panic!("Test successfully reproduced the warm re-authorization bug!");
+                }
+            }
+        }
+        Err(err) => {
+            // Transaction failed at EVM level (likely out of gas)
+            panic!("Test successfully reproduced the warm re-authorization bug: {err:?}");
+        }
+    }
 }
