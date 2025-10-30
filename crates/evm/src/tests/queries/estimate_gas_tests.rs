@@ -4,13 +4,12 @@ use alloy_consensus::TxReceipt as _;
 use alloy_eips::eip2930::{AccessList, AccessListItem, AccessListWithGasUsed};
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::{address, b256, Address, TxKind, U256};
-use alloy_rpc_types::{BlockId, TransactionInput, TransactionRequest};
+use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use serde_json::json;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, Spec, SpecId, StateVecAccessor, WorkingSet};
@@ -21,10 +20,10 @@ use crate::smart_contracts::{
     CallerContract, ERC20ImplementationContract, Execution, MinimalBatchWalletContract,
     SimpleStorageContract, SimpleTokenProxyContract,
 };
+use crate::tests::get_test_seq_pub_key;
 use crate::tests::queries::{init_evm, init_evm_single_block, init_evm_with_caller_contract};
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{commit, create_contract_message_with_bytecode, get_fork_fn_latest};
-use crate::tests::{get_test_seq_pub_key, DEFAULT_CHAIN_ID};
 use crate::{EstimatedDiffSize, Evm};
 
 type C = DefaultContext;
@@ -1004,6 +1003,290 @@ fn test_eip7702_delegation_batch_execution() {
         }
         Err(err) => {
             panic!("Transaction execution failed: {err:?}");
+        }
+    }
+}
+
+#[test]
+fn test_eip7702_persistent_delegation_gas_forwarding() {
+    // Establishes delegation in one transaction, then uses that existing delegation in a second transaction.
+
+    let (mut evm, working_set, prover_storage, signer, mut l2_height, ledger_db) =
+        init_evm(SpecId::latest());
+
+    // Deploy token implementation
+    let token_impl = ERC20ImplementationContract::default();
+    let token_impl_bytecode = token_impl.byte_code();
+    let (token_impl_address, working_set) = deploy_contract(
+        &mut evm,
+        &signer,
+        token_impl_bytecode,
+        l2_height,
+        &prover_storage,
+        &ledger_db,
+        working_set,
+        [101u8; 32],
+        Some([102u8; 32]),
+        SpecId::latest(),
+        1,
+        11,
+    );
+    l2_height += 1;
+
+    // Deploy proxy pointing to implementation
+    let token_proxy = SimpleTokenProxyContract::default();
+    let initial_supply = U256::from(1_000_000_000_000_000_000_000u128);
+    let token_proxy_bytecode = token_proxy.deployment_bytecode(token_impl_address, initial_supply);
+    let (token_proxy_address, working_set) = deploy_contract(
+        &mut evm,
+        &signer,
+        token_proxy_bytecode,
+        l2_height,
+        &prover_storage,
+        &ledger_db,
+        working_set,
+        [102u8; 32],
+        Some([103u8; 32]),
+        SpecId::latest(),
+        1,
+        12,
+    );
+    l2_height += 1;
+
+    // Deploy wallet contract
+    let wallet = MinimalBatchWalletContract::default();
+    let wallet_bytecode = wallet.byte_code();
+    let (wallet_address, working_set) = deploy_contract(
+        &mut evm,
+        &signer,
+        wallet_bytecode,
+        l2_height,
+        &prover_storage,
+        &ledger_db,
+        working_set,
+        [103u8; 32],
+        Some([104u8; 32]),
+        SpecId::latest(),
+        1,
+        13,
+    );
+    l2_height += 1;
+
+    // Establish delegation
+    let mut working_set = working_set;
+    let nonce1 = evm
+        .get_transaction_count(signer.address(), None, &mut working_set, &ledger_db)
+        .unwrap()
+        .to::<u64>();
+
+    let auth1 = signer
+        .get_signed_authorization(wallet_address, nonce1 + 1)
+        .expect("Should create authorization");
+
+    // Simple self-call with authorization to establish delegation
+    let tx1 = signer
+        .sign_eip7702_transaction(
+            signer.address(),
+            vec![], // Empty calldata - just establish delegation
+            nonce1,
+            vec![auth1],
+        )
+        .expect("Should sign transaction");
+
+    let l2_block_info1 = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [104u8; 32],
+        current_spec: SpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate: 1,
+        timestamp: 14,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info1, &mut working_set);
+
+    let sender_address = generate_address::<C>("sender");
+    let context = C::new(sender_address, l2_height, SpecId::latest(), 1);
+
+    let result1 = evm.call(CallMessage { txs: vec![tx1] }, &context, &mut working_set);
+
+    evm.end_l2_block_hook(&l2_block_info1, &mut working_set);
+    evm.finalize_hook(&[105u8; 32], &mut working_set.accessory_state());
+
+    assert!(result1.is_ok(), "First transaction should succeed");
+
+    let ps = prover_storage.clone();
+    commit(working_set, ps.clone());
+    l2_height += 1;
+
+    let mut working_set = WorkingSet::new(prover_storage.clone());
+    let eoa_code = evm
+        .get_code(signer.address(), None, &mut working_set, &ledger_db)
+        .unwrap();
+
+    assert!(
+        eoa_code.starts_with(&EIP7702_DELEGATION_PREFIX),
+        "EOA should have EIP-7702 delegation code, got: 0x{}",
+        hex::encode(&eoa_code[..eoa_code.len().min(10)])
+    );
+
+    // Build batch execution calldata with actual deployed addresses
+    let spender = Address::from([0xab; 20]);
+    let approve_amount = U256::from(10_000u128);
+    let token_approve_call_data = token_impl.approve_call_data(spender, approve_amount);
+
+    let spender2 = Address::from([0xcd; 20]);
+    let approve_amount2 = U256::from(20_000u128);
+    let token_approve_call_data2 = token_impl.approve_call_data(spender2, approve_amount2);
+
+    let batch_executions = vec![
+        Execution {
+            target: token_proxy_address,
+            value: U256::ZERO,
+            call_data: token_approve_call_data.clone(),
+        },
+        Execution {
+            target: token_proxy_address,
+            value: U256::ZERO,
+            call_data: token_approve_call_data2.clone(),
+        },
+    ];
+
+    let execute_call_data = wallet.execute_batch_call_data(batch_executions.clone());
+
+    // Use persistent delegation
+    let nonce2 = evm
+        .get_transaction_count(signer.address(), None, &mut working_set, &ledger_db)
+        .unwrap()
+        .to::<u64>();
+
+    // Include authorization (will be ignored because EOA already has code)
+    let auth2 = signer
+        .get_signed_authorization(wallet_address, nonce2 + 1)
+        .expect("Should create authorization");
+
+    // Estimate gas for the transaction
+    let tx_req = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(signer.address())),
+        value: None,
+        input: TransactionInput::new(execute_call_data.clone().into()),
+        chain_id: Some(1u64),
+        gas: None,
+        gas_price: Some(100_000_000),
+        nonce: Some(nonce2),
+        access_list: None,
+        authorization_list: Some(vec![auth2.clone()]),
+        ..Default::default()
+    };
+
+    let gas_estimate = evm
+        .eth_estimate_gas(tx_req, None, &mut working_set, &ledger_db)
+        .expect("Gas estimation should succeed");
+
+    // Execute with estimated gas
+    let tx2 = signer
+        .sign_eip7702_transaction_with_gas_limit(
+            signer.address(),
+            execute_call_data,
+            nonce2,
+            vec![auth2],
+            gas_estimate.to::<u64>(),
+        )
+        .expect("Should sign transaction");
+
+    let l2_block_info2 = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [105u8; 32], // previous finalize state root from block 7
+        current_spec: SpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate: 1,
+        timestamp: 15,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info2, &mut working_set);
+
+    let sender_address = generate_address::<C>("sender");
+    let context = C::new(sender_address, l2_height, SpecId::latest(), 1);
+
+    let result2 = evm.call(CallMessage { txs: vec![tx2] }, &context, &mut working_set);
+
+    evm.end_l2_block_hook(&l2_block_info2, &mut working_set);
+    evm.finalize_hook(&[106u8; 32], &mut working_set.accessory_state());
+
+    match result2 {
+        Ok(_) => {
+            let receipts2: Vec<_> = evm
+                .receipts
+                .iter(&mut working_set.accessory_state())
+                .collect();
+
+            if let Some(receipt2) = receipts2.last() {
+                let success = receipt2.receipt.receipt.success;
+                let gas_used = receipt2.receipt.receipt.cumulative_gas_used;
+
+                if success {
+                    // Verify delegation code persistence across transactions
+                    let eoa_code_final = evm
+                        .get_code(signer.address(), None, &mut working_set, &ledger_db)
+                        .unwrap();
+                    assert!(
+                        eoa_code_final.starts_with(&EIP7702_DELEGATION_PREFIX),
+                        "Delegation code should persist across transactions"
+                    );
+                    // EIP-7702 format: 0xef01 (2 bytes) + version (1 byte) + address (20 bytes)
+                    let delegated_address = Address::from_slice(&eoa_code_final[3..23]);
+                    assert_eq!(
+                        delegated_address, wallet_address,
+                        "Delegation should still point to wallet contract"
+                    );
+
+                    // Verify second transaction success
+                    assert!(
+                        receipt2.receipt.receipt.success,
+                        "Second transaction with persistent delegation should succeed"
+                    );
+
+                    // Verify gas usage for persistent delegation
+                    assert!(gas_used > 0, "Gas used should be greater than 0");
+                    let gas_estimate_u64 = gas_estimate.to::<u64>();
+                    assert!(
+                        gas_used <= gas_estimate_u64,
+                        "Gas used ({}) should be within estimate ({})",
+                        gas_used,
+                        gas_estimate_u64
+                    );
+
+                    // Verify batch execution completed correctly by checking events
+                    let owner = signer.address();
+                    verify_approval_events(
+                        &receipt2.receipt,
+                        token_proxy_address,
+                        owner,
+                        spender,
+                        approve_amount,
+                        "First approval event in persistent delegation",
+                    );
+                    verify_approval_events(
+                        &receipt2.receipt,
+                        token_proxy_address,
+                        owner,
+                        spender2,
+                        approve_amount2,
+                        "Second approval event in persistent delegation",
+                    );
+
+                    // Verify no regression from first transaction
+                    assert!(
+                        receipt2.receipt.receipt.success,
+                        "Second transaction should maintain first transaction's success"
+                    );
+                } else {
+                    panic!("Persistent delegation gas forwarding bug confirmed!");
+                }
+            }
+        }
+        Err(err) => {
+            panic!("Transaction execution error: {err:?}");
         }
     }
 }
