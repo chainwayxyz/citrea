@@ -1245,8 +1245,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 TracingInspector::new(TracingInspectorConfig::none()),
             );
 
-            println!("Estimated gas try: {:#?}", result);
-
             // Exceptional case: init used too much gas, we need to increase the gas limit and try
             // again
             if let Err(EVMError::Transaction(InvalidTransaction::CallerGasLimitMoreThanBlock)) =

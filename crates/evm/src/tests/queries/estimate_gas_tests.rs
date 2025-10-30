@@ -135,12 +135,7 @@ fn verify_approval_events(
 
     assert!(
         !approval_events.is_empty(),
-        "{}: No Approval event found in receipt. Expected Approval event from token: {} for owner: {}, spender: {}, amount: {}",
-        context,
-        token_address,
-        owner,
-        spender,
-        amount
+        "{context}: No Approval event found in receipt. Expected Approval event from token: {token_address} for owner: {owner}, spender: {spender}, amount: {amount}"
     );
 
     // Use the first matching event (there should only be one per spender in this test)
@@ -149,8 +144,7 @@ fn verify_approval_events(
     assert_eq!(
         event.topics().len(),
         3,
-        "{}: Approval event should have 3 topics (signature, indexed owner, indexed spender)",
-        context
+        "{context}: Approval event should have 3 topics (signature, indexed owner, indexed spender)"
     );
 
     // Check indexed parameters (owner and spender are indexed in standard ERC20)
@@ -159,14 +153,12 @@ fn verify_approval_events(
 
     assert_eq!(
         event_owner, owner,
-        "{}: Approval event owner mismatch. Expected: {}, Actual: {}",
-        context, owner, event_owner
+        "{context}: Approval event owner mismatch. Expected: {owner}, Actual: {event_owner}"
     );
 
     assert_eq!(
         event_spender, spender,
-        "{}: Approval event spender mismatch. Expected: {}, Actual: {}",
-        context, spender, event_spender
+        "{context}: Approval event spender mismatch. Expected: {spender}, Actual: {event_spender}"
     );
 
     // Check the amount in data (not indexed)
@@ -174,8 +166,7 @@ fn verify_approval_events(
         let event_amount = U256::from_be_bytes::<32>(event.data.data[0..32].try_into().unwrap());
         assert_eq!(
             event_amount, amount,
-            "{}: Approval event amount mismatch. Expected: {}, Actual: {}",
-            context, amount, event_amount
+            "{context}: Approval event amount mismatch. Expected: {amount}, Actual: {event_amount}"
         );
     } else {
         panic!(
@@ -912,7 +903,7 @@ fn test_eip7702_delegation_batch_execution() {
 
     evm.begin_l2_block_hook(&l2_block_info_exec, &mut working_set);
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Fork3, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
     let call_result = evm.call(
         CallMessage { txs: vec![rlp_tx] },
         &context,
@@ -955,8 +946,7 @@ fn test_eip7702_delegation_batch_execution() {
                 let delegated_address = Address::from_slice(&eoa_code[3..23]);
                 assert_eq!(
                     delegated_address, wallet_address,
-                    "Delegation should point to wallet contract, found: {}, expected: {}",
-                    delegated_address, wallet_address
+                    "Delegation should point to wallet contract, found: {delegated_address}, expected: {wallet_address}"
                 );
 
                 // Verify approval events using helper function
@@ -1256,9 +1246,7 @@ fn test_eip7702_persistent_delegation_gas_forwarding() {
                     let gas_estimate_u64 = gas_estimate.to::<u64>();
                     assert!(
                         gas_used <= gas_estimate_u64,
-                        "Gas used ({}) should be within estimate ({})",
-                        gas_used,
-                        gas_estimate_u64
+                        "Gas used ({gas_used}) should be within estimate ({gas_estimate_u64})"
                     );
 
                     // Verify batch execution completed correctly by checking events
