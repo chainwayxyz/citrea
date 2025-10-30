@@ -1712,3 +1712,331 @@ fn test_eip7702_warm_reauthorization() {
         }
     }
 }
+
+#[test]
+fn test_eip7702_wallet_workflow_gas_underestimation() {
+    // This test reproduces the wallet workflow bug from Selin's video:
+    // 1. User estimates gas WITHOUT smart account enabled (no authorization_list)
+    // 2. User enables smart account and executes WITH authorization_list
+    // 3. Transaction fails due to underestimated gas
+    //
+    // Expected: The test should demonstrate that estimating without auth but executing
+    // with auth causes a gas underestimation, leading to transaction failure.
+
+    let (mut evm, working_set, prover_storage, signer, mut l2_height, ledger_db) =
+        init_evm(SpecId::latest());
+
+    let wallet_bytecode = hex::decode(include_str!(
+        "../../evm/test_data/EIP7702StatelessDeleGator.bin"
+    ))
+    .unwrap();
+    let usdc_proxy_bytecode =
+        hex::decode(include_str!("../../evm/test_data/USDCProxy.bin")).unwrap();
+    let fiat_token_bytecode =
+        hex::decode(include_str!("../../evm/test_data/FiatTokenV2_2.bin")).unwrap();
+
+    let (_, working_set) = deploy_contract(
+        &mut evm,
+        &signer,
+        fiat_token_bytecode,
+        l2_height,
+        &prover_storage,
+        &ledger_db,
+        working_set,
+        [10u8; 32],
+        Some([101u8; 32]),
+        SpecId::latest(),
+        1,
+        24,
+    );
+    l2_height += 1;
+
+    let (_, working_set) = deploy_contract(
+        &mut evm,
+        &signer,
+        usdc_proxy_bytecode,
+        l2_height,
+        &prover_storage,
+        &ledger_db,
+        working_set,
+        [101u8; 32],
+        Some([102u8; 32]),
+        SpecId::latest(),
+        1,
+        24,
+    );
+    l2_height += 1;
+
+    let (wallet_address, mut working_set) = deploy_contract(
+        &mut evm,
+        &signer,
+        wallet_bytecode,
+        l2_height,
+        &prover_storage,
+        &ledger_db,
+        working_set,
+        [102u8; 32],
+        Some([103u8; 32]),
+        SpecId::latest(),
+        1,
+        24,
+    );
+    l2_height += 1;
+
+    let batch_calldata = hex::decode("e9ae5c530100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000003c00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000120000000000000000000000000385645e5d3d0a893acb88fda269b31be90b0b171000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044095ea7b300000000000000000000000020ba4e7b2014fdb91c0152bfffe484398f9a2c6500000000000000000000000000000000000000000000000000000000000027100000000000000000000000000000000000000000000000000000000000000000000000000000000020ba4e7b2014fdb91c0152bfffe484398f9a2c65000000000000000000000000000000000000000000000000000001d98fcefee6000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000001c4c7c7f5b30000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000001d98fcefee60000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ee18d94b1c3324acb796c0e92071188a8795afb70000000000000000000000000000000000000000000000000000000000009ce1000000000000000000000000ee18d94b1c3324acb796c0e92071188a8795afb70000000000000000000000000000000000000000000000000000000000002710000000000000000000000000000000000000000000000000000000000000271000000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap();
+
+    let nonce_after_deploys = evm
+        .get_transaction_count(signer.address(), None, &mut working_set, &ledger_db)
+        .unwrap();
+
+    let auth = signer
+        .get_signed_authorization(wallet_address, nonce_after_deploys.to::<u64>() + 1)
+        .expect("Should create signed authorization");
+
+    println!("Estimate WITHOUT Authorization");
+
+    let tx_req_no_auth = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(signer.address())),
+        value: None,
+        input: TransactionInput::new(batch_calldata.clone().into()),
+        chain_id: Some(1u64),
+        gas: None,
+        gas_price: Some(100_000_000),
+        nonce: Some(nonce_after_deploys.to::<u64>()),
+        access_list: None,
+        authorization_list: None, // NO authorization
+        ..Default::default()
+    };
+
+    let fork = Fork::new(SpecId::latest(), 0);
+    let gas_estimate_without_auth = evm
+        .eth_estimate_gas_inner(
+            tx_req_no_auth,
+            Some(BlockNumberOrTag::Latest),
+            &mut working_set,
+            &ledger_db,
+            |_| fork,
+        )
+        .expect("estimation should succeed");
+
+    println!(
+        "Estimated gas WITHOUT auth: {} gas",
+        gas_estimate_without_auth.to::<u64>()
+    );
+
+    // Execute WITH Authorization using LOW gas from the first call
+    println!("Execute WITH Authorization using the initial low gas");
+
+    let low_gas_limit = gas_estimate_without_auth.to::<u64>();
+    let rlp_tx_low_gas = signer
+        .sign_eip7702_transaction_with_gas_limit(
+            signer.address(),
+            batch_calldata.clone(),
+            nonce_after_deploys.to::<u64>(),
+            vec![auth.clone()], // with authorization
+            low_gas_limit,
+        )
+        .expect("Should sign transaction");
+
+    let l2_block_info_phase2 = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [103u8; 32],
+        current_spec: SpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate: 1,
+        timestamp: 25,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info_phase2, &mut working_set);
+
+    let sender_address = generate_address::<C>("sender");
+    let context = C::new(sender_address, l2_height, SpecId::latest(), 1);
+
+    let phase2_result = evm.call(
+        CallMessage {
+            txs: vec![rlp_tx_low_gas],
+        },
+        &context,
+        &mut working_set,
+    );
+
+    evm.end_l2_block_hook(&l2_block_info_phase2, &mut working_set);
+    evm.finalize_hook(&[104u8; 32], &mut working_set.accessory_state());
+
+    let tx_with_est_no_auth = match phase2_result {
+        Ok(_) => {
+            let receipts: Vec<_> = evm
+                .receipts
+                .iter(&mut working_set.accessory_state())
+                .collect();
+
+            if let Some(receipt) = receipts.last() {
+                let success = receipt.receipt.receipt.success;
+                let gas_used = receipt.receipt.receipt.cumulative_gas_used;
+
+                println!(
+                    "Phase 2 execution status: {}",
+                    if success { "SUCCESS ✅" } else { "FAILED ❌" }
+                );
+                println!("Gas used: {gas_used} / {low_gas_limit} (limit)");
+
+                success
+            } else {
+                false
+            }
+        }
+        Err(_) => false,
+    };
+
+    // Commit state and get fresh working set for the next step
+    let ps = prover_storage.clone();
+    commit(working_set, ps.clone());
+    let mut working_set = WorkingSet::new(ps);
+    l2_height += 1;
+
+    assert!(
+        !tx_with_est_no_auth,
+        "Tx estimate with auth should FAIL - this reproduces the bug where transaction fails due to underestimated gas"
+    );
+
+    // Estimate WITH Authorization (correct workflow)
+    println!("Estimate WITH Authorization");
+
+    let nonce_phase3 = evm
+        .get_transaction_count(signer.address(), None, &mut working_set, &ledger_db)
+        .unwrap();
+
+    let auth_phase3 = signer
+        .get_signed_authorization(wallet_address, nonce_phase3.to::<u64>() + 1)
+        .expect("Should create signed authorization for Phase 3");
+
+    let tx_req_with_auth = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(signer.address())),
+        value: None,
+        input: TransactionInput::new(batch_calldata.clone().into()),
+        chain_id: Some(1u64),
+        gas: None,
+        gas_price: Some(100_000_000),
+        nonce: Some(nonce_phase3.to::<u64>()),
+        access_list: None,
+        authorization_list: Some(vec![auth_phase3.clone()]), // WITH authorization
+        ..Default::default()
+    };
+
+    let gas_estimate_with_auth = evm
+        .eth_estimate_gas_inner(
+            tx_req_with_auth,
+            Some(BlockNumberOrTag::Latest),
+            &mut working_set,
+            &ledger_db,
+            |_| fork,
+        )
+        .expect("Phase 3 estimation should succeed");
+
+    println!(
+        "Estimated gas WITH auth: {} gas",
+        gas_estimate_with_auth.to::<u64>()
+    );
+
+    // Execute Phase 3 with correct gas limit
+    let correct_gas_limit = gas_estimate_with_auth.to::<u64>();
+    let rlp_tx_correct = signer
+        .sign_eip7702_transaction_with_gas_limit(
+            signer.address(),
+            batch_calldata,
+            nonce_phase3.to::<u64>(),
+            vec![auth_phase3],
+            correct_gas_limit,
+        )
+        .expect("Should sign transaction");
+
+    let l2_block_info_phase3 = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [104u8; 32],
+        current_spec: SpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate: 1,
+        timestamp: 26,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info_phase3, &mut working_set);
+
+    let phase3_result = evm.call(
+        CallMessage {
+            txs: vec![rlp_tx_correct],
+        },
+        &context,
+        &mut working_set,
+    );
+
+    evm.end_l2_block_hook(&l2_block_info_phase3, &mut working_set);
+    evm.finalize_hook(&[105u8; 32], &mut working_set.accessory_state());
+
+    let tx_with_estimate_with_auth = match phase3_result {
+        Ok(_) => {
+            let receipts: Vec<_> = evm
+                .receipts
+                .iter(&mut working_set.accessory_state())
+                .collect();
+
+            if let Some(receipt) = receipts.last() {
+                let success = receipt.receipt.receipt.success;
+                let gas_used = receipt.receipt.receipt.cumulative_gas_used;
+
+                println!(
+                    "tx with auth execution status: {}",
+                    if success { "SUCCESS" } else { "FAILED" }
+                );
+                println!("Gas used: {gas_used} / {correct_gas_limit} (limit)");
+
+                success
+            } else {
+                false
+            }
+        }
+        Err(_) => false,
+    };
+
+    let gas_without_auth = gas_estimate_without_auth.to::<u64>();
+    let gas_with_auth = gas_estimate_with_auth.to::<u64>();
+    let difference = gas_with_auth.saturating_sub(gas_without_auth);
+    let percentage = (difference as f64 / gas_without_auth as f64) * 100.0;
+
+    println!("Gas estimate WITHOUT auth: {} gas", gas_without_auth);
+    println!("Gas estimate WITH auth: {} gas", gas_with_auth);
+    println!(
+        "Difference: {} gas ({:.1}% underestimation)",
+        difference, percentage
+    );
+    println!(
+        "low gas: {}",
+        if tx_with_est_no_auth {
+            "SUCCESS"
+        } else {
+            "FAILED (expected)"
+        }
+    );
+    println!(
+        "correct gas: {}",
+        if tx_with_estimate_with_auth {
+            "SUCCESS (expected)"
+        } else {
+            "FAILED"
+        }
+    );
+
+    // Key assertions
+    assert!(
+        gas_with_auth > gas_without_auth,
+        "Estimate with auth ({}) should be higher than without ({})",
+        gas_with_auth,
+        gas_without_auth
+    );
+
+    assert!(
+        tx_with_estimate_with_auth,
+        "Estimate with auth should SUCCEED - with correct estimation, transaction should work"
+    );
+}
