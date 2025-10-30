@@ -1,7 +1,9 @@
+use std::mem::ManuallyDrop;
 use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::Arc;
 
+use anyhow::Context;
 use rocksdb::{ReadOptions, WriteBatch};
 use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
@@ -994,5 +996,62 @@ impl ForkMigration for LedgerDB {
     fn fork_activated(&self, _fork: &Fork) -> anyhow::Result<()> {
         // TODO: Implement later
         Ok(())
+    }
+}
+
+
+/// A transaction for batching multiple ledger operations together.
+pub struct LedgerTx {
+    /// The batch of schema changes to apply.
+    /// Using ManuallyDrop to avoid silent drop of SchemaBatch which would lose the changes.
+    /// The batch must be explicitly written to the DB using `::commit` method.
+    batch: ManuallyDrop<SchemaBatch>,
+}
+
+impl LedgerTx {
+    /// Create a new ledger transaction.
+    pub fn new() -> Self {
+        Self {
+            batch: ManuallyDrop::new(SchemaBatch::new()),
+        }
+    }
+
+    /// Put a state diff into the transaction to be saved.
+    pub fn put_state_diff(
+        &mut self,
+        l2_height: L2BlockNumber,
+        state_diff: &StateDiff,
+    ) -> Result<&mut Self, anyhow::Error> {
+        self
+            .batch
+            .put::<StateDiffByBlockNumber>(&l2_height, state_diff)
+            .context("Failed to add StateDiffByBlockNumber")?;
+        Ok(self)
+    }
+
+    /// Put an L2 block into the transaction to be saved.
+    pub fn put_l2_block(
+        &mut self,
+        l2_block: &StoredL2Block,
+    ) -> Result<&mut Self, anyhow::Error> {
+        let l2_block_number = L2BlockNumber(l2_block.height);
+        self.batch.put::<L2BlockByNumber>(&l2_block_number, l2_block).context("Failed to add L2BlockByNumber")?;
+        self.batch.put::<L2BlockByHash>(&l2_block.hash, &l2_block_number).context("Failed to add L2BlockByHash")?;
+
+        Ok(self)
+    }
+
+    /// Commit the transaction to the given ledger DB.
+    #[must_use = "LedgerTx must be committed to apply changes"]
+    pub fn commit(self, db: &LedgerDB) -> Result<(), anyhow::Error> {
+        let Self { batch } = self;
+        let batch = ManuallyDrop::into_inner(batch);
+        db.db.write_schemas(batch).context("Failed to write LedgerTx to DB")
+    }
+
+    /// Reject the transaction, dropping all changes.
+    pub fn reject(self) {
+        let Self { batch } = self;
+        let _ = ManuallyDrop::into_inner(batch);
     }
 }
