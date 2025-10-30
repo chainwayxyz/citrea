@@ -38,14 +38,16 @@ github = [
 multiple-versions = "allow"
 # We'd prefer to use Rustls instead of OpenSSL; this helps up from accidentally
 # using OpenSSL. See <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/352>.
-deny = [{ name = "native-tls" }, { name = "openssl" }]
+deny = []
 
 [advisories]
 ignore = [
   "RUSTSEC-2024-0388", # Unmaintained derivative crate
-  "RUSTSEC-2024-0370", # Unmaintained proc-macro-error crate
   "RUSTSEC-2024-0384", # Unmaintained instant crate
   "RUSTSEC-2024-0436", # Unmaintained paste crate
   "RUSTSEC-2025-0012", # Unmaintained backoff crate
   "RUSTSEC-2025-0055", # Ignore until risc0 update
+  "RUSTSEC-2023-0071", # Ignore rsa 0.9.8 until a version that fixes the issue is available.
+  "RUSTSEC-2025-0052", # Ignore async-std being discontinued. httpmock uses it, which in turn is used by boundless market.
+  "RUSTSEC-2025-0073", # Ignore alloy-dyn-abi until we are able to update to 1.4.1
 ]

@@ -61,7 +61,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         let arch = std::env::consts::ARCH;
         let rustc_v = version();
 
-        let current_version = format!("{}/{}/{}/rust-{}", rollup, CITREA_VERSION, arch, rustc_v);
+        let current_version = format!("{rollup}/{CITREA_VERSION}/{arch}/rust-{rustc_v}");
 
         let trace_cache = Mutex::new(LruMap::new(ByLength::new(MAX_TRACE_BLOCK)));
 

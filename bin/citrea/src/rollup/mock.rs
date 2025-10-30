@@ -4,9 +4,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use citrea_common::backup::{create_backup_rpc_module, BackupManager};
 use citrea_common::config::ProverGuestRunConfig;
-use citrea_common::{FullNodeConfig, RpcConfig};
+use citrea_common::{FromEnv, FullNodeConfig, RpcConfig};
 use citrea_primitives::forks::use_network_forks;
 // use citrea_sp1::host::SP1Host;
+use citrea_risc0_adapter::host::config::Risc0HostConfig;
 use citrea_risc0_adapter::host::Risc0Host;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::CitreaRuntime;
@@ -117,7 +118,8 @@ impl RollupBlueprint for MockDemoRollup {
         proof_sampling_number: usize,
         is_light_client_prover: bool,
     ) -> ParallelProverService<Self::DaService, Self::Vm> {
-        let vm = Risc0Host::new(ledger_db.clone(), self.network);
+        let risc0_config = Risc0HostConfig::from_env().expect("Failed to load risc0 config");
+        let vm = Risc0Host::new(ledger_db.clone(), self.network, risc0_config).await;
 
         let proof_mode = match proving_mode {
             ProverGuestRunConfig::Skip => ProofGenMode::Skip,

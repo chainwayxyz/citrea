@@ -14,6 +14,7 @@ use bitcoin::hashes::Hash;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::PartitionMode;
+use citrea_common::FromEnv;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::{
     BatchProverConfig, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig,
@@ -25,6 +26,7 @@ use citrea_e2e::traits::{NodeT, Restart};
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
+use citrea_risc0_adapter::host::config::Risc0HostConfig;
 use citrea_risc0_adapter::host::Risc0Host;
 use citrea_sequencer::SequencerRpcClient;
 use risc0_zkvm::Digest;
@@ -1266,7 +1268,8 @@ impl TestCase for BatchProverCreateInputTest {
         let network = Network::Nightly;
 
         let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
-        let mut risc0_host = Risc0Host::new(ledger_db, network);
+        let risc0_config = Risc0HostConfig::from_env().expect("Failed to load risc0 config");
+        let mut risc0_host = Risc0Host::new(ledger_db, network, risc0_config).await;
 
         for input in inputs {
             // Decode raw circuit input
@@ -1283,6 +1286,7 @@ impl TestCase for BatchProverCreateInputTest {
                     ReceiptType::Groth16,
                     false,
                 )
+                .await
                 .expect("Proof generation failed")
                 .await
                 .expect("Proof channel should not close");

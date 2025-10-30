@@ -150,7 +150,7 @@ impl DaVerifier for BitcoinVerifier {
                             *wtxid,
                         ));
                     }
-                    // The signature verification of BatchProverMethodId is done in the circuit
+                    // The verification of BatchProofMethodId security council signatures are done in the circuit
                     ParsedTransaction::BatchProofMethodId(method_id) => {
                         // Pubkey here is given as 0 because the security council pub keys are inside the body
                         let public_key = [0u8; 32].to_vec();
