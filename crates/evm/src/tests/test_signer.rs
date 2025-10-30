@@ -2,9 +2,8 @@ use alloy_consensus::{
     TxEip1559 as RethTxEip1559, TxEip4844 as RethTxEip4844, TxEip7702 as RethTxEip7702,
 };
 use alloy_eips::eip2718::Encodable2718;
-use alloy_eips::eip7702::SignedAuthorization;
+use alloy_eips::eip7702::{Authorization, SignedAuthorization};
 use alloy_primitives::{Address, Bytes as RethBytes, TxKind, B256, U256};
-use alloy_rpc_types::Authorization;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use reth_primitives::Transaction as RethTransaction;
@@ -184,10 +183,21 @@ impl TestSigner {
         nonce: u64,
         authorization_list: Vec<SignedAuthorization>,
     ) -> Result<RlpEvmTransaction, SignError> {
+        self.sign_eip7702_transaction_with_gas_limit(to, data, nonce, authorization_list, 1_000_000)
+    }
+
+    pub(crate) fn sign_eip7702_transaction_with_gas_limit(
+        &self,
+        to: Address,
+        data: Vec<u8>,
+        nonce: u64,
+        authorization_list: Vec<SignedAuthorization>,
+        gas_limit: u64,
+    ) -> Result<RlpEvmTransaction, SignError> {
         let tx = RethTxEip7702 {
             chain_id: DEFAULT_CHAIN_ID,
             nonce,
-            gas_limit: 1_000_000,
+            gas_limit,
             max_fee_per_gas: 100000000000u128,
             to,
             authorization_list,

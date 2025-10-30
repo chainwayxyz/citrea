@@ -1,9 +1,10 @@
 use std::str::FromStr;
 
+use alloy_consensus::TxReceipt as _;
 use alloy_eips::eip2930::{AccessList, AccessListItem, AccessListWithGasUsed};
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::{address, b256, Address, TxKind, U256};
-use alloy_rpc_types::{TransactionInput, TransactionRequest};
+use alloy_rpc_types::{BlockId, TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use serde_json::json;
@@ -12,56 +13,64 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, Spec, WorkingSet};
+use sov_modules_api::{Context, Module, Spec, SpecId, StateVecAccessor, WorkingSet};
 
 use crate::call::CallMessage;
 use crate::query::MIN_TRANSACTION_GAS;
-use crate::smart_contracts::{CallerContract, SimpleProxyContract, SimpleStorageContract};
-use crate::tests::get_test_seq_pub_key;
+use crate::smart_contracts::{
+    CallerContract, ERC20ImplementationContract, Execution, MinimalBatchWalletContract,
+    SimpleStorageContract, SimpleTokenProxyContract,
+};
 use crate::tests::queries::{init_evm, init_evm_single_block, init_evm_with_caller_contract};
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{commit, create_contract_message_with_bytecode, get_fork_fn_latest};
+use crate::tests::{get_test_seq_pub_key, DEFAULT_CHAIN_ID};
 use crate::{EstimatedDiffSize, Evm};
 
 type C = DefaultContext;
 
-fn deploy_simple_proxy(
-    evm: &mut Evm<C>,
-    mut working_set: WorkingSet<<C as Spec>::Storage>,
-    prover_storage: <C as Spec>::Storage,
-    signer: &TestSigner,
-    ledger_db: &LedgerDB,
-    l2_height: u64,
-    implementation: Address,
-) -> (Address, WorkingSet<<C as Spec>::Storage>) {
-    let proxy = SimpleProxyContract::default();
-    let proxy_deployment_bytecode = proxy.deployment_bytecode(implementation);
+// EIP-7702 delegation code prefix - used across all EIP-7702 tests
+const EIP7702_DELEGATION_PREFIX: [u8; 2] = [0xef, 0x01];
 
+/// Deploy a contract and return its address with a new working set.
+/// This helper encapsulates the common pattern of deploying contracts in tests.
+///
+/// If finalize_state_root is Some, calls finalize_hook with that root.
+/// If None, skips the finalize_hook call.
+#[allow(clippy::too_many_arguments)]
+fn deploy_contract(
+    evm: &mut Evm<C>,
+    signer: &TestSigner,
+    bytecode: Vec<u8>,
+    l2_height: u64,
+    prover_storage: &<C as Spec>::Storage,
+    ledger_db: &LedgerDB,
+    mut working_set: WorkingSet<<C as Spec>::Storage>,
+    pre_state_root: [u8; 32],
+    finalize_state_root: Option<[u8; 32]>,
+    spec_id: SpecId,
+    l1_fee_rate: u128,
+    timestamp: u64,
+) -> (Address, WorkingSet<<C as Spec>::Storage>) {
     let current_nonce = evm
         .get_transaction_count(signer.address(), None, &mut working_set, ledger_db)
         .unwrap();
 
-    let proxy_address = signer.address().create(current_nonce.to::<u64>());
+    let contract_address = signer.address().create(current_nonce.to::<u64>());
 
-    let l1_fee_rate = 1;
-    let spec_id = sov_modules_api::SpecId::Fork3;
+    let deploy_tx =
+        create_contract_message_with_bytecode(signer, current_nonce.to::<u64>(), bytecode, None);
+
     let l2_block_info = HookL2BlockInfo {
         l2_height,
-        pre_state_root: [10u8; 32],
+        pre_state_root,
         current_spec: spec_id,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
-        timestamp: 24,
+        timestamp,
     };
 
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
-
-    let deploy_tx = create_contract_message_with_bytecode(
-        signer,
-        current_nonce.to::<u64>(),
-        proxy_deployment_bytecode,
-        None,
-    );
 
     let sender_address = generate_address::<C>("sender");
     let context = C::new(sender_address, l2_height, spec_id, l1_fee_rate);
@@ -73,20 +82,113 @@ fn deploy_simple_proxy(
         &context,
         &mut working_set,
     )
-    .expect("Deployment should succeed");
+    .unwrap();
 
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
-    evm.finalize_hook(&[101u8; 32], &mut working_set.accessory_state());
 
-    commit(working_set, prover_storage.clone());
+    if let Some(finalize_root) = finalize_state_root {
+        evm.finalize_hook(&finalize_root, &mut working_set.accessory_state());
+    }
 
-    (proxy_address, WorkingSet::new(prover_storage))
+    let ps = prover_storage.clone();
+    commit(working_set, ps.clone());
+
+    (contract_address, WorkingSet::new(ps))
+}
+
+/// Helper function to verify approval events were emitted correctly.
+///
+/// Checks that:
+/// 1. An Approval event was emitted
+/// 2. The event has correct owner, spender, and amount
+/// 3. The event is from the expected token contract
+fn verify_approval_events(
+    receipt: &reth_primitives::ReceiptWithBloom<reth_primitives::Receipt>,
+    token_address: Address,
+    owner: Address,
+    spender: Address,
+    amount: U256,
+    context: &str,
+) {
+    // ERC20 Approval event signature: Approval(address,address,uint256)
+    let approval_event_sig =
+        alloy_primitives::b256!("8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925");
+
+    // Find approval events matching the specific owner and spender
+    let approval_events: Vec<_> = receipt
+        .logs()
+        .iter()
+        .filter(|log| {
+            if log.address != token_address
+                || log.topics().is_empty()
+                || log.topics()[0] != approval_event_sig
+                || log.topics().len() < 3
+            {
+                return false;
+            }
+            // Check if owner and spender match
+            let log_owner = Address::from_slice(&log.topics()[1].as_slice()[12..32]);
+            let log_spender = Address::from_slice(&log.topics()[2].as_slice()[12..32]);
+            log_owner == owner && log_spender == spender
+        })
+        .collect();
+
+    assert!(
+        !approval_events.is_empty(),
+        "{}: No Approval event found in receipt. Expected Approval event from token: {} for owner: {}, spender: {}, amount: {}",
+        context,
+        token_address,
+        owner,
+        spender,
+        amount
+    );
+
+    // Use the first matching event (there should only be one per spender in this test)
+    let event = approval_events.first().unwrap();
+
+    assert_eq!(
+        event.topics().len(),
+        3,
+        "{}: Approval event should have 3 topics (signature, indexed owner, indexed spender)",
+        context
+    );
+
+    // Check indexed parameters (owner and spender are indexed in standard ERC20)
+    let event_owner = Address::from_slice(&event.topics()[1].as_slice()[12..32]);
+    let event_spender = Address::from_slice(&event.topics()[2].as_slice()[12..32]);
+
+    assert_eq!(
+        event_owner, owner,
+        "{}: Approval event owner mismatch. Expected: {}, Actual: {}",
+        context, owner, event_owner
+    );
+
+    assert_eq!(
+        event_spender, spender,
+        "{}: Approval event spender mismatch. Expected: {}, Actual: {}",
+        context, spender, event_spender
+    );
+
+    // Check the amount in data (not indexed)
+    if event.data.data.len() >= 32 {
+        let event_amount = U256::from_be_bytes::<32>(event.data.data[0..32].try_into().unwrap());
+        assert_eq!(
+            event_amount, amount,
+            "{}: Approval event amount mismatch. Expected: {}, Actual: {}",
+            context, amount, event_amount
+        );
+    } else {
+        panic!(
+            "{}: Approval event data too short. Expected at least 32 bytes, got: {}",
+            context,
+            event.data.data.len()
+        );
+    }
 }
 
 #[test]
 fn test_payable_contract_value() {
-    let (evm, mut working_set, signer, ledger_db) =
-        init_evm_single_block(sov_modules_api::SpecId::Tangerine);
+    let (evm, mut working_set, signer, ledger_db) = init_evm_single_block(SpecId::Tangerine);
 
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
@@ -124,8 +226,7 @@ fn test_payable_contract_value() {
 
 #[test]
 fn test_tx_request_fields_gas_fork1() {
-    let (evm, mut working_set, signer, ledger_db) =
-        init_evm_single_block(sov_modules_api::SpecId::Tangerine);
+    let (evm, mut working_set, signer, ledger_db) = init_evm_single_block(SpecId::Tangerine);
 
     let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),
@@ -473,8 +574,7 @@ fn test_access_list() {
 
 #[test]
 fn estimate_gas_with_varied_inputs_test() {
-    let (evm, mut working_set, _, signer, _, ledger_db) =
-        init_evm(sov_modules_api::SpecId::Tangerine);
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::Tangerine);
 
     let simple_call_data = 0;
     let simple_result = test_estimate_gas_with_input(
@@ -515,8 +615,7 @@ fn estimate_gas_with_varied_inputs_test() {
 
 #[test]
 fn test_pending_env() {
-    let (evm, mut working_set, signer, ledger_db) =
-        init_evm_single_block(sov_modules_api::SpecId::Tangerine);
+    let (evm, mut working_set, signer, ledger_db) = init_evm_single_block(SpecId::Tangerine);
 
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
@@ -637,81 +736,274 @@ fn test_estimate_gas_with_value(
 }
 
 #[test]
-fn test_eip7702_execute_revert() {
-    // This test reproduces the EIP-7702 gas estimation bug found on testnet:
-    // Transaction hash: 0xb3083c96053a046f85b5990b0eaeffd386f1d79a271aa8d9e0db7ba680a041fd
-    //
-    // When an EIP-7702 transaction calls a function that reverts,
-    // eth_estimateGas returns a gas estimate instead of returning an error.
-    //
-    // Expected: eth_estimateGas returns Err(revert)
-    // Actual (bug): eth_estimateGas returns Ok(gas_estimate)
+fn test_eip7702_delegation_batch_execution() {
+    let spec_id = SpecId::latest();
+    let (mut evm, working_set, prover_storage, signer, mut l2_height, ledger_db) =
+        init_evm(spec_id);
 
-    let (mut evm, working_set, prover_storage, signer, l2_height, ledger_db) =
-        init_evm(sov_modules_api::SpecId::Fork3);
-
-    // Deploy SimpleProxy with zero address as implementation
-    let (proxy_address, mut working_set) = deploy_simple_proxy(
+    // Deploy token contract
+    let token_impl = ERC20ImplementationContract::default();
+    let token_impl_bytecode = token_impl.byte_code();
+    let (token_impl_address, working_set) = deploy_contract(
         &mut evm,
-        working_set,
-        prover_storage,
         &signer,
-        &ledger_db,
+        token_impl_bytecode,
         l2_height,
-        Address::ZERO,
+        &prover_storage,
+        &ledger_db,
+        working_set,
+        [10u8; 32],
+        Some([101u8; 32]),
+        spec_id,
+        1,
+        24,
+    );
+    l2_height += 1;
+
+    // Deploy SimpleTokenProxy pointing to token implementation contract
+    let token_proxy = SimpleTokenProxyContract::default();
+    let initial_supply = U256::from(1_000_000_000_000_000_000_000u128);
+    let token_proxy_bytecode = token_proxy.deployment_bytecode(token_impl_address, initial_supply);
+    let (token_proxy_address, working_set) = deploy_contract(
+        &mut evm,
+        &signer,
+        token_proxy_bytecode,
+        l2_height,
+        &prover_storage,
+        &ledger_db,
+        working_set,
+        [101u8; 32],
+        Some([102u8; 32]),
+        spec_id,
+        1,
+        24,
+    );
+    l2_height += 1;
+
+    // Deploy MinimalBatchWallet
+    let wallet = MinimalBatchWalletContract::default();
+    let wallet_bytecode = wallet.byte_code();
+    let (wallet_address, mut working_set) = deploy_contract(
+        &mut evm,
+        &signer,
+        wallet_bytecode,
+        l2_height,
+        &prover_storage,
+        &ledger_db,
+        working_set,
+        [102u8; 32],
+        Some([103u8; 32]),
+        spec_id,
+        1,
+        24,
     );
 
-    let proxy = SimpleProxyContract::default();
-
-    let nonce_after_deploy = evm
-        .get_transaction_count(signer.address(), None, &mut working_set, &ledger_db)
+    let token_impl_code = evm
+        .get_code(token_impl_address, None, &mut working_set, &ledger_db)
         .unwrap();
 
+    let token_proxy_code = evm
+        .get_code(token_proxy_address, None, &mut working_set, &ledger_db)
+        .unwrap();
+    assert!(!token_impl_code.is_empty(), "Token impl should have code");
+    assert!(!token_proxy_code.is_empty(), "Token proxy should have code");
+
+    let wallet_code = evm
+        .get_code(wallet_address, None, &mut working_set, &ledger_db)
+        .unwrap();
+    assert!(!wallet_code.is_empty(), "Wallet should have code");
+
+    let slot_0 = evm
+        .get_storage_at(
+            token_proxy_address,
+            U256::ZERO,
+            None,
+            &mut working_set,
+            &ledger_db,
+        )
+        .unwrap();
+    let stored_impl = Address::from_slice(&slot_0[12..32]);
+    assert_eq!(
+        stored_impl, token_impl_address,
+        "Proxy implementation mismatch!"
+    );
+
+    let spender = Address::from([0xab; 20]);
+    let approve_amount = U256::from(10_000u128);
+    let token_approve_call_data = token_impl.approve_call_data(spender, approve_amount);
+
+    let spender2 = Address::from([0xcd; 20]);
+    let approve_amount2 = U256::from(20_000u128);
+    let token_approve_call_data2 = token_impl.approve_call_data(spender2, approve_amount2);
+
+    let batch_executions = vec![
+        Execution {
+            target: token_proxy_address,
+            value: U256::ZERO,
+            call_data: token_approve_call_data.clone(),
+        },
+        Execution {
+            target: token_proxy_address,
+            value: U256::ZERO,
+            call_data: token_approve_call_data2.clone(),
+        },
+    ];
+
+    let execute_call_data = wallet.execute_batch_call_data(batch_executions.clone());
+
+    let current_nonce = evm
+        .get_transaction_count(signer.address(), None, &mut working_set, &ledger_db)
+        .unwrap()
+        .to::<u64>();
+
     let auth = signer
-        .get_signed_authorization(proxy_address, nonce_after_deploy.to::<u64>() + 1)
+        .get_signed_authorization(wallet_address, current_nonce + 1)
         .expect("Should create signed authorization");
 
-    let reverting_call_data = proxy.reverting_execute_call_data();
-
-    // Create transaction that will REVERT:
-    // - EOA delegates to SimpleProxy via EIP-7702 authorization
-    // - Self-call (from == to) with the authorization active
-    // - Calls revertingExecute which always reverts
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(TxKind::Call(signer.address())), // Self-call!
+        to: Some(TxKind::Call(signer.address())), // Self-call
         value: None,
-        input: TransactionInput::new(reverting_call_data.into()),
+        input: TransactionInput::new(execute_call_data.into()),
         chain_id: Some(1u64),
-        gas: None, // Let estimator determine gas
+        gas: None,
         gas_price: Some(100_000_000),
-        nonce: Some(nonce_after_deploy.to::<u64>()),
+        nonce: Some(current_nonce),
         access_list: None,
         authorization_list: Some(vec![auth]),
         ..Default::default()
     };
 
-    let fork = Fork::new(sov_modules_api::SpecId::Tangerine, 0);
+    // Perform gas estimation
+    let gas_estimate = evm
+        .eth_estimate_gas(tx_req, None, &mut working_set, &ledger_db)
+        .expect("Gas estimation should succeed");
 
-    // Call eth_estimate_gas_inner
-    // Expected: Returns Err(revert)
-    // Bug: Returns Ok(gas_estimate)
-    let result = evm.eth_estimate_gas_inner(
-        tx_req,
-        Some(BlockNumberOrTag::Latest),
+    let gas_estimate_u64 = gas_estimate.to::<u64>();
+
+    let auth_for_exec = signer
+        .get_signed_authorization(wallet_address, current_nonce + 1)
+        .expect("Should create signed authorization");
+
+    let execute_call_data_exec = wallet.execute_batch_call_data(batch_executions.clone());
+    let rlp_tx = signer
+        .sign_eip7702_transaction_with_gas_limit(
+            signer.address(),
+            execute_call_data_exec,
+            current_nonce,
+            vec![auth_for_exec],
+            gas_estimate_u64,
+        )
+        .expect("Should sign transaction");
+
+    let l1_fee_rate = 1;
+    let l2_block_info_exec = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: spec_id,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 24,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info_exec, &mut working_set);
+    let sender_address = generate_address::<C>("sender");
+    let context = C::new(sender_address, l2_height, SpecId::Fork3, l1_fee_rate);
+    let call_result = evm.call(
+        CallMessage { txs: vec![rlp_tx] },
+        &context,
         &mut working_set,
-        &ledger_db,
-        |_| fork,
     );
+    evm.end_l2_block_hook(&l2_block_info_exec, &mut working_set);
+    evm.finalize_hook(&[103u8; 32], &mut working_set.accessory_state());
 
-    match result {
-        Ok(gas_estimate) => {
-            panic!(
-                "BUG REPRODUCED! eth_estimateGas returned gas estimate {gas_estimate} for a transaction that ALWAYS reverts. Should return Err(revert)."
-            );
+    match call_result {
+        Ok(_) => {
+            let receipts: Vec<_> = evm
+                .receipts
+                .iter(&mut working_set.accessory_state())
+                .collect();
+
+            if let Some(receipt) = receipts.last() {
+                // Verify EOA has delegation code
+                let eoa_code = evm
+                    .get_code(signer.address(), None, &mut working_set, &ledger_db)
+                    .unwrap();
+                assert!(
+                    eoa_code.starts_with(&EIP7702_DELEGATION_PREFIX),
+                    "EOA should have EIP-7702 delegation code (0xef01...), got: 0x{}",
+                    hex::encode(&eoa_code[..eoa_code.len().min(10)])
+                );
+
+                let owner = signer.address();
+
+                // Verify delegation code is properly set
+                assert!(
+                    eoa_code.len() >= 23,
+                    "Delegation code should be at least 23 bytes (0xef01 + 20-byte address + 1-byte designator)"
+                );
+                assert_eq!(
+                    &eoa_code[0..2],
+                    &EIP7702_DELEGATION_PREFIX,
+                    "Code should start with EIP-7702 delegation prefix (0xef01)"
+                );
+                // EIP-7702 format: 0xef01 (2 bytes) + version (1 byte) + address (20 bytes)
+                let delegated_address = Address::from_slice(&eoa_code[3..23]);
+                assert_eq!(
+                    delegated_address, wallet_address,
+                    "Delegation should point to wallet contract, found: {}, expected: {}",
+                    delegated_address, wallet_address
+                );
+
+                // Verify approval events using helper function
+                verify_approval_events(
+                    &receipt.receipt,
+                    token_proxy_address,
+                    owner,
+                    spender,
+                    approve_amount,
+                    "First approval event",
+                );
+                verify_approval_events(
+                    &receipt.receipt,
+                    token_proxy_address,
+                    owner,
+                    spender2,
+                    approve_amount2,
+                    "Second approval event",
+                );
+
+                // Verify transaction succeeded
+                assert!(
+                    receipt.receipt.receipt.success,
+                    "Transaction should succeed when using estimated gas. Gas used: {}, Estimated: {}",
+                    receipt.gas_used,
+                    gas_estimate_u64
+                );
+
+                // Verify gas usage is within limits
+                assert!(
+                    receipt.gas_used <= gas_estimate_u64,
+                    "Actual gas used ({}) should not exceed estimate ({})",
+                    receipt.gas_used,
+                    gas_estimate_u64
+                );
+                let gas_buffer = gas_estimate_u64.saturating_sub(receipt.gas_used);
+                assert!(gas_buffer > 0);
+
+                let logs = receipt.receipt.logs();
+                assert_eq!(logs.len(), 2);
+
+                // Verify execution status
+                assert!(
+                    receipt.receipt.receipt.success,
+                    "Transaction should succeed with estimated gas. Estimated: {}, Used: {}",
+                    gas_estimate, receipt.gas_used
+                );
+            }
         }
-        Err(_err) => {
-            panic!("SHOULD NOT HAPPEN because even with contract reverting, the bug should exist and gas estimation should pass");
+        Err(err) => {
+            panic!("Transaction execution failed: {err:?}");
         }
     }
 }

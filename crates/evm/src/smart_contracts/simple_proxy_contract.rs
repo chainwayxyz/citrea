@@ -72,4 +72,13 @@ impl SimpleProxyContract {
         }
         .abi_encode()
     }
+
+    /// This function delegates to the implementation contract with specific call data.
+    pub fn execute_with_data_call_data(&self, nested_call_data: Vec<u8>) -> Vec<u8> {
+        SimpleProxy::executeCall {
+            _0: [0u8; 32].into(),
+            _1: nested_call_data.into(),
+        }
+        .abi_encode()
+    }
 }
