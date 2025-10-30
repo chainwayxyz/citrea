@@ -2004,12 +2004,9 @@ fn test_eip7702_wallet_workflow_gas_underestimation() {
     let difference = gas_with_auth.saturating_sub(gas_without_auth);
     let percentage = (difference as f64 / gas_without_auth as f64) * 100.0;
 
-    println!("Gas estimate WITHOUT auth: {} gas", gas_without_auth);
-    println!("Gas estimate WITH auth: {} gas", gas_with_auth);
-    println!(
-        "Difference: {} gas ({:.1}% underestimation)",
-        difference, percentage
-    );
+    println!("Gas estimate WITHOUT auth: {gas_without_auth} gas");
+    println!("Gas estimate WITH auth: {gas_with_auth} gas");
+    println!("Difference: {difference} gas ({percentage:.1}% underestimation)");
     println!(
         "low gas: {}",
         if tx_with_est_no_auth {
@@ -2030,9 +2027,7 @@ fn test_eip7702_wallet_workflow_gas_underestimation() {
     // Key assertions
     assert!(
         gas_with_auth > gas_without_auth,
-        "Estimate with auth ({}) should be higher than without ({})",
-        gas_with_auth,
-        gas_without_auth
+        "Estimate with auth ({gas_with_auth}) should be higher than without ({gas_without_auth})"
     );
 
     assert!(
