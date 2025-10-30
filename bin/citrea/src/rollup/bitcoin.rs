@@ -15,9 +15,10 @@ use bitcoin_da::verifier::BitcoinVerifier;
 use bitcoincore_rpc::{Auth, Client};
 use citrea_common::backup::{create_backup_rpc_module, BackupManager};
 use citrea_common::config::ProverGuestRunConfig;
-use citrea_common::{FullNodeConfig, RpcConfig};
+use citrea_common::{FromEnv, FullNodeConfig, RpcConfig};
 use citrea_primitives::forks::use_network_forks;
 use citrea_primitives::REVEAL_TX_PREFIX;
+use citrea_risc0_adapter::host::config::Risc0HostConfig;
 use citrea_risc0_adapter::host::Risc0Host;
 // use citrea_sp1::host::SP1Host;
 use citrea_stf::genesis_config::StorageConfig;
@@ -280,7 +281,8 @@ impl RollupBlueprint for BitcoinRollup {
         proof_sampling_number: usize,
         is_light_client_prover: bool,
     ) -> ParallelProverService<Self::DaService, Self::Vm> {
-        let vm = Risc0Host::new(ledger_db.clone(), self.network);
+        let risc0_config = Risc0HostConfig::from_env().expect("Failed to load risc0 config");
+        let vm = Risc0Host::new(ledger_db.clone(), self.network, risc0_config).await;
         // let vm = SP1Host::new(
         //     include_bytes!("../guests/sp1/batch-prover-bitcoin/elf/zkvm-elf"),
         //     ledger_db.clone(),

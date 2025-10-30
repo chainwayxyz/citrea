@@ -217,7 +217,7 @@ impl Transaction {
         chain_id: u64,
         nonce: u64,
     ) -> Self {
-        if spec >= SpecId::Fork3 {
+        if spec >= SpecId::Tangelo {
             Self::V2(TransactionV2::new(priv_key, runtime_msg, chain_id, nonce))
         } else {
             Self::V1(TransactionV1::new(priv_key, runtime_msg, chain_id, nonce))

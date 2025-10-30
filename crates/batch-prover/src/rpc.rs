@@ -544,8 +544,8 @@ where
             .as_nanos();
         for (i, raw_input) in raw_inputs.into_iter().enumerate() {
             if let Ok(backup_dir) = env::var("TX_BACKUP_DIR") {
-                let input_path = Path::new(&backup_dir)
-                    .join(format!("{}-rpc-proof-input-{}.bin", unix_nanos, i));
+                let input_path =
+                    Path::new(&backup_dir).join(format!("{unix_nanos}-rpc-proof-input-{i}.bin"));
                 fs::write(input_path, &raw_input).expect("Proof input write cannot fail");
             }
             b64_inputs.push(BASE64_STANDARD.encode(&raw_input));
