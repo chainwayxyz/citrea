@@ -546,7 +546,6 @@ where
             if let Ok(backup_dir) = env::var("TX_BACKUP_DIR") {
                 let input_path = Path::new(&backup_dir)
                     .join(format!("{}-rpc-proof-input-{}.bin", unix_nanos, i));
-                // Use non-blocking write in async context to avoid blocking the Tokio worker thread
                 tokio::fs::write(input_path, &raw_input)
                     .await
                     .expect("Proof input write cannot fail");
