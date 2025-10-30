@@ -84,7 +84,6 @@ impl TestCase for LightClientProvingTest {
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
             enable_recovery: false,
-            initial_da_height: 171,
             ..Default::default()
         }
     }

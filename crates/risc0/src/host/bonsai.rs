@@ -1,4 +1,3 @@
-use std::env;
 use std::time::Duration;
 
 use anyhow::{anyhow, Context};
@@ -13,6 +12,7 @@ use tokio::sync::oneshot;
 use tracing::{error, info};
 use uuid::Uuid;
 
+use super::config::BonsaiProverConfig;
 use crate::is_dev_mode_enabled_via_environment;
 
 #[derive(Clone)]
@@ -22,20 +22,14 @@ pub struct BonsaiProver {
 }
 
 impl BonsaiProver {
-    pub fn new(ledger_db: LedgerDB) -> Self {
-        assert!(
-            env::var("RISC0_PROVER").is_ok_and(|prover| prover == "bonsai"),
-            "RISC0_PROVER must be explicitly set to bonsai"
-        );
-        assert!(env::var("BONSAI_API_URL").is_ok(), "BONSAI_API_URL missing");
-        assert!(env::var("BONSAI_API_KEY").is_ok(), "BONSAI_API_KEY missing");
+    pub fn new(ledger_db: LedgerDB, config: BonsaiProverConfig) -> Self {
         assert!(
             !is_dev_mode_enabled_via_environment(),
             "RISC0_DEV_MODE should not be set for bonsai"
         );
 
-        let client =
-            Client::from_env(risc0_zkvm::VERSION).expect("Bonsai client build cannot fail");
+        let client = Client::from_parts(config.api_url, config.api_key, risc0_zkvm::VERSION)
+            .expect("Bonsai client build cannot fail");
 
         Self { client, ledger_db }
     }

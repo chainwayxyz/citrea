@@ -236,13 +236,11 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
     let url = match network {
         bitcoin::Network::Bitcoin => format!(
             // Mainnet
-            "{}{}",
-            mempool_space_url, MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT
+            "{mempool_space_url}{MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT}"
         ),
-        bitcoin::Network::Testnet => format!(
-            "{}testnet4/{}",
-            mempool_space_url, MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT
-        ),
+        bitcoin::Network::Testnet => {
+            format!("{mempool_space_url}testnet4/{MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT}")
+        }
         _ => {
             trace!("Unsupported network for mempool space fee estimation");
             return Ok(None);

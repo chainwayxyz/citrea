@@ -7,7 +7,7 @@ use sov_rollup_interface::transaction::Transaction;
 use crate::EMPTY_TX_ROOT;
 
 pub fn compute_tx_hashes(txs: &[Transaction], spec: SpecId) -> Vec<[u8; 32]> {
-    let digest_fn = if spec >= SpecId::Fork3 {
+    let digest_fn = if spec >= SpecId::Tangelo {
         |tx: &Transaction| {
             // rehash with separator
             let hash = tx.compute_digest();
@@ -40,7 +40,7 @@ pub fn compute_tx_merkle_root(tx_hashes: &[[u8; 32]], spec: SpecId) -> [u8; 32] 
         }
     }
 
-    if spec >= SpecId::Fork3 {
+    if spec >= SpecId::Tangelo {
         MerkleTree::<Sha256WithSeparator>::from_leaves(tx_hashes)
             .root()
             .expect("Couldn't compute merkle root")

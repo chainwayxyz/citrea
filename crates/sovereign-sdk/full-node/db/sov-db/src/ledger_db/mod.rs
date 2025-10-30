@@ -19,10 +19,11 @@ use crate::schema::tables::{
     CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber,
     ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot,
     L2RangeByL1Height, L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs,
-    PendingBonsaiSessionByJobId, PendingL1SubmissionJobs, PendingProofs,
-    PendingSequencerCommitments, ProofByJobId, ProverLastScannedSlot, ProverPendingCommitments,
-    ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
-    StateDiffByBlockNumber, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    PendingBonsaiSessionByJobId, PendingBoundlessSessionByJobId, PendingL1SubmissionJobs,
+    PendingProofs, PendingSequencerCommitments, ProofByJobId, ProverLastScannedSlot,
+    ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
+    ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
+    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -33,7 +34,8 @@ use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
 use crate::schema::types::{
-    BonsaiSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber,
+    BonsaiSession, BoundlessSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange,
+    L2HeightStatus, SlotNumber,
 };
 
 /// Implementation of database migrator
@@ -605,9 +607,9 @@ impl BatchProverLedgerOps for LedgerDB {
         schema_batch.delete::<CommitmentIndicesByJobId>(&id)?;
 
         // delete from pending job tables
-        // TODO: do the same for boundless sessions
         schema_batch.delete::<PendingL1SubmissionJobs>(&id)?;
         schema_batch.delete::<PendingBonsaiSessionByJobId>(&id)?;
+        schema_batch.delete::<PendingBoundlessSessionByJobId>(&id)?;
 
         self.db.write_schemas(schema_batch)?;
         Ok(())
@@ -715,6 +717,30 @@ impl BonsaiLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err)]
     fn remove_pending_bonsai_session(&self, job_id: Uuid) -> anyhow::Result<()> {
         self.db.delete::<PendingBonsaiSessionByJobId>(&job_id)
+    }
+}
+
+impl BoundlessLedgerOps for LedgerDB {
+    /// Gets all pending sessions and step numbers
+    fn get_pending_boundless_sessions(&self) -> anyhow::Result<Vec<(Uuid, BoundlessSession)>> {
+        let mut iter = self.db.iter::<PendingBoundlessSessionByJobId>()?;
+        iter.seek_to_first();
+
+        iter.map(|item| item.map(|item| item.into_tuple()))
+            .collect()
+    }
+
+    fn upsert_pending_boundless_session(
+        &self,
+        job_id: Uuid,
+        session: BoundlessSession,
+    ) -> anyhow::Result<()> {
+        self.db
+            .put::<PendingBoundlessSessionByJobId>(&job_id, &session)
+    }
+
+    fn remove_pending_boundless_session(&self, job_id: Uuid) -> anyhow::Result<()> {
+        self.db.delete::<PendingBoundlessSessionByJobId>(&job_id)
     }
 }
 

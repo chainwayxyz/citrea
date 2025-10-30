@@ -526,7 +526,7 @@ mod tests {
         )
         .expect("Failed to open DB.");
 
-        let db_debug = format!("{:?}", db);
+        let db_debug = format!("{db:?}");
         assert!(db_debug.contains("test_db_debug"));
         assert!(db_debug.contains(tmpdir.path().to_str().unwrap()));
     }

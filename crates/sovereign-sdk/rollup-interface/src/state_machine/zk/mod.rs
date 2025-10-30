@@ -9,6 +9,8 @@
 
 use std::fmt::Debug;
 
+#[cfg(feature = "native")]
+use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -44,7 +46,8 @@ pub enum ReceiptType {
 
 /// A trait implemented by the prover ("host") of a zkVM program.
 #[cfg(feature = "native")]
-pub trait ZkvmHost: Zkvm + Clone {
+#[async_trait]
+pub trait ZkvmHost: Zkvm + Clone + Send {
     /// The associated guest type
     type Guest: ZkvmGuest;
     /// Give the guest a piece of advice non-deterministically
@@ -62,7 +65,7 @@ pub trait ZkvmHost: Zkvm + Clone {
     /// This runs the guest binary compiled for the zkVM target, optionally
     /// creating a SNARK of correct execution. Running the true guest binary comes
     /// with some mild performance overhead and is not as easy to debug as [`simulate_with_hints`](ZkvmHost::simulate_with_hints).
-    fn run(
+    async fn run(
         &mut self,
         job_id: uuid::Uuid,
         elf: Vec<u8>,
