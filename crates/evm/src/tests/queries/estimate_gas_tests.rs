@@ -13,6 +13,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, Spec, SpecId, StateVecAccessor, WorkingSet};
+use sov_rollup_interface::fork::Fork;
 
 use crate::call::CallMessage;
 use crate::query::MIN_TRANSACTION_GAS;
@@ -1289,4 +1290,154 @@ fn test_eip7702_persistent_delegation_gas_forwarding() {
             panic!("Transaction execution error: {err:?}");
         }
     }
+}
+#[test]
+fn test_eip7702_exact_testnet_reproduction() {
+    // This test uses the EXACT contracts and calldata from the failing testnet transaction
+    // Transaction: 0xb3083c96053a046f85b5990b0eaeffd386f1d79a271aa8d9e0db7ba680a041fd
+    //
+    // Expected: Gas estimation should match testnet (~66K) and execution should fail
+    // with "out of gas" in subcalls
+
+    let (mut evm, working_set, prover_storage, signer, mut l2_height, ledger_db) =
+        init_evm(SpecId::latest());
+
+    // Load exact bytecode from testnet
+    let wallet_bytecode = hex::decode(include_str!(
+        "../../evm/test_data/EIP7702StatelessDeleGator.bin"
+    ))
+    .unwrap();
+    let usdc_proxy_bytecode =
+        hex::decode(include_str!("../../evm/test_data/USDCProxy.bin")).unwrap();
+    let fiat_token_bytecode =
+        hex::decode(include_str!("../../evm/test_data/FiatTokenV2_2.bin")).unwrap();
+
+    // Exact testnet calldata
+    let testnet_calldata = hex::decode("e9ae5c530100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000003c00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000120000000000000000000000000385645e5d3d0a893acb88fda269b31be90b0b171000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044095ea7b300000000000000000000000020ba4e7b2014fdb91c0152bfffe484398f9a2c6500000000000000000000000000000000000000000000000000000000000027100000000000000000000000000000000000000000000000000000000000000000000000000000000020ba4e7b2014fdb91c0152bfffe484398f9a2c65000000000000000000000000000000000000000000000000000001d98fcefee6000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000001c4c7c7f5b30000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000001d98fcefee60000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ee18d94b1c3324acb796c0e92071188a8795afb70000000000000000000000000000000000000000000000000000000000009ce1000000000000000000000000ee18d94b1c3324acb796c0e92071188a8795afb70000000000000000000000000000000000000000000000000000000000002710000000000000000000000000000000000000000000000000000000000000271000000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap();
+
+    // Deploy FiatTokenV2_2 implementation
+    let (_, working_set) = deploy_contract(
+        &mut evm,
+        &signer,
+        fiat_token_bytecode,
+        l2_height,
+        &prover_storage,
+        &ledger_db,
+        working_set,
+        [10u8; 32],
+        Some([101u8; 32]),
+        SpecId::latest(),
+        1,
+        24,
+    );
+    l2_height += 1;
+
+    // Deploy USDC Proxy
+    let (_, working_set) = deploy_contract(
+        &mut evm,
+        &signer,
+        usdc_proxy_bytecode,
+        l2_height,
+        &prover_storage,
+        &ledger_db,
+        working_set,
+        [101u8; 32],
+        Some([102u8; 32]),
+        SpecId::latest(),
+        1,
+        24,
+    );
+    l2_height += 1;
+
+    // Deploy EIP7702StatelessDeleGator wallet
+    let (wallet_address, mut working_set) = deploy_contract(
+        &mut evm,
+        &signer,
+        wallet_bytecode,
+        l2_height,
+        &prover_storage,
+        &ledger_db,
+        working_set,
+        [102u8; 32],
+        Some([103u8; 32]),
+        SpecId::latest(),
+        1,
+        24,
+    );
+
+    let nonce_after_deploys = evm
+        .get_transaction_count(signer.address(), None, &mut working_set, &ledger_db)
+        .unwrap();
+
+    // Create EIP-7702 authorization
+    let auth = signer
+        .get_signed_authorization(wallet_address, nonce_after_deploys.to::<u64>() + 1)
+        .expect("Should create signed authorization");
+
+    // Create transaction request with exact testnet calldata
+    let tx_req = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(signer.address())), // Self-call!
+        value: None,
+        input: TransactionInput::new(testnet_calldata.clone().into()),
+        chain_id: Some(1u64),
+        gas: None, // Let estimator determine gas
+        gas_price: Some(100_000_000),
+        nonce: Some(nonce_after_deploys.to::<u64>()),
+        access_list: None,
+        authorization_list: Some(vec![auth.clone()]),
+        ..Default::default()
+    };
+
+    let fork = Fork::new(SpecId::latest(), 0);
+
+    // Try to gas estimate
+    evm.eth_estimate_gas_inner(
+        tx_req,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+        &ledger_db,
+        |_| fork,
+    )
+    .unwrap();
+
+    // Execute with testnet's exact gas limit to see if subcalls run out of gas
+
+    let l1_fee_rate = 1;
+    let testnet_gas_limit = 66280u64;
+    let rlp_tx = signer
+        .sign_eip7702_transaction_with_gas_limit(
+            signer.address(),
+            testnet_calldata.clone(),
+            nonce_after_deploys.to::<u64>(),
+            vec![auth.clone()],
+            testnet_gas_limit,
+        )
+        .expect("Should sign transaction");
+
+    let l2_block_info_exec = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 24,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info_exec, &mut working_set);
+
+    let sender_address = generate_address::<C>("sender");
+    let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
+
+    let call_result = evm.call(
+        CallMessage { txs: vec![rlp_tx] },
+        &context,
+        &mut working_set,
+    );
+
+    evm.end_l2_block_hook(&l2_block_info_exec, &mut working_set);
+    evm.finalize_hook(&[201u8; 32], &mut working_set.accessory_state());
+
+    // Verify transaction result
+    call_result.expect("Transaction should execute");
 }
