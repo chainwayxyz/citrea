@@ -36,7 +36,7 @@ use tracing::info;
 
 pub use crate::metrics::SCHEMADB_METRICS;
 pub use crate::schema::Schema;
-use crate::schema::{ColumnFamilyName, KeyCodec, ValueCodec};
+use crate::schema::{KeyCodec, ValueCodec};
 pub use crate::schema_batch::{SchemaBatch, SchemaBatchIterator};
 
 /// This DB is a schematized RocksDB wrapper where all data passed in and out are typed according to
@@ -45,6 +45,29 @@ pub use crate::schema_batch::{SchemaBatch, SchemaBatchIterator};
 pub struct DB {
     name: &'static str, // for logging
     inner: rocksdb::DB,
+}
+
+/// asd
+pub struct TransactionDB {
+    name: &'static str, // for logging
+    inner: rocksdb::TransactionDB,
+}
+
+impl TransactionDB {
+    /// asd
+    pub fn transaction(&self) -> rocksdb::Transaction<'_, rocksdb::TransactionDB> {
+        self.inner.transaction()
+    }
+
+    /// Returns the handle for a rocksdb column family.
+    pub fn get_cf_handle(&self, cf_name: &str) -> anyhow::Result<&rocksdb::ColumnFamily> {
+        self.inner.cf_handle(cf_name).ok_or_else(|| {
+            format_err!(
+                "DB::cf_handle not found for column family name: {}",
+                cf_name
+            )
+        })
+    }
 }
 
 impl DB {
@@ -95,6 +118,29 @@ impl DB {
         Ok(db)
     }
 
+    /// Opens a database backed by RocksDB, using the provided column family names and default
+    /// column family options.
+    pub fn open_transaction_db(
+        path: impl AsRef<Path>,
+        name: &'static str,
+        column_families: impl IntoIterator<Item = impl Into<String>>,
+        options: &RawRocksdbOptions,
+    ) -> anyhow::Result<TransactionDB> {
+        let txn_db_opts = rocksdb::TransactionDBOptions::default();
+        let inner = rocksdb::TransactionDB::open_cf_descriptors(
+            &options.db_options,
+            &txn_db_opts,
+            path,
+            column_families.into_iter().map(|cf_name| {
+                let mut cf_opts = rocksdb::Options::default();
+                cf_opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
+                cf_opts.set_block_based_table_factory(&options.block_options);
+                rocksdb::ColumnFamilyDescriptor::new(cf_name, cf_opts)
+            }),
+        )?;
+        Ok(TransactionDB { name, inner })
+    }
+
     /// Returns the path of the DB.
     pub fn path(&self) -> &Path {
         self.inner.path()
@@ -115,34 +161,6 @@ impl DB {
         cfds: impl IntoIterator<Item = rocksdb::ColumnFamilyDescriptor>,
     ) -> anyhow::Result<DB> {
         let inner = rocksdb::DB::open_cf_descriptors(db_opts, path, cfds)?;
-        Ok(Self::log_construct(name, inner))
-    }
-
-    /// Open db in readonly mode. This db is completely static, so any writes that occur on the primary
-    /// after it has been opened will not be visible to the readonly instance.
-    pub fn open_cf_readonly(
-        opts: &rocksdb::Options,
-        path: impl AsRef<Path>,
-        name: &'static str,
-        cfs: Vec<ColumnFamilyName>,
-    ) -> anyhow::Result<DB> {
-        let error_if_log_file_exists = false;
-        let inner = rocksdb::DB::open_cf_for_read_only(opts, path, cfs, error_if_log_file_exists)?;
-
-        Ok(Self::log_construct(name, inner))
-    }
-
-    /// Open db in secondary mode. A secondary db is does not support writes, but can be dynamically caught up
-    /// to the primary instance by a manual call. See <https://github.com/facebook/rocksdb/wiki/Read-only-and-Secondary-instances>
-    /// for more details.
-    pub fn open_cf_as_secondary<P: AsRef<Path>>(
-        opts: &rocksdb::Options,
-        primary_path: P,
-        secondary_path: P,
-        name: &'static str,
-        cfs: Vec<ColumnFamilyName>,
-    ) -> anyhow::Result<DB> {
-        let inner = rocksdb::DB::open_cf_as_secondary(opts, primary_path, secondary_path, cfs)?;
         Ok(Self::log_construct(name, inner))
     }
 
@@ -226,31 +244,6 @@ impl DB {
         let mut batch = SchemaBatch::new();
         batch.delete::<S>(key)?;
         self.write_schemas(batch)
-    }
-
-    /// Removes the database entries in the range `["from", "to")` using default write options.
-    ///
-    /// Note that this operation will be done lexicographic on the *encoding* of the seek keys. It is
-    /// up to the table creator to ensure that the lexicographic ordering of the encoded seek keys matches the
-    /// logical ordering of the type.
-    pub fn delete_range<S: Schema>(
-        &self,
-        from: &impl SeekKeyEncoder<S>,
-        to: &impl SeekKeyEncoder<S>,
-    ) -> anyhow::Result<()> {
-        tokio::task::block_in_place(|| self._delete_range(from, to))
-    }
-
-    fn _delete_range<S: Schema>(
-        &self,
-        from: &impl SeekKeyEncoder<S>,
-        to: &impl SeekKeyEncoder<S>,
-    ) -> anyhow::Result<()> {
-        let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
-        let from = from.encode_seek_key()?;
-        let to = to.encode_seek_key()?;
-        self.inner.delete_range_cf(cf_handle, from, to)?;
-        Ok(())
     }
 
     /// Delete range based on a seek key.

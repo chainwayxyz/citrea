@@ -2,15 +2,20 @@ use std::mem::ManuallyDrop;
 use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::Context;
-use rocksdb::{ReadOptions, WriteBatch};
+use metrics::histogram;
+use rocksdb::ReadOptions;
 use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
-use sov_schema_db::{ScanDirection, Schema, SchemaBatch, SchemaIterator, SeekKeyEncoder, DB};
+use sov_schema_db::schema::{KeyCodec, ValueCodec};
+use sov_schema_db::{
+    ScanDirection, Schema, SchemaBatch, SchemaIterator, SeekKeyEncoder, TransactionDB, DB,
+};
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -82,39 +87,6 @@ impl LedgerDB {
         })
     }
 
-    /// Returns the handle foe the column family with the given name
-    pub fn get_cf_handle(&self, cf_name: &str) -> anyhow::Result<&rocksdb::ColumnFamily> {
-        self.db.get_cf_handle(cf_name)
-    }
-
-    /// Insert a key-value pair into the database given a column family
-    pub fn insert_into_cf_raw(
-        &self,
-        cf_handle: &rocksdb::ColumnFamily,
-        key: &[u8],
-        value: &[u8],
-    ) -> anyhow::Result<()> {
-        self.db.put_cf(cf_handle, key, value)
-    }
-
-    /// Deletes a key-value pair from a column family given key and column family.
-    pub fn delete_from_cf_raw(
-        &self,
-        cf_handle: &rocksdb::ColumnFamily,
-        key: &[u8],
-    ) -> anyhow::Result<()> {
-        self.db.delete_cf(cf_handle, key)
-    }
-
-    /// Get an iterator for the given column family
-    pub fn get_iterator_for_cf<'a>(
-        &'a self,
-        cf_handle: &rocksdb::ColumnFamily,
-        iterator_mode: Option<rocksdb::IteratorMode>,
-    ) -> anyhow::Result<rocksdb::DBIterator<'a>> {
-        Ok(self.db.iter_cf(cf_handle, iterator_mode))
-    }
-
     /// Gets all data with identifier in `range.start` to `range.end`. If `range.end` is outside
     /// the range of the database, the result will smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
@@ -151,21 +123,6 @@ impl LedgerDB {
         }
     }
 
-    fn put_l2_block(
-        &self,
-        l2_block: &StoredL2Block,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<(), anyhow::Error> {
-        let l2_block_number = L2BlockNumber(l2_block.height);
-        schema_batch.put::<L2BlockByNumber>(&l2_block_number, l2_block)?;
-        schema_batch.put::<L2BlockByHash>(&l2_block.hash, &l2_block_number)
-    }
-
-    /// Write raw rocksdb WriteBatch
-    pub fn write(&self, batch: WriteBatch) -> anyhow::Result<()> {
-        self.db.write(batch)
-    }
-
     /// Reference to underlying sov DB
     pub fn db_handle(&self) -> Arc<sov_schema_db::DB> {
         self.db.clone()
@@ -190,8 +147,6 @@ impl SharedLedgerOps for LedgerDB {
         tx_hashes: Vec<[u8; 32]>,
         tx_bodies: Option<Vec<Vec<u8>>>,
     ) -> Result<(), anyhow::Error> {
-        let mut schema_batch = SchemaBatch::new();
-
         let txs = if let Some(tx_bodies) = tx_bodies {
             assert_eq!(
                 tx_bodies.len(),
@@ -227,7 +182,12 @@ impl SharedLedgerOps for LedgerDB {
             timestamp: l2_block.timestamp(),
             tx_merkle_root: l2_block.tx_merkle_root(),
         };
-        self.put_l2_block(&l2_block_to_store, &mut schema_batch)?;
+
+        let mut schema_batch = SchemaBatch::new();
+
+        let l2_block_number = L2BlockNumber(height);
+        schema_batch.put::<L2BlockByNumber>(&l2_block_number, &l2_block_to_store)?;
+        schema_batch.put::<L2BlockByHash>(&l2_block.hash(), &l2_block_number)?;
 
         self.db.write_schemas(schema_batch)?;
 
@@ -999,13 +959,18 @@ impl ForkMigration for LedgerDB {
     }
 }
 
-
 /// A transaction for batching multiple ledger operations together.
 pub struct LedgerTx {
     /// The batch of schema changes to apply.
     /// Using ManuallyDrop to avoid silent drop of SchemaBatch which would lose the changes.
     /// The batch must be explicitly written to the DB using `::commit` method.
     batch: ManuallyDrop<SchemaBatch>,
+}
+
+impl Default for LedgerTx {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LedgerTx {
@@ -1022,21 +987,21 @@ impl LedgerTx {
         l2_height: L2BlockNumber,
         state_diff: &StateDiff,
     ) -> Result<&mut Self, anyhow::Error> {
-        self
-            .batch
+        self.batch
             .put::<StateDiffByBlockNumber>(&l2_height, state_diff)
             .context("Failed to add StateDiffByBlockNumber")?;
         Ok(self)
     }
 
     /// Put an L2 block into the transaction to be saved.
-    pub fn put_l2_block(
-        &mut self,
-        l2_block: &StoredL2Block,
-    ) -> Result<&mut Self, anyhow::Error> {
+    pub fn put_l2_block(&mut self, l2_block: &StoredL2Block) -> Result<&mut Self, anyhow::Error> {
         let l2_block_number = L2BlockNumber(l2_block.height);
-        self.batch.put::<L2BlockByNumber>(&l2_block_number, l2_block).context("Failed to add L2BlockByNumber")?;
-        self.batch.put::<L2BlockByHash>(&l2_block.hash, &l2_block_number).context("Failed to add L2BlockByHash")?;
+        self.batch
+            .put::<L2BlockByNumber>(&l2_block_number, l2_block)
+            .context("Failed to add L2BlockByNumber")?;
+        self.batch
+            .put::<L2BlockByHash>(&l2_block.hash, &l2_block_number)
+            .context("Failed to add L2BlockByHash")?;
 
         Ok(self)
     }
@@ -1046,12 +1011,190 @@ impl LedgerTx {
     pub fn commit(self, db: &LedgerDB) -> Result<(), anyhow::Error> {
         let Self { batch } = self;
         let batch = ManuallyDrop::into_inner(batch);
-        db.db.write_schemas(batch).context("Failed to write LedgerTx to DB")
+        db.db
+            .write_schemas(batch)
+            .context("Failed to write LedgerTx to DB")
     }
 
     /// Reject the transaction, dropping all changes.
     pub fn reject(self) {
         let Self { batch } = self;
         let _ = ManuallyDrop::into_inner(batch);
+    }
+}
+
+#[derive(Clone)]
+/// Asd
+pub struct TransactionLedgerDB {
+    /// Asd
+    pub(crate) db: Arc<TransactionDB>,
+}
+
+/// Asd
+pub struct LedgerDBTransaction<'a> {
+    db: Arc<TransactionDB>,
+    tx: rocksdb::Transaction<'a, rocksdb::TransactionDB>,
+}
+
+impl TransactionLedgerDB {
+    /// LedgerDB path suffix
+    pub const DB_PATH_SUFFIX: &'static str = "ledger";
+    const DB_NAME: &'static str = "ledger-db";
+
+    /// Open a [`LedgerDB`] (backed by RocksDB) at the specified path.
+    /// Will take optional column families, used for migration purposes.
+    /// The returned instance will be at the path `{path}/ledger`.
+    #[instrument(level = "trace", skip_all, err)]
+    pub fn with_config(cfg: &RocksdbConfig) -> Result<Self, anyhow::Error> {
+        let path = cfg.path.join(Self::DB_PATH_SUFFIX);
+        let raw_options = cfg.as_raw_options(false);
+        let tables = cfg
+            .column_families
+            .clone()
+            .unwrap_or_else(|| LEDGER_TABLES.iter().map(|e| e.to_string()).collect());
+        let inner = DB::open_transaction_db(path, Self::DB_NAME, tables, &raw_options)?;
+
+        Ok(Self {
+            db: Arc::new(inner),
+        })
+    }
+
+    /// Create a new transaction
+    pub fn transaction(&self) -> LedgerDBTransaction {
+        LedgerDBTransaction {
+            db: Arc::clone(&self.db),
+            tx: self.db.transaction(),
+        }
+    }
+}
+
+/// Low-level operations
+/// 1. to put/get/delete data using KeyCodec/ValueCodec.
+/// 2. to commit the transaction.
+impl LedgerDBTransaction<'_> {
+    fn put<S: Schema>(
+        &self,
+        key: &impl KeyCodec<S>,
+        value: &impl ValueCodec<S>,
+    ) -> anyhow::Result<()> {
+        let start = Instant::now();
+
+        let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
+        let key = key.encode_key()?;
+        let value = value.encode_value()?;
+
+        self.tx.put_cf(cf_handle, key, value)?;
+
+        histogram!("ledger_tx_put_latency_seconds").record(
+            Instant::now()
+                .saturating_duration_since(start)
+                .as_secs_f64(),
+        );
+        Ok(())
+    }
+
+    /// Returns the handle for a rocksdb column family.
+    fn get_cf_handle(&self, cf_name: &str) -> anyhow::Result<&rocksdb::ColumnFamily> {
+        self.db.get_cf_handle(cf_name)
+    }
+
+    fn get<S: Schema>(&self, schema_key: &impl KeyCodec<S>) -> anyhow::Result<Option<S::Value>> {
+        let start = Instant::now();
+
+        let k = schema_key.encode_key()?;
+        let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
+
+        let result = self.tx.get_pinned_cf(cf_handle, k)?;
+
+        histogram!("schemadb_get_bytes", "cf_name" => S::COLUMN_FAMILY_NAME)
+            .record(result.as_ref().map_or(0.0, |v| v.len() as f64));
+
+        let result = result
+            .map(|raw_value| S::Value::decode_value(&raw_value))
+            .transpose()
+            .map_err(|err| err.into());
+
+        histogram!("schemadb_get_latency_seconds", "cf_name" => S::COLUMN_FAMILY_NAME).record(
+            Instant::now()
+                .saturating_duration_since(start)
+                .as_secs_f64(),
+        );
+        result
+    }
+
+    fn delete<S: Schema>(&self, key: &impl KeyCodec<S>) -> anyhow::Result<()> {
+        let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
+        let key = key.encode_key()?;
+        self.tx.delete_cf(cf_handle, key)?;
+
+        Ok(())
+    }
+
+    /// Commit the transaction
+    pub fn commit(self) -> anyhow::Result<()> {
+        let start = Instant::now();
+        self.tx.commit()?;
+
+        histogram!("ledger_tx_commit_latency_seconds").record(
+            Instant::now()
+                .saturating_duration_since(start)
+                .as_secs_f64(),
+        );
+        Ok(())
+    }
+}
+
+impl LedgerDBTransaction<'_> {
+    /// Sets the state diff by block number
+    #[instrument(level = "trace", skip(self), err, ret)]
+    pub fn set_state_diff(
+        &self,
+        l2_height: L2BlockNumber,
+        state_diff: &StateDiff,
+    ) -> anyhow::Result<()> {
+        self.put::<StateDiffByBlockNumber>(&l2_height, state_diff)?;
+
+        Ok(())
+    }
+
+    /// Removes the state diff by block range
+    #[instrument(level = "trace", skip(self), err, ret)]
+    pub fn delete_state_diff_by_range(
+        &self,
+        l2_height_range: RangeInclusive<L2BlockNumber>,
+    ) -> anyhow::Result<()> {
+        for l2_height in l2_height_range.start().0..=l2_height_range.end().0 {
+            self.delete::<StateDiffByBlockNumber>(&L2BlockNumber(l2_height))?;
+        }
+
+        Ok(())
+    }
+
+    /// Gets the state diff by block number
+    #[instrument(level = "trace", skip(self), err, ret)]
+    pub fn get_state_diff(&self, l2_height: L2BlockNumber) -> Result<StateDiff, anyhow::Error> {
+        self.get::<StateDiffByBlockNumber>(&l2_height)
+            .map(|diff| diff.unwrap_or_default())
+    }
+
+    /// Put an L2 block into the transaction to be saved.
+    #[instrument(level = "trace", skip(self), err)]
+    pub fn set_l2_block(&self, l2_block: &StoredL2Block) -> Result<(), anyhow::Error> {
+        let l2_block_number = L2BlockNumber(l2_block.height);
+        self.put::<L2BlockByNumber>(&l2_block_number, l2_block)
+            .context("Failed to add L2BlockByNumber")?;
+        self.put::<L2BlockByHash>(&l2_block.hash, &l2_block_number)
+            .context("Failed to add L2BlockByHash")?;
+
+        Ok(())
+    }
+
+    /// Gets l2 block by number
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_l2_block_by_number(
+        &self,
+        number: &L2BlockNumber,
+    ) -> Result<Option<StoredL2Block>, anyhow::Error> {
+        self.get::<L2BlockByNumber>(number)
     }
 }

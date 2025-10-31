@@ -25,6 +25,7 @@ anyhow = { workspace = true, default-features = true }
 bincode = { workspace = true }
 borsh = { workspace = true, default-features = true, features = ["bytes", "rc"] }
 byteorder = { workspace = true, default-features = true }
+metrics = { workspace = true }
 rlimit = { workspace = true }
 rocksdb = { workspace = true }
 serde = { workspace = true, default-features = true, features = ["rc"] }
