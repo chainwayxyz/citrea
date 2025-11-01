@@ -1,0 +1,36 @@
+name: Generic
+run-name: ${{ inputs.operation-stop-step }} to ${{ inputs.service-to-deploy }} on to ${{ inputs.deployment-environment }} for ${{ github.ref }} by @${{ github.actor }}
+on:
+  workflow_dispatch:
+    inputs:
+      operation-stop-step:
+        description: Stop Operation at
+        type: choice
+        options:
+          - build
+          - test
+          - publish
+          - deploy
+      service-to-deploy:
+        description: Service to Deploy
+        type: choice
+        options:
+          - sequencer
+          - batch-prover
+          - light-client-prover
+          - full-node
+      deployment-environment:
+        description: Environment to Deploy
+        type: choice
+        options:
+          - Dev-Net
+          - Test-Net
+          - Main-Net
+        default: Dev-net
+
+jobs:
+  PLACEHOLDER_JOB:
+    name: PLACEHOLDER_JOB
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
