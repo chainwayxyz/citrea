@@ -7,7 +7,9 @@
 [CI/CD AND INFRASTRUCTURE][4] @chinacolt @devops @secops @eyusufatik @ekrembal
 /.github/**
 /.gitsecret/**
+/devops/**
 # -------------------------------------------------------------------------------
 # REPO SPECIFIC CODEOWNERS
 # -------------------------------------------------------------------------------
-* @eyusufatik
+[BDFL] @eyusufatik
+*
