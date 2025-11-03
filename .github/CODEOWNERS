@@ -1,15 +1,6 @@
-# -------------------------------------------------------------------------------
-# DEFAULT CODEOWNERS
-# -------------------------------------------------------------------------------
 # Default owners for all files
-*                                  @citrea-writers
+* @core-bdfl
 # Owners for CI/CD and infrastructure files
-[CI/CD AND INFRASTRUCTURE][4] @devops-bdfl @secops-bdfl @citrea-bdfl @clementine-bdfl
-/.github/**
-/.gitsecret/**
-/devops/**
-# -------------------------------------------------------------------------------
-# REPO SPECIFIC CODEOWNERS
-# -------------------------------------------------------------------------------
-[BDFL] @citrea-bdfl
-*
+/.github/** @devops-writers
+/.gitsecret/** @devops-writers
+/devops/** @devops-writers
