@@ -1,6 +1,6 @@
 # Default owners for all files
-* @core-bdfl
+* @chainwayxyz/core-bdfl
 # Owners for CI/CD and infrastructure files
-/.github/** @devops-writers
-/.gitsecret/** @devops-writers
-/devops/** @devops-writers
+/.github/** @chainwayxyz/devops-writers
+/.gitsecret/** @chainwayxyz/devops-writers
+/devops/** @chainwayxyz/devops-writers
