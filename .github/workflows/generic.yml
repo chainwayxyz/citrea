@@ -1,36 +1,115 @@
 name: Generic
-run-name: ${{ inputs.operation-stop-step }} to ${{ inputs.service-to-deploy }} on to ${{ inputs.deployment-environment }} for ${{ github.ref }} by @${{ github.actor }}
+run-name: ${{ inputs.operation-stop-step }} to ${{ inputs.service }} on ${{ inputs.network }} for ${{ github.ref }} by @${{ github.actor }}
+
 on:
   workflow_dispatch:
     inputs:
       operation-stop-step:
         description: Stop Operation at
         type: choice
-        options:
-          - build
-          - test
-          - publish
-          - deploy
-      service-to-deploy:
+        options: [Build, Publish, Deploy]
+      release:
+        description: Release Version
+        type: string
+        required: true
+      service:
         description: Service to Deploy
         type: choice
-        options:
-          - sequencer
-          - batch-prover
-          - light-client-prover
-          - full-node
-      deployment-environment:
+        options: [Sequencer, Batch-Prover, Light-Client-Prover, Full-Node]
+      network:
         description: Environment to Deploy
         type: choice
-        options:
-          - Dev-Net
-          - Test-Net
-          - Main-Net
-        default: Dev-net
+        options: [Dev-Net, Test-Net, Main-Net]
+        default: Dev-Net
+
+env:
+  DOCKER_PATH: "dockers/citrea/"
+  DOCKER_CTX_PATH: "."
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
-  PLACEHOLDER_JOB:
-    name: PLACEHOLDER_JOB
+  set-matrix:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.network }}
+    outputs:
+      matrix: ${{ steps.mapping.outputs.matrix }}
+      docker_path: ${{ steps.mapping.outputs.docker_path }}
+      docker_ctx_path: ${{ steps.mapping.outputs.docker_ctx_path }}
+      source_service: ${{ steps.mapping.outputs.source_service }}
+      source_version: ${{ steps.mapping.outputs.source_version }}
+      target_network: ${{ steps.mapping.outputs.target_network }}
+      target_service: ${{ steps.mapping.outputs.target_service }}
+    env:
+      SERVICE: ${{ inputs.service }}
+      NETWORK: ${{ inputs.network }}
+      RELEASE: ${{ inputs.release }}
+      OPERATION_STOP_STEP: ${{ inputs.operation-stop-step}}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Load matrix from JSON mapping
+        id: mapping
+        run: |
+          set -euo pipefail
+          
+          SERVICE_LOWER_CASE="${SERVICE,,}"
+          NETWORK_LOWER_CASE="${NETWORK,,}"
+          OPERATION_STOP_STEP_LOWER_CASE="${OPERATION_STOP_STEP,,}"
+          
+          if [ -n "$RELEASE" ]; then
+              SOURCE_VERSION="$RELEASE"
+          else
+              GIT_HASH=$(git rev-parse --short HEAD)
+              DATE_STR=$(date +'%y%m%d')
+              SOURCE_VERSION="v${DATE_STR}-git-${GIT_HASH}"
+          fi
+          
+          echo "Loading mapping for Service: $SERVICE / Network: $NETWORK"
+          
+          MAPPING_FILE_PATH="$DOCKER_PATH/services_source_2_target_mapping.json"
+
+          if [ ! -f "$MAPPING_FILE_PATH" ]; then
+            echo "Mapping file not found at $MAPPING_FILE_PATH"      
+            exit 1
+          fi
+
+          matrix=$(jq -c --arg service "$SERVICE" --arg network "$NETWORK" '.[$service][$network]' "$MAPPING_FILE_PATH")
+
+          if [ "$matrix" = "null" ] || [ -z "$matrix" ]; then
+            echo "No mapping found for Service=$SERVICE Network=$NETWORK"
+            exit 1
+          fi
+          
+          if [ "$matrix" = "null" ] || [ -z "$matrix" ]; then
+            echo "No mapping found for Service=$SERVICE Network=$NETWORK"
+            exit 1
+          fi
+                    
+          matrix_lower=$(echo "$matrix" | jq -c '[.[] | ascii_downcase]')
+          
+          echo "matrix=$matrix_lower" >> $GITHUB_OUTPUT
+          echo "docker_path=$DOCKER_PATH" >> $GITHUB_OUTPUT
+          echo "docker_ctx_path=$DOCKER_CTX_PATH" >> $GITHUB_OUTPUT
+          echo "target_service=$SERVICE_LOWER_CASE" >> $GITHUB_OUTPUT
+          echo "target_network=$NETWORK_LOWER_CASE" >> $GITHUB_OUTPUT
+          echo "source_version=$SOURCE_VERSION" >> $GITHUB_OUTPUT
+          echo "source_service=$SERVICE_LOWER_CASE" >> $GITHUB_OUTPUT
+
+  build:
+    needs: set-matrix
+    strategy:
+      matrix:
+        service: ${{ fromJSON(needs.set-matrix.outputs.matrix) }}
+    uses: chainwayxyz/citrea-infra/.github/workflows/reusable.yaml@master
+    with:
+      source_service: ${{ needs.set-matrix.outputs.source_service }}
+      docker_path: ${{ needs.set-matrix.outputs.docker_path }}
+      docker_ctx_path: ${{ needs.set-matrix.outputs.docker_ctx_path }}
+      source_version: ${{ needs.set-matrix.outputs.source_version }}
+      target_network: ${{ needs.set-matrix.outputs.target_network }}
+      target_service: ${{ matrix.service }}
+    secrets: inherit
