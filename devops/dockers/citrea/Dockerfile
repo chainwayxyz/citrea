@@ -18,12 +18,10 @@ ENV SERVICE_TYPE=$SERVICE_TYPE
 
 WORKDIR /srv/app
 
-COPY ./devops/dockers/citrea/genesis/ ./genesis/
-COPY ./devops/dockers/citrea/citrea citrea
-COPY ./devops/dockers/citrea/r0vm /usr/local/bin/
-COPY ./devops/dockers/citrea/citrea-cli /usr/local/bin/
-COPY ./devops/dockers/citrea/entrypoint.sh entrypoint.sh
-
-RUN chmod +x entrypoint.sh citrea /usr/local/bin/citrea-cli /usr/local/bin/r0vm
+COPY genesis/ ./genesis/
+COPY citrea citrea
+COPY r0vm /usr/local/bin/
+COPY citrea-cli /usr/local/bin/
+COPY entrypoint.sh entrypoint.sh
 
 ENTRYPOINT ["./entrypoint.sh"]

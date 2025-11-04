@@ -32,7 +32,6 @@ download_binary "citrea-cli"
 
 ## Copy r0vm binary
 wget -O r0vm "$R0VM_URL"
-chmod +x r0vm
 
 ## Copy genesis folder
 FORMATTED_NETWORK="${NETWORK//-/}"
@@ -46,3 +45,4 @@ NETWORK=$NETWORK
 SERVICE_TYPE=$SERVICE
 EOF
 
+chmod +x RUN chmod +x entrypoint.sh r0vm
