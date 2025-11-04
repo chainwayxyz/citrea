@@ -45,4 +45,4 @@ NETWORK=$NETWORK
 SERVICE_TYPE=$SERVICE
 EOF
 
-chmod +x RUN chmod +x entrypoint.sh r0vm
+chmod +x entrypoint.sh r0vm
