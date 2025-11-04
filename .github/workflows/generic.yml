@@ -7,7 +7,7 @@ on:
       operation-stop-step:
         description: Stop Operation at
         type: choice
-        options: [Build, Publish, Deploy]
+        options: [Build, Publish]
       release:
         description: Release Version
         type: string
@@ -23,7 +23,7 @@ on:
         default: Dev-Net
 
 env:
-  DOCKER_PATH: "dockers/citrea/"
+  DOCKER_PATH: "devops/dockers/citrea/"
   DOCKER_CTX_PATH: "."
 
 permissions:
@@ -98,13 +98,30 @@ jobs:
           echo "target_network=$NETWORK_LOWER_CASE" >> $GITHUB_OUTPUT
           echo "source_version=$SOURCE_VERSION" >> $GITHUB_OUTPUT
           echo "source_service=$SERVICE_LOWER_CASE" >> $GITHUB_OUTPUT
+          echo "operation_stop_step=$OPERATION_STOP_STEP_LOWER_CASE" >> $GITHUB_OUTPUT
 
-  build:
+  build-and-publish:
     needs: set-matrix
     strategy:
       matrix:
         service: ${{ fromJSON(needs.set-matrix.outputs.matrix) }}
-    uses: chainwayxyz/citrea-infra/.github/workflows/reusable.yaml@master
+    uses: chainwayxyz/citrea-infra/.github/workflows/ru-service-build-and-publish.yaml@master
+    with:
+      source_service: ${{ needs.set-matrix.outputs.source_service }}
+      docker_path: ${{ needs.set-matrix.outputs.docker_path }}
+      docker_ctx_path: ${{ needs.set-matrix.outputs.docker_ctx_path }}
+      source_version: ${{ needs.set-matrix.outputs.source_version }}
+      target_network: ${{ needs.set-matrix.outputs.target_network }}
+      target_service: ${{ matrix.service }}
+      operation_stop_step: ${{ needs.set-matrix.outputs.operation_stop_step }}
+    secrets: inherit
+  deploy:
+    if: ${{ inputs.operation-stop-step == 'Deploy' }}
+    needs: build-and-publish
+    strategy:
+      matrix:
+        service: ${{ fromJSON(needs.set-matrix.outputs.matrix) }}
+    uses: chainwayxyz/citrea-infra/.github/workflows/ru-service-deploy.yaml@master
     with:
       source_service: ${{ needs.set-matrix.outputs.source_service }}
       docker_path: ${{ needs.set-matrix.outputs.docker_path }}
