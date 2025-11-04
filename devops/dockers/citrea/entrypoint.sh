@@ -28,7 +28,7 @@ shutdown_gracefully() {
    echo "Shutdown handler is completed"
 }
 
-trap 'shutdown_gracefully' SIGTERM SIGINT
+trap "shutdown_gracefully" SIGTERM SIGINT
 
 if [[ "$SERVICE_TYPE" == "full-node" ]]; then
   echo "INFO: This full node will run on the $NETWORK network."
