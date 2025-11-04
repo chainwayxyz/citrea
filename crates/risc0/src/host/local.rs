@@ -2,6 +2,7 @@ use std::env;
 use std::path::PathBuf;
 
 use anyhow::anyhow;
+use citrea_common::config::risc0::LocalProverConfig;
 use metrics::gauge;
 use risc0_zkvm::{
     AssumptionReceipt, ExecutorEnvBuilder, ExternalProver, ProveInfo, Prover, ProverOpts,
@@ -11,8 +12,6 @@ use sov_rollup_interface::Network;
 use tokio::sync::oneshot;
 use tracing::error;
 use uuid::Uuid;
-
-use super::config::LocalProverConfig;
 
 #[derive(Clone)]
 pub struct LocalProver {

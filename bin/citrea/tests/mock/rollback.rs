@@ -8,7 +8,8 @@ use std::sync::Arc;
 
 use alloy_primitives::{Address, U256};
 use alloy_rpc_types::{BlockId, BlockNumberOrTag};
-use citrea_common::{BatchProverConfig, NodeType, SequencerConfig};
+use citrea_common::risc0::Risc0HostConfig;
+use citrea_common::{BatchProverConfig, FromEnv, NodeType, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_storage_ops::rollback::Rollback;
 use futures::FutureExt;
@@ -145,6 +146,7 @@ async fn start_batch_prover(
             proof_sampling_number: 0,
             enable_recovery: true,
             max_commitments_per_proof: None,
+            risc0_host: Risc0HostConfig::from_env().expect("Failed to load Risc0HostConfig"),
         }),
         None,
         rollup_config,
