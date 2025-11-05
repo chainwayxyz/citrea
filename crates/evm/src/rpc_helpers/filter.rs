@@ -291,7 +291,6 @@ impl CitreaFilter {
     /// Uninstalls a filter with the given id. Returns true if the filter was found and removed,
     /// false otherwise.
     pub async fn uninstall_filter(&self, id: FilterId) -> RpcResult<bool> {
-        tracing::trace!(target: "rpc::eth", "Serving eth_uninstallFilter");
         let mut filters = self.active_filters.inner.write().await;
         if filters.remove(&id).is_some() {
             tracing::trace!(target: "rpc::eth::filter", ?id, "uninstalled filter");
