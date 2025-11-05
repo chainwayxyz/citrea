@@ -7,8 +7,11 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 pub use crate::config::rpc::RpcConfig;
+use crate::risc0::Risc0HostConfig;
 use crate::utils::read_env;
 
+/// Configuration types for RISC0 provers
+pub mod risc0;
 mod rpc;
 
 pub trait FromEnv: Sized {
@@ -162,6 +165,9 @@ pub struct BatchProverConfig {
     pub enable_recovery: bool,
     /// Maximum number of commitments per proof partition
     pub max_commitments_per_proof: Option<usize>,
+    /// Configuration for Risc0Host
+    #[serde(default)]
+    pub risc0_host: Risc0HostConfig,
 }
 
 /// Prover configuration
@@ -175,6 +181,9 @@ pub struct LightClientProverConfig {
     pub enable_recovery: bool,
     /// The starting DA block to sync from
     pub initial_da_height: u64,
+    /// Configuration for Risc0Host
+    #[serde(default)]
+    pub risc0_host: Risc0HostConfig,
 }
 
 impl Default for BatchProverConfig {
@@ -184,6 +193,7 @@ impl Default for BatchProverConfig {
             proof_sampling_number: 0,
             enable_recovery: true,
             max_commitments_per_proof: None,
+            risc0_host: Default::default(),
         }
     }
 }
@@ -195,6 +205,7 @@ impl Default for LightClientProverConfig {
             proof_sampling_number: 0,
             enable_recovery: true,
             initial_da_height: 1,
+            risc0_host: Default::default(),
         }
     }
 }
@@ -208,6 +219,7 @@ impl FromEnv for BatchProverConfig {
             max_commitments_per_proof: read_env("MAX_COMMITMENTS_PER_PROOF")
                 .ok()
                 .and_then(|val| val.parse().ok()),
+            risc0_host: Risc0HostConfig::from_env()?,
         })
     }
 }
@@ -219,6 +231,7 @@ impl FromEnv for LightClientProverConfig {
             proof_sampling_number: read_env("PROOF_SAMPLING_NUMBER")?.parse()?,
             enable_recovery: read_env("ENABLE_RECOVERY")?.parse()?,
             initial_da_height: read_env("INITIAL_DA_HEIGHT")?.parse()?,
+            risc0_host: Risc0HostConfig::from_env()?,
         })
     }
 }
@@ -494,6 +507,11 @@ mod tests {
 
     use super::*;
     use crate::config::rpc::*;
+    use crate::risc0::{
+        BonsaiProverConfig, BoundlessConfig, BoundlessPinataStorageConfig, BoundlessProverConfig,
+        BoundlessS3StorageConfig, BoundlessStorageConfig, LocalProverConfig, Risc0HostConfig,
+        Risc0ProverConfig,
+    };
 
     fn create_config_from(content: &str) -> NamedTempFile {
         let mut config_file = NamedTempFile::new().unwrap();
@@ -603,6 +621,7 @@ mod tests {
             proof_sampling_number: 500,
             enable_recovery: true,
             max_commitments_per_proof: None,
+            risc0_host: Default::default(),
         };
         assert_eq!(config, expected);
     }
@@ -670,6 +689,7 @@ mod tests {
             proof_sampling_number: 500,
             enable_recovery: true,
             max_commitments_per_proof: None,
+            risc0_host: Default::default(),
         };
         assert_eq!(prover_config, expected);
     }
@@ -825,5 +845,171 @@ mod tests {
             bind_port: Some(5000),
         };
         assert_eq!(telemetry_config, expected);
+    }
+
+    #[test]
+    fn test_correct_prover_config_local() {
+        let config = r#"
+            proving_mode = "execute"
+            proof_sampling_number = 42
+            enable_recovery = true
+
+            [risc0_host]
+            tx_backup_dir = "/tmp/backup"
+            
+            [risc0_host.prover.Local]
+            r0vm_path = "path/to/vm"
+            dev_mode = false
+        "#;
+
+        let config_file = create_config_from(config);
+        let config: BatchProverConfig = from_toml_path(config_file.path()).unwrap();
+
+        let expected = BatchProverConfig {
+            proving_mode: ProverGuestRunConfig::Execute,
+            proof_sampling_number: 42,
+            enable_recovery: true,
+            max_commitments_per_proof: None,
+            risc0_host: Risc0HostConfig {
+                prover: Risc0ProverConfig::Local(LocalProverConfig {
+                    r0vm_path: Some("path/to/vm".into()),
+                    dev_mode: false,
+                }),
+                tx_backup_dir: Some("/tmp/backup".into()),
+            },
+        };
+        assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_correct_prover_config_bonsai() {
+        let config = r#"
+            proving_mode = "execute"
+            proof_sampling_number = 42
+            enable_recovery = true
+
+            [risc0_host.prover.Bonsai]
+            api_url = "http://127.0.0.1"
+            api_key = "testkey"
+        "#;
+
+        let config_file = create_config_from(config);
+        let config: BatchProverConfig = from_toml_path(config_file.path()).unwrap();
+
+        let risc0_host = Risc0HostConfig {
+            prover: Risc0ProverConfig::Bonsai(BonsaiProverConfig {
+                api_url: "http://127.0.0.1".to_string(),
+                api_key: "testkey".to_string(),
+            }),
+            tx_backup_dir: None,
+        };
+        let expected = BatchProverConfig {
+            proving_mode: ProverGuestRunConfig::Execute,
+            proof_sampling_number: 42,
+            enable_recovery: true,
+            max_commitments_per_proof: None,
+            risc0_host,
+        };
+        assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_correct_prover_config_boundless_s3() {
+        let config = r#"
+            proving_mode = "execute"
+            proof_sampling_number = 42
+            enable_recovery = true
+
+            [risc0_host.prover.Boundless.boundless]
+            wallet_private_key = "abcd"
+            rpc_url = "127.0.0.1"
+            is_offchain = true
+
+            [risc0_host.prover.Boundless.storage]
+            type = "s3"
+            s3_access_key = "access_key"
+            s3_secret_key = "secret_key"
+            s3_bucket = "bucket"
+            s3_url = "url"
+            aws_region = "region"
+            s3_use_presigned = true
+        "#;
+
+        let config_file = create_config_from(config);
+        let config: BatchProverConfig = from_toml_path(config_file.path()).unwrap();
+
+        let boundless_prover_config = BoundlessProverConfig {
+            boundless: BoundlessConfig {
+                wallet_private_key: "abcd".to_string(),
+                rpc_url: "127.0.0.1".to_string(),
+                is_offchain: true,
+            },
+            storage: BoundlessStorageConfig::S3(BoundlessS3StorageConfig {
+                s3_access_key: "access_key".to_string(),
+                s3_secret_key: "secret_key".to_string(),
+                s3_bucket: "bucket".to_string(),
+                s3_url: "url".to_string(),
+                aws_region: "region".to_string(),
+                s3_use_presigned: true,
+            }),
+        };
+        let expected = BatchProverConfig {
+            proving_mode: ProverGuestRunConfig::Execute,
+            proof_sampling_number: 42,
+            enable_recovery: true,
+            max_commitments_per_proof: None,
+            risc0_host: Risc0HostConfig {
+                prover: Risc0ProverConfig::Boundless(Box::new(boundless_prover_config)),
+                tx_backup_dir: None,
+            },
+        };
+        assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_correct_prover_config_boundless_pinata() {
+        let config = r#"
+            proving_mode = "execute"
+            proof_sampling_number = 42
+            enable_recovery = true
+
+            [risc0_host.prover.Boundless.boundless]
+            wallet_private_key = "abcd"
+            rpc_url = "127.0.0.1"
+            is_offchain = true
+
+            [risc0_host.prover.Boundless.storage]
+            type = "pinata"
+            pinata_jwt = "jwt"
+            pinata_api_url = "http://0.0.0.1"
+            ipfs_gateway_url = "http://127.0.0.1"
+        "#;
+
+        let config_file = create_config_from(config);
+        let config: BatchProverConfig = from_toml_path(config_file.path()).unwrap();
+
+        let boundless_prover_config = BoundlessProverConfig {
+            boundless: BoundlessConfig {
+                wallet_private_key: "abcd".to_string(),
+                rpc_url: "127.0.0.1".to_string(),
+                is_offchain: true,
+            },
+            storage: BoundlessStorageConfig::Pinata(BoundlessPinataStorageConfig {
+                pinata_jwt: "jwt".to_string(),
+                pinata_api_url: "http://0.0.0.1".to_string(),
+                ipfs_gateway_url: "http://127.0.0.1".to_string(),
+            }),
+        };
+        let expected = BatchProverConfig {
+            proving_mode: ProverGuestRunConfig::Execute,
+            proof_sampling_number: 42,
+            enable_recovery: true,
+            max_commitments_per_proof: None,
+            risc0_host: Risc0HostConfig {
+                prover: Risc0ProverConfig::Boundless(Box::new(boundless_prover_config)),
+                tx_backup_dir: None,
+            },
+        };
+        assert_eq!(config, expected);
     }
 }
