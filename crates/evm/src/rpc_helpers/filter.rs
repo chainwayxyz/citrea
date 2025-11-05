@@ -213,7 +213,7 @@ impl CitreaFilter {
         &self.active_filters
     }
 
-    /// Endless future that [`Self::clear_stale_filters`] every `stale_filter_ttl` interval.
+    /// Endless future that calls [`Self::clear_stale_filters`] every `stale_filter_ttl` interval.
     /// Nonetheless, this endless future frees the thread at every await point.
     async fn watch_and_clear_stale_filters(&self) {
         tracing::debug!(
