@@ -46,7 +46,7 @@ jobs:
       SERVICE: ${{ inputs.service }}
       NETWORK: ${{ inputs.network }}
       RELEASE: ${{ inputs.release }}
-      OPERATION_STOP_STEP: ${{ inputs.operation-stop-step}}
+      OPERATION_STOP_STEP: ${{ inputs.operation-stop-step }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
