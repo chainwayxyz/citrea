@@ -183,6 +183,7 @@ impl fmt::Display for RpcConfig {
                 &self.max_subscriptions_per_connection,
             )
             .field("trace_chain_block_limit", &self.trace_chain_block_limit)
+            .field("stale_filter_ttl", &self.stale_filter_ttl)
             .field("proving_jobs_limit", &self.proving_jobs_limit)
             .field("timeout", &self.timeout)
             .field("enable_filters", &self.enable_filters)
