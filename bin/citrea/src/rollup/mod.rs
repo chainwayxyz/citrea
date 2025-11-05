@@ -22,7 +22,7 @@ use citrea_storage_ops::rollback::Rollback;
 use jsonrpsee::RpcModule;
 use reth_tasks::{TaskExecutor, TaskManager};
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
-use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps, TransactionLedgerDB};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::L2BlockNumber;
@@ -54,6 +54,8 @@ type GenesisParams<T> = StfGenesisParams<
 pub struct Storage {
     /// The ledger DB instance
     pub ledger_db: LedgerDB,
+    /// The transactional ledger DB instance
+    pub ledger_db_tx: TransactionLedgerDB,
     /// The prover storage manager instance.
     pub storage_manager: ProverStorageManager,
 }
@@ -110,6 +112,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         backup_manager: &Arc<BackupManager>,
     ) -> Result<Storage> {
         let ledger_db = self.create_ledger_db(rocksdb_config);
+        let ledger_db_tx = self.create_ledger_db_tx(rocksdb_config);
         let storage_manager = self.create_storage_manager(rollup_config)?;
 
         backup_manager
@@ -125,6 +128,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         Ok(Storage {
             ledger_db,
+            ledger_db_tx,
             storage_manager,
         })
     }
@@ -134,6 +138,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     async fn sync_ledger_and_state_db(
         &self,
         ledger_db: &LedgerDB,
+        ledger_db_tx: TransactionLedgerDB,
         storage_manager: &ProverStorageManager,
         node_type: NodeType,
     ) -> Result<()> {
@@ -156,7 +161,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
                 state_version
             );
             let rollback = Rollback::new(
-                ledger_db.inner(),
+                ledger_db_tx,
                 storage_manager.get_state_db_handle(),
                 storage_manager.get_native_db_handle(),
             );
@@ -247,6 +252,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rollup_config: FullNodeConfig<Self::DaConfig>,
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         ledger_db: LedgerDB,
+        ledger_db_tx: TransactionLedgerDB,
         storage_manager: ProverStorageManager,
         l2_block_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
@@ -261,8 +267,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let native_stf = StfBlueprint::new();
 
-        self.sync_ledger_and_state_db(&ledger_db, &storage_manager, NodeType::FullNode)
-            .await?;
+        self.sync_ledger_and_state_db(
+            &ledger_db,
+            ledger_db_tx,
+            &storage_manager,
+            NodeType::FullNode,
+        )
+        .await?;
         let init_params =
             self.init_chain(genesis_config, &native_stf, &ledger_db, &storage_manager)?;
 
@@ -304,6 +315,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rollup_config: FullNodeConfig<Self::DaConfig>,
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         ledger_db: LedgerDB,
+        ledger_db_tx: TransactionLedgerDB,
         storage_manager: ProverStorageManager,
         l2_block_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
@@ -319,8 +331,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let native_stf = StfBlueprint::new();
 
-        self.sync_ledger_and_state_db(&ledger_db, &storage_manager, NodeType::BatchProver)
-            .await?;
+        self.sync_ledger_and_state_db(
+            &ledger_db,
+            ledger_db_tx,
+            &storage_manager,
+            NodeType::BatchProver,
+        )
+        .await?;
         let init_params =
             self.init_chain(genesis_config, &native_stf, &ledger_db, &storage_manager)?;
 

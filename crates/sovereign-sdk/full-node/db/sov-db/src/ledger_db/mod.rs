@@ -14,7 +14,8 @@ use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use sov_schema_db::schema::{KeyCodec, ValueCodec};
 use sov_schema_db::{
-    ScanDirection, Schema, SchemaBatch, SchemaIterator, SeekKeyEncoder, TransactionDB, DB,
+    ScanDirection, Schema, SchemaBatch, SchemaIterator, SchemaIteratorTx, SeekKeyEncoder,
+    TransactionDB, DB,
 };
 use tracing::instrument;
 use uuid::Uuid;
@@ -1024,13 +1025,13 @@ impl LedgerTx {
 }
 
 #[derive(Clone)]
-/// Asd
+/// An instance of the ledger database capable of transactional operations.
 pub struct TransactionLedgerDB {
-    /// Asd
+    /// The underlying database instance.
     pub(crate) db: Arc<TransactionDB>,
 }
 
-/// Asd
+/// A transaction for batching multiple ledger operations together.
 pub struct LedgerDBTransaction<'a> {
     db: Arc<TransactionDB>,
     tx: rocksdb::Transaction<'a, rocksdb::TransactionDB>,
@@ -1039,7 +1040,6 @@ pub struct LedgerDBTransaction<'a> {
 impl TransactionLedgerDB {
     /// LedgerDB path suffix
     pub const DB_PATH_SUFFIX: &'static str = "ledger";
-    const DB_NAME: &'static str = "ledger-db";
 
     /// Open a [`LedgerDB`] (backed by RocksDB) at the specified path.
     /// Will take optional column families, used for migration purposes.
@@ -1052,7 +1052,7 @@ impl TransactionLedgerDB {
             .column_families
             .clone()
             .unwrap_or_else(|| LEDGER_TABLES.iter().map(|e| e.to_string()).collect());
-        let inner = DB::open_transaction_db(path, Self::DB_NAME, tables, &raw_options)?;
+        let inner = DB::open_transaction_db(path, tables, &raw_options)?;
 
         Ok(Self {
             db: Arc::new(inner),
@@ -1072,7 +1072,8 @@ impl TransactionLedgerDB {
 /// 1. to put/get/delete data using KeyCodec/ValueCodec.
 /// 2. to commit the transaction.
 impl LedgerDBTransaction<'_> {
-    fn put<S: Schema>(
+    /// Put an instance by key and value.
+    pub fn put<S: Schema>(
         &self,
         key: &impl KeyCodec<S>,
         value: &impl ValueCodec<S>,
@@ -1098,7 +1099,11 @@ impl LedgerDBTransaction<'_> {
         self.db.get_cf_handle(cf_name)
     }
 
-    fn get<S: Schema>(&self, schema_key: &impl KeyCodec<S>) -> anyhow::Result<Option<S::Value>> {
+    /// Get an instance by key.
+    pub fn get<S: Schema>(
+        &self,
+        schema_key: &impl KeyCodec<S>,
+    ) -> anyhow::Result<Option<S::Value>> {
         let start = Instant::now();
 
         let k = schema_key.encode_key()?;
@@ -1122,12 +1127,33 @@ impl LedgerDBTransaction<'_> {
         result
     }
 
-    fn delete<S: Schema>(&self, key: &impl KeyCodec<S>) -> anyhow::Result<()> {
+    /// Delete an instance by key.
+    pub fn delete<S: Schema>(&self, key: &impl KeyCodec<S>) -> anyhow::Result<()> {
         let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
         let key = key.encode_key()?;
         self.tx.delete_cf(cf_handle, key)?;
 
         Ok(())
+    }
+
+    /// Returns a [`SchemaIteratorTx`] on a certain schema with the provided read options and direction.
+    pub fn iter_with_direction<S: Schema>(
+        &self,
+        opts: ReadOptions,
+        direction: ScanDirection,
+    ) -> anyhow::Result<SchemaIteratorTx<S>> {
+        let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
+        Ok(SchemaIteratorTx::new(
+            self.tx.raw_iterator_cf_opt(cf_handle, opts),
+            direction,
+        ))
+    }
+
+    /// Returns a forward [`SchemaIteratorTx`] on a certain schema with the default read options.
+    pub fn iter<S: Schema>(&self) -> anyhow::Result<SchemaIteratorTx<S>> {
+        let mut read_options = ReadOptions::default();
+        read_options.set_async_io(true);
+        self.iter_with_direction::<S>(read_options, ScanDirection::Forward)
     }
 
     /// Commit the transaction
@@ -1144,6 +1170,8 @@ impl LedgerDBTransaction<'_> {
     }
 }
 
+/// Implementation of high-level ledger operations for LedgerDBTransaction.
+/// TODO: consider removing it and use raw put/get/delete methods instead.
 impl LedgerDBTransaction<'_> {
     /// Sets the state diff by block number
     #[instrument(level = "trace", skip(self), err, ret)]

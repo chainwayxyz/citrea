@@ -40,17 +40,27 @@ pub enum ScanDirection {
 
 /// DB Iterator parameterized on [`Schema`] that seeks with [`Schema::Key`] and yields
 /// [`Schema::Key`] and [`Schema::Value`] pairs.
-pub struct SchemaIterator<'a, S> {
-    db_iter: rocksdb::DBRawIterator<'a>,
+pub struct SchemaIterator<'a, S, D: rocksdb::DBAccess = rocksdb::DB> {
+    db_iter: rocksdb::DBRawIteratorWithThreadMode<'a, D>,
     direction: ScanDirection,
     phantom: PhantomData<S>,
 }
 
-impl<'a, S> SchemaIterator<'a, S>
+/// Schema iterator for rocksdb::Transaction.
+pub type SchemaIteratorTx<'a, S> =
+    SchemaIterator<'a, S, rocksdb::Transaction<'a, rocksdb::TransactionDB>>;
+
+impl<'a, S, D> SchemaIterator<'a, S, D>
 where
     S: Schema,
+    D: rocksdb::DBAccess,
 {
-    pub(crate) fn new(db_iter: rocksdb::DBRawIterator<'a>, direction: ScanDirection) -> Self {
+    /// Creates a new [`SchemaIterator`] from a raw RocksDB iterator, with the given scan direction.
+    // FIXME: Solve public constructor exposure
+    pub fn new(
+        db_iter: rocksdb::DBRawIteratorWithThreadMode<'a, D>,
+        direction: ScanDirection,
+    ) -> Self {
         SchemaIterator {
             db_iter,
             direction,
@@ -136,9 +146,10 @@ impl<K, V> IteratorOutput<K, V> {
     }
 }
 
-impl<S> Iterator for SchemaIterator<'_, S>
+impl<S, D> Iterator for SchemaIterator<'_, S, D>
 where
     S: Schema,
+    D: rocksdb::DBAccess,
 {
     type Item = Result<IteratorOutput<S::Key, S::Value>>;
 
@@ -147,7 +158,12 @@ where
     }
 }
 
-impl<S> FusedIterator for SchemaIterator<'_, S> where S: Schema {}
+impl<S, D> FusedIterator for SchemaIterator<'_, S, D>
+where
+    S: Schema,
+    D: rocksdb::DBAccess,
+{
+}
 
 /// Iterates over given column backwards
 pub struct RawDbReverseIterator<'a> {

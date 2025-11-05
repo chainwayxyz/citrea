@@ -1,11 +1,9 @@
-use std::sync::Arc;
-
 use citrea_common::NodeType;
+use sov_db::ledger_db::TransactionLedgerDB;
 use sov_db::schema::tables::{
     BATCH_PROVER_LEDGER_TABLES, FULL_NODE_LEDGER_TABLES, LIGHT_CLIENT_PROVER_LEDGER_TABLES,
     SEQUENCER_LEDGER_TABLES,
 };
-use sov_schema_db::DB;
 use tracing::{debug, error, info, warn};
 
 use super::types::RollbackContext;
@@ -15,7 +13,11 @@ use crate::rollback::node::light_client::LightClientLedgerRollback;
 use crate::rollback::node::sequencer::SequencerLedgerRollback;
 use crate::rollback::types::LedgerNodeRollback;
 
-pub fn rollback_ledger(node_type: NodeType, ledger_db: Arc<DB>, context: RollbackContext) {
+pub fn rollback_ledger(
+    node_type: NodeType,
+    ledger_db: TransactionLedgerDB,
+    context: RollbackContext,
+) {
     debug!(
         "Rolling back {}, down to L2 block {:?}, L1 block {:?}",
         node_type, context.l2_target, context.l1_target

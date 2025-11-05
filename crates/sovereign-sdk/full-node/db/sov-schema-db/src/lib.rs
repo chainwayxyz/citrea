@@ -27,7 +27,9 @@ use std::time::Instant;
 
 use ::metrics::{gauge, histogram};
 use anyhow::format_err;
-pub use iterator::{RawDbReverseIterator, ScanDirection, SchemaIterator, SeekKeyEncoder};
+pub use iterator::{
+    RawDbReverseIterator, ScanDirection, SchemaIterator, SchemaIteratorTx, SeekKeyEncoder,
+};
 pub use rocksdb;
 pub use rocksdb::DEFAULT_COLUMN_FAMILY_NAME;
 use rocksdb::{DBIterator, ReadOptions, WriteBatch};
@@ -49,7 +51,7 @@ pub struct DB {
 
 /// asd
 pub struct TransactionDB {
-    name: &'static str, // for logging
+    // name: &'static str, // for logging
     inner: rocksdb::TransactionDB,
 }
 
@@ -122,7 +124,6 @@ impl DB {
     /// column family options.
     pub fn open_transaction_db(
         path: impl AsRef<Path>,
-        name: &'static str,
         column_families: impl IntoIterator<Item = impl Into<String>>,
         options: &RawRocksdbOptions,
     ) -> anyhow::Result<TransactionDB> {
@@ -138,7 +139,7 @@ impl DB {
                 rocksdb::ColumnFamilyDescriptor::new(cf_name, cf_opts)
             }),
         )?;
-        Ok(TransactionDB { name, inner })
+        Ok(TransactionDB { inner })
     }
 
     /// Returns the path of the DB.

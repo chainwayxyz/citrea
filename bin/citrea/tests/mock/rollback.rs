@@ -14,7 +14,7 @@ use citrea_storage_ops::rollback::Rollback;
 use futures::FutureExt;
 use reth_tasks::TaskManager;
 use sov_db::ledger_db::migrations::copy_db_dir_recursive;
-use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps, TransactionLedgerDB};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::tables::{
@@ -37,14 +37,20 @@ use crate::mock::evm::init_test_rollup;
 fn instantiate_dbs(
     db_path: &Path,
     tables: &[&str],
-) -> anyhow::Result<(LedgerDB, Arc<sov_schema_db::DB>, Arc<sov_schema_db::DB>)> {
+) -> anyhow::Result<(
+    LedgerDB,
+    TransactionLedgerDB,
+    Arc<sov_schema_db::DB>,
+    Arc<sov_schema_db::DB>,
+)> {
     let tables = tables.iter().map(|x| x.to_string()).collect::<Vec<_>>();
     let rocksdb_config = RocksdbConfig::new(db_path, None, Some(tables.to_vec()));
     let ledger_db = LedgerDB::with_config(&rocksdb_config)?;
+    let ledger_db_tx = TransactionLedgerDB::with_config(&rocksdb_config)?;
     let native_db = Arc::new(NativeDB::setup_schema_db(&rocksdb_config)?);
     let state_db = Arc::new(StateDB::setup_schema_db(&rocksdb_config)?);
 
-    Ok((ledger_db, native_db, state_db))
+    Ok((ledger_db, ledger_db_tx, native_db, state_db))
 }
 
 async fn start_sequencer(
@@ -175,8 +181,8 @@ async fn rollback_node(
 ) -> anyhow::Result<()> {
     copy_db_dir_recursive(old_path, new_path).unwrap();
 
-    let (ledger_db, native_db, state_db) = instantiate_dbs(new_path, tables).unwrap();
-    let rollback = Rollback::new(ledger_db.inner(), state_db.clone(), native_db.clone());
+    let (ledger_db, ledger_db_tx, native_db, state_db) = instantiate_dbs(new_path, tables).unwrap();
+    let rollback = Rollback::new(ledger_db_tx, state_db.clone(), native_db.clone());
 
     rollback
         .execute(
@@ -680,7 +686,7 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
     copy_db_dir_recursive(&batch_prover_db_dir, &new_batch_prover_db_dir).unwrap();
 
     // At block 22, full node SHOULD have a verified proof
-    let (ledger_db, _native_db, _state_db) =
+    let (ledger_db, _ledger_db_tx, _native_db, _state_db) =
         instantiate_dbs(&new_full_node_db_dir, FULL_NODE_LEDGER_TABLES).unwrap();
     let ledger_db = ledger_db.inner();
     assert!(ledger_db
@@ -774,7 +780,7 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
     .unwrap();
 
     // At block 11, verified proof in full node should have been pruned.
-    let (fn_ledger_db, _, _) =
+    let (fn_ledger_db, _, _, _) =
         instantiate_dbs(&new_full_node_db_dir, FULL_NODE_LEDGER_TABLES).unwrap();
     let fn_ledger_db = fn_ledger_db.inner();
     assert!(fn_ledger_db
@@ -787,7 +793,7 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
         .is_none());
 
     // At block 11, verified proof in prover should have been pruned.
-    let (bp_ledger_db, _, _) =
+    let (bp_ledger_db, _, _, _) =
         instantiate_dbs(&new_batch_prover_db_dir, BATCH_PROVER_LEDGER_TABLES).unwrap();
     let bp_ledger_db = bp_ledger_db.inner();
     assert!(bp_ledger_db

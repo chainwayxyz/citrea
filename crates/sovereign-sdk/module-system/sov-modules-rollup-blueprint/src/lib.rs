@@ -10,7 +10,7 @@ use citrea_common::{FullNodeConfig, ProverGuestRunConfig, RpcConfig};
 use citrea_stf::runtime::CitreaRuntime;
 use prover_services::ParallelProverService;
 use reth_tasks::TaskExecutor;
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::{LedgerDB, TransactionLedgerDB};
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::DaSpec;
@@ -129,5 +129,10 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates instance of a LedgerDB.
     fn create_ledger_db(&self, rocksdb_config: &RocksdbConfig) -> LedgerDB {
         LedgerDB::with_config(rocksdb_config).expect("Ledger DB failed to open")
+    }
+
+    /// Creates instance of a transactional LedgerDB.
+    fn create_ledger_db_tx(&self, rocksdb_config: &RocksdbConfig) -> TransactionLedgerDB {
+        TransactionLedgerDB::with_config(rocksdb_config).expect("Ledger DB failed to open")
     }
 }
