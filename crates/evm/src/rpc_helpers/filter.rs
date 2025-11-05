@@ -403,17 +403,27 @@ impl CitreaFilter {
         evm: &Evm<C>,
         id: FilterId,
     ) -> Result<Vec<Log>, EthFilterError> {
+        let latest_block_number = evm
+            .blocks
+            .last(&mut working_set.accessory_state())
+            .ok_or(EthFilterError::InternalError)?
+            .header
+            .number;
         let filter = {
-            let filters = self.active_filters.inner.read().await;
-            if let FilterKind::Log(ref filter) = filters
-                .get(&id)
-                .ok_or_else(|| EthFilterError::FilterNotFound(id.clone()))?
-                .kind
-            {
-                *filter.clone()
-            } else {
-                // Not a log filter
+            let mut filters = self.active_filters.inner.write().await;
+
+            let filter = filters
+                .get_mut(&id)
+                .ok_or(EthFilterError::FilterNotFound(id.clone()))?;
+            if !matches!(filter.kind, FilterKind::Log(_)) {
                 return Err(EthFilterError::FilterNotFound(id));
+            }
+
+            filter.block = latest_block_number + 1;
+            filter.last_poll_timestamp = Instant::now();
+            match &filter.kind {
+                FilterKind::Log(f) => *f.clone(),
+                _ => unreachable!(),
             }
         };
 
