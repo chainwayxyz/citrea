@@ -84,11 +84,6 @@ jobs:
             exit 1
           fi
           
-          if [ "$matrix" = "null" ] || [ -z "$matrix" ]; then
-            echo "No mapping found for Service=$SERVICE Network=$NETWORK"
-            exit 1
-          fi
-          
           matrix_lower=$(echo "$matrix" | jq -c '[.[] | ascii_downcase]')
           
           echo "matrix=$matrix_lower" >> $GITHUB_OUTPUT
