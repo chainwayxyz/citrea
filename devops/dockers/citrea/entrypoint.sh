@@ -24,8 +24,8 @@ shutdown_gracefully() {
         kill -SIGINT "$MAIN_PROCESS_PID"
         wait "$MAIN_PROCESS_PID"
     fi
-   sleep "$STOP_WAIT"
-   echo "Shutdown handler is completed"
+    sleep "$STOP_WAIT"
+    echo "Shutdown handler is completed"
 }
 
 trap "shutdown_gracefully" SIGTERM SIGINT
