@@ -73,7 +73,7 @@ jobs:
           MAPPING_FILE_PATH="$DOCKER_PATH/services_source_2_target_mapping.json"
 
           if [ ! -f "$MAPPING_FILE_PATH" ]; then
-            echo "Mapping file not found at $MAPPING_FILE_PATH"      
+            echo "Mapping file not found at $MAPPING_FILE_PATH"
             exit 1
           fi
 
