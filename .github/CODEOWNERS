@@ -1,6 +1,6 @@
 # Default owners for all files
 * @chainwayxyz/citrea-bdfl
 # Owners for CI/CD and infrastructure files
-/.github/** @chainwayxyz/devops-bdfl
-/.gitsecret/** @chainwayxyz/devops-bdfl
-/devops/** @chainwayxyz/devops-bdfl
+/.github/** @chainwayxyz/ops-bdfl
+/.gitsecret/** @chainwayxyz/ops-bdfl
+/devops/** @chainwayxyz/ops-bdfl
