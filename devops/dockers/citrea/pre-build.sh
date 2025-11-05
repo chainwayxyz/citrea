@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Usage:  <service_name> <release> <network> <platform>
+# Usage:  ./pre-build.sh <service_name> <release> <network> <platform>
 # Example: ./pre-build.sh full-node v0.8.1 dev-net linux-amd64
 
 set -euo pipefail
