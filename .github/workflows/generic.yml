@@ -42,6 +42,7 @@ jobs:
       source_version: ${{ steps.mapping.outputs.source_version }}
       target_network: ${{ steps.mapping.outputs.target_network }}
       target_service: ${{ steps.mapping.outputs.target_service }}
+      operation_stop_step: ${{ steps.mapping.outputs.operation_stop_step }}
     env:
       SERVICE: ${{ inputs.service }}
       NETWORK: ${{ inputs.network }}
