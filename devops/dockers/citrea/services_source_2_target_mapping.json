@@ -16,18 +16,36 @@
     ]
   },
   "Sequencer": {
-    "Dev-Net": ["citrea-sequencer"],
-    "Test-Net": ["citrea-sequencer"],
-    "Main-Net": ["citrea-sequencer"]
+    "Dev-Net": [
+      "citrea-sequencer"
+    ],
+    "Test-Net": [
+      "citrea-sequencer"
+    ],
+    "Main-Net": [
+      "citrea-sequencer"
+    ]
   },
   "Batch-Prover": {
-    "Dev-Net": ["citrea-prover"],
-    "Test-Net": ["citrea-prover"],
-    "Main-Net": ["citrea-prover"]
+    "Dev-Net": [
+      "citrea-prover"
+    ],
+    "Test-Net": [
+      "citrea-prover"
+    ],
+    "Main-Net": [
+      "citrea-prover"
+    ]
   },
   "Light-Client-Prover": {
-    "Dev-Net": ["citrea-light-prover"],
-    "Test-Net": ["citrea-light-prover"],
-    "Main-Net": ["citrea-light-prover"]
+    "Dev-Net": [
+      "citrea-light-prover"
+    ],
+    "Test-Net": [
+      "citrea-light-prover"
+    ],
+    "Main-Net": [
+      "citrea-light-prover"
+    ]
   }
 }

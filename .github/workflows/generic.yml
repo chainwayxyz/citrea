@@ -7,7 +7,7 @@ on:
       operation-stop-step:
         description: Stop Operation at
         type: choice
-        options: [Build, Publish]
+        options: [ Build, Publish ]
       release:
         description: Release Version
         type: string
@@ -15,11 +15,11 @@ on:
       service:
         description: Service to Deploy
         type: choice
-        options: [Sequencer, Batch-Prover, Light-Client-Prover, Full-Node]
+        options: [ Sequencer, Batch-Prover, Light-Client-Prover, Full-Node ]
       network:
         description: Environment to Deploy
         type: choice
-        options: [Dev-Net, Test-Net, Main-Net]
+        options: [ Dev-Net, Test-Net, Main-Net ]
         default: Dev-Net
 
 env:
@@ -88,7 +88,7 @@ jobs:
             echo "No mapping found for Service=$SERVICE Network=$NETWORK"
             exit 1
           fi
-                    
+          
           matrix_lower=$(echo "$matrix" | jq -c '[.[] | ascii_downcase]')
           
           echo "matrix=$matrix_lower" >> $GITHUB_OUTPUT
