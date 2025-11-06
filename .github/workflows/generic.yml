@@ -110,6 +110,8 @@ jobs:
       target_network: ${{ needs.set-matrix.outputs.target_network }}
       target_service: ${{ matrix.service }}
       operation_stop_step: ${{ needs.set-matrix.outputs.operation_stop_step }}
+    # All secrets available to the caller job flow into the callee.
+    # A malicious change in the callee (or a future well-meaning change) can access/exfiltrate unrelated secrets.
     secrets: inherit
   deploy:
     if: ${{ inputs.operation-stop-step == 'Deploy' }}
@@ -125,4 +127,6 @@ jobs:
       source_version: ${{ needs.set-matrix.outputs.source_version }}
       target_network: ${{ needs.set-matrix.outputs.target_network }}
       target_service: ${{ matrix.service }}
+    # All secrets available to the caller job flow into the callee.
+    # A malicious change in the callee (or a future well-meaning change) can access/exfiltrate unrelated secrets.
     secrets: inherit
