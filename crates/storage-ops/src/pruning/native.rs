@@ -32,7 +32,7 @@ pub(crate) fn prune_native_db(native_db: Arc<sov_schema_db::DB>, up_to_block: u6
         }
 
         // AccessoryStateVec entries (blocks, transactions, receipts) need special handling:
-        // - Each entry has a UNIQUE key (exampel: E/blocks/e\x14 for block 20, E/blocks/e\x15 for block 21)
+        // - Each entry has a UNIQUE key (example: E/blocks/e\x14 for block 20, E/blocks/e\x15 for block 21)
         // - Since keys never repeat, seen_keys logic won't work,
         // - We must delete directly based on version, without checking seen_keys
         // This is different from versioned state where the SAME key appears with multiple versions.
