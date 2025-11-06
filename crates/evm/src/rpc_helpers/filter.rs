@@ -234,7 +234,7 @@ impl CitreaFilter {
     /// Clears all filters that have not been polled for longer than the configured
     /// `stale_filter_ttl` at the given instant.
     pub async fn clear_stale_filters(&self, now: Instant) {
-        tracing::debug!(target: "rpc::eth", "clear stale filters");
+        tracing::debug!(target: "clearStaleFilters", "clear stale filters");
 
         let removed_ids = {
             let mut filters = self.active_filters().inner.write().await;
@@ -252,7 +252,7 @@ impl CitreaFilter {
         };
 
         for id in removed_ids {
-            tracing::trace!(target: "rpc::eth", "evict filter with id: {:?}", id);
+            tracing::trace!(target: "clearStaleFilters", "evict filter with id: {:?}", id);
         }
     }
 
@@ -293,7 +293,7 @@ impl CitreaFilter {
     pub async fn uninstall_filter(&self, id: FilterId) -> RpcResult<bool> {
         let mut filters = self.active_filters.inner.write().await;
         if filters.remove(&id).is_some() {
-            tracing::trace!(target: "rpc::eth::filter", ?id, "uninstalled filter");
+            tracing::trace!(target: "uninstallFilter", ?id, "uninstalled filter");
             Ok(true)
         } else {
             Ok(false)
