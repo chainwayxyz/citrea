@@ -13,7 +13,9 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
+#[cfg(feature = "native")]
+use serde::Deserialize;
 #[cfg(feature = "native")]
 use tokio::sync::oneshot;
 
