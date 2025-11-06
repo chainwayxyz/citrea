@@ -148,18 +148,21 @@ where
         // keep track of the number of ongoing proofs and notify the caller when the proof is done
         tokio::spawn(async move {
             let _permit = permit; // Hold permit until task completion
-            let proof = proof_rx.await;
+            let proof = proof_rx.await; // proof with job buraya geliyor
 
             PARALLEL_PROVER_METRICS.ongoing_proving_jobs.decrement(1);
 
             match proof {
                 Ok(proof) => {
+                    let ProofWithJob { proof, info, .. } = proof;
+
                     let duration = Instant::now()
                         .saturating_duration_since(proof_start_time)
                         .as_secs_f64();
                     let proof_with_duration = ProofWithDuration {
-                        proof: proof.proof,
+                        proof,
                         duration,
+                        info,
                     };
                     tx.send(proof_with_duration)
                         .expect("Proof channel should not close");
