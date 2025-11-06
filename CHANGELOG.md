@@ -5,7 +5,8 @@
 ### Added
 - feat: Implement geth filter rpc endpoints #2956\
   &nbsp;&nbsp;**New env vars:**\
-  &nbsp;&nbsp;&nbsp;&nbsp; `stale_filter_ttl` duration in seconds before a stale filter is evicted from active filters cache
+  &nbsp;&nbsp;&nbsp;&nbsp; `stale_filter_ttl` duration in seconds before a stale filter is evicted from active filters cache\
+  &nbsp;&nbsp;&nbsp;&nbsp; `enable_filters` enables or disables the filter RPC endpoints (default: true)
 
 ## v0.8.1 (2025-10-25)
 Fixes Testnet guest list for Light Client Prover.
