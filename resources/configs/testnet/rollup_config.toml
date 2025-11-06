@@ -56,7 +56,7 @@ bind_port = 8080
 # true by default
 # enable_js_tracer = true
 
-# evicts stale filters every n seconds, default to 300 seconds
+# filters are considered stale after n seconds of inactivity (time since last poll), default to 300 seconds
 # stale_filter_ttl = 300
 
 [runner]
