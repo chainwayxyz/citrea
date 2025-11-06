@@ -8,7 +8,7 @@ use sov_rollup_interface::rpc::{
 };
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
-use sov_rollup_interface::zk::Proof;
+use sov_rollup_interface::zk::{Proof, ProvingInfo};
 
 /// The on-disk format for a state transition.
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
@@ -35,6 +35,8 @@ pub struct StoredBatchProof {
     pub proof: Proof,
     /// Output
     pub proof_output: StoredBatchProofOutput,
+    /// Info
+    pub info: ProvingInfo,
 }
 
 impl From<StoredBatchProof> for BatchProofResponse {

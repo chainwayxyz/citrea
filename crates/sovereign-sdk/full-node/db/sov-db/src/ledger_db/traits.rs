@@ -6,7 +6,7 @@ use anyhow::Result;
 use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::StateDiff;
-use sov_rollup_interface::zk::{Proof, StorageRootHash};
+use sov_rollup_interface::zk::{Proof, ProvingInfo, StorageRootHash};
 use sov_schema_db::SchemaIterator;
 use uuid::Uuid;
 
@@ -246,6 +246,7 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
         id: Uuid,
         proof: Proof,
         output: StoredBatchProofOutput,
+        info: ProvingInfo,
     ) -> Result<()>;
 
     /// Deletes proving job by its id

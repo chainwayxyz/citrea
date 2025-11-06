@@ -26,7 +26,7 @@ pub mod light_client_proof;
 pub type Proof = Vec<u8>;
 
 #[cfg(feature = "native")]
-#[derive(Debug, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 /// Information about a local prover's execution.
 pub struct LocalInfo {
     /// segments count
@@ -42,7 +42,7 @@ pub struct LocalInfo {
 }
 
 #[cfg(feature = "native")]
-#[derive(Debug, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 /// Information about a bonsai prover's execution.
 pub struct BonsaiInfo {
     /// Session ID of the proof request
@@ -56,7 +56,7 @@ pub struct BonsaiInfo {
 }
 
 #[cfg(feature = "native")]
-#[derive(Debug, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 /// Information about a boundless prover's execution.
 pub struct BoundlessInfo {
     /// Request ID of the proof request
@@ -66,7 +66,7 @@ pub struct BoundlessInfo {
 }
 
 #[cfg(feature = "native")]
-#[derive(Debug, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 /// Information about prover's execution.
 pub enum ProvingInfo{
     /// Local prover info

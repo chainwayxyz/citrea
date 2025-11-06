@@ -7,7 +7,7 @@ use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::stf::StateDiff;
-use sov_rollup_interface::zk::{Proof, StorageRootHash};
+use sov_rollup_interface::zk::{Proof, ProvingInfo, StorageRootHash};
 use sov_schema_db::{ScanDirection, Schema, SchemaBatch, SchemaIterator, SeekKeyEncoder, DB};
 use tracing::instrument;
 use uuid::Uuid;
@@ -578,11 +578,13 @@ impl BatchProverLedgerOps for LedgerDB {
         id: Uuid,
         proof: Proof,
         output: StoredBatchProofOutput,
+        info: ProvingInfo,
     ) -> anyhow::Result<()> {
         let stored_proof = StoredBatchProof {
             l1_tx_id: None,
             proof,
             proof_output: output,
+            info,
         };
 
         let mut schema_batch = SchemaBatch::new();
