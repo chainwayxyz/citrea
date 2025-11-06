@@ -14,7 +14,6 @@ use crate::common::helpers::{tempdir_with_children, wait_for_l1_block, wait_for_
 
 /// Trigger pruning state DB data.
 #[tokio::test(flavor = "multi_thread")]
-#[ignore]
 async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
     citrea::initialize_logging(tracing::Level::INFO);
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
@@ -66,21 +65,19 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
     let get_balance_result = full_node_test_client
         .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(2))))
         .await;
-    assert!(get_balance_result.is_ok());
-    assert_eq!(get_balance_result.unwrap(), U256::from(0));
+    assert!(get_balance_result.is_err());
 
     let get_balance_result = full_node_test_client
-        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(19))))
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(20))))
         .await;
-    assert!(get_balance_result.is_ok());
-    assert_eq!(get_balance_result.unwrap(), U256::from(0));
+    assert!(get_balance_result.is_err());
 
     // Non pruned block balances should be available
     let balance = full_node_test_client
-        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(20))))
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(21))))
         .await
         .unwrap();
-    assert_eq!(balance, U256::from(20000000000000000000u128));
+    assert_eq!(balance, U256::from(21000000000000000000u128));
 
     let balance = full_node_test_client
         .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(50))))
@@ -112,21 +109,19 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
     let get_balance_result = full_node_test_client
         .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(42))))
         .await;
-    assert!(get_balance_result.is_ok());
-    assert_eq!(get_balance_result.unwrap(), U256::from(0));
+    assert!(get_balance_result.is_err());
 
     let get_balance_result = full_node_test_client
-        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(59))))
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(60))))
         .await;
-    assert!(get_balance_result.is_ok());
-    assert_eq!(get_balance_result.unwrap(), U256::from(0));
+    assert!(get_balance_result.is_err());
 
     // Non pruned block balances should be available
     let balance = full_node_test_client
-        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(80))))
+        .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(81))))
         .await
         .unwrap();
-    assert_eq!(balance, U256::from(80000000000000000000u128));
+    assert_eq!(balance, U256::from(81000000000000000000u128));
 
     let balance = full_node_test_client
         .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Number(100))))
@@ -143,7 +138,7 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
 /// Trigger pruning native DB data.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_native_db_pruning() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::DEBUG);
+    citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -204,6 +199,9 @@ async fn test_native_db_pruning() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&full_node_test_client, 51, None).await;
 
+    // Wait for pruning to complete
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
     // ####################################
     // ROUND 1: FAIL
     // ###################################
@@ -235,7 +233,7 @@ async fn test_native_db_pruning() -> Result<(), anyhow::Error> {
     )
     .catch_unwind()
     .await;
-    assert!(check_transaction_by_hash_result.unwrap().is_none());
+    assert!(check_transaction_by_hash_result.is_err());
 
     // ####################################
     // ROUND 2: FAIL
@@ -268,7 +266,7 @@ async fn test_native_db_pruning() -> Result<(), anyhow::Error> {
     )
     .catch_unwind()
     .await;
-    assert!(check_transaction_by_hash_result.unwrap().is_none());
+    assert!(check_transaction_by_hash_result.is_err());
 
     // ####################################
     // ROUND 3: Pass
@@ -325,6 +323,9 @@ async fn test_native_db_pruning() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&full_node_test_client, 81, None).await;
 
+    // Wait for pruning to complete
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
     // ####################################
     // ROUND 1: FAIL
     // ###################################
@@ -356,7 +357,7 @@ async fn test_native_db_pruning() -> Result<(), anyhow::Error> {
     )
     .catch_unwind()
     .await;
-    assert!(check_transaction_by_hash_result.unwrap().is_none());
+    assert!(check_transaction_by_hash_result.is_err());
 
     // ####################################
     // ROUND 2: FAIL
@@ -389,7 +390,7 @@ async fn test_native_db_pruning() -> Result<(), anyhow::Error> {
     )
     .catch_unwind()
     .await;
-    assert!(check_transaction_by_hash_result.unwrap().is_none());
+    assert!(check_transaction_by_hash_result.is_err());
 
     // ####################################
     // ROUND 3: Pass
