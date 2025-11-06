@@ -45,6 +45,11 @@ impl PrunerService {
                         if let Some(up_to_block) = self.pruner.should_prune(self.last_pruned_block, current_l2_block) {
                             self.pruner.prune(node_type, up_to_block).await;
                             self.last_pruned_block = up_to_block;
+
+                            // Store the pruned height immediately so RPC knows blocks are pruned
+                            if let Err(e) = self.pruner.store_last_pruned_l2_height(up_to_block) {
+                                error!("Failed to store last pruned L2 height {}: {:?}", up_to_block, e);
+                            }
                         }
                     }
                 },
