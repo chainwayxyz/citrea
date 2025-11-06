@@ -419,7 +419,8 @@ impl CitreaFilter {
                 return Err(EthFilterError::FilterNotFound(id));
             }
 
-            filter.block = latest_block_number + 1;
+            // Last block is not updated here because it is updated in filter_changes endpoint
+            // I am not sure if it should be updated here as well, but reth implementation does not do it
             filter.last_poll_timestamp = Instant::now();
             match &filter.kind {
                 FilterKind::Log(f) => *f.clone(),
