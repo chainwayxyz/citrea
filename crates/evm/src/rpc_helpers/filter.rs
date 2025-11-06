@@ -403,12 +403,6 @@ impl CitreaFilter {
         evm: &Evm<C>,
         id: FilterId,
     ) -> Result<Vec<Log>, EthFilterError> {
-        let latest_block_number = evm
-            .blocks
-            .last(&mut working_set.accessory_state())
-            .ok_or(EthFilterError::InternalError)?
-            .header
-            .number;
         let filter = {
             let mut filters = self.active_filters.inner.write().await;
 
