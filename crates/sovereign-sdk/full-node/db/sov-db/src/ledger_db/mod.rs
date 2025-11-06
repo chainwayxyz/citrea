@@ -584,7 +584,7 @@ impl BatchProverLedgerOps for LedgerDB {
             l1_tx_id: None,
             proof,
             proof_output: output,
-            info,
+            info: Some(info),
         };
 
         let mut schema_batch = SchemaBatch::new();

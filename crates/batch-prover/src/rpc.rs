@@ -490,6 +490,7 @@ where
             l1_tx_id: Some(tx_id.into()),
             proof,
             proof_output: StoredBatchProofOutput::from(output).into(),
+            info: None,
         })
     }
 

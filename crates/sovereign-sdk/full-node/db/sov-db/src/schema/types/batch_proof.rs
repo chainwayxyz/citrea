@@ -36,7 +36,7 @@ pub struct StoredBatchProof {
     /// Output
     pub proof_output: StoredBatchProofOutput,
     /// Info
-    pub info: ProvingInfo,
+    pub info: Option<ProvingInfo>,
 }
 
 impl From<StoredBatchProof> for BatchProofResponse {
@@ -45,6 +45,7 @@ impl From<StoredBatchProof> for BatchProofResponse {
             l1_tx_id: value.l1_tx_id,
             proof: value.proof,
             proof_output: BatchProofOutputRpcResponse::from(value.proof_output),
+            info: value.info,
         }
     }
 }
