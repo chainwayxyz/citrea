@@ -10,7 +10,7 @@ pub const TEST_PRIVATE_KEY: &str =
     "1212121212121212121212121212121212121212121212121212121212121212";
 
 pub fn min_base_fee_per_gas(spec_id: SpecId) -> u64 {
-    if spec_id >= SpecId::Fork3 {
+    if spec_id >= SpecId::Tangelo {
         1_000_000 // 0.001 gwei
     } else {
         10_000_000 // 0.01 gwei
