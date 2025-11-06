@@ -435,10 +435,55 @@ define_table_without_codec!(
     (JmtNodes) NodeKey => Node
 );
 
-define_table_with_default_codec!(
+define_table_without_codec!(
     /// The list of stale nodes in JMT
     (StaleNodes) StaleNodeIndex => ()
 );
+
+// Custom codec for StaleNodeIndex using big-endian version for RocksDB ordering
+//
+// The reason this is implemented manually is because StaleNode from jmt crate does not
+// implement Serialize/Deserialize.
+impl KeyEncoder<StaleNodes> for StaleNodeIndex {
+    fn encode_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+        let mut output = Vec::new();
+        let version = self.stale_since_version.to_be_bytes();
+        output.extend_from_slice(&version);
+        BorshSerialize::serialize(&self.node_key, &mut output)?;
+        Ok(output)
+    }
+}
+
+impl KeyDecoder<StaleNodes> for StaleNodeIndex {
+    fn decode_key(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
+        if data.len() < 8 {
+            return Err(CodecError::InvalidKeyLength {
+                expected: 9,
+                got: data.len(),
+            });
+        }
+        let mut version_bytes = [0u8; 8];
+        version_bytes.copy_from_slice(&data[..8]);
+        let stale_since_version = u64::from_be_bytes(version_bytes);
+
+        let node_key = BorshDeserialize::deserialize_reader(&mut &data[8..])?;
+
+        Ok(StaleNodeIndex {
+            stale_since_version,
+            node_key,
+        })
+    }
+}
+
+impl ValueCodec<StaleNodes> for () {
+    fn encode_value(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+        Ok(vec![])
+    }
+
+    fn decode_value(_data: &[u8]) -> sov_schema_db::schema::Result<Self> {
+        Ok(())
+    }
+}
 
 define_table_with_default_codec!(
     /// Light client proof data by l1 height
