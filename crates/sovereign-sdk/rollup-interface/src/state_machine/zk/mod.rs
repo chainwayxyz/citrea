@@ -27,12 +27,66 @@ pub type Proof = Vec<u8>;
 
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
+/// Information about a local prover's execution.
+pub struct LocalInfo {
+    /// segments count
+    pub segments: usize,
+    /// total cycles count
+    pub total_cycles: u64,
+    /// user cycles count
+    pub user_cycles: u64,
+    /// paging cycles count
+    pub paging_cycles: u64,
+    /// reserved cycles count
+    pub reserved_cycles: u64,
+}
+
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+/// Information about a bonsai prover's execution.
+pub struct BonsaiInfo {
+    /// Session ID of the proof request
+    pub session_id: String,
+    /// Count of segments in this proof request
+    pub segments: usize,
+    /// Total cycles run within guest
+    pub total_cycles: u64,
+    /// User cycles run within guest, slightly below total overhead cycles
+    pub user_cycles: u64,
+}
+
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+/// Information about a boundless prover's execution.
+pub struct BoundlessInfo {
+    /// Request ID of the proof request
+    pub request_id: String,
+    /// Mcycles count
+    pub mcycles_count: u64,
+}
+
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+/// Information about prover's execution.
+pub enum ProvingInfo{
+    /// Local prover info
+    Local(LocalInfo),
+    /// Bonsai prover info
+    Bonsai(BonsaiInfo),
+    /// Boundless prover info
+    Boundless(BoundlessInfo),
+}
+
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
 /// Wrapper around `Proof` to associate it with a job
 pub struct ProofWithJob {
     /// Job id of the proof
     pub job_id: uuid::Uuid,
     /// Result proof bytes
     pub proof: Proof,
+    /// Information about prover's execution
+    pub info: ProvingInfo,
 }
 
 #[derive(Debug, Clone, Copy, BorshSerialize, BorshDeserialize)]
