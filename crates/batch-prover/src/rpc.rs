@@ -583,12 +583,15 @@ where
             .get_proof_by_job_id(job_id)
             .map_err(internal_rpc_error)?;
 
-        let info = ledger_db
-            .get_proving_info_by_job_id(job_id)
-            .map_err(internal_rpc_error)?;
-        
-        let proof = stored_proof
-            .map(|sp| make_batch_proof_response(sp, info));
+        let proof = match stored_proof {
+            Some(sp) => {
+                let info = ledger_db
+                    .get_proving_info_by_job_id(job_id)
+                    .map_err(internal_rpc_error)?;
+                Some(make_batch_proof_response(sp, info))
+            }
+            None => None,
+        };
 
         Ok(Some(JobRpcResponse {
             id: job_id,
