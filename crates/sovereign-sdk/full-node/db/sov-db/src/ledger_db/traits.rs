@@ -258,6 +258,9 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get stored proof by job id
     fn get_proof_by_job_id(&self, id: Uuid) -> Result<Option<StoredBatchProof>>;
 
+    /// Get proving info by job id
+    fn get_proving_info_by_job_id(&self, id: Uuid) -> anyhow::Result<Option<ProvingInfo>>;
+
     /// Get jobs pending to be submitted to DA
     fn get_pending_l1_submission_jobs(&self) -> Result<Vec<Uuid>>;
 

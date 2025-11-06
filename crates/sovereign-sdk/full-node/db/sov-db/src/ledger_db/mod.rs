@@ -21,7 +21,7 @@ use crate::schema::tables::{
     L2RangeByL1Height, L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs,
     PendingBonsaiSessionByJobId, PendingBoundlessSessionByJobId, PendingL1SubmissionJobs,
     PendingProofs, PendingSequencerCommitments, ProofByJobId, ProverLastScannedSlot,
-    ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
+    ProverPendingCommitments, ProverStateDiffs, ProvingInfoByJobId, SequencerCommitmentByIndex,
     ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
     VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
@@ -584,12 +584,12 @@ impl BatchProverLedgerOps for LedgerDB {
             l1_tx_id: None,
             proof,
             proof_output: output,
-            info: Some(info),
         };
 
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<PendingL1SubmissionJobs>(&id, &())?;
         schema_batch.put::<ProofByJobId>(&id, &stored_proof)?;
+        schema_batch.put::<ProvingInfoByJobId>(&id, &info)?;
 
         self.db.write_schemas(schema_batch)
     }
@@ -606,6 +606,7 @@ impl BatchProverLedgerOps for LedgerDB {
             schema_batch.delete::<JobIdOfCommitment>(&index)?;
         }
         schema_batch.delete::<ProofByJobId>(&id)?;
+        schema_batch.delete::<ProvingInfoByJobId>(&id)?;
         schema_batch.delete::<CommitmentIndicesByJobId>(&id)?;
 
         // delete from pending job tables
@@ -637,6 +638,11 @@ impl BatchProverLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err)]
     fn get_proof_by_job_id(&self, id: Uuid) -> anyhow::Result<Option<StoredBatchProof>> {
         self.db.get::<ProofByJobId>(&id)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_proving_info_by_job_id(&self, id: Uuid) -> anyhow::Result<Option<ProvingInfo>> {
+        self.db.get::<ProvingInfoByJobId>(&id)
     }
 
     #[instrument(level = "trace", skip(self), err)]

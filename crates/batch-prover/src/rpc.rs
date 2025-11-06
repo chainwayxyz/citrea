@@ -32,10 +32,11 @@ use sov_modules_api::{BatchProofCircuitOutputV3, SpecId, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam,
+    BatchProofOutputRpcResponse, BatchProofResponse, JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam
 };
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
+use sov_rollup_interface::zk::ProvingInfo;
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
 use uuid::Uuid;
@@ -582,10 +583,17 @@ where
             .get_proof_by_job_id(job_id)
             .map_err(internal_rpc_error)?;
 
+        let info = ledger_db
+            .get_proving_info_by_job_id(job_id)
+            .map_err(internal_rpc_error)?;
+        
+        let proof = stored_proof
+            .map(|sp| make_batch_proof_response(sp, info));
+
         Ok(Some(JobRpcResponse {
             id: job_id,
             commitments,
-            proof: stored_proof.map(Into::into),
+            proof,
         }))
     }
 
@@ -679,4 +687,16 @@ where
     let server = BatchProverRpcServerImpl::new(rpc_context);
 
     BatchProverRpcServer::into_rpc(server)
+}
+
+fn make_batch_proof_response(
+    stored_proof: sov_db::schema::types::batch_proof::StoredBatchProof,
+    info: Option<ProvingInfo>,
+) -> BatchProofResponse {
+    BatchProofResponse {
+        l1_tx_id: stored_proof.l1_tx_id,
+        proof: stored_proof.proof,
+        proof_output: BatchProofOutputRpcResponse::from(stored_proof.proof_output),
+        info,
+    }
 }
