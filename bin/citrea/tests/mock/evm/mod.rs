@@ -598,11 +598,19 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
         .await
         .unwrap();
 
+    let filter_logs = client
+        .get_filter_logs(one_topic_filter_id.clone())
+        .await
+        .unwrap();
+
     let filter_changes = client
         .get_filter_changes(one_topic_filter_id)
         .await
         .unwrap();
+
+    // Assert correctness with all three methods
     assert_eq!(filter_changes.as_logs().unwrap().to_vec(), logs);
+    assert_eq!(logs, filter_logs);
 
     assert_eq!(logs.len(), 1);
     assert_eq!(
@@ -659,6 +667,12 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
         .await
         .unwrap();
 
+    let filter_logs = client
+        .get_filter_logs(just_address_filter_id.clone())
+        .await
+        .unwrap();
+    assert_eq!(filter_logs.len(), 0);
+
     let filter_changes = client
         .get_filter_changes(just_address_filter_id)
         .await
@@ -687,13 +701,20 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
         .await
         .unwrap();
 
+    let filter_logs = client
+        .get_filter_logs(address_and_range_filter_id.clone())
+        .await
+        .unwrap();
+
     let filter_changes = client
         .get_filter_changes(address_and_range_filter_id)
         .await
         .unwrap();
 
     let logs = client.eth_get_logs(address_and_range_filter).await;
+    // Assert correctness with all three methods
     assert_eq!(filter_changes.as_logs().unwrap().to_vec(), logs);
+    assert_eq!(logs, filter_logs);
     assert_eq!(logs.len(), 2);
     // make sure the address is the old one and not the new one
     assert_eq!(logs[0].address(), contract_address);
