@@ -61,27 +61,27 @@ jobs:
           NETWORK_LOWER_CASE="${NETWORK,,}"
           OPERATION_STOP_STEP_LOWER_CASE="${OPERATION_STOP_STEP,,}"
           
-          if [ -n "${{ env.RELEASE }}" ]; then
-              SOURCE_VERSION="${{ env.RELEASE }}"
+          if [ -n "$RELEASE" ]; then
+              SOURCE_VERSION="$RELEASE"
           else
               GIT_HASH=$(git rev-parse --short HEAD)
               DATE_STR=$(date +'%y%m%d')
               SOURCE_VERSION="v${DATE_STR}-git-${GIT_HASH}"
           fi
           
-          echo "Loading mapping for Service: ${{ env.SERVICE }} / Network: ${{ env.NETWORK }}"
+          echo "Loading mapping for Service: $SERVICE / Network: $NETWORK"
           
-          MAPPING_FILE_PATH="${{ env.DOCKER_PATH }}/services_source_2_target_mapping.json"
+          MAPPING_FILE_PATH="$DOCKER_PATH/services_source_2_target_mapping.json"
 
           if [ ! -f "$MAPPING_FILE_PATH" ]; then
             echo "Mapping file not found at $MAPPING_FILE_PATH"
             exit 1
           fi
 
-          matrix=$(jq -c --arg service "${{ env.SERVICE }}" --arg network "${{ env.NETWORK }}" '.[$service][$network]' "$MAPPING_FILE_PATH")
+          matrix=$(jq -c --arg service "$SERVICE" --arg network "$NETWORK" '.[$si][$ni]' "$MAPPING_FILE_PATH")
 
           if [ "$matrix" = "null" ] || [ -z "$matrix" ]; then
-            echo "No mapping found for Service=${{ env.SERVICE }} Network=${{ env.NETWORK }}"
+            echo "No mapping found for Service=$SERVICE Network=$NETWORK"
             exit 1
           fi
           
