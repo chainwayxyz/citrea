@@ -1197,13 +1197,15 @@ impl TestCase for SubmitFakeProofRpcTest {
         let zkvm_prove_output = job_response.proof.unwrap().proof_output;
 
         // also submit fake proof of commitment index 5 through rpc
-        let native_prove_output = batch_prover
+        let fake_proof_response = batch_prover
             .client
             .http_client()
             .submit_fake_proof(5, 5)
             .await
-            .unwrap()
-            .proof_output;
+            .unwrap();
+        assert!(fake_proof_response.info.is_none());
+
+        let native_prove_output = fake_proof_response.proof_output;
         // compare actual zkvm
         assert_eq!(zkvm_prove_output, native_prove_output);
 
@@ -1563,15 +1565,8 @@ impl TestCase for RetryProvingTest {
             .await?;
         assert_ne!(new_job_id, proving_job.id, "new job id should be different");
 
-        wait_for_prover_job(batch_prover, new_job_id, None).await?;
-
         // check the commitments of the new proving job
-        let new_proving_job = batch_prover
-            .client
-            .http_client()
-            .get_proving_job(new_job_id)
-            .await?
-            .expect("new job should exist");
+        let new_proving_job = wait_for_prover_job(batch_prover, new_job_id, None).await?;
         assert_eq!(new_proving_job.commitments.len(), 4);
 
         // check the mapping from commitment to proving job is updated
