@@ -23,7 +23,7 @@ on:
         default: Dev-Net
 
 env:
-  DOCKER_PATH: "devops/dockers/citrea/"
+  DOCKER_PATH: "devops/dockers/citrea"
   DOCKER_CTX_PATH: "."
 
 permissions:
