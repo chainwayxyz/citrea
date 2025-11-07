@@ -115,7 +115,7 @@ jobs:
     secrets: inherit
   deploy:
     if: ${{ inputs.operation-stop-step == 'Deploy' }}
-    needs: build-and-publish
+    needs: [ build-and-publish, set-matrix ]
     strategy:
       matrix:
         service: ${{ fromJSON(needs.set-matrix.outputs.matrix) }}
