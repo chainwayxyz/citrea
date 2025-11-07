@@ -5,7 +5,8 @@ use anyhow::anyhow;
 use citrea_common::config::risc0::LocalProverConfig;
 use metrics::gauge;
 use risc0_zkvm::{
-    AssumptionReceipt, ExecutorEnvBuilder, ExternalProver, ProveInfo, Prover, ProverOpts, SessionStats,
+    AssumptionReceipt, ExecutorEnvBuilder, ExternalProver, ProveInfo, Prover, ProverOpts,
+    SessionStats,
 };
 use sov_rollup_interface::zk::{LocalInfo, Proof, ProofWithJob, ProvingInfo, ReceiptType};
 use sov_rollup_interface::Network;
@@ -78,7 +79,11 @@ impl LocalProver {
             match this.handle_prove(job_id, elf, input, assumptions, prover_opts) {
                 Ok((proof, stats)) => {
                     let info = ProvingInfo::Local(local_info_from_stats(&stats));
-                    let _ = tx.send(ProofWithJob { job_id, proof, info });
+                    let _ = tx.send(ProofWithJob {
+                        job_id,
+                        proof,
+                        info,
+                    });
                 }
                 Err(e) => error!("Local proving error: {}", e),
             }
@@ -195,11 +200,11 @@ fn compare_risc0_versions(r0vm_path: &PathBuf) -> anyhow::Result<()> {
 }
 
 fn local_info_from_stats(stats: &SessionStats) -> LocalInfo {
-    LocalInfo { 
+    LocalInfo {
         segments: stats.segments,
         total_cycles: stats.total_cycles,
         user_cycles: stats.user_cycles,
         paging_cycles: stats.paging_cycles,
-        reserved_cycles: stats.reserved_cycles
+        reserved_cycles: stats.reserved_cycles,
     }
 }

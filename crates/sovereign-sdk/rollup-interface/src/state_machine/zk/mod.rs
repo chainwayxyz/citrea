@@ -13,9 +13,9 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
-use serde::Serialize;
 #[cfg(feature = "native")]
 use serde::Deserialize;
+use serde::Serialize;
 #[cfg(feature = "native")]
 use tokio::sync::oneshot;
 
@@ -70,7 +70,7 @@ pub struct BoundlessInfo {
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 /// Information about prover's execution.
-pub enum ProvingInfo{
+pub enum ProvingInfo {
     /// Local prover info
     Local(LocalInfo),
     /// Bonsai prover info

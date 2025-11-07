@@ -120,13 +120,13 @@ impl MockZkvm {
                 job_id: Uuid::now_v7(),
                 proof,
                 // mock proving info
-                info: ProvingInfo::Local(LocalInfo{
+                info: ProvingInfo::Local(LocalInfo {
                     segments: 0,
                     total_cycles: 0,
                     user_cycles: 0,
                     paging_cycles: 0,
                     reserved_cycles: 0,
-                })
+                }),
             })
             .unwrap();
             true

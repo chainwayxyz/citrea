@@ -115,7 +115,7 @@ impl BonsaiProver {
                     let Ok(_) = tx.send(ProofWithJob {
                         job_id,
                         proof: serialized_receipt,
-                        info: ProvingInfo::Bonsai(BonsaiInfo{
+                        info: ProvingInfo::Bonsai(BonsaiInfo {
                             session_id: session.uuid,
                             segments: stats.segments,
                             total_cycles: stats.total_cycles,

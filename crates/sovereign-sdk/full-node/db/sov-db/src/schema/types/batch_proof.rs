@@ -8,7 +8,7 @@ use sov_rollup_interface::rpc::{
 };
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
-use sov_rollup_interface::zk::{Proof};
+use sov_rollup_interface::zk::Proof;
 
 /// The on-disk format for a state transition.
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]

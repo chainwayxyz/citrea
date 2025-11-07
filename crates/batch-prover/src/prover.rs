@@ -707,18 +707,18 @@ where
         // start watching the proving jobs to finish in the background
         tokio::spawn(async move {
             while let Some((job_id, rx)) = proving_jobs.recv().await {
-                let ProofWithDuration { proof, duration, info } = rx.await.expect("Proof channel should never close");
+                let ProofWithDuration {
+                    proof,
+                    duration,
+                    info,
+                } = rx.await.expect("Proof channel should never close");
                 info!(
                     "Proving job finished {}, took {:?} seconds",
                     job_id, duration
                 );
 
-                let output = extract_proof_output::<Vm>(
-                    &job_id,
-                    &proof,
-                    &code_commitments_by_spec,
-                    network,
-                );
+                let output =
+                    extract_proof_output::<Vm>(&job_id, &proof, &code_commitments_by_spec, network);
 
                 // stores proof and marks job as waiting for da
                 ledger_db
@@ -726,9 +726,7 @@ where
                     .expect("Should put proof to db");
 
                 // Record the proving time metric
-                BATCH_PROVER_METRICS
-                    .proving_time
-                    .record(duration);
+                BATCH_PROVER_METRICS.proving_time.record(duration);
 
                 let prover_service = prover_service.clone();
                 let ledger_db = ledger_db.clone();
@@ -773,7 +771,12 @@ where
             info!("Recovering {} proving sessions", proving_jobs.len());
 
             let mut proofs = HashMap::with_capacity(proving_jobs.len());
-            while let Some(ProofWithJob { job_id, proof, info }) = proving_jobs.next().await {
+            while let Some(ProofWithJob {
+                job_id,
+                proof,
+                info,
+            }) = proving_jobs.next().await
+            {
                 info!("Proving job finished {}", job_id);
 
                 let output = extract_proof_output::<Vm>(
