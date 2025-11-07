@@ -148,7 +148,7 @@ where
         // keep track of the number of ongoing proofs and notify the caller when the proof is done
         tokio::spawn(async move {
             let _permit = permit; // Hold permit until task completion
-            let proof = proof_rx.await; // proof with job buraya geliyor
+            let proof = proof_rx.await;
 
             PARALLEL_PROVER_METRICS.ongoing_proving_jobs.decrement(1);
 

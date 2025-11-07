@@ -94,7 +94,7 @@ impl LocalProver {
         input: Vec<u8>,
         assumptions: Vec<AssumptionReceipt>,
         prover_opts: ProverOpts,
-    ) -> anyhow::Result<(Proof, SessionStats)> { // proof yerine proof_with_executionstats dön
+    ) -> anyhow::Result<(Proof, SessionStats)> {
         let assumptions_len = assumptions.len();
         let mut env = ExecutorEnvBuilder::default();
         // Add assumptions
@@ -123,7 +123,7 @@ impl LocalProver {
             .prove_with_opts(env, &elf, &prover_opts)
             .map_err(|e| anyhow!("Local risc0 proving failed: {}", e))?;
 
-        tracing::info!("Execution Stats for job_id={}: {:?}", job_id, stats); // execution stats burda
+        tracing::info!("Execution Stats for job_id={}: {:?}", job_id, stats);
         gauge!("proving_session_cycle_count").set(stats.total_cycles as f64);
 
         let proof = bincode::serialize(&receipt.inner).expect("Receipt serialization cannot fail");

@@ -58,6 +58,6 @@ pub struct ProofWithDuration {
     pub proof: Proof,
     /// The time it took to generate the proof in seconds
     pub duration: f64,
-    // info 
+    /// Info about the proving process
     pub info: ProvingInfo
 }

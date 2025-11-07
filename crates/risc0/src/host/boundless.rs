@@ -416,8 +416,6 @@ impl BoundlessProver {
                                 request_id: request_id.clone(),
                                 mcycles_count,
                             }),
-                            // just add order id here
-                            // we can also add mycycles_count
                         }) else {
                             tracing::error!("Boundless proof receiver channel is closed");
                             return;

@@ -31,15 +31,15 @@ pub type Proof = Vec<u8>;
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 /// Information about a local prover's execution.
 pub struct LocalInfo {
-    /// segments count
+    /// Segments count
     pub segments: usize,
-    /// total cycles count
+    /// Total cycles count
     pub total_cycles: u64,
-    /// user cycles count
+    /// User cycles count
     pub user_cycles: u64,
-    /// paging cycles count
+    /// Paging cycles count
     pub paging_cycles: u64,
-    /// reserved cycles count
+    /// Reserved cycles count
     pub reserved_cycles: u64,
 }
 
