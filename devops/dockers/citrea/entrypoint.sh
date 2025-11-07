@@ -39,9 +39,15 @@ shutdown_gracefully() {
 
 trap "shutdown_gracefully" SIGTERM SIGINT
 
-echo "INFO: This $SERVICE_TYPE node will run on the $NETWORK network."
+if [[ "$SERVICE_TYPE" == "full-node" ]]; then
+  SERVICE_FLAG=()
+  echo "INFO: This full node will run on the $NETWORK network."
+else
+  SERVICE_FLAG=("--$SERVICE_TYPE")
+  echo "INFO: This $SERVICE_TYPE node will run on the $NETWORK network."
+fi
 
-exec ./citrea --da-layer "$DA_LAYER" --genesis-paths "$GENESIS_PATH" "--$SERVICE_TYPE" --network "$NETWORK" &
+./citrea --da-layer "$DA_LAYER" --genesis-paths "$GENESIS_PATH" "${SERVICE_FLAG[@]}" --network "$NETWORK" &
 MAIN_PROCESS_PID=$!
 wait "$MAIN_PROCESS_PID"
 sleep "$START_WAIT"
