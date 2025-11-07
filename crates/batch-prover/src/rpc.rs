@@ -693,6 +693,7 @@ where
     BatchProverRpcServer::into_rpc(server)
 }
 
+/// Combines stored proof and proving info into a [BatchProofResponse].
 fn make_batch_proof_response(
     stored_proof: sov_db::schema::types::batch_proof::StoredBatchProof,
     info: Option<ProvingInfo>,
