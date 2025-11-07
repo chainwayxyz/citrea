@@ -4,7 +4,7 @@
 //! and processing them to maintain the batch prover's state.
 
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use backoff::backoff::Backoff;
 use backoff::ExponentialBackoff;
@@ -172,8 +172,8 @@ where
                                 Ok(_) => break,
                                 Err(e) => {
                                     error!("Failed to process L2 block {}: {}", l2_block.header.height, e);
-                                    let backoff_duration = backoff.next_backoff().expect("Failed to process L2 block multiple times. Killing L2Syncer...");
-                                    tokio::time::sleep(backoff_duration).await;
+                                    let backoff_duration = backoff.next_backoff();
+                                    tokio::time::sleep(backoff_duration.unwrap_or(Duration::from_secs(10))).await;
                                 }
                             }
                         }
