@@ -1,6 +1,15 @@
 #!/bin/bash
 set -e
 
+OPS_FS_READY_FILE="$STORAGE_PATH/.ops-fs-ready"
+if [ -n "$STORAGE_PATH" ] && [ ! -f "$OPS_FS_READY_FILE" ]; then
+    echo "Waiting for storage volume to be ready..."
+    while [ ! -f "$OPS_FS_READY_FILE" ]; do
+        sleep 5
+    done
+    echo "Storage volume is ready."
+fi
+
 START_WAIT="${START_WAIT:-5}"
 STOP_WAIT="${STOP_WAIT:-5}"
 SHUTDOWN_COMMAND=""
