@@ -405,20 +405,15 @@ impl CitreaFilter {
     ) -> Result<Vec<Log>, EthFilterError> {
         let filter = {
             let mut filters = self.active_filters.inner.write().await;
-
             let filter = filters
                 .get_mut(&id)
-                .ok_or(EthFilterError::FilterNotFound(id.clone()))?;
-            if !matches!(filter.kind, FilterKind::Log(_)) {
+                .ok_or_else(|| EthFilterError::FilterNotFound(id.clone()))?;
+            if let FilterKind::Log(ref inner_filter) = filter.kind {
+                filter.last_poll_timestamp = Instant::now();
+                *inner_filter.clone()
+            } else {
+                // Not a log filter
                 return Err(EthFilterError::FilterNotFound(id));
-            }
-
-            // Last block is not updated here because it is updated in filter_changes endpoint
-            // I am not sure if it should be updated here as well, but reth implementation does not do it
-            filter.last_poll_timestamp = Instant::now();
-            match &filter.kind {
-                FilterKind::Log(f) => *f.clone(),
-                _ => unreachable!(),
             }
         };
 
