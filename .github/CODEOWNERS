@@ -4,3 +4,5 @@
 /.github/** @chainwayxyz/ops-bdfl
 /.gitsecret/** @chainwayxyz/ops-bdfl
 /devops/** @chainwayxyz/ops-bdfl
+# Citrea Specific Owners
+/crates/evm/src/evm/system_contracts/** @chainwayxyz/smart-contracts-bdfl
