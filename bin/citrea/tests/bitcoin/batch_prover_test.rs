@@ -35,7 +35,7 @@ use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::Zkvm as _;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
-use sov_rollup_interface::zk::{ReceiptType, ZkvmHost};
+use sov_rollup_interface::zk::{ProvingInfo, ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
 use uuid::Uuid;
 
@@ -1203,6 +1203,7 @@ impl TestCase for SubmitFakeProofRpcTest {
             .submit_fake_proof(5, 5)
             .await
             .unwrap();
+        // assert that fake proof response has null info field
         assert!(fake_proof_response.info.is_none());
 
         let native_prove_output = fake_proof_response.proof_output;
@@ -1584,6 +1585,68 @@ impl TestCase for RetryProvingTest {
 #[tokio::test]
 async fn retry_proving_test() -> Result<()> {
     TestCaseRunner::new(RetryProvingTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+struct ProvingInfoTest;
+
+#[async_trait]
+impl TestCase for ProvingInfoTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        for _ in 0..max_l2_blocks_per_commitment  {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        // Wait for blob inscribe tx to be in mempool
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+
+        // Wait for batch proof tx to hit mempool
+        da.wait_mempool_len(2, None).await?;
+
+        let proving_job = batch_prover
+            .client
+            .http_client()
+            .get_proving_job_of_commitment(1)
+            .await?
+            .expect("proving job should exist");
+        assert_eq!(proving_job.commitments.len(), 1);
+        
+        let proving_info = proving_job.proof.expect("proof should exist").info;
+        let Some(ProvingInfo::Local(local_info)) = proving_info else {
+            panic!("unexpected proving info type");
+        };
+
+        assert!(local_info.segments > 0);
+        assert!(local_info.total_cycles > 0);
+        assert!(local_info.user_cycles > 0);
+        assert!(local_info.paging_cycles > 0);
+        assert!(local_info.reserved_cycles > 0);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn proving_info_test() -> Result<()> {
+    TestCaseRunner::new(ProvingInfoTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await
