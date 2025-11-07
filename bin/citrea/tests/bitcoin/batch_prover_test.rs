@@ -1612,7 +1612,7 @@ impl TestCase for ProvingInfoTest {
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        for _ in 0..max_l2_blocks_per_commitment  {
+        for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
         // Wait for blob inscribe tx to be in mempool
@@ -1629,7 +1629,7 @@ impl TestCase for ProvingInfoTest {
             .await?
             .expect("proving job should exist");
         assert_eq!(proving_job.commitments.len(), 1);
-        
+
         let proving_info = proving_job.proof.expect("proof should exist").info;
         let Some(ProvingInfo::Local(local_info)) = proving_info else {
             panic!("unexpected proving info type");
