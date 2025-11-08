@@ -13,7 +13,7 @@ resolver = "2"
 [dependencies]
 anyhow = { workspace = true }
 futures = { workspace = true }
-libp2p = { workspace = true, features = ["tokio", "gossipsub", "noise", "tcp", "yamux", "quic"] }
+libp2p = { workspace = true, features = ["tokio", "gossipsub", "noise", "tcp", "yamux", "quic", "macros", "mdns"] }
 reth-tasks = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }

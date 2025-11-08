@@ -5,15 +5,21 @@ use std::time::Duration;
 use anyhow::Result;
 use citrea_common::NetworkConfig;
 use futures::stream::StreamExt;
-use libp2p::swarm::SwarmEvent;
-use libp2p::{gossipsub, noise, tcp, yamux, Multiaddr, Swarm, SwarmBuilder};
+use libp2p::swarm::{NetworkBehaviour, SwarmEvent};
+use libp2p::{gossipsub, mdns, noise, tcp, yamux, Multiaddr, Swarm, SwarmBuilder};
 use reth_tasks::shutdown::GracefulShutdown;
 use tokio::{io, select};
 use tracing::{error, info};
 
+#[derive(NetworkBehaviour)]
+struct MyBehaviour {
+    gossipsub: gossipsub::Behaviour,
+    mdns: mdns::tokio::Behaviour,
+}
+
 pub struct Network {
     dial_addr: Option<String>,
-    swarm: Swarm<gossipsub::Behaviour>,
+    swarm: Swarm<MyBehaviour>,
     test_message_period_secs: Duration,
 }
 
@@ -53,7 +59,12 @@ impl Network {
                     gossipsub::MessageAuthenticity::Signed(key.clone()),
                     gossipsub_config,
                 )?;
-                Ok(gossipsub)
+                let mdns = mdns::tokio::Behaviour::new(
+                    mdns::Config::default(),
+                    key.public().to_peer_id(),
+                )?;
+
+                Ok(MyBehaviour { gossipsub, mdns })
             })?
             .build();
 
@@ -70,7 +81,7 @@ impl Network {
         // Create a Gossipsub topic
         let topic = gossipsub::IdentTopic::new("test-net");
         // subscribes to our topic
-        swarm.behaviour_mut().subscribe(&topic)?;
+        swarm.behaviour_mut().gossipsub.subscribe(&topic)?;
 
         // Listen on all interfaces and whatever port the OS assigns
         swarm.listen_on("/ip4/0.0.0.0/udp/0/quic-v1".parse()?)?;
@@ -81,7 +92,7 @@ impl Network {
         if let Some(addr) = self.dial_addr.as_ref() {
             let remote: Multiaddr = addr.parse()?;
             swarm.dial(remote)?;
-            println!("Dialed {addr}")
+            info!("Dialed {addr}");
         }
 
         // Kick it off
@@ -94,6 +105,7 @@ impl Network {
                     let test_message = format!("peer {} test {}", swarm.local_peer_id(), msg_count);
                     if let Err(e) = swarm
                         .behaviour_mut()
+                        .gossipsub
                         .publish(topic.clone(), test_message.as_bytes()) {
                         error!("Publish error: {e:?}");
                     } else {
@@ -102,11 +114,23 @@ impl Network {
                     msg_count += 1;
                 }
                 event = swarm.select_next_some() => match event {
-                    SwarmEvent::Behaviour(gossipsub::Event::Message {
+                    SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
+                        for (peer_id, _multiaddr) in list {
+                            info!("mDNS discovered a new peer: {peer_id}");
+                            swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
+                        }
+                    },
+                    SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Expired(list))) => {
+                        for (peer_id, _multiaddr) in list {
+                            info!("mDNS discover peer has expired: {peer_id}");
+                            swarm.behaviour_mut().gossipsub.remove_explicit_peer(&peer_id);
+                        }
+                    },
+                    SwarmEvent::Behaviour(MyBehaviourEvent::Gossipsub(gossipsub::Event::Message {
                         propagation_source: peer_id,
                         message_id: id,
                         message,
-                    }) => info!(
+                    })) => info!(
                             "Got message: '{}' with id: {id} from peer: {peer_id}",
                             String::from_utf8_lossy(&message.data),
                         ),
