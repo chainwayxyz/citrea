@@ -1,8 +1,8 @@
 //! This module provides the implementation for sending separate chunk transactions with a specified fee rate.
 
 use bitcoin::hashes::Hash;
-use sov_rollup_interface::da::{DaTxRequest, DataOnDa};
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::da::DataOnDa;
+use sov_rollup_interface::services::da::{DaService, DaTxRequest};
 use uuid::Uuid;
 
 use crate::error::BitcoinServiceError;

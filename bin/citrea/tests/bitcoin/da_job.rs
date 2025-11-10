@@ -24,8 +24,8 @@ use jsonrpsee::http_client::HttpClient;
 use reth_tasks::TaskManager;
 use sov_db::schema::types::da_jobs::DaJobStatus;
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::services::da::{DaService, DaTxRequest};
 
 use super::get_citrea_path;
 use crate::bitcoin::full_node::create_serialized_fake_receipt_batch_proof_with_state_roots;

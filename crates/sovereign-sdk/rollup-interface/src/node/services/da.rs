@@ -1,4 +1,7 @@
 //! The da module defines traits used by the full node to interact with the DA layer.
+
+#[cfg(feature = "native")]
+use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 #[cfg(feature = "native")]
@@ -8,9 +11,24 @@ use uuid::Uuid;
 
 use crate::da::BlockHeaderTrait;
 #[cfg(feature = "native")]
-use crate::da::{DaSpec, DaTxRequest, DaVerifier, SequencerCommitment};
+use crate::da::{BatchProofMethodId, DaSpec, DaVerifier, SequencerCommitment};
 #[cfg(feature = "native")]
 use crate::zk::Proof;
+
+/// Transaction request to send to the DA queue.
+#[cfg(feature = "native")]
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub enum DaTxRequest {
+    /// A commitment from the sequencer
+    SequencerCommitment(SequencerCommitment),
+    /// Or a zk proof and state diff
+    ZKProof(Proof),
+    /// Or a job id for a stored proof
+    StoredProof(Uuid),
+    /// Batch proof method id update for light client
+    BatchProofMethodId(BatchProofMethodId),
+}
 
 /// This type represents a queued request to send_transaction
 #[cfg(feature = "native")]

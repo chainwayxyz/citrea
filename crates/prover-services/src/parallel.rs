@@ -3,8 +3,7 @@ use std::time::Instant;
 
 use anyhow::anyhow;
 use rand::Rng;
-use sov_rollup_interface::da::DaTxRequest;
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::services::da::{DaService, DaTxRequest};
 use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
 use tokio::sync::{oneshot, OwnedSemaphorePermit, Semaphore};
 use tracing::{debug, error, info, instrument, warn};

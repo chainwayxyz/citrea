@@ -4,7 +4,8 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use sov_rollup_interface::block::L2Block;
-use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
+use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::services::da::DaTxRequest;
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, StorageRootHash};
 use sov_schema_db::SchemaIterator;

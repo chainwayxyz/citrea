@@ -39,11 +39,11 @@ use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::BatchProofCircuitOutputV3;
 use sov_rollup_interface::da::{
-    BatchProofMethodId, BatchProofMethodIdBody, DaTxRequest, SequencerCommitment,
+    BatchProofMethodId, BatchProofMethodIdBody, SequencerCommitment,
     SECURITY_COUNCIL_SIGNATURE_SIZE, SECURITY_COUNCIL_SIGNATURE_THRESHOLD,
 };
 use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::services::da::{DaService, DaTxRequest};
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 use sov_rollup_interface::Network;
 use tokio::time::sleep;

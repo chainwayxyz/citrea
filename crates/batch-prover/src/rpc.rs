@@ -30,11 +30,11 @@ use sov_db::schema::types::job_status::JobStatus;
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_modules_api::{BatchProofCircuitOutputV3, SpecId, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
+use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::rpc::{
     BatchProofResponse, JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam,
 };
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::services::da::{DaService, DaTxRequest};
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
@@ -706,6 +706,8 @@ where
         proof_path: PathBuf,
         output: Vec<u8>,
     ) -> RpcResult<Uuid> {
+        use sov_rollup_interface::services::da::DaTxRequest;
+
         let ledger_db = &self.context.ledger_db;
         let proving_job_id = Uuid::now_v7();
         info!("Submitting proof from  file {proof_path:?} with id {proving_job_id}");

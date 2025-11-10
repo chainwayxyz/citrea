@@ -7,9 +7,9 @@ use borsh::BorshDeserialize;
 use sha2::Digest;
 use sov_db::ledger_db::{DaLedgerOps, LedgerDB};
 use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaSpec, DaTxRequest, DataOnDa, SequencerCommitment, Time,
+    BlobReaderTrait, BlockHeaderTrait, DaSpec, DataOnDa, SequencerCommitment, Time,
 };
-use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::services::da::{DaService, DaTxRequest, SlotData};
 use sov_rollup_interface::zk::Proof;
 use tokio::sync::{broadcast, oneshot, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use tokio::time;
@@ -639,6 +639,8 @@ mod tests {
     }
 
     mod reo4g_control {
+        use sov_rollup_interface::services::da::DaTxRequest;
+
         use super::*;
         use crate::{MockAddress, MockDaService};
 

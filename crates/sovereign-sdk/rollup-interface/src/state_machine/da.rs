@@ -6,8 +6,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-#[cfg(feature = "native")]
-use uuid::Uuid;
 
 use crate::zk::Proof;
 use crate::{BasicAddress, Network};
@@ -101,21 +99,6 @@ impl core::cmp::Ord for SequencerCommitment {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.index.cmp(&other.index)
     }
-}
-
-/// Transaction request to send to the DA queue.
-#[cfg(feature = "native")]
-#[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
-pub enum DaTxRequest {
-    /// A commitment from the sequencer
-    SequencerCommitment(SequencerCommitment),
-    /// Or a zk proof and state diff
-    ZKProof(Proof),
-    /// Or a job id for a stored proof
-    StoredProof(Uuid),
-    /// Batch proof method id update for light client
-    BatchProofMethodId(BatchProofMethodId),
 }
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum

@@ -14,9 +14,9 @@ use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use reth_tasks::TaskManager;
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
+use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::services::da::{DaService, DaTxRequest};
 
 use super::light_client_test::create_random_state_diff;
 use super::{get_citrea_cli_path, get_citrea_path};

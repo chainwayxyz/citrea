@@ -20,8 +20,9 @@ use reth_tasks::TaskManager;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_rollup_interface::da::{BlobReaderTrait, DaTxRequest, DataOnDa, SequencerCommitment};
+use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::rpc::SequencerCommitmentResponse;
+use sov_rollup_interface::services::da::DaTxRequest;
 use tokio::time::sleep;
 
 use super::get_citrea_path;
