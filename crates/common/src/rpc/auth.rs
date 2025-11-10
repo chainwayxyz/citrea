@@ -8,7 +8,7 @@ use jsonrpsee::MethodResponse;
 use serde_json::value::RawValue;
 use serde_json::Value;
 
-const PROTECTED_METHODS: [&str; 5] = ["backup_create", "backup_validate", "backup_info"];
+const PROTECTED_METHODS: [&str; 3] = ["backup_create", "backup_validate", "backup_info"];
 
 #[derive(Debug, Clone)]
 pub struct Auth<S> {
