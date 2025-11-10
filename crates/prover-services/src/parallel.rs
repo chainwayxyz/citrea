@@ -247,7 +247,7 @@ where
     }
 
     /// Used for recovery
-    pub async fn wait_for_existing_da_job(
+    pub async fn get_existing_da_job_waiter(
         &self,
         da_job_id: Uuid,
     ) -> Result<DaJobWaiter<Da>, <Da as DaService>::Error> {

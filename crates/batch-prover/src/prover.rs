@@ -851,7 +851,7 @@ where
                     da_job_id, proving_job_id
                 );
                 prover_service
-                    .wait_for_existing_da_job(da_job_id)
+                    .get_existing_da_job_waiter(da_job_id)
                     .await
                     .expect("Should recover da job receiver")
             } else {
