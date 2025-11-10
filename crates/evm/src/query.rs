@@ -1,6 +1,6 @@
 use std::ops::{Range, RangeInclusive};
 
-use alloy_consensus::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
+use alloy_consensus::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, KECCAK_EMPTY};
 use alloy_consensus::{
     Block as AlloyConsensusBlock, BlockBody, Header as AlloyConsensusHeader,
     Transaction as AlloyTransaction, TxReceipt, EMPTY_OMMER_ROOT_HASH,
@@ -711,29 +711,36 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
+        state_overrides: Option<StateOverride>,
+        block_overrides: Option<BlockOverrides>,
         working_set: &mut WorkingSet<C::Storage>,
         ledger_db: &crate::LedgerDB,
     ) -> RpcResult<AccessListWithGasUsed> {
         self.create_access_list_inner(
             request,
             block_number,
+            state_overrides,
+            block_overrides,
             working_set,
             ledger_db,
             fork_from_block_number,
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_access_list_inner(
         &self,
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
+        state_overrides: Option<StateOverride>,
+        mut block_overrides: Option<BlockOverrides>,
         working_set: &mut WorkingSet<C::Storage>,
         ledger_db: &crate::LedgerDB,
         fork_fn: impl Fn(u64) -> Fork,
     ) -> RpcResult<AccessListWithGasUsed> {
         let mut request = request.clone();
 
-        let (l1_fee_rate, block_env) = match block_number {
+        let (l1_fee_rate, mut block_env) = match block_number {
             Some(BlockNumberOrTag::Pending) => {
                 let l1_fee_rate = self
                     .blocks
@@ -779,6 +786,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
         cfg_env.disable_base_fee = true;
 
         let mut evm_db = self.get_db(working_set);
+
+        if let Some(ref mut block_overrides) = block_overrides {
+            apply_block_overrides(&mut block_env, block_overrides, &mut evm_db);
+        }
+
+        if let Some(ref state_overrides) = state_overrides {
+            apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
+        }
 
         let from = request.from.unwrap_or_default();
         let account = evm_db
@@ -832,6 +847,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
             l1_fee_rate,
             block_env.clone(),
             cfg_env,
+            state_overrides.clone(),
+            block_overrides.clone(),
             working_set,
         )?;
 
@@ -843,10 +860,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     // This is a common function for both eth_estimateGas and eth_estimateDiffSize.
     // The point of this function is to prepare env and call estimate_gas_with_env.
+    #[allow(clippy::too_many_arguments)]
     fn estimate_tx_expenses(
         &self,
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
+        state_overrides: Option<StateOverride>,
+        block_overrides: Option<BlockOverrides>,
         working_set: &mut WorkingSet<C::Storage>,
         ledger_db: &crate::LedgerDB,
         fork_fn: impl Fn(u64) -> Fork,
@@ -882,7 +902,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let cfg_env = get_cfg_env(cfg, evm_spec_id);
 
-        self.estimate_gas_with_env(request, l1_fee_rate, block_env, cfg_env, working_set)
+        self.estimate_gas_with_env(
+            request,
+            l1_fee_rate,
+            block_env,
+            cfg_env,
+            state_overrides,
+            block_overrides,
+            working_set,
+        )
     }
 
     /// Handler for: `eth_estimateGas`
@@ -892,28 +920,42 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
+        state_overrides: Option<StateOverride>,
+        block_overrides: Option<BlockOverrides>,
         working_set: &mut WorkingSet<C::Storage>,
         ledger_db: &crate::LedgerDB,
     ) -> RpcResult<U256> {
         self.eth_estimate_gas_inner(
             request,
             block_number,
+            state_overrides,
+            block_overrides,
             working_set,
             ledger_db,
             fork_from_block_number,
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn eth_estimate_gas_inner(
         &self,
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
+        state_overrides: Option<StateOverride>,
+        block_overrides: Option<BlockOverrides>,
         working_set: &mut WorkingSet<C::Storage>,
         ledger_db: &crate::LedgerDB,
         fork_fn: impl Fn(u64) -> Fork,
     ) -> RpcResult<U256> {
-        let estimated =
-            self.estimate_tx_expenses(request, block_number, working_set, ledger_db, fork_fn)?;
+        let estimated = self.estimate_tx_expenses(
+            request,
+            block_number,
+            state_overrides,
+            block_overrides,
+            working_set,
+            ledger_db,
+            fork_fn,
+        )?;
 
         // TODO: this assumes all blocks have the same gas limit
         // if gas limit ever changes this should be updated
@@ -953,8 +995,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         ledger_db: &crate::LedgerDB,
         fork_fn: impl Fn(u64) -> Fork,
     ) -> RpcResult<EstimatedDiffSize> {
-        let estimated =
-            self.estimate_tx_expenses(request, block_number, working_set, ledger_db, fork_fn)?;
+        let estimated = self.estimate_tx_expenses(
+            request,
+            block_number,
+            None,
+            None,
+            working_set,
+            ledger_db,
+            fork_fn,
+        )?;
 
         Ok(EstimatedDiffSize {
             gas: estimated.gas_used,
@@ -996,14 +1045,26 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Inner gas estimator
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn estimate_gas_with_env(
         &self,
         mut request: TransactionRequest,
         l1_fee_rate: u128,
-        block_env: BlockEnv,
+        mut block_env: BlockEnv,
         mut cfg_env: CfgEnv,
+        state_overrides: Option<StateOverride>,
+        mut block_overrides: Option<BlockOverrides>,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<EstimatedTxExpenses> {
+        let mut evm_db = self.get_db(working_set);
+
+        if let Some(ref mut block_overrides) = block_overrides {
+            apply_block_overrides(&mut block_env, block_overrides, &mut evm_db);
+        }
+
+        if let Some(ref state_overrides) = state_overrides {
+            apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
+        }
         // Disabled because eth_estimateGas is sometimes used with eoa senders
         // See <https://github.com/paradigmxyz/reth/issues/1959>
         // The revm feature is enabled through reth-rpc dependencies
@@ -1047,14 +1108,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     // field combos that bump the price up, so we try executing the function
                     // with the minimum gas limit to make sure.
 
-                    let mut tx_env = tx_env.clone();
-                    tx_env.gas_limit = MIN_TRANSACTION_GAS;
+                    let mut inspect_tx_env = tx_env.clone();
+                    inspect_tx_env.gas_limit = MIN_TRANSACTION_GAS;
 
                     let res = inspect_with_citrea_handler(
-                        self.get_db(working_set),
+                        evm_db,
                         cfg_env.clone(),
                         block_env.clone(),
-                        tx_env.clone(),
+                        inspect_tx_env.clone(),
                         l1_fee_rate,
                         TracingInspector::new(TracingInspectorConfig::none()),
                     );
@@ -1088,6 +1149,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         }
 
+        // Recreate evm_db with overrides if it was consumed by the early return optimization
+        let mut evm_db = self.get_db(working_set);
+        if let Some(ref mut block_overrides) = block_overrides {
+            apply_block_overrides(&mut block_env, block_overrides, &mut evm_db);
+        }
+        if let Some(ref state_overrides) = state_overrides {
+            apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
+        }
+
         // get the highest possible gas limit, either the request's set value or the currently
         // configured gas limit
         let highest_gas_limit = request_gas_limit
@@ -1096,8 +1166,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         // if the provided gas limit is less than computed cap, use that
         tx_env.gas_limit = std::cmp::min(tx_env.gas_limit, highest_gas_limit); // highest_gas_limit is capped to u64::MAX
-
-        let evm_db = self.get_db(working_set);
 
         // execute the call without writing to db
         let result = inspect_with_citrea_handler(
