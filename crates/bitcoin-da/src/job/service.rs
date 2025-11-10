@@ -307,7 +307,7 @@ impl<DB: DaLedgerOps> DaJobRpcProvider for DaJobService<DB> {
     }
 
     fn list_jobs(&self, filter: JobListFilter) -> Result<Vec<JobProgress>> {
-        let limit = filter.limit.unwrap_or(25).min(1000); // Defaults to 25, capped at 1000
+        let limit = filter.limit.unwrap_or(25).min(100); // Defaults to 25, capped at 100
         let offset = filter.offset.unwrap_or(0);
 
         // Get job ids based on status filter
