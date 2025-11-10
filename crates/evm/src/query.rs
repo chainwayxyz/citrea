@@ -1,6 +1,6 @@
 use std::ops::{Range, RangeInclusive};
 
-use alloy_consensus::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, KECCAK_EMPTY};
+use alloy_consensus::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
 use alloy_consensus::{
     Block as AlloyConsensusBlock, BlockBody, Header as AlloyConsensusHeader,
     Transaction as AlloyTransaction, TxReceipt, EMPTY_OMMER_ROOT_HASH,
@@ -1056,6 +1056,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         mut block_overrides: Option<BlockOverrides>,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<EstimatedTxExpenses> {
+        let account = self
+            .account_info(&request.from.unwrap_or_default(), working_set)
+            .unwrap_or_default();
+
         let mut evm_db = self.get_db(working_set);
 
         if let Some(ref mut block_overrides) = block_overrides {
@@ -1085,10 +1089,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let block_env_gas_limit = block_env.gas_limit;
         let block_env_base_fee = U256::from(block_env.basefee);
 
-        let account = self
-            .account_info(&request.from.unwrap_or_default(), working_set)
-            .unwrap_or_default();
-
         let nonce = request.nonce.unwrap_or(account.nonce);
         let chain_id = cfg_env.chain_id();
 
@@ -1099,7 +1099,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // if the request is a simple transfer we can optimize
         if tx_env.data.is_empty() {
             if let TransactTo::Call(to) = tx_env.kind {
-                let to_account = self.account_info(&to, working_set).unwrap_or_default();
+                // Fetch recipient account info from evm_db after overrides are applied
+                let to_account: crate::AccountInfo = evm_db
+                    .basic(to)
+                    .map_err(EthApiError::from)?
+                    .map(|acc| acc.into())
+                    .unwrap_or_default();
                 if to_account.code_hash.is_none() {
                     // If the tx is a simple transfer (call to an account with no code) we can
                     // shortcircuit But simply returning

@@ -52,6 +52,8 @@ fn test_payable_contract_value() {
     let result = evm.eth_estimate_gas_inner(
         tx_req,
         Some(BlockNumberOrTag::Latest),
+        None,
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -91,6 +93,8 @@ fn test_tx_request_fields_gas_fork1() {
     let result_contract_call = evm.eth_estimate_gas_inner(
         tx_req_contract_call.clone(),
         Some(BlockNumberOrTag::Latest),
+        None,
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -139,6 +143,8 @@ fn test_tx_request_fields_gas_fork1() {
     let result_no_sender = evm.eth_estimate_gas_inner(
         tx_req_no_sender,
         Some(BlockNumberOrTag::Latest),
+        None,
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -154,6 +160,8 @@ fn test_tx_request_fields_gas_fork1() {
     let result_no_recipient = evm.eth_estimate_gas_inner(
         tx_req_no_recipient,
         Some(BlockNumberOrTag::Latest),
+        None,
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -172,6 +180,8 @@ fn test_tx_request_fields_gas_fork1() {
     let result_no_gas = evm.eth_estimate_gas_inner(
         tx_req_no_gas,
         Some(BlockNumberOrTag::Latest),
+        None,
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -187,6 +197,8 @@ fn test_tx_request_fields_gas_fork1() {
     let result_no_gas_price = evm.eth_estimate_gas_inner(
         tx_req_no_gas_price,
         Some(BlockNumberOrTag::Latest),
+        None,
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -205,6 +217,8 @@ fn test_tx_request_fields_gas_fork1() {
     let result_no_chain_id = evm.eth_estimate_gas_inner(
         tx_req_no_chain_id,
         Some(BlockNumberOrTag::Latest),
+        None,
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -223,6 +237,8 @@ fn test_tx_request_fields_gas_fork1() {
     let result_invalid_chain_id = evm.eth_estimate_gas_inner(
         tx_req_invalid_chain_id,
         Some(BlockNumberOrTag::Latest),
+        None,
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -242,6 +258,8 @@ fn test_tx_request_fields_gas_fork1() {
     let result_no_blob_versioned_hashes = evm.eth_estimate_gas_inner(
         tx_req_no_blob_versioned_hashes,
         Some(BlockNumberOrTag::Latest),
+        None,
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -260,6 +278,8 @@ fn test_tx_request_fields_gas_fork1() {
     let create_no_access_list_test = evm.create_access_list_inner(
         no_access_list_req,
         Some(BlockNumberOrTag::Latest),
+        None,
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -291,6 +311,8 @@ fn test_tx_request_fields_gas_fork1() {
     let access_list_gas_test = evm.eth_estimate_gas_inner(
         access_list_req.clone(),
         Some(BlockNumberOrTag::Latest),
+        None,
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -305,6 +327,8 @@ fn test_tx_request_fields_gas_fork1() {
     let already_formed_list = evm.create_access_list_inner(
         access_list_req,
         Some(BlockNumberOrTag::Latest),
+        None,
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -361,6 +385,8 @@ fn test_access_list() {
     let no_access_list = evm.eth_estimate_gas_inner(
         tx_req_contract_call.clone(),
         None,
+        None,
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -369,6 +395,8 @@ fn test_access_list() {
 
     let form_access_list = evm.create_access_list_inner(
         tx_req_contract_call.clone(),
+        None,
+        None,
         None,
         &mut working_set,
         &ledger_db,
@@ -400,6 +428,8 @@ fn test_access_list() {
 
     let with_access_list = evm.eth_estimate_gas_inner(
         tx_req_with_access_list,
+        None,
+        None,
         None,
         &mut working_set,
         &ledger_db,
@@ -483,6 +513,8 @@ fn test_pending_env() {
         .eth_estimate_gas_inner(
             tx_req.clone(),
             Some(BlockNumberOrTag::Latest),
+            None,
+            None,
             &mut working_set,
             &ledger_db,
             get_fork_fn_latest(),
@@ -492,6 +524,8 @@ fn test_pending_env() {
     let result_pending = evm.eth_estimate_gas_inner(
         tx_req.clone(),
         Some(BlockNumberOrTag::Pending),
+        None,
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -501,6 +535,8 @@ fn test_pending_env() {
     let result = evm
         .create_access_list_inner(
             tx_req.clone(),
+            None,
+            None,
             None,
             &mut working_set,
             &ledger_db,
@@ -512,6 +548,8 @@ fn test_pending_env() {
         .create_access_list_inner(
             tx_req.clone(),
             Some(BlockNumberOrTag::Pending),
+            None,
+            None,
             &mut working_set,
             &ledger_db,
             get_fork_fn_latest(),
@@ -542,6 +580,8 @@ fn test_estimate_gas_with_input(
     evm.eth_estimate_gas_inner(
         tx_req,
         Some(BlockNumberOrTag::Latest),
+        None,
+        None,
         working_set,
         ledger_db,
         get_fork_fn_latest(),
@@ -567,6 +607,8 @@ fn test_estimate_gas_with_value(
     evm.eth_estimate_gas_inner(
         tx_req,
         Some(BlockNumberOrTag::Latest),
+        None,
+        None,
         working_set,
         ledger_db,
         get_fork_fn_latest(),

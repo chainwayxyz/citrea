@@ -835,6 +835,8 @@ fn test_queries_with_forks() {
     let no_access_list = evm.eth_estimate_gas_inner(
         tx_req_contract_call.clone(),
         None,
+        None,
+        None,
         &mut working_set,
         &ledger_db,
         fork_fn,
@@ -862,6 +864,8 @@ fn test_queries_with_forks() {
         .create_access_list_inner(
             tx_req_contract_call.clone(),
             None,
+            None,
+            None,
             &mut working_set,
             &ledger_db,
             fork_fn,
@@ -886,6 +890,8 @@ fn test_queries_with_forks() {
 
     let with_access_list = evm.eth_estimate_gas_inner(
         tx_req_with_access_list,
+        None,
+        None,
         None,
         &mut working_set,
         &ledger_db,
