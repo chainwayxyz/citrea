@@ -154,6 +154,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     CommitmentMerkleRoots::table_name(),
     CommitmentsByNumber::table_name(),
     DaTxRequestByJobId::table_name(),
+    DaJobIdByProvingJobId::table_name(),
     DaJobProgressById::table_name(),
     DaJobStatusIndex::table_name(),
     ExecutedMigrations::table_name(),
