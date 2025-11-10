@@ -201,7 +201,7 @@ pub trait DaJobRpc {
     /// # Errors
     /// * Job not found
     /// * Job cannot be cancelled (already completed, failed, or cancelled)
-    #[method(name = "cancel")]
+    #[method(name = "cancelById")]
     async fn da_job_cancel(&self, job_id: JobId) -> RpcResult<CancelJobResponse>;
 
     /// Retries a failed or cancelled job by creating a new job with the same data.
@@ -215,7 +215,7 @@ pub trait DaJobRpc {
     /// # Errors
     /// * Job not found
     /// * Job is not in a retryable state (pending, in-progress, or completed)
-    #[method(name = "retry")]
+    #[method(name = "retryById")]
     async fn da_job_retry(&self, job_id: JobId) -> RpcResult<RetryJobResponse>;
 
     /// Lists jobs with optional filtering and pagination.
@@ -245,7 +245,7 @@ pub trait DaJobRpc {
     ///
     /// # Errors
     /// * Database error related errors
-    #[method(name = "get")]
+    #[method(name = "getById")]
     async fn da_job_get_info(&self, job_id: JobId) -> RpcResult<JobInfoResponse>;
 }
 
