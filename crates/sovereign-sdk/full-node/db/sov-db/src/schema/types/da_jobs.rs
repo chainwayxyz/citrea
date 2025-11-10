@@ -8,17 +8,17 @@ pub type JobId = Uuid;
 /// Job status representing the current state of transaction processing
 #[derive(Debug, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq)]
 pub enum DaJobStatus {
-    /// Job is queued and waiting to be processed
+    /// Job is queued and waiting to be processed.
     Pending,
-    /// Job is in progress
+    /// Job is in progress. None or some its txs have been sent to DA.
     InProgress,
-    /// Job completed successfully
+    /// Job completed successfully. All its txs have been sent to DA.
     Completed,
-    /// Job was cancelled before completion
+    /// Job was cancelled before completion.
     Cancelled,
-    /// Job failed with error
+    /// Job failed with error.
     Failed {
-        /// Error associated with the failure
+        /// Error associated with the failure.
         error: String,
     },
 }
