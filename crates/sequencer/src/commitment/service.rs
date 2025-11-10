@@ -221,7 +221,7 @@ where
 
         let tx_request = DaTxRequest::SequencerCommitment(commitment.clone());
 
-        let (_, rx) = self
+        let (da_job_id, rx) = self
             .da_service
             .send_transaction(tx_request)
             .await
@@ -237,8 +237,7 @@ where
 
         let _txid = rx
             .await
-            .map_err(|_| anyhow!("DA notification channel closed"))? // Handle RecvError
-            .map_err(|e| anyhow!("DA job failed: {e}"))?;
+            .map_err(|_| anyhow!("DA notification channel closed"))?;
 
         SM.send_commitment_execution.record(
             Instant::now()
@@ -252,7 +251,10 @@ where
 
         ledger_db.delete_state_diff_by_range(commitment_range)?;
 
-        info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
+        info!(
+            "New commitment. L2 range: #{}-{}, index: {}, da job id {da_job_id}",
+            l2_start.0, l2_end.0, commitment.index
+        );
 
         Ok(())
     }
