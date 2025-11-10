@@ -682,11 +682,8 @@ impl BatchProverRecoveryJobServiceTest {
             None,
         );
 
-        let mut tempfile = tempfile::NamedTempFile::new().unwrap();
-        tempfile.write_all(&proof).unwrap();
-
         let job_id = batch_prover_client
-            .submit_proof_from_file(tempfile.path().to_path_buf(), output)
+            .submit_proof_with_output(proof, output)
             .await?;
 
         wait_for_prover_job_count(batch_prover, 1, None).await?;

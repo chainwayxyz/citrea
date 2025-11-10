@@ -278,17 +278,16 @@ pub trait BatchProverRpc {
     #[method(name = "retryProvingJob")]
     async fn retry_proving_job(&self, job_id: Uuid) -> RpcResult<Uuid>;
 
-    /// Submit a proof from a file path. Only available with `testing` feature.
+    /// Submit a proof with output. Only available with `testing` feature.
     ///
     /// # Arguments
-    /// * `proof_path` - Path to the serialized proof file to submit
+    /// * `proof` - Serialized proof
     /// * `output` - Serialized `BatchProofCircuitOutput`
     ///
     /// # Returns
     /// The bitcoin-da job id
     #[method(name = "submitProofFromFile")]
-    async fn submit_proof_from_file(&self, proof_path: PathBuf, output: Vec<u8>)
-        -> RpcResult<Uuid>;
+    async fn submit_proof_with_output(&self, proof: Vec<u8>, output: Vec<u8>) -> RpcResult<Uuid>;
 }
 
 /// Server implementation of the Batch Prover RPC interface
@@ -692,28 +691,17 @@ where
     }
 
     #[cfg(not(feature = "testing"))]
-    async fn submit_proof_from_file(
-        &self,
-        _proof_path: PathBuf,
-        _output: Vec<u8>,
-    ) -> RpcResult<Uuid> {
+    async fn submit_proof_with_output(&self, _proof: Vec<u8>, _output: Vec<u8>) -> RpcResult<Uuid> {
         Err(internal_rpc_error("Unsupported test method"))
     }
 
     #[cfg(feature = "testing")]
-    async fn submit_proof_from_file(
-        &self,
-        proof_path: PathBuf,
-        output: Vec<u8>,
-    ) -> RpcResult<Uuid> {
+    async fn submit_proof_with_output(&self, proof: Vec<u8>, output: Vec<u8>) -> RpcResult<Uuid> {
         use sov_rollup_interface::services::da::DaTxRequest;
 
         let ledger_db = &self.context.ledger_db;
         let proving_job_id = Uuid::now_v7();
-        info!("Submitting proof from  file {proof_path:?} with id {proving_job_id}");
-
-        let proof = fs::read(&proof_path)
-            .map_err(|e| internal_rpc_error(format!("Failed to read proof file: {e}")))?;
+        info!("Submitting proof with id {proving_job_id}");
 
         let output: BatchProofCircuitOutput = borsh::from_slice(&output).unwrap();
 
