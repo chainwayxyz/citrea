@@ -4,7 +4,8 @@ use std::time::Duration;
 
 use alloy_primitives::{Address, U256};
 use alloy_rpc_types::BlockNumberOrTag;
-use citrea_common::{BatchProverConfig, PruningConfig, SequencerConfig};
+use citrea_common::risc0::Risc0HostConfig;
+use citrea_common::{BatchProverConfig, FromEnv, PruningConfig, SequencerConfig};
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_stf::genesis_config::GenesisPaths;
@@ -110,6 +111,7 @@ async fn test_all_flow() {
             proof_sampling_number: 0,
             enable_recovery: true,
             max_commitments_per_proof: None,
+            risc0_host: Risc0HostConfig::from_env().expect("Failed to load Risc0HostConfig"),
         }),
         None,
         rollup_config,

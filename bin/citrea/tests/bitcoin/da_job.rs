@@ -11,15 +11,12 @@ use bitcoin_da::service::BitcoinService;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
-use citrea_e2e::config::{
-    BatchProverConfig, BitcoinConfig, LightClientProverConfig, TestCaseConfig,
-};
+use citrea_e2e::config::{BatchProverConfig, BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::BatchProver;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
-use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use jsonrpsee::http_client::HttpClient;
 use reth_tasks::TaskManager;
 use sov_db::schema::types::da_jobs::DaJobStatus;
@@ -47,7 +44,6 @@ impl JobServiceTest {
         da_service: &BitcoinService,
         da_service_client: &HttpClient,
         genesis_state_root: [u8; 32],
-        batch_proof_method_id: [u32; 8],
         finalized_height: u64,
         commitment: &SequencerCommitment,
         commitment_state_root: [u8; 32],
@@ -58,7 +54,6 @@ impl JobServiceTest {
         let proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
             genesis_state_root,
             20,
-            batch_proof_method_id,
             Some(state_diff),
             false,
             l1_hash.as_raw_hash().to_byte_array(),
@@ -115,7 +110,6 @@ impl JobServiceTest {
         da_service: &BitcoinService,
         da_service_client: &HttpClient,
         genesis_state_root: [u8; 32],
-        batch_proof_method_id: [u32; 8],
         finalized_height: u64,
         commitment: &SequencerCommitment,
         commitment_state_root: [u8; 32],
@@ -127,7 +121,6 @@ impl JobServiceTest {
         let proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
             genesis_state_root,
             20,
-            batch_proof_method_id,
             Some(state_diff_100kb),
             false,
             l1_hash.as_raw_hash().to_byte_array(),
@@ -206,7 +199,6 @@ impl JobServiceTest {
         da_service: &BitcoinService,
         da_service_client: &HttpClient,
         genesis_state_root: [u8; 32],
-        batch_proof_method_id: [u32; 8],
         finalized_height: u64,
         commitment: &SequencerCommitment,
         commitment_state_root: [u8; 32],
@@ -217,7 +209,6 @@ impl JobServiceTest {
         let proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
             genesis_state_root,
             20,
-            batch_proof_method_id,
             Some(state_diff),
             false,
             l1_hash.as_raw_hash().to_byte_array(),
@@ -303,7 +294,6 @@ impl JobServiceTest {
         da_service: Arc<BitcoinService>,
         da_service_client: HttpClient,
         genesis_state_root: [u8; 32],
-        batch_proof_method_id: [u32; 8],
         finalized_height: u64,
         commitment: &SequencerCommitment,
         commitment_state_root: [u8; 32],
@@ -313,7 +303,6 @@ impl JobServiceTest {
         let proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
             genesis_state_root,
             20,
-            batch_proof_method_id,
             Some(state_diff_400kb),
             false,
             l1_hash.as_raw_hash().to_byte_array(),
@@ -396,7 +385,6 @@ impl JobServiceTest {
         da_service: &Arc<BitcoinService>,
         da_service_client: &HttpClient,
         genesis_state_root: [u8; 32],
-        batch_proof_method_id: [u32; 8],
         finalized_height: u64,
         commitment: &SequencerCommitment,
         commitment_state_root: [u8; 32],
@@ -406,7 +394,6 @@ impl JobServiceTest {
         let proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
             genesis_state_root,
             20,
-            batch_proof_method_id,
             Some(state_diff_400kb),
             false,
             l1_hash.as_raw_hash().to_byte_array(),
@@ -497,8 +484,6 @@ impl TestCase for JobServiceTest {
     fn bitcoin_config() -> BitcoinConfig {
         BitcoinConfig {
             extra_args: vec![
-                "-persistmempool=0",
-                "-walletbroadcast=0",
                 "-limitancestorcount=100",
                 "-limitdescendantcount=100",
                 "-fallbackfee=0.00001",
@@ -508,14 +493,7 @@ impl TestCase for JobServiceTest {
     }
 
     fn scan_l1_start_height() -> Option<u64> {
-        Some(170)
-    }
-
-    fn light_client_prover_config() -> LightClientProverConfig {
-        LightClientProverConfig {
-            initial_da_height: 171,
-            ..Default::default()
-        }
+        Some(150)
     }
 
     fn batch_prover_config() -> BatchProverConfig {
@@ -537,7 +515,6 @@ impl TestCase for JobServiceTest {
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
-        let light_client_prover = f.light_client_prover.as_mut().unwrap();
 
         let test_dir = Self::test_config().dir;
         let tx_backup_dir = test_dir.join("tx_backup_dir");
@@ -549,26 +526,15 @@ impl TestCase for JobServiceTest {
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height(None).await?;
-
-        light_client_prover
-            .wait_for_l1_height(finalized_height, None)
-            .await?;
-
-        let lcp = light_client_prover
+        let genesis_state_root = full_node
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
-            .await?;
-        let lcp_output = lcp.unwrap().light_client_proof_output;
-
-        let batch_proof_method_ids = light_client_prover
-            .client
-            .http_client()
-            .get_batch_proof_method_ids()
-            .await?;
-        let genesis_state_root = lcp_output.l2_state_root;
+            .get_l2_genesis_state_root()
+            .await?
+            .unwrap()
+            .0
+            .try_into()
+            .unwrap();
 
         // Generate sequencer commitment
         for _ in 0..max_l2_blocks_per_commitment {
@@ -605,14 +571,11 @@ impl TestCase for JobServiceTest {
             .header
             .state_root;
 
-        let batch_proof_method_id: [u32; 8] = batch_proof_method_ids[0].method_id.into();
-
         self.test_job_lifecycle(
             da,
             &da_service,
             &da_service_client,
             genesis_state_root,
-            batch_proof_method_id,
             finalized_height,
             &commitment,
             commitment_state_root,
@@ -627,7 +590,6 @@ impl TestCase for JobServiceTest {
             &da_service,
             &da_service_client,
             genesis_state_root,
-            batch_proof_method_id,
             finalized_height,
             &commitment,
             commitment_state_root,
@@ -642,7 +604,6 @@ impl TestCase for JobServiceTest {
             &da_service,
             &da_service_client,
             genesis_state_root,
-            batch_proof_method_id,
             finalized_height,
             &commitment,
             commitment_state_root,
@@ -658,7 +619,6 @@ impl TestCase for JobServiceTest {
             &da_service,
             &da_service_client,
             genesis_state_root,
-            batch_proof_method_id,
             finalized_height,
             &commitment,
             commitment_state_root,
@@ -673,7 +633,6 @@ impl TestCase for JobServiceTest {
             da_service,
             da_service_client,
             genesis_state_root,
-            batch_proof_method_id,
             finalized_height,
             &commitment,
             commitment_state_root,
@@ -703,7 +662,6 @@ impl BatchProverRecoveryJobServiceTest {
         da: &BitcoinNode,
         batch_prover: &mut BatchProver,
         genesis_state_root: [u8; 32],
-        batch_proof_method_id: [u32; 8],
         finalized_height: u64,
         commitment: &SequencerCommitment,
         commitment_state_root: [u8; 32],
@@ -716,7 +674,6 @@ impl BatchProverRecoveryJobServiceTest {
         let (proof, output) = create_serialized_fake_receipt_batch_proof_and_serialized_output(
             genesis_state_root,
             20,
-            batch_proof_method_id,
             Some(state_diff_400kb),
             false,
             l1_hash.as_raw_hash().to_byte_array(),
@@ -789,8 +746,6 @@ impl TestCase for BatchProverRecoveryJobServiceTest {
     fn bitcoin_config() -> BitcoinConfig {
         BitcoinConfig {
             extra_args: vec![
-                "-persistmempool=0",
-                "-walletbroadcast=0",
                 "-limitancestorcount=100",
                 "-limitdescendantcount=100",
                 "-fallbackfee=0.00001",
@@ -807,45 +762,26 @@ impl TestCase for BatchProverRecoveryJobServiceTest {
     }
 
     fn scan_l1_start_height() -> Option<u64> {
-        Some(170)
-    }
-
-    fn light_client_prover_config() -> LightClientProverConfig {
-        LightClientProverConfig {
-            initial_da_height: 171,
-            ..Default::default()
-        }
+        Some(150)
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
-        let light_client_prover = f.light_client_prover.as_mut().unwrap();
         let batch_prover = f.batch_prover.as_mut().unwrap();
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height(None).await?;
-
-        light_client_prover
-            .wait_for_l1_height(finalized_height, None)
-            .await?;
-
-        let lcp = light_client_prover
+        let genesis_state_root = full_node
             .client
             .http_client()
-            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
-            .await?;
-        let lcp_output = lcp.unwrap().light_client_proof_output;
-
-        let batch_proof_method_ids = light_client_prover
-            .client
-            .http_client()
-            .get_batch_proof_method_ids()
-            .await?;
-        let genesis_state_root = lcp_output.l2_state_root;
+            .get_l2_genesis_state_root()
+            .await?
+            .unwrap()
+            .0
+            .try_into()
+            .unwrap();
 
         // Generate sequencer commitment
         for _ in 0..max_l2_blocks_per_commitment {
@@ -882,13 +818,10 @@ impl TestCase for BatchProverRecoveryJobServiceTest {
             .header
             .state_root;
 
-        let batch_proof_method_id: [u32; 8] = batch_proof_method_ids[0].method_id.into();
-
         self.test_batch_prover_da_job_recovery(
             da,
             batch_prover,
             genesis_state_root,
-            batch_proof_method_id,
             finalized_height,
             &commitment,
             commitment_state_root,

@@ -25,6 +25,7 @@ use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_e2e::traits::NodeT;
+use citrea_light_client_prover::circuit::initial_values::bitcoinda::NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS;
 use citrea_light_client_prover::circuit::{
     citrea_network_to_chain_id, SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE,
     SECURITY_COUNCIL_MEMBER_COUNT,
@@ -772,7 +773,6 @@ pub mod macros {
 pub fn create_serialized_fake_receipt_batch_proof_and_serialized_output(
     initial_state_root: [u8; 32],
     last_l2_height: u64,
-    method_id: [u32; 8],
     state_diff: Option<CumulativeStateDiff>,
     malformed_journal: bool,
     last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
@@ -780,6 +780,7 @@ pub fn create_serialized_fake_receipt_batch_proof_and_serialized_output(
     state_roots_of_seq_comms: Vec<[u8; 32]>,
     prev_sequencer_commitment_hash: Option<[u8; 32]>,
 ) -> (Vec<u8>, Vec<u8>) {
+    let method_id = NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS.inner()[0].1;
     let sequencer_commitment_hashes = sequencer_commitments
         .iter()
         .map(|c| c.serialize_and_calculate_sha_256())

@@ -12,7 +12,8 @@ use alloy_primitives::{Address, Bytes, U256, U64};
 use alloy_rpc_types::{
     Authorization, BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, TransactionRequest,
 };
-use citrea_common::{BatchProverConfig, SequencerConfig};
+use citrea_common::risc0::Risc0HostConfig;
+use citrea_common::{BatchProverConfig, FromEnv, SequencerConfig};
 use citrea_evm::smart_contracts::{
     CallerContract, LogsContract, SimpleStorageContract, TestContract,
 };
@@ -1405,6 +1406,7 @@ async fn test_safe_finalized_tags() {
             proof_sampling_number: 1_000_000,
             enable_recovery: true,
             max_commitments_per_proof: None,
+            risc0_host: Risc0HostConfig::from_env().expect("Failed to load Risc0HostConfig"),
         }),
         None,
         rollup_config,

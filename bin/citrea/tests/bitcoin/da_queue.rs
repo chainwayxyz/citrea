@@ -7,15 +7,13 @@ use bitcoin_da::error::BitcoinServiceError;
 use bitcoin_da::service::{BitcoinService, UtxoSelectionMode};
 use bitcoincore_rpc::RpcApi;
 use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
-use citrea_e2e::config::{BitcoinConfig, LightClientProverConfig, TestCaseConfig};
+use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
-use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use reth_tasks::TaskManager;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::SequencerCommitment;
-use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::services::da::{DaService, DaTxRequest};
 
 use super::light_client_test::create_random_state_diff;
@@ -39,7 +37,6 @@ impl DaTransactionQueueingTest {
         da_service: &BitcoinService,
         finalized_height: u64,
         genesis_state_root: [u8; 32],
-        batch_proof_method_ids: &[BatchProofMethodIdRpcResponse],
         commitment_1: &SequencerCommitment,
         commitment_1_state_root: [u8; 32],
     ) -> Result<()> {
@@ -51,7 +48,6 @@ impl DaTransactionQueueingTest {
             create_serialized_fake_receipt_batch_proof_with_state_roots(
                 genesis_state_root,
                 20,
-                batch_proof_method_ids[0].method_id.into(),
                 Some(state_diff_100kb.clone()),
                 false,
                 l1_hash.as_raw_hash().to_byte_array(),
@@ -144,7 +140,6 @@ impl DaTransactionQueueingTest {
         da_service: &BitcoinService,
         finalized_height: u64,
         genesis_state_root: [u8; 32],
-        batch_proof_method_ids: &[BatchProofMethodIdRpcResponse],
         commitment_1: &SequencerCommitment,
         commitment_1_state_root: [u8; 32],
     ) -> Result<()> {
@@ -157,7 +152,6 @@ impl DaTransactionQueueingTest {
             create_serialized_fake_receipt_batch_proof_with_state_roots(
                 genesis_state_root,
                 20,
-                batch_proof_method_ids[0].method_id.into(),
                 Some(state_diff_400kb.clone()),
                 false,
                 l1_hash.as_raw_hash().to_byte_array(),
@@ -242,7 +236,6 @@ impl TestCase for DaTransactionQueueingTest {
         TestCaseConfig {
             with_full_node: true,
             with_sequencer: true,
-            with_light_client_prover: true,
             ..Default::default()
         }
     }
@@ -261,14 +254,7 @@ impl TestCase for DaTransactionQueueingTest {
     }
 
     fn scan_l1_start_height() -> Option<u64> {
-        Some(170)
-    }
-
-    fn light_client_prover_config() -> LightClientProverConfig {
-        LightClientProverConfig {
-            initial_da_height: 171,
-            ..Default::default()
-        }
+        Some(145)
     }
 
     async fn cleanup(self) -> Result<()> {
@@ -283,7 +269,6 @@ impl TestCase for DaTransactionQueueingTest {
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
-        let light_client_prover = f.light_client_prover.as_mut().unwrap();
 
         let da_service =
             spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
@@ -291,29 +276,16 @@ impl TestCase for DaTransactionQueueingTest {
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height(None).await?;
 
-        // Wait for light client prover to create light client proof.
-        light_client_prover
-            .wait_for_l1_height(finalized_height, None)
-            .await
+        let genesis_state_root = full_node
+            .client
+            .http_client()
+            .get_l2_genesis_state_root()
+            .await?
+            .unwrap()
+            .0
+            .try_into()
             .unwrap();
-
-        // Expect light client prover to have generated light client proof
-        let lcp = light_client_prover
-            .client
-            .http_client()
-            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
-            .await?;
-        let lcp_output = lcp.unwrap().light_client_proof_output;
-
-        // Get initial method ids and genesis state root
-        let batch_proof_method_ids = light_client_prover
-            .client
-            .http_client()
-            .get_batch_proof_method_ids()
-            .await?;
-        let genesis_state_root = lcp_output.l2_state_root;
 
         let sequencer_client = sequencer.client.clone();
 
@@ -355,7 +327,6 @@ impl TestCase for DaTransactionQueueingTest {
             &da_service,
             finalized_height,
             genesis_state_root,
-            &batch_proof_method_ids,
             &commitment_1,
             commitment_1_state_root,
         )
@@ -366,7 +337,6 @@ impl TestCase for DaTransactionQueueingTest {
             &da_service,
             finalized_height,
             genesis_state_root,
-            &batch_proof_method_ids,
             &commitment_1,
             commitment_1_state_root,
         )
@@ -400,7 +370,6 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         da_service: &BitcoinService,
         finalized_height: u64,
         genesis_state_root: [u8; 32],
-        batch_proof_method_ids: &[BatchProofMethodIdRpcResponse],
         commitment_1: &SequencerCommitment,
         commitment_1_state_root: [u8; 32],
     ) -> Result<()> {
@@ -412,7 +381,6 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
             create_serialized_fake_receipt_batch_proof_with_state_roots(
                 genesis_state_root,
                 20,
-                batch_proof_method_ids[0].method_id.into(),
                 Some(state_diff_100kb.clone()),
                 false,
                 l1_hash.as_raw_hash().to_byte_array(),
@@ -498,7 +466,6 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         da_service: &BitcoinService,
         finalized_height: u64,
         genesis_state_root: [u8; 32],
-        batch_proof_method_ids: &[BatchProofMethodIdRpcResponse],
         commitment_1: &SequencerCommitment,
         commitment_1_state_root: [u8; 32],
     ) -> Result<()> {
@@ -511,7 +478,6 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
             create_serialized_fake_receipt_batch_proof_with_state_roots(
                 genesis_state_root,
                 20,
-                batch_proof_method_ids[0].method_id.into(),
                 Some(state_diff_400kb.clone()),
                 false,
                 l1_hash.as_raw_hash().to_byte_array(),
@@ -603,7 +569,6 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
         TestCaseConfig {
             with_full_node: true,
             with_sequencer: true,
-            with_light_client_prover: true,
             ..Default::default()
         }
     }
@@ -622,14 +587,7 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
     }
 
     fn scan_l1_start_height() -> Option<u64> {
-        Some(170)
-    }
-
-    fn light_client_prover_config() -> LightClientProverConfig {
-        LightClientProverConfig {
-            initial_da_height: 171,
-            ..Default::default()
-        }
+        Some(145)
     }
 
     async fn cleanup(self) -> Result<()> {
@@ -644,7 +602,6 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
-        let light_client_prover = f.light_client_prover.as_mut().unwrap();
 
         let da_service = spawn_bitcoin_da_prover_service_with_utxo_selection_mode(
             &task_executor,
@@ -656,29 +613,16 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height(None).await?;
 
-        // Wait for light client prover to create light client proof.
-        light_client_prover
-            .wait_for_l1_height(finalized_height, None)
-            .await
+        let genesis_state_root = full_node
+            .client
+            .http_client()
+            .get_l2_genesis_state_root()
+            .await?
+            .unwrap()
+            .0
+            .try_into()
             .unwrap();
-
-        // Expect light client prover to have generated light client proof
-        let lcp = light_client_prover
-            .client
-            .http_client()
-            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
-            .await?;
-        let lcp_output = lcp.unwrap().light_client_proof_output;
-
-        // Get initial method ids and genesis state root
-        let batch_proof_method_ids = light_client_prover
-            .client
-            .http_client()
-            .get_batch_proof_method_ids()
-            .await?;
-        let genesis_state_root = lcp_output.l2_state_root;
 
         let sequencer_client = sequencer.client.clone();
 
@@ -721,7 +665,6 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
             &da_service,
             finalized_height,
             genesis_state_root,
-            &batch_proof_method_ids,
             &commitment_1,
             commitment_1_state_root,
         )
@@ -732,7 +675,6 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
             &da_service,
             finalized_height,
             genesis_state_root,
-            &batch_proof_method_ids,
             &commitment_1,
             commitment_1_state_root,
         )

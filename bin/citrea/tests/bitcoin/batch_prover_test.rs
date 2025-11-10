@@ -14,6 +14,7 @@ use bitcoin::hashes::Hash;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::PartitionMode;
+use citrea_common::config::risc0::Risc0HostConfig;
 use citrea_common::FromEnv;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::{
@@ -26,7 +27,6 @@ use citrea_e2e::traits::{NodeT, Restart};
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
-use citrea_risc0_adapter::host::config::Risc0HostConfig;
 use citrea_risc0_adapter::host::Risc0Host;
 use citrea_sequencer::SequencerRpcClient;
 use risc0_zkvm::Digest;

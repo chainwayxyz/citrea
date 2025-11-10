@@ -1,17 +1,12 @@
 use std::path::PathBuf;
-use std::str::FromStr;
 
-use anyhow::Context;
-use boundless_market::alloy::signers::k256::ecdsa::SigningKey;
-use boundless_market::alloy::signers::local::{LocalSigner, PrivateKeySigner};
-use boundless_market::deployments::BASE;
-use boundless_market::Deployment;
-use citrea_common::utils::read_env;
 use serde::{Deserialize, Serialize};
-use url::Url;
+
+use crate::utils::{is_dev_mode_enabled_via_environment, read_env};
+use crate::FromEnv;
 
 /// Boundless storage configuration for S3
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct BoundlessS3StorageConfig {
     /// S3 access key
     pub s3_access_key: String,
@@ -27,7 +22,7 @@ pub struct BoundlessS3StorageConfig {
     pub s3_use_presigned: bool,
 }
 
-impl citrea_common::FromEnv for BoundlessS3StorageConfig {
+impl FromEnv for BoundlessS3StorageConfig {
     fn from_env() -> anyhow::Result<Self> {
         let s3_access_key = read_env("BOUNDLESS_S3_ACCESS_KEY")?;
         let s3_secret_key = read_env("BOUNDLESS_S3_SECRET_KEY")?;
@@ -50,39 +45,17 @@ impl citrea_common::FromEnv for BoundlessS3StorageConfig {
 }
 
 /// Boundless storage configuration for Pinata
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct BoundlessPinataStorageConfig {
     /// Pinata JWT for authentication
     pub pinata_jwt: String,
     /// Pinata API URL
-    #[serde(with = "url_serde")]
-    pub pinata_api_url: Url,
+    pub pinata_api_url: String,
     /// IPFS Gateway URL
-    #[serde(with = "url_serde")]
-    pub ipfs_gateway_url: Url,
+    pub ipfs_gateway_url: String,
 }
 
-mod url_serde {
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-    use url::Url;
-
-    pub fn serialize<S>(url: &Url, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        url.as_str().serialize(serializer)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Url, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Url::parse(&s).map_err(serde::de::Error::custom)
-    }
-}
-
-impl citrea_common::FromEnv for BoundlessPinataStorageConfig {
+impl FromEnv for BoundlessPinataStorageConfig {
     fn from_env() -> anyhow::Result<Self> {
         let pinata_jwt = read_env("BOUNDLESS_PINATA_JWT")?;
         let pinata_api_url = read_env("BOUNDLESS_PINATA_API_URL")?;
@@ -90,14 +63,14 @@ impl citrea_common::FromEnv for BoundlessPinataStorageConfig {
 
         Ok(Self {
             pinata_jwt,
-            pinata_api_url: Url::parse(&pinata_api_url).expect("Invalid Pinata API URL"),
-            ipfs_gateway_url: Url::parse(&ipfs_gateway_url).expect("Invalid IPFS Gateway URL"),
+            pinata_api_url,
+            ipfs_gateway_url,
         })
     }
 }
 
 /// Boundless storage configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum BoundlessStorageConfig {
     /// S3 storage provider
@@ -107,7 +80,7 @@ pub enum BoundlessStorageConfig {
 }
 
 /// Configuration for the Boundless prover
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct BoundlessProverConfig {
     /// Boundless configuration
     pub boundless: BoundlessConfig,
@@ -115,7 +88,7 @@ pub struct BoundlessProverConfig {
     pub storage: BoundlessStorageConfig,
 }
 
-impl citrea_common::FromEnv for BoundlessProverConfig {
+impl FromEnv for BoundlessProverConfig {
     fn from_env() -> anyhow::Result<Self> {
         let boundless = BoundlessConfig::from_env()?;
 
@@ -133,15 +106,15 @@ impl citrea_common::FromEnv for BoundlessProverConfig {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 /// Configuration for the Boundless Market client
 pub struct BoundlessConfig {
-    pub(crate) wallet_private_key: LocalSigner<SigningKey>,
-    pub(crate) rpc_url: Url,
-    pub(crate) deployment: Deployment,
+    pub wallet_private_key: String,
+    pub rpc_url: String,
+    pub is_offchain: bool,
 }
 
-impl citrea_common::FromEnv for BoundlessConfig {
+impl FromEnv for BoundlessConfig {
     fn from_env() -> anyhow::Result<Self> {
         let wallet_private_key = read_env("BOUNDLESS_WALLET_PRIVATE_KEY")?;
         let rpc_url = read_env("BOUNDLESS_RPC_URL")?;
@@ -149,23 +122,16 @@ impl citrea_common::FromEnv for BoundlessConfig {
             .map(|v| v == "1" || v.to_lowercase() == "true")
             .unwrap_or(false);
 
-        // TODO: Switch to Deployment::builder after boundless 1.0 release to switch between base mainnet and sepolia
-        let mut deployment = BASE;
-        if !is_offchain {
-            deployment.order_stream_url = None;
-        }
-
         Ok(Self {
-            wallet_private_key: PrivateKeySigner::from_str(&wallet_private_key)
-                .context("Failed to parse wallet private key")?,
-            rpc_url: Url::parse(&rpc_url).expect("Invalid RPC URL"),
-            deployment,
+            wallet_private_key,
+            rpc_url,
+            is_offchain,
         })
     }
 }
 
 /// Configuration for the local (IPC) prover
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]
 pub struct LocalProverConfig {
     /// Optional path to the r0vm binary
     pub r0vm_path: Option<PathBuf>,
@@ -174,10 +140,11 @@ pub struct LocalProverConfig {
     pub dev_mode: bool,
 }
 
-impl citrea_common::FromEnv for LocalProverConfig {
+impl FromEnv for LocalProverConfig {
     fn from_env() -> anyhow::Result<Self> {
         let r0vm_path = read_env("RISC0_SERVER_PATH").ok().map(PathBuf::from);
-        let dev_mode = crate::is_dev_mode_enabled_via_environment();
+        let dev_mode = is_dev_mode_enabled_via_environment();
+
         Ok(Self {
             r0vm_path,
             dev_mode,
@@ -186,7 +153,7 @@ impl citrea_common::FromEnv for LocalProverConfig {
 }
 
 /// Configuration for the Bonsai prover
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct BonsaiProverConfig {
     /// Bonsai API URL
     pub api_url: String,
@@ -194,7 +161,7 @@ pub struct BonsaiProverConfig {
     pub api_key: String,
 }
 
-impl citrea_common::FromEnv for BonsaiProverConfig {
+impl FromEnv for BonsaiProverConfig {
     fn from_env() -> anyhow::Result<Self> {
         let api_url = read_env("BONSAI_API_URL")?;
         let api_key = read_env("BONSAI_API_KEY")?;
@@ -203,7 +170,7 @@ impl citrea_common::FromEnv for BonsaiProverConfig {
 }
 
 /// Prover configuration enum
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub enum Risc0ProverConfig {
     /// Local IPC prover
     Local(LocalProverConfig),
@@ -219,7 +186,7 @@ impl Default for Risc0ProverConfig {
     }
 }
 
-impl citrea_common::FromEnv for Risc0ProverConfig {
+impl FromEnv for Risc0ProverConfig {
     fn from_env() -> anyhow::Result<Self> {
         match std::env::var("RISC0_PROVER") {
             Ok(prover) => match prover.as_str() {
@@ -239,7 +206,7 @@ impl citrea_common::FromEnv for Risc0ProverConfig {
 }
 
 /// Configuration for Risc0Host
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Risc0HostConfig {
     /// Prover config
     pub prover: Risc0ProverConfig,
@@ -247,7 +214,7 @@ pub struct Risc0HostConfig {
     pub tx_backup_dir: Option<PathBuf>,
 }
 
-impl citrea_common::FromEnv for Risc0HostConfig {
+impl FromEnv for Risc0HostConfig {
     fn from_env() -> anyhow::Result<Self> {
         let prover = Risc0ProverConfig::from_env()?;
         let tx_backup_dir = std::env::var("TX_BACKUP_DIR").ok().map(PathBuf::from);
