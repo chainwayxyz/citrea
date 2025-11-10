@@ -120,6 +120,7 @@ impl BonsaiProver {
                             segments: stats.segments,
                             total_cycles: stats.total_cycles,
                             user_cycles: stats.cycles,
+                            receipt_type,
                         }),
                     }) else {
                         error!("Bonsai proof receiver channel is closed");

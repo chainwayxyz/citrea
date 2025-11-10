@@ -55,6 +55,8 @@ pub struct BonsaiInfo {
     pub total_cycles: u64,
     /// User cycles run within guest, slightly below total overhead cycles
     pub user_cycles: u64,
+    /// Type of the proof receipt
+    pub receipt_type: ReceiptType,
 }
 
 #[cfg(feature = "native")]
@@ -91,7 +93,7 @@ pub struct ProofWithJob {
     pub info: ProvingInfo,
 }
 
-#[derive(Debug, Clone, Copy, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, Copy, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 /// The type of the proof receipt
 pub enum ReceiptType {
     /// Use Groth16
