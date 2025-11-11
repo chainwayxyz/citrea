@@ -46,7 +46,7 @@ pub struct LocalProvingSessionInfo {
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 /// Information about a bonsai prover's execution.
-pub struct BonsaiInfo {
+pub struct BonsaiProvingSessionInfo {
     /// Session ID of the proof request
     pub session_id: String,
     /// Count of segments in this proof request
@@ -76,7 +76,7 @@ pub enum ProvingSessionInfo {
     /// Local prover info
     Local(LocalProvingSessionInfo),
     /// Bonsai prover info
-    Bonsai(BonsaiInfo),
+    Bonsai(BonsaiProvingSessionInfo),
     /// Boundless prover info
     Boundless(BoundlessInfo),
 }
