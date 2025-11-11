@@ -8,7 +8,7 @@ use risc0_zkvm::{
     AssumptionReceipt, ExecutorEnvBuilder, ExternalProver, ProveInfo, Prover, ProverOpts,
     SessionStats,
 };
-use sov_rollup_interface::zk::{LocalInfo, Proof, ProofWithJob, ProvingInfo, ReceiptType};
+use sov_rollup_interface::zk::{LocalInfo, Proof, ProofWithJob, ProvingSessionInfo, ReceiptType};
 use sov_rollup_interface::Network;
 use tokio::sync::oneshot;
 use tracing::error;
@@ -78,7 +78,7 @@ impl LocalProver {
         tokio::task::spawn_blocking(move || {
             match this.handle_prove(job_id, elf, input, assumptions, prover_opts) {
                 Ok((proof, stats)) => {
-                    let info = ProvingInfo::Local(local_info_from_stats(&stats));
+                    let info = ProvingSessionInfo::Local(local_info_from_stats(&stats));
                     let _ = tx.send(ProofWithJob {
                         job_id,
                         proof,

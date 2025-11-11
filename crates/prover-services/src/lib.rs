@@ -4,7 +4,7 @@
 
 mod parallel;
 pub use parallel::*;
-use sov_rollup_interface::zk::{Proof, ProvingInfo};
+use sov_rollup_interface::zk::{Proof, ProvingSessionInfo};
 mod metrics;
 
 #[derive(Debug, Clone, Copy)]
@@ -60,5 +60,5 @@ pub struct ProofWithDuration {
     /// The time it took to generate the proof in seconds
     pub duration: f64,
     /// Info about the proving process
-    pub info: ProvingInfo,
+    pub info: ProvingSessionInfo,
 }

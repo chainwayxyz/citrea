@@ -7,7 +7,7 @@ use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::stf::StateDiff;
-use sov_rollup_interface::zk::{Proof, ProvingInfo, StorageRootHash};
+use sov_rollup_interface::zk::{Proof, ProvingSessionInfo, StorageRootHash};
 use sov_schema_db::{ScanDirection, Schema, SchemaBatch, SchemaIterator, SeekKeyEncoder, DB};
 use tracing::instrument;
 use uuid::Uuid;
@@ -578,7 +578,7 @@ impl BatchProverLedgerOps for LedgerDB {
         id: Uuid,
         proof: Proof,
         output: StoredBatchProofOutput,
-        info: ProvingInfo,
+        info: ProvingSessionInfo,
     ) -> anyhow::Result<()> {
         let stored_proof = StoredBatchProof {
             l1_tx_id: None,
@@ -641,7 +641,7 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_proving_info_by_job_id(&self, id: Uuid) -> anyhow::Result<Option<ProvingInfo>> {
+    fn get_proving_info_by_job_id(&self, id: Uuid) -> anyhow::Result<Option<ProvingSessionInfo>> {
         self.db.get::<ProvingInfoByJobId>(&id)
     }
 

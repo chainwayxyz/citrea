@@ -14,7 +14,7 @@ use jmt::storage::{NibblePath, Node, NodeKey, StaleNodeIndex};
 use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::StateDiff;
-use sov_rollup_interface::zk::{Proof, ProvingInfo};
+use sov_rollup_interface::zk::{Proof, ProvingSessionInfo};
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 use uuid::Uuid;
@@ -371,7 +371,7 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// Proving info of the job
-    (ProvingInfoByJobId) Uuid => ProvingInfo
+    (ProvingInfoByJobId) Uuid => ProvingSessionInfo
 );
 
 define_table_with_default_codec!(

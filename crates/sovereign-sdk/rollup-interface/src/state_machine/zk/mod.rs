@@ -72,7 +72,7 @@ pub struct BoundlessInfo {
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 /// Information about prover's execution.
-pub enum ProvingInfo {
+pub enum ProvingSessionInfo {
     /// Local prover info
     Local(LocalInfo),
     /// Bonsai prover info
@@ -90,7 +90,7 @@ pub struct ProofWithJob {
     /// Result proof bytes
     pub proof: Proof,
     /// Information about prover's execution
-    pub info: ProvingInfo,
+    pub info: ProvingSessionInfo,
 }
 
 #[cfg(feature = "native")]

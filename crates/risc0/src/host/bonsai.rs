@@ -9,7 +9,7 @@ use metrics::gauge;
 use risc0_zkvm::{compute_image_id, AssumptionReceipt, Digest, InnerAssumptionReceipt, Receipt};
 use sov_db::ledger_db::{BonsaiLedgerOps, LedgerDB};
 use sov_db::schema::types::{BonsaiSession, BonsaiSessionKind};
-use sov_rollup_interface::zk::{BonsaiInfo, ProofWithJob, ProvingInfo, ReceiptType};
+use sov_rollup_interface::zk::{BonsaiInfo, ProofWithJob, ProvingSessionInfo, ReceiptType};
 use tokio::sync::oneshot;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -115,7 +115,7 @@ impl BonsaiProver {
                     let Ok(_) = tx.send(ProofWithJob {
                         job_id,
                         proof: serialized_receipt,
-                        info: ProvingInfo::Bonsai(BonsaiInfo {
+                        info: ProvingSessionInfo::Bonsai(BonsaiInfo {
                             session_id: session.uuid,
                             segments: stats.segments,
                             total_cycles: stats.total_cycles,

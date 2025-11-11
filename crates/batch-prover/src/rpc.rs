@@ -37,7 +37,7 @@ use sov_rollup_interface::rpc::{
 };
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
-use sov_rollup_interface::zk::ProvingInfo;
+use sov_rollup_interface::zk::ProvingSessionInfo;
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
 use uuid::Uuid;
@@ -696,7 +696,7 @@ where
 /// Combines stored proof and proving info into a [BatchProofResponse].
 fn make_batch_proof_response(
     stored_proof: sov_db::schema::types::batch_proof::StoredBatchProof,
-    info: Option<ProvingInfo>,
+    info: Option<ProvingSessionInfo>,
 ) -> BatchProofResponse {
     BatchProofResponse {
         l1_tx_id: stored_proof.l1_tx_id,

@@ -24,7 +24,7 @@ use risc0_zkvm::{
 };
 use sov_db::ledger_db::{BoundlessLedgerOps, LedgerDB};
 use sov_db::schema::types::BoundlessSession;
-use sov_rollup_interface::zk::{BoundlessInfo, ProofWithJob, ProvingInfo, ReceiptType};
+use sov_rollup_interface::zk::{BoundlessInfo, ProofWithJob, ProvingSessionInfo, ReceiptType};
 use tokio::sync::oneshot;
 use tracing::Instrument;
 use url::Url;
@@ -412,7 +412,7 @@ impl BoundlessProver {
                         let Ok(_) = tx.send(ProofWithJob {
                             job_id,
                             proof: serialized_receipt,
-                            info: ProvingInfo::Boundless(BoundlessInfo {
+                            info: ProvingSessionInfo::Boundless(BoundlessInfo {
                                 request_id: request_id.clone(),
                                 mcycles_count,
                             }),

@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::zk::{LocalInfo, Matches, Proof, ProofWithJob, ProvingInfo, ReceiptType};
+use sov_rollup_interface::zk::{LocalInfo, Matches, Proof, ProofWithJob, ProvingSessionInfo, ReceiptType};
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
@@ -120,7 +120,7 @@ impl MockZkvm {
                 job_id: Uuid::now_v7(),
                 proof,
                 // mock proving info
-                info: ProvingInfo::Local(LocalInfo {
+                info: ProvingSessionInfo::Local(LocalInfo {
                     segments: 0,
                     total_cycles: 0,
                     user_cycles: 0,

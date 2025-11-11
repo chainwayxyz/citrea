@@ -35,7 +35,7 @@ use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::Zkvm as _;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
-use sov_rollup_interface::zk::{ProvingInfo, ReceiptType, ZkvmHost};
+use sov_rollup_interface::zk::{ProvingSessionInfo, ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
 use uuid::Uuid;
 
@@ -1631,7 +1631,7 @@ impl TestCase for ProvingInfoTest {
         assert_eq!(proving_job.commitments.len(), 1);
 
         let proving_info = proving_job.proof.expect("proof should exist").info;
-        let Some(ProvingInfo::Local(local_info)) = proving_info else {
+        let Some(ProvingSessionInfo::Local(local_info)) = proving_info else {
             panic!("unexpected proving info type");
         };
 
