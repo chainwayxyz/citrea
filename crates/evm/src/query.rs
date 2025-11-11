@@ -712,7 +712,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
         state_overrides: Option<StateOverride>,
-        block_overrides: Option<BlockOverrides>,
         working_set: &mut WorkingSet<C::Storage>,
         ledger_db: &crate::LedgerDB,
     ) -> RpcResult<AccessListWithGasUsed> {
@@ -720,7 +719,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             request,
             block_number,
             state_overrides,
-            block_overrides,
             working_set,
             ledger_db,
             fork_from_block_number,
@@ -733,14 +731,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
         state_overrides: Option<StateOverride>,
-        mut block_overrides: Option<BlockOverrides>,
         working_set: &mut WorkingSet<C::Storage>,
         ledger_db: &crate::LedgerDB,
         fork_fn: impl Fn(u64) -> Fork,
     ) -> RpcResult<AccessListWithGasUsed> {
         let mut request = request.clone();
 
-        let (l1_fee_rate, mut block_env) = match block_number {
+        let (l1_fee_rate, block_env) = match block_number {
             Some(BlockNumberOrTag::Pending) => {
                 let l1_fee_rate = self
                     .blocks
@@ -786,10 +783,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         cfg_env.disable_base_fee = true;
 
         let mut evm_db = self.get_db(working_set);
-
-        if let Some(ref mut block_overrides) = block_overrides {
-            apply_block_overrides(&mut block_env, block_overrides, &mut evm_db);
-        }
 
         if let Some(ref state_overrides) = state_overrides {
             apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
@@ -848,7 +841,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             block_env.clone(),
             cfg_env,
             state_overrides.clone(),
-            block_overrides.clone(),
             working_set,
         )?;
 
@@ -866,7 +858,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
         state_overrides: Option<StateOverride>,
-        block_overrides: Option<BlockOverrides>,
         working_set: &mut WorkingSet<C::Storage>,
         ledger_db: &crate::LedgerDB,
         fork_fn: impl Fn(u64) -> Fork,
@@ -908,7 +899,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             block_env,
             cfg_env,
             state_overrides,
-            block_overrides,
             working_set,
         )
     }
@@ -921,7 +911,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
         state_overrides: Option<StateOverride>,
-        block_overrides: Option<BlockOverrides>,
         working_set: &mut WorkingSet<C::Storage>,
         ledger_db: &crate::LedgerDB,
     ) -> RpcResult<U256> {
@@ -929,7 +918,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             request,
             block_number,
             state_overrides,
-            block_overrides,
             working_set,
             ledger_db,
             fork_from_block_number,
@@ -942,7 +930,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
         state_overrides: Option<StateOverride>,
-        block_overrides: Option<BlockOverrides>,
         working_set: &mut WorkingSet<C::Storage>,
         ledger_db: &crate::LedgerDB,
         fork_fn: impl Fn(u64) -> Fork,
@@ -951,7 +938,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             request,
             block_number,
             state_overrides,
-            block_overrides,
             working_set,
             ledger_db,
             fork_fn,
@@ -998,7 +984,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let estimated = self.estimate_tx_expenses(
             request,
             block_number,
-            None,
             None,
             working_set,
             ledger_db,
@@ -1050,10 +1035,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         mut request: TransactionRequest,
         l1_fee_rate: u128,
-        mut block_env: BlockEnv,
+        block_env: BlockEnv,
         mut cfg_env: CfgEnv,
         state_overrides: Option<StateOverride>,
-        mut block_overrides: Option<BlockOverrides>,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<EstimatedTxExpenses> {
         let account = self
@@ -1061,10 +1045,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .unwrap_or_default();
 
         let mut evm_db = self.get_db(working_set);
-
-        if let Some(ref mut block_overrides) = block_overrides {
-            apply_block_overrides(&mut block_env, block_overrides, &mut evm_db);
-        }
 
         if let Some(ref state_overrides) = state_overrides {
             apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
@@ -1156,9 +1136,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         // Recreate evm_db with overrides if it was consumed by the early return optimization
         let mut evm_db = self.get_db(working_set);
-        if let Some(ref mut block_overrides) = block_overrides {
-            apply_block_overrides(&mut block_env, block_overrides, &mut evm_db);
-        }
         if let Some(ref state_overrides) = state_overrides {
             apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
         }
