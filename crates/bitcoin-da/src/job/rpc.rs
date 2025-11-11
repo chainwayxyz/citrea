@@ -164,7 +164,7 @@ impl From<JobProgress> for JobInfoResponse {
             status: value.status,
             created_at,
             last_updated: value.last_updated,
-            sent_count: value.sent_chunks.count(),
+            sent_count: value.sent_txs.count(),
             error: value.last_error,
         }
     }

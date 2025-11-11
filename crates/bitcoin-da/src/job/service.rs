@@ -198,22 +198,12 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         for job_id in active_job_ids {
             if let Some(JobProgress {
                 status: DaJobStatus::InProgress,
-                sent_chunks,
+                sent_txs,
                 ..
             }) = self.get_progress(&job_id)?
             {
-                txids.extend(
-                    sent_chunks
-                        .commit_txs
-                        .into_iter()
-                        .map(Txid::from_byte_array),
-                );
-                txids.extend(
-                    sent_chunks
-                        .reveal_txs
-                        .into_iter()
-                        .map(Txid::from_byte_array),
-                );
+                txids.extend(sent_txs.commit.into_iter().map(Txid::from_byte_array));
+                txids.extend(sent_txs.reveal.into_iter().map(Txid::from_byte_array));
             }
         }
 
@@ -232,7 +222,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     fn notify_new_status(&self, job_id: JobId, progress: &JobProgress) {
         let result = match &progress.status {
             DaJobStatus::Completed => {
-                if let Some(last_tx) = progress.sent_chunks.reveal_txs.last() {
+                if let Some(last_tx) = progress.sent_txs.reveal.last() {
                     Ok(TxidWrapper(Txid::from_byte_array(*last_tx)))
                 } else {
                     Err(JobServiceError::NoTransactionsFound(job_id).into())

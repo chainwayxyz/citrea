@@ -89,7 +89,7 @@ impl DaJobMetrics {
 
                 // Record total chunks sent
                 self.job_chunks_sent
-                    .record(progress.sent_chunks.count() as f64);
+                    .record(progress.sent_txs.count() as f64);
             }
             DaJobStatus::Cancelled => {
                 self.jobs_cancelled.increment(1.0);

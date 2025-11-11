@@ -38,26 +38,26 @@ impl DaJobStatus {
 
 /// Track sent chunk for partial sending and recovery
 #[derive(Debug, Default, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-pub struct SentChunks {
+pub struct SentTxs {
     /// Sent commit txids
-    pub commit_txs: Vec<[u8; 32]>,
+    pub commit: Vec<[u8; 32]>,
     /// Sent reveal txids
-    pub reveal_txs: Vec<[u8; 32]>,
+    pub reveal: Vec<[u8; 32]>,
 }
 
-impl SentChunks {
+impl SentTxs {
     /// Number of sent commit/reveal pair
     pub fn count(&self) -> usize {
-        self.reveal_txs.len()
+        self.reveal.len()
     }
 
     /// Extend with sent commit and reveal chunks
     pub fn extend(&mut self, commits: Vec<[u8; 32]>, reveals: Vec<[u8; 32]>) {
-        self.commit_txs.extend(commits);
-        self.reveal_txs.extend(reveals);
+        self.commit.extend(commits);
+        self.reveal.extend(reveals);
     }
 
-    /// Return a default SentChunk with empty vectors
+    /// Return a default SentTxs with empty vectors
     pub fn new() -> Self {
         Self::default()
     }
@@ -73,8 +73,8 @@ pub struct JobProgress {
     pub job_id: JobId,
     /// Current job status
     pub status: DaJobStatus,
-    /// Partially sent commit/reveal chunks for partial sending and recovery
-    pub sent_chunks: SentChunks,
+    /// Sent commit/reveal txs for tracking, partial sending and recovery
+    pub sent_txs: SentTxs,
     /// Last update timestamp
     pub last_updated: u64,
     /// Last recoverable error message
@@ -87,7 +87,7 @@ impl JobProgress {
         Self {
             job_id,
             status: DaJobStatus::Pending,
-            sent_chunks: SentChunks::new(),
+            sent_txs: SentTxs::new(),
             last_updated,
             last_error: None,
         }

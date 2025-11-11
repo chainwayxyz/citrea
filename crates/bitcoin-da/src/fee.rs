@@ -11,7 +11,7 @@ use bitcoincore_rpc::json::{
     BumpFeeResult, CreateRawTransactionInput, EstimateMode, WalletCreateFundedPsbtOptions,
 };
 use bitcoincore_rpc::{Client, RpcApi};
-use sov_db::schema::types::da_jobs::SentChunks;
+use sov_db::schema::types::da_jobs::SentTxs;
 use thiserror::Error;
 use tracing::{debug, instrument, trace, warn};
 
@@ -238,7 +238,7 @@ impl FeeService {
     pub(crate) async fn validate_txs_fee_rate(
         &self,
         txs: &[SignedTxPair],
-        sent_chunks: &SentChunks,
+        sent_txs: &SentTxs,
         fee_rate: u64,
         utxos: Vec<UTXO>,
         prev_utxo: Option<UTXO>,
@@ -256,7 +256,7 @@ impl FeeService {
 
         // Recover sent chunks
         let mut commit_txs = vec![];
-        for tx in &sent_chunks.commit_txs {
+        for tx in &sent_txs.commit {
             let id = Txid::from_byte_array(*tx);
             let tx = self
                 .client
@@ -266,7 +266,7 @@ impl FeeService {
             commit_txs.push(TxWithId { tx, id });
         }
         let mut reveal_txs = vec![];
-        for tx in &sent_chunks.reveal_txs {
+        for tx in &sent_txs.reveal {
             let id = Txid::from_byte_array(*tx);
             let tx = self
                 .client

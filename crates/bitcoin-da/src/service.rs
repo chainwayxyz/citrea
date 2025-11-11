@@ -29,7 +29,7 @@ use lru::LruCache;
 use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::LedgerDB;
-use sov_db::schema::types::da_jobs::{DaJobStatus, JobProgress, SentChunks};
+use sov_db::schema::types::da_jobs::{DaJobStatus, JobProgress, SentTxs};
 use sov_rollup_interface::da::{DaSpec, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, DaTxRequest};
 use sov_rollup_interface::zk::Proof;
@@ -463,11 +463,11 @@ impl BitcoinService {
                 utxos.clone(),
                 prev_utxo.clone(),
                 job_data,
-                progress.sent_chunks.clone(),
+                progress.sent_txs.clone(),
             )
             .await?;
 
-        let current_idx = progress.sent_chunks.count();
+        let current_idx = progress.sent_txs.count();
         let signed_txs = self
             .tx_signer
             .sign_da_txs(da_txs.clone(), current_idx)
@@ -479,7 +479,7 @@ impl BitcoinService {
             self.fee
                 .validate_txs_fee_rate(
                     &signed_txs,
-                    &progress.sent_chunks,
+                    &progress.sent_txs,
                     fee_sat_per_vbyte,
                     utxos,
                     prev_utxo,
@@ -505,7 +505,7 @@ impl BitcoinService {
                     sent_count += 1;
                     txids.extend(&ids);
 
-                    progress.sent_chunks.extend(
+                    progress.sent_txs.extend(
                         vec![signed_tx.commit.tx.compute_txid().to_byte_array()],
                         vec![signed_tx.reveal.tx.compute_txid().to_byte_array()],
                     );
@@ -650,7 +650,7 @@ impl BitcoinService {
         utxos: Vec<UTXO>,
         prev_utxo: Option<UTXO>,
         data: RawTxData,
-        sent_chunks: SentChunks,
+        sent_txs: SentTxs,
     ) -> Result<DaTxs> {
         let network = self.network;
         let da_private_key = self.da_private_key.expect("No private key set");
@@ -664,7 +664,7 @@ impl BitcoinService {
         let prefix = self.reveal_tx_prefix.clone();
 
         let mut previous_commit_chunks = Vec::new();
-        for txid in &sent_chunks.commit_txs {
+        for txid in &sent_txs.commit {
             let txid = Txid::from_byte_array(*txid);
             previous_commit_chunks.push(
                 self.client
@@ -675,7 +675,7 @@ impl BitcoinService {
         }
 
         let mut previous_reveal_chunks = Vec::new();
-        for txid in &sent_chunks.reveal_txs {
+        for txid in &sent_txs.reveal {
             let txid = Txid::from_byte_array(*txid);
             previous_reveal_chunks.push(
                 self.client
@@ -1415,7 +1415,7 @@ impl DaService for BitcoinService {
         match progress.status {
             DaJobStatus::Completed => {
                 // Job already finished before we subscribed
-                if let Some(last_tx) = progress.sent_chunks.reveal_txs.last() {
+                if let Some(last_tx) = progress.sent_txs.reveal.last() {
                     let _ = tx.send(Ok(TxidWrapper(Txid::from_byte_array(*last_tx))));
                 } else {
                     let _ = tx.send(Err(JobServiceError::NoTransactionsFound(job_id).into()));
