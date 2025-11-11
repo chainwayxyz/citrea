@@ -62,7 +62,7 @@ pub struct BonsaiProvingSessionInfo {
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 /// Information about a boundless prover's execution.
-pub struct BoundlessInfo {
+pub struct BoundlessProvingSessionInfo {
     /// Request ID of the proof request
     pub request_id: String,
     /// Mcycles count
@@ -78,7 +78,7 @@ pub enum ProvingSessionInfo {
     /// Bonsai prover info
     Bonsai(BonsaiProvingSessionInfo),
     /// Boundless prover info
-    Boundless(BoundlessInfo),
+    Boundless(BoundlessProvingSessionInfo),
 }
 
 #[cfg(feature = "native")]
