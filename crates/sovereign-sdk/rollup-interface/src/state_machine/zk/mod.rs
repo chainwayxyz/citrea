@@ -30,7 +30,7 @@ pub type Proof = Vec<u8>;
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 /// Information about a local prover's execution.
-pub struct LocalInfo {
+pub struct LocalProvingSessionInfo {
     /// Segments count
     pub segments: usize,
     /// Total cycles count
@@ -74,7 +74,7 @@ pub struct BoundlessInfo {
 /// Information about prover's execution.
 pub enum ProvingSessionInfo {
     /// Local prover info
-    Local(LocalInfo),
+    Local(LocalProvingSessionInfo),
     /// Bonsai prover info
     Bonsai(BonsaiInfo),
     /// Boundless prover info

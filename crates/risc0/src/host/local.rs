@@ -8,7 +8,7 @@ use risc0_zkvm::{
     AssumptionReceipt, ExecutorEnvBuilder, ExternalProver, ProveInfo, Prover, ProverOpts,
     SessionStats,
 };
-use sov_rollup_interface::zk::{LocalInfo, Proof, ProofWithJob, ProvingSessionInfo, ReceiptType};
+use sov_rollup_interface::zk::{LocalProvingSessionInfo, Proof, ProofWithJob, ProvingSessionInfo, ReceiptType};
 use sov_rollup_interface::Network;
 use tokio::sync::oneshot;
 use tracing::error;
@@ -199,8 +199,8 @@ fn compare_risc0_versions(r0vm_path: &PathBuf) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn local_info_from_stats(stats: &SessionStats) -> LocalInfo {
-    LocalInfo {
+fn local_info_from_stats(stats: &SessionStats) -> LocalProvingSessionInfo {
+    LocalProvingSessionInfo {
         segments: stats.segments,
         total_cycles: stats.total_cycles,
         user_cycles: stats.user_cycles,
