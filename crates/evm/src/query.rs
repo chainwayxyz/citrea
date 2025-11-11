@@ -1166,7 +1166,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // if price or limit was included in the request then we can execute the request
             // again with the block's gas limit to check if revert is gas related or not
             if request_gas_limit.is_some() || request_gas_price.is_some() {
-                let evm_db = self.get_db(working_set);
+                let mut evm_db = self.get_db(working_set);
+                if let Some(ref state_overrides) = state_overrides {
+                    apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
+                }
                 return Err(map_out_of_gas_err(
                     block_env.clone(),
                     tx_env.clone(),
@@ -1202,7 +1205,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     // if price or limit was included in the request then we can execute the request
                     // again with the block's gas limit to check if revert is gas related or not
                     return if request_gas_limit.is_some() || request_gas_price.is_some() {
-                        let evm_db = self.get_db(working_set);
+                        let mut evm_db = self.get_db(working_set);
+                        if let Some(ref state_overrides) = state_overrides {
+                            apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
+                        }
                         Err(map_out_of_gas_err(
                             block_env.clone(),
                             tx_env.clone(),
@@ -1242,8 +1248,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         if optimistic_gas_limit < highest_gas_limit {
             tx_env.gas_limit = optimistic_gas_limit;
             // (result, env) = executor::transact(&mut db, env)?;
+            let mut evm_db = self.get_db(working_set);
+            if let Some(ref state_overrides) = state_overrides {
+                apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
+            }
             let curr_result = inspect_with_citrea_handler(
-                self.get_db(working_set),
+                evm_db,
                 cfg_env.clone(),
                 block_env.clone(),
                 tx_env.clone(),
@@ -1284,7 +1294,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let mut tx_env = tx_env.clone();
             tx_env.gas_limit = mid_gas_limit;
 
-            let evm_db = self.get_db(working_set);
+            let mut evm_db = self.get_db(working_set);
+            if let Some(ref state_overrides) = state_overrides {
+                apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
+            }
             let result = inspect_with_citrea_handler(
                 evm_db,
                 cfg_env.clone(),
