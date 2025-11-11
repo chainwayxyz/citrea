@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- feat: Implement geth filter rpc endpoints #2956\
+  &nbsp;&nbsp;**New env vars:**\
+  &nbsp;&nbsp;&nbsp;&nbsp; `stale_filter_ttl` duration in seconds before a stale filter is evicted from active filters cache\
+  &nbsp;&nbsp;&nbsp;&nbsp; `enable_filters` enables or disables the filter RPC endpoints (default: true)
+
 ## v0.8.1 (2025-10-25)
 Fixes Testnet guest list for Light Client Prover.
 
@@ -120,3 +128,5 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes would query more l2 blocks than intended. ([#1230](https://github.com/chainwayxyz/citrea/pull/1230))
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
+
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/release-v0.8.1...HEAD
