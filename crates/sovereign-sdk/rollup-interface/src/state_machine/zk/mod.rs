@@ -93,6 +93,7 @@ pub struct ProofWithJob {
     pub info: ProvingInfo,
 }
 
+#[cfg(feature = "native")]
 #[derive(Debug, Clone, Copy, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 /// The type of the proof receipt
 pub enum ReceiptType {
