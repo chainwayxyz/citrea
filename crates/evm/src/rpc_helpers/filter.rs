@@ -236,22 +236,15 @@ impl CitreaFilter {
     pub async fn clear_stale_filters(&self, now: Instant) {
         tracing::debug!(target: "clearStaleFilters", "clear stale filters");
 
-        let removed_ids = {
-            let mut filters = self.active_filters().inner.write().await;
-            let mut to_remove = Vec::new();
+        let removed: Vec<(FilterId, ActiveFilter)> = self
+            .active_filters()
+            .inner
+            .write()
+            .await
+            .extract_if(|_id, filter| (now - filter.last_poll_timestamp) >= self.stale_filter_ttl)
+            .collect();
 
-            filters.retain(|id, filter| {
-                let is_valid = (now - filter.last_poll_timestamp) < self.stale_filter_ttl;
-                if !is_valid {
-                    to_remove.push(id.clone());
-                }
-                is_valid
-            });
-
-            to_remove
-        };
-
-        for id in removed_ids {
+        for (id, _filter) in removed {
             tracing::trace!(target: "clearStaleFilters", "evict filter with id: {:?}", id);
         }
     }
