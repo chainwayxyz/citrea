@@ -82,6 +82,18 @@ enum Commands {
         )]
         num_to_keep: Option<u32>,
     },
+    /// Run pending database migrations
+    DbMigrate {
+        /// The node type
+        #[arg(long)]
+        node_type: NodeTypeArg,
+        /// The path of the database to migrate
+        #[arg(long)]
+        db_path: PathBuf,
+        /// Maximum number of open files for RocksDB
+        #[arg(long)]
+        db_max_open_files: Option<i32>,
+    },
 }
 
 #[tokio::main]
@@ -136,6 +148,13 @@ async fn main() -> anyhow::Result<()> {
             num_to_keep,
         } => {
             commands::purge_backup(backup_path, num_to_keep, backup_id).await?;
+        }
+        Commands::DbMigrate {
+            node_type,
+            db_path,
+            db_max_open_files,
+        } => {
+            commands::db_migrate(node_type, db_path, db_max_open_files).await?;
         }
     }
 

@@ -3699,7 +3699,11 @@ name = "citrea-cli"
 version = "0.8.1"
 dependencies = [
  "anyhow",
+ "citrea-batch-prover",
  "citrea-common",
+ "citrea-fullnode",
+ "citrea-light-client-prover",
+ "citrea-sequencer",
  "citrea-storage-ops",
  "clap",
  "derive_more 1.0.0",
