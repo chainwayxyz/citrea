@@ -47,9 +47,10 @@ use crate::helpers::builders::body_builders::{create_inscription_transactions, D
 use crate::helpers::builders::TxWithId;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
-use crate::helpers::{get_timestamp, merkle_tree, TransactionKind};
+use crate::helpers::{merkle_tree, TransactionKind};
 use crate::job::error::JobServiceError;
 use crate::job::service::DaJobService;
+use crate::job::utils::get_job_elapsed_time;
 use crate::metrics::BITCOIN_DA_METRICS as BM;
 use crate::monitoring::{MonitoredTxKind, MonitoringConfig, MonitoringService, TxStatus};
 use crate::network_constants::NetworkConstants;
@@ -404,47 +405,9 @@ impl BitcoinService {
 
         // Get current fee rate as sat/vb
         let fee_sat_per_vbyte = self.fee.get_fee_rate().await?;
-        let current_time = get_timestamp();
 
-        let job_created_at = progress
-            .job_id
-            .get_timestamp()
-            .map(|ts| ts.to_unix().0)
-            .unwrap_or(0);
-
-        let elapsed_secs = current_time.saturating_sub(job_created_at);
-
-        // Cap fee at self.max_fee_rate_sat_to_pay for a maximum of `self.fee_rate_cap_duration_secs`.
-        // If `self.fee_rate_cap_duration_secs` is exceeded, send transaction with fee rate above `self.max_fee_rate_sat_to_pay` anyway
-        if fee_sat_per_vbyte > self.max_fee_rate_sat_to_pay {
-            if elapsed_secs < self.fee_rate_cap_duration_secs {
-                warn!(
-                    "Job {} fee rate {} sat/vb exceeds cap of {} sat/vb. \
-                 Waiting (elapsed: {}s / max: {}s)",
-                    progress.job_id,
-                    fee_sat_per_vbyte,
-                    self.max_fee_rate_sat_to_pay,
-                    elapsed_secs,
-                    self.fee_rate_cap_duration_secs
-                );
-
-                return Err(BitcoinServiceError::FeeCapExceeded {
-                    current_rate: fee_sat_per_vbyte,
-                    max_rate: self.max_fee_rate_sat_to_pay,
-                    elapsed_secs,
-                    max_duration_secs: self.fee_rate_cap_duration_secs,
-                });
-            }
-
-            warn!(
-                "Job {} fee rate {} sat/vb exceeds cap of {} sat/vb, \
-             but cap duration of {}s exceeded. Sending anyway",
-                progress.job_id,
-                fee_sat_per_vbyte,
-                self.max_fee_rate_sat_to_pay,
-                self.fee_rate_cap_duration_secs
-            );
-        }
+        // Validate fee rate against cap
+        self.validate_fee_rate(progress, fee_sat_per_vbyte)?;
 
         // get all available utxos
         let utxos = self.get_utxos(sent_txids).await?;
@@ -529,6 +492,41 @@ impl BitcoinService {
         let completed = total_sent >= total_needed;
 
         Ok(completed)
+    }
+
+    /// Validates fee rate against `max_fee_rate_sat_to_pay`
+    fn validate_fee_rate(&self, progress: &JobProgress, fee_sat_per_vbyte: u64) -> Result<()> {
+        if fee_sat_per_vbyte <= self.max_fee_rate_sat_to_pay {
+            return Ok(());
+        }
+
+        let elapsed_secs = get_job_elapsed_time(progress);
+
+        if elapsed_secs < self.fee_rate_cap_duration_secs {
+            warn!(
+                "Job {} fee rate {} sat/vb exceeds cap of {} sat/vb. \
+             Waiting (elapsed: {}s / max: {}s)",
+                progress.job_id,
+                fee_sat_per_vbyte,
+                self.max_fee_rate_sat_to_pay,
+                elapsed_secs,
+                self.fee_rate_cap_duration_secs
+            );
+
+            return Err(BitcoinServiceError::FeeCapExceeded {
+                current_rate: fee_sat_per_vbyte,
+                max_rate: self.max_fee_rate_sat_to_pay,
+                elapsed_secs,
+                max_duration_secs: self.fee_rate_cap_duration_secs,
+            });
+        }
+
+        warn!(
+        "Job {} fee rate {} sat/vb exceeds cap but cap duration of {}s exceeded. Sending anyway",
+        progress.job_id, fee_sat_per_vbyte, self.fee_rate_cap_duration_secs
+        );
+
+        Ok(())
     }
 
     async fn select_prev_utxo(

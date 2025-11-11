@@ -15,6 +15,9 @@ pub mod rpc;
 /// Core job queue implementation and state management
 pub mod service;
 
+/// Job related utility methods
+pub mod utils;
+
 /// Job related metrics
 mod metrics;
 
