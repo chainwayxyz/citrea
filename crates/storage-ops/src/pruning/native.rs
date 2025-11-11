@@ -3,10 +3,12 @@ use std::sync::Arc;
 
 use sov_db::schema::tables::ModuleAccessoryState;
 use sov_schema_db::ScanDirection;
-use tracing::error;
+use tracing::{error, info};
 
 /// Prune native DB
 pub(crate) fn prune_native_db(native_db: Arc<sov_schema_db::DB>, up_to_block: u64) {
+    info!("Pruning native DB, up to L2 block {}", up_to_block);
+
     // We iterate backwards (newest to oldest) so that when we see a key for the first time,
     // it's the newest version. This allows us to keep the newest version and delete older ones.
     // For versioned state (accounts, etc.): seen_keys tracks which keys we want to preserve.

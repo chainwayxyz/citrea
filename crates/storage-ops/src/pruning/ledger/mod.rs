@@ -4,7 +4,7 @@ use citrea_common::NodeType;
 use l2_blocks::prune_l2_blocks;
 use slots::prune_slots;
 use sov_schema_db::DB;
-use tracing::debug;
+use tracing::info;
 
 use crate::log_result_or_error;
 
@@ -13,7 +13,7 @@ mod slots;
 
 /// Prune ledger
 pub(crate) fn prune_ledger(node_type: NodeType, ledger_db: Arc<DB>, up_to_block: u64) {
-    debug!("Pruning Ledger, up to L2 block {}", up_to_block);
+    info!("Pruning Ledger, up to L2 block {}", up_to_block);
 
     match node_type {
         NodeType::Sequencer => {
