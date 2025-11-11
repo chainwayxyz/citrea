@@ -441,37 +441,43 @@ define_table_without_codec!(
 );
 
 // Custom codec for StaleNodeIndex using big-endian version for RocksDB ordering
-//
-// The reason this is implemented manually is because StaleNode from jmt crate does not
-// implement Serialize/Deserialize.
 impl KeyEncoder<StaleNodes> for StaleNodeIndex {
     fn encode_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
-        let mut output = Vec::new();
-        let version = self.stale_since_version.to_be_bytes();
-        output.extend_from_slice(&version);
-        BorshSerialize::serialize(&self.node_key, &mut output)?;
-        Ok(output)
+        use anyhow::Context as _;
+        use bincode::Options as _;
+
+        let bincode_options = bincode::options().with_fixint_encoding().with_big_endian();
+
+        // Serialize both fields using bincode with big-endian
+        bincode_options
+            .serialize(&(self.stale_since_version, &self.node_key))
+            .context("Failed to serialize StaleNodeIndex")
+            .map_err(Into::into)
     }
 }
 
 impl KeyDecoder<StaleNodes> for StaleNodeIndex {
     fn decode_key(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
-        if data.len() < 8 {
-            return Err(CodecError::InvalidKeyLength {
-                expected: 9,
-                got: data.len(),
-            });
-        }
-        let mut version_bytes = [0u8; 8];
-        version_bytes.copy_from_slice(&data[..8]);
-        let stale_since_version = u64::from_be_bytes(version_bytes);
+        use anyhow::Context as _;
+        use bincode::Options as _;
 
-        let node_key = BorshDeserialize::deserialize_reader(&mut &data[8..])?;
+        let bincode_options = bincode::options().with_fixint_encoding().with_big_endian();
+
+        // Deserialize both fields using bincode with big-endian
+        let (stale_since_version, node_key): (u64, NodeKey) = bincode_options
+            .deserialize_from(&mut &data[..])
+            .context("Failed to deserialize StaleNodeIndex")?;
 
         Ok(StaleNodeIndex {
             stale_since_version,
             node_key,
         })
+    }
+}
+
+impl SeekKeyEncoder<StaleNodes> for StaleNodeIndex {
+    fn encode_seek_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+        <Self as KeyEncoder<StaleNodes>>::encode_key(self)
     }
 }
 
