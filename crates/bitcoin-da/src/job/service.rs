@@ -247,6 +247,42 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     ) {
         self.job_waiters.lock().unwrap().insert(job_id, waiter);
     }
+
+    pub(crate) fn recover_job(
+        &self,
+        job_id: Uuid,
+    ) -> Result<oneshot::Receiver<std::result::Result<TxidWrapper, BitcoinServiceError>>> {
+        let progress = self
+            .get_progress(&job_id)?
+            .ok_or(JobServiceError::JobNotFound(job_id))?;
+
+        let (tx, rx) = oneshot::channel();
+
+        match progress.status {
+            DaJobStatus::Completed => {
+                // Job already finished before we subscribed
+                if let Some(last_tx) = progress.sent_txs.reveal.last() {
+                    let _ = tx.send(Ok(TxidWrapper(Txid::from_byte_array(*last_tx))));
+                } else {
+                    let _ = tx.send(Err(JobServiceError::NoTransactionsFound(job_id).into()));
+                }
+            }
+            DaJobStatus::Failed { error } => {
+                // Job already failed
+                let _ = tx.send(Err(JobServiceError::JobFailed(job_id, error).into()));
+            }
+            DaJobStatus::Cancelled => {
+                // Job already cancelled
+                let _ = tx.send(Err(JobServiceError::JobCancelled(job_id).into()));
+            }
+            DaJobStatus::Pending | DaJobStatus::InProgress => {
+                // Job still running, register for notification
+                self.insert_waiter(job_id, tx);
+            }
+        }
+
+        Ok(rx)
+    }
 }
 
 /// Implementation of RPC provider methods

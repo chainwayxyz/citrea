@@ -1403,39 +1403,11 @@ impl DaService for BitcoinService {
         &self,
         job_id: Uuid,
     ) -> Result<oneshot::Receiver<Result<TxidWrapper>>> {
-        let progress = self
-            .job_service
+        self.job_service
             .lock()
             .await
-            .get_progress(&job_id)?
-            .ok_or(JobServiceError::JobNotFound(job_id))?;
-
-        let (tx, rx) = oneshot::channel();
-
-        match progress.status {
-            DaJobStatus::Completed => {
-                // Job already finished before we subscribed
-                if let Some(last_tx) = progress.sent_txs.reveal.last() {
-                    let _ = tx.send(Ok(TxidWrapper(Txid::from_byte_array(*last_tx))));
-                } else {
-                    let _ = tx.send(Err(JobServiceError::NoTransactionsFound(job_id).into()));
-                }
-            }
-            DaJobStatus::Failed { error } => {
-                // Job already failed
-                let _ = tx.send(Err(JobServiceError::JobFailed(job_id, error).into()));
-            }
-            DaJobStatus::Cancelled => {
-                // Job already cancelled
-                let _ = tx.send(Err(JobServiceError::JobCancelled(job_id).into()));
-            }
-            DaJobStatus::Pending | DaJobStatus::InProgress => {
-                // Job still running, register for notification
-                self.job_service.lock().await.insert_waiter(job_id, tx);
-            }
-        }
-
-        Ok(rx)
+            .recover_job(job_id)
+            .map_err(Into::into)
     }
 
     #[instrument(level = "trace", skip(self))]
