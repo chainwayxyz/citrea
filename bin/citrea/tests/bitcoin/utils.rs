@@ -190,6 +190,7 @@ pub async fn spawn_bitcoin_da_prover_service_with_rpc_server(
         timeout: 30,
         enable_js_tracer: true,
         api_key: None,
+        ..Default::default()
     };
 
     // Add da rpc and da job rpc methods
