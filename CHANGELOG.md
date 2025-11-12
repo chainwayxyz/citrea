@@ -1,12 +1,16 @@
 # Changelog
 
-## [Unreleased]
-
-### Added
-- feat: Implement geth filter rpc endpoints #2956\
+## v0.9.0 (2025-11-12)
+- feat: Implement eth filter rpc endpoints. ([#2956](https://github.com/chainwayxyz/citrea/pull/2956))\
   &nbsp;&nbsp;**New env vars:**\
-  &nbsp;&nbsp;&nbsp;&nbsp; `stale_filter_ttl` duration in seconds before a stale filter is evicted from active filters cache\
-  &nbsp;&nbsp;&nbsp;&nbsp; `enable_filters` enables or disables the filter RPC endpoints (default: true)
+  &nbsp;&nbsp;&nbsp;&nbsp; `STALE_FILTER_TTL` duration in seconds before a stale filter is evicted from active filters cache (default: 300)\
+  &nbsp;&nbsp;&nbsp;&nbsp; `ENABLE_FILTERS` enables or disables the eth filter RPC endpoints (default: true)
+  &nbsp;\
+  New confifuration values can also be set inside `rollup_config.toml` files under `[rpc]`
+
+- fix: `eth_estimateGas` and `eth_createAccessList` now supports `state_overrides`. ([#3013](https://github.com/chainwayxyz/citrea/pull/3013))
+
+- feat: Risc0 host configs can now be passed from `prover_config.toml` files. ([#2994](https://github.com/chainwayxyz/citrea/pull/2994))
 
 ## v0.8.1 (2025-10-25)
 Fixes Testnet guest list for Light Client Prover.
