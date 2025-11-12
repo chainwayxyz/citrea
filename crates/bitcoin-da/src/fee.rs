@@ -5,18 +5,15 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use bitcoin::hashes::Hash;
-use bitcoin::{Amount, Network, Sequence, Txid};
+use bitcoin::{Amount, Network, Sequence, Transaction, Txid};
 use bitcoincore_rpc::json::{
     BumpFeeResult, CreateRawTransactionInput, EstimateMode, WalletCreateFundedPsbtOptions,
 };
 use bitcoincore_rpc::{Client, RpcApi};
-use sov_db::schema::types::da_jobs::SentTxs;
 use thiserror::Error;
 use tracing::{debug, instrument, trace, warn};
 
 use crate::error::BitcoinServiceError;
-use crate::helpers::builders::TxWithId;
 use crate::monitoring::{MonitoredTx, MonitoredTxKind};
 use crate::spec::utxo::UTXO;
 use crate::tx_signer::SignedTxPair;
@@ -238,7 +235,8 @@ impl FeeService {
     pub(crate) async fn validate_txs_fee_rate(
         &self,
         txs: &[SignedTxPair],
-        sent_txs: &SentTxs,
+        sent_commits: &[Transaction],
+        sent_reveals: &[Transaction],
         fee_rate: u64,
         utxos: Vec<UTXO>,
         prev_utxo: Option<UTXO>,
@@ -254,43 +252,20 @@ impl FeeService {
             );
         }
 
-        // Recover sent chunks
-        let mut commit_txs = vec![];
-        for tx in &sent_txs.commit {
-            let id = Txid::from_byte_array(*tx);
-            let tx = self
-                .client
-                .get_transaction(&id, None)
-                .await?
-                .transaction()?;
-            commit_txs.push(TxWithId { tx, id });
-        }
-        let mut reveal_txs = vec![];
-        for tx in &sent_txs.reveal {
-            let id = Txid::from_byte_array(*tx);
-            let tx = self
-                .client
-                .get_transaction(&id, None)
-                .await?
-                .transaction()?;
-            reveal_txs.push(TxWithId { tx, id });
-        }
-
         // Add sent chunks as available inputs
-        let get_tx_outputs = |txs: &[TxWithId]| {
+        let get_tx_outputs = |txs: &[Transaction]| {
             txs.iter()
                 .flat_map(|tx| {
-                    let txid = tx.id;
-                    tx.tx
-                        .output
+                    let txid = tx.compute_txid();
+                    tx.output
                         .iter()
                         .enumerate()
                         .map(move |(idx, out)| ((txid, idx as u32), out.value))
                 })
                 .collect::<Vec<_>>()
         };
-        utxo_map.extend(get_tx_outputs(&commit_txs));
-        utxo_map.extend(get_tx_outputs(&reveal_txs));
+        utxo_map.extend(get_tx_outputs(sent_commits));
+        utxo_map.extend(get_tx_outputs(sent_reveals));
 
         for tx in txs {
             // Validate commit

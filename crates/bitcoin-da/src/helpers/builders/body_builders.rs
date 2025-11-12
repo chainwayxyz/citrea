@@ -98,8 +98,8 @@ impl DaTxs {
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_transactions(
     data: RawTxData,
-    previous_commit_chunks: Vec<Transaction>,
-    previous_reveal_chunks: Vec<Transaction>,
+    sent_commits: Vec<Transaction>,
+    sent_reveals: Vec<Transaction>,
     da_private_key: SecretKey,
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
@@ -131,8 +131,8 @@ pub fn create_inscription_transactions(
             reveal_fee_rate,
             network,
             &reveal_tx_prefix,
-            previous_commit_chunks,
-            previous_reveal_chunks,
+            sent_commits,
+            sent_reveals,
         ),
         RawTxData::BatchProofMethodId(body) => create_inscription_type_3(
             body,
@@ -344,16 +344,16 @@ pub fn create_inscription_type_1(
     reveal_fee_rate: u64,
     network: Network,
     reveal_tx_prefix: &[u8],
-    previous_commit_chunks: Vec<Transaction>,
-    previous_reveal_chunks: Vec<Transaction>,
+    sent_commits: Vec<Transaction>,
+    sent_reveals: Vec<Transaction>,
 ) -> Result<DaTxs, anyhow::Error> {
     // Create reveal key
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
-    let current_idx = previous_commit_chunks.len();
-    let mut commit_chunks = previous_commit_chunks;
-    let mut reveal_chunks = previous_reveal_chunks;
+    let current_idx = sent_commits.len();
+    let mut commit_chunks = sent_commits;
+    let mut reveal_chunks = sent_reveals;
 
     if let Some(reveal_tx) = reveal_chunks.last() {
         prev_utxo = Some(UTXO {

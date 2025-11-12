@@ -420,13 +420,18 @@ impl BitcoinService {
             }
         };
 
+        // Recover sent commits and sent reveals from their txids
+        let (sent_commits, sent_reveals) =
+            self.recover_sent_transactions(&progress.sent_txs).await?;
+
         let da_txs = self
             .create_da_transactions_with_fee_rate(
                 fee_sat_per_vbyte,
                 utxos.clone(),
                 prev_utxo.clone(),
                 job_data,
-                progress.sent_txs.clone(),
+                sent_commits.clone(),
+                sent_reveals.clone(),
             )
             .await?;
 
@@ -442,7 +447,8 @@ impl BitcoinService {
             self.fee
                 .validate_txs_fee_rate(
                     &signed_txs,
-                    &progress.sent_txs,
+                    &sent_commits,
+                    &sent_reveals,
                     fee_sat_per_vbyte,
                     utxos,
                     prev_utxo,
@@ -648,7 +654,8 @@ impl BitcoinService {
         utxos: Vec<UTXO>,
         prev_utxo: Option<UTXO>,
         data: RawTxData,
-        sent_txs: SentTxs,
+        sent_commits: Vec<Transaction>,
+        sent_reveals: Vec<Transaction>,
     ) -> Result<DaTxs> {
         let network = self.network;
         let da_private_key = self.da_private_key.expect("No private key set");
@@ -661,35 +668,13 @@ impl BitcoinService {
 
         let prefix = self.reveal_tx_prefix.clone();
 
-        let mut previous_commit_chunks = Vec::new();
-        for txid in &sent_txs.commit {
-            let txid = Txid::from_byte_array(*txid);
-            previous_commit_chunks.push(
-                self.client
-                    .get_transaction(&txid, None)
-                    .await?
-                    .transaction()?,
-            )
-        }
-
-        let mut previous_reveal_chunks = Vec::new();
-        for txid in &sent_txs.reveal {
-            let txid = Txid::from_byte_array(*txid);
-            previous_reveal_chunks.push(
-                self.client
-                    .get_transaction(&txid, None)
-                    .await?
-                    .transaction()?,
-            )
-        }
-
         tokio::task::spawn_blocking(move || {
             // Since this is CPU bound work, we use spawn_blocking
             // to release the tokio runtime execution
             create_inscription_transactions(
                 data,
-                previous_commit_chunks,
-                previous_reveal_chunks,
+                sent_commits,
+                sent_reveals,
                 da_private_key,
                 prev_utxo,
                 utxos,
@@ -934,6 +919,43 @@ impl BitcoinService {
                 source: e,
             }),
         }
+    }
+
+    /// Recover transaction from `SentTxs` txids
+    /// 1. Try first through monitoring service.
+    /// 2. If not found via monitoring service - following a restart - falls back to `get_transaction` RPC.
+    async fn recover_sent_transactions(
+        &self,
+        sent_txs: &SentTxs,
+    ) -> Result<(Vec<Transaction>, Vec<Transaction>)> {
+        let monitored_txs = self.monitoring.get_monitored_txs().await;
+        let recover_transaction = async |txid: &Txid| {
+            let tx = if let Some(monitored) = monitored_txs.get(txid).cloned() {
+                monitored.tx
+            } else {
+                self.client
+                    .get_transaction(txid, None)
+                    .await?
+                    .transaction()?
+            };
+            Ok::<Transaction, BitcoinServiceError>(tx)
+        };
+
+        let mut commits = Vec::new();
+        for txid in &sent_txs.commit {
+            let txid = Txid::from_byte_array(*txid);
+            let transaction = recover_transaction(&txid).await?;
+            commits.push(transaction)
+        }
+
+        let mut reveals = Vec::new();
+        for txid in &sent_txs.reveal {
+            let txid = Txid::from_byte_array(*txid);
+            let transaction = recover_transaction(&txid).await?;
+            reveals.push(transaction)
+        }
+
+        Ok((commits, reveals))
     }
 }
 
