@@ -943,6 +943,10 @@ mod tests {
             s3_url = "url"
             aws_region = "region"
             s3_use_presigned = true
+
+            [risc0_host.prover.Boundless.pricing_service]
+            base_url = "https://pricing.example.com"
+            timeout_secs = 30
         "#;
 
         let config_file = create_config_from(config);
@@ -962,6 +966,10 @@ mod tests {
                 aws_region: "region".to_string(),
                 s3_use_presigned: true,
             }),
+            pricing_service: PricingServiceConfig {
+                base_url: "https://pricing.example.com".to_string(),
+                timeout_secs: 30,
+            },
         };
         let expected = BatchProverConfig {
             proving_mode: ProverGuestRunConfig::Execute,
@@ -993,6 +1001,10 @@ mod tests {
             pinata_jwt = "jwt"
             pinata_api_url = "http://0.0.0.1"
             ipfs_gateway_url = "http://127.0.0.1"
+
+            [risc0_host.prover.Boundless.pricing_service]
+            base_url = "https://pricing.example.com"
+            timeout_secs = 30
         "#;
 
         let config_file = create_config_from(config);
@@ -1009,6 +1021,10 @@ mod tests {
                 pinata_api_url: "http://0.0.0.1".to_string(),
                 ipfs_gateway_url: "http://127.0.0.1".to_string(),
             }),
+            pricing_service: PricingServiceConfig {
+                base_url: "https://pricing.example.com".to_string(),
+                timeout_secs: 30,
+            },
         };
         let expected = BatchProverConfig {
             proving_mode: ProverGuestRunConfig::Execute,

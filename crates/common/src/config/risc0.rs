@@ -86,6 +86,8 @@ pub struct BoundlessProverConfig {
     pub boundless: BoundlessConfig,
     /// Storage configuration
     pub storage: BoundlessStorageConfig,
+    /// Pricing service configuration
+    pub pricing_service: PricingServiceConfig,
 }
 
 impl FromEnv for BoundlessProverConfig {
@@ -102,7 +104,13 @@ impl FromEnv for BoundlessProverConfig {
             ));
         };
 
-        Ok(Self { boundless, storage })
+        let pricing_service = PricingServiceConfig::from_env()?;
+
+        Ok(Self {
+            boundless,
+            storage,
+            pricing_service,
+        })
     }
 }
 
