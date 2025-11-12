@@ -1050,6 +1050,9 @@ mod tests {
         let config = risc0::PricingServiceConfig::from_env().unwrap();
         assert_eq!(config.base_url, "http://pricing.example.com");
         assert_eq!(config.timeout_secs, 60);
+
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_URL");
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS");
     }
 
     #[test]
@@ -1063,6 +1066,8 @@ mod tests {
         let config = risc0::PricingServiceConfig::from_env().unwrap();
         assert_eq!(config.base_url, "http://pricing.example.com");
         assert_eq!(config.timeout_secs, 30); // default value
+
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_URL");
     }
 
     #[test]
@@ -1076,5 +1081,8 @@ mod tests {
         let config = risc0::PricingServiceConfig::from_env().unwrap();
         assert_eq!(config.base_url, "http://pricing.example.com");
         assert_eq!(config.timeout_secs, 30);
+
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_URL");
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS");
     }
 }
