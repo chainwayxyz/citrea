@@ -130,6 +130,33 @@ impl FromEnv for BoundlessConfig {
     }
 }
 
+/// Configuration for the boundless pricing service
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct PricingServiceConfig {
+    /// Base URL for the pricing service API
+    pub base_url: String,
+    /// HTTP client timeout in seconds
+    #[serde(default = "default_pricing_service_timeout")]
+    pub timeout_secs: u64,
+}
+
+#[inline]
+const fn default_pricing_service_timeout() -> u64 {
+    30
+}
+
+impl FromEnv for PricingServiceConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            base_url: read_env("BOUNDLESS_PRICING_SERVICE_URL")?,
+            timeout_secs: read_env("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS")
+                .ok()
+                .and_then(|val| val.parse().ok())
+                .unwrap_or_else(default_pricing_service_timeout),
+        })
+    }
+}
+
 /// Configuration for the local (IPC) prover
 #[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]
 pub struct LocalProverConfig {

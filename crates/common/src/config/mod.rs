@@ -12,6 +12,7 @@ use crate::utils::read_env;
 
 /// Configuration types for RISC0 provers
 pub mod risc0;
+pub use risc0::PricingServiceConfig;
 mod rpc;
 
 pub trait FromEnv: Sized {
@@ -1020,5 +1021,44 @@ mod tests {
             },
         };
         assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_pricing_service_config_from_env_success() {
+        std::env::set_var(
+            "BOUNDLESS_PRICING_SERVICE_URL",
+            "http://pricing.example.com",
+        );
+        std::env::set_var("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS", "60");
+
+        let config = risc0::PricingServiceConfig::from_env().unwrap();
+        assert_eq!(config.base_url, "http://pricing.example.com");
+        assert_eq!(config.timeout_secs, 60);
+    }
+
+    #[test]
+    fn test_pricing_service_config_from_env_with_default_timeout() {
+        std::env::set_var(
+            "BOUNDLESS_PRICING_SERVICE_URL",
+            "http://pricing.example.com",
+        );
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS");
+
+        let config = risc0::PricingServiceConfig::from_env().unwrap();
+        assert_eq!(config.base_url, "http://pricing.example.com");
+        assert_eq!(config.timeout_secs, 30); // default value
+    }
+
+    #[test]
+    fn test_pricing_service_config_from_env_invalid_timeout() {
+        std::env::set_var(
+            "BOUNDLESS_PRICING_SERVICE_URL",
+            "http://pricing.example.com",
+        );
+        std::env::set_var("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS", "invalid");
+
+        let config = risc0::PricingServiceConfig::from_env().unwrap();
+        assert_eq!(config.base_url, "http://pricing.example.com");
+        assert_eq!(config.timeout_secs, 30);
     }
 }
