@@ -3,10 +3,10 @@
 ## v0.9.0 (2025-11-12)
 - feat: Implement eth filter rpc endpoints. ([#2956](https://github.com/chainwayxyz/citrea/pull/2956))\
   &nbsp;&nbsp;**New env vars:**\
-  &nbsp;&nbsp;&nbsp;&nbsp; `STALE_FILTER_TTL` duration in seconds before a stale filter is evicted from active filters cache (default: 300)\
-  &nbsp;&nbsp;&nbsp;&nbsp; `ENABLE_FILTERS` enables or disables the eth filter RPC endpoints (default: true)
+  &nbsp;&nbsp;&nbsp;&nbsp; `RPC_STALE_FILTER_TTL` duration in seconds before a stale filter is evicted from active filters cache (default: 300)\
+  &nbsp;&nbsp;&nbsp;&nbsp; `RPC_ENABLE_FILTERS` enables or disables the eth filter RPC endpoints (default: true)
   &nbsp;\
-  New confifuration values can also be set inside `rollup_config.toml` files under `[rpc]`
+  New confifuration values can also be set inside `rollup_config.toml` files under `[rpc]` with keys `stale_filter_ttl` or `enable_filters`.
 
 - fix: `eth_estimateGas` and `eth_createAccessList` now supports `state_overrides`. ([#3013](https://github.com/chainwayxyz/citrea/pull/3013))
 
