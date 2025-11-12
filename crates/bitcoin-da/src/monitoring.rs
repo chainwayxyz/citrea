@@ -37,8 +37,6 @@ const REBROADCAST_EACH_N_BLOCK: u64 = 1;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TxStatus {
-    /// Pending status updated
-    Pending,
     /// Tx in mempool
     #[serde(rename_all = "camelCase")]
     InMempool {
@@ -495,9 +493,7 @@ impl MonitoringService {
         self.total_size
             .fetch_add(tx.tx.total_size(), Ordering::SeqCst);
 
-        let status = self
-            .determine_tx_status(&tx_result, &TxStatus::Pending)
-            .await?;
+        let status = self.determine_tx_status(&tx_result, None).await?;
         let monitored_tx = MonitoredTx {
             tx: tx.tx,
             txid,
@@ -535,7 +531,7 @@ impl MonitoringService {
         self.total_size.fetch_add(tx.total_size(), Ordering::SeqCst);
 
         let status = self
-            .determine_tx_status(&tx_result, &monitored_tx.status)
+            .determine_tx_status(&tx_result, Some(&monitored_tx.status))
             .await?;
 
         let new_tx = MonitoredTx {
@@ -626,7 +622,9 @@ impl MonitoringService {
             if let TxStatus::Confirmed { confirmations, .. } = tx.status {
                 if confirmations <= depth {
                     let tx_result = self.client.get_transaction(txid, None).await?;
-                    tx.status = self.determine_tx_status(&tx_result, &tx.status).await?;
+                    tx.status = self
+                        .determine_tx_status(&tx_result, Some(&tx.status))
+                        .await?;
 
                     if let TxStatus::InMempool { .. } = tx.status {
                         info!("Rebroadcasting tx {} {tx:?}", tx.tx.compute_txid());
@@ -649,7 +647,7 @@ impl MonitoringService {
                 TxStatus::Confirmed { .. } | TxStatus::Replaced { .. } => {
                     if let Ok(tx_result) = self.client.get_transaction(txid, None).await {
                         let new_status = self
-                            .determine_tx_status(&tx_result, &monitored_tx.status)
+                            .determine_tx_status(&tx_result, Some(&monitored_tx.status))
                             .await?;
 
                         monitored_tx.status = new_status;
@@ -662,14 +660,14 @@ impl MonitoringService {
                 } if *rebroadcast_attempts > 0 => {
                     let tx_result = self.client.get_transaction(txid, None).await?;
                     let new_status = self
-                        .determine_tx_status(&tx_result, &monitored_tx.status)
+                        .determine_tx_status(&tx_result, Some(&monitored_tx.status))
                         .await?;
                     monitored_tx.status = new_status;
                 }
                 TxStatus::InMempool { height, .. } => {
                     let tx_result = self.client.get_transaction(txid, None).await?;
                     let new_status = self
-                        .determine_tx_status(&tx_result, &monitored_tx.status)
+                        .determine_tx_status(&tx_result, Some(&monitored_tx.status))
                         .await?;
 
                     // If status is still InMempool, check for how many block it has been in mempool and rebroadcast every REBROADCAST_EACH_N_BLOCK
@@ -694,7 +692,7 @@ impl MonitoringService {
     async fn determine_tx_status(
         &self,
         tx_result: &GetTransactionResult,
-        current_status: &TxStatus,
+        current_status: Option<&TxStatus>,
     ) -> Result<TxStatus> {
         let confirmations = tx_result.info.confirmations as u64;
         let status = if confirmations > 0 {
@@ -735,7 +733,7 @@ impl MonitoringService {
                 // Tx not found in mempool
                 Err(_) => match current_status {
                     // If transaction is queued or evicted, keep status as is
-                    TxStatus::Evicted { .. } => current_status.clone(),
+                    Some(status @ TxStatus::Evicted { .. }) => status.clone(),
                     // If transaction was previously in mempool or confirmed, re-org happened and it got evicted from mempool
                     _ => {
                         tracing::info!("Tx {} was evicted from mempool.", tx_result.info.txid);
@@ -904,7 +902,9 @@ impl MonitoringService {
         for txid in txids {
             if let Some(entry) = monitored_txs.get_mut(txid) {
                 if let Ok(tx_result) = self.client.get_transaction(txid, None).await {
-                    entry.status = self.determine_tx_status(&tx_result, &entry.status).await?;
+                    entry.status = self
+                        .determine_tx_status(&tx_result, Some(&entry.status))
+                        .await?;
                     entry.last_checked = get_timestamp();
                     entry.address = tx_result
                         .details
