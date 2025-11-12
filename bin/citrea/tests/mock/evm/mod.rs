@@ -10,7 +10,8 @@ use alloy::signers::SignerSync;
 // use citrea::initialize_logging;
 use alloy_primitives::{Address, Bytes, U256, U64};
 use alloy_rpc_types::{
-    Authorization, BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, TransactionRequest,
+    Authorization, BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, Filter,
+    TransactionRequest, ValueOrArray,
 };
 use citrea_common::risc0::Risc0HostConfig;
 use citrea_common::{BatchProverConfig, FromEnv, SequencerConfig};
@@ -147,20 +148,23 @@ async fn send_tx_test_to_eth(rpc_address: SocketAddr) -> Result<(), Box<dyn std:
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
+async fn test_eth_get_logs_and_filter_proofs() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging(::tracing::Level::INFO);
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
 
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config = create_default_rollup_config(
+    let mut rollup_config = create_default_rollup_config(
         true,
         &sequencer_db_dir,
         &da_db_dir,
         NodeMode::SequencerNode,
         None,
     );
+    // Enable filters for this test
+    rollup_config.rpc.enable_filters = true;
     let sequencer_config = SequencerConfig::default();
 
     let rollup_task = start_rollup(
@@ -553,10 +557,21 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
         .await;
     client.send_publish_batch_request().await;
     wait_for_l2_block(client, 2, None).await;
-
+    let empty_filter_id = client
+        .install_filter(
+            Filter::default()
+                .from_block(BlockNumberOrTag::Latest)
+                .to_block(BlockNumberOrTag::Latest),
+        )
+        .await
+        .unwrap();
     let empty_filter = serde_json::json!({});
     // supposed to get all the logs
     let logs = client.eth_get_logs(empty_filter).await;
+
+    // Should get the same logs as the eth_get_logs
+    let filter_changes = client.get_filter_changes(empty_filter_id).await.unwrap();
+    assert_eq!(filter_changes.as_logs().unwrap().to_vec(), logs);
 
     assert_eq!(logs.len(), 2);
 
@@ -567,6 +582,35 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
     });
     // supposed to get the first log only
     let logs = client.eth_get_logs(one_topic_filter).await;
+
+    let one_topic_filter_id = client
+        .install_filter(
+            Filter::default()
+                .from_block(BlockNumberOrTag::Latest)
+                .to_block(BlockNumberOrTag::Latest)
+                .event_signature(
+                    U256::from_str(
+                        "0xa9943ee9804b5d456d8ad7b3b1b975a5aefa607e16d13936959976e776c4bec7",
+                    )
+                    .unwrap(),
+                ),
+        )
+        .await
+        .unwrap();
+
+    let filter_logs = client
+        .get_filter_logs(one_topic_filter_id.clone())
+        .await
+        .unwrap();
+
+    let filter_changes = client
+        .get_filter_changes(one_topic_filter_id)
+        .await
+        .unwrap();
+
+    // Assert correctness with all three methods
+    assert_eq!(filter_changes.as_logs().unwrap().to_vec(), logs);
+    assert_eq!(logs, filter_logs);
 
     assert_eq!(logs.len(), 1);
     assert_eq!(
@@ -613,6 +657,29 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
         "address": contract_address
     });
 
+    let just_address_filter_id = client
+        .install_filter(
+            Filter::default()
+                .address(ValueOrArray::Value(contract_address))
+                .from_block(BlockNumberOrTag::Latest)
+                .to_block(BlockNumberOrTag::Latest),
+        )
+        .await
+        .unwrap();
+
+    let filter_logs = client
+        .get_filter_logs(just_address_filter_id.clone())
+        .await
+        .unwrap();
+    assert_eq!(filter_logs.len(), 0);
+
+    let filter_changes = client
+        .get_filter_changes(just_address_filter_id)
+        .await
+        .unwrap();
+    // Should be none
+    assert!(filter_changes.as_logs().is_none());
+
     let logs = client.eth_get_logs(just_address_filter).await;
     // supposed to get both the logs coming from the contract
     assert_eq!(logs.len(), 0);
@@ -624,7 +691,30 @@ async fn test_getlogs(client: &Box<TestClient>) -> Result<(), Box<dyn std::error
         "toBlock": "0x4"
     });
 
+    let address_and_range_filter_id = client
+        .install_filter(
+            Filter::default()
+                .address(ValueOrArray::Value(contract_address))
+                .from_block(BlockNumberOrTag::Number(1))
+                .to_block(BlockNumberOrTag::Number(4)),
+        )
+        .await
+        .unwrap();
+
+    let filter_logs = client
+        .get_filter_logs(address_and_range_filter_id.clone())
+        .await
+        .unwrap();
+
+    let filter_changes = client
+        .get_filter_changes(address_and_range_filter_id)
+        .await
+        .unwrap();
+
     let logs = client.eth_get_logs(address_and_range_filter).await;
+    // Assert correctness with all three methods
+    assert_eq!(filter_changes.as_logs().unwrap().to_vec(), logs);
+    assert_eq!(logs, filter_logs);
     assert_eq!(logs.len(), 2);
     // make sure the address is the old one and not the new one
     assert_eq!(logs[0].address(), contract_address);

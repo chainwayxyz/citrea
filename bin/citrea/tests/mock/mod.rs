@@ -25,6 +25,7 @@ use crate::common::{
 };
 
 mod evm;
+mod filter;
 mod l2_block_rule_enforcer;
 mod mempool;
 mod mempool_maintenance;

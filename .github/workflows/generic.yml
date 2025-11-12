@@ -1,0 +1,132 @@
+name: Generic
+run-name: ${{ inputs.operation-stop-step }} to ${{ inputs.service }} on ${{ inputs.network }} for ${{ github.ref }} by @${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation-stop-step:
+        description: Stop Operation at
+        type: choice
+        options: [ Build, Publish ]
+      release:
+        description: Release Version
+        type: string
+        required: true
+      service:
+        description: Service to Deploy
+        type: choice
+        options: [ Sequencer, Batch-Prover, Light-Client-Prover, Full-Node ]
+      network:
+        description: Environment to Deploy
+        type: choice
+        options: [ Dev-Net, Test-Net, Main-Net ]
+        default: Dev-Net
+
+env:
+  DOCKER_PATH: "devops/dockers/citrea"
+  DOCKER_CTX_PATH: "."
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  set-matrix:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.network }}
+    outputs:
+      matrix: ${{ steps.mapping.outputs.matrix }}
+      docker_path: ${{ steps.mapping.outputs.docker_path }}
+      docker_ctx_path: ${{ steps.mapping.outputs.docker_ctx_path }}
+      source_service: ${{ steps.mapping.outputs.source_service }}
+      source_version: ${{ steps.mapping.outputs.source_version }}
+      target_network: ${{ steps.mapping.outputs.target_network }}
+      target_service: ${{ steps.mapping.outputs.target_service }}
+      operation_stop_step: ${{ steps.mapping.outputs.operation_stop_step }}
+    env:
+      SERVICE: ${{ inputs.service }}
+      NETWORK: ${{ inputs.network }}
+      RELEASE: ${{ inputs.release }}
+      OPERATION_STOP_STEP: ${{ inputs.operation-stop-step }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Load matrix from JSON mapping
+        id: mapping
+        run: |
+          set -euo pipefail
+          
+          SERVICE_LOWER_CASE="${SERVICE,,}"
+          NETWORK_LOWER_CASE="${NETWORK,,}"
+          OPERATION_STOP_STEP_LOWER_CASE="${OPERATION_STOP_STEP,,}"
+          
+          if [ -n "$RELEASE" ]; then
+              SOURCE_VERSION="$RELEASE"
+          else
+              GIT_HASH=$(git rev-parse --short HEAD)
+              DATE_STR=$(date +'%y%m%d')
+              SOURCE_VERSION="v${DATE_STR}-git-${GIT_HASH}"
+          fi
+          
+          echo "Loading mapping for Service: $SERVICE / Network: $NETWORK"
+          
+          MAPPING_FILE_PATH="$DOCKER_PATH/services_source_2_target_mapping.json"
+
+          if [ ! -f "$MAPPING_FILE_PATH" ]; then
+            echo "Mapping file not found at $MAPPING_FILE_PATH"
+            exit 1
+          fi
+
+          matrix=$(jq -c --arg service "$SERVICE" --arg network "$NETWORK" '.[$si][$ni]' "$MAPPING_FILE_PATH")
+
+          if [ "$matrix" = "null" ] || [ -z "$matrix" ]; then
+            echo "No mapping found for Service=$SERVICE Network=$NETWORK"
+            exit 1
+          fi
+          
+          matrix_lower=$(echo "$matrix" | jq -c '[.[] | ascii_downcase]')
+          
+          echo "matrix=$matrix_lower" >> $GITHUB_OUTPUT
+          echo "docker_path=$DOCKER_PATH" >> $GITHUB_OUTPUT
+          echo "docker_ctx_path=$DOCKER_CTX_PATH" >> $GITHUB_OUTPUT
+          echo "target_service=$SERVICE_LOWER_CASE" >> $GITHUB_OUTPUT
+          echo "target_network=$NETWORK_LOWER_CASE" >> $GITHUB_OUTPUT
+          echo "source_version=$SOURCE_VERSION" >> $GITHUB_OUTPUT
+          echo "source_service=$SERVICE_LOWER_CASE" >> $GITHUB_OUTPUT
+          echo "operation_stop_step=$OPERATION_STOP_STEP_LOWER_CASE" >> $GITHUB_OUTPUT
+
+  build-and-publish:
+    needs: set-matrix
+    strategy:
+      matrix:
+        service: ${{ fromJSON(needs.set-matrix.outputs.matrix) }}
+    uses: chainwayxyz/citrea-infra/.github/workflows/ru-service-build-and-publish.yaml@master
+    with:
+      source_service: ${{ needs.set-matrix.outputs.source_service }}
+      docker_path: ${{ needs.set-matrix.outputs.docker_path }}
+      docker_ctx_path: ${{ needs.set-matrix.outputs.docker_ctx_path }}
+      source_version: ${{ needs.set-matrix.outputs.source_version }}
+      target_network: ${{ needs.set-matrix.outputs.target_network }}
+      target_service: ${{ matrix.service }}
+      operation_stop_step: ${{ needs.set-matrix.outputs.operation_stop_step }}
+    # All secrets available to the caller job flow into the callee.
+    # A malicious change in the callee (or a future well-meaning change) can access/exfiltrate unrelated secrets.
+    secrets: inherit
+  deploy:
+    if: ${{ inputs.operation-stop-step == 'Deploy' }}
+    needs: [ build-and-publish, set-matrix ]
+    strategy:
+      matrix:
+        service: ${{ fromJSON(needs.set-matrix.outputs.matrix) }}
+    uses: chainwayxyz/citrea-infra/.github/workflows/ru-service-deploy.yaml@master
+    with:
+      source_service: ${{ needs.set-matrix.outputs.source_service }}
+      docker_path: ${{ needs.set-matrix.outputs.docker_path }}
+      docker_ctx_path: ${{ needs.set-matrix.outputs.docker_ctx_path }}
+      source_version: ${{ needs.set-matrix.outputs.source_version }}
+      target_network: ${{ needs.set-matrix.outputs.target_network }}
+      target_service: ${{ matrix.service }}
+    # All secrets available to the caller job flow into the callee.
+    # A malicious change in the callee (or a future well-meaning change) can access/exfiltrate unrelated secrets.
+    secrets: inherit
