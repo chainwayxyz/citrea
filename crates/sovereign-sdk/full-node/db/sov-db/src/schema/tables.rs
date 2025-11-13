@@ -369,7 +369,7 @@ define_table_with_default_codec!(
     (ProofByJobId) Uuid => StoredBatchProof
 );
 
-define_table_with_default_codec!(
+define_table_with_seek_key_codec!(
     /// Proving session information by job ID
     (ProvingSessionInfoByJobId) Uuid => ProvingSessionInfo
 );
