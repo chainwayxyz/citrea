@@ -7,7 +7,6 @@
   &nbsp;&nbsp;**New env vars:**\
   &nbsp;&nbsp;&nbsp;&nbsp; `stale_filter_ttl` duration in seconds before a stale filter is evicted from active filters cache\
   &nbsp;&nbsp;&nbsp;&nbsp; `enable_filters` enables or disables the filter RPC endpoints (default: true)
-- ci: Add Gemini API integration for changelog suggestions in PR checks
 
 ## v0.8.1 (2025-10-25)
 Fixes Testnet guest list for Light Client Prover.
@@ -51,7 +50,7 @@ Node operators need to rescan L1:
 # use citrea-cli v0.7.2
 citrea-cli --rollback --node-type fullnode --db-path path/to/db --l2-target 9999999999 --l1-target 74247 --sequencer-commitment-index 0
 
-citrea-cli clear-pending --db-path path/to/dbs
+citrea-cli clear-pending --db-path path/to/dbs 
 ```
 
 
@@ -64,7 +63,7 @@ Node operators need to rescan L1:
 # use citrea-cli v0.7.1
 citrea-cli --rollback --node-type fullnode --db-path path/to/db --l2-target 9999999999 --l1-target 74247 --sequencer-commitment-index 0
 
-citrea-cli clear-pending --db-path path/to/dbs
+citrea-cli clear-pending --db-path path/to/dbs 
 ```
 
 ## v0.7.0 (2025-04-18)
