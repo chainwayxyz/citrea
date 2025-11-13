@@ -138,12 +138,12 @@ jobs:
             # Fallback to PR title if API fails
             echo "API Error - using PR title as fallback"
             echo "$RESPONSE" | jq '.error'
-            SUGGESTION="$PR_TITLE"
+            SUGGESTION="$PR_TITLE ([#$PR_NUMBER]($PR_URL))"
           else
             AI_SUGGESTION=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // ""' | tr -d '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
             if [ -z "$AI_SUGGESTION" ]; then
               echo "Empty suggestion received, using PR title"
-              SUGGESTION="$PR_TITLE"
+              SUGGESTION="$PR_TITLE ([#$PR_NUMBER]($PR_URL))"
             else
               echo "Generated suggestion: $AI_SUGGESTION"
               SUGGESTION="$AI_SUGGESTION ([#$PR_NUMBER]($PR_URL))"
