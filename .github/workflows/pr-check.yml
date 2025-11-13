@@ -72,13 +72,27 @@ jobs:
             echo "modified=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Generate changelog suggestion
+      - name: Check if PR type needs changelog
         if: steps.changelog-check.outputs.modified == 'false'
+        id: pr-type-check
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [[ "$PR_TITLE" =~ ^(feat|fix|perf)(\(.*\))?:.*$ ]]; then
+            echo "needs_changelog=true" >> $GITHUB_OUTPUT
+          else
+            echo "needs_changelog=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate changelog suggestion
+        if: steps.changelog-check.outputs.modified == 'false' && steps.pr-type-check.outputs.needs_changelog == 'true'
         id: changelog-suggestion
         env:
           GEMINI_KEY: ${{ secrets.GEMINI_API_KEY }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
           # Get the full diff
           git fetch origin ${{ github.base_ref }}
@@ -126,12 +140,13 @@ jobs:
             echo "$RESPONSE" | jq '.error'
             SUGGESTION="$PR_TITLE"
           else
-            SUGGESTION=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // ""' | tr -d '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-            if [ -z "$SUGGESTION" ]; then
+            AI_SUGGESTION=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // ""' | tr -d '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            if [ -z "$AI_SUGGESTION" ]; then
               echo "Empty suggestion received, using PR title"
               SUGGESTION="$PR_TITLE"
             else
-              echo "Generated suggestion: $SUGGESTION"
+              echo "Generated suggestion: $AI_SUGGESTION"
+              SUGGESTION="$AI_SUGGESTION ([#$PR_NUMBER]($PR_URL))"
             fi
           fi
 
@@ -140,7 +155,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Comment if changelog is missing
-        if: steps.changelog-check.outputs.modified == 'false'
+        if: steps.changelog-check.outputs.modified == 'false' && steps.pr-type-check.outputs.needs_changelog == 'true'
         env:
           CHANGELOG_ENTRY: ${{ steps.changelog-suggestion.outputs.suggestion }}
         uses: actions/github-script@v7
