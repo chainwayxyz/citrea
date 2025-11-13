@@ -1590,10 +1590,10 @@ async fn retry_proving_test() -> Result<()> {
         .await
 }
 
-struct ProvingInfoTest;
+struct ProvingSessionInfoTest;
 
 #[async_trait]
-impl TestCase for ProvingInfoTest {
+impl TestCase for ProvingSessionInfoTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
             with_batch_prover: true,
@@ -1645,8 +1645,8 @@ impl TestCase for ProvingInfoTest {
 }
 
 #[tokio::test]
-async fn proving_info_test() -> Result<()> {
-    TestCaseRunner::new(ProvingInfoTest)
+async fn proving_session_info_test() -> Result<()> {
+    TestCaseRunner::new(ProvingSessionInfoTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await
