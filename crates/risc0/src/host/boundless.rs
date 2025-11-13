@@ -24,7 +24,9 @@ use risc0_zkvm::{
 };
 use sov_db::ledger_db::{BoundlessLedgerOps, LedgerDB};
 use sov_db::schema::types::BoundlessSession;
-use sov_rollup_interface::zk::{BoundlessProvingSessionInfo, ProofWithJob, ProvingSessionInfo, ReceiptType};
+use sov_rollup_interface::zk::{
+    BoundlessProvingSessionInfo, ProofWithJob, ProvingSessionInfo, ReceiptType,
+};
 use tokio::sync::oneshot;
 use tracing::Instrument;
 use url::Url;
@@ -529,11 +531,7 @@ impl BoundlessProver {
         let exponential_backoff = ExponentialBackoff::default();
 
         let price_response = retry_backoff(exponential_backoff, || async move {
-            match self
-                .pricing_service
-                .get_price(total_cycles_approx)
-                .await
-            {
+            match self.pricing_service.get_price(total_cycles_approx).await {
                 Err(e) => {
                     tracing::error!(
                         "Failed to get price from pricing service for job: {}  | err={}",
@@ -634,7 +632,13 @@ impl BoundlessProver {
         );
 
         let (new_req_id, new_exp_time) = match self
-            .send_request(new_request, job_id, image_id, receipt_type, total_cycles_approx)
+            .send_request(
+                new_request,
+                job_id,
+                image_id,
+                receipt_type,
+                total_cycles_approx,
+            )
             .await
         {
             Ok((req_id, exp_time)) => (req_id, exp_time),

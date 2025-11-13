@@ -8,7 +8,9 @@ use risc0_zkvm::{
     AssumptionReceipt, ExecutorEnvBuilder, ExternalProver, ProveInfo, Prover, ProverOpts,
     SessionStats,
 };
-use sov_rollup_interface::zk::{LocalProvingSessionInfo, Proof, ProofWithJob, ProvingSessionInfo, ReceiptType};
+use sov_rollup_interface::zk::{
+    LocalProvingSessionInfo, Proof, ProofWithJob, ProvingSessionInfo, ReceiptType,
+};
 use sov_rollup_interface::Network;
 use tokio::sync::oneshot;
 use tracing::error;

@@ -8,7 +8,9 @@ use std::sync::{Arc, Mutex, RwLock};
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::zk::{LocalProvingSessionInfo, Matches, Proof, ProofWithJob, ProvingSessionInfo, ReceiptType};
+use sov_rollup_interface::zk::{
+    LocalProvingSessionInfo, Matches, Proof, ProofWithJob, ProvingSessionInfo, ReceiptType,
+};
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
