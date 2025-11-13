@@ -16,14 +16,7 @@ use crate::rocks_db_config::RocksdbConfig;
 #[cfg(test)]
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
-    CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber,
-    ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot,
-    L2RangeByL1Height, L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs,
-    PendingBonsaiSessionByJobId, PendingBoundlessSessionByJobId, PendingL1SubmissionJobs,
-    PendingProofs, PendingSequencerCommitments, ProofByJobId, ProverLastScannedSlot,
-    ProverPendingCommitments, ProverStateDiffs, ProvingInfoByJobId, SequencerCommitmentByIndex,
-    ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
-    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot, L2RangeByL1Height, L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs, PendingBonsaiSessionByJobId, PendingBoundlessSessionByJobId, PendingL1SubmissionJobs, PendingProofs, PendingSequencerCommitments, ProofByJobId, ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs, ProvingSessionInfoByJobId, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -589,7 +582,7 @@ impl BatchProverLedgerOps for LedgerDB {
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<PendingL1SubmissionJobs>(&id, &())?;
         schema_batch.put::<ProofByJobId>(&id, &stored_proof)?;
-        schema_batch.put::<ProvingInfoByJobId>(&id, &info)?;
+        schema_batch.put::<ProvingSessionInfoByJobId>(&id, &info)?;
 
         self.db.write_schemas(schema_batch)
     }
@@ -606,7 +599,7 @@ impl BatchProverLedgerOps for LedgerDB {
             schema_batch.delete::<JobIdOfCommitment>(&index)?;
         }
         schema_batch.delete::<ProofByJobId>(&id)?;
-        schema_batch.delete::<ProvingInfoByJobId>(&id)?;
+        schema_batch.delete::<ProvingSessionInfoByJobId>(&id)?;
         schema_batch.delete::<CommitmentIndicesByJobId>(&id)?;
 
         // delete from pending job tables
@@ -641,8 +634,8 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_proving_info_by_job_id(&self, id: Uuid) -> anyhow::Result<Option<ProvingSessionInfo>> {
-        self.db.get::<ProvingInfoByJobId>(&id)
+    fn get_proving_session_info_by_job_id(&self, id: Uuid) -> anyhow::Result<Option<ProvingSessionInfo>> {
+        self.db.get::<ProvingSessionInfoByJobId>(&id)
     }
 
     #[instrument(level = "trace", skip(self), err)]

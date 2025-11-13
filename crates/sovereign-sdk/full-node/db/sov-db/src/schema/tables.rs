@@ -103,7 +103,7 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     PendingL1SubmissionJobs::table_name(),
     PendingBoundlessSessionByJobId::table_name(),
     ProofByJobId::table_name(),
-    ProvingInfoByJobId::table_name(),
+    ProvingSessionInfoByJobId::table_name(),
     ProverLastScannedSlot::table_name(),
     ProverPendingCommitments::table_name(),
     ProverStateDiffs::table_name(),
@@ -162,7 +162,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     PendingProvingSessions::table_name(),
     PendingSequencerCommitments::table_name(),
     ProofByJobId::table_name(),
-    ProvingInfoByJobId::table_name(),
+    ProvingSessionInfoByJobId::table_name(),
     ProofsBySlotNumber::table_name(),
     ProofsBySlotNumberV2::table_name(),
     ProverLastScannedSlot::table_name(),
@@ -371,7 +371,7 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// Proving info of the job
-    (ProvingInfoByJobId) Uuid => ProvingSessionInfo
+    (ProvingSessionInfoByJobId) Uuid => ProvingSessionInfo
 );
 
 define_table_with_default_codec!(

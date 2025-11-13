@@ -587,7 +587,7 @@ where
         let proof = match stored_proof {
             Some(sp) => {
                 let info = ledger_db
-                    .get_proving_info_by_job_id(job_id)
+                    .get_proving_session_info_by_job_id(job_id)
                     .map_err(internal_rpc_error)?;
                 Some(make_batch_proof_response(sp, info))
             }
