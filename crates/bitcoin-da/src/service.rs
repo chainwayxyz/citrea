@@ -29,7 +29,7 @@ use lru::LruCache;
 use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::LedgerDB;
-use sov_db::schema::types::da_jobs::{DaJobStatus, JobProgress, SentTxs};
+use sov_db::schema::types::da_jobs::{DaJobStatus, JobId, JobProgress, SentTxs};
 use sov_rollup_interface::da::{DaSpec, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, DaTxRequest};
 use sov_rollup_interface::zk::Proof;
@@ -407,7 +407,7 @@ impl BitcoinService {
         let fee_sat_per_vbyte = self.fee.get_fee_rate().await?;
 
         // Validate fee rate against cap
-        self.validate_fee_rate(progress, fee_sat_per_vbyte)?;
+        self.validate_fee_rate(progress.job_id, fee_sat_per_vbyte)?;
 
         // get all available utxos
         let utxos = self.get_utxos(sent_txids).await?;
@@ -501,22 +501,18 @@ impl BitcoinService {
     }
 
     /// Validates fee rate against `max_fee_rate_sat_to_pay`
-    fn validate_fee_rate(&self, progress: &JobProgress, fee_sat_per_vbyte: u64) -> Result<()> {
+    fn validate_fee_rate(&self, job_id: JobId, fee_sat_per_vbyte: u64) -> Result<()> {
         if fee_sat_per_vbyte <= self.max_fee_rate_sat_to_pay {
             return Ok(());
         }
 
-        let elapsed_secs = get_job_elapsed_time(progress);
+        let elapsed_secs = get_job_elapsed_time(job_id);
 
         if elapsed_secs < self.fee_rate_cap_duration_secs {
             warn!(
-                "Job {} fee rate {} sat/vb exceeds cap of {} sat/vb. \
-             Waiting (elapsed: {}s / max: {}s)",
-                progress.job_id,
-                fee_sat_per_vbyte,
-                self.max_fee_rate_sat_to_pay,
-                elapsed_secs,
-                self.fee_rate_cap_duration_secs
+                "Job {job_id} fee rate {fee_sat_per_vbyte} sat/vb exceeds cap of {} sat/vb. \
+             Waiting (elapsed: {elapsed_secs}s / max: {}s)",
+                self.max_fee_rate_sat_to_pay, self.fee_rate_cap_duration_secs
             );
 
             return Err(BitcoinServiceError::FeeCapExceeded {
@@ -528,8 +524,8 @@ impl BitcoinService {
         }
 
         warn!(
-        "Job {} fee rate {} sat/vb exceeds cap but cap duration of {}s exceeded. Sending anyway",
-        progress.job_id, fee_sat_per_vbyte, self.fee_rate_cap_duration_secs
+        "Job {job_id} fee rate {fee_sat_per_vbyte} sat/vb exceeds cap but cap duration of {}s exceeded. Sending anyway",
+        self.fee_rate_cap_duration_secs
         );
 
         Ok(())
@@ -604,7 +600,7 @@ impl BitcoinService {
             // When running in UtxoSelectionMode::Oldest, we're creating multiple utxos chain in parallel
             // to be able to send multiple proofs in the same block without hitting mempool policy limits.
             // To make sure there are no conflicts between parallel utxos chain,
-            // this additional filters out any UTXO used by queued txs and any change UTXO that are not finalized
+            // this additional filters out any UTXO used by in-progress job txs and any change UTXO that are not finalized
             UtxoSelectionMode::Oldest => {
                 utxos.into_iter().filter(|utxo| {
                     utxo.spendable
