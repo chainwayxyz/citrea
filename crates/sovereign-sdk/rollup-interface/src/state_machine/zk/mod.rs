@@ -65,8 +65,8 @@ pub struct BonsaiProvingSessionInfo {
 pub struct BoundlessProvingSessionInfo {
     /// Request ID of the proof request
     pub request_id: String,
-    /// Mcycles count
-    pub mcycles_count: u64,
+    /// Approximate number of cycles used for the proof generation
+    pub total_cycles_approx: u64,
 }
 
 #[cfg(feature = "native")]
