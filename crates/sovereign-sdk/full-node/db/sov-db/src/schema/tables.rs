@@ -370,7 +370,7 @@ define_table_with_default_codec!(
 );
 
 define_table_with_default_codec!(
-    /// Proving info of the job
+    /// Proving session information by job ID
     (ProvingSessionInfoByJobId) Uuid => ProvingSessionInfo
 );
 
