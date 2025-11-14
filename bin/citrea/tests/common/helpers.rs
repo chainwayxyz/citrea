@@ -131,7 +131,6 @@ pub async fn start_rollup(
     );
     let Storage {
         ledger_db,
-        ledger_db_tx,
         storage_manager,
     } = mock_demo_rollup
         .setup_storage(&rollup_config, &rocksdb_config, &backup_manager)
@@ -276,7 +275,6 @@ pub async fn start_rollup(
                 rollup_config.clone(),
                 da_service,
                 ledger_db.clone(),
-                ledger_db_tx,
                 storage_manager,
                 l2_block_tx,
                 rpc_module,
@@ -368,7 +366,6 @@ pub async fn start_rollup(
                 rollup_config.clone(),
                 da_service,
                 ledger_db.clone(),
-                ledger_db_tx,
                 storage_manager,
                 l2_block_tx,
                 rpc_module,

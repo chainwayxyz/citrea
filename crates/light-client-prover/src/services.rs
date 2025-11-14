@@ -7,7 +7,7 @@ use citrea_common::backup::BackupManager;
 use citrea_common::LightClientProverConfig;
 use jsonrpsee::RpcModule;
 use prover_services::ParallelProverService;
-use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::{SpecId, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
@@ -44,22 +44,21 @@ use crate::rpc;
 /// - L1BlockHandler for DA block processing
 /// - Configured RPC module
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub fn build_services<Vm, Da, DB>(
+pub fn build_services<Vm, Da>(
     network: Network,
     prover_config: LightClientProverConfig,
     storage_manager: ProverStorageManager,
-    ledger_db: DB,
+    ledger_db: LedgerDB,
     da_service: Arc<Da>,
     prover_service: Arc<ParallelProverService<Da, Vm>>,
     light_client_prover_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
     light_client_prover_elfs: HashMap<SpecId, Vec<u8>>,
     rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
-) -> Result<(L1BlockHandler<Vm, Da, DB>, RpcModule<()>)>
+) -> Result<(L1BlockHandler<Vm, Da>, RpcModule<()>)>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    DB: LightClientProverLedgerOps + SharedLedgerOps + Clone + 'static,
     Network: InitialValueProvider<Da::Spec>,
 {
     let rpc_storage = storage_manager.create_final_view_storage();

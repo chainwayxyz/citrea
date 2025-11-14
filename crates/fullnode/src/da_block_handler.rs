@@ -4,11 +4,11 @@
 //! sequencer commitments and ZK proofs, and tracking L2 finality.
 
 use core::panic;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_zk_proofs_and_sequencer_commitments, sync_l1, ProofOrCommitment};
@@ -18,9 +18,15 @@ use citrea_primitives::network_to_dev_mode;
 use reth_tasks::shutdown::GracefulShutdown;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use sov_db::ledger_db::NodeLedgerOps;
+use sov_db::ledger_db::{LedgerDB, NodeLedgerOps, SchemaBatch, SharedLedgerOps};
+use sov_db::schema::tables::{
+    CommitmentMerkleRoots, L2StatusHeights, PendingProofs, PendingSequencerCommitments,
+    ProverLastScannedSlot, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
+};
 use sov_db::schema::types::l2_block::StoredL2Block;
-use sov_db::schema::types::{L2BlockNumber, L2HeightAndIndex, L2HeightStatus, SlotNumber};
+use sov_db::schema::types::{
+    L1Height, L2BlockNumber, L2HeightAndIndex, L2HeightStatus, SlotNumber,
+};
 use sov_modules_api::{DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -34,6 +40,14 @@ use tracing::{debug, error, info, instrument, warn};
 
 use crate::error::{CommitmentError, HaltingError, ProcessingError, ProofError, SkippableError};
 use crate::metrics::FULLNODE_METRICS as FM;
+
+type PendingCommitmentsCache =
+    BTreeMap</*index*/ u32, (SequencerCommitment, /* found_in_l1_height */ L1Height)>;
+
+type PendingProofsCache = BTreeMap<
+    (/* min_index */ u32, /* max_index */ u32),
+    (Proof, /* found_in_l1_height */ L1Height),
+>;
 
 /// Result of processing a commitment or proof
 enum ProcessingResult {
@@ -53,14 +67,13 @@ enum ProcessingResult {
 /// - Verifying ZK proofs
 /// - Maintaining block processing order
 /// - Managing the backup state
-pub struct L1BlockHandler<Vm, Da, DB>
+pub struct L1BlockHandler<Vm, Da>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    DB: NodeLedgerOps,
 {
     /// Database for ledger operations
-    ledger_db: DB,
+    ledger_db: LedgerDB,
     /// Data availability service instance
     da_service: Arc<Da>,
     /// Sequencer's DA public key for verifying commitments
@@ -79,11 +92,10 @@ where
     network: Network,
 }
 
-impl<Vm, Da, DB> L1BlockHandler<Vm, Da, DB>
+impl<Vm, Da> L1BlockHandler<Vm, Da>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    DB: NodeLedgerOps + Clone,
 {
     /// Creates a new L1BlockHandler instance
     ///
@@ -98,7 +110,7 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         network: Network,
-        ledger_db: DB,
+        ledger_db: LedgerDB,
         da_service: Arc<Da>,
         sequencer_da_pub_key: Vec<u8>,
         prover_da_pub_key: Vec<u8>,
@@ -188,19 +200,54 @@ where
         let start_scanning = Instant::now();
         let _l1_lock = self.backup_manager.start_l1_processing().await;
 
+        // All changes to be written to the ledger DB after processing the block
+        let mut schema_batch = SchemaBatch::new();
+
+        // Cache of pending commitments loaded from the DB
+        // This is used to attempt processing pending commitments after processing new ones
+        // Adding new pending commitments during processing will not be reflected here
+        // After processing all commitments in the block, we save the updated pending commitments back to the DB
+        let mut pending_commitments: PendingCommitmentsCache = {
+            let mut iter = self.ledger_db.iter::<PendingSequencerCommitments>()?;
+            iter.seek_to_first();
+
+            let mut res = BTreeMap::new();
+            for item in iter {
+                let (k, v) = item?.into_tuple();
+                res.insert(k, v);
+            }
+            res
+        };
+        // Track previous state of pending commitments to detect changes
+        let original_pending_commitments = pending_commitments.clone();
+
+        // Cache of pending proofs loaded from the DB
+        let mut pending_proofs: PendingProofsCache = {
+            let mut iter = self.ledger_db.iter::<PendingProofs>()?;
+            iter.seek_to_first();
+
+            let mut res = BTreeMap::new();
+            for item in iter {
+                let (k, v) = item?.into_tuple();
+                res.insert(k, v);
+            }
+            res
+        };
+        // Track previous state of pending proofs to detect changes
+        let original_pending_proofs = pending_proofs.clone();
+
         let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
             Da::block_to_short_header_proof(l1_block.clone());
-        self.ledger_db.put_short_header_proof_by_l1_hash(
+        schema_batch.put::<ShortHeaderProofBySlotHash>(
             &l1_block.header().hash().into(),
-            borsh::to_vec(&short_header_proof).expect("Should serialize short header proof"),
+            &borsh::to_vec(&short_header_proof).expect("Should serialize short header proof"),
         )?;
 
         let l1_height = l1_block.header().height();
         info!("Processing L1 block at height: {}", l1_height);
 
         // Set the l1 height of the l1 hash
-        self.ledger_db
-            .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)?;
+        schema_batch.put::<SlotByHash>(&l1_block.header().hash().into(), &SlotNumber(l1_height))?;
 
         let commitments_and_proofs = extract_zk_proofs_and_sequencer_commitments(
             self.da_service.clone(),
@@ -227,7 +274,9 @@ where
                         .process_sequencer_commitment(
                             l1_block.header().height(),
                             l1_block.header().height(),
-                            &commitment,
+                            commitment,
+                            &mut pending_commitments,
+                            &mut schema_batch,
                         )
                         .await
                     {
@@ -256,6 +305,9 @@ where
                             l1_block.header().height(),
                             l1_block.header().height(),
                             proof,
+                            &pending_commitments,
+                            &mut pending_proofs,
+                            &mut schema_batch,
                         )
                         .await
                     {
@@ -279,7 +331,11 @@ where
         }
 
         if let Err(e) = self
-            .process_pending_commitments(l1_block.header().height())
+            .process_pending_commitments(
+                l1_block.header().height(),
+                &mut pending_commitments,
+                &mut schema_batch,
+            )
             .await
         {
             match e {
@@ -294,7 +350,12 @@ where
         }
 
         if let Err(e) = self
-            .process_pending_proofs(l1_block.header().height())
+            .process_pending_proofs(
+                l1_block.header().height(),
+                &pending_commitments,
+                &mut pending_proofs,
+                &mut schema_batch,
+            )
             .await
         {
             match e {
@@ -308,9 +369,44 @@ where
             }
         }
 
-        self.ledger_db
-            .set_last_scanned_l1_height(SlotNumber(l1_height))
+        // Save pending sequencer commitments
+        for k in original_pending_commitments.keys() {
+            if !pending_commitments.contains_key(k) {
+                // Commitment was processed, remove from DB
+                schema_batch.delete::<PendingSequencerCommitments>(k)?;
+            }
+        }
+        for (k, v) in pending_commitments {
+            if !original_pending_commitments.contains_key(&k) {
+                // New pending commitment, add to DB
+                schema_batch.put::<PendingSequencerCommitments>(&k, &v)?;
+            }
+        }
+
+        // Save pending proofs
+        for k in original_pending_proofs.keys() {
+            if !pending_proofs.contains_key(k) {
+                // Proof was processed, remove from DB
+                schema_batch.delete::<PendingProofs>(k)?;
+            }
+        }
+        for (k, v) in pending_proofs {
+            if !original_pending_proofs.contains_key(&k) {
+                // New pending proof, add to DB
+                schema_batch.put::<PendingProofs>(&k, &v)?;
+            }
+        }
+
+        schema_batch
+            .put::<ProverLastScannedSlot>(&(), &SlotNumber(l1_height))
             .map_err(|e| anyhow!("Could not set last scanned l1 height: {e}"))?;
+
+        self.ledger_db
+            .write_schemas(schema_batch)
+            .inspect_err(|e| {
+                error!("Ledger DB write error: {e:?}");
+            })
+            .context("Could not write L1 block processing changes to ledger DB")?;
 
         FM.current_l1_block.set(l1_height as f64);
         FM.set_scan_l1_block_duration(
@@ -349,7 +445,9 @@ where
         &self,
         current_l1_block_height: u64,
         found_in_l1_block_height: u64,
-        sequencer_commitment: &SequencerCommitment,
+        sequencer_commitment: SequencerCommitment,
+        pending_commitments: &mut PendingCommitmentsCache,
+        schema_batch: &mut SchemaBatch,
     ) -> Result<ProcessingResult, ProcessingError> {
         // Skip if this commitment index was already processed
         // This prevents double-processing and handles conflicting commitments
@@ -420,10 +518,10 @@ where
                             sequencer_commitment.index,
                             sequencer_commitment.index - 1
                         );
-                    self.ledger_db.store_pending_commitment(
-                        sequencer_commitment.clone(),
-                        found_in_l1_block_height,
-                    )?;
+                    pending_commitments.insert(
+                        sequencer_commitment.index,
+                        (sequencer_commitment, found_in_l1_block_height),
+                    );
                     return Ok(ProcessingResult::Pending);
                 }
             }
@@ -448,20 +546,13 @@ where
                 hex::encode(sequencer_commitment.merkle_root)
             );
             // Store as pending if we haven't synced all needed L2 blocks yet
-            if self
-                .ledger_db
-                .get_pending_commitment_by_index(sequencer_commitment.index)?
-                .is_none()
-            {
-                self.ledger_db.store_pending_commitment(
-                    sequencer_commitment.clone(),
-                    found_in_l1_block_height,
-                )?;
-                return Ok(ProcessingResult::Pending);
-            } else {
-                // Keep as pending if already stored as pending
-                return Ok(ProcessingResult::Pending);
+            if !pending_commitments.contains_key(&sequencer_commitment.index) {
+                pending_commitments.insert(
+                    sequencer_commitment.index,
+                    (sequencer_commitment, found_in_l1_block_height),
+                );
             }
+            return Ok(ProcessingResult::Pending);
         }
 
         // Verify the merkle root matches the L2 blocks
@@ -495,24 +586,25 @@ where
         }
 
         // Store the commitment and update all related state
-        self.ledger_db.update_commitments_on_da_slot(
+        schema_batch.merge(self.ledger_db.update_commitments_on_da_slot(
             found_in_l1_block_height,
             sequencer_commitment.clone(),
+        )?);
+
+        schema_batch.put::<CommitmentMerkleRoots>(
+            &sequencer_commitment.merkle_root,
+            &(L2BlockNumber(start_l2_height), L2BlockNumber(end_l2_height)),
         )?;
 
-        self.ledger_db.set_l2_range_by_commitment_merkle_root(
-            sequencer_commitment.merkle_root,
-            (L2BlockNumber(start_l2_height), L2BlockNumber(end_l2_height)),
+        schema_batch.put::<SequencerCommitmentByIndex>(
+            &sequencer_commitment.index,
+            &sequencer_commitment,
         )?;
-
-        self.ledger_db
-            .put_commitment_by_index(sequencer_commitment)?;
 
         // Update the highest committed L2 height
-        self.ledger_db.set_l2_height_status(
-            L2HeightStatus::Committed,
-            current_l1_block_height,
-            L2HeightAndIndex {
+        schema_batch.put::<L2StatusHeights>(
+            &(L2HeightStatus::Committed, current_l1_block_height),
+            &L2HeightAndIndex {
                 height: end_l2_height,
                 commitment_index: sequencer_commitment.index,
             },
@@ -553,6 +645,9 @@ where
         current_l1_block_height: u64,
         found_in_l1_block_height: u64,
         proof: Proof,
+        pending_commitments: &PendingCommitmentsCache,
+        pending_proofs: &mut PendingProofsCache,
+        schema_batch: &mut SchemaBatch,
     ) -> Result<ProcessingResult, ProcessingError> {
         tracing::info!(
             "Processing zk proof at height: {}",
@@ -597,6 +692,9 @@ where
             batch_proof_output.initial_state_root(),
             proof,
             batch_proof_output,
+            pending_commitments,
+            pending_proofs,
+            schema_batch,
         )
         .await
     }
@@ -619,6 +717,9 @@ where
         initial_state_root: [u8; 32],
         raw_proof: Proof,
         batch_proof_output: BatchProofCircuitOutput,
+        pending_commitments: &PendingCommitmentsCache,
+        pending_proofs: &mut PendingProofsCache,
+        schema_batch: &mut SchemaBatch,
     ) -> Result<ProcessingResult, ProcessingError> {
         let last_l1_hash_on_bitcoin_light_client_contract =
             batch_proof_output.last_l1_hash_on_bitcoin_light_client_contract();
@@ -669,6 +770,7 @@ where
                     idx,
                     batch_proof_output.previous_commitment_hash().expect("If previous commitment index is present, then the previous commitment hash must be present too"),
                     &mut proof_is_pending,
+                    pending_commitments,
                 )?
             }
             // If there is no previous seq comm hash then this must be the first post tangerine commitment
@@ -684,6 +786,7 @@ where
                 index,
                 expected_hash,
                 &mut proof_is_pending,
+                pending_commitments,
             )?;
         }
 
@@ -692,12 +795,10 @@ where
                 "Proof is pending for commitment index range {}-{}. Storing proof as pending.",
                 sequencer_commitment_index_range.0, sequencer_commitment_index_range.1
             );
-            self.ledger_db.store_pending_proof(
-                sequencer_commitment_index_range.0,
-                sequencer_commitment_index_range.1,
-                raw_proof,
-                found_in_l1_block_height,
-            )?;
+            pending_proofs.insert(
+                sequencer_commitment_index_range,
+                (raw_proof, found_in_l1_block_height),
+            );
             return Ok(ProcessingResult::Pending);
         }
 
@@ -728,26 +829,24 @@ where
                     sequencer_commitment_index_range.0,
                     sequencer_commitment_index_range.1
                 );
-            self.ledger_db.store_pending_proof(
-                sequencer_commitment_index_range.0,
-                sequencer_commitment_index_range.1,
-                raw_proof,
-                found_in_l1_block_height,
-            )?;
+            pending_proofs.insert(
+                sequencer_commitment_index_range,
+                (raw_proof, found_in_l1_block_height),
+            );
             return Ok(ProcessingResult::Pending);
         }
 
         // store in ledger db
-        self.ledger_db.update_verified_proof_data(
+        schema_batch.merge(self.ledger_db.update_verified_proof_data(
             found_in_l1_block_height,
             raw_proof,
             batch_proof_output.into(),
-        )?;
+        )?);
 
-        self.ledger_db.set_l2_height_status(
-            L2HeightStatus::Proven,
-            current_l1_block_height,
-            L2HeightAndIndex {
+        // Update the highest proven L2 height
+        schema_batch.put::<L2StatusHeights>(
+            &(L2HeightStatus::Proven, current_l1_block_height),
+            &L2HeightAndIndex {
                 height: end_l2_height,
                 commitment_index: sequencer_commitment_index_range.1,
             },
@@ -780,12 +879,14 @@ where
     async fn process_pending_commitments(
         &self,
         current_l1_block_height: u64,
+        pending_commitments: &mut PendingCommitmentsCache,
+        schema_batch: &mut SchemaBatch,
     ) -> Result<(), ProcessingError> {
-        let pending_commitments = self.ledger_db.get_pending_commitments()?;
+        // Keep track of which pending commitments were successfully processed
+        let mut pending_to_remove = vec![];
 
         // Try to process each pending commitment in order
-        for item in pending_commitments {
-            let (index, (commitment, found_in_l1_height)) = item?.into_tuple();
+        for (index, (commitment, found_in_l1_height)) in pending_commitments.clone() {
             // A commitment is processable if:
             // - For index 1: all its L2 blocks are synced
             // - For other indices: its previous commitment exists
@@ -806,7 +907,9 @@ where
                     .process_sequencer_commitment(
                         current_l1_block_height,
                         found_in_l1_height,
-                        &commitment,
+                        commitment,
+                        pending_commitments,
+                        schema_batch,
                     )
                     .await
                 {
@@ -824,11 +927,11 @@ where
                     },
                     Ok(ProcessingResult::Success) => {
                         info!("Successfully processed pending commitment {index}");
-                        self.ledger_db.remove_pending_commitment(index)?;
+                        pending_to_remove.push(index);
                     }
                     Ok(ProcessingResult::Discarded) => {
                         info!("Discarding pending commitment {index}");
-                        self.ledger_db.remove_pending_commitment(index)?;
+                        pending_to_remove.push(index);
                     }
                     Ok(ProcessingResult::Pending) => {
                         debug!("Keeping commitment {index} as pending")
@@ -841,6 +944,11 @@ where
             }
         }
 
+        // Remove successfully processed commitments from pending list
+        for index in pending_to_remove {
+            pending_commitments.remove(&index);
+        }
+
         Ok(())
     }
 
@@ -851,13 +959,23 @@ where
     async fn process_pending_proofs(
         &self,
         current_l1_block_height: u64,
+        pending_commitments: &PendingCommitmentsCache,
+        pending_proofs: &mut PendingProofsCache,
+        schema_batch: &mut SchemaBatch,
     ) -> Result<(), ProcessingError> {
-        let pending_proofs = self.ledger_db.get_pending_proofs()?;
+        // Keep track of which pending proofs were successfully processed
+        let mut pending_to_remove = vec![];
 
-        for item in pending_proofs {
-            let ((min_index, max_index), (proof, found_in_l1_height)) = item?.into_tuple();
+        for ((min_index, max_index), (proof, found_in_l1_height)) in pending_proofs.clone() {
             match self
-                .process_zk_proof(current_l1_block_height, found_in_l1_height, proof)
+                .process_zk_proof(
+                    current_l1_block_height,
+                    found_in_l1_height,
+                    proof,
+                    pending_commitments,
+                    pending_proofs,
+                    schema_batch,
+                )
                 .await
             {
                 Err(e) => {
@@ -868,11 +986,11 @@ where
                 }
                 Ok(ProcessingResult::Success) => {
                     info!("Successfully processed pending proof for commitment index range {min_index}-{max_index}");
-                    self.ledger_db.remove_pending_proof(min_index, max_index)?;
+                    pending_to_remove.push((min_index, max_index));
                 }
                 Ok(ProcessingResult::Discarded) => {
                     info!("Discarding pending proof for commitment index range {min_index}-{max_index}");
-                    self.ledger_db.remove_pending_proof(min_index, max_index)?;
+                    pending_to_remove.push((min_index, max_index));
                 }
                 Ok(ProcessingResult::Pending) => {
                     debug!("Keeping proof over commitment index range {min_index}-{max_index} as pending");
@@ -881,6 +999,11 @@ where
                     break;
                 }
             }
+        }
+
+        // Remove successfully processed proofs from pending list
+        for (min_index, max_index) in pending_to_remove {
+            pending_proofs.remove(&(min_index, max_index));
         }
 
         Ok(())
@@ -900,18 +1023,17 @@ where
         idx: u32,
         expected_hash: [u8; 32],
         proof_is_pending: &mut bool,
+        pending_commitments: &PendingCommitmentsCache,
     ) -> Result<u64, ProcessingError> {
         let sequencer_commitment = if let Some(sequencer_commitment) =
             self.ledger_db.get_commitment_by_index(idx)?
         {
             sequencer_commitment
-        } else if let Some((sequencer_commitment, _)) =
-            self.ledger_db.get_pending_commitment_by_index(idx)?
-        {
+        } else if let Some((sequencer_commitment, _)) = pending_commitments.get(&idx) {
             // If we have a pending commitment, we need to store the proof as pending
             info!("Proof has a pending commitment with index: {}.", idx);
             *proof_is_pending = true;
-            sequencer_commitment
+            sequencer_commitment.clone()
         } else {
             return Err(
                 SkippableError::Proof(ProofError::SequencerCommitmentMissingForProof(idx)).into(),

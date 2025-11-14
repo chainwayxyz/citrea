@@ -37,7 +37,7 @@ pub use l2_syncer::L2Syncer;
 pub use partition::PartitionMode;
 use prover::Prover;
 use prover_services::ParallelProverService;
-use sov_db::ledger_db::BatchProverLedgerOps;
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::ForkManager;
 use sov_modules_api::{SpecId, Zkvm};
@@ -97,7 +97,7 @@ pub mod rpc;
 /// - `Prover` for handling the proving process.
 /// - `RpcModule` configured with the necessary RPC methods.
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub async fn build_services<DA, DB, Vm>(
+pub async fn build_services<DA, Vm>(
     network: Network,
     prover_config: BatchProverConfig,
     runner_config: RunnerConfig,
@@ -111,7 +111,7 @@ pub async fn build_services<DA, DB, Vm>(
     public_keys: RollupPublicKeys,
     da_service: Arc<DA>,
     prover_service: Arc<ParallelProverService<DA, Vm>>,
-    ledger_db: DB,
+    ledger_db: LedgerDB,
     storage_manager: ProverStorageManager,
     l2_block_tx: broadcast::Sender<u64>,
     fork_manager: ForkManager<'static>,
@@ -120,20 +120,19 @@ pub async fn build_services<DA, DB, Vm>(
     rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
 ) -> Result<(
-    L2Syncer<DA, DB>,
-    L1Syncer<DA, DB>,
-    Prover<DA, DB, Vm>,
+    L2Syncer<DA, LedgerDB>,
+    L1Syncer<DA>,
+    Prover<DA, Vm>,
     RpcModule<()>,
 )>
 where
     DA: DaService,
-    DB: BatchProverLedgerOps + Clone + 'static,
     Vm: ZkvmHost + Zkvm + 'static,
 {
     let l1_block_cache = Arc::new(Mutex::new(L1BlockCache::new()));
     let (request_tx, request_rx) = mpsc::channel(4);
 
-    let rpc_context = rpc::create_rpc_context::<_, _, Vm>(
+    let rpc_context = rpc::create_rpc_context::<_, Vm>(
         ledger_db.clone(),
         request_tx,
         da_service.clone(),

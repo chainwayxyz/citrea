@@ -7,12 +7,17 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Instant;
 
+use anyhow::Context;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, sync_l1};
 use citrea_common::RollupPublicKeys;
 use reth_tasks::shutdown::GracefulShutdown;
-use sov_db::ledger_db::BatchProverLedgerOps;
+use sov_db::ledger_db::{LedgerDB, SchemaBatch};
+use sov_db::schema::tables::{
+    CommitmentIndicesByL1, ProverLastScannedSlot, ProverPendingCommitments,
+    SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
+};
 use sov_db::schema::types::SlotNumber;
 use sov_modules_api::DaSpec;
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -32,13 +37,12 @@ use crate::metrics::BATCH_PROVER_METRICS as BPM;
 /// - Processing sequencer commitments
 /// - Maintaining block processing order
 /// - Managing the backup state
-pub struct L1Syncer<Da, DB>
+pub struct L1Syncer<Da>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps,
 {
     /// Database for ledger operations
-    ledger_db: DB,
+    ledger_db: LedgerDB,
     /// Data availability service instance
     da_service: Arc<Da>,
     /// Sequencer's DA public key for verifying commitments
@@ -55,10 +59,9 @@ where
     l1_signal_tx: mpsc::Sender<()>,
 }
 
-impl<Da, DB> L1Syncer<Da, DB>
+impl<Da> L1Syncer<Da>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone + 'static,
 {
     /// Creates a new instance of `L1Syncer`
     ///
@@ -72,7 +75,7 @@ where
     /// * `l1_signal_tx` - A channel sender to signal prover module when new L1 blocks are processed.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        ledger_db: DB,
+        ledger_db: LedgerDB,
         da_service: Arc<Da>,
         public_keys: RollupPublicKeys,
         scan_l1_start_height: u64,
@@ -103,7 +106,7 @@ where
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
         let l1_start_height = self
             .ledger_db
-            .get_last_scanned_l1_height()
+            .get::<ProverLastScannedSlot>(())
             .expect("Failed to get last scanned l1 height when starting l1 syncer")
             .map(|h| h.0)
             .unwrap_or(self.scan_l1_start_height);
@@ -150,6 +153,8 @@ where
         // don't ping if no new l1 blocks
         let should_ping = !pending_l1_blocks.is_empty();
 
+        let mut schema_batch = SchemaBatch::new();
+
         // process all the pending l1 blocks
         while !pending_l1_blocks.is_empty() {
             let l1_block = pending_l1_blocks
@@ -160,17 +165,17 @@ where
             let l1_hash = l1_block.header().hash().into();
 
             // Set the l1 height of the l1 hash
-            self.ledger_db
-                .set_l1_height_of_l1_hash(l1_hash, l1_height)
+            schema_batch
+                .put::<SlotByHash>(&l1_hash, &SlotNumber(l1_height))
                 .unwrap();
 
             // Set short header proof
             let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
                 Da::block_to_short_header_proof(l1_block.clone());
-            self.ledger_db
-                .put_short_header_proof_by_l1_hash(
+            schema_batch
+                .put::<ShortHeaderProofBySlotHash>(
                     &l1_hash,
-                    borsh::to_vec(&short_header_proof)
+                    &borsh::to_vec(&short_header_proof)
                         .expect("Should serialize short header proof"),
                 )
                 .expect("Should save short header proof to ledger db");
@@ -190,7 +195,7 @@ where
                     continue;
                 }
 
-                match self.ledger_db.get_commitment_by_index(index)? {
+                match self.ledger_db.get::<SequencerCommitmentByIndex>(index)? {
                     Some(db_commitment) => {
                         if commitment != &db_commitment {
                             error!("Found duplicate commitment index with different data\nDA: {:?}\nDB:{:?}", commitment, db_commitment);
@@ -204,22 +209,30 @@ where
                             index, l1_height
                         );
 
-                        self.ledger_db
-                            .put_commitment_by_index(commitment)
+                        schema_batch
+                            .put::<SequencerCommitmentByIndex>(&commitment.index, commitment)
                             .expect("Should store commitment");
-                        self.ledger_db
-                            .put_commitment_index_by_l1(SlotNumber(l1_height), index)
+
+                        // put commitment index by l1
+                        let mut indices = self
+                            .ledger_db
+                            .get::<CommitmentIndicesByL1>(SlotNumber(l1_height))?
+                            .unwrap_or_default();
+                        indices.push(index);
+                        schema_batch
+                            .put::<CommitmentIndicesByL1>(&SlotNumber(l1_height), &indices)
                             .expect("Should put commitment index by l1");
-                        self.ledger_db
-                            .put_prover_pending_commitment(index)
+
+                        schema_batch
+                            .put::<ProverPendingCommitments>(&index, &())
                             .expect("Should set commitment status to pending");
                     }
                 }
             }
 
             // Set last scanned l1 height
-            self.ledger_db
-                .set_last_scanned_l1_height(SlotNumber(l1_height))
+            schema_batch
+                .put::<ProverLastScannedSlot>(&(), &SlotNumber(l1_height))
                 .expect("Should put prover last scanned l1 height");
 
             BPM.current_l1_block.set(l1_height as f64);
@@ -233,6 +246,11 @@ where
 
             info!("Processed L1 block {}", l1_height);
         }
+
+        // Commit all changes to the ledger db
+        self.ledger_db
+            .write_schemas(schema_batch)
+            .context("Failed to write schema batch to ledger db")?;
 
         if should_ping {
             // signal that new l1 blocks are processed

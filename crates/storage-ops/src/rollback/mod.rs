@@ -4,7 +4,6 @@ use citrea_common::NodeType;
 use futures::future;
 use ledger::rollback_ledger;
 use native::rollback_native_db;
-use sov_db::ledger_db::TransactionLedgerDB;
 use sov_db::schema::tables::ProverLastScannedSlot;
 use sov_db::schema::types::SlotNumber;
 use sov_db::state_db::StateDB;
@@ -21,7 +20,7 @@ mod types;
 
 pub struct Rollback {
     /// Access to ledger tables.
-    ledger_db: TransactionLedgerDB,
+    ledger_db: Arc<sov_schema_db::DB>,
     /// Access to native DB.
     native_db: Arc<sov_schema_db::DB>,
     /// Access to state DB.
@@ -30,7 +29,7 @@ pub struct Rollback {
 
 impl Rollback {
     pub fn new(
-        ledger_db: TransactionLedgerDB,
+        ledger_db: Arc<sov_schema_db::DB>,
         state_db: Arc<sov_schema_db::DB>,
         native_db: Arc<sov_schema_db::DB>,
     ) -> Self {
@@ -87,7 +86,6 @@ impl Rollback {
                         .saturating_sub(1);
 
                     let last_scanned_l1_height = ledger_db
-                        .transaction()
                         .get::<ProverLastScannedSlot>(&())?
                         .unwrap_or(SlotNumber(0))
                         .0;

@@ -1,29 +1,33 @@
-use sov_db::ledger_db::{LedgerDBTransaction, TransactionLedgerDB};
+use std::sync::Arc;
+
 use sov_db::schema::tables::{LightClientProofBySlotNumber, ProverLastScannedSlot};
 use sov_db::schema::types::SlotNumber;
-use sov_schema_db::ScanDirection;
+use sov_schema_db::{ScanDirection, SchemaBatch, DB};
 
 use crate::increment_table_counter;
 use crate::rollback::types::{LedgerNodeRollback, Result, RollbackContext, RollbackResult};
 
 pub struct LightClientLedgerRollback {
-    ledger_db: TransactionLedgerDB,
+    ledger_db: Arc<DB>,
 }
 
 impl LightClientLedgerRollback {
-    pub fn new(ledger_db: TransactionLedgerDB) -> Self {
+    pub fn new(ledger_db: Arc<DB>) -> Self {
         Self { ledger_db }
     }
 
     fn rollback_slots_by_number(
-        tx: &LedgerDBTransaction,
+        &self,
         l1_target: u64,
         mut rollback_result: RollbackResult,
     ) -> Result {
-        let mut proof_by_slot_number = tx.iter_with_direction::<LightClientProofBySlotNumber>(
-            Default::default(),
-            ScanDirection::Backward,
-        )?;
+        let mut batch = SchemaBatch::new();
+        let mut proof_by_slot_number = self
+            .ledger_db
+            .iter_with_direction::<LightClientProofBySlotNumber>(
+                Default::default(),
+                ScanDirection::Backward,
+            )?;
         proof_by_slot_number.seek_to_last();
 
         for record in proof_by_slot_number {
@@ -37,10 +41,11 @@ impl LightClientLedgerRollback {
                 break;
             }
 
-            tx.delete::<LightClientProofBySlotNumber>(&slot_height)?;
+            batch.delete::<LightClientProofBySlotNumber>(&slot_height)?;
             increment_table_counter!("LightClientProofBySlotNumber", rollback_result);
         }
 
+        self.ledger_db.write_schemas(batch)?;
         Ok(rollback_result)
     }
 }
@@ -49,16 +54,15 @@ impl LedgerNodeRollback for LightClientLedgerRollback {
     fn execute(&self, context: RollbackContext) -> Result {
         let mut rollback_result = RollbackResult::default();
 
-        // Begin rollback for each component
-        let tx = self.ledger_db.transaction();
-
         if let Some(l1_target) = context.l1_target {
-            rollback_result = Self::rollback_slots_by_number(&tx, l1_target, rollback_result)?;
+            rollback_result = self.rollback_slots_by_number(l1_target, rollback_result)?;
 
-            tx.put::<ProverLastScannedSlot>(&(), &SlotNumber(l1_target))?;
+            let _ = self
+                .ledger_db
+                .put::<ProverLastScannedSlot>(&(), &SlotNumber(l1_target));
         }
 
-        tx.commit()?;
+        let _ = self.ledger_db.flush();
         Ok(rollback_result)
     }
 }

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use citrea_storage_ops::rollback::Rollback;
-use sov_db::ledger_db::TransactionLedgerDB;
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::state_db::StateDB;
@@ -28,11 +28,11 @@ pub(crate) async fn rollback(
     let column_families = cfs_from_node_type(node_type);
 
     let rocksdb_config = RocksdbConfig::new(&db_path, None, Some(column_families.to_vec()));
-    let ledger_db = TransactionLedgerDB::with_config(&rocksdb_config)?;
+    let ledger_db = LedgerDB::with_config(&rocksdb_config)?;
     let native_db = NativeDB::setup_schema_db(&rocksdb_config)?;
     let state_db = StateDB::setup_schema_db(&rocksdb_config)?;
 
-    let rollback = Rollback::new(ledger_db, Arc::new(state_db), Arc::new(native_db));
+    let rollback = Rollback::new(ledger_db.inner(), Arc::new(state_db), Arc::new(native_db));
     rollback
         .execute(
             node_type.into(),

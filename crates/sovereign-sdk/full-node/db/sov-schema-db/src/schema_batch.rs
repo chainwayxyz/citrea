@@ -90,7 +90,8 @@ impl SchemaBatch {
         }
     }
 
-    pub(crate) fn merge(&mut self, other: SchemaBatch) {
+    /// Merges another [`SchemaBatch`] into this one.
+    pub fn merge(&mut self, other: SchemaBatch) {
         for (cf_name, other_cf_map) in other.last_writes {
             let self_cf_map = self.last_writes.entry(cf_name).or_default();
 

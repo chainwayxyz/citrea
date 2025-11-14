@@ -24,7 +24,12 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use serde::{Deserialize, Serialize};
-use sov_db::ledger_db::BatchProverLedgerOps;
+use sov_db::ledger_db::{BatchProverLedgerOps, LedgerDB, SchemaBatch, SharedLedgerOps};
+use sov_db::schema::tables::{
+    CommitmentIndicesByJobId, CommitmentIndicesByL1, JobIdOfCommitment,
+    PendingBonsaiSessionByJobId, PendingBoundlessSessionByJobId, PendingL1SubmissionJobs,
+    ProofByJobId, ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
+};
 use sov_db::schema::types::batch_proof::StoredBatchProofOutput;
 use sov_db::schema::types::job_status::JobStatus;
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
@@ -68,14 +73,13 @@ pub struct ProvingJobResponse {
 }
 
 /// Context for the RPC methods.
-pub struct RpcContext<Da, DB, Vm>
+pub struct RpcContext<Da, Vm>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone,
     Vm: Zkvm + 'static,
 {
     /// The ledger database used for storing and retrieving commitments and proofs
-    pub ledger_db: DB,
+    pub ledger_db: LedgerDB,
     /// Channel to send requests to the prover
     pub request_tx: mpsc::Sender<ProverRequest>,
     /// Data availability service instance used for submitting proofs
@@ -99,23 +103,21 @@ where
 ///
 /// # Type Parameters
 /// * `Da` - The data availability service type.
-/// * `DB` - The database type implementing `BatchProverLedgerOps`.
 /// * `Vm` - The virtual machine type implementing `Zkvm`.
 ///
 /// # Returns
 /// A new `RpcContext` instance containing the provided data.
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub fn create_rpc_context<Da, DB, Vm>(
-    ledger_db: DB,
+pub fn create_rpc_context<Da, Vm>(
+    ledger_db: LedgerDB,
     request_tx: mpsc::Sender<ProverRequest>,
     da_service: Arc<Da>,
     storage_manager: ProverStorageManager,
     code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
     rpc_config: RpcConfig,
-) -> RpcContext<Da, DB, Vm>
+) -> RpcContext<Da, Vm>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone,
     Vm: Zkvm,
 {
     RpcContext {
@@ -136,13 +138,12 @@ where
 ///
 /// # Returns
 /// The updated RPC module or a registration error
-pub fn register_rpc_methods<Da, DB, Vm>(
-    rpc_context: RpcContext<Da, DB, Vm>,
+pub fn register_rpc_methods<Da, Vm>(
+    rpc_context: RpcContext<Da, Vm>,
     mut rpc_methods: jsonrpsee::RpcModule<()>,
 ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone + 'static,
     Vm: Zkvm,
 {
     let rpc = create_rpc_module(rpc_context);
@@ -270,27 +271,25 @@ pub trait BatchProverRpc {
 }
 
 /// Server implementation of the Batch Prover RPC interface
-pub struct BatchProverRpcServerImpl<Da, DB, Vm>
+pub struct BatchProverRpcServerImpl<Da, Vm>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: Zkvm + 'static,
 {
     /// Shared RPC context containing the ledger database and other services
-    context: Arc<RpcContext<Da, DB, Vm>>,
+    context: Arc<RpcContext<Da, Vm>>,
 }
 
-impl<Da, DB, Vm> BatchProverRpcServerImpl<Da, DB, Vm>
+impl<Da, Vm> BatchProverRpcServerImpl<Da, Vm>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: Zkvm + 'static,
 {
     /// Creates a new instance of the Batch Prover RPC server
     ///
     /// # Arguments
     /// * `context` - Shared context containing the ledger database and other services
-    pub fn new(context: RpcContext<Da, DB, Vm>) -> Self {
+    pub fn new(context: RpcContext<Da, Vm>) -> Self {
         Self {
             context: Arc::new(context),
         }
@@ -298,10 +297,9 @@ where
 }
 
 #[async_trait::async_trait]
-impl<Da, DB, Vm> BatchProverRpcServer for BatchProverRpcServerImpl<Da, DB, Vm>
+impl<Da, Vm> BatchProverRpcServer for BatchProverRpcServerImpl<Da, Vm>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: Zkvm + 'static,
 {
     async fn set_commitments(
@@ -667,12 +665,11 @@ where
 /// * `DB` - Database type implementing NodeLedgerOps
 /// * `Da` - Data availability service type implementing DaService
 /// * `Vm` - Virtual machine type implementing Zkvm
-pub fn create_rpc_module<Da, DB, Vm>(
-    rpc_context: RpcContext<Da, DB, Vm>,
-) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<Da, DB, Vm>>
+pub fn create_rpc_module<Da, Vm>(
+    rpc_context: RpcContext<Da, Vm>,
+) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<Da, Vm>>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: Zkvm + 'static,
 {
     let server = BatchProverRpcServerImpl::new(rpc_context);
