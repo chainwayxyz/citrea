@@ -17,6 +17,7 @@ use crate::error::BitcoinServiceError;
 use crate::monitoring::{MonitoredTx, MonitoredTxKind};
 use crate::spec::utxo::UTXO;
 use crate::tx_signer::SignedTxPair;
+use crate::utxo_manager::UtxoContext;
 
 const DEFAULT_MEMPOOL_SPACE_URL: &str = "https://mempool.space/";
 const MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT: &str = "api/v1/fees/recommended";
@@ -261,14 +262,14 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
 pub(crate) fn validate_txs_fee_rate(
     txs: &[SignedTxPair],
     fee_rate: u64,
-    utxos: Vec<UTXO>,
-    prev_utxo: Option<UTXO>,
+    utxo_context: UtxoContext,
 ) -> std::result::Result<(), BitcoinServiceError> {
-    let mut utxo_map = utxos
+    let mut utxo_map = utxo_context
+        .available_utxos
         .into_iter()
         .map(|utxo| ((utxo.tx_id, utxo.vout), Amount::from_sat(utxo.amount)))
         .collect::<HashMap<_, _>>();
-    if let Some(prev_utxo) = prev_utxo {
+    if let Some(prev_utxo) = utxo_context.prev_utxo {
         utxo_map.insert(
             (prev_utxo.tx_id, prev_utxo.vout),
             Amount::from_sat(prev_utxo.amount),
