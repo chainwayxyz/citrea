@@ -1,2 +1,8 @@
-# Esad is always requested for review
-*       @eyusufatik
+# Default owners for all files
+* @chainwayxyz/citrea-bdfl
+# Owners for CI/CD and infrastructure files
+/.github/** @chainwayxyz/ops-bdfl
+/.gitsecret/** @chainwayxyz/ops-bdfl
+/devops/** @chainwayxyz/ops-bdfl
+# Citrea Specific Owners
+/crates/evm/src/evm/system_contracts/** @chainwayxyz/smart-contracts-bdfl

@@ -22,6 +22,7 @@ bind_host = "0.0.0.0"
 bind_port = 12346
 enable_subscriptions = true
 max_subscriptions_per_connection = 100
+stale_filter_ttl = 300
 
 [runner]
 sequencer_client_url = "https://rpc.devnet.citrea.xyz"

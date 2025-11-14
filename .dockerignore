@@ -17,6 +17,9 @@
 !rustfmt.toml
 !/da-db
 
+# include devops files
+!devops/**
+
 # include for vergen constants
 !/.git
 
