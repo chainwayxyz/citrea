@@ -24,7 +24,9 @@ use risc0_zkvm::{
 };
 use sov_db::ledger_db::{BoundlessLedgerOps, LedgerDB};
 use sov_db::schema::types::BoundlessSession;
-use sov_rollup_interface::zk::{ProofWithJob, ReceiptType};
+use sov_rollup_interface::zk::{
+    BoundlessProvingSessionInfo, ProofWithJob, ProvingSessionInfo, ReceiptType,
+};
 use tokio::sync::oneshot;
 use tracing::Instrument;
 use url::Url;
@@ -188,12 +190,12 @@ impl BoundlessProver {
 
         // move non-Send logic to blocking thread
         // I had to do this because the executor env builder is not Send
-        let (journal, mcycles_count, total_cycles_approx) = tokio::task::spawn_blocking({
+        let (journal, total_cycles_approx) = tokio::task::spawn_blocking({
             let elf = elf.clone(); // clone since we move into thread
             let input = input.clone();
             let assumptions = assumptions.clone();
 
-            move || -> anyhow::Result<(Journal, u64, u64)> {
+            move || -> anyhow::Result<(Journal, u64)> {
                 let mut env = ExecutorEnvBuilder::default();
                 for assumption in assumptions {
                     env.add_assumption(assumption);
@@ -207,12 +209,11 @@ impl BoundlessProver {
                     .iter()
                     .map(|segment| 1 << segment.po2)
                     .sum::<u64>();
-                let mcycles_count = total_cycles_approx.div_ceil(1_000_000);
                 tracing::info!(
                     "Boundless proving session with job id: {job_id} takes {total_cycles_approx} cycles"
                 );
 
-                Ok((session_info.journal, mcycles_count, total_cycles_approx))
+                Ok((session_info.journal, total_cycles_approx))
             }
         })
         .await??;
@@ -232,7 +233,7 @@ impl BoundlessProver {
             ..
         } = retry_backoff(exponential_backoff, || async move {
             self.pricing_service
-                .get_price(mcycles_count.saturating_mul(1_000_000))
+                .get_price(total_cycles_approx)
                 .await
                 .map_err(backoff::Error::transient)
         })
@@ -254,19 +255,18 @@ impl BoundlessProver {
             input_url,
             U256::from(cmp::min(min_price, max_possible_price)),
             U256::from(cmp::min(max_price, max_possible_price)),
-            mcycles_count,
             lock_timeout,
             timeout,
             ramp_up_period,
             lock_stake,
             bidding_start,
-            Some(total_cycles_approx),
+            total_cycles_approx,
             Some(journal),
         );
 
         // Start boundless proving session
         let (req_id, request_expiry) = self
-            .send_request(request, job_id, image_id, receipt_type, mcycles_count)
+            .send_request(request, job_id, image_id, receipt_type, total_cycles_approx)
             .await?;
 
         let rx = self.spawn_handler(
@@ -275,7 +275,7 @@ impl BoundlessProver {
             req_id,
             image_id,
             request_expiry,
-            mcycles_count,
+            total_cycles_approx,
         );
 
         Ok(rx)
@@ -290,16 +290,17 @@ impl BoundlessProver {
         input_url: Url,
         min_price_per_mcycle: U256,
         max_price_per_mcycle: U256,
-        mcycles_count: u64,
         lock_timeout: u64,
         timeout: u64,
         ramp_up_period: u64,
         lock_stake: u64,
         bidding_start: u64,
-        total_cycles_approx: Option<u64>,
+        total_cycles_approx: u64,
         journal: Option<Journal>,
     ) -> RequestParams {
         // Note that offer ramp up period must be less than or equal to the lock timeout)
+        let mcycles_count = total_cycles_approx.div_ceil(1_000_000);
+
         let mut request_params =
             self.client
                 .new_request()
@@ -323,12 +324,9 @@ impl BoundlessProver {
                         .with_ramp_up_period(ramp_up_period as u32)
                         .with_lock_collateral(U256::from(lock_stake))
                         .with_ramp_up_start(bidding_start),
-                );
+                )
+                .with_cycles(total_cycles_approx);
 
-        // If we can provide these then in the preflight layer of request sending there won't be a double execution of the program
-        if let Some(total_cycles_approx) = total_cycles_approx {
-            request_params = request_params.with_cycles(total_cycles_approx);
-        }
         if let Some(journal) = journal {
             request_params = request_params.with_journal(journal);
         }
@@ -341,7 +339,7 @@ impl BoundlessProver {
         job_id: Uuid,
         image_id: Digest,
         receipt_type: ReceiptType,
-        mcycles_count: u64,
+        total_cycles_approx: u64,
     ) -> Result<(String, u64), ClientError> {
         // Start boundless proving session
         tracing::info!(
@@ -376,7 +374,7 @@ impl BoundlessProver {
             request_expiry,
             image_id: image_id.into(),
             receipt_type,
-            mcycles_count,
+            total_cycles_approx,
         };
         self.ledger_db
             .upsert_pending_boundless_session(job_id, db_session)
@@ -392,7 +390,7 @@ impl BoundlessProver {
         request_id: String,
         image_id: Digest,
         request_expiry: u64,
-        mcycles_count: u64,
+        total_cycles_approx: u64,
     ) -> oneshot::Receiver<ProofWithJob> {
         let this = self.clone();
         let (tx, rx) = oneshot::channel();
@@ -412,6 +410,10 @@ impl BoundlessProver {
                         let Ok(_) = tx.send(ProofWithJob {
                             job_id,
                             proof: serialized_receipt,
+                            info: ProvingSessionInfo::Boundless(BoundlessProvingSessionInfo {
+                                request_id: request_id.clone(),
+                                total_cycles_approx,
+                            }),
                         }) else {
                             tracing::error!("Boundless proof receiver channel is closed");
                             return;
@@ -446,7 +448,7 @@ impl BoundlessProver {
                             job_id,
                             &mut request_id,
                             &mut request_expiry,
-                            mcycles_count,
+                            total_cycles_approx,
                             image_id,
                             receipt_type,
                         )
@@ -497,7 +499,7 @@ impl BoundlessProver {
         job_id: Uuid,
         request_id: &mut String,
         request_expiry: &mut u64,
-        mcycles_count: u64,
+        total_cycles_approx: u64,
         image_id: Digest,
         receipt_type: ReceiptType,
     ) -> anyhow::Result<ResubmitResult> {
@@ -529,11 +531,7 @@ impl BoundlessProver {
         let exponential_backoff = ExponentialBackoff::default();
 
         let price_response = retry_backoff(exponential_backoff, || async move {
-            match self
-                .pricing_service
-                .get_price(mcycles_count.saturating_mul(1_000_000))
-                .await
-            {
+            match self.pricing_service.get_price(total_cycles_approx).await {
                 Err(e) => {
                     tracing::error!(
                         "Failed to get price from pricing service for job: {}  | err={}",
@@ -578,6 +576,7 @@ impl BoundlessProver {
                 }
             };
             // Get old parameters from the failed order
+            let mcycles_count = total_cycles_approx.div_ceil(1_000_000);
             let min_price_per_mcycle = failed_request
                 .offer
                 .minPrice
@@ -622,19 +621,24 @@ impl BoundlessProver {
             .expect("Invalid input URL"),
             new_min_price_per_mcycle,
             new_max_price_per_mcycle,
-            mcycles_count,
             new_lock_timeout as u64,
             new_lock_timeout as u64 * TIMEOUT_IS_N_LOCK_TIMEOUT,
             failed_request.offer.rampUpPeriod as u64,
             lock_stake,
             price_response.bidding_start,
             // TODO: https://github.com/chainwayxyz/citrea/issues/2820
-            None,
+            total_cycles_approx,
             None,
         );
 
         let (new_req_id, new_exp_time) = match self
-            .send_request(new_request, job_id, image_id, receipt_type, mcycles_count)
+            .send_request(
+                new_request,
+                job_id,
+                image_id,
+                receipt_type,
+                total_cycles_approx,
+            )
             .await
         {
             Ok((req_id, exp_time)) => (req_id, exp_time),
@@ -729,7 +733,7 @@ impl BoundlessProver {
                 session.request_id,
                 session.image_id.into(),
                 session.request_expiry,
-                session.mcycles_count,
+                session.total_cycles_approx,
             );
             rxs.push(rx);
         }

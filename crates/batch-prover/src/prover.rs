@@ -707,28 +707,26 @@ where
         // start watching the proving jobs to finish in the background
         tokio::spawn(async move {
             while let Some((job_id, rx)) = proving_jobs.recv().await {
-                let proof_with_duration = rx.await.expect("Proof channel should never close");
+                let ProofWithDuration {
+                    proof,
+                    duration,
+                    info,
+                } = rx.await.expect("Proof channel should never close");
                 info!(
                     "Proving job finished {}, took {:?} seconds",
-                    job_id, proof_with_duration.duration
+                    job_id, duration
                 );
 
-                let output = extract_proof_output::<Vm>(
-                    &job_id,
-                    &proof_with_duration.proof,
-                    &code_commitments_by_spec,
-                    network,
-                );
+                let output =
+                    extract_proof_output::<Vm>(&job_id, &proof, &code_commitments_by_spec, network);
 
                 // stores proof and marks job as waiting for da
                 ledger_db
-                    .put_proof_by_job_id(job_id, proof_with_duration.proof.clone(), output.into())
+                    .put_proof_by_job_id(job_id, proof.clone(), output.into(), info)
                     .expect("Should put proof to db");
 
                 // Record the proving time metric
-                BATCH_PROVER_METRICS
-                    .proving_time
-                    .record(proof_with_duration.duration);
+                BATCH_PROVER_METRICS.proving_time.record(duration);
 
                 let prover_service = prover_service.clone();
                 let ledger_db = ledger_db.clone();
@@ -736,7 +734,7 @@ where
                 // submit the proof to the DA service in the background
                 tokio::spawn(async move {
                     let tx_id = prover_service
-                        .submit_proof(proof_with_duration.proof, job_id)
+                        .submit_proof(proof, job_id)
                         .await
                         .expect("Failed to submit proof");
 
@@ -773,7 +771,12 @@ where
             info!("Recovering {} proving sessions", proving_jobs.len());
 
             let mut proofs = HashMap::with_capacity(proving_jobs.len());
-            while let Some(ProofWithJob { job_id, proof }) = proving_jobs.next().await {
+            while let Some(ProofWithJob {
+                job_id,
+                proof,
+                info,
+            }) = proving_jobs.next().await
+            {
                 info!("Proving job finished {}", job_id);
 
                 let output = extract_proof_output::<Vm>(
@@ -785,7 +788,7 @@ where
 
                 // stores proof and marks job as waiting for da
                 self.ledger_db
-                    .put_proof_by_job_id(job_id, proof.clone(), output.into())
+                    .put_proof_by_job_id(job_id, proof.clone(), output.into(), info)
                     .expect("Should put proof to db");
 
                 info!("Completed proving job {}", job_id);
