@@ -169,7 +169,10 @@ pub mod bitcoinda {
 
     /// Initial batch proof method IDs for the Bitcoin DA on Mainnet.
     pub const MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> =
-        NonEmptySlice::new(&[(0, [0; 8])]);
+        NonEmptySlice::new(&[(
+            0,
+            decode_to_u32_array("020291bea4d2ff9b5111f071cf29c0189831efe720c9247e2c916348d87db639"),
+        )]);
 
     /// Initial batch proof method IDs for the Bitcoin DA on Testnet.
     pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> =
