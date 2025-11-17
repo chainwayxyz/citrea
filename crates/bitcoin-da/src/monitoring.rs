@@ -629,8 +629,8 @@ impl MonitoringService {
         println!("[Got lock]");
 
         for (txid, tx) in txs.iter_mut() {
-            println!("txid : {:?}", txid);
-            println!("monitored : {}", monitored);
+            println!("txid : {txid:?}");
+            println!("monitored : {tx:?}");
             if let TxStatus::Confirmed { confirmations, .. } = tx.status {
                 if confirmations <= depth {
                     let tx_result = self.client.get_transaction(txid, None).await?;
@@ -787,7 +787,7 @@ impl MonitoringService {
                     break;
                 }
 
-                println!("Pruning txid : {}", txid);
+                println!("Pruning txid : {txid}");
                 if let Some(removed_tx) = txs.remove(&txid) {
                     let tx_size = removed_tx.tx.total_size();
                     self.total_size.fetch_sub(tx_size, Ordering::SeqCst);
