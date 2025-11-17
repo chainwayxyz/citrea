@@ -444,6 +444,7 @@ impl MonitoringService {
                     }
                     if let Err(e) = self.rebroadcast_last_txs().await {
                         error!("Error rebroadcasting last transactions: {}", e);
+                        println!("[Error rebroadcasting last transactions] e : {:?}", e);
                     }
                 }
             }
@@ -852,9 +853,10 @@ impl MonitoringService {
                 return Ok(());
             }
 
-            let _ = self
+            let v = self
                 .attempt_rebroadcast(&current_tx.0, &current_tx.1.status)
                 .await;
+            println!("rebroadcast_last_txs attempt rebroadcast result v : {}", v);
 
             let Some(prev_txid) = current_tx.1.prev_txid else {
                 // End of monitored txs chain
@@ -877,6 +879,7 @@ impl MonitoringService {
     #[instrument(skip(self))]
     async fn attempt_rebroadcast(&self, txid: &Txid, current_status: &TxStatus) -> Result<()> {
         debug!("Rebroadcasting txid: {txid} with current_status {current_status:?}");
+        println!("Rebroadcasting txid: {txid} with current_status {current_status:?}");
         if let Ok(result) = self.client.get_transaction(txid, None).await {
             self.client.send_raw_transaction(&result.hex).await?;
         } else if let Ok(result) = self.client.get_raw_transaction_hex(txid, None).await {
