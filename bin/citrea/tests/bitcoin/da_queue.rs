@@ -561,6 +561,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
 
         assert!(dropped_txs.iter().all(|tx| !remaining_txs.contains(tx)));
 
+        println!("dropped_txs : {:?}", dropped_txs);
         da.generate(1).await?;
 
         // Make sure txs are rebroadcasted from monitoring service
