@@ -622,10 +622,15 @@ impl MonitoringService {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip(self))]
     async fn handle_reorg(&self, depth: u64) -> Result<()> {
+        println!("[acquiring lock in handle_reorg]");
         let mut txs = self.monitored_txs.write().await;
+        println!("[Got lock]");
 
         for (txid, tx) in txs.iter_mut() {
+            println!("txid : {:?}", txid);
+            println!("monitored : {}", monitored);
             if let TxStatus::Confirmed { confirmations, .. } = tx.status {
                 if confirmations <= depth {
                     let tx_result = self.client.get_transaction(txid, None).await?;
@@ -644,9 +649,14 @@ impl MonitoringService {
 
     #[instrument(skip(self))]
     async fn check_transactions(&self) -> Result<()> {
+        println!("[acquiring lock in check_transactions]");
         let mut txs = self.monitored_txs.write().await;
+        println!("[Got lock in check_transactions]");
 
+        println!("[Iter tx check_transactions]");
         for (txid, monitored_tx) in txs.iter_mut() {
+            println!("[check_transactions : txid {txid}",);
+            println!("[check_transactions : monitored_tx {monitored_tx:?}",);
             match &monitored_tx.status {
                 // Check non-finalized TXs
                 TxStatus::Queued | TxStatus::Confirmed { .. } | TxStatus::Replaced { .. } => {
@@ -690,6 +700,7 @@ impl MonitoringService {
 
             monitored_tx.last_checked = get_timestamp();
         }
+        println!("[Iter tx done check_transactions]");
 
         Ok(())
     }
@@ -754,6 +765,7 @@ impl MonitoringService {
         Ok(status)
     }
 
+    #[instrument(skip(self))]
     async fn prune_old_transactions(&self) {
         let mut txs = self.monitored_txs.write().await;
         let current_size = self.total_size.load(Ordering::SeqCst);
@@ -775,6 +787,7 @@ impl MonitoringService {
                     break;
                 }
 
+                println!("Pruning txid : {}", txid);
                 if let Some(removed_tx) = txs.remove(&txid) {
                     let tx_size = removed_tx.tx.total_size();
                     self.total_size.fetch_sub(tx_size, Ordering::SeqCst);
@@ -783,6 +796,7 @@ impl MonitoringService {
         }
     }
 
+    #[instrument(skip(self))]
     async fn handle_evicted(&self) -> Result<()> {
         let mut txs = self.monitored_txs.write().await;
 
@@ -820,19 +834,23 @@ impl MonitoringService {
         Ok(())
     }
 
+    #[instrument(skip(self))]
     async fn rebroadcast_last_txs(&self) -> Result<()> {
         const TXS_NUMBER_TO_REBROADCAST: u32 = 100;
         trace!("Rebroadcasting last {TXS_NUMBER_TO_REBROADCAST} txs");
 
         let Some(mut current_tx) = self.get_last_tx().await else {
+            println!("returning ok in rebroadcast last tx");
             return Ok(());
         };
 
         let monitored_txs = self.get_monitored_txs().await;
+        println!("got monitored txs rebroadcast_last_txs");
 
         for _ in 0..TXS_NUMBER_TO_REBROADCAST {
             // Break on first finalized TX
             if let TxStatus::Finalized { .. } = current_tx.1.status {
+                println!("Breaking on first finalized txs");
                 return Ok(());
             }
 
@@ -858,6 +876,7 @@ impl MonitoringService {
         Ok(())
     }
 
+    #[instrument(skip(self))]
     async fn attempt_rebroadcast(&self, txid: &Txid, current_status: &TxStatus) -> Result<()> {
         debug!("Rebroadcasting txid: {txid} with current_status {current_status:?}");
         if let Ok(result) = self.client.get_transaction(txid, None).await {
