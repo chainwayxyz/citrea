@@ -630,7 +630,6 @@ impl MonitoringService {
 
         for (txid, tx) in txs.iter_mut() {
             println!("txid : {txid:?}");
-            println!("monitored : {tx:?}");
             if let TxStatus::Confirmed { confirmations, .. } = tx.status {
                 if confirmations <= depth {
                     let tx_result = self.client.get_transaction(txid, None).await?;
@@ -656,7 +655,6 @@ impl MonitoringService {
         println!("[Iter tx check_transactions]");
         for (txid, monitored_tx) in txs.iter_mut() {
             println!("[check_transactions : txid {txid}",);
-            println!("[check_transactions : monitored_tx {monitored_tx:?}",);
             match &monitored_tx.status {
                 // Check non-finalized TXs
                 TxStatus::Queued | TxStatus::Confirmed { .. } | TxStatus::Replaced { .. } => {
