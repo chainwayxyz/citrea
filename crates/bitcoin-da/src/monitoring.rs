@@ -848,7 +848,7 @@ impl MonitoringService {
 
         for _ in 0..TXS_NUMBER_TO_REBROADCAST {
             // Break on first finalized TX
-            if let TxStatus::Finalized { .. } = current_tx.1.status {
+            if let TxStatus::Confirmed { .. } | TxStatus::Finalized { .. } = current_tx.1.status {
                 println!("Breaking on first finalized txs");
                 return Ok(());
             }
