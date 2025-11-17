@@ -183,7 +183,7 @@ pub async fn spawn_bitcoin_da_service(
         da_private_key: Some(da_private_key),
         tx_backup_dir: test_dir.join("tx_backup_dir").display().to_string(),
         monitoring: Some(MonitoringConfig {
-            check_interval: 1,
+            check_interval: 5,
             history_limit: 1_000,
             max_history_size: 200_000_000,
             max_rebroadcast_attempts: 5,
