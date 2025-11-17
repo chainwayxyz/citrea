@@ -444,7 +444,7 @@ impl MonitoringService {
                     }
                     if let Err(e) = self.rebroadcast_last_txs().await {
                         error!("Error rebroadcasting last transactions: {}", e);
-                        println!("[Error rebroadcasting last transactions] e : {:?}", e);
+                        println!("[Error rebroadcasting last transactions] e : {e:?}");
                     }
                 }
             }
@@ -856,7 +856,7 @@ impl MonitoringService {
             let v = self
                 .attempt_rebroadcast(&current_tx.0, &current_tx.1.status)
                 .await;
-            println!("rebroadcast_last_txs attempt rebroadcast result v : {}", v);
+            println!("rebroadcast_last_txs attempt rebroadcast result v : {v:?}");
 
             let Some(prev_txid) = current_tx.1.prev_txid else {
                 // End of monitored txs chain
