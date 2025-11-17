@@ -7,6 +7,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::anyhow;
 use bitcoin::address::NetworkUnchecked;
+use bitcoin::consensus::Encodable;
 use bitcoin::hashes::Hash;
 use bitcoin::{Address, BlockHash, Transaction, Txid};
 use bitcoincore_rpc::json::GetTransactionResult;
@@ -150,6 +151,12 @@ impl MonitoredTx {
                 .collect(),
         )
     }
+
+    fn hex(&self) -> Result<Vec<u8>> {
+        let mut buf = Vec::new();
+        self.tx.consensus_encode(&mut buf)?;
+        Ok(buf)
+    }
 }
 
 /// The state of the blockchain.
@@ -197,6 +204,9 @@ pub enum MonitorError {
     #[error(transparent)]
     /// Bitcoin encoding error.
     BitcoinEncodeError(#[from] bitcoin::consensus::encode::Error),
+    #[error(transparent)]
+    /// Bitcoin IO error.
+    BitcoinIOError(#[from] bitcoin::io::Error),
     /// Other errors.
     #[error(transparent)]
     Other(#[from] anyhow::Error),
@@ -638,7 +648,7 @@ impl MonitoringService {
 
                     if let TxStatus::InMempool { .. } = tx.status {
                         info!("Rebroadcasting tx {} {tx:?}", tx.tx.compute_txid());
-                        self.attempt_rebroadcast(txid, &tx.status).await?;
+                        self.attempt_rebroadcast(txid, tx).await?;
                     }
                 }
             }
@@ -688,7 +698,7 @@ impl MonitoringService {
                     if let TxStatus::InMempool { .. } = new_status {
                         let current_height = self.client.get_block_count().await?;
                         if (current_height.saturating_sub(*height)) >= REBROADCAST_EACH_N_BLOCK {
-                            self.attempt_rebroadcast(txid, &new_status).await?
+                            self.attempt_rebroadcast(txid, monitored_tx).await?
                         }
                     }
 
@@ -808,7 +818,7 @@ impl MonitoringService {
                 if *rebroadcast_attempts < self.config.max_rebroadcast_attempts {
                     let now = get_timestamp();
 
-                    match self.attempt_rebroadcast(txid, &monitored_tx.status).await {
+                    match self.attempt_rebroadcast(txid, monitored_tx).await {
                         Ok(_) => {
                             info!("Attempted to rebroadcast tx {txid}");
                             monitored_tx.status = TxStatus::Evicted {
@@ -853,9 +863,7 @@ impl MonitoringService {
                 return Ok(());
             }
 
-            let v = self
-                .attempt_rebroadcast(&current_tx.0, &current_tx.1.status)
-                .await;
+            let v = self.attempt_rebroadcast(&current_tx.0, &current_tx.1).await;
             println!("rebroadcast_last_txs attempt rebroadcast result v : {v:?}");
 
             let Some(prev_txid) = current_tx.1.prev_txid else {
@@ -877,16 +885,25 @@ impl MonitoringService {
     }
 
     #[instrument(skip(self))]
-    async fn attempt_rebroadcast(&self, txid: &Txid, current_status: &TxStatus) -> Result<()> {
-        debug!("Rebroadcasting txid: {txid} with current_status {current_status:?}");
-        println!("Rebroadcasting txid: {txid} with current_status {current_status:?}");
-        if let Ok(result) = self.client.get_transaction(txid, None).await {
+    async fn attempt_rebroadcast(&self, txid: &Txid, monitored_tx: &MonitoredTx) -> Result<()> {
+        debug!(
+            "Rebroadcasting txid: {txid} with current_status {:?}",
+            monitored_tx.status
+        );
+        println!(
+            "Rebroadcasting txid: {txid} with current_status {:?}",
+            monitored_tx.status
+        );
+
+        if let Ok(result) = monitored_tx.hex() {
+            self.client.send_raw_transaction(&result).await?;
+        } else if let Ok(result) = self.client.get_transaction(txid, None).await {
             self.client.send_raw_transaction(&result.hex).await?;
         } else if let Ok(result) = self.client.get_raw_transaction_hex(txid, None).await {
             self.client.send_raw_transaction(result).await?;
         } else {
             return Err(anyhow!("Failed to retrieve hex and rebroadcast {txid}").into());
-        }
+        };
 
         Ok(())
     }
