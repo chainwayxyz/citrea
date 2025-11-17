@@ -693,6 +693,7 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
 
 #[tokio::test]
 async fn test_queue_da_transactions_oldest_mode() -> Result<()> {
+    std::env::set_var("CITREA_VERBOSITY", 2);
     TestCaseRunner::new(DaTransactionQueueingUtxoSelectionModeOldestTest {
         task_manager: TaskManager::current(),
     })
