@@ -113,7 +113,7 @@ pub mod bitcoinda {
 
     /// Genesis L2 root for the Bitcoin DA on Mainnet.
     pub const MAINNET_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
-        b"0000000000000000000000000000000000000000000000000000000000000000",
+        b"261f004169ba6ece87e1c2f824cf16ac84420792fb5efe2270ad8046db445096",
     ) {
         Ok(root) => root,
         Err(_) => panic!("Can't happen"),
