@@ -247,7 +247,7 @@ pub mod bitcoinda {
 
     /// Public key of the batch prover in the Bitcoin DA on Mainnet.
     pub const MAINNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
-        b"030000000000000000000000000000000000000000000000000000000000000000",
+        b"038e501ede61097973e49e714d5f2ad740c82b798bb90fda427fd5138e51f2398e",
     ) {
         Ok(pub_key) => pub_key,
         Err(_) => panic!("PROVER_DA_PUB_KEY must be valid 33-byte hex string"),
@@ -301,7 +301,7 @@ pub mod bitcoinda {
 
     /// Public key of the sequencer in the Bitcoin DA on Mainnet.
     pub const MAINNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
-        b"030000000000000000000000000000000000000000000000000000000000000000",
+        b"032a31a1fa359abd2e6fc1136b4dea711e5f18618504e021084cc61099f72bb2bd",
     ) {
         Ok(pub_key) => pub_key,
         Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
