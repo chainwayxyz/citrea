@@ -646,7 +646,7 @@ impl MonitoringService {
                     let tx_result = self.client.get_transaction(txid, None).await?;
                     tx.status = self.determine_tx_status(&tx_result, &tx.status).await?;
 
-                    if let TxStatus::InMempool { .. } = tx.status {
+                    if let TxStatus::InMempool { .. } | TxStatus::Evicted { .. } = tx.status {
                         info!("Rebroadcasting tx {} {tx:?}", tx.tx.compute_txid());
                         self.attempt_rebroadcast(txid, tx).await?;
                     }
@@ -859,8 +859,7 @@ impl MonitoringService {
         for _ in 0..TXS_NUMBER_TO_REBROADCAST {
             // Break on first finalized TX
             if let TxStatus::Confirmed { .. } | TxStatus::Finalized { .. } = current_tx.1.status {
-                println!("Breaking on first finalized txs");
-                return Ok(());
+                continue;
             }
 
             let v = self.attempt_rebroadcast(&current_tx.0, &current_tx.1).await;
