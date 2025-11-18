@@ -810,6 +810,7 @@ impl MonitoringService {
 
     #[instrument(skip(self))]
     async fn handle_evicted(&self) -> Result<()> {
+        println!("handling evicted");
         let mut txs = self.monitored_txs.write().await;
 
         for (txid, monitored_tx) in txs.iter_mut() {
@@ -818,12 +819,15 @@ impl MonitoringService {
                 ..
             } = &monitored_tx.status
             {
+                println!("evicted txid {txid}");
                 if *rebroadcast_attempts < self.config.max_rebroadcast_attempts {
+                    println!("*rebroadcast_attempts < self.config.max_rebroadcast_attempts");
                     let now = get_timestamp();
 
                     match self.attempt_rebroadcast(txid, monitored_tx).await {
                         Ok(_) => {
                             info!("Attempted to rebroadcast tx {txid}");
+                            println!("Attempted to rebroadcast tx {txid}");
                             monitored_tx.status = TxStatus::Evicted {
                                 last_seen: now,
                                 rebroadcast_attempts: rebroadcast_attempts + 1,
@@ -832,6 +836,7 @@ impl MonitoringService {
                         }
                         Err(e) => {
                             info!("Failed to rebroadcast tx {txid}: {e}");
+                            println!("Failed to rebroadcast tx {txid}: {e}");
                             monitored_tx.status = TxStatus::Evicted {
                                 last_seen: now,
                                 rebroadcast_attempts: rebroadcast_attempts + 1,
@@ -869,6 +874,7 @@ impl MonitoringService {
             println!("rebroadcast_last_txs attempt rebroadcast result v : {v:?}");
 
             let Some(prev_txid) = current_tx.1.prev_txid else {
+                println!("breaking here, no prev_txid ?");
                 // End of monitored txs chain
                 return Ok(());
             };
