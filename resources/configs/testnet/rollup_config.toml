@@ -59,6 +59,9 @@ bind_port = 8080
 # filters are considered stale after n seconds of inactivity (time since last poll), default to 300 seconds
 # stale_filter_ttl = 300
 
+# enables filter rpc endpoints, enabled by default
+# enable_filters = true
+
 [runner]
 sequencer_client_url = "https://rpc.testnet.citrea.xyz"
 
