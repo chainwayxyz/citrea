@@ -50,4 +50,5 @@ ignore = [
   "RUSTSEC-2023-0071", # Ignore rsa 0.9.8 until a version that fixes the issue is available.
   "RUSTSEC-2025-0052", # Ignore async-std being discontinued. httpmock uses it, which in turn is used by boundless market.
   "RUSTSEC-2025-0073", # Ignore alloy-dyn-abi until we are able to update to 1.4.1
+  "RUSTSEC-2025-0119", # Ignore number-prefix advisory until it's replaced
 ]
