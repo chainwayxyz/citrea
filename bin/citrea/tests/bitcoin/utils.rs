@@ -186,7 +186,7 @@ pub async fn spawn_bitcoin_da_service(
             check_interval: 1,
             history_limit: 1_000,
             max_history_size: 200_000_000,
-            max_rebroadcast_attempts: 5,
+            max_rebroadcast_attempts: 500,
             rebroadcast_delay: 1,
         }),
         mempool_space_url: None,

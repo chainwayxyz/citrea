@@ -640,7 +640,7 @@ impl MonitoringService {
         println!("[Got lock]");
 
         for (txid, tx) in txs.iter_mut() {
-            println!("txid : {txid:?}");
+            println!("txid : {txid:?} tx status {:?}", tx.status);
             if let TxStatus::Confirmed { confirmations, .. } = tx.status {
                 if confirmations <= depth {
                     let tx_result = self.client.get_transaction(txid, None).await?;
