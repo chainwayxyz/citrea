@@ -20,7 +20,7 @@ enable_subscriptions = true
 max_subscriptions_per_connection = 100
 stale_filter_ttl = 300
 
-# enables JS tracer in debug endpoints, true by default
+# enables JS tracer in debug endpoints, enabled by default
 # enable_js_tracer = true
 
 # enables filter rpc endpoints, enabled by default
