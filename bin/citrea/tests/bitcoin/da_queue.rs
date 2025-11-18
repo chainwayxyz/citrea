@@ -565,9 +565,11 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         println!("dropped_txs : {dropped_txs:?}");
         da.generate(1).await?;
 
-        let best_block = da.get_block(&da.get_best_block_hash()).await?;
+        let best_block = da.get_block(&da.get_best_block_hash().await?).await?;
         println!("generated --- 1");
         println!("best_block.txdata.len() : {:?}", best_block.txdata.len());
+
+        assert_eq!(best_block.txdata.len(), (18 + 1) * 2 + 1);
 
         // Make sure txs are rebroadcasted from monitoring service
         da.wait_mempool_len(5 * 2, Some(Duration::from_secs(15)))
