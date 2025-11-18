@@ -648,6 +648,10 @@ impl MonitoringService {
 
                     if let TxStatus::InMempool { .. } | TxStatus::Evicted { .. } = tx.status {
                         info!("Rebroadcasting tx {} {tx:?}", tx.tx.compute_txid());
+                        println!(
+                            "[handle_reorg] Rebroadcasting tx {} {tx:?}",
+                            tx.tx.compute_txid()
+                        );
                         self.attempt_rebroadcast(txid, tx).await?;
                     }
                 }
@@ -903,9 +907,10 @@ impl MonitoringService {
             monitored_tx.status
         );
 
-        if let Ok(result) = monitored_tx.hex() {
-            self.client.send_raw_transaction(&result).await?;
-        } else if let Ok(result) = self.client.get_transaction(txid, None).await {
+        // if let Ok(result) = monitored_tx.hex() {
+        //     self.client.send_raw_transaction(&result).await?;
+        // } else
+        if let Ok(result) = self.client.get_transaction(txid, None).await {
             self.client.send_raw_transaction(&result.hex).await?;
         } else if let Ok(result) = self.client.get_raw_transaction_hex(txid, None).await {
             self.client.send_raw_transaction(result).await?;
