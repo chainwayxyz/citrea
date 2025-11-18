@@ -152,11 +152,11 @@ impl MonitoredTx {
         )
     }
 
-    fn hex(&self) -> Result<Vec<u8>> {
-        let mut buf = Vec::new();
-        self.tx.consensus_encode(&mut buf)?;
-        Ok(buf)
-    }
+    // fn hex(&self) -> Result<Vec<u8>> {
+    //     let mut buf = Vec::new();
+    //     self.tx.consensus_encode(&mut buf)?;
+    //     Ok(buf)
+    // }
 }
 
 /// The state of the blockchain.
