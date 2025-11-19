@@ -7,7 +7,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::anyhow;
 use bitcoin::address::NetworkUnchecked;
-// use bitcoin::consensus::Encodable;
+use bitcoin::consensus::Encodable;
 use bitcoin::hashes::Hash;
 use bitcoin::{Address, BlockHash, Transaction, Txid};
 use bitcoincore_rpc::json::GetTransactionResult;
@@ -153,11 +153,11 @@ impl MonitoredTx {
         )
     }
 
-    // fn hex(&self) -> Result<Vec<u8>> {
-    //     let mut buf = Vec::new();
-    //     self.tx.consensus_encode(&mut buf)?;
-    //     Ok(buf)
-    // }
+    fn hex(&self) -> Result<Vec<u8>> {
+        let mut buf = Vec::new();
+        self.tx.consensus_encode(&mut buf)?;
+        Ok(buf)
+    }
 }
 
 /// The state of the blockchain.
@@ -893,10 +893,9 @@ impl MonitoringService {
             monitored_tx.status
         );
 
-        // if let Ok(result) = monitored_tx.hex() {
-        //     self.client.send_raw_transaction(&result).await?;
-        // } else
-        if let Ok(result) = self.client.get_transaction(txid, None).await {
+        if let Ok(result) = monitored_tx.hex() {
+            self.client.send_raw_transaction(&result).await?;
+        } else if let Ok(result) = self.client.get_transaction(txid, None).await {
             self.client.send_raw_transaction(&result.hex).await?;
         } else if let Ok(result) = self.client.get_raw_transaction_hex(txid, None).await {
             self.client.send_raw_transaction(result).await?;
