@@ -35,7 +35,7 @@ use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::Zkvm as _;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
-use sov_rollup_interface::zk::{ReceiptType, ZkvmHost};
+use sov_rollup_interface::zk::{ProvingSessionInfo, ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
 use uuid::Uuid;
 
@@ -1197,13 +1197,16 @@ impl TestCase for SubmitFakeProofRpcTest {
         let zkvm_prove_output = job_response.proof.unwrap().proof_output;
 
         // also submit fake proof of commitment index 5 through rpc
-        let native_prove_output = batch_prover
+        let fake_proof_response = batch_prover
             .client
             .http_client()
             .submit_fake_proof(5, 5)
             .await
-            .unwrap()
-            .proof_output;
+            .unwrap();
+        // assert that fake proof response has null info field
+        assert!(fake_proof_response.info.is_none());
+
+        let native_prove_output = fake_proof_response.proof_output;
         // compare actual zkvm
         assert_eq!(zkvm_prove_output, native_prove_output);
 
@@ -1563,15 +1566,8 @@ impl TestCase for RetryProvingTest {
             .await?;
         assert_ne!(new_job_id, proving_job.id, "new job id should be different");
 
-        wait_for_prover_job(batch_prover, new_job_id, None).await?;
-
         // check the commitments of the new proving job
-        let new_proving_job = batch_prover
-            .client
-            .http_client()
-            .get_proving_job(new_job_id)
-            .await?
-            .expect("new job should exist");
+        let new_proving_job = wait_for_prover_job(batch_prover, new_job_id, None).await?;
         assert_eq!(new_proving_job.commitments.len(), 4);
 
         // check the mapping from commitment to proving job is updated
@@ -1589,6 +1585,68 @@ impl TestCase for RetryProvingTest {
 #[tokio::test]
 async fn retry_proving_test() -> Result<()> {
     TestCaseRunner::new(RetryProvingTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+struct ProvingSessionInfoTest;
+
+#[async_trait]
+impl TestCase for ProvingSessionInfoTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        // Wait for blob inscribe tx to be in mempool
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+
+        // Wait for batch proof tx to hit mempool
+        da.wait_mempool_len(2, None).await?;
+
+        let proving_job = batch_prover
+            .client
+            .http_client()
+            .get_proving_job_of_commitment(1)
+            .await?
+            .expect("proving job should exist");
+        assert_eq!(proving_job.commitments.len(), 1);
+
+        let proving_info = proving_job.proof.expect("proof should exist").info;
+        let Some(ProvingSessionInfo::Local(local_info)) = proving_info else {
+            panic!("unexpected proving info type");
+        };
+
+        assert!(local_info.segments > 0);
+        assert!(local_info.total_cycles > 0);
+        assert!(local_info.user_cycles > 0);
+        assert!(local_info.paging_cycles > 0);
+        assert!(local_info.reserved_cycles > 0);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn proving_session_info_test() -> Result<()> {
+    TestCaseRunner::new(ProvingSessionInfoTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await
