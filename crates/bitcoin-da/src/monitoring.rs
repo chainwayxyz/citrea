@@ -877,11 +877,11 @@ impl MonitoringService {
             let v = self.attempt_rebroadcast(&current_tx.0, &current_tx.1).await;
             println!("rebroadcast_last_txs attempt rebroadcast result v : {v:?}");
 
-            let Some(prev_txid) = current_tx.1.prev_txid else {
-                println!("breaking here, no prev_txid ?");
-                // End of monitored txs chain
-                return Ok(());
-            };
+            // let Some(prev_txid) = current_tx.1.prev_txid else {
+            //     println!("breaking here, no prev_txid ?");
+            //     // End of monitored txs chain
+            //     return Ok(());
+            // };
 
             let prev_tx = {
                 let Some(tx_data) = monitored_txs.get(&prev_txid).cloned() else {
