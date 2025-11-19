@@ -15,6 +15,7 @@ use bitcoincore_rpc::{Client, RpcApi};
 use citrea_common::utils::read_env;
 use citrea_common::FromEnv;
 use citrea_primitives::REVEAL_TX_PREFIX;
+use itertools::Itertools;
 use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -857,40 +858,25 @@ impl MonitoringService {
 
     #[instrument(skip(self))]
     async fn rebroadcast_last_txs(&self) -> Result<()> {
-        const TXS_NUMBER_TO_REBROADCAST: u32 = 100;
+        const TXS_NUMBER_TO_REBROADCAST: usize = 100;
         trace!("Rebroadcasting last {TXS_NUMBER_TO_REBROADCAST} txs");
-
-        let Some(mut current_tx) = self.get_last_tx().await else {
-            println!("returning ok in rebroadcast last tx");
-            return Ok(());
-        };
 
         let monitored_txs = self.get_monitored_txs().await;
         println!("got monitored txs rebroadcast_last_txs");
 
-        for _ in 0..TXS_NUMBER_TO_REBROADCAST {
-            // Break on first finalized TX
-            if let TxStatus::Confirmed { .. } | TxStatus::Finalized { .. } = current_tx.1.status {
+        for (txid, current_tx) in monitored_txs
+            .clone()
+            .into_iter()
+            .sorted_by_key(|(_, tx)| tx.initial_broadcast)
+            .rev()
+            .take(TXS_NUMBER_TO_REBROADCAST)
+        {
+            if let TxStatus::Confirmed { .. } | TxStatus::Finalized { .. } = current_tx.status {
                 continue;
             }
 
-            let v = self.attempt_rebroadcast(&current_tx.0, &current_tx.1).await;
+            let v = self.attempt_rebroadcast(&txid, &current_tx).await;
             println!("rebroadcast_last_txs attempt rebroadcast result v : {v:?}");
-
-            // let Some(prev_txid) = current_tx.1.prev_txid else {
-            //     println!("breaking here, no prev_txid ?");
-            //     // End of monitored txs chain
-            //     return Ok(());
-            // };
-
-            let prev_tx = {
-                let Some(tx_data) = monitored_txs.get(&prev_txid).cloned() else {
-                    return Err(anyhow!("Missing monitored transaction {prev_txid}").into());
-                };
-                (prev_txid, tx_data)
-            };
-
-            current_tx = prev_tx;
         }
 
         Ok(())
