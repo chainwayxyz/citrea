@@ -442,19 +442,19 @@ impl MonitoringService {
                 }
                 _ = check_interval.tick() => {
                     if let Err(e) = self.check_chain_state().await {
-                        error!("Error checking chain state: {}", e);
+                        error!("Error checking chain state: {e}");
                     }
                     if let Err(e) = self.check_transactions().await {
-                        error!("Error checking transactions: {}", e);
+                        error!("Error checking transactions: {e}");
                     }
                     self.prune_old_transactions().await;
                 }
                 _ = rebroadcast_interval.tick() => {
                     if let Err(e) = self.handle_evicted().await {
-                        error!("Error handling evicted transactions: {}", e);
+                        error!("Error handling evicted transactions: {e}");
                     }
                     if let Err(e) = self.rebroadcast_last_txs().await {
-                        error!("Error rebroadcasting last transactions: {}", e);
+                        error!("Error rebroadcasting last transactions: {e}");
                         println!("[Error rebroadcasting last transactions] e : {e:?}");
                     }
                 }

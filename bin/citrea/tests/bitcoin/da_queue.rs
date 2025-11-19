@@ -545,6 +545,9 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         let (relevant_txs, _, _) = da_service.extract_relevant_blobs_with_proof(&block);
         assert_eq!(relevant_txs.len(), 3 * 2);
 
+        // Wait for monitoring service to update mined txs
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+
         // Test re-org behaviour when over mempool policy limit
         // Assert that the two utxo chains are independent
 
