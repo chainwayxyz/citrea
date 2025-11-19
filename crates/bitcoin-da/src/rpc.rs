@@ -5,7 +5,6 @@
 
 use std::sync::Arc;
 
-use bitcoin::consensus::Encodable;
 use bitcoin::Txid;
 use citrea_common::rpc::utils::internal_rpc_error;
 use jsonrpsee::core::RpcResult;
@@ -50,13 +49,8 @@ impl From<(Txid, MonitoredTx, bool)> for MonitoredTxResponse {
             None
         };
 
-        let hex = with_hex.then(|| {
-            let mut buf = Vec::new();
-            tx.tx
-                .consensus_encode(&mut buf)
-                .expect("Transaction encoding should not fail");
-            hex::encode(&buf)
-        });
+        let hex =
+            with_hex.then(|| hex::encode(tx.hex().expect("Transaction encoding should not fail")));
 
         MonitoredTxResponse {
             txid,

@@ -153,7 +153,7 @@ impl MonitoredTx {
         )
     }
 
-    fn hex(&self) -> Result<Vec<u8>> {
+    pub fn hex(&self) -> Result<Vec<u8>> {
         let mut buf = Vec::new();
         self.tx.consensus_encode(&mut buf)?;
         Ok(buf)

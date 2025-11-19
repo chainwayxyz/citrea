@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use bitcoin::consensus::encode;
+use bitcoin::consensus::{encode, Encodable};
 use bitcoin::{Transaction, Txid};
 use bitcoincore_rpc::json::SignRawTransactionInput;
 use bitcoincore_rpc::{Client, RpcApi};
@@ -132,6 +132,10 @@ impl TxSigner {
         }
 
         let serialized_reveal_tx = encode::serialize(&reveal.tx);
+        let mut buf = Vec::new();
+        reveal.tx.consensus_encode(&mut buf).unwrap();
+        assert_eq!(buf, serialized_reveal_tx);
+
         Ok(SignedTxPair {
             commit: SignedTxWithId {
                 hex: signed_raw_commit_tx.hex,
