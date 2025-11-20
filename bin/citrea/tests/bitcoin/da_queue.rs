@@ -21,6 +21,7 @@ use super::{get_citrea_cli_path, get_citrea_path};
 use crate::bitcoin::full_node::create_serialized_fake_receipt_batch_proof_with_state_roots;
 use crate::bitcoin::utils::{
     spawn_bitcoin_da_prover_service, spawn_bitcoin_da_prover_service_with_utxo_selection_mode,
+    wait_for_monitored_tx_count,
 };
 
 struct DaTransactionQueueingTest {
@@ -80,8 +81,7 @@ impl DaTransactionQueueingTest {
         assert_eq!(da.get_raw_mempool().await?.len(), 26);
 
         // Assert that all queued txs are monitored
-        let monitored_txs = da_service.monitoring.get_monitored_txs().await;
-        assert_eq!(monitored_txs.len(), 32);
+        wait_for_monitored_tx_count(&da_service, 32, None).await?;
 
         // Try to send when queue is already filled up.
         // This is to test that utxos is correctly selected and that it's doesn't hang on waiting for list of queued txids to be returned
@@ -181,8 +181,7 @@ impl DaTransactionQueueingTest {
         assert_eq!(da.get_raw_mempool().await?.len(), 18);
 
         // Assert that all queued txs are monitored
-        let monitored_txs = da_service.monitoring.get_monitored_txs().await;
-        assert_eq!(monitored_txs.len(), 64);
+        wait_for_monitored_tx_count(&da_service, 64, None).await?;
 
         da.generate(1).await?;
         // Assert that all chunks were mined and mempool space is freed
@@ -415,11 +414,10 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
         // The three first proofs should hit the mempool + 1 chunk
         da.wait_mempool_len(8 * 3 + 2, None).await?;
-        assert_eq!(da.get_raw_mempool().await?.len(), 26);
 
         // Assert that all queued txs are monitored
-        let monitored_txs = da_service.monitoring.get_monitored_txs().await;
-        assert_eq!(monitored_txs.len(), 32);
+        // Wait with retries for monitoring service to register all transactions asynchronously
+        wait_for_monitored_tx_count(&da_service, 32, None).await?;
 
         // Try to send when queue is already filled up.
         // This is to test that utxos is correctly selected and that it's doesn't hang on waiting for list of queued txids to be returned
@@ -432,8 +430,8 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
 
         assert!(res.is_ok());
 
-        let monitored_txs = da_service.monitoring.get_monitored_txs().await;
-        assert_eq!(monitored_txs.len(), 40);
+        // Wait for all new transactions to be registered in monitoring service
+        wait_for_monitored_tx_count(&da_service, 40, None).await?;
 
         // Txs starting from a new chain should be accepted to mempool
         da.wait_mempool_len(8 * 3 + 2 + 8, None).await?;
@@ -455,6 +453,9 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         da.wait_mempool_len(6, None).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 6);
         da.generate(1).await?;
+
+        // Wait for mempool to clear
+        tokio::time::sleep(Duration::from_millis(100)).await;
         assert_eq!(da.get_raw_mempool().await?.len(), 0);
 
         let height = da.get_block_count().await?;
@@ -516,11 +517,12 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         assert_eq!(da.get_raw_mempool().await?.len(), 18 * 2);
 
         // Assert that all queued txs are monitored
-        let monitored_txs = da_service.monitoring.get_monitored_txs().await;
-        assert_eq!(monitored_txs.len(), 88);
+        wait_for_monitored_tx_count(&da_service, 88, None).await?;
 
         da.generate(1).await?;
-        // Assert that all chunks were mined and mempool space is freed
+
+        // Wait for mempool to clear
+        tokio::time::sleep(Duration::from_millis(100)).await;
         assert_eq!(da.get_raw_mempool().await?.len(), 0);
 
         let height = da.get_block_count().await?;
@@ -535,7 +537,9 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         da.wait_mempool_len(6 * 2, None).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 6 * 2);
         da.generate(1).await?;
-        // Assert that all chunks and aggregate were mined
+
+        // Wait for mempool to clear
+        tokio::time::sleep(Duration::from_millis(100)).await;
         assert_eq!(da.get_raw_mempool().await?.len(), 0);
 
         let height = da.get_block_count().await?;

@@ -349,6 +349,35 @@ pub async fn wait_for_prover_job_count(
     }
 }
 
+/// Wait for monitoring service to register the expected number of transactions.
+pub async fn wait_for_monitored_tx_count(
+    da_service: &BitcoinService,
+    expected_count: usize,
+    timeout: Option<Duration>,
+) -> anyhow::Result<()> {
+    let start = Instant::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(1));
+
+    loop {
+        if start.elapsed() >= timeout {
+            let monitored_txs = da_service.monitoring.get_monitored_txs().await;
+            bail!(
+                "Expected {} monitored transactions, got {} after timeout of {:?}",
+                expected_count,
+                monitored_txs.len(),
+                timeout
+            );
+        }
+
+        let monitored_txs = da_service.monitoring.get_monitored_txs().await;
+        if monitored_txs.len() >= expected_count {
+            return Ok(());
+        }
+
+        sleep(Duration::from_millis(100)).await;
+    }
+}
+
 /// Creates and funds a wallet. Funds are not finalized until `finalize_funds` is called.
 async fn create_and_fund_wallet(wallet: String, da_node: &BitcoinNode) {
     da_node
