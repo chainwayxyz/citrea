@@ -176,9 +176,6 @@ citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "17a66a4
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "a6e011a" }
 
-[patch."https://github.com/chainwayxyz/citrea-e2e"]
-citrea-e2e = { path = "../citrea-e2e" }
-
 [profile.release]
 opt-level = 3
 lto = true
