@@ -32,10 +32,12 @@ use sov_modules_api::{BatchProofCircuitOutputV3, SpecId, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam,
+    BatchProofOutputRpcResponse, BatchProofResponse, JobRpcResponse, SequencerCommitmentResponse,
+    SequencerCommitmentRpcParam,
 };
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
+use sov_rollup_interface::zk::ProvingSessionInfo;
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
 use uuid::Uuid;
@@ -490,6 +492,7 @@ where
             l1_tx_id: Some(tx_id.into()),
             proof,
             proof_output: StoredBatchProofOutput::from(output).into(),
+            info: None,
         })
     }
 
@@ -581,10 +584,20 @@ where
             .get_proof_by_job_id(job_id)
             .map_err(internal_rpc_error)?;
 
+        let proof = match stored_proof {
+            Some(sp) => {
+                let info = ledger_db
+                    .get_proving_session_info_by_job_id(job_id)
+                    .map_err(internal_rpc_error)?;
+                Some(make_batch_proof_response(sp, info))
+            }
+            None => None,
+        };
+
         Ok(Some(JobRpcResponse {
             id: job_id,
             commitments,
-            proof: stored_proof.map(Into::into),
+            proof,
         }))
     }
 
@@ -678,4 +691,17 @@ where
     let server = BatchProverRpcServerImpl::new(rpc_context);
 
     BatchProverRpcServer::into_rpc(server)
+}
+
+/// Combines stored proof and proving info into a [BatchProofResponse].
+fn make_batch_proof_response(
+    stored_proof: sov_db::schema::types::batch_proof::StoredBatchProof,
+    info: Option<ProvingSessionInfo>,
+) -> BatchProofResponse {
+    BatchProofResponse {
+        l1_tx_id: stored_proof.l1_tx_id,
+        proof: stored_proof.proof,
+        proof_output: BatchProofOutputRpcResponse::from(stored_proof.proof_output),
+        info,
+    }
 }

@@ -216,6 +216,7 @@ pub async fn start_rollup(
             &mut rpc_module,
             sequencer_client_url,
             l2_block_rx,
+            task_executor.clone(),
         )
         .expect("Failed to register Ethereum RPC methods");
         register_healthcheck_rpc(&mut rpc_module, ledger_db.clone())
@@ -453,8 +454,10 @@ pub fn create_default_rollup_config(
             trace_chain_block_limit: None,
             proving_jobs_limit: 100,
             timeout: 30,
+            stale_filter_ttl: Some(10),
             enable_js_tracer: true,
             api_key: None,
+            enable_filters: false,
         },
         runner: match node_mode {
             NodeMode::FullNode(socket_addr)

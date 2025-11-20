@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- feat(prover): Store proving info by job id ([#3011](https://github.com/chainwayxyz/citrea/pull/3011))\
+  `batchProver_getProvingJob*` endpoints now return information about the proving session, including cycle counts and request IDs (bonsai and boundless proofs).
+
+## v0.9.0 (2025-11-12)
+- feat: Implement eth filter rpc endpoints. ([#2956](https://github.com/chainwayxyz/citrea/pull/2956))\
+  &nbsp;&nbsp;**New env vars:**\
+  &nbsp;&nbsp;&nbsp;&nbsp; `RPC_STALE_FILTER_TTL` duration in seconds before a stale filter is evicted from active filters cache (default: 300)\
+  &nbsp;&nbsp;&nbsp;&nbsp; `RPC_ENABLE_FILTERS` enables or disables the eth filter RPC endpoints (default: true)
+  &nbsp;\
+  New configuration values can also be set inside `rollup_config.toml` files under `[rpc]` with keys `stale_filter_ttl` or `enable_filters`.
+
+- fix: `eth_estimateGas` and `eth_createAccessList` now supports `state_overrides`. ([#3013](https://github.com/chainwayxyz/citrea/pull/3013))
+
+- feat: Risc0 host configs can now be passed from `prover_config.toml` files. ([#2994](https://github.com/chainwayxyz/citrea/pull/2994))
+
 ## v0.8.1 (2025-10-25)
 Fixes Testnet guest list for Light Client Prover.
 
@@ -120,3 +138,5 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes would query more l2 blocks than intended. ([#1230](https://github.com/chainwayxyz/citrea/pull/1230))
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
+
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/release-v0.8.1...HEAD

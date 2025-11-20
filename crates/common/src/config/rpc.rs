@@ -51,6 +51,11 @@ const fn default_proving_jobs_limit() -> usize {
     100
 }
 
+#[inline]
+const fn default_enable_filters() -> bool {
+    true
+}
+
 /// RPC configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize, Default, Serialize)]
 pub struct RpcConfig {
@@ -79,6 +84,8 @@ pub struct RpcConfig {
     pub max_subscriptions_per_connection: u32,
     /// Maximum number of L2 blocks to be traced with debug_traceChain
     pub trace_chain_block_limit: Option<u64>,
+    /// Duration after which a filter is considered stale and removed
+    pub stale_filter_ttl: Option<usize>,
     /// Maximum number of responded proving jobs in RPC batchProver_getProvingJobs
     #[serde(default = "default_proving_jobs_limit")]
     pub proving_jobs_limit: usize,
@@ -88,6 +95,9 @@ pub struct RpcConfig {
     /// Enable JS tracer in debug endpoints
     #[serde(default = "default_enable_js_tracer")]
     pub enable_js_tracer: bool,
+    /// Enable filter RPCs
+    #[serde(default = "default_enable_filters")]
+    pub enable_filters: bool,
     /// API key for protected JSON-RPC methods
     pub api_key: Option<String>,
 }
@@ -133,6 +143,9 @@ impl FromEnv for RpcConfig {
             trace_chain_block_limit: read_env("RPC_TRACE_CHAIN_BLOCK_LIMIT")
                 .ok()
                 .and_then(|val| val.parse().ok()),
+            stale_filter_ttl: read_env("RPC_STALE_FILTER_TTL")
+                .ok()
+                .and_then(|s| s.parse().ok()),
             proving_jobs_limit: read_env("RPC_PROVING_JOBS_LIMIT")
                 .ok()
                 .and_then(|val| val.parse().ok())
@@ -145,6 +158,10 @@ impl FromEnv for RpcConfig {
                 .ok()
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_enable_js_tracer),
+            enable_filters: read_env("RPC_ENABLE_FILTERS")
+                .ok()
+                .and_then(|val| val.parse().ok())
+                .unwrap_or_else(default_enable_filters),
             api_key: read_env("RPC_API_KEY").ok(),
         })
     }
@@ -166,8 +183,10 @@ impl fmt::Display for RpcConfig {
                 &self.max_subscriptions_per_connection,
             )
             .field("trace_chain_block_limit", &self.trace_chain_block_limit)
+            .field("stale_filter_ttl", &self.stale_filter_ttl)
             .field("proving_jobs_limit", &self.proving_jobs_limit)
             .field("timeout", &self.timeout)
+            .field("enable_filters", &self.enable_filters)
             .finish()
     }
 }

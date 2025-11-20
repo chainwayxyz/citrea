@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use alloy_primitives::U256;
 use alloy_rpc_types_trace::geth::TraceResult;
-use citrea_evm::Evm;
+use citrea_evm::{CitreaFilter, Evm};
 use jsonrpsee::http_client::HttpClient;
 use rustc_version_runtime::version;
 use schnellru::{ByLength, LruMap};
@@ -24,6 +24,8 @@ const DEFAULT_PRIORITY_FEE: U256 = U256::from_limbs([100, 0, 0, 0]);
 pub struct EthRpcConfig {
     pub gas_price_oracle_config: GasPriceOracleConfig,
     pub fee_history_cache_config: FeeHistoryCacheConfig,
+    pub stale_filter_ttl: Option<usize>,
+    pub enable_filters: bool,
 }
 
 pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
@@ -36,24 +38,25 @@ pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
     pub(crate) web3_client_version: String,
     pub(crate) trace_cache: Mutex<LruMap<u64, Vec<TraceResult>, ByLength>>,
     pub(crate) subscription_manager: Option<SubscriptionManager>,
+    pub(crate) citrea_filter: Arc<CitreaFilter>,
 }
 
 impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         da_service: Arc<Da>,
-        gas_price_oracle_config: GasPriceOracleConfig,
-        fee_history_cache_config: FeeHistoryCacheConfig,
+        eth_rpc_config: EthRpcConfig,
         storage: C::Storage,
         ledger_db: LedgerDB,
         sequencer_client: Option<HttpClient>,
         l2_block_rx: Option<broadcast::Receiver<u64>>,
+        task_executor: reth_tasks::TaskExecutor,
     ) -> Self {
         let evm = Evm::<C>::default();
         let gas_price_oracle = GasPriceOracle::new(
             evm,
-            gas_price_oracle_config,
-            fee_history_cache_config,
+            eth_rpc_config.gas_price_oracle_config,
+            eth_rpc_config.fee_history_cache_config,
             ledger_db.clone(),
         );
 
@@ -68,6 +71,11 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         let subscription_manager = l2_block_rx
             .map(|rx| SubscriptionManager::new::<C>(storage.clone(), ledger_db.clone(), rx));
 
+        let citrea_filter = Arc::new(CitreaFilter::new(
+            task_executor,
+            eth_rpc_config.stale_filter_ttl,
+        ));
+
         Self {
             da_service,
             gas_price_oracle,
@@ -77,6 +85,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
             web3_client_version: current_version,
             trace_cache,
             subscription_manager,
+            citrea_filter,
         }
     }
 
