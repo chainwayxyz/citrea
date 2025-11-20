@@ -153,6 +153,7 @@ impl MonitoredTx {
         )
     }
 
+    /// Hex
     pub fn hex(&self) -> Result<Vec<u8>> {
         Ok(self.hex.clone())
     }
