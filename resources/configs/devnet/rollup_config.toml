@@ -24,6 +24,12 @@ enable_subscriptions = true
 max_subscriptions_per_connection = 100
 stale_filter_ttl = 300
 
+# enables JS tracer in debug endpoints, enabled by default
+# enable_js_tracer = true
+
+# enables filter rpc endpoints, enabled by default
+# enable_filters = true
+
 [runner]
 sequencer_client_url = "https://rpc.devnet.citrea.xyz"
 # set this to true if you want to include soft confirmation tx bodies

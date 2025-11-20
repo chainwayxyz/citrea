@@ -86,6 +86,8 @@ pub struct BoundlessProverConfig {
     pub boundless: BoundlessConfig,
     /// Storage configuration
     pub storage: BoundlessStorageConfig,
+    /// Pricing service configuration
+    pub pricing_service: PricingServiceConfig,
 }
 
 impl FromEnv for BoundlessProverConfig {
@@ -102,7 +104,13 @@ impl FromEnv for BoundlessProverConfig {
             ));
         };
 
-        Ok(Self { boundless, storage })
+        let pricing_service = PricingServiceConfig::from_env()?;
+
+        Ok(Self {
+            boundless,
+            storage,
+            pricing_service,
+        })
     }
 }
 
@@ -126,6 +134,33 @@ impl FromEnv for BoundlessConfig {
             wallet_private_key,
             rpc_url,
             is_offchain,
+        })
+    }
+}
+
+/// Configuration for the boundless pricing service
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct PricingServiceConfig {
+    /// Base URL for the pricing service API
+    pub base_url: String,
+    /// HTTP client timeout in seconds
+    #[serde(default = "default_pricing_service_timeout")]
+    pub timeout_secs: u64,
+}
+
+#[inline]
+const fn default_pricing_service_timeout() -> u64 {
+    30
+}
+
+impl FromEnv for PricingServiceConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            base_url: read_env("BOUNDLESS_PRICING_SERVICE_URL")?,
+            timeout_secs: read_env("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS")
+                .ok()
+                .and_then(|val| val.parse().ok())
+                .unwrap_or_else(default_pricing_service_timeout),
         })
     }
 }
