@@ -41,9 +41,11 @@ use tracing::{debug, error, info, instrument, warn};
 use crate::error::{CommitmentError, HaltingError, ProcessingError, ProofError, SkippableError};
 use crate::metrics::FULLNODE_METRICS as FM;
 
+/// The representation of pending commitments on the ledger DB
 type PendingCommitmentsCache =
     BTreeMap</*index*/ u32, (SequencerCommitment, /* found_in_l1_height */ L1Height)>;
 
+/// The representation of pending proofs on the ledger DB
 type PendingProofsCache = BTreeMap<
     (/* min_index */ u32, /* max_index */ u32),
     (Proof, /* found_in_l1_height */ L1Height),
@@ -546,12 +548,10 @@ where
                 hex::encode(sequencer_commitment.merkle_root)
             );
             // Store as pending if we haven't synced all needed L2 blocks yet
-            if !pending_commitments.contains_key(&sequencer_commitment.index) {
-                pending_commitments.insert(
-                    sequencer_commitment.index,
-                    (sequencer_commitment, found_in_l1_block_height),
-                );
-            }
+            pending_commitments.insert(
+                sequencer_commitment.index,
+                (sequencer_commitment, found_in_l1_block_height),
+            );
             return Ok(ProcessingResult::Pending);
         }
 
@@ -710,6 +710,7 @@ where
     ///
     /// # Returns
     /// The processing result indicating success, discard, or pending status
+    #[allow(clippy::too_many_arguments)]
     async fn process_tangerine_zk_proof(
         &self,
         current_l1_block_height: u64,

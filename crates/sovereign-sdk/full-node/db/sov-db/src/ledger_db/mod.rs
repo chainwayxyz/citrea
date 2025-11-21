@@ -25,12 +25,11 @@ use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
     CommitmentIndicesByJobId, CommitmentMerkleRoots, CommitmentsByNumber, ExecutedMigrations,
-    JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot, L2RangeByL1Height,
-    L2StatusHeights, LastPrunedBlock, MempoolTxs, PendingBonsaiSessionByJobId,
-    PendingBoundlessSessionByJobId, PendingL1SubmissionJobs, ProofByJobId, ProverLastScannedSlot,
-    ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
-    ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
-    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot, L2RangeByL1Height, L2StatusHeights,
+    LastPrunedBlock, MempoolTxs, PendingBonsaiSessionByJobId, PendingBoundlessSessionByJobId,
+    PendingL1SubmissionJobs, ProofByJobId, ProverLastScannedSlot, ProverPendingCommitments,
+    ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
+    StateDiffByBlockNumber, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -168,7 +167,7 @@ impl SharedLedgerOps for LedgerDB {
         l2_block: L2Block,
         tx_hashes: Vec<[u8; 32]>,
         tx_bodies: Option<Vec<Vec<u8>>>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<SchemaBatch, anyhow::Error> {
         let txs = if let Some(tx_bodies) = tx_bodies {
             assert_eq!(
                 tx_bodies.len(),
@@ -211,9 +210,7 @@ impl SharedLedgerOps for LedgerDB {
         schema_batch.put::<L2BlockByNumber>(&l2_block_number, &l2_block_to_store)?;
         schema_batch.put::<L2BlockByHash>(&l2_block.hash(), &l2_block_number)?;
 
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
+        Ok(schema_batch)
     }
 
     /// Records the L2 height that was created as a l2 block of an L1 height
@@ -473,26 +470,6 @@ impl BatchProverLedgerOps for LedgerDB {
         commitments.sort_unstable();
 
         Ok(commitments)
-    }
-
-    #[instrument(level = "trace", skip(self), err)]
-    fn delete_prover_pending_commitments(&self, indices: Vec<u32>) -> anyhow::Result<()> {
-        self.db.delete_batch::<ProverPendingCommitments>(indices)
-    }
-
-    #[instrument(level = "trace", skip(self), err)]
-    fn insert_new_proving_job(
-        &self,
-        id: Uuid,
-        commitment_indices: &Vec<u32>,
-    ) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<CommitmentIndicesByJobId>(&id, commitment_indices)?;
-        for index in commitment_indices {
-            schema_batch.put::<JobIdOfCommitment>(index, &id)?;
-        }
-
-        self.db.write_schemas(schema_batch)
     }
 
     #[instrument(level = "trace", skip(self), err)]

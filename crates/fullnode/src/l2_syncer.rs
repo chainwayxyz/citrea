@@ -10,7 +10,7 @@ use backoff::ExponentialBackoff;
 use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::l2::{apply_l2_block, commit_l2_block, sync_l2};
+use citrea_common::l2::{apply_l2_block, sync_l2};
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -209,7 +209,12 @@ where
         let state_root = applied.state_root;
         let block_size = applied.block_size;
 
-        commit_l2_block(&self.ledger_db, applied)?;
+        let schema_batch = self.ledger_db.commit_l2_block(
+            applied.l2_block,
+            applied.tx_hashes,
+            applied.tx_bodies,
+        )?;
+        self.ledger_db.write_schemas(schema_batch)?;
 
         let process_duration = std::time::Instant::now()
             .saturating_duration_since(start)

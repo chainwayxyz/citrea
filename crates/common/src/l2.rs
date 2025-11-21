@@ -147,16 +147,6 @@ pub async fn apply_l2_block<Da: DaService, DB: SharedLedgerOps>(
     })
 }
 
-/// Commit an L2 block to the ledger database
-/// This is the second step of processing an L2 block
-pub fn commit_l2_block<DB: SharedLedgerOps>(
-    ledger_db: &DB,
-    applied: AppliedL2Block,
-) -> anyhow::Result<()> {
-    ledger_db.commit_l2_block(applied.l2_block, applied.tx_hashes, applied.tx_bodies)?;
-    Ok(())
-}
-
 pub async fn sync_l2(
     mut start_l2_height: u64,
     sequencer_client: HttpClient,

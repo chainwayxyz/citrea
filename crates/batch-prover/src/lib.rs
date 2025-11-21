@@ -119,12 +119,7 @@ pub async fn build_services<DA, Vm>(
     elfs: HashMap<SpecId, Vec<u8>>,
     rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
-) -> Result<(
-    L2Syncer<DA, LedgerDB>,
-    L1Syncer<DA>,
-    Prover<DA, Vm>,
-    RpcModule<()>,
-)>
+) -> Result<(L2Syncer<DA>, L1Syncer<DA>, Prover<DA, Vm>, RpcModule<()>)>
 where
     DA: DaService,
     Vm: ZkvmHost + Zkvm + 'static,

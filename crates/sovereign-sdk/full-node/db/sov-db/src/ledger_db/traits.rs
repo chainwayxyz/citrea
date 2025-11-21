@@ -32,7 +32,7 @@ pub trait SharedLedgerOps {
         l2_block: L2Block,
         tx_hashes: Vec<[u8; 32]>,
         tx_bodies: Option<Vec<Vec<u8>>>,
-    ) -> Result<()>;
+    ) -> Result<SchemaBatch>;
 
     /// Records the L2 height that was created as a l2 block of an L1 height
     fn extend_l2_range_of_l1_slot(
@@ -168,13 +168,6 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
 
     /// Get commitment indices to be proven
     fn get_prover_pending_commitments(&self) -> anyhow::Result<Vec<SequencerCommitment>>;
-
-    /// Delete commitment indices from pending commitments table
-    fn delete_prover_pending_commitments(&self, indices: Vec<u32>) -> Result<()>;
-
-    /// Inserts a new prover job with its corresponding commitment indices, marking job as running
-    #[allow(clippy::ptr_arg)]
-    fn insert_new_proving_job(&self, id: Uuid, commitment_indices: &Vec<u32>) -> Result<()>;
 
     /// Save proof by its job id
     fn put_proof_by_job_id(

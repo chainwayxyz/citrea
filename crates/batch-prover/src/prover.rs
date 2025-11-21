@@ -21,8 +21,11 @@ use reth_tasks::shutdown::GracefulShutdown;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
-use sov_db::ledger_db::{BatchProverLedgerOps, LedgerDB, SharedLedgerOps};
-use sov_db::schema::tables::{ProofByJobId, ProverStateDiffs};
+use sov_db::ledger_db::{BatchProverLedgerOps, LedgerDB, SchemaBatch, SharedLedgerOps};
+use sov_db::schema::tables::{
+    CommitmentIndicesByJobId, JobIdOfCommitment, ProofByJobId, ProverPendingCommitments,
+    ProverStateDiffs,
+};
 use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::{L2Block, SpecId, StateDiff, Zkvm};
@@ -302,6 +305,8 @@ where
         self.watch_proving_jobs(proving_jobs_rx);
 
         let mut job_ids = Vec::with_capacity(partitions.len());
+        let mut schema_batch = SchemaBatch::new();
+
         for partition in partitions {
             let id = Uuid::now_v7();
             let input = self
@@ -322,13 +327,16 @@ where
                 .collect::<Vec<_>>();
 
             // insert the proving job to the ledger db, and delete the pending commitments
-            self.ledger_db
-                .insert_new_proving_job(id, &commitment_indices)
-                .context("Failed to insert prover job")?;
-            self.ledger_db
-                .delete_prover_pending_commitments(commitment_indices)
-                .context("Failed to delete pending commitments")?;
+            schema_batch.put::<CommitmentIndicesByJobId>(&id, &commitment_indices)?;
+            for index in &commitment_indices {
+                schema_batch.put::<JobIdOfCommitment>(index, &id)?;
+            }
+            for index in &commitment_indices {
+                schema_batch.delete::<ProverPendingCommitments>(index)?;
+            }
         }
+
+        self.ledger_db.write_schemas(schema_batch)?;
 
         assert!(!job_ids.is_empty(), "received empty jobs list");
 
@@ -1275,9 +1283,9 @@ mod tests {
     use citrea_primitives::forks::FORKS;
     use citrea_primitives::MAX_TX_BODY_SIZE;
     use prover_services::{ParallelProverService, ProofGenMode};
-    use sov_db::ledger_db::{BatchProverLedgerOps, LedgerDB, SharedLedgerOps};
+    use sov_db::ledger_db::{LedgerDB, SchemaBatch, SharedLedgerOps};
     use sov_db::rocks_db_config::RocksdbConfig;
-    use sov_db::schema::tables::BATCH_PROVER_LEDGER_TABLES;
+    use sov_db::schema::tables::{ProverStateDiffs, BATCH_PROVER_LEDGER_TABLES};
     use sov_db::schema::types::L2BlockNumber;
     use sov_mock_da::{MockAddress, MockDaService};
     use sov_mock_zkvm::MockZkvm;
@@ -1361,6 +1369,7 @@ mod tests {
     }
 
     fn put_l2_blocks(ledger_db: &LedgerDB, l2_block_data: Vec<(u64, usize)>) {
+        let mut all_changes = SchemaBatch::new();
         for (l2_height, diff_size) in l2_block_data {
             let l2_block = L2Block::new(
                 SignedL2Header::new(
@@ -1370,7 +1379,7 @@ mod tests {
                 ),
                 vec![],
             );
-            ledger_db.commit_l2_block(l2_block, vec![], None).unwrap();
+            let mut schema_batch = ledger_db.commit_l2_block(l2_block, vec![], None).unwrap();
             // random key to ensures that with each block state size grows consistently
             let state_key = Arc::from(rand::random::<u64>().to_le_bytes());
             // random value ensures that the borsh can not compress properly
@@ -1378,10 +1387,12 @@ mod tests {
                 vec![0; diff_size].into_iter().map(|_| rand::random::<u8>()),
             ));
             let state_diff = vec![(state_key, state_value)];
-            ledger_db
-                .set_l2_state_diff(L2BlockNumber(l2_height), state_diff)
+            schema_batch
+                .put::<ProverStateDiffs>(&L2BlockNumber(l2_height), &state_diff)
                 .unwrap();
+            all_changes.merge(schema_batch);
         }
+        ledger_db.write_schemas(all_changes).unwrap();
     }
 
     fn put_commitments(ledger_db: &LedgerDB, commitments: &[SequencerCommitment]) {

@@ -851,16 +851,18 @@ where
         );
 
         let next_state_root = state_root_transition.final_root;
+        let l2_block_hash = l2_block.hash();
+
+        let schema_batch = self
+            .ledger_db
+            .commit_l2_block(l2_block, tx_hashes, Some(blobs))?;
 
         // Finalize storage changes from block execution
         self.storage_manager
             .finalize_storage(l2_block_result.change_set);
 
-        let l2_block_hash = l2_block.hash();
-
         // Persist block data to storage
-        self.ledger_db
-            .commit_l2_block(l2_block, tx_hashes, Some(blobs))?;
+        self.ledger_db.write_schemas(schema_batch)?;
 
         // TODO: https://github.com/chainwayxyz/citrea/issues/1992
         // // connect L1 and L2 height
