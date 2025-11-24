@@ -5,6 +5,7 @@
 ### Added
 - feat(prover): Store proving info by job id ([#3011](https://github.com/chainwayxyz/citrea/pull/3011))\
   `batchProver_getProvingJob*` endpoints now return information about the proving session, including cycle counts and request IDs (bonsai and boundless proofs).
+- perf: Remove validation from backup creation. Backup validation should now be handle by `backup_validate` RPC method.
 
 ## v0.9.0 (2025-11-12)
 - feat: Implement eth filter rpc endpoints. ([#2956](https://github.com/chainwayxyz/citrea/pull/2956))\
@@ -60,7 +61,7 @@ Node operators need to rescan L1:
 # use citrea-cli v0.7.2
 citrea-cli --rollback --node-type fullnode --db-path path/to/db --l2-target 9999999999 --l1-target 74247 --sequencer-commitment-index 0
 
-citrea-cli clear-pending --db-path path/to/dbs 
+citrea-cli clear-pending --db-path path/to/dbs
 ```
 
 
@@ -73,7 +74,7 @@ Node operators need to rescan L1:
 # use citrea-cli v0.7.1
 citrea-cli --rollback --node-type fullnode --db-path path/to/db --l2-target 9999999999 --l1-target 74247 --sequencer-commitment-index 0
 
-citrea-cli clear-pending --db-path path/to/dbs 
+citrea-cli clear-pending --db-path path/to/dbs
 ```
 
 ## v0.7.0 (2025-04-18)
