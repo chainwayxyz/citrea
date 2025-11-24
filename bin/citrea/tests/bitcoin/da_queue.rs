@@ -81,7 +81,7 @@ impl DaTransactionQueueingTest {
         assert_eq!(da.get_raw_mempool().await?.len(), 26);
 
         // Assert that all queued txs are monitored
-        wait_for_monitored_tx_count(&da_service, 32, None).await?;
+        wait_for_monitored_tx_count(da_service, 32, None).await?;
 
         // Try to send when queue is already filled up.
         // This is to test that utxos is correctly selected and that it's doesn't hang on waiting for list of queued txids to be returned
@@ -181,7 +181,7 @@ impl DaTransactionQueueingTest {
         assert_eq!(da.get_raw_mempool().await?.len(), 18);
 
         // Assert that all queued txs are monitored
-        wait_for_monitored_tx_count(&da_service, 64, None).await?;
+        wait_for_monitored_tx_count(da_service, 64, None).await?;
 
         da.generate(1).await?;
         // Assert that all chunks were mined and mempool space is freed
@@ -417,7 +417,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
 
         // Assert that all queued txs are monitored
         // Wait with retries for monitoring service to register all transactions asynchronously
-        wait_for_monitored_tx_count(&da_service, 32, None).await?;
+        wait_for_monitored_tx_count(da_service, 32, None).await?;
 
         // Try to send when queue is already filled up.
         // This is to test that utxos is correctly selected and that it's doesn't hang on waiting for list of queued txids to be returned
@@ -431,7 +431,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         assert!(res.is_ok());
 
         // Wait for all new transactions to be registered in monitoring service
-        wait_for_monitored_tx_count(&da_service, 40, None).await?;
+        wait_for_monitored_tx_count(da_service, 40, None).await?;
 
         // Txs starting from a new chain should be accepted to mempool
         da.wait_mempool_len(8 * 3 + 2 + 8, None).await?;
@@ -517,7 +517,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         assert_eq!(da.get_raw_mempool().await?.len(), 18 * 2);
 
         // Assert that all queued txs are monitored
-        wait_for_monitored_tx_count(&da_service, 88, None).await?;
+        wait_for_monitored_tx_count(da_service, 88, None).await?;
 
         da.generate(1).await?;
 
