@@ -50,7 +50,7 @@ jobs:
       OPERATION_STOP_STEP: ${{ inputs.operation-stop-step }}
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Load matrix from JSON mapping
         id: mapping

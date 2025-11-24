@@ -78,7 +78,7 @@ jobs:
     runs-on: ubicloud-standard-30
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -117,7 +117,7 @@ jobs:
     runs-on: ubicloud-standard-4
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -151,7 +151,7 @@ jobs:
     timeout-minutes: 60
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -182,7 +182,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Run cargo-deny
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
@@ -193,7 +193,7 @@ jobs:
       - docker-setup
     runs-on: ubicloud-standard-30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@1.88.0
         with:
           components: llvm-tools-preview
@@ -248,7 +248,7 @@ jobs:
     needs: build
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v5
         with:
           node-version: 18
@@ -290,7 +290,7 @@ jobs:
     needs: build
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
@@ -319,7 +319,7 @@ jobs:
     needs: build
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v5
         with:
           node-version: 18
@@ -351,7 +351,7 @@ jobs:
     runs-on: ubicloud-standard-30
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -407,7 +407,7 @@ jobs:
     runs-on: ubicloud-standard-2
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -436,7 +436,7 @@ jobs:
     runs-on: ubicloud-standard-2
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -493,7 +493,7 @@ jobs:
     name: codespell
     runs-on: ubicloud-standard-2
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -514,7 +514,7 @@ jobs:
     needs: [build, docker-setup]
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'guest-code')
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
