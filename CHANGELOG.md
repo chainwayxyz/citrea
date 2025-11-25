@@ -18,6 +18,9 @@
 
 - feat: Risc0 host configs can now be passed from `prover_config.toml` files. ([#2994](https://github.com/chainwayxyz/citrea/pull/2994))
 
+- feat: Add create backup `citrea-cli` command([#3047](https://github.com/chainwayxyz/citrea/pull/3047))\
+  Usage: citrea-cli create-backup --node-type <NODE_TYPE> --db-path <DB_PATH> --backup-path <BACKUP_PATH>
+
 ## v0.8.1 (2025-10-25)
 Fixes Testnet guest list for Light Client Prover.
 
@@ -60,7 +63,7 @@ Node operators need to rescan L1:
 # use citrea-cli v0.7.2
 citrea-cli --rollback --node-type fullnode --db-path path/to/db --l2-target 9999999999 --l1-target 74247 --sequencer-commitment-index 0
 
-citrea-cli clear-pending --db-path path/to/dbs 
+citrea-cli clear-pending --db-path path/to/dbs
 ```
 
 
@@ -73,7 +76,7 @@ Node operators need to rescan L1:
 # use citrea-cli v0.7.1
 citrea-cli --rollback --node-type fullnode --db-path path/to/db --l2-target 9999999999 --l1-target 74247 --sequencer-commitment-index 0
 
-citrea-cli clear-pending --db-path path/to/dbs 
+citrea-cli clear-pending --db-path path/to/dbs
 ```
 
 ## v0.7.0 (2025-04-18)
