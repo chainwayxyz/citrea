@@ -144,7 +144,7 @@ impl BackupManager {
     ///
     /// # Returns
     /// Information about the created backup including block height, path and timestamp
-    pub(super) async fn create_backup(
+    pub async fn create_backup(
         &self,
         path: Option<PathBuf>,
         ledger_db: &LedgerDB,
