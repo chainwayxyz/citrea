@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::env;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use alloy_consensus::transaction::Transaction as _;
 use alloy_sol_types::SolCall;
@@ -183,4 +184,12 @@ pub fn is_dev_mode_enabled_via_environment() -> bool {
         .map(|x| x.to_lowercase())
         .filter(|x| x == "1" || x == "true" || x == "yes")
         .is_some()
+}
+
+/// Return UNIX timestamp in seconds
+pub fn get_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
 }

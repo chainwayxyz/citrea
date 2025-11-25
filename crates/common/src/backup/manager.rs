@@ -14,7 +14,47 @@ use tracing::{info, warn};
 
 use super::utils::{get_backup_engine, restore_from_backup, validate_backup};
 use crate::backup::metadata::{self, BackupMetadata};
+use crate::utils::get_timestamp;
 use crate::NodeType;
+
+struct BackupLockGuard {
+    path: PathBuf,
+}
+
+impl BackupLockGuard {
+    /// Creates lock file and fails if it already exists or any other I/O error
+    fn acquire(backup_path: &Path) -> anyhow::Result<Self> {
+        std::fs::create_dir_all(backup_path)?;
+
+        let path = backup_path.join("LOCK");
+
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(mut file) => {
+                use std::io::Write;
+                writeln!(file, "pid={}", std::process::id())?;
+                writeln!(file, "started={}", get_timestamp())?;
+
+                info!("Acquired backup lockfile");
+                Ok(Self { path })
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                bail!("Lock file {} already exists.", path.display())
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+}
+
+impl Drop for BackupLockGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+        info!("Released backup lockfile");
+    }
+}
 
 /// Configuration for database backups
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,6 +196,8 @@ impl BackupManager {
             .or(self.base_path.as_ref())
             .context("Missing path and no backup_path found in config.")?;
 
+        let _lockfile_guard = BackupLockGuard::acquire(backup_path)?;
+
         let l1_lock = self.l1_processing_lock.lock().await;
         let l2_lock = self.l2_processing_lock.lock().await;
 
@@ -267,6 +309,8 @@ impl BackupManager {
         backup_path: P,
         backup_id: u32,
     ) -> anyhow::Result<()> {
+        let _lockfile_guard = BackupLockGuard::acquire(backup_path.as_ref())?;
+
         // Validate backup before trying to restore
         self.validate_backup(&backup_path)?;
 
@@ -398,6 +442,8 @@ impl BackupManager {
         if !backup_path.exists() {
             bail!("Backup directory does not exist: {:?}", backup_path);
         }
+
+        let _lockfile_guard = BackupLockGuard::acquire(&backup_path)?;
 
         let start_time = Instant::now();
 

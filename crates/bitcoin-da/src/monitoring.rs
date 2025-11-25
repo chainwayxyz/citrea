@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use anyhow::anyhow;
 use bitcoin::address::NetworkUnchecked;
@@ -11,7 +11,7 @@ use bitcoin::hashes::Hash;
 use bitcoin::{Address, BlockHash, Transaction, Txid};
 use bitcoincore_rpc::json::GetTransactionResult;
 use bitcoincore_rpc::{Client, RpcApi};
-use citrea_common::utils::read_env;
+use citrea_common::utils::{get_timestamp, read_env};
 use citrea_common::FromEnv;
 use citrea_primitives::REVEAL_TX_PREFIX;
 use reth_tasks::shutdown::GracefulShutdown;
@@ -31,14 +31,6 @@ type BlockHeight = u64;
 type Result<T> = std::result::Result<T, MonitorError>;
 
 const REBROADCAST_EACH_N_BLOCK: u64 = 1;
-
-/// Return UNIX timestamp in seconds
-fn get_timestamp() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Cannot fail because there is always a UNIX epoch")
-        .as_secs()
-}
 
 /// Transaction status in the monitoring service.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
