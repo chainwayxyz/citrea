@@ -6,6 +6,13 @@
 - feat(prover): Store proving info by job id ([#3011](https://github.com/chainwayxyz/citrea/pull/3011))\
   `batchProver_getProvingJob*` endpoints now return information about the proving session, including cycle counts and request IDs (bonsai and boundless proofs).
 
+### Changed
+- chore: renamed `BOUNDLESS_S3_NO_PRESIGNED` to `BOUNDLESS_S3_USE_PRESIGNED`. ([#3046](https://github.com/chainwayxyz/citrea/pull/3046))\
+  &nbsp;&nbsp;**New env var:**
+  &nbsp;&nbsp;&nbsp;&nbsp; `BOUNDLESS_S3_USE_PRESIGNED` Use presigned URLs for S3 (default: false)
+  &nbsp;\
+  New configuration values can also be set inside `batch_prover_config.toml` files under `[risc0_host.prover.Boundless.storage]` with key `s3_use_presigned`.
+
 ## v0.9.0 (2025-11-12)
 - feat: Implement eth filter rpc endpoints. ([#2956](https://github.com/chainwayxyz/citrea/pull/2956))\
   &nbsp;&nbsp;**New env vars:**\
