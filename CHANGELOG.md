@@ -6,6 +6,9 @@
 - feat(prover): Store proving info by job id ([#3011](https://github.com/chainwayxyz/citrea/pull/3011))\
   `batchProver_getProvingJob*` endpoints now return information about the proving session, including cycle counts and request IDs (bonsai and boundless proofs).
 
+- feat: Add `citrea-cli db-migrate` subcommand([#3015](https://github.com/chainwayxyz/citrea/pull/3015))\
+  Usage: citrea-cli db-migrate --node-type <NODE_TYPE> --db-path <DB_PATH>
+
 ### Changed
 - chore: renamed `BOUNDLESS_S3_NO_PRESIGNED` to `BOUNDLESS_S3_USE_PRESIGNED`. ([#3046](https://github.com/chainwayxyz/citrea/pull/3046))\
   &nbsp;&nbsp;**New env var:**
