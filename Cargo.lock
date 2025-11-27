@@ -12055,7 +12055,6 @@ dependencies = [
  "byteorder",
  "criterion",
  "jmt",
- "metrics 0.23.1",
  "rand 0.8.5",
  "rlimit",
  "rocksdb",

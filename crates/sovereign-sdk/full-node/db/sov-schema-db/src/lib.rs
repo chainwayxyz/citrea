@@ -49,29 +49,6 @@ pub struct DB {
     inner: rocksdb::DB,
 }
 
-/// asd
-pub struct TransactionDB {
-    // name: &'static str, // for logging
-    inner: rocksdb::TransactionDB,
-}
-
-impl TransactionDB {
-    /// asd
-    pub fn transaction(&self) -> rocksdb::Transaction<'_, rocksdb::TransactionDB> {
-        self.inner.transaction()
-    }
-
-    /// Returns the handle for a rocksdb column family.
-    pub fn get_cf_handle(&self, cf_name: &str) -> anyhow::Result<&rocksdb::ColumnFamily> {
-        self.inner.cf_handle(cf_name).ok_or_else(|| {
-            format_err!(
-                "DB::cf_handle not found for column family name: {}",
-                cf_name
-            )
-        })
-    }
-}
-
 impl DB {
     /// Opens the DB with a tempdir. Should only be used in tests
     #[cfg(feature = "test-utils")]
@@ -118,28 +95,6 @@ impl DB {
             }),
         )?;
         Ok(db)
-    }
-
-    /// Opens a database backed by RocksDB, using the provided column family names and default
-    /// column family options.
-    pub fn open_transaction_db(
-        path: impl AsRef<Path>,
-        column_families: impl IntoIterator<Item = impl Into<String>>,
-        options: &RawRocksdbOptions,
-    ) -> anyhow::Result<TransactionDB> {
-        let txn_db_opts = rocksdb::TransactionDBOptions::default();
-        let inner = rocksdb::TransactionDB::open_cf_descriptors(
-            &options.db_options,
-            &txn_db_opts,
-            path,
-            column_families.into_iter().map(|cf_name| {
-                let mut cf_opts = rocksdb::Options::default();
-                cf_opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
-                cf_opts.set_block_based_table_factory(&options.block_options);
-                rocksdb::ColumnFamilyDescriptor::new(cf_name, cf_opts)
-            }),
-        )?;
-        Ok(TransactionDB { inner })
     }
 
     /// Returns the path of the DB.
