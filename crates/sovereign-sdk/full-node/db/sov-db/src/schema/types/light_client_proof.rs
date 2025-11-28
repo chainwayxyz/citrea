@@ -4,7 +4,7 @@ use alloy_primitives::{U32, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::LatestDaState;
 use sov_rollup_interface::rpc::{
-    LatestDaStateRpcResponse, LightClientProofOutputRpcResponse, LightClientProofResponse,
+    LatestDaStateRpcResponse, LightClientProofOutputRpcResponse,
 };
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::zk::Proof;
@@ -121,15 +121,4 @@ pub struct StoredLightClientProof {
     pub proof: Proof,
     /// The light client circuit proof output
     pub light_client_proof_output: StoredLightClientProofOutput,
-}
-
-impl From<StoredLightClientProof> for LightClientProofResponse {
-    fn from(value: StoredLightClientProof) -> Self {
-        Self {
-            proof: value.proof,
-            light_client_proof_output: LightClientProofOutputRpcResponse::from(
-                value.light_client_proof_output,
-            ),
-        }
-    }
 }
