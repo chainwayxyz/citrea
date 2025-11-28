@@ -3,9 +3,7 @@ use std::fmt::Debug;
 use alloy_primitives::{U32, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::LatestDaState;
-use sov_rollup_interface::rpc::{
-    LatestDaStateRpcResponse, LightClientProofOutputRpcResponse,
-};
+use sov_rollup_interface::rpc::{LatestDaStateRpcResponse, LightClientProofOutputRpcResponse};
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::zk::Proof;
 

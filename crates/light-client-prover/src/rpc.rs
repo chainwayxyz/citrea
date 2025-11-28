@@ -135,7 +135,7 @@ where
             .get_proving_session_info_by_l1_height(l1_height.to())
             .map_err(internal_rpc_error)?;
 
-        let response = LightClientProofResponse{
+        let response = LightClientProofResponse {
             proof: proof.proof,
             light_client_proof_output: proof.light_client_proof_output.into(),
             info,
