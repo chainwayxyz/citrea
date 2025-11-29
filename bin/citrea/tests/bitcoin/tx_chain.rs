@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use bitcoin::{Amount, Transaction};
+use bitcoin::params::Params;
+use bitcoin::{Address, Amount, Transaction};
 use bitcoin_da::rpc::DaRpcClient;
 use bitcoin_da::REVEAL_OUTPUT_AMOUNT;
 use bitcoincore_rpc::RpcApi;
@@ -123,7 +124,11 @@ impl TestCase for TestSequencerTransactionChaining {
             .test_restart_with_tx_in_mempool(sequencer, da, &last_tx)
             .await?;
 
-        self.test_restart_with_odd_number_of_utxos(sequencer, da, &last_tx)
+        let last_tx = self
+            .test_restart_with_odd_number_of_utxos(sequencer, da, &last_tx)
+            .await?;
+
+        self.test_using_unsafe_commit_change_output(sequencer, da, &last_tx)
             .await?;
 
         Ok(())
@@ -444,6 +449,73 @@ impl TestSequencerTransactionChaining {
         assert!(tx4.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         Ok(tx4.clone())
+    }
+
+    async fn test_using_unsafe_commit_change_output(
+        &self,
+        sequencer: &mut Sequencer,
+        da: &BitcoinNode,
+        prev_tx: &Transaction,
+    ) -> Result<Transaction> {
+        // Consolidate to single UTXO and make sure it's able to chain starting from a single UTXO using commit change output
+        let sequencer_balance = sequencer.da.get_balance(None, None).await?;
+        let address = Address::from_script(&prev_tx.output[0].script_pubkey, Params::REGTEST)?;
+        sequencer
+            .da
+            .send_to_address(
+                &address,
+                sequencer_balance,
+                None,
+                None,
+                Some(true), // Subtract fee
+                None,
+                None,
+                None,
+            )
+            .await?;
+        da.generate(1).await?;
+
+        // Assert that we now have a single utxo
+        let unspent = sequencer
+            .da
+            .list_unspent(None, None, None, None, None)
+            .await?;
+        assert_eq!(unspent.len(), 1);
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        // Generate multiple sequencer commitments and chain them in mempool
+        for _ in 0..max_l2_blocks_per_commitment * 5 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for blob tx to hit the mempool
+        da.wait_mempool_len(10, None).await?;
+
+        da.generate(1).await?;
+
+        let hash = da.get_best_block_hash().await?;
+        let block = da.get_block(&hash).await?;
+
+        let commit_txs = block
+            .txdata
+            .into_iter()
+            .skip(1) // Skip coinbase tx
+            .step_by(2) // Keep only commit txs
+            .collect::<Vec<_>>();
+
+        // Assert that we have 5 commit txs
+        assert_eq!(commit_txs.len(), 5);
+
+        for window in commit_txs.windows(2) {
+            let prev_tx = &window[0];
+            let tx = &window[1];
+
+            assert_eq!(tx.input[1].previous_output.txid, prev_tx.compute_txid());
+            assert_eq!(tx.input[1].previous_output.vout, 1);
+        }
+
+        Ok(prev_tx.clone())
     }
 }
 

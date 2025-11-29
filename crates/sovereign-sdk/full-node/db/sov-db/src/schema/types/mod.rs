@@ -145,6 +145,6 @@ pub struct BoundlessSession {
     /// Expected receipt type of the session
     /// Can only be groth16 for now
     pub receipt_type: ReceiptType,
-    /// Number of mcycles used for the proof generation
-    pub mcycles_count: u64,
+    /// Number of cycles used for the proof generation
+    pub total_cycles_approx: u64,
 }

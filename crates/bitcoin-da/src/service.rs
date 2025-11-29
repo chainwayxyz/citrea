@@ -435,16 +435,24 @@ impl BitcoinService {
         }
 
         let utxos: Vec<UTXO> = match self.utxo_selection_mode {
-            UtxoSelectionMode::Chained => utxos
-                .into_iter()
-                .filter(|utxo| {
-                    utxo.spendable
-                        && utxo.solvable
-                        && utxo.safe
-                        && utxo.amount > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
-                })
-                .map(Into::into)
-                .collect(),
+            UtxoSelectionMode::Chained => {
+                let commit_txids = self
+                    .monitoring
+                    .get_in_mempool_commit_transaction_ids()
+                    .await;
+
+                utxos
+                    .into_iter()
+                    .filter(|utxo| {
+                        utxo.spendable
+                            && utxo.solvable
+                            // Accept either safe utxos OR unsafe commit change output that are monitored (and can be considered `mine` and thus safe)
+                            && (utxo.safe || (commit_txids.contains(&utxo.txid) && utxo.vout == 1))
+                            && utxo.amount > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
+                    })
+                    .map(Into::into)
+                    .collect()
+            }
 
             // When running in UtxoSelectionMode::Oldest, we're creating multiple utxos chain in parallel
             // to be able to send multiple proofs in the same block without hitting mempool policy limits.

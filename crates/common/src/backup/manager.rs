@@ -183,7 +183,6 @@ impl BackupManager {
         );
 
         let mut handles = Vec::new();
-
         {
             let dbs = self.databases.read().unwrap();
             for dir in &self.config.backup_dirs {
@@ -198,23 +197,21 @@ impl BackupManager {
         drop(l2_lock);
         drop(l1_lock);
 
+        let mut backup_id = None;
         for handle in handles {
-            handle.await??;
+            let result = handle.await??;
+
+            // Get backup_id from last `BackupEngineInfo` returned from `create_backup`
+            // Any database can be used as the three of them should always match on `backup_id`
+            let current_id = result.last().map(|v| v.backup_id);
+            if backup_id.is_none() {
+                backup_id = current_id;
+            } else {
+                anyhow::ensure!(backup_id == current_id, "Backup id mismatch");
+            }
         }
 
-        if let Err(e) = self.validate_backup(backup_path) {
-            warn!("Error validating backup: {e}");
-            bail!("Error creating valid backup: {e}");
-        }
-
-        let backup_info = self.get_backup_info(backup_path)?;
-        let backup_id = backup_info
-            .get("ledger")
-            .expect("Would fail on validate_backup")
-            .last()
-            .expect("Would fail on validate_backup")
-            .backup_id;
-
+        let backup_id = backup_id.ok_or(anyhow::anyhow!("Failed to get backup_id"))?;
         let info = CreateBackupInfo {
             node_type: self.node_type.to_string(),
             l2_block_height,

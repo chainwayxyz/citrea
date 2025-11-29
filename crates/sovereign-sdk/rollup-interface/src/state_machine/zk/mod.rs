@@ -13,6 +13,8 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
+#[cfg(feature = "native")]
+use serde::Deserialize;
 use serde::Serialize;
 #[cfg(feature = "native")]
 use tokio::sync::oneshot;
@@ -26,6 +28,60 @@ pub mod light_client_proof;
 pub type Proof = Vec<u8>;
 
 #[cfg(feature = "native")]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+/// Information about a local prover's execution.
+pub struct LocalProvingSessionInfo {
+    /// Segments count
+    pub segments: usize,
+    /// Total cycles count
+    pub total_cycles: u64,
+    /// User cycles count
+    pub user_cycles: u64,
+    /// Paging cycles count
+    pub paging_cycles: u64,
+    /// Reserved cycles count
+    pub reserved_cycles: u64,
+}
+
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+/// Information about a bonsai proving session.
+pub struct BonsaiProvingSessionInfo {
+    /// Session ID of the proof request
+    pub session_id: String,
+    /// Count of segments in this proof request
+    pub segments: usize,
+    /// Total cycles run within guest
+    pub total_cycles: u64,
+    /// User cycles run within guest, slightly below total overhead cycles
+    pub user_cycles: u64,
+    /// Type of the proof receipt
+    pub receipt_type: ReceiptType,
+}
+
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+/// Information about a boundless proving session.
+pub struct BoundlessProvingSessionInfo {
+    /// Request ID of the proof request
+    pub request_id: String,
+    /// Approximate number of cycles used for the proof generation
+    pub total_cycles_approx: u64,
+}
+
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+/// Information about the proving session.
+pub enum ProvingSessionInfo {
+    /// Information about a local prover's execution.
+    Local(LocalProvingSessionInfo),
+    /// Information about a bonsai proving session.
+    Bonsai(BonsaiProvingSessionInfo),
+    /// Information about a boundless proving session.
+    Boundless(BoundlessProvingSessionInfo),
+}
+
+#[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 /// Wrapper around `Proof` to associate it with a job
 pub struct ProofWithJob {
@@ -33,9 +89,12 @@ pub struct ProofWithJob {
     pub job_id: uuid::Uuid,
     /// Result proof bytes
     pub proof: Proof,
+    /// Information about prover's execution
+    pub info: ProvingSessionInfo,
 }
 
-#[derive(Debug, Clone, Copy, BorshSerialize, BorshDeserialize)]
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Copy, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 /// The type of the proof receipt
 pub enum ReceiptType {
     /// Use Groth16

@@ -918,4 +918,22 @@ impl MonitoringService {
         }
         Ok(())
     }
+
+    /// Get all monitored in mempool commit transactions txids
+    pub async fn get_in_mempool_commit_transaction_ids(&self) -> Vec<Txid> {
+        self.monitored_txs
+            .read()
+            .await
+            .iter()
+            .filter_map(|monitored_tx| {
+                if matches!(monitored_tx.1.status, TxStatus::InMempool { .. })
+                    && monitored_tx.1.kind == MonitoredTxKind::Commit
+                {
+                    Some(*monitored_tx.0)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
 }
