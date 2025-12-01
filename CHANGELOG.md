@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### Added
-
 ## v1.0.0 (2025-12-01)
+
+### Added
 - feat(prover): Store proving info by job id ([#3011](https://github.com/chainwayxyz/citrea/pull/3011))\
   `batchProver_getProvingJob*` endpoints now return information about the proving session, including cycle counts and request IDs (bonsai and boundless proofs).
 
