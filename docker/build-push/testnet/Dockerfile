@@ -1,4 +1,5 @@
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
+
 RUN \
   apt-get update \
   && apt-get -y install gettext-base \
