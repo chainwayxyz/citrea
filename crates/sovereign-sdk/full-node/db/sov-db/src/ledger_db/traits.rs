@@ -288,6 +288,7 @@ pub trait LightClientProverLedgerOps: SharedLedgerOps + Send + Sync {
         l1_height: u64,
         proof: Proof,
         light_client_proof_output: StoredLightClientProofOutput,
+        info: ProvingSessionInfo,
     ) -> Result<()>;
 
     /// Gets light client proof data by L1 height
@@ -295,6 +296,12 @@ pub trait LightClientProverLedgerOps: SharedLedgerOps + Send + Sync {
         &self,
         l1_height: u64,
     ) -> Result<Option<StoredLightClientProof>>;
+
+    /// Gets proving session info by L1 height
+    fn get_proving_session_info_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<Option<ProvingSessionInfo>>;
 }
 
 /// Ledger operations for the Bonsai service

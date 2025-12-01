@@ -6,6 +6,8 @@
 - feat(prover): Store proving info by job id ([#3011](https://github.com/chainwayxyz/citrea/pull/3011))\
   `batchProver_getProvingJob*` endpoints now return information about the proving session, including cycle counts and request IDs (bonsai and boundless proofs).
 - perf: Remove validation from backup creation. Backup validation should now be handled by `backup_validate` RPC method. ([#3045](https://github.com/chainwayxyz/citrea/pull/3045))
+- feat: Store proving session info of LCP ([#3050](https://github.com/chainwayxyz/citrea/pull/3050))\
+  `lightClientProver_getLightClientProofByL1Height` endpoint now returns information about the proving session, using the same structure as the batch prover responses.
 
 ### Changed
 - chore: renamed `BOUNDLESS_S3_NO_PRESIGNED` to `BOUNDLESS_S3_USE_PRESIGNED`. ([#3046](https://github.com/chainwayxyz/citrea/pull/3046))\
