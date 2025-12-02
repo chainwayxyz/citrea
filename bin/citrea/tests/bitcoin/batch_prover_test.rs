@@ -1373,6 +1373,7 @@ impl TestCase for InvokeCachePruningTest {
                 base_fee_tx_limit: 1_000_000,
                 base_fee_tx_size: 100_000_000,
                 max_account_slots: 1_000_000,
+                ..Default::default()
             },
             ..Default::default()
         }
@@ -1424,7 +1425,8 @@ impl TestCase for InvokeCachePruningTest {
         // Wait for batch proof transactions to hit the mempool
         // In this proof, cache limit of 6MB will be hit and pruning will occur.
         // If the proving session ended successfully, we are gucci
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(2, Some(Duration::from_secs(300)))
+            .await?;
 
         // Finalize the zk proof
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
