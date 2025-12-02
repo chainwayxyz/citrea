@@ -153,7 +153,11 @@ async fn test_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
 
     let call_frame_call_trace = test_client
         // test tracing in pending block
-        .debug_trace_call(tx_request.clone(), Some(BlockId::Number(BlockNumberOrTag::Pending)), Some(opts))
+        .debug_trace_call(
+            tx_request.clone(),
+            Some(BlockId::Number(BlockNumberOrTag::Pending)),
+            Some(opts),
+        )
         .await;
 
     let json_value = serde_json::from_value::<CallFrame>(json! [{
