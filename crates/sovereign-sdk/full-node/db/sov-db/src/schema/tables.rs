@@ -128,6 +128,7 @@ pub const LIGHT_CLIENT_PROVER_LEDGER_TABLES: &[&str] = &[
     ExecutedMigrations::table_name(),
     LightClientProofBySlotNumber::table_name(),
     ProverLastScannedSlot::table_name(),
+    ProvingSessionInfoBySlotNumber::table_name(),
     SlotByHash::table_name(),
     // #### TESTS RELATED TABLES ####
     #[cfg(test)]
@@ -163,6 +164,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     PendingSequencerCommitments::table_name(),
     ProofByJobId::table_name(),
     ProvingSessionInfoByJobId::table_name(),
+    ProvingSessionInfoBySlotNumber::table_name(),
     ProofsBySlotNumber::table_name(),
     ProofsBySlotNumberV2::table_name(),
     ProverLastScannedSlot::table_name(),
@@ -450,6 +452,11 @@ define_table_with_default_codec!(
 define_table_with_default_codec!(
     /// Light client proof data by l1 height
     (LightClientProofBySlotNumber) SlotNumber => StoredLightClientProof
+);
+
+define_table_with_seek_key_codec!(
+    /// Proving session information by slot number
+    (ProvingSessionInfoBySlotNumber) SlotNumber => ProvingSessionInfo
 );
 
 define_table_with_default_codec!(
