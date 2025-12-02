@@ -29,9 +29,9 @@ impl FromEnv for BoundlessS3StorageConfig {
         let s3_bucket = read_env("BOUNDLESS_S3_BUCKET")?;
         let s3_url = read_env("BOUNDLESS_S3_URL")?;
         let aws_region = read_env("BOUNDLESS_AWS_REGION")?;
-        let s3_use_presigned = read_env("BOUNDLESS_S3_NO_PRESIGNED")
+        let s3_use_presigned = read_env("BOUNDLESS_S3_USE_PRESIGNED")
             .map(|s| s.eq_ignore_ascii_case("true") || s == "1")
-            .unwrap_or(true);
+            .unwrap_or_default();
 
         Ok(Self {
             s3_access_key,
