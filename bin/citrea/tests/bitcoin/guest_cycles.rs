@@ -53,6 +53,7 @@ impl TestCase for GenerateProofInput {
                 base_fee_tx_limit: 1_000_000,
                 base_fee_tx_size: 100_000_000,
                 max_account_slots: 1_000_000,
+                ..Default::default()
             },
             ..Default::default()
         }
@@ -233,6 +234,7 @@ impl TestCase for GenerateProvingStatsDB {
                 base_fee_tx_limit: 200_00000,
                 base_fee_tx_size: 400000,
                 max_account_slots: 100_000,
+                ..Default::default()
             },
             test_mode: true,
             ..Default::default()
