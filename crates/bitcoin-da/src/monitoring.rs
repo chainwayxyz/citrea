@@ -894,9 +894,10 @@ impl MonitoringService {
             monitored_tx.status
         );
 
-        if let Ok(result) = monitored_tx.hex() {
-            self.client.send_raw_transaction(&result).await?;
-        } else if let Ok(result) = self.client.get_transaction(txid, None).await {
+        // if let Ok(result) = monitored_tx.hex() {
+        //     self.client.send_raw_transaction(&result).await?;
+        // } else
+        if let Ok(result) = self.client.get_transaction(txid, None).await {
             self.client.send_raw_transaction(&result.hex).await?;
         } else if let Ok(result) = self.client.get_raw_transaction_hex(txid, None).await {
             self.client.send_raw_transaction(result).await?;
