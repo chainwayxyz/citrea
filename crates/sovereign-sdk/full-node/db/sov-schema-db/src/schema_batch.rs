@@ -66,6 +66,25 @@ impl SchemaBatch {
         Ok(None)
     }
 
+    /// Reads the last write for a given key in the batch.
+    /// Parses the value if the operation is a Put.
+    pub fn read_latest<S: Schema>(
+        &self,
+        key: &impl KeyCodec<S>,
+    ) -> anyhow::Result<Option<Option<S::Value>>> {
+        if let Some(operation) = self.read::<S>(key)? {
+            match operation {
+                Operation::Put { value } => {
+                    let parsed_value = S::Value::decode_value(value)?;
+                    Ok(Some(Some(parsed_value)))
+                }
+                Operation::Delete => Ok(Some(None)),
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Iterate over all the writes in the batch for a given column family in reversed lexicographic order
     /// Returns None column family name does not have any writes
     pub fn iter<S: Schema>(

@@ -453,9 +453,8 @@ where
     ) -> Result<ProcessingResult, ProcessingError> {
         // Skip if this commitment index was already processed
         // This prevents double-processing and handles conflicting commitments
-        if let Some(existing_commitment) = self
-            .ledger_db
-            .get_commitment_by_index(sequencer_commitment.index)?
+        if let Some(existing_commitment) =
+            self.get_commitment_by_index(sequencer_commitment.index, schema_batch)?
         {
             // Check if the new commitment has a different merkle root but keep the first processed one as canonical
             if existing_commitment.merkle_root != sequencer_commitment.merkle_root {
@@ -508,10 +507,7 @@ where
         let start_l2_height = if sequencer_commitment.index == 1 {
             get_tangerine_activation_height_non_zero()
         } else {
-            match self
-                .ledger_db
-                .get_commitment_by_index(sequencer_commitment.index - 1)?
-            {
+            match self.get_commitment_by_index(sequencer_commitment.index - 1, schema_batch)? {
                 Some(previous_commitment) => previous_commitment.l2_end_block_number + 1,
                 None => {
                     // If previous commitment is missing, store this one as pending
@@ -899,7 +895,8 @@ where
                 let end_l2_height = commitment.l2_end_block_number;
                 end_l2_height <= head_l2_height
             } else {
-                self.ledger_db.get_commitment_by_index(index - 1)?.is_some()
+                self.get_commitment_by_index(index - 1, schema_batch)?
+                    .is_some()
             };
 
             if processable {
@@ -1052,5 +1049,21 @@ where
             );
         }
         Ok(sequencer_commitment.l2_end_block_number)
+    }
+
+    /// Retrieves a sequencer commitment by its index
+    /// First checks the schema batch, then falls back to the ledger DB
+    fn get_commitment_by_index(
+        &self,
+        index: u32,
+        schema_batch: &SchemaBatch,
+    ) -> Result<Option<SequencerCommitment>, ProcessingError> {
+        if let Some(Some(commitment)) =
+            schema_batch.read_latest::<SequencerCommitmentByIndex>(&index)?
+        {
+            Ok(Some(commitment))
+        } else {
+            Ok(self.ledger_db.get_commitment_by_index(index)?)
+        }
     }
 }
