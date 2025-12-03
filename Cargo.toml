@@ -171,7 +171,7 @@ alloy-network = { version = "0.13", default-features = false }
 alloy-signer = { version = "0.13", default-features = false }
 alloy-signer-local = { version = "0.13.0", default-features = false }
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "a93a037" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "10ff3e2" }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "a6e011a" }
