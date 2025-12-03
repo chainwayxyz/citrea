@@ -7,7 +7,6 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::anyhow;
 use bitcoin::address::NetworkUnchecked;
-use bitcoin::consensus::Encodable;
 use bitcoin::hashes::Hash;
 use bitcoin::{Address, BlockHash, Transaction, Txid};
 use bitcoincore_rpc::json::GetTransactionResult;
@@ -122,6 +121,8 @@ pub struct MonitoredTx {
     /// Next tx in the chain
     pub(crate) next_txid: Option<Txid>,
     pub(crate) kind: MonitoredTxKind,
+    /// Sent hex. None if not sent yet
+    hex: Option<Vec<u8>>,
 }
 
 impl MonitoredTx {
@@ -154,10 +155,8 @@ impl MonitoredTx {
     }
 
     /// Hex
-    pub fn hex(&self) -> Result<Vec<u8>> {
-        let mut buf = Vec::new();
-        self.tx.consensus_encode(&mut buf)?;
-        Ok(buf)
+    pub fn hex(&self) -> Option<&Vec<u8>> {
+        self.hex.as_ref()
     }
 }
 
@@ -525,6 +524,7 @@ impl MonitoringService {
             prev_txid,
             next_txid,
             kind,
+            hex: None,
         };
 
         monitored_txs.insert(txid, monitored_tx);
@@ -568,6 +568,7 @@ impl MonitoringService {
             kind: monitored_tx.kind,
             prev_txid: monitored_tx.prev_txid,
             next_txid: monitored_tx.next_txid,
+            hex: None,
         };
 
         {
@@ -894,10 +895,9 @@ impl MonitoringService {
             monitored_tx.status
         );
 
-        // if let Ok(result) = monitored_tx.hex() {
-        //     self.client.send_raw_transaction(&result).await?;
-        // } else
-        if let Ok(result) = self.client.get_transaction(txid, None).await {
+        if let Some(result) = monitored_tx.hex() {
+            self.client.send_raw_transaction(result).await?;
+        } else if let Ok(result) = self.client.get_transaction(txid, None).await {
             self.client.send_raw_transaction(&result.hex).await?;
         } else if let Ok(result) = self.client.get_raw_transaction_hex(txid, None).await {
             self.client.send_raw_transaction(result).await?;
@@ -946,6 +946,7 @@ impl MonitoringService {
                 if let Ok(tx_result) = self.client.get_transaction(txid, None).await {
                     entry.status = self.determine_tx_status(&tx_result, &entry.status).await?;
                     entry.last_checked = get_timestamp();
+                    entry.hex = Some(tx_result.hex);
                     entry.address = tx_result
                         .details
                         .first()
