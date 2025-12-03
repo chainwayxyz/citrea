@@ -38,6 +38,7 @@ use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
+use sov_rollup_interface::zk::ProvingSessionInfo;
 use sov_rollup_interface::Network;
 
 use super::get_citrea_path;
@@ -3629,4 +3630,49 @@ async fn test_undecompressable_blob() -> Result<()> {
     .set_citrea_path(get_citrea_path())
     .run()
     .await
+}
+
+struct ProvingSessionInfoTest;
+
+#[async_trait]
+impl TestCase for ProvingSessionInfoTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_light_client_prover: true,
+            with_sequencer: false,
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+
+        light_client_prover.wait_for_l1_height(1, None).await?;
+        let proof_response = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(U64::from(1))
+            .await?
+            .expect("proving job should exist");
+
+        let proving_info = proof_response.info;
+        let Some(ProvingSessionInfo::Local(local_info)) = proving_info else {
+            panic!("unexpected proving info type");
+        };
+
+        assert!(local_info.segments > 0);
+        assert!(local_info.total_cycles > 0);
+        assert!(local_info.user_cycles > 0);
+        assert!(local_info.paging_cycles > 0);
+        assert!(local_info.reserved_cycles > 0);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn proving_session_info_test() -> Result<()> {
+    TestCaseRunner::new(ProvingSessionInfoTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
 }

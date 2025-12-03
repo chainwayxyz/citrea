@@ -125,8 +125,22 @@ where
             .ledger
             .get_light_client_proof_data_by_l1_height(l1_height.to())
             .map_err(internal_rpc_error)?;
-        let res = proof.map(LightClientProofResponse::from);
-        Ok(res)
+        let Some(proof) = proof else {
+            return Ok(None);
+        };
+
+        let info = self
+            .context
+            .ledger
+            .get_proving_session_info_by_l1_height(l1_height.to())
+            .map_err(internal_rpc_error)?;
+
+        let response = LightClientProofResponse {
+            proof: proof.proof,
+            light_client_proof_output: proof.light_client_proof_output.into(),
+            info,
+        };
+        Ok(Some(response))
     }
 
     async fn get_batch_proof_method_ids(&self) -> RpcResult<Vec<BatchProofMethodIdRpcResponse>> {
