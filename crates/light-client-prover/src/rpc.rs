@@ -8,7 +8,7 @@ use alloy_primitives::U64;
 use citrea_common::rpc::utils::internal_rpc_error;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::schema::tables::LightClientProofBySlotNumber;
 use sov_db::schema::types::SlotNumber;
 use sov_modules_api::default_context::DefaultContext;
@@ -112,8 +112,22 @@ impl LightClientProverRpcServer for LightClientProverRpcServerImpl {
             .ledger
             .get::<LightClientProofBySlotNumber>(SlotNumber(l1_height.to()))
             .map_err(internal_rpc_error)?;
-        let res = proof.map(LightClientProofResponse::from);
-        Ok(res)
+        let Some(proof) = proof else {
+            return Ok(None);
+        };
+
+        let info = self
+            .context
+            .ledger
+            .get_proving_session_info_by_l1_height(l1_height.to())
+            .map_err(internal_rpc_error)?;
+
+        let response = LightClientProofResponse {
+            proof: proof.proof,
+            light_client_proof_output: proof.light_client_proof_output.into(),
+            info,
+        };
+        Ok(Some(response))
     }
 
     async fn get_batch_proof_method_ids(&self) -> RpcResult<Vec<BatchProofMethodIdRpcResponse>> {

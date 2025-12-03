@@ -14,7 +14,9 @@ use citrea_primitives::forks::fork_from_block_number;
 use prover_services::{ParallelProverService, ProofData, ProofWithDuration};
 use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::{LedgerDB, SchemaBatch};
-use sov_db::schema::tables::{LightClientProofBySlotNumber, ProverLastScannedSlot, SlotByHash};
+use sov_db::schema::tables::{
+    LightClientProofBySlotNumber, ProverLastScannedSlot, ProvingSessionInfoBySlotNumber, SlotByHash,
+};
 use sov_db::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
@@ -301,6 +303,10 @@ where
                 proof,
                 light_client_proof_output: StoredLightClientProofOutput::from(circuit_output),
             },
+        )?;
+        schema_batch.put::<ProvingSessionInfoBySlotNumber>(
+            &SlotNumber(l1_height),
+            &proof_with_duration.info,
         )?;
 
         LPM.set_lcp_proving_time(proof_with_duration.duration);

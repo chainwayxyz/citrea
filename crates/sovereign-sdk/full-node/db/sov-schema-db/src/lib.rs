@@ -31,6 +31,7 @@ pub use iterator::{
     RawDbReverseIterator, ScanDirection, SchemaIterator, SchemaIteratorTx, SeekKeyEncoder,
 };
 pub use rocksdb;
+use rocksdb::backup::BackupEngineInfo;
 pub use rocksdb::DEFAULT_COLUMN_FAMILY_NAME;
 use rocksdb::{DBIterator, ReadOptions, WriteBatch};
 use thiserror::Error;
@@ -377,7 +378,10 @@ impl DB {
     }
 
     /// Create backup at directory specified by `backup_path`
-    pub fn create_backup(&self, backup_path: impl AsRef<Path>) -> anyhow::Result<()> {
+    pub fn create_backup(
+        &self,
+        backup_path: impl AsRef<Path>,
+    ) -> anyhow::Result<Vec<BackupEngineInfo>> {
         std::fs::create_dir_all(&backup_path)?;
 
         let backup_opts = rocksdb::backup::BackupEngineOptions::new(backup_path.as_ref())?;
@@ -392,7 +396,7 @@ impl DB {
             "Created database backup"
         );
 
-        Ok(())
+        Ok(backup_engine.get_backup_info())
     }
 }
 

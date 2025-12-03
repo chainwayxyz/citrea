@@ -7,7 +7,7 @@ use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::stf::StateDiff;
-use sov_rollup_interface::zk::{Proof, StorageRootHash};
+use sov_rollup_interface::zk::{Proof, ProvingSessionInfo, StorageRootHash};
 use sov_schema_db::schema::{KeyCodec, ValueCodec};
 pub use sov_schema_db::SchemaBatch;
 use sov_schema_db::{ScanDirection, Schema, SchemaIterator, SeekKeyEncoder, DB};
@@ -22,8 +22,9 @@ use crate::schema::tables::{
     L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot, L2RangeByL1Height, L2StatusHeights,
     LastPrunedBlock, MempoolTxs, PendingBonsaiSessionByJobId, PendingBoundlessSessionByJobId,
     PendingL1SubmissionJobs, ProofByJobId, ProverLastScannedSlot, ProverPendingCommitments,
-    ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
-    StateDiffByBlockNumber, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    ProverStateDiffs, ProvingSessionInfoByJobId, ProvingSessionInfoBySlotNumber,
+    SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
+    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -423,6 +424,14 @@ impl SharedLedgerOps for LedgerDB {
         let end = range.end() + 1;
         self.get_data_range::<SequencerCommitmentByIndex, _, _>(&(start..end))
     }
+
+    fn get_proving_session_info_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<Option<ProvingSessionInfo>> {
+        self.db
+            .get::<ProvingSessionInfoBySlotNumber>(&SlotNumber(l1_height))
+    }
 }
 
 impl BatchProverLedgerOps for LedgerDB {
@@ -472,6 +481,7 @@ impl BatchProverLedgerOps for LedgerDB {
         id: Uuid,
         proof: Proof,
         output: StoredBatchProofOutput,
+        info: ProvingSessionInfo,
     ) -> anyhow::Result<()> {
         let stored_proof = StoredBatchProof {
             l1_tx_id: None,
@@ -482,6 +492,7 @@ impl BatchProverLedgerOps for LedgerDB {
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<PendingL1SubmissionJobs>(&id, &())?;
         schema_batch.put::<ProofByJobId>(&id, &stored_proof)?;
+        schema_batch.put::<ProvingSessionInfoByJobId>(&id, &info)?;
 
         self.db.write_schemas(schema_batch)
     }
@@ -501,6 +512,14 @@ impl BatchProverLedgerOps for LedgerDB {
         schema_batch.put::<ProofByJobId>(&id, &stored_proof)?;
 
         self.db.write_schemas(schema_batch)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_proving_session_info_by_job_id(
+        &self,
+        id: Uuid,
+    ) -> anyhow::Result<Option<ProvingSessionInfo>> {
+        self.db.get::<ProvingSessionInfoByJobId>(&id)
     }
 
     #[instrument(level = "trace", skip(self), err)]

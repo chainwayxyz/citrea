@@ -6,7 +6,7 @@ use anyhow::Result;
 use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::StateDiff;
-use sov_rollup_interface::zk::{Proof, StorageRootHash};
+use sov_rollup_interface::zk::{Proof, ProvingSessionInfo, StorageRootHash};
 use sov_schema_db::SchemaBatch;
 use uuid::Uuid;
 
@@ -129,6 +129,12 @@ pub trait SharedLedgerOps {
         &self,
         range: std::ops::RangeInclusive<u32>,
     ) -> anyhow::Result<Vec<SequencerCommitment>>;
+
+    /// Gets proving session info by L1 height
+    fn get_proving_session_info_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<Option<ProvingSessionInfo>>;
 }
 
 /// Node ledger operations
@@ -175,10 +181,17 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
         id: Uuid,
         proof: Proof,
         output: StoredBatchProofOutput,
+        info: ProvingSessionInfo,
     ) -> Result<()>;
 
     /// Updates job tx id and removes job from running jobs
     fn finalize_proving_job(&self, id: Uuid, l1_tx_id: [u8; 32]) -> Result<()>;
+
+    /// Get proving info by job id
+    fn get_proving_session_info_by_job_id(
+        &self,
+        id: Uuid,
+    ) -> anyhow::Result<Option<ProvingSessionInfo>>;
 
     /// Get jobs pending to be submitted to DA
     fn get_pending_l1_submission_jobs(&self) -> Result<Vec<Uuid>>;
