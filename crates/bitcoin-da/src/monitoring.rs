@@ -121,7 +121,6 @@ pub struct MonitoredTx {
     /// Next tx in the chain
     pub(crate) next_txid: Option<Txid>,
     pub(crate) kind: MonitoredTxKind,
-    hex: Vec<u8>,
 }
 
 impl MonitoredTx {
@@ -155,7 +154,9 @@ impl MonitoredTx {
 
     /// Hex
     pub fn hex(&self) -> Result<Vec<u8>> {
-        Ok(self.hex.clone())
+        let mut buf = Vec::new();
+        self.tx.consensus_encode(&mut buf)?;
+        Ok(buf)
     }
 }
 
@@ -523,7 +524,6 @@ impl MonitoringService {
             prev_txid,
             next_txid,
             kind,
-            hex: Vec::new(),
         };
 
         monitored_txs.insert(txid, monitored_tx);
@@ -567,7 +567,6 @@ impl MonitoringService {
             kind: monitored_tx.kind,
             prev_txid: monitored_tx.prev_txid,
             next_txid: monitored_tx.next_txid,
-            hex: tx_result.hex,
         };
 
         {
@@ -945,7 +944,6 @@ impl MonitoringService {
                 if let Ok(tx_result) = self.client.get_transaction(txid, None).await {
                     entry.status = self.determine_tx_status(&tx_result, &entry.status).await?;
                     entry.last_checked = get_timestamp();
-                    entry.hex = tx_result.hex;
                     entry.address = tx_result
                         .details
                         .first()
