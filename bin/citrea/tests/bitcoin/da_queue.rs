@@ -546,7 +546,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         assert_eq!(relevant_txs.len(), 3 * 2);
 
         // Wait for monitoring service to update mined txs
-        std::thread::sleep(std::time::Duration::from_millis(1000));
+        std::thread::sleep(std::time::Duration::from_millis(5000));
 
         // Test re-org behaviour when over mempool policy limit
         // Assert that the two utxo chains are independent
@@ -566,6 +566,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         assert!(dropped_txs.iter().all(|tx| !remaining_txs.contains(tx)));
 
         println!("dropped_txs : {dropped_txs:?}");
+        println!("remaining_txs : {remaining_txs:?}");
         da.generate(1).await?;
 
         let best_block = da.get_block(&da.get_best_block_hash().await?).await?;
