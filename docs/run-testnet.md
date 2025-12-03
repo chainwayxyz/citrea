@@ -144,6 +144,7 @@ RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION=10 \
 SEQUENCER_CLIENT_URL=https://rpc.testnet.citrea.xyz \
 INCLUDE_TX_BODY=false \
 SYNC_BLOCKS_COUNT=10 \
+SCAN_L1_START_HEIGHT=45496 \
 RUST_LOG=info \
 JSON_LOGS=1 \
 ./citrea-v1.0.0-osx-arm64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
@@ -179,6 +180,7 @@ RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION=10 \
 SEQUENCER_CLIENT_URL=https://rpc.testnet.citrea.xyz \
 INCLUDE_TX_BODY=false \
 SYNC_BLOCKS_COUNT=10 \
+SCAN_L1_START_HEIGHT=45496 \
 RUST_LOG=info \
 JSON_LOGS=1 \
 ./citrea-v1.0.0-linux-amd64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
@@ -248,6 +250,7 @@ RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION=10 \
 SEQUENCER_CLIENT_URL=https://rpc.testnet.citrea.xyz \
 INCLUDE_TX_BODY=false \
 SYNC_BLOCKS_COUNT=10 \
+SCAN_L1_START_HEIGHT=45496 \
 RUST_LOG=info \
 JSON_LOGS=1 \
 ./target/release/citrea --network testnet --da-layer bitcoin --genesis-paths ./resources/genesis/testnet
