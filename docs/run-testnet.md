@@ -34,16 +34,16 @@ Testnet4 is only enabled in versions bigger than 28.0.
 ```sh
 git clone https://github.com/bitcoin/bitcoin.git
 cd bitcoin
-git checkout v28.0
+git checkout v30.0
 ```
 
 #### Step 1.2: Build Bitcoin Core
 
 Then follow the instructions on the links below for the build. However, don't clone the repository since we already did.
 
-OSX: https://github.com/bitcoin/bitcoin/blob/v28.0/doc/build-osx.md
+OSX: https://github.com/bitcoin/bitcoin/blob/v30.0/doc/build-osx.md
 
-Linux: https://github.com/bitcoin/bitcoin/blob/v28.0/doc/build-unix.md
+Linux: https://github.com/bitcoin/bitcoin/blob/v30.0/doc/build-unix.md
 
 
 #### Step 1.3: Run testnet4 node:
@@ -66,7 +66,7 @@ Follow instructions to install Docker here: https://docs.docker.com/engine/insta
 
 #### Step 2.2: Run testnet4 node:
 
-After Docker is installed, run this command to pull Bitcoin v0.28.0 image and run it as a container:
+After Docker is installed, run this command to pull Bitcoin v0.30.0 image and run it as a container:
 
 ```sh
 docker run -d \
@@ -74,7 +74,7 @@ docker run -d \
   --name bitcoin-testnet4 \
   -p 18443:18443 \
   -p 18444:18444 \
-  bitcoin/bitcoin:28.0 \
+  bitcoin/bitcoin:30.0 \
   -printtoconsole \
   -testnet4=1 \
   -rest \
