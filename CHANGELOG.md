@@ -1,12 +1,25 @@
 # Changelog
 
 ## [Unreleased]
+### Added
+- perf: Remove validation from backup creation. Backup validation should now be handled by `backup_validate` RPC method. ([#3045](https://github.com/chainwayxyz/citrea/pull/3045))
+- feat: Add create backup `citrea-cli` command([#3047](https://github.com/chainwayxyz/citrea/pull/3047))\
+  Usage: citrea-cli create-backup --node-type <NODE_TYPE> --db-path <DB_PATH> --backup-path <BACKUP_PATH>
+- feat: Store proving session info of LCP ([#3050](https://github.com/chainwayxyz/citrea/pull/3050))\
+  `lightClientProver_getLightClientProofByL1Height` endpoint now returns information about the proving session, using the same structure as the batch prover responses.
+
+### Changed
+- chore: renamed `BOUNDLESS_S3_NO_PRESIGNED` to `BOUNDLESS_S3_USE_PRESIGNED`. ([#3046](https://github.com/chainwayxyz/citrea/pull/3046))\
+  &nbsp;&nbsp;**New env var:**
+  &nbsp;&nbsp;&nbsp;&nbsp; `BOUNDLESS_S3_USE_PRESIGNED` Use presigned URLs for S3 (default: false)
+  &nbsp;\
+  New configuration values can also be set inside `batch_prover_config.toml` files under `[risc0_host.prover.Boundless.storage]` with key `s3_use_presigned`.
 
 ## v1.0.0 (2025-12-01)
-
 ### Added
 - feat(prover): Store proving info by job id ([#3011](https://github.com/chainwayxyz/citrea/pull/3011))\
   `batchProver_getProvingJob*` endpoints now return information about the proving session, including cycle counts and request IDs (bonsai and boundless proofs).
+- chore: Add/modify Citrea mainnet values and ZK circuits. ([#3024](https://github.com/chainwayxyz/citrea/pull/3024), [#3025](https://github.com/chainwayxyz/citrea/pull/3025), [#3026](https://github.com/chainwayxyz/citrea/pull/3026), [#3027](https://github.com/chainwayxyz/citrea/pull/3027), [#3028](https://github.com/chainwayxyz/citrea/pull/3028), [#3029](https://github.com/chainwayxyz/citrea/pull/3029), [#3030](https://github.com/chainwayxyz/citrea/pull/3030), [#3031](https://github.com/chainwayxyz/citrea/pull/3031))
 
 ## v0.9.0 (2025-11-12)
 - feat: Implement eth filter rpc endpoints. ([#2956](https://github.com/chainwayxyz/citrea/pull/2956))\
@@ -62,7 +75,7 @@ Node operators need to rescan L1:
 # use citrea-cli v0.7.2
 citrea-cli --rollback --node-type fullnode --db-path path/to/db --l2-target 9999999999 --l1-target 74247 --sequencer-commitment-index 0
 
-citrea-cli clear-pending --db-path path/to/dbs 
+citrea-cli clear-pending --db-path path/to/dbs
 ```
 
 
@@ -75,7 +88,7 @@ Node operators need to rescan L1:
 # use citrea-cli v0.7.1
 citrea-cli --rollback --node-type fullnode --db-path path/to/db --l2-target 9999999999 --l1-target 74247 --sequencer-commitment-index 0
 
-citrea-cli clear-pending --db-path path/to/dbs 
+citrea-cli clear-pending --db-path path/to/dbs
 ```
 
 ## v0.7.0 (2025-04-18)

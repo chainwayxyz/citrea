@@ -453,9 +453,10 @@ where
     I: for<'c> Inspector<CitreaContext<'c, DB>>,
 {
     let mut ext = CitreaChain::new(l1_fee_rate);
-    if let Some(tx_hash) = tx_hash {
-        ext.set_current_tx_hash(tx_hash);
-    }
+
+    let tx_hash = tx_hash.unwrap_or_else(|| b"hash_of_an_ephemeral_transaction".into());
+
+    ext.set_current_tx_hash(tx_hash);
 
     let mut journal = Journal::new(db);
     journal.set_spec_id(config_env.spec());
