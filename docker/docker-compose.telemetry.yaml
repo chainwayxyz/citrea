@@ -1,6 +1,7 @@
 services:
   prometheus:
-    image: prom/prometheus
+    container_name: prometheus.citrea
+    image: local-prometheus
     ports:
       - 9090:9090
     volumes:
@@ -18,6 +19,7 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=password
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./telemetry/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
     networks:
       - monitoring
 
