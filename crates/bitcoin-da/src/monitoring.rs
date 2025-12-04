@@ -14,6 +14,7 @@ use bitcoincore_rpc::{Client, RpcApi};
 use citrea_common::utils::read_env;
 use citrea_common::FromEnv;
 use citrea_primitives::REVEAL_TX_PREFIX;
+use itertools::Itertools;
 use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
