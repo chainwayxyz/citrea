@@ -454,9 +454,9 @@ impl MonitoringService {
                         error!("Error rebroadcasting last transactions: {e}");
                         println!("[Error rebroadcasting last transactions] e : {e:?}");
                     }
-                    // if let Err(e) = self.handle_evicted().await {
-                    //     error!("Error handling evicted transactions: {e}");
-                    // }
+                    if let Err(e) = self.handle_evicted().await {
+                        error!("Error handling evicted transactions: {e}");
+                    }
                 }
             }
         }
@@ -677,35 +677,6 @@ impl MonitoringService {
                 monitored_tx.status
             );
             match &monitored_tx.status {
-                TxStatus::Evicted {
-                    rebroadcast_attempts,
-                    ..
-                } => match self.attempt_rebroadcast(txid, monitored_tx).await {
-                    Ok(_) => {
-                        info!("Attempted to rebroadcast tx {txid}");
-                        println!("Attempted to rebroadcast tx {txid}");
-                        monitored_tx.status = TxStatus::Evicted {
-                            last_seen: get_timestamp(),
-                            rebroadcast_attempts: rebroadcast_attempts + 1,
-                            last_error: None,
-                        };
-
-                        let tx_result = self.client.get_transaction(txid, None).await?;
-                        let new_status = self
-                            .determine_tx_status(&tx_result, &monitored_tx.status)
-                            .await?;
-                        monitored_tx.status = new_status;
-                    }
-                    Err(e) => {
-                        info!("Failed to rebroadcast tx {txid}: {e}");
-                        println!("Failed to rebroadcast tx {txid}: {e}");
-                        monitored_tx.status = TxStatus::Evicted {
-                            last_seen: get_timestamp(),
-                            rebroadcast_attempts: rebroadcast_attempts + 1,
-                            last_error: Some(e.to_string()),
-                        };
-                    }
-                },
                 // Check non-finalized TXs
                 TxStatus::Queued | TxStatus::Confirmed { .. } | TxStatus::Replaced { .. } => {
                     if let Ok(tx_result) = self.client.get_transaction(txid, None).await {
@@ -717,16 +688,16 @@ impl MonitoringService {
                     }
                 }
                 // Check evicted TXs that have already been rebroadcasted at least once
-                // TxStatus::Evicted {
-                //     rebroadcast_attempts,
-                //     ..
-                // } if *rebroadcast_attempts > 0 => {
-                //     let tx_result = self.client.get_transaction(txid, None).await?;
-                //     let new_status = self
-                //         .determine_tx_status(&tx_result, &monitored_tx.status)
-                //         .await?;
-                //     monitored_tx.status = new_status;
-                // }
+                TxStatus::Evicted {
+                    rebroadcast_attempts,
+                    ..
+                } if *rebroadcast_attempts > 0 => {
+                    let tx_result = self.client.get_transaction(txid, None).await?;
+                    let new_status = self
+                        .determine_tx_status(&tx_result, &monitored_tx.status)
+                        .await?;
+                    monitored_tx.status = new_status;
+                }
                 TxStatus::InMempool { height, .. } => {
                     let tx_result = self.client.get_transaction(txid, None).await?;
                     let new_status = self
