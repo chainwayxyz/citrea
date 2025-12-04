@@ -449,13 +449,13 @@ impl MonitoringService {
                     self.prune_old_transactions().await;
                 }
                 _ = rebroadcast_interval.tick() => {
+                    if let Err(e) = self.rebroadcast_last_txs().await {
+                        error!("Error rebroadcasting last transactions: {e}");
+                        println!("[Error rebroadcasting last transactions] e : {e:?}");
+                    }
                     if let Err(e) = self.handle_evicted().await {
                         error!("Error handling evicted transactions: {e}");
                     }
-                    // if let Err(e) = self.rebroadcast_last_txs().await {
-                    //     error!("Error rebroadcasting last transactions: {e}");
-                    //     println!("[Error rebroadcasting last transactions] e : {e:?}");
-                    // }
                 }
             }
         }
@@ -857,31 +857,31 @@ impl MonitoringService {
         Ok(())
     }
 
-    // #[instrument(skip(self))]
-    // async fn rebroadcast_last_txs(&self) -> Result<()> {
-    //     const TXS_NUMBER_TO_REBROADCAST: usize = 100;
-    //     trace!("Rebroadcasting last {TXS_NUMBER_TO_REBROADCAST} txs");
+    #[instrument(skip(self))]
+    async fn rebroadcast_last_txs(&self) -> Result<()> {
+        const TXS_NUMBER_TO_REBROADCAST: usize = 100;
+        trace!("Rebroadcasting last {TXS_NUMBER_TO_REBROADCAST} txs");
 
-    //     let monitored_txs = self.get_monitored_txs().await;
-    //     println!("got monitored txs rebroadcast_last_txs");
+        let monitored_txs = self.get_monitored_txs().await;
+        println!("got monitored txs rebroadcast_last_txs");
 
-    //     for (txid, current_tx) in monitored_txs
-    //         .clone()
-    //         .into_iter()
-    //         .sorted_by_key(|(_, tx)| tx.initial_broadcast)
-    //         .rev()
-    //         .take(TXS_NUMBER_TO_REBROADCAST)
-    //     {
-    //         if let TxStatus::Confirmed { .. } | TxStatus::Finalized { .. } = current_tx.status {
-    //             continue;
-    //         }
+        for (txid, current_tx) in monitored_txs
+            .clone()
+            .into_iter()
+            .sorted_by_key(|(_, tx)| tx.initial_broadcast)
+            .rev()
+            .take(TXS_NUMBER_TO_REBROADCAST)
+        {
+            if let TxStatus::Confirmed { .. } | TxStatus::Finalized { .. } = current_tx.status {
+                continue;
+            }
 
-    //         let v = self.attempt_rebroadcast(&txid, &current_tx).await;
-    //         println!("rebroadcast_last_txs attempt rebroadcast result v : {v:?}");
-    //     }
+            let v = self.attempt_rebroadcast(&txid, &current_tx).await;
+            println!("rebroadcast_last_txs attempt rebroadcast result v : {v:?}");
+        }
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 
     #[instrument(skip(self))]
     async fn attempt_rebroadcast(&self, txid: &Txid, monitored_tx: &MonitoredTx) -> Result<()> {
