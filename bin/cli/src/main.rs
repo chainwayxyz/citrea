@@ -46,6 +46,18 @@ enum Commands {
         #[arg(long)]
         sequencer_commitment_index: Option<u32>,
     },
+    /// Create DBs backup
+    CreateBackup {
+        /// The node kind
+        #[arg(long)]
+        node_type: NodeTypeArg,
+        /// The path of the databases to backup
+        #[arg(long)]
+        db_path: PathBuf,
+        /// The backup path
+        #[arg(long)]
+        backup_path: PathBuf,
+    },
     /// Restore DBs from backup
     RestoreBackup {
         /// The node kind
@@ -121,6 +133,13 @@ async fn main() -> anyhow::Result<()> {
                 sequencer_commitment_index,
             )
             .await?;
+        }
+        Commands::CreateBackup {
+            db_path,
+            backup_path,
+            node_type,
+        } => {
+            commands::create_backup(node_type, db_path, backup_path).await?;
         }
         Commands::RestoreBackup {
             db_path,
