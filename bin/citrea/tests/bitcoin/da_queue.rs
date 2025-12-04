@@ -546,7 +546,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         assert_eq!(relevant_txs.len(), 3 * 2);
 
         // Wait for monitoring service to update mined txs
-        std::thread::sleep(std::time::Duration::from_millis(5000));
+        std::thread::sleep(std::time::Duration::from_millis(1000));
 
         // Test re-org behaviour when over mempool policy limit
         // Assert that the two utxo chains are independent
@@ -555,10 +555,15 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         da.invalidate_block(&hash).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 6 * 2);
 
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+
         // Track that 5 last txs of each utxo chain will be dropped on next block invalidation
         let dropped_txs = &da.get_raw_mempool().await?[2..];
 
         da.invalidate_block(&rollback_first_hash).await?;
+
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+
         // Should be (6 + 18) * 2 if all mined txs were restored to mempool but 5 * 2 txs are dropped due to being over mempool policy limit
         assert_eq!(da.get_raw_mempool().await?.len(), (18 + 1) * 2);
         let remaining_txs = da.get_raw_mempool().await?;
