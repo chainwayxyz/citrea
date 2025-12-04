@@ -576,8 +576,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         assert_eq!(best_block.txdata.len(), (18 + 1) * 2 + 1);
 
         // Make sure txs are rebroadcasted from monitoring service
-        da.wait_mempool_len(5 * 2, Some(Duration::from_secs(15)))
-            .await?;
+        da.wait_mempool_len(5 * 2, None).await?;
         let raw_mempool = da.get_raw_mempool().await?;
         assert_eq!(dropped_txs, raw_mempool);
 
