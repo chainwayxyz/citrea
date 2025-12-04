@@ -154,12 +154,15 @@ where
 
             match proof {
                 Ok(proof) => {
+                    let ProofWithJob { proof, info, .. } = proof;
+
                     let duration = Instant::now()
                         .saturating_duration_since(proof_start_time)
                         .as_secs_f64();
                     let proof_with_duration = ProofWithDuration {
-                        proof: proof.proof,
+                        proof,
                         duration,
+                        info,
                     };
                     tx.send(proof_with_duration)
                         .expect("Proof channel should not close");

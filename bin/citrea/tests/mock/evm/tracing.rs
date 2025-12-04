@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use alloy_primitives::ruint::aliases::U256;
 use alloy_primitives::{Address, Bytes};
-use alloy_rpc_types::{BlockNumberOrTag, TransactionInput, TransactionRequest};
+use alloy_rpc_types::{BlockId, BlockNumberOrTag, TransactionInput, TransactionRequest};
 use alloy_rpc_types_trace::geth::call::FlatCallFrame;
 use alloy_rpc_types_trace::geth::mux::{MuxConfig, MuxFrame};
 use alloy_rpc_types_trace::geth::GethTrace::{
@@ -152,7 +152,12 @@ async fn test_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let call_frame_call_trace = test_client
-        .debug_trace_call(tx_request.clone(), None, Some(opts))
+        // test tracing in pending block
+        .debug_trace_call(
+            tx_request.clone(),
+            Some(BlockId::Number(BlockNumberOrTag::Pending)),
+            Some(opts),
+        )
         .await;
 
     let json_value = serde_json::from_value::<CallFrame>(json! [{

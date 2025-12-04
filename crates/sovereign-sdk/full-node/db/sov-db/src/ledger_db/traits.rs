@@ -6,7 +6,7 @@ use anyhow::Result;
 use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::StateDiff;
-use sov_rollup_interface::zk::{Proof, StorageRootHash};
+use sov_rollup_interface::zk::{Proof, ProvingSessionInfo, StorageRootHash};
 use sov_schema_db::SchemaIterator;
 use uuid::Uuid;
 
@@ -246,6 +246,7 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
         id: Uuid,
         proof: Proof,
         output: StoredBatchProofOutput,
+        info: ProvingSessionInfo,
     ) -> Result<()>;
 
     /// Deletes proving job by its id
@@ -256,6 +257,12 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
 
     /// Get stored proof by job id
     fn get_proof_by_job_id(&self, id: Uuid) -> Result<Option<StoredBatchProof>>;
+
+    /// Get proving info by job id
+    fn get_proving_session_info_by_job_id(
+        &self,
+        id: Uuid,
+    ) -> anyhow::Result<Option<ProvingSessionInfo>>;
 
     /// Get jobs pending to be submitted to DA
     fn get_pending_l1_submission_jobs(&self) -> Result<Vec<Uuid>>;
@@ -281,6 +288,7 @@ pub trait LightClientProverLedgerOps: SharedLedgerOps + Send + Sync {
         l1_height: u64,
         proof: Proof,
         light_client_proof_output: StoredLightClientProofOutput,
+        info: ProvingSessionInfo,
     ) -> Result<()>;
 
     /// Gets light client proof data by L1 height
@@ -288,6 +296,12 @@ pub trait LightClientProverLedgerOps: SharedLedgerOps + Send + Sync {
         &self,
         l1_height: u64,
     ) -> Result<Option<StoredLightClientProof>>;
+
+    /// Gets proving session info by L1 height
+    fn get_proving_session_info_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<Option<ProvingSessionInfo>>;
 }
 
 /// Ledger operations for the Bonsai service

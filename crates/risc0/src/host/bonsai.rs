@@ -9,7 +9,9 @@ use metrics::gauge;
 use risc0_zkvm::{compute_image_id, AssumptionReceipt, Digest, InnerAssumptionReceipt, Receipt};
 use sov_db::ledger_db::{BonsaiLedgerOps, LedgerDB};
 use sov_db::schema::types::{BonsaiSession, BonsaiSessionKind};
-use sov_rollup_interface::zk::{ProofWithJob, ReceiptType};
+use sov_rollup_interface::zk::{
+    BonsaiProvingSessionInfo, ProofWithJob, ProvingSessionInfo, ReceiptType,
+};
 use tokio::sync::oneshot;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -103,10 +105,10 @@ impl BonsaiProver {
 
         tokio::spawn(async move {
             match this
-                .handle_session(job_id, session, image_id, receipt_type)
+                .handle_session(job_id, session.clone(), image_id, receipt_type)
                 .await
             {
-                Ok(receipt) => {
+                Ok((receipt, stats)) => {
                     let serialized_receipt = bincode::serialize(&receipt.inner)
                         .expect("Receipt serialization cannot fail");
 
@@ -115,6 +117,13 @@ impl BonsaiProver {
                     let Ok(_) = tx.send(ProofWithJob {
                         job_id,
                         proof: serialized_receipt,
+                        info: ProvingSessionInfo::Bonsai(BonsaiProvingSessionInfo {
+                            session_id: session.uuid,
+                            segments: stats.segments,
+                            total_cycles: stats.total_cycles,
+                            user_cycles: stats.cycles,
+                            receipt_type,
+                        }),
                     }) else {
                         error!("Bonsai proof receiver channel is closed");
                         return;
@@ -143,7 +152,7 @@ impl BonsaiProver {
         session: SessionId,
         image_id: Digest,
         receipt_type: ReceiptType,
-    ) -> anyhow::Result<Receipt> {
+    ) -> anyhow::Result<(Receipt, SessionStats)> {
         let (succinct_receipt, stats) = self.wait_stark_receipt(&session).await?;
         succinct_receipt
             .verify(image_id)
@@ -159,7 +168,7 @@ impl BonsaiProver {
         );
 
         if matches!(receipt_type, ReceiptType::Succinct) {
-            return Ok(succinct_receipt);
+            return Ok((succinct_receipt, stats));
         }
 
         let snark_session = self.client.create_snark(session.uuid.clone())?;
@@ -178,7 +187,7 @@ impl BonsaiProver {
             .verify(image_id)
             .context("Failed to verify bonsai groth16 proof")?;
 
-        Ok(groth16_receipt)
+        Ok((groth16_receipt, stats))
     }
 
     async fn wait_stark_receipt(
