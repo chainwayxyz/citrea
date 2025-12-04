@@ -161,17 +161,29 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            // Check if bot already commented
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.pull_request.number,
             });
 
+            // Check if bot already commented
             const botComment = comments.find(comment =>
               comment.user.type === 'Bot' &&
               comment.body.includes('Changelog entry missing')
             );
+
+            // Check if changelog was already dismissed by an authorized user
+            const prAuthor = context.payload.pull_request.user.login;
+            const dismissalComment = comments.find(comment => {
+              const isAuthorized = comment.user.login === prAuthor ||
+                ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(comment.author_association);
+              const body = comment.body.toLowerCase();
+              const isDismissal = body.includes('skip-changelog') ||
+                                  body.includes('no changelog') ||
+                                  body.includes('/skip-changelog');
+              return isAuthorized && isDismissal;
+            });
 
             // Only comment if we haven't already
             if (!botComment) {
