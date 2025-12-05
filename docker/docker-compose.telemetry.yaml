@@ -1,6 +1,9 @@
 services:
   prometheus:
     container_name: prometheus.citrea
+    build:
+      context: ./prometheus
+      dockerfile: Dockerfile
     image: local-prometheus
     ports:
       - 9090:9090
