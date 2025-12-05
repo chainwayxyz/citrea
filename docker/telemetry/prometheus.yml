@@ -69,50 +69,6 @@ scrape_configs:
   static_configs:
   - targets:
     - host.docker.internal:8002
-- job_name: citrea-prover
-  relabel_configs:
-  - replacement: dev-net
-    source_labels:
-    - __address__
-    target_label: net_name
-  - replacement: core
-    source_labels:
-    - __address__
-    target_label: env_name
-  - regex: (.*)\.?:.*
-    replacement: dnc-$1
-    source_labels:
-    - __address__
-    target_label: instance
-  - regex: (.*)\.?:.*
-    replacement: $1
-    source_labels:
-    - __address__
-    target_label: service_name
-  - regex: (.*)\.citrea\.?:.*
-    replacement: dnc-$1
-    source_labels:
-    - __address__
-    target_label: instance
-  - regex: (.*)\.citrea\.?:.*
-    replacement: $1
-    source_labels:
-    - __address__
-    target_label: service_name
-  - regex: core-dev-net-(.*)\.citrea\.?:.*
-    replacement: dnc-$1
-    source_labels:
-    - __address__
-    target_label: instance
-  - regex: core-dev-net-(.*)\.citrea\.?:.*
-    replacement: $1
-    source_labels:
-    - __address__
-    target_label: service_name
-  scrape_interval: 1s
-  static_configs:
-  - targets:
-    - host.docker.internal:8003
 - job_name: citrea-light-prover
   relabel_configs:
   - replacement: dev-net
@@ -157,6 +113,50 @@ scrape_configs:
   static_configs:
   - targets:
     - host.docker.internal:8004
+- job_name: citrea-prover
+  relabel_configs:
+  - replacement: dev-net
+    source_labels:
+    - __address__
+    target_label: net_name
+  - replacement: core
+    source_labels:
+    - __address__
+    target_label: env_name
+  - regex: (.*)\.?:.*
+    replacement: dnc-$1
+    source_labels:
+    - __address__
+    target_label: instance
+  - regex: (.*)\.?:.*
+    replacement: $1
+    source_labels:
+    - __address__
+    target_label: service_name
+  - regex: (.*)\.citrea\.?:.*
+    replacement: dnc-$1
+    source_labels:
+    - __address__
+    target_label: instance
+  - regex: (.*)\.citrea\.?:.*
+    replacement: $1
+    source_labels:
+    - __address__
+    target_label: service_name
+  - regex: core-dev-net-(.*)\.citrea\.?:.*
+    replacement: dnc-$1
+    source_labels:
+    - __address__
+    target_label: instance
+  - regex: core-dev-net-(.*)\.citrea\.?:.*
+    replacement: $1
+    source_labels:
+    - __address__
+    target_label: service_name
+  scrape_interval: 1s
+  static_configs:
+  - targets:
+    - host.docker.internal:8003
 - job_name: citrea-sequencer
   relabel_configs:
   - replacement: dev-net
