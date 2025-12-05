@@ -1,3 +1,6 @@
+# NOTE: A specific UID is used to match the production environment's datasource UID
+# to enable seamless dashboard import/export.
+
 apiVersion: 1
 
 datasources:
