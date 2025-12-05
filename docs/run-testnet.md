@@ -117,7 +117,7 @@ Finally run this command to run your Citrea full node:
 
 Mac:
 ```sh
-./citrea-v1.0.0-osx-arm64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+./citrea-v1.0.1-osx-arm64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 or if you wish to use environment variables for configuring your node:
@@ -147,12 +147,12 @@ SYNC_BLOCKS_COUNT=10 \
 SCAN_L1_START_HEIGHT=45496 \
 RUST_LOG=info \
 JSON_LOGS=1 \
-./citrea-v1.0.0-osx-arm64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
+./citrea-v1.0.1-osx-arm64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
 ```
 
 Linux:
 ```sh
-./citrea-v1.0.0-linux-amd64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+./citrea-v1.0.1-linux-amd64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 or if you wish to use environment variables for configuring your node:
@@ -183,7 +183,7 @@ SYNC_BLOCKS_COUNT=10 \
 SCAN_L1_START_HEIGHT=45496 \
 RUST_LOG=info \
 JSON_LOGS=1 \
-./citrea-v1.0.0-linux-amd64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
+./citrea-v1.0.1-linux-amd64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
 ```
 
 Your full node should be serving RPC at `http://0.0.0.0:8080` now.
