@@ -5,14 +5,13 @@ Usage:
 python <path_to_script>/remove_labels.py resources/grafana/prod/<node_type>.dashboard.json > resources/grafana/user/<node_type>.dashboard.json
 '''
 
-
-
 import json
 import re
 import sys
 from copy import deepcopy
 
 LABEL_SELECTOR_REGEX = re.compile(r'([a-zA-Z_:][a-zA-Z0-9_:]*)\s*\{[^}]*\}')
+
 
 def strip_label_selectors(expr: str) -> str:
     """
@@ -34,10 +33,11 @@ def strip_label_selectors(expr: str) -> str:
         current = LABEL_SELECTOR_REGEX.sub(r"\1", current)
     return current
 
+
 def process_dashboard(dashboard: dict) -> dict:
     db = deepcopy(dashboard)
 
-    # Strip label filters from all targets.expr    
+    # Strip label filters from all targets.expr
     panels = db.get("panels", [])
     for panel in panels:
         targets = panel.get("targets", [])
@@ -49,10 +49,13 @@ def process_dashboard(dashboard: dict) -> dict:
     # Remove "net_name" and "env_name" variable from templating.list
     templating = db.get("templating", {})
     variables = templating.get("list", [])
-    templating["list"] = [v for v in variables if v.get("name") not in ("net_name", "env_name")]
+    templating["list"] = [
+        v for v in variables if v.get("name") not in ("net_name", "env_name")
+    ]
     db["templating"] = templating
 
     return db
+
 
 def main():
     if len(sys.argv) != 2:
@@ -65,6 +68,7 @@ def main():
 
     cleaned = process_dashboard(dashboard)
     json.dump(cleaned, sys.stdout, ensure_ascii=False, indent=2)
+
 
 if __name__ == "__main__":
     main()
