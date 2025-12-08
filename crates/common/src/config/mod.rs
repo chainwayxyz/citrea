@@ -12,6 +12,7 @@ use crate::utils::read_env;
 
 /// Configuration types for RISC0 provers
 pub mod risc0;
+pub use risc0::PricingServiceConfig;
 mod rpc;
 
 pub trait FromEnv: Sized {
@@ -942,6 +943,10 @@ mod tests {
             s3_url = "url"
             aws_region = "region"
             s3_use_presigned = true
+
+            [risc0_host.prover.Boundless.pricing_service]
+            base_url = "https://pricing.example.com"
+            timeout_secs = 30
         "#;
 
         let config_file = create_config_from(config);
@@ -961,6 +966,10 @@ mod tests {
                 aws_region: "region".to_string(),
                 s3_use_presigned: true,
             }),
+            pricing_service: PricingServiceConfig {
+                base_url: "https://pricing.example.com".to_string(),
+                timeout_secs: 30,
+            },
         };
         let expected = BatchProverConfig {
             proving_mode: ProverGuestRunConfig::Execute,
@@ -992,6 +1001,10 @@ mod tests {
             pinata_jwt = "jwt"
             pinata_api_url = "http://0.0.0.1"
             ipfs_gateway_url = "http://127.0.0.1"
+
+            [risc0_host.prover.Boundless.pricing_service]
+            base_url = "https://pricing.example.com"
+            timeout_secs = 30
         "#;
 
         let config_file = create_config_from(config);
@@ -1008,6 +1021,10 @@ mod tests {
                 pinata_api_url: "http://0.0.0.1".to_string(),
                 ipfs_gateway_url: "http://127.0.0.1".to_string(),
             }),
+            pricing_service: PricingServiceConfig {
+                base_url: "https://pricing.example.com".to_string(),
+                timeout_secs: 30,
+            },
         };
         let expected = BatchProverConfig {
             proving_mode: ProverGuestRunConfig::Execute,
@@ -1020,5 +1037,52 @@ mod tests {
             },
         };
         assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_pricing_service_config_from_env_success() {
+        std::env::set_var(
+            "BOUNDLESS_PRICING_SERVICE_URL",
+            "http://pricing.example.com",
+        );
+        std::env::set_var("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS", "60");
+
+        let config = risc0::PricingServiceConfig::from_env().unwrap();
+        assert_eq!(config.base_url, "http://pricing.example.com");
+        assert_eq!(config.timeout_secs, 60);
+
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_URL");
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS");
+    }
+
+    #[test]
+    fn test_pricing_service_config_from_env_with_default_timeout() {
+        std::env::set_var(
+            "BOUNDLESS_PRICING_SERVICE_URL",
+            "http://pricing.example.com",
+        );
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS");
+
+        let config = risc0::PricingServiceConfig::from_env().unwrap();
+        assert_eq!(config.base_url, "http://pricing.example.com");
+        assert_eq!(config.timeout_secs, 30); // default value
+
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_URL");
+    }
+
+    #[test]
+    fn test_pricing_service_config_from_env_invalid_timeout() {
+        std::env::set_var(
+            "BOUNDLESS_PRICING_SERVICE_URL",
+            "http://pricing.example.com",
+        );
+        std::env::set_var("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS", "invalid");
+
+        let config = risc0::PricingServiceConfig::from_env().unwrap();
+        assert_eq!(config.base_url, "http://pricing.example.com");
+        assert_eq!(config.timeout_secs, 30);
+
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_URL");
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS");
     }
 }

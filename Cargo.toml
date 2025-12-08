@@ -41,7 +41,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.8.1"
+version = "1.0.1"
 edition = "2021"
 license = "GPL-3.0"
 authors = ["Chainway Labs <info@chainway.xyz>"]
@@ -86,10 +86,10 @@ k256 = { version = "0.13.4" }
 lru = "0.13"
 hex = { version = "0.4.3", default-features = false, features = ["alloc", "serde"] }
 log-panics = { version = "2", features = ["with-backtrace"] }
-metrics = "0.23.0"
-metrics-derive = "0.1.0"
-metrics-exporter-prometheus = "0.15.3"
-metrics-util = "0.17.0"
+metrics = "0.24.0"
+metrics-derive = "0.1"
+metrics-exporter-prometheus = { version = "0.16.0", default-features = false }
+metrics-util = "0.19.0"
 # 1.13 uses getrandom 0.3
 uuid = { version = "=1.12.1", default-features = false, features = ["serde", "borsh", "v7"] }
 parking_lot = "0.12.3"
@@ -171,7 +171,7 @@ alloy-network = { version = "0.13", default-features = false }
 alloy-signer = { version = "0.13", default-features = false }
 alloy-signer-local = { version = "0.13.0", default-features = false }
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "5671cf8" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "10ff3e2" }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "a6e011a" }
