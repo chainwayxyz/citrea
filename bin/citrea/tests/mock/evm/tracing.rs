@@ -14,7 +14,6 @@ use alloy_rpc_types_trace::geth::{
     GethDebugTracingCallOptions, GethDebugTracingOptions, PreStateConfig, PreStateFrame,
     TraceResult,
 };
-use bincode::de;
 // use citrea::initialize_logging;
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::{CallerContract, SimpleStorageContract};
