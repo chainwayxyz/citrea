@@ -66,6 +66,5 @@ pub(crate) fn prune_native_db(native_db: Arc<sov_schema_db::DB>, up_to_block: u6
 
     if let Err(e) = native_db.delete_batch::<ModuleAccessoryState>(keys_to_delete) {
         error!("Failed to delete batch during native DB pruning: {:?}", e);
-        return;
     }
 }
