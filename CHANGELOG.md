@@ -10,6 +10,9 @@
 - ci: Run citrea-e2e tests against bitcoin v30
 - feat: Reactivate pruning. ([#3010](https://github.com/chainwayxyz/citrea/pull/3010))
 
+- feat: Add `citrea-cli db-migrate` subcommand([#3015](https://github.com/chainwayxyz/citrea/pull/3015))\
+  Usage: citrea-cli db-migrate --node-type <NODE_TYPE> --db-path <DB_PATH>
+
 ### Changed
 - chore: renamed `BOUNDLESS_S3_NO_PRESIGNED` to `BOUNDLESS_S3_USE_PRESIGNED`. ([#3046](https://github.com/chainwayxyz/citrea/pull/3046))\
   &nbsp;&nbsp;**New env var:**
