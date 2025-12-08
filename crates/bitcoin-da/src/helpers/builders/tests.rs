@@ -195,7 +195,7 @@ fn build_commit_transaction() {
         recipient.clone(),
         address.clone(),
         5_000,
-        8,
+        8.0,
     )
     .unwrap();
     assert_eq!(leftover_utxos.len(), 2);
@@ -224,7 +224,7 @@ fn build_commit_transaction() {
         recipient.clone(),
         address.clone(),
         5_000,
-        45,
+        45.0,
     )
     .unwrap();
     assert_eq!(leftover_utxos.len(), 2);
@@ -253,7 +253,7 @@ fn build_commit_transaction() {
         recipient.clone(),
         address.clone(),
         5_000,
-        32,
+        32.0,
     )
     .unwrap();
     assert_eq!(leftover_utxos.len(), 2);
@@ -287,7 +287,7 @@ fn build_commit_transaction() {
         recipient.clone(),
         address.clone(),
         1_050_000,
-        5,
+        5.0,
     )
     .unwrap();
     assert_eq!(leftover_utxos.len(), 1);
@@ -332,7 +332,7 @@ fn build_commit_transaction() {
         recipient.clone(),
         address.clone(),
         100_000_000_000,
-        32,
+        32.0,
     );
 
     assert!(tx.is_err());
@@ -371,7 +371,7 @@ fn build_commit_transaction() {
         recipient.clone(),
         address.clone(),
         50000,
-        32,
+        32.0,
     )
     .unwrap();
     assert_eq!(leftover_utxos.len(), 4);
@@ -385,7 +385,7 @@ fn build_commit_transaction() {
         recipient.clone(),
         address.clone(),
         100_000_000_000,
-        32,
+        32.0,
     );
 
     assert!(tx.is_err());
@@ -412,7 +412,7 @@ fn build_commit_transaction() {
         recipient.clone(),
         address.clone(),
         100_000_000_000,
-        32,
+        32.0,
     );
 
     assert!(tx.is_err());
@@ -440,7 +440,7 @@ fn build_reveal_transaction() {
         utxo.vout,
         address.clone(),
         REVEAL_OUTPUT_AMOUNT,
-        8,
+        8.0,
         &script,
         &control_block,
     )
@@ -469,7 +469,7 @@ fn build_reveal_transaction() {
         utxo.vout,
         address.clone(),
         REVEAL_OUTPUT_AMOUNT,
-        75,
+        75.0,
         &script,
         &control_block,
     );
@@ -488,7 +488,7 @@ fn build_reveal_transaction() {
         utxo.vout,
         address.clone(),
         9999,
-        1,
+        1.0,
         &script,
         &control_block,
     );
@@ -513,8 +513,8 @@ fn create_inscription_transactions() {
         None,
         utxos.clone(),
         address.clone(),
-        12,
-        10,
+        12.0,
+        10.0,
         bitcoin::Network::Bitcoin,
         tx_prefix.to_vec(),
     )
@@ -638,7 +638,7 @@ fn reproduce_direct_return_bug() {
         recipient.clone(),
         address.clone(),
         output_value,
-        1,
+        1.0,
     );
 
     // Should fail with not enough UTXO
@@ -714,7 +714,7 @@ fn reproduce_direct_return_bug() {
         recipient.clone(),
         address.clone(),
         output_value,
-        1,
+        1.0,
     )
     .unwrap();
 

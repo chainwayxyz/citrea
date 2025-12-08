@@ -109,14 +109,14 @@ impl FeeService {
     /// Get the fee rate in sat/vB from the mempool space or via the Bitcoin Core client.
     /// If the network is regtest or testnet, it returns a default value of 1 sat/vB.
     #[instrument(level = "trace", skip_all, ret)]
-    pub async fn get_fee_rate(&self) -> Result<u64> {
+    pub async fn get_fee_rate(&self) -> Result<f64> {
         match self.get_fee_rate_as_sat_vb().await {
             Ok(fee) => Ok(fee),
             Err(e) => {
                 if self.network == bitcoin::Network::Regtest
                     || self.network == bitcoin::Network::Testnet
                 {
-                    Ok(1)
+                    Ok(1.0)
                 } else {
                     Err(e)
                 }
@@ -126,23 +126,31 @@ impl FeeService {
 
     /// Get the fee rate in sat/vB from the mempool space or via the Bitcoin Core client.
     #[instrument(level = "trace", skip_all, ret)]
-    pub async fn get_fee_rate_as_sat_vb(&self) -> Result<u64> {
+    pub async fn get_fee_rate_as_sat_vb(&self) -> Result<f64> {
         // If network is regtest or signet, mempool space is not available
         let smart_fee =
             match get_fee_rate_from_mempool_space(self.network, &self.mempool_space_url).await {
-                Ok(fee_rate) => fee_rate,
-                Err(e) => {
-                    tracing::error!(?e, "Failed to get fee rate from mempool.space");
-                    self.client
+                Ok(Some(fee_rate)) => fee_rate,
+                Ok(None) | Err(_) => {
+                    match self
+                        .client
                         .estimate_smart_fee(1, Some(EstimateMode::Conservative))
-                        .await?
-                        .fee_rate
+                        .await
+                    {
+                        Ok(response) => response
+                            .fee_rate
+                            .map_or(1000.0, |rate| rate.to_sat() as f64),
+                        Err(e) => {
+                            tracing::error!(?e, "Failed to get fee rate from estimate_smart_fee");
+                            1000.0
+                        }
+                    }
                 }
             };
-        let sat_vkb = smart_fee.map_or(1000, |rate| rate.to_sat());
 
-        tracing::debug!("Fee rate: {} sat/vb", sat_vkb / 1000);
-        Ok(sat_vkb / 1000)
+        let sat_vb = smart_fee / 1000.0;
+        tracing::debug!("Fee rate: {} sat/vb", sat_vb);
+        Ok(sat_vb)
     }
 
     /// Bump TX fee via cpfp.
@@ -232,7 +240,7 @@ impl FeeService {
 pub(crate) async fn get_fee_rate_from_mempool_space(
     network: bitcoin::Network,
     mempool_space_url: &str,
-) -> Result<Option<Amount>> {
+) -> Result<Option<f64>> {
     let url = match network {
         bitcoin::Network::Bitcoin => format!(
             // Mainnet
@@ -251,16 +259,16 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
         .json::<serde_json::Value>()
         .await?
         .get("fastestFee")
-        .and_then(|fee| fee.as_u64())
-        .map(|fee| Amount::from_sat(fee * 1000)) // multiply by 1000 to convert to sat/vkb
+        .and_then(|fee| fee.as_f64())
         .ok_or(FeeServiceError::MempoolSpaceParseError)?;
 
-    Ok(Some(fee_rate))
+    // multiply by 1000 to convert to sat/vkb
+    Ok(Some(fee_rate * 1000.0))
 }
 
 pub(crate) fn validate_txs_fee_rate(
     txs: &[SignedTxPair],
-    fee_rate: u64,
+    fee_rate: f64,
     utxos: Vec<UTXO>,
     prev_utxo: Option<UTXO>,
 ) -> std::result::Result<(), BitcoinServiceError> {
