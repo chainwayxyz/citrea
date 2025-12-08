@@ -8,6 +8,7 @@
 - feat: Store proving session info of LCP ([#3050](https://github.com/chainwayxyz/citrea/pull/3050))\
   `lightClientProver_getLightClientProofByL1Height` endpoint now returns information about the proving session, using the same structure as the batch prover responses.
 - ci: Run citrea-e2e tests against bitcoin v30
+- feat: Use floating point precision in calculating bitcoin fee rate. ([#3066](https://github.com/chainwayxyz/citrea/pull/3066))
 
 ### Changed
 - chore: renamed `BOUNDLESS_S3_NO_PRESIGNED` to `BOUNDLESS_S3_USE_PRESIGNED`. ([#3046](https://github.com/chainwayxyz/citrea/pull/3046))\
