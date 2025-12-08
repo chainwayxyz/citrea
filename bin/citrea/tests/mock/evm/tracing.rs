@@ -11,8 +11,10 @@ use alloy_rpc_types_trace::geth::GethTrace::{
 };
 use alloy_rpc_types_trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType,
-    GethDebugTracingCallOptions, GethDebugTracingOptions, PreStateFrame, TraceResult,
+    GethDebugTracingCallOptions, GethDebugTracingOptions, PreStateConfig, PreStateFrame,
+    TraceResult,
 };
+use bincode::de;
 // use citrea::initialize_logging;
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::{CallerContract, SimpleStorageContract};
@@ -1008,6 +1010,51 @@ async fn test_pre_state_tracer() -> Result<(), Box<dyn std::error::Error>> {
 
     assert_eq!(json_res.len(), 1);
     assert_eq!(json_res[0], PreStateTracer(json_value));
+
+    // reproduce bug where a contract deployment on an address with balance doesn't show up on
+    // "pre" field of prestate tracer when diff mode is enabled
+    let cur_nonce = test_client
+        .eth_get_transaction_count(test_client.from_addr, None)
+        .await
+        .unwrap();
+
+    // +1 because we'll send funds to the contract address first, using cur_nonce
+    let contract_addr = test_client.from_addr.create(cur_nonce + 1);
+
+    let res = test_client
+        .send_eth(contract_addr, None, None, Some(cur_nonce), 1_000_000)
+        .await?;
+
+    test_client.send_publish_batch_request().await;
+
+    res.get_receipt().await?;
+
+    // any contract works as this is CREATE
+    let deploy_tx = test_client
+        .deploy_contract(CallerContract::default().byte_code(), Some(cur_nonce + 1))
+        .await?;
+
+    test_client.send_publish_batch_request().await;
+
+    let tx_hash = deploy_tx.get_receipt().await?.transaction_hash;
+
+    let trace_result = test_client
+        .debug_trace_transaction(
+            tx_hash,
+            Some(GethDebugTracingOptions::prestate_tracer(PreStateConfig {
+                diff_mode: Some(true),
+                ..Default::default()
+            })),
+        )
+        .await;
+
+    assert!(trace_result
+        .try_into_pre_state_frame()
+        .unwrap()
+        .as_diff()
+        .unwrap()
+        .pre
+        .contains_key(&contract_addr));
 
     task_manager.graceful_shutdown();
     Ok(())
