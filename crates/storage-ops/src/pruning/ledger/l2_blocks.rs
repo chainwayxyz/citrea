@@ -26,10 +26,6 @@ pub(crate) fn prune_l2_blocks(
 
         ledger_db.delete::<L2BlockByNumber>(&l2_block_number)?;
 
-        if matches!(node_type, NodeType::LightClientProver) {
-            return Ok(deleted);
-        }
-
         ledger_db.delete::<L2BlockByHash>(&record.value.hash)?;
 
         if matches!(node_type, NodeType::BatchProver) {

@@ -38,10 +38,6 @@ pub(crate) fn prune_ledger(node_type: NodeType, ledger_db: Arc<DB>, up_to_block:
             log_result_or_error!("slots", prune_slots(node_type, &ledger_db, up_to_block));
         }
         NodeType::LightClientProver => {
-            log_result_or_error!(
-                "l2_blocks",
-                prune_l2_blocks(node_type, &ledger_db, up_to_block)
-            );
             log_result_or_error!("slots", prune_slots(node_type, &ledger_db, up_to_block));
         }
     }
