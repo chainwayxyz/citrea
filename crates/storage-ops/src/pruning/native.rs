@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time::Instant;
 
 use sov_db::schema::tables::ModuleAccessoryState;
 use sov_schema_db::ScanDirection;
@@ -8,6 +9,7 @@ use tracing::{error, info};
 /// Prune native DB
 pub(crate) fn prune_native_db(native_db: Arc<sov_schema_db::DB>, up_to_block: u64) {
     info!("Pruning native DB, up to L2 block {}", up_to_block);
+    let start = Instant::now();
 
     // We iterate backwards (newest to oldest) so that when we see a key for the first time,
     // it's the newest version. This allows us to keep the newest version and delete older ones.
@@ -64,7 +66,16 @@ pub(crate) fn prune_native_db(native_db: Arc<sov_schema_db::DB>, up_to_block: u6
         }
     }
 
+    let deletions_count = keys_to_delete.len();
     if let Err(e) = native_db.delete_batch::<ModuleAccessoryState>(keys_to_delete) {
         error!("Failed to delete batch during native DB pruning: {:?}", e);
     }
+
+    let duration = start.elapsed();
+    info!(
+        "Native DB pruning completed, up_to_block={}, deletions={}, duration={}ms",
+        up_to_block,
+        deletions_count,
+        duration.as_millis()
+    );
 }

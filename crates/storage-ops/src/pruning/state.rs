@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use jmt::storage::Node;
 use sov_db::schema::tables::{JmtNodes, JmtValues, KeyHashToKey, StaleNodes};
@@ -9,6 +10,7 @@ use tracing::{error, info};
 #[allow(dead_code)]
 pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
     info!("Pruning state DB, up to L2 block {}", to_block);
+    let start = Instant::now();
 
     let to_version = to_block + 1;
 
@@ -150,5 +152,11 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
         error!("Could not delete state data: {:?}", e);
     }
 
-    info!("Pruned {} records from state DB", deletions);
+    let duration = start.elapsed();
+    info!(
+        "State DB pruning completed, up_to_block={}, deletions={}, duration={}ms",
+        to_block,
+        deletions,
+        duration.as_millis()
+    );
 }
