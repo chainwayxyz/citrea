@@ -1,6 +1,6 @@
-services:  
+services:
   citrea-bitcoin-testnet4:
-    image: bitcoin/bitcoin:28.0
+    image: bitcoin/bitcoin:30.0
     container_name: bitcoin-testnet4
     ports:
       - "18443:18443"
@@ -21,7 +21,7 @@ services:
     networks:
       - citrea-testnet-network
 
-  
+
   citrea-full-node:
     depends_on:
       - citrea-bitcoin-testnet4

@@ -113,7 +113,7 @@ pub mod bitcoinda {
 
     /// Genesis L2 root for the Bitcoin DA on Mainnet.
     pub const MAINNET_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
-        b"0000000000000000000000000000000000000000000000000000000000000000",
+        b"261f004169ba6ece87e1c2f824cf16ac84420792fb5efe2270ad8046db445096",
     ) {
         Ok(root) => root,
         Err(_) => panic!("Can't happen"),
@@ -169,7 +169,10 @@ pub mod bitcoinda {
 
     /// Initial batch proof method IDs for the Bitcoin DA on Mainnet.
     pub const MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> =
-        NonEmptySlice::new(&[(0, [0; 8])]);
+        NonEmptySlice::new(&[(
+            0,
+            decode_to_u32_array("020291bea4d2ff9b5111f071cf29c0189831efe720c9247e2c916348d87db639"),
+        )]);
 
     /// Initial batch proof method IDs for the Bitcoin DA on Testnet.
     pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> =
@@ -247,7 +250,7 @@ pub mod bitcoinda {
 
     /// Public key of the batch prover in the Bitcoin DA on Mainnet.
     pub const MAINNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
-        b"030000000000000000000000000000000000000000000000000000000000000000",
+        b"038e501ede61097973e49e714d5f2ad740c82b798bb90fda427fd5138e51f2398e",
     ) {
         Ok(pub_key) => pub_key,
         Err(_) => panic!("PROVER_DA_PUB_KEY must be valid 33-byte hex string"),
@@ -301,7 +304,7 @@ pub mod bitcoinda {
 
     /// Public key of the sequencer in the Bitcoin DA on Mainnet.
     pub const MAINNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
-        b"030000000000000000000000000000000000000000000000000000000000000000",
+        b"032a31a1fa359abd2e6fc1136b4dea711e5f18618504e021084cc61099f72bb2bd",
     ) {
         Ok(pub_key) => pub_key,
         Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
@@ -353,14 +356,13 @@ pub mod bitcoinda {
         }
     };
 
-    // TODO: Update with real keys
     /// Public keys of the method ID upgrade authority in the Bitcoin DA on Mainnet.
     /// 3 out of 5 signatures are required to upgrade method IDs.
     pub const MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8;
         SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
         SECURITY_COUNCIL_MEMBER_COUNT] = [
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"031f44b16dfa50f33382568ae10391779f06c4a6ed5e9e3c83409d8b6ede26ed57",
         ) {
             Ok(k) => k,
             Err(_) => {
@@ -368,7 +370,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"03e6028f183993c8fd7bb4082a27c3b44f716bba91dcd8c6f37f7c1e6a77233379",
         ) {
             Ok(k) => k,
             Err(_) => {
@@ -376,7 +378,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"0280cbbafd6115883a7adeb2d40034348e2334ad79d197386ea6bdf60ac28525f6",
         ) {
             Ok(k) => k,
             Err(_) => {
@@ -384,7 +386,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"03f56e848d9864362f4925e0d53863902c5f86766ee59359f52647df43a0890ce7",
         ) {
             Ok(k) => k,
             Err(_) => {
@@ -392,7 +394,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"02af3ac556337a5b8f5c0b6d4a03591f6756851b065c382c19aefa6d2c5af92b4a",
         ) {
             Ok(k) => k,
             Err(_) => {

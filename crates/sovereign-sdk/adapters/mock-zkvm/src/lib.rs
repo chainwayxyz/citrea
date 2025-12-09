@@ -8,7 +8,9 @@ use std::sync::{Arc, Mutex, RwLock};
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::zk::{Matches, Proof, ProofWithJob, ReceiptType};
+use sov_rollup_interface::zk::{
+    LocalProvingSessionInfo, Matches, Proof, ProofWithJob, ProvingSessionInfo, ReceiptType,
+};
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
@@ -119,6 +121,14 @@ impl MockZkvm {
             chan.send(ProofWithJob {
                 job_id: Uuid::now_v7(),
                 proof,
+                // mock proving info
+                info: ProvingSessionInfo::Local(LocalProvingSessionInfo {
+                    segments: 0,
+                    total_cycles: 0,
+                    user_cycles: 0,
+                    paging_cycles: 0,
+                    reserved_cycles: 0,
+                }),
             })
             .unwrap();
             true

@@ -15,7 +15,7 @@ use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::services::da::DaTxRequest;
 use sov_rollup_interface::stf::StateDiff;
-use sov_rollup_interface::zk::Proof;
+use sov_rollup_interface::zk::{Proof, ProvingSessionInfo};
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 use uuid::Uuid;
@@ -112,6 +112,7 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     PendingL1SubmissionJobs::table_name(),
     PendingBoundlessSessionByJobId::table_name(),
     ProofByJobId::table_name(),
+    ProvingSessionInfoByJobId::table_name(),
     ProverLastScannedSlot::table_name(),
     ProverPendingCommitments::table_name(),
     ProverStateDiffs::table_name(),
@@ -136,6 +137,7 @@ pub const LIGHT_CLIENT_PROVER_LEDGER_TABLES: &[&str] = &[
     ExecutedMigrations::table_name(),
     LightClientProofBySlotNumber::table_name(),
     ProverLastScannedSlot::table_name(),
+    ProvingSessionInfoBySlotNumber::table_name(),
     SlotByHash::table_name(),
     // #### TESTS RELATED TABLES ####
     #[cfg(test)]
@@ -174,6 +176,8 @@ pub const LEDGER_TABLES: &[&str] = &[
     PendingProvingSessions::table_name(),
     PendingSequencerCommitments::table_name(),
     ProofByJobId::table_name(),
+    ProvingSessionInfoByJobId::table_name(),
+    ProvingSessionInfoBySlotNumber::table_name(),
     ProofsBySlotNumber::table_name(),
     ProofsBySlotNumberV2::table_name(),
     ProverLastScannedSlot::table_name(),
@@ -380,6 +384,11 @@ define_table_with_default_codec!(
     (ProofByJobId) Uuid => StoredBatchProof
 );
 
+define_table_with_seek_key_codec!(
+    /// Proving session information by job ID
+    (ProvingSessionInfoByJobId) Uuid => ProvingSessionInfo
+);
+
 define_table_with_default_codec!(
     /// Secondary index table for quickly associating commitment idx with its proving job id
     (JobIdOfCommitment) u32 => Uuid
@@ -456,6 +465,11 @@ define_table_with_default_codec!(
 define_table_with_default_codec!(
     /// Light client proof data by l1 height
     (LightClientProofBySlotNumber) SlotNumber => StoredLightClientProof
+);
+
+define_table_with_seek_key_codec!(
+    /// Proving session information by slot number
+    (ProvingSessionInfoBySlotNumber) SlotNumber => ProvingSessionInfo
 );
 
 define_table_with_default_codec!(
