@@ -108,7 +108,7 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         l1_fee_rate,
                         &mut inspector,
                     )?;
-                    let mut frame = inspector
+                    let frame = inspector
                         .with_transaction_gas_limit(tx_env.gas_limit())
                         .into_geth_builder()
                         .geth_prestate_traces(&res, &prestate_config, &db_ref)
@@ -292,7 +292,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         l1_fee_rate,
                         &mut inspector,
                     )?;
-                    let mut frame = inspector
+                    let frame = inspector
                         .with_transaction_gas_limit(tx_env.gas_limit())
                         .into_geth_builder()
                         .geth_prestate_traces(&res, &prestate_config, db_ref)
