@@ -449,7 +449,11 @@ define_table_without_codec!(
     (StaleNodes) StaleNodeIndex => ()
 );
 
-// Custom codec for StaleNodeIndex using big-endian version for RocksDB ordering
+// Custom codec for StaleNodeIndex using big-endian encoding for correct RocksDB ordering.
+// RocksDB performs lexicographic byte-wise comparison for key ordering. Big-endian encoding
+// ensures numeric values sort correctly (higher numbers have higher byte values in the first bytes).
+// This correct ordering is critical for range queries and pruning operations
+// that depend on version-based iteration.
 impl KeyEncoder<StaleNodes> for StaleNodeIndex {
     fn encode_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
         use anyhow::Context as _;
