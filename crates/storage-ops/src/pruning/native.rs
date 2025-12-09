@@ -4,22 +4,22 @@ use std::time::Instant;
 
 use sov_db::schema::tables::ModuleAccessoryState;
 use sov_schema_db::ScanDirection;
-use tracing::{error, info};
+use tracing::info;
 
 /// Prune native DB
-pub(crate) fn prune_native_db(native_db: Arc<sov_schema_db::DB>, up_to_block: u64) {
+pub(crate) fn prune_native_db(
+    native_db: Arc<sov_schema_db::DB>,
+    up_to_block: u64,
+) -> anyhow::Result<()> {
     info!("Pruning native DB, up to L2 block {}", up_to_block);
     let start = Instant::now();
 
     // We iterate backwards (newest to oldest) so that when we see a key for the first time,
     // it's the newest version. This allows us to keep the newest version and delete older ones.
     // For versioned state (accounts, etc.): seen_keys tracks which keys we want to preserve.
-    let Ok(mut iter) = native_db
+    let mut iter = native_db
         .iter_with_direction::<ModuleAccessoryState>(Default::default(), ScanDirection::Backward)
-    else {
-        error!("Failed to create iterator for native DB pruning");
-        return;
-    };
+        .map_err(|e| anyhow::anyhow!("Failed to create iterator for native DB pruning: {:?}", e))?;
 
     iter.seek_to_last();
 
@@ -67,9 +67,9 @@ pub(crate) fn prune_native_db(native_db: Arc<sov_schema_db::DB>, up_to_block: u6
     }
 
     let deletions_count = keys_to_delete.len();
-    if let Err(e) = native_db.delete_batch::<ModuleAccessoryState>(keys_to_delete) {
-        error!("Failed to delete batch during native DB pruning: {:?}", e);
-    }
+    native_db
+        .delete_batch::<ModuleAccessoryState>(keys_to_delete)
+        .map_err(|e| anyhow::anyhow!("Failed to delete batch during native DB pruning: {:?}", e))?;
 
     let duration = start.elapsed();
     info!(
@@ -78,4 +78,5 @@ pub(crate) fn prune_native_db(native_db: Arc<sov_schema_db::DB>, up_to_block: u6
         deletions_count,
         duration.as_millis()
     );
+    Ok(())
 }

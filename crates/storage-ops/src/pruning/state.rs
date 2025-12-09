@@ -7,16 +7,18 @@ use sov_schema_db::SchemaBatch;
 use tracing::{error, info};
 
 /// Prune state DB
-#[allow(dead_code)]
-pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
+pub(crate) fn prune_state_db(
+    state_db: Arc<sov_schema_db::DB>,
+    to_block: u64,
+) -> anyhow::Result<()> {
     info!("Pruning state DB, up to L2 block {}", to_block);
     let start = Instant::now();
 
     let to_version = to_block + 1;
 
-    let mut indices = state_db
-        .iter::<StaleNodes>()
-        .expect("Tried to prune state DB but could not obtain an iterator");
+    let mut indices = state_db.iter::<StaleNodes>().map_err(|e| {
+        anyhow::anyhow!("Tried to prune state DB but could not obtain an iterator: {:?}", e)
+    })?;
 
     indices.seek_to_first();
 
@@ -148,9 +150,9 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
         deletions += 2;
     }
 
-    if let Err(e) = state_db.write_schemas(batch) {
-        error!("Could not delete state data: {:?}", e);
-    }
+    state_db
+        .write_schemas(batch)
+        .map_err(|e| anyhow::anyhow!("Could not delete state data: {:?}", e))?;
 
     let duration = start.elapsed();
     info!(
@@ -159,4 +161,5 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
         deletions,
         duration.as_millis()
     );
+    Ok(())
 }

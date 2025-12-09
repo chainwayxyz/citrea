@@ -16,6 +16,25 @@ pub(crate) mod native;
 pub(crate) mod service;
 pub(crate) mod state;
 
+fn check_pruning_result(
+    result: Result<anyhow::Result<()>, tokio::task::JoinError>,
+    db_name: &str,
+) -> anyhow::Result<()> {
+    match result {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(e)) => Err(anyhow::anyhow!(
+            "Failed to prune {} database: {:?}",
+            db_name,
+            e
+        )),
+        Err(e) => Err(anyhow::anyhow!(
+            "Pruning task for {} database panicked: {:?}",
+            db_name,
+            e
+        )),
+    }
+}
+
 pub struct Pruner {
     /// Access to ledger tables.
     ledger_db: Arc<sov_schema_db::DB>,
@@ -60,7 +79,7 @@ impl Pruner {
     }
 
     /// Prune everything
-    pub async fn prune(&self, node_type: NodeType, up_to_block: u64) {
+    pub async fn prune(&self, node_type: NodeType, up_to_block: u64) -> anyhow::Result<()> {
         let ledger_db = self.ledger_db.clone();
         let native_db = self.native_db.clone();
         let state_db = self.state_db.clone();
@@ -74,11 +93,21 @@ impl Pruner {
         let native_db_pruning_handle =
             tokio::task::spawn_blocking(move || prune_native_db(native_db, up_to_block));
 
-        let _results = future::join_all([
+        let [ledger_result, state_result, native_result] = future::join_all([
             ledger_pruning_handle,
             state_db_pruning_handle,
             native_db_pruning_handle,
         ])
-        .await;
+        .await
+        .try_into()
+        .expect("join_all returned unexpected number of results");
+
+        check_pruning_result(ledger_result, "ledger")?;
+        check_pruning_result(state_result, "state")?;
+        check_pruning_result(native_result, "native")?;
+
+        self.store_last_pruned_l2_height(up_to_block)?;
+
+        Ok(())
     }
 }

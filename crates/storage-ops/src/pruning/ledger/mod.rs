@@ -13,7 +13,11 @@ mod l2_blocks;
 mod slots;
 
 /// Prune ledger
-pub(crate) fn prune_ledger(node_type: NodeType, ledger_db: Arc<DB>, up_to_block: u64) {
+pub(crate) fn prune_ledger(
+    node_type: NodeType,
+    ledger_db: Arc<DB>,
+    up_to_block: u64,
+) -> anyhow::Result<()> {
     info!("Pruning Ledger, up to L2 block {}", up_to_block);
     let start = Instant::now();
 
@@ -51,4 +55,5 @@ pub(crate) fn prune_ledger(node_type: NodeType, ledger_db: Arc<DB>, up_to_block:
         up_to_block,
         duration.as_millis()
     );
+    Ok(())
 }

@@ -149,7 +149,7 @@ pub fn test_pruning_ledger_db_l2_blocks() {
     assert!(ledger_db.get::<L2BlockByHash>(&[10; 32]).unwrap().is_some());
     assert!(ledger_db.get::<L2BlockByHash>(&[20; 32]).unwrap().is_some());
 
-    prune_ledger(NodeType::Sequencer, ledger_db.clone(), 10);
+    prune_ledger(NodeType::Sequencer, ledger_db.clone(), 10).unwrap();
 
     // Pruned
     assert!(ledger_db
@@ -272,7 +272,7 @@ pub fn test_pruning_ledger_db_batch_prover_l2_blocks() {
         .unwrap()
         .is_some());
 
-    prune_ledger(NodeType::BatchProver, ledger_db.clone(), 10);
+    prune_ledger(NodeType::BatchProver, ledger_db.clone(), 10).unwrap();
 
     // Pruned
     assert!(ledger_db
@@ -442,7 +442,7 @@ pub fn test_pruning_ledger_db_fullnode_slots() {
 
     prepare_slots_data(&ledger_db);
 
-    prune_ledger(NodeType::FullNode, ledger_db.clone(), 10);
+    prune_ledger(NodeType::FullNode, ledger_db.clone(), 10).unwrap();
 
     // SHOULD NOT CHANGE
     assert!(ledger_db
@@ -533,7 +533,7 @@ pub fn test_pruning_ledger_db_light_client_slots() {
 
     prepare_slots_data(&ledger_db);
 
-    prune_ledger(NodeType::LightClientProver, ledger_db.clone(), 10);
+    prune_ledger(NodeType::LightClientProver, ledger_db.clone(), 10).unwrap();
 
     // SHOULD NOT CHANGE
     assert!(ledger_db
@@ -624,7 +624,7 @@ pub fn test_pruning_ledger_db_batch_prover_slots() {
 
     prepare_slots_data(&ledger_db);
 
-    prune_ledger(NodeType::BatchProver, ledger_db.clone(), 10);
+    prune_ledger(NodeType::BatchProver, ledger_db.clone(), 10).unwrap();
 
     // SHOULD NOT CHANGE
     assert!(ledger_db
