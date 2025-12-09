@@ -1,7 +1,7 @@
-use std::env;
 use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
+use citrea_common::PricingServiceConfig;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -26,27 +26,26 @@ pub struct PricingService {
     base_url: String,
 }
 
-impl Default for PricingService {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl PricingService {
-    /// Create a new instance of `PricingService`
-    /// Reads the base URL from the `PRICING_SERVICE_URL` environment variable
-    pub fn new() -> Self {
-        let base_url = env::var("PRICING_SERVICE_URL")
-            .expect("PRICING_SERVICE_URL environment variable not set");
-
+    /// Create a new instance of `PricingService` from configuration
+    ///
+    /// # Arguments
+    /// * `config` - Pricing service configuration
+    pub fn from_config(config: &PricingServiceConfig) -> Self {
         let client = Client::builder()
-            .timeout(Duration::from_secs(30))
+            .timeout(Duration::from_secs(config.timeout_secs))
             .build()
             .expect("Failed to create HTTP client");
 
-        info!("Pricing service initialized with URL: {}", base_url);
+        info!(
+            "Pricing service initialized with URL: {} (timeout: {}s)",
+            config.base_url, config.timeout_secs
+        );
 
-        Self { client, base_url }
+        Self {
+            client,
+            base_url: config.base_url.clone(),
+        }
     }
 
     /// Fetch pricing information for the given number of cycles

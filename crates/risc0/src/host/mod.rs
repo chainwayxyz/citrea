@@ -2,8 +2,6 @@
 
 mod bonsai;
 mod boundless;
-/// Configuration types for RISC0 provers
-pub mod config;
 mod local;
 mod pricing_service;
 
@@ -13,7 +11,8 @@ use std::{fs, mem};
 use bonsai::BonsaiProver;
 use borsh::BorshDeserialize;
 use boundless::BoundlessProver;
-use config::Risc0ProverConfig;
+use citrea_common::config::risc0::Risc0ProverConfig;
+use citrea_common::risc0::Risc0HostConfig;
 use local::LocalProver;
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{AssumptionReceipt, VerifierContext};
@@ -38,11 +37,7 @@ pub struct Risc0Host {
 
 impl Risc0Host {
     /// Create a new Risc0Host to prove the given binary.
-    pub async fn new(
-        ledger_db: LedgerDB,
-        network: Network,
-        config: config::Risc0HostConfig,
-    ) -> Self {
+    pub async fn new(ledger_db: LedgerDB, network: Network, config: Risc0HostConfig) -> Self {
         let prover = match config.prover {
             Risc0ProverConfig::Boundless(boundless_config) => {
                 Prover::Boundless(BoundlessProver::new(ledger_db, *boundless_config).await)
