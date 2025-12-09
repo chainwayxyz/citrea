@@ -43,7 +43,7 @@ members = [
 [workspace.package]
 version = "1.0.1"
 edition = "2021"
-license = "GPL-3.0"
+license = "GPL-3.0-only"
 authors = ["Chainway Labs <info@chainway.xyz>"]
 homepage = "https://citrea.xyz"
 publish = false
