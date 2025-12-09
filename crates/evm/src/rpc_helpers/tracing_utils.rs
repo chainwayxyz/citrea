@@ -114,18 +114,6 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         .geth_prestate_traces(&res, &prestate_config, &db_ref)
                         .map_err(EthApiError::from_eth_err)?;
 
-                    // Workaround for revm-inspectors v0.18.0 bug where disableCode doesn't filter post state
-                    // TODO: Remove this when upgrading revm-inspectors to a version with the fix
-                    if prestate_config.disable_code.unwrap_or(false) {
-                        if let alloy_rpc_types_trace::geth::PreStateFrame::Diff(ref mut diff_mode) =
-                            &mut frame
-                        {
-                            for (_, account_state) in diff_mode.post.iter_mut() {
-                                account_state.code = None;
-                            }
-                        }
-                    }
-
                     Ok(frame.into())
                 }
                 GethDebugBuiltInTracerType::FlatCallTracer => {
@@ -309,18 +297,6 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         .into_geth_builder()
                         .geth_prestate_traces(&res, &prestate_config, db_ref)
                         .map_err(EthApiError::from_eth_err)?;
-
-                    // Workaround for revm-inspectors v0.18.0 bug where disableCode doesn't filter post state
-                    // TODO: Remove this when upgrading revm-inspectors to a version with the fix
-                    if prestate_config.disable_code.unwrap_or(false) {
-                        if let alloy_rpc_types_trace::geth::PreStateFrame::Diff(ref mut diff_mode) =
-                            &mut frame
-                        {
-                            for (_, account_state) in diff_mode.post.iter_mut() {
-                                account_state.code = None;
-                            }
-                        }
-                    }
 
                     Ok((frame.into(), res.state))
                 }
