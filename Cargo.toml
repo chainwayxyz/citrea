@@ -43,7 +43,7 @@ members = [
 [workspace.package]
 version = "1.0.1"
 edition = "2021"
-license = "GPL-3.0"
+license = "GPL-3.0-only"
 authors = ["Chainway Labs <info@chainway.xyz>"]
 homepage = "https://citrea.xyz"
 publish = false
@@ -175,6 +175,9 @@ citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "10ff3e2
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "a6e011a" }
+# Use our fork of revm-inspectors to apply fixes after v0.18.1
+# Cannot update to latest as it requires latest revm, which we cannot use yet
+revm-inspectors = { git = "https://github.com/chainwayxyz/revm-inspectors", rev = "574d614ce505d3c0c4534d8b8e62d8acb3fa9651" }
 
 [profile.release]
 opt-level = 3
