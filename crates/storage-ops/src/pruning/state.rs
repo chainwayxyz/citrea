@@ -17,7 +17,10 @@ pub(crate) fn prune_state_db(
     let to_version = to_block + 1;
 
     let mut indices = state_db.iter::<StaleNodes>().map_err(|e| {
-        anyhow::anyhow!("Tried to prune state DB but could not obtain an iterator: {:?}", e)
+        anyhow::anyhow!(
+            "Tried to prune state DB but could not obtain an iterator: {:?}",
+            e
+        )
     })?;
 
     indices.seek_to_first();
