@@ -27,7 +27,7 @@ use sov_rollup_interface::zk::{ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
 use tokio::select;
 use tokio::sync::{Mutex, Notify};
-use tracing::{debug, error, instrument};
+use tracing::{error, instrument};
 
 use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
