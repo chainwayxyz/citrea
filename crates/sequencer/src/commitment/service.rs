@@ -87,14 +87,6 @@ where
         l2_block_hash: L2BlockHash,
         mut shutdown_signal: GracefulShutdown,
     ) {
-        if let Ok(Some(commitment)) = self.ledger_db.get_last_commitment() {
-            SM.currently_committing_index.set(commitment.index as f64);
-            debug!(
-                "Initialized currently_committing_index metric: {}",
-                commitment.index
-            );
-        }
-
         if l2_block_hash != [0; 32] {
             let prestate = storage_manager.create_final_view_storage();
             let working_set = WorkingSet::new(prestate.clone());
