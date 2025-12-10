@@ -884,7 +884,7 @@ mod tests {
                 sync_blocks_count: 10,
             }),
             l1_fee_rate_multiplier: 1.0,
-            max_l1_fee_rate_sat_vb: 40,
+            max_l1_fee_rate_sat_vb: 15,
         };
         assert_eq!(sequencer_config, expected);
     }
