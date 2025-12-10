@@ -27,6 +27,7 @@ lru = { workspace = true }
 metrics = { workspace = true }
 reth-primitives = { workspace = true }
 reth-tasks = { workspace = true }
+reth-transaction-pool = { workspace = true }
 rocksdb = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

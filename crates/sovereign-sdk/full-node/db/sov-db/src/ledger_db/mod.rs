@@ -7,8 +7,8 @@ use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::stf::StateDiff;
-use sov_rollup_interface::zk::{Proof, StorageRootHash};
-use sov_schema_db::{ScanDirection, Schema, SchemaBatch, SeekKeyEncoder, DB};
+use sov_rollup_interface::zk::{Proof, ProvingSessionInfo, StorageRootHash};
+use sov_schema_db::{ScanDirection, Schema, SchemaBatch, SchemaIterator, SeekKeyEncoder, DB};
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -19,11 +19,11 @@ use crate::schema::tables::{
     CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber,
     ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot,
     L2RangeByL1Height, L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs,
-    PendingBonsaiSessionByJobId, PendingL1SubmissionJobs, PendingProofs,
-    PendingSequencerCommitment, PendingSequencerCommitments, ProofByJobId, ProofsBySlotNumberV2,
-    ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
-    ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
-    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    PendingBonsaiSessionByJobId, PendingBoundlessSessionByJobId, PendingL1SubmissionJobs,
+    PendingProofs, PendingSequencerCommitments, ProofByJobId, ProverLastScannedSlot,
+    ProverPendingCommitments, ProverStateDiffs, ProvingSessionInfoByJobId,
+    ProvingSessionInfoBySlotNumber, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash,
+    SlotByHash, StateDiffByBlockNumber, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -34,7 +34,8 @@ use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
 use crate::schema::types::{
-    BonsaiSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber,
+    BonsaiSession, BoundlessSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange,
+    L2HeightStatus, SlotNumber,
 };
 
 /// Implementation of database migrator
@@ -467,14 +468,18 @@ impl LightClientProverLedgerOps for LedgerDB {
         l1_height: u64,
         proof: Proof,
         light_client_proof_output: StoredLightClientProofOutput,
+        info: ProvingSessionInfo,
     ) -> anyhow::Result<()> {
         let data_to_store = StoredLightClientProof {
             proof,
             light_client_proof_output,
         };
 
-        self.db
-            .put::<LightClientProofBySlotNumber>(&SlotNumber(l1_height), &data_to_store)
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<LightClientProofBySlotNumber>(&SlotNumber(l1_height), &data_to_store)?;
+        schema_batch.put::<ProvingSessionInfoBySlotNumber>(&SlotNumber(l1_height), &info)?;
+
+        self.db.write_schemas(schema_batch)
     }
 
     fn get_light_client_proof_data_by_l1_height(
@@ -483,6 +488,14 @@ impl LightClientProverLedgerOps for LedgerDB {
     ) -> anyhow::Result<Option<StoredLightClientProof>> {
         self.db
             .get::<LightClientProofBySlotNumber>(&SlotNumber(l1_height))
+    }
+
+    fn get_proving_session_info_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<Option<ProvingSessionInfo>> {
+        self.db
+            .get::<ProvingSessionInfoBySlotNumber>(&SlotNumber(l1_height))
     }
 }
 
@@ -577,6 +590,7 @@ impl BatchProverLedgerOps for LedgerDB {
         id: Uuid,
         proof: Proof,
         output: StoredBatchProofOutput,
+        info: ProvingSessionInfo,
     ) -> anyhow::Result<()> {
         let stored_proof = StoredBatchProof {
             l1_tx_id: None,
@@ -587,8 +601,33 @@ impl BatchProverLedgerOps for LedgerDB {
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<PendingL1SubmissionJobs>(&id, &())?;
         schema_batch.put::<ProofByJobId>(&id, &stored_proof)?;
+        schema_batch.put::<ProvingSessionInfoByJobId>(&id, &info)?;
 
         self.db.write_schemas(schema_batch)
+    }
+
+    fn remove_proving_job_by_id(&self, id: Uuid) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+
+        let indices = self
+            .db
+            .get::<CommitmentIndicesByJobId>(&id)?
+            .expect("Proof must exist");
+
+        for index in indices {
+            schema_batch.delete::<JobIdOfCommitment>(&index)?;
+        }
+        schema_batch.delete::<ProofByJobId>(&id)?;
+        schema_batch.delete::<ProvingSessionInfoByJobId>(&id)?;
+        schema_batch.delete::<CommitmentIndicesByJobId>(&id)?;
+
+        // delete from pending job tables
+        schema_batch.delete::<PendingL1SubmissionJobs>(&id)?;
+        schema_batch.delete::<PendingBonsaiSessionByJobId>(&id)?;
+        schema_batch.delete::<PendingBoundlessSessionByJobId>(&id)?;
+
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
     }
 
     #[instrument(level = "trace", skip(self), err)]
@@ -614,6 +653,14 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
+    fn get_proving_session_info_by_job_id(
+        &self,
+        id: Uuid,
+    ) -> anyhow::Result<Option<ProvingSessionInfo>> {
+        self.db.get::<ProvingSessionInfoByJobId>(&id)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
     fn get_pending_l1_submission_jobs(&self) -> anyhow::Result<Vec<Uuid>> {
         let mut iter = self.db.iter::<PendingL1SubmissionJobs>()?;
         iter.seek_to_first();
@@ -627,7 +674,7 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_latest_jobs(&self, count: usize) -> anyhow::Result<Vec<(Uuid, JobStatus)>> {
+    fn get_latest_jobs(&self, limit: usize, skip: usize) -> anyhow::Result<Vec<(Uuid, JobStatus)>> {
         let mut read_opts = ReadOptions::default();
         // Do not fill the cache with garbage data just to read ids
         read_opts.fill_cache(false);
@@ -637,11 +684,8 @@ impl BatchProverLedgerOps for LedgerDB {
             .iter_with_direction::<CommitmentIndicesByJobId>(read_opts, ScanDirection::Backward)?;
         iter.seek_to_last();
 
-        let mut jobs = Vec::with_capacity(count);
-        for el in iter {
-            if jobs.len() == count {
-                break;
-            }
+        let mut jobs = Vec::with_capacity(limit);
+        for el in iter.skip(skip).take(limit) {
             let job_id = el?.key;
             let status = self.job_status(job_id);
             jobs.push((job_id, status));
@@ -699,69 +743,31 @@ impl BonsaiLedgerOps for LedgerDB {
     }
 }
 
+impl BoundlessLedgerOps for LedgerDB {
+    /// Gets all pending sessions and step numbers
+    fn get_pending_boundless_sessions(&self) -> anyhow::Result<Vec<(Uuid, BoundlessSession)>> {
+        let mut iter = self.db.iter::<PendingBoundlessSessionByJobId>()?;
+        iter.seek_to_first();
+
+        iter.map(|item| item.map(|item| item.into_tuple()))
+            .collect()
+    }
+
+    fn upsert_pending_boundless_session(
+        &self,
+        job_id: Uuid,
+        session: BoundlessSession,
+    ) -> anyhow::Result<()> {
+        self.db
+            .put::<PendingBoundlessSessionByJobId>(&job_id, &session)
+    }
+
+    fn remove_pending_boundless_session(&self, job_id: Uuid) -> anyhow::Result<()> {
+        self.db.delete::<PendingBoundlessSessionByJobId>(&job_id)
+    }
+}
+
 impl SequencerLedgerOps for LedgerDB {
-    /// Gets all pending commitments' l2 ranges.
-    /// Returns start-end L2 heights.
-    #[instrument(level = "trace", skip(self), err)]
-    fn get_pending_commitments(&self) -> anyhow::Result<Vec<SequencerCommitment>> {
-        let commitment_indexes = self.db.get::<PendingSequencerCommitment>(&())?;
-        match commitment_indexes {
-            Some(mut commitment_indexes) => {
-                if commitment_indexes.is_empty() {
-                    return Ok(vec![]);
-                }
-                commitment_indexes.sort_unstable();
-                let start = commitment_indexes[0];
-                let end = commitment_indexes[commitment_indexes.len() - 1];
-                self.get_data_range::<SequencerCommitmentByIndex, _, _>(&(start..end))
-            }
-            None => Ok(vec![]),
-        }
-    }
-
-    /// Put a pending commitment l2 range
-    #[instrument(level = "trace", skip(self), err)]
-    fn put_pending_commitment(&self, seqcomm: &SequencerCommitment) -> anyhow::Result<()> {
-        let pending_commitment_indexes = self.db.get::<PendingSequencerCommitment>(&())?;
-        match pending_commitment_indexes {
-            Some(mut indexes) => {
-                indexes.push(seqcomm.index);
-                self.db.put::<PendingSequencerCommitment>(&(), &indexes)
-            }
-            None => self
-                .db
-                .put::<PendingSequencerCommitment>(&(), &vec![seqcomm.index]),
-        }
-    }
-
-    /// Delete a pending commitment l2 range
-    #[instrument(level = "trace", skip(self), err)]
-    fn delete_pending_commitment(&self, index: u32) -> anyhow::Result<()> {
-        let pending_commitment_indexes = self.db.get::<PendingSequencerCommitment>(&())?;
-        match pending_commitment_indexes {
-            Some(mut indexes) => {
-                indexes.retain(|&i| i != index);
-                self.db.put::<PendingSequencerCommitment>(&(), &indexes)
-            }
-            None => Ok(()),
-        }
-    }
-
-    /// Get last commitment slot number, if commitments exist.
-    fn get_last_commitment_slot_number(&self) -> anyhow::Result<Option<SlotNumber>> {
-        let mut iter = self.db.iter_with_direction::<CommitmentsByNumber>(
-            Default::default(),
-            ScanDirection::Backward,
-        )?;
-        iter.seek_to_last();
-
-        match iter.next() {
-            Some(Ok(item)) => Ok(Some(item.key)),
-            Some(Err(e)) => Err(e),
-            _ => Ok(None),
-        }
-    }
-
     /// Sets the state diff by block number
     #[instrument(level = "trace", skip(self), err, ret)]
     fn set_state_diff(
@@ -938,20 +944,13 @@ impl NodeLedgerOps for LedgerDB {
         self.db.get::<PendingSequencerCommitments>(&index)
     }
 
-    fn get_pending_commitments(&self) -> anyhow::Result<Vec<(u32, SequencerCommitment, u64)>> {
-        let mut pending = Vec::new();
+    fn get_pending_commitments(
+        &self,
+    ) -> anyhow::Result<SchemaIterator<'_, PendingSequencerCommitments>> {
         let mut iter = self.db.iter::<PendingSequencerCommitments>()?;
         iter.seek_to_first();
 
-        while let Some(Ok(item)) = iter.next() {
-            let (index, (commitment, l1_height)) = item.into_tuple();
-            pending.push((index, commitment, l1_height));
-        }
-
-        // Sort by index to make sure we process pending commitments in order
-        pending.sort_by_key(|(index, _, _)| *index);
-
-        Ok(pending)
+        Ok(iter)
     }
 
     fn remove_pending_commitment(&self, index: u32) -> anyhow::Result<()> {
@@ -977,20 +976,11 @@ impl NodeLedgerOps for LedgerDB {
         Ok(())
     }
 
-    fn get_pending_proofs(&self) -> anyhow::Result<Vec<((u32, u32), Proof, u64)>> {
-        let mut pending = Vec::new();
+    fn get_pending_proofs(&self) -> anyhow::Result<SchemaIterator<'_, PendingProofs>> {
         let mut iter = self.db.iter::<PendingProofs>()?;
         iter.seek_to_first();
 
-        while let Some(Ok(item)) = iter.next() {
-            let (index_range, (proof, found_in_l1_height)) = item.into_tuple();
-            pending.push((index_range, proof, found_in_l1_height));
-        }
-
-        // Sort by min commitment index to ensure we process in order
-        pending.sort_by_key(|((min_index, _), _, _)| *min_index);
-
-        Ok(pending)
+        Ok(iter)
     }
 
     fn remove_pending_proof(&self, min_index: u32, max_index: u32) -> anyhow::Result<()> {

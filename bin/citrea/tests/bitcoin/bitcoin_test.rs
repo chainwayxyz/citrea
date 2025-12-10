@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
 use anyhow::bail;
@@ -27,7 +28,7 @@ impl TestCase for BitcoinReorgTest {
         TestCaseConfig {
             with_sequencer: true,
             with_batch_prover: true,
-            n_nodes: std::collections::HashMap::from([(NodeKind::Bitcoin, 2)]),
+            n_nodes: HashMap::from([(NodeKind::Bitcoin, 2)]),
             ..Default::default()
         }
     }
@@ -72,7 +73,7 @@ impl TestCase for BitcoinReorgTest {
         // Buffer to wait for monitoring to update status to confirmed
         tokio::time::sleep(Duration::from_secs(2)).await;
 
-        let da1_generated_blocks = 2;
+        let da1_generated_blocks = 3;
         da1.generate(da1_generated_blocks).await?;
 
         // Reconnect nodes and wait for sync
@@ -103,7 +104,7 @@ impl TestCase for BitcoinReorgTest {
         assert!(matches!(tx_status, Some(TxStatus::InMempool { .. })));
 
         // Wait for re-org monitoring
-        tokio::time::sleep(Duration::from_secs(20)).await;
+        tokio::time::sleep(Duration::from_secs(5)).await;
 
         // Seq TXs should be rebroadcasted after re-org
         let mempool1 = da1.get_raw_mempool().await?;

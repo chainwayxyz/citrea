@@ -9,12 +9,15 @@ use alloy::network::TxSigner as _;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer as _;
 use alloy_primitives::ruint::aliases::U256;
-use alloy_primitives::{Bytes, TxKind, U64};
+use alloy_primitives::{eip191_hash_message, Bytes, TxKind, B256, U64, U64};
+use alloy_signer::SignerSync;
 use anyhow::bail;
 use bitcoin_da::fee::FeeService;
 use bitcoin_da::monitoring::{MonitoringConfig, MonitoringService};
 use bitcoin_da::network_constants::get_network_constants;
-use bitcoin_da::service::{network_to_bitcoin_network, BitcoinService, BitcoinServiceConfig};
+use bitcoin_da::service::{
+    network_to_bitcoin_network, BitcoinService, BitcoinServiceConfig, UtxoSelectionMode,
+};
 use bitcoin_da::spec::block::BitcoinBlock;
 use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
@@ -23,10 +26,17 @@ use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_e2e::traits::NodeT;
+use citrea_light_client_prover::circuit::{
+    citrea_network_to_chain_id, SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE,
+    SECURITY_COUNCIL_MEMBER_COUNT,
+};
 use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
 use reth_tasks::TaskExecutor;
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
+use sov_rollup_interface::da::{
+    BatchProofMethodId, BatchProofMethodIdBody, DaTxRequest, SequencerCommitment,
+    SECURITY_COUNCIL_SIGNATURE_SIZE, SECURITY_COUNCIL_SIGNATURE_THRESHOLD,
+};
 use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::Network;
@@ -39,6 +49,14 @@ pub enum DaServiceKeyKind {
     BatchProver,
     Other(String),
 }
+
+pub const BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS: [&str; 5] = [
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9076",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9075",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9074",
+    "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9073",
+];
 
 pub const SEQUENCER_DA_PRIVATE_KEY: &str =
     "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262";
@@ -72,6 +90,25 @@ pub async fn get_default_service(
         get_tx_backup_dir(),
         DaServiceKeyKind::Sequencer,
         REVEAL_TX_PREFIX.to_vec(),
+        None,
+        None,
+    )
+    .await
+}
+
+pub async fn spawn_bitcoin_da_with_wallet(
+    task_executor: &TaskExecutor,
+    config: &BitcoinConfig,
+    wallet: String,
+) -> Arc<BitcoinService> {
+    spawn_bitcoin_da_service(
+        task_executor,
+        config,
+        get_tx_backup_dir(),
+        DaServiceKeyKind::Sequencer,
+        REVEAL_TX_PREFIX.to_vec(),
+        None,
+        Some(wallet),
     )
     .await
 }
@@ -87,6 +124,8 @@ pub async fn spawn_bitcoin_da_sequencer_service(
         dir,
         DaServiceKeyKind::Sequencer,
         REVEAL_TX_PREFIX.to_vec(),
+        None,
+        None,
     )
     .await
 }
@@ -102,6 +141,27 @@ pub async fn spawn_bitcoin_da_prover_service(
         dir,
         DaServiceKeyKind::BatchProver,
         REVEAL_TX_PREFIX.to_vec(),
+        None,
+        None,
+    )
+    .await
+}
+
+#[cfg(feature = "testing")]
+pub async fn spawn_bitcoin_da_prover_service_with_utxo_selection_mode(
+    task_executor: &TaskExecutor,
+    config: &BitcoinConfig,
+    dir: PathBuf,
+    utxo_selection_mode: UtxoSelectionMode,
+) -> Arc<BitcoinService> {
+    spawn_bitcoin_da_service(
+        task_executor,
+        config,
+        dir,
+        DaServiceKeyKind::BatchProver,
+        REVEAL_TX_PREFIX.to_vec(),
+        Some(utxo_selection_mode),
+        None,
     )
     .await
 }
@@ -112,19 +172,17 @@ pub async fn spawn_bitcoin_da_service(
     test_dir: PathBuf,
     kind: DaServiceKeyKind,
     reveal_tx_prefix: Vec<u8>,
+    utxo_selection_mode: Option<UtxoSelectionMode>,
+    wallet: Option<String>,
 ) -> Arc<BitcoinService> {
     let da_private_key = match kind {
         DaServiceKeyKind::Sequencer => SEQUENCER_DA_PRIVATE_KEY.to_string(),
         DaServiceKeyKind::BatchProver => PROVER_DA_PRIVATE_KEY.to_string(),
         DaServiceKeyKind::Other(key) => key,
     };
-
+    let wallet = wallet.unwrap_or(NodeKind::Bitcoin.to_string());
     let da_config = BitcoinServiceConfig {
-        node_url: format!(
-            "http://127.0.0.1:{}/wallet/{}",
-            da_config.rpc_port,
-            NodeKind::Bitcoin
-        ),
+        node_url: format!("http://127.0.0.1:{}/wallet/{}", da_config.rpc_port, wallet),
         node_username: da_config.rpc_user.clone(),
         node_password: da_config.rpc_password.clone(),
         da_private_key: Some(da_private_key),
@@ -137,6 +195,9 @@ pub async fn spawn_bitcoin_da_service(
             rebroadcast_delay: 1,
         }),
         mempool_space_url: None,
+        utxo_selection_mode,
+        rpc_timeout_secs: None,
+        rpc_connect_timeout_secs: None,
     };
 
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -147,13 +208,19 @@ pub async fn spawn_bitcoin_da_service(
         network,
     };
 
+    // Use configured timeouts or use library defaults
+    let timeout = da_config.rpc_timeout_secs.map(Duration::from_secs);
+    let connect_timeout = da_config.rpc_connect_timeout_secs.map(Duration::from_secs);
+
     let client = Arc::new(
-        Client::new(
+        Client::with_timeouts(
             &da_config.node_url,
             Auth::UserPass(
                 da_config.node_username.clone(),
                 da_config.node_password.clone(),
             ),
+            timeout,
+            connect_timeout,
         )
         .await
         .unwrap(),
@@ -275,7 +342,7 @@ pub async fn wait_for_prover_job_count(
         let jobs = batch_prover
             .client
             .http_client()
-            .get_proving_jobs(count)
+            .get_proving_jobs(U64::from(count as u64), None)
             .await
             .unwrap();
         if jobs.len() >= count {
@@ -296,6 +363,56 @@ async fn create_and_fund_wallet(wallet: String, da_node: &BitcoinNode) {
         .unwrap();
 
     da_node.fund_wallet(wallet, 5).await.unwrap();
+}
+
+/// Converts a vector of signatures in Vec<u8> format to an array of signatures in [u8; 64] format
+fn from_vec_to_sigs(
+    vec: Vec<(Vec<u8>, u8)>,
+) -> [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
+    let mut sigs = Vec::new();
+    for (v, i) in vec.into_iter() {
+        sigs.push((v.try_into().unwrap(), i));
+    }
+    sigs.try_into().unwrap()
+}
+
+/// Generates 5 valid keypairs and returns the public keys and signers from the given private keys
+pub(crate) fn generate_initial_pub_keys_with_signers_from_pks(
+    private_keys: [[u8; 32]; 5],
+) -> (
+    [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT],
+    Vec<PrivateKeySigner>,
+) {
+    let mut initial_da_pubkeys =
+        [[0u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT];
+    let mut signers = Vec::new();
+
+    // Generate 5 valid keypairs and signatures
+    for (i, secret_key) in private_keys.iter().enumerate() {
+        let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+        let verifying_key = signer.credential().verifying_key();
+        let pubkey = verifying_key.to_sec1_bytes();
+        initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+        signers.push(signer);
+    }
+
+    (initial_da_pubkeys, signers)
+}
+
+/// Creates 3 valid signatures from the first 3 signers for the given prehash
+pub(crate) fn create_valid_signatures(
+    signers: &[PrivateKeySigner],
+    prehash: &B256,
+) -> [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
+    let mut signatures_in_inscription = Vec::new();
+
+    for (i, signer) in signers.iter().enumerate().take(3) {
+        let sig = signer.sign_hash_sync(prehash).unwrap();
+        let signature = sig.as_bytes()[0..SECURITY_COUNCIL_SIGNATURE_SIZE].to_vec();
+        signatures_in_inscription.push((signature, i as u8));
+    }
+
+    from_vec_to_sigs(signatures_in_inscription)
 }
 
 /// Generates 100 blocks and finalizes funds
@@ -337,6 +454,8 @@ pub async fn generate_mock_txs(
         wrong_prefix_wallet,
         DaServiceKeyKind::Sequencer,
         vec![6],
+        None,
+        None,
     )
     .await;
 
@@ -351,6 +470,8 @@ pub async fn generate_mock_txs(
             "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(),
         ),
         REVEAL_TX_PREFIX.to_vec(),
+        None,
+        None,
     )
     .await;
 
@@ -362,10 +483,26 @@ pub async fn generate_mock_txs(
     let mut valid_method_ids = vec![];
     let mut seq_index = 1;
 
-    // Send method id update tx
-    let method_id = BatchProofMethodId {
+    let method_id_body = BatchProofMethodIdBody {
         method_id: [0; 8],
         activation_l2_height: 0,
+        chain_id: citrea_network_to_chain_id(Network::Nightly),
+    };
+
+    let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+        .map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let (_initial_pubkeys, signers) = generate_initial_pub_keys_with_signers_from_pks(pk_bytes_arr);
+
+    let msg = method_id_body.serialize();
+    let prehash = eip191_hash_message(msg.as_slice());
+
+    let signatures_with_index = create_valid_signatures(&signers, &prehash);
+
+    // Send method id update tx
+    let method_id = BatchProofMethodId {
+        body: method_id_body.clone(),
+        signatures_with_index,
     };
     valid_method_ids.push(method_id.clone());
     da_service
@@ -466,10 +603,26 @@ pub async fn generate_mock_txs(
         .await
         .expect("Failed to send transaction");
 
-    // Send method id update tx
-    let method_id = BatchProofMethodId {
+    let method_id_body = BatchProofMethodIdBody {
         method_id: [1; 8],
         activation_l2_height: 100,
+        chain_id: citrea_network_to_chain_id(Network::Nightly),
+    };
+
+    let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+        .map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let (_initial_pubkeys, signers) = generate_initial_pub_keys_with_signers_from_pks(pk_bytes_arr);
+
+    let msg = method_id_body.serialize();
+    let prehash = eip191_hash_message(msg.as_slice());
+
+    let signatures_with_index = create_valid_signatures(&signers, &prehash);
+
+    // Send method id update tx
+    let method_id = BatchProofMethodId {
+        body: method_id_body,
+        signatures_with_index,
     };
     valid_method_ids.push(method_id.clone());
     da_service

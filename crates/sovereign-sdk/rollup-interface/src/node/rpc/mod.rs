@@ -12,6 +12,7 @@ use uuid::Uuid;
 use crate::da::SequencerCommitment;
 use crate::zk::batch_proof::output::CumulativeStateDiff;
 use crate::zk::light_client_proof::output::VerifiedStateTransitionForSequencerCommitmentIndex;
+use crate::zk::ProvingSessionInfo;
 use crate::RefCount;
 
 /// L2 Block response
@@ -142,6 +143,8 @@ pub struct LightClientProofResponse {
     pub proof: ProofRpcResponse,
     /// The output of the light client proof circuit
     pub light_client_proof_output: LightClientProofOutputRpcResponse,
+    /// Info about the proving session
+    pub info: Option<ProvingSessionInfo>,
 }
 
 /// The response to JSON-RPC request for querying proving job
@@ -183,6 +186,8 @@ pub struct BatchProofResponse {
     pub proof: ProofRpcResponse,
     /// State transition
     pub proof_output: BatchProofOutputRpcResponse,
+    /// Info
+    pub info: Option<ProvingSessionInfo>,
 }
 
 /// The rpc response of proof by l1 slot height
@@ -423,12 +428,6 @@ pub trait LedgerRpcProvider {
         &self,
         index: u32,
     ) -> Result<Option<SequencerCommitmentResponse>, anyhow::Error>;
-
-    /// Get batch proof by l1 height
-    fn get_batch_proof_data_by_l1_height(
-        &self,
-        height: u64,
-    ) -> Result<Option<Vec<BatchProofResponse>>, anyhow::Error>;
 
     /// Get verified proof by l1 height
     fn get_verified_proof_data_by_l1_height(

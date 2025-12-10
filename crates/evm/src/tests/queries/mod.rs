@@ -1,7 +1,9 @@
 mod basic_queries;
+mod estimate_gas_override_tests;
 mod estimate_gas_tests;
 mod eth_call_tests;
 mod log_tests;
+mod pending_block_tests;
 
 use std::str::FromStr;
 
@@ -318,7 +320,7 @@ pub fn init_evm_with_caller_contract() -> (
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [0u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -328,7 +330,7 @@ pub fn init_evm_with_caller_contract() -> (
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer, 0, SimpleStorageContract::default()),
@@ -354,7 +356,7 @@ pub fn init_evm_with_caller_contract() -> (
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [2u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -364,7 +366,7 @@ pub fn init_evm_with_caller_contract() -> (
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![create_contract_transaction(
             &dev_signer,

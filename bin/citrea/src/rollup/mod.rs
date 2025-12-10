@@ -323,6 +323,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         RpcModule<()>,
     )> {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
+        let rpc_config = rollup_config.rpc;
 
         let native_stf = StfBlueprint::new();
 
@@ -342,6 +343,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let prover_service = Arc::new(
             self.create_prover_service(
                 prover_config.proving_mode,
+                prover_config.risc0_host.clone(),
                 &da_service,
                 ledger_db.clone(),
                 prover_config.proof_sampling_number,
@@ -356,6 +358,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             network,
             prover_config,
             runner_config,
+            rpc_config,
             init_params,
             native_stf,
             rollup_config.public_keys,
@@ -395,6 +398,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let prover_service = Arc::new(
             self.create_prover_service(
                 prover_config.proving_mode,
+                prover_config.risc0_host.clone(),
                 &da_service,
                 ledger_db.clone(),
                 prover_config.proof_sampling_number,

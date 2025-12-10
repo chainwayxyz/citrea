@@ -1,0 +1,51 @@
+{
+  "Full-Node": {
+    "Dev-Net": [
+      "citrea-full-node",
+      "eu-central-1-dev-net-citrea-full-node"
+    ],
+    "Test-Net": [
+      "citrea-full-node",
+      "eu-central-1-test-net-citrea-full-node",
+      "ap-southeast-1-test-net-citrea-full-node"
+    ],
+    "Main-Net": [
+      "citrea-full-node",
+      "eu-central-1-main-net-citrea-full-node",
+      "ap-southeast-1-main-net-citrea-full-node"
+    ]
+  },
+  "Sequencer": {
+    "Dev-Net": [
+      "citrea-sequencer"
+    ],
+    "Test-Net": [
+      "citrea-sequencer"
+    ],
+    "Main-Net": [
+      "citrea-sequencer"
+    ]
+  },
+  "Batch-Prover": {
+    "Dev-Net": [
+      "citrea-prover"
+    ],
+    "Test-Net": [
+      "citrea-prover"
+    ],
+    "Main-Net": [
+      "citrea-prover"
+    ]
+  },
+  "Light-Client-Prover": {
+    "Dev-Net": [
+      "citrea-light-prover"
+    ],
+    "Test-Net": [
+      "citrea-light-prover"
+    ],
+    "Main-Net": [
+      "citrea-light-prover"
+    ]
+  }
+}

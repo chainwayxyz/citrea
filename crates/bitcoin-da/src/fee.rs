@@ -3,20 +3,24 @@
 use core::result::Result::Ok;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
-use anyhow::{bail, Context, Result};
 use bitcoin::{Amount, Network, Sequence, Txid};
 use bitcoincore_rpc::json::{
-    BumpFeeResult, CreateRawTransactionInput, WalletCreateFundedPsbtOptions,
+    BumpFeeResult, CreateRawTransactionInput, EstimateMode, WalletCreateFundedPsbtOptions,
 };
 use bitcoincore_rpc::{Client, RpcApi};
+use thiserror::Error;
 use tracing::{debug, instrument, trace, warn};
 
+use crate::error::BitcoinServiceError;
 use crate::monitoring::{MonitoredTx, MonitoredTxKind};
 use crate::spec::utxo::UTXO;
+use crate::tx_signer::SignedTxPair;
 
 const DEFAULT_MEMPOOL_SPACE_URL: &str = "https://mempool.space/";
 const MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT: &str = "api/v1/fees/recommended";
+const MEMPOOL_SPACE_TIMEOUT: Duration = Duration::from_secs(5);
 
 const BASE_FEE_RATE_MULTIPLIER: f64 = 1.0;
 const FEE_RATE_MULTIPLIER_FACTOR: f64 = 1.1;
@@ -24,6 +28,48 @@ const MAX_FEE_RATE_MULTIPLIER: f64 = 2.0;
 
 /// Type alias for a Partially Signed Bitcoin Transaction (PSBT).
 pub type Psbt = String;
+
+type Result<T> = std::result::Result<T, FeeServiceError>;
+
+/// Fee service error
+#[derive(Error, Debug)]
+pub enum FeeServiceError {
+    /// Attempt to bump commit transaction without force flag.
+    #[error("Cannot bump commit transaction fee without force flag")]
+    CommitBumpNotAllowed,
+
+    /// RBF not supported for this transaction type.
+    #[error("RBF only supported on CPFP transactions")]
+    RbfNotSupported,
+
+    /// Failed to retrieve PSBT from bumpfee RPC.
+    #[error("Failed to retrieve PSBT from bumpfee RPC")]
+    PsbtRetrievalFailure,
+
+    /// Bitcoin RPC error.
+    #[error("Bitcoin RPC error: {0}")]
+    RpcError(#[from] bitcoincore_rpc::Error),
+
+    /// Bitcoin amount parsing error.
+    #[error("Bitcoin amount error: {0}")]
+    AmountError(#[from] bitcoin::amount::ParseAmountError),
+
+    /// Invalid network for address.
+    #[error("Invalid network for address")]
+    InvalidAddressNetwork,
+
+    /// Missing address in UTXO.
+    #[error("Missing address in UTXO")]
+    MissingUtxoAddress,
+
+    /// Mempool space API request error.
+    #[error("Mempool space API request failed: {0}")]
+    MempoolSpaceRequestError(#[from] reqwest::Error),
+
+    /// Mempool space API response parsing error.
+    #[error("Failed to parse mempool space response")]
+    MempoolSpaceParseError,
+}
 
 /// Method to bump the fee of a transaction.
 /// It can be done using Child Pays for Parent (CPFP) or Replace-by-Fee (RBF).
@@ -87,7 +133,10 @@ impl FeeService {
                 Ok(fee_rate) => fee_rate,
                 Err(e) => {
                     tracing::error!(?e, "Failed to get fee rate from mempool.space");
-                    self.client.estimate_smart_fee(1, None).await?.fee_rate
+                    self.client
+                        .estimate_smart_fee(1, Some(EstimateMode::Conservative))
+                        .await?
+                        .fee_rate
                 }
             };
         let sat_vkb = smart_fee.map_or(1000, |rate| rate.to_sat());
@@ -107,9 +156,7 @@ impl FeeService {
     ) -> Result<Psbt> {
         let force = force.unwrap_or_default();
         match (monitored_tx.kind, force) {
-            (MonitoredTxKind::Commit, false) => {
-                bail!("Trying to bump a commit TX.")
-            }
+            (MonitoredTxKind::Commit, false) => return Err(FeeServiceError::CommitBumpNotAllowed),
             (MonitoredTxKind::Commit, true) => {
                 warn!("Force creating CPFP TX for commit TX {parent_txid}");
             }
@@ -120,9 +167,9 @@ impl FeeService {
         let change_address = utxo
             .address
             .clone()
-            .context("Missing address")?
+            .ok_or(FeeServiceError::MissingUtxoAddress)?
             .require_network(self.network)
-            .context("Invalid network for address")?;
+            .map_err(|_| FeeServiceError::InvalidAddressNetwork)?;
 
         let mut outputs = HashMap::new();
         outputs.insert(change_address.to_string(), parent_tx.output[0].value);
@@ -155,7 +202,7 @@ impl FeeService {
     pub async fn bump_fee_rbf(&self, kind: MonitoredTxKind, parent_txid: &Txid) -> Result<Psbt> {
         match kind {
             MonitoredTxKind::Cpfp => {}
-            _ => bail!("RBF only supported on cpfp TX"), // TODO Add support for bumping reveal TX
+            _ => return Err(FeeServiceError::RbfNotSupported), // TODO Add support for bumping reveal TX
         }
 
         let BumpFeeResult {
@@ -163,7 +210,7 @@ impl FeeService {
             ..
         } = self.client.psbt_bump_fee(parent_txid, None).await?
         else {
-            bail!("Not able to retrieve funded_psbt from bumpfee RPC")
+            return Err(FeeServiceError::PsbtRetrievalFailure);
         };
 
         Ok(funded_psbt)
@@ -189,28 +236,94 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
     let url = match network {
         bitcoin::Network::Bitcoin => format!(
             // Mainnet
-            "{}{}",
-            mempool_space_url, MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT
+            "{mempool_space_url}{MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT}"
         ),
-        bitcoin::Network::Testnet => format!(
-            "{}testnet4/{}",
-            mempool_space_url, MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT
-        ),
+        bitcoin::Network::Testnet => {
+            format!("{mempool_space_url}testnet4/{MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT}")
+        }
         _ => {
             trace!("Unsupported network for mempool space fee estimation");
             return Ok(None);
         }
     };
-    let fee_rate = reqwest::get(url)
+    let fee_rate = get_with_timeout(url, MEMPOOL_SPACE_TIMEOUT)
         .await?
         .json::<serde_json::Value>()
         .await?
         .get("fastestFee")
         .and_then(|fee| fee.as_u64())
         .map(|fee| Amount::from_sat(fee * 1000)) // multiply by 1000 to convert to sat/vkb
-        .context("Failed to get fee rate from mempool space")?;
+        .ok_or(FeeServiceError::MempoolSpaceParseError)?;
 
     Ok(Some(fee_rate))
+}
+
+pub(crate) fn validate_txs_fee_rate(
+    txs: &[SignedTxPair],
+    fee_rate: u64,
+    utxos: Vec<UTXO>,
+    prev_utxo: Option<UTXO>,
+) -> std::result::Result<(), BitcoinServiceError> {
+    let mut utxo_map = utxos
+        .into_iter()
+        .map(|utxo| ((utxo.tx_id, utxo.vout), Amount::from_sat(utxo.amount)))
+        .collect::<HashMap<_, _>>();
+    if let Some(prev_utxo) = prev_utxo {
+        utxo_map.insert(
+            (prev_utxo.tx_id, prev_utxo.vout),
+            Amount::from_sat(prev_utxo.amount),
+        );
+    }
+
+    for tx in txs {
+        // Validate commit
+        let commit_tx = &tx.commit.tx;
+        let input_amount: Amount = commit_tx
+            .input
+            .iter()
+            .flat_map(|input| {
+                utxo_map
+                    .get(&(input.previous_output.txid, input.previous_output.vout))
+                    .cloned()
+            })
+            .sum();
+        let output_amount = commit_tx.output.iter().map(|tx| tx.value).sum();
+
+        if (input_amount - output_amount) < Amount::from_sat(commit_tx.vsize() as u64) {
+            return Err(BitcoinServiceError::FeeCalculation(fee_rate));
+        }
+
+        // Add commit change output to utxo_map
+        if let Some(change_output) = commit_tx.output.get(1) {
+            utxo_map.insert((tx.commit_txid(), 1), change_output.value);
+        }
+
+        // Validate reveal
+        let reveal_tx = &tx.reveal.tx;
+        let input_amount = commit_tx.output[0].value;
+        let output_amount = reveal_tx.output[0].value;
+
+        // Add reveal utxo to utxo_map, used by chunking txs
+        utxo_map.insert((tx.reveal_txid(), 0), output_amount);
+
+        if (input_amount - output_amount) < Amount::from_sat(reveal_tx.vsize() as u64) {
+            return Err(BitcoinServiceError::FeeCalculation(fee_rate));
+        }
+    }
+
+    Ok(())
+}
+
+async fn get_with_timeout<T: reqwest::IntoUrl>(
+    url: T,
+    timeout: Duration,
+) -> reqwest::Result<reqwest::Response> {
+    reqwest::Client::builder()
+        .timeout(timeout)
+        .build()?
+        .get(url)
+        .send()
+        .await
 }
 
 #[cfg(test)]

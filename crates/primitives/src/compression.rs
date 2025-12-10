@@ -36,8 +36,7 @@ pub fn decompress_blob(blob: &[u8]) -> Result<Vec<u8>, io::Error> {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidData,
                         format!(
-                            "Decompressed data exceeds maximum allowed size of {} bytes",
-                            MAX_DECOMPRESSED_BLOB_SIZE
+                            "Decompressed data exceeds maximum allowed size of {MAX_DECOMPRESSED_BLOB_SIZE} bytes"
                         ),
                     ));
                 }

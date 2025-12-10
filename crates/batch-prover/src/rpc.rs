@@ -16,6 +16,7 @@ use alloy_primitives::{U32, U64};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use citrea_common::rpc::utils::internal_rpc_error;
+use citrea_common::RpcConfig;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_stf::runtime::DefaultContext;
 use citrea_stf::verifier::get_last_l1_hash_on_contract;
@@ -31,10 +32,12 @@ use sov_modules_api::{BatchProofCircuitOutputV3, SpecId, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, JobRpcResponse, SequencerCommitmentResponse, SequencerCommitmentRpcParam,
+    BatchProofOutputRpcResponse, BatchProofResponse, JobRpcResponse, SequencerCommitmentResponse,
+    SequencerCommitmentRpcParam,
 };
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
+use sov_rollup_interface::zk::ProvingSessionInfo;
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
 use uuid::Uuid;
@@ -57,7 +60,7 @@ pub struct ProverInputResponse {
 
 /// Response type for the proving job status.
 /// Contains the job ID and its current status.
-#[derive(Clone, Copy, Deserialize, Serialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvingJobResponse {
     /// The unique identifier for the proving job
@@ -83,6 +86,8 @@ where
     pub storage_manager: ProverStorageManager,
     /// Code commitments for different specs, used to verify the proofs
     pub code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
+    /// RPC config
+    pub rpc_config: RpcConfig,
 }
 
 /// Creates a shared RpcContext with all required data.
@@ -108,6 +113,7 @@ pub fn create_rpc_context<Da, DB, Vm>(
     da_service: Arc<Da>,
     storage_manager: ProverStorageManager,
     code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
+    rpc_config: RpcConfig,
 ) -> RpcContext<Da, DB, Vm>
 where
     Da: DaService,
@@ -120,6 +126,7 @@ where
         da_service,
         storage_manager,
         code_commitments,
+        rpc_config,
     }
 }
 
@@ -221,12 +228,17 @@ pub trait BatchProverRpc {
     /// Gets last `count` number of job ids. Returns ids in descending order, so latest job is the first index.
     ///
     /// # Arguments
-    /// * `count` - The number of latest proving jobs to retrieve.
+    /// * `limit` - The number of latest proving jobs to retrieve.
+    /// * `skip` - The number of latest proving jobs to skip for pagination (default is 0).
     ///
     /// # Returns
     /// A vector of `ProvingJobResponse` containing job IDs and their statuses.
     #[method(name = "getProvingJobs")]
-    async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<ProvingJobResponse>>;
+    async fn get_proving_jobs(
+        &self,
+        limit: U64,
+        skip: Option<U64>,
+    ) -> RpcResult<Vec<ProvingJobResponse>>;
 
     /// Gets proving job details of the commitment index.
     ///
@@ -247,6 +259,16 @@ pub trait BatchProverRpc {
     /// An optional vector of commitment indices associated with the given L1 height.
     #[method(name = "getCommitmentIndicesByL1")]
     async fn get_commitment_indices_by_l1(&self, l1_height: u64) -> RpcResult<Option<Vec<u32>>>;
+
+    /// Retry a proving job by its ID. This will re-queue the job for proving, and return a new job ID.
+    ///
+    /// # Arguments
+    /// * `job_id` - The unique identifier of the proving job to retry.
+    ///
+    /// # Returns
+    /// A new `Uuid` representing the retried proving job.
+    #[method(name = "retryProvingJob")]
+    async fn retry_proving_job(&self, job_id: Uuid) -> RpcResult<Uuid>;
 }
 
 /// Server implementation of the Batch Prover RPC interface
@@ -470,6 +492,7 @@ where
             l1_tx_id: Some(tx_id.into()),
             proof,
             proof_output: StoredBatchProofOutput::from(output).into(),
+            info: None,
         })
     }
 
@@ -492,6 +515,12 @@ where
             .ledger_db
             .get_commitment_by_range(index_start..=index_end)
             .map_err(internal_rpc_error)?;
+
+        if commitments.is_empty() {
+            return Err(internal_rpc_error(
+                "No commitments found for the specified range",
+            ));
+        }
 
         let (result_tx, result_rx) = oneshot::channel();
 
@@ -518,8 +547,8 @@ where
             .as_nanos();
         for (i, raw_input) in raw_inputs.into_iter().enumerate() {
             if let Ok(backup_dir) = env::var("TX_BACKUP_DIR") {
-                let input_path = Path::new(&backup_dir)
-                    .join(format!("{}-rpc-proof-input-{}.bin", unix_nanos, i));
+                let input_path =
+                    Path::new(&backup_dir).join(format!("{unix_nanos}-rpc-proof-input-{i}.bin"));
                 fs::write(input_path, &raw_input).expect("Proof input write cannot fail");
             }
             b64_inputs.push(BASE64_STANDARD.encode(&raw_input));
@@ -555,18 +584,36 @@ where
             .get_proof_by_job_id(job_id)
             .map_err(internal_rpc_error)?;
 
+        let proof = match stored_proof {
+            Some(sp) => {
+                let info = ledger_db
+                    .get_proving_session_info_by_job_id(job_id)
+                    .map_err(internal_rpc_error)?;
+                Some(make_batch_proof_response(sp, info))
+            }
+            None => None,
+        };
+
         Ok(Some(JobRpcResponse {
             id: job_id,
             commitments,
-            proof: stored_proof.map(Into::into),
+            proof,
         }))
     }
 
-    async fn get_proving_jobs(&self, count: usize) -> RpcResult<Vec<ProvingJobResponse>> {
+    async fn get_proving_jobs(
+        &self,
+        limit: U64,
+        skip: Option<U64>,
+    ) -> RpcResult<Vec<ProvingJobResponse>> {
+        let skip = skip.unwrap_or(U64::ZERO).to::<usize>();
+        let limit = limit.to::<usize>();
+        let limit = limit.min(self.context.rpc_config.proving_jobs_limit);
+
         let jobs = self
             .context
             .ledger_db
-            .get_latest_jobs(count)
+            .get_latest_jobs(limit, skip)
             .map_err(internal_rpc_error)?;
         let jobs = jobs
             .into_iter()
@@ -593,6 +640,35 @@ where
             .get_prover_commitment_indices_by_l1(SlotNumber(l1_height))
             .map_err(internal_rpc_error)
     }
+
+    async fn retry_proving_job(&self, job_id: Uuid) -> RpcResult<Uuid> {
+        let ledger_db = &self.context.ledger_db;
+
+        let mut commitment_indices = ledger_db
+            .get_commitment_indices_by_job_id(job_id)
+            .map_err(internal_rpc_error)?
+            .ok_or_else(|| internal_rpc_error("Job ID not found"))?;
+        commitment_indices.sort_unstable();
+
+        ledger_db
+            .remove_proving_job_by_id(job_id)
+            .map_err(internal_rpc_error)?;
+
+        for index in &commitment_indices {
+            ledger_db
+                .put_prover_pending_commitment(*index)
+                .map_err(internal_rpc_error)?;
+        }
+        let _ = self.prove(PartitionMode::Normal).await?;
+
+        let new_id = ledger_db
+            .get_job_id_by_commitment_index(commitment_indices[0])
+            .map_err(internal_rpc_error)?
+            .ok_or_else(|| internal_rpc_error("New job ID not found"))?;
+
+        info!("Retried proving job {}, new job id: {}", job_id, new_id);
+        Ok(new_id)
+    }
 }
 
 /// Creates an RPC module with fullnode methods
@@ -615,4 +691,17 @@ where
     let server = BatchProverRpcServerImpl::new(rpc_context);
 
     BatchProverRpcServer::into_rpc(server)
+}
+
+/// Combines stored proof and proving info into a [BatchProofResponse].
+fn make_batch_proof_response(
+    stored_proof: sov_db::schema::types::batch_proof::StoredBatchProof,
+    info: Option<ProvingSessionInfo>,
+) -> BatchProofResponse {
+    BatchProofResponse {
+        l1_tx_id: stored_proof.l1_tx_id,
+        proof: stored_proof.proof,
+        proof_output: BatchProofOutputRpcResponse::from(stored_proof.proof_output),
+        info,
+    }
 }

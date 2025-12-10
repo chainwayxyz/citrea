@@ -113,6 +113,7 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         .into_geth_builder()
                         .geth_prestate_traces(&res, &prestate_config, &db_ref)
                         .map_err(EthApiError::from_eth_err)?;
+
                     Ok(frame.into())
                 }
                 GethDebugBuiltInTracerType::FlatCallTracer => {
@@ -296,6 +297,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         .into_geth_builder()
                         .geth_prestate_traces(&res, &prestate_config, db_ref)
                         .map_err(EthApiError::from_eth_err)?;
+
                     Ok((frame.into(), res.state))
                 }
                 GethDebugBuiltInTracerType::FlatCallTracer => {
@@ -427,9 +429,10 @@ where
     I: for<'c> Inspector<CitreaContext<'c, DB>>,
 {
     let mut ext = CitreaChain::new(l1_fee_rate);
-    if let Some(tx_hash) = tx_hash {
-        ext.set_current_tx_hash(tx_hash);
-    }
+
+    let tx_hash = tx_hash.unwrap_or_else(|| b"hash_of_an_ephemeral_transaction".into());
+
+    ext.set_current_tx_hash(tx_hash);
 
     let mut journal = Journal::new(db);
     journal.set_spec_id(config_env.spec());

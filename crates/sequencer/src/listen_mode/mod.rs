@@ -22,7 +22,7 @@
 //!     For that reason listen mode sequencer also stores all mempool transactions in its own persistent storage, updates the persistent storage regularly and does not keep in block txs in that storage
 //!     When restarted as producer sequencer, it will put all the txs in the persistent storage back into mempool
 
-use citrea_common::l2::{L2BlockProcessor, L2Syncer, ProcessL2BlockResult};
+use citrea_common::l2::{AppliedL2Block, L2BlockProcessor, L2Syncer};
 use l1_syncer::L1Syncer;
 use mempool_syncer::MempoolSyncer;
 use reth_tasks::TaskExecutor;
@@ -47,14 +47,14 @@ impl<DB> L2BlockProcessor<DB> for ListenModeSequencerL2BlockProcessor
 where
     DB: sov_db::ledger_db::SequencerLedgerOps,
 {
-    fn process_result(result: &ProcessL2BlockResult, db: &DB) -> anyhow::Result<()> {
+    fn process_result(result: &AppliedL2Block, db: &DB) -> anyhow::Result<()> {
         db.set_state_diff(L2BlockNumber(result.l2_height), &result.state_diff.clone())
     }
 
-    fn record_metrics(result: &ProcessL2BlockResult) {
-        SM.current_l2_block.set(result.l2_height as f64);
+    fn record_metrics(l2_height: u64, _block_size: usize, process_block_duration_secs: f64) {
+        SM.current_l2_block.set(l2_height as f64);
         SM.entire_block_production_duration_gauge
-            .set(result.process_duration);
+            .set(process_block_duration_secs);
     }
 }
 

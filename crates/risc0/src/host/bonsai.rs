@@ -1,16 +1,17 @@
-use std::env;
 use std::time::Duration;
 
 use anyhow::{anyhow, Context};
 use bonsai_sdk::blocking::{Client, SessionId, SnarkId};
 use bonsai_sdk::responses::SessionStats;
+use citrea_common::config::risc0::BonsaiProverConfig;
+use citrea_common::utils::is_dev_mode_enabled_via_environment;
 use metrics::gauge;
-use risc0_zkvm::{
-    compute_image_id, AssumptionReceipt, Digest, InnerAssumptionReceipt, Receipt, VerifierContext,
-};
+use risc0_zkvm::{compute_image_id, AssumptionReceipt, Digest, InnerAssumptionReceipt, Receipt};
 use sov_db::ledger_db::{BonsaiLedgerOps, LedgerDB};
 use sov_db::schema::types::{BonsaiSession, BonsaiSessionKind};
-use sov_rollup_interface::zk::{ProofWithJob, ReceiptType};
+use sov_rollup_interface::zk::{
+    BonsaiProvingSessionInfo, ProofWithJob, ProvingSessionInfo, ReceiptType,
+};
 use tokio::sync::oneshot;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -22,20 +23,14 @@ pub struct BonsaiProver {
 }
 
 impl BonsaiProver {
-    pub fn new(ledger_db: LedgerDB) -> Self {
+    pub fn new(ledger_db: LedgerDB, config: BonsaiProverConfig) -> Self {
         assert!(
-            env::var("RISC0_PROVER").is_ok_and(|prover| prover == "bonsai"),
-            "RISC0_PROVER must be explicitly set to bonsai"
-        );
-        assert!(env::var("BONSAI_API_URL").is_ok(), "BONSAI_API_URL missing");
-        assert!(env::var("BONSAI_API_KEY").is_ok(), "BONSAI_API_KEY missing");
-        assert!(
-            env::var("RISC0_DEV_MODE").is_err(),
+            !is_dev_mode_enabled_via_environment(),
             "RISC0_DEV_MODE should not be set for bonsai"
         );
 
-        let client =
-            Client::from_env(risc0_zkvm::VERSION).expect("Bonsai client build cannot fail");
+        let client = Client::from_parts(config.api_url, config.api_key, risc0_zkvm::VERSION)
+            .expect("Bonsai client build cannot fail");
 
         Self { client, ledger_db }
     }
@@ -110,10 +105,10 @@ impl BonsaiProver {
 
         tokio::spawn(async move {
             match this
-                .handle_session(job_id, session, image_id, receipt_type)
+                .handle_session(job_id, session.clone(), image_id, receipt_type)
                 .await
             {
-                Ok(receipt) => {
+                Ok((receipt, stats)) => {
                     let serialized_receipt = bincode::serialize(&receipt.inner)
                         .expect("Receipt serialization cannot fail");
 
@@ -122,6 +117,13 @@ impl BonsaiProver {
                     let Ok(_) = tx.send(ProofWithJob {
                         job_id,
                         proof: serialized_receipt,
+                        info: ProvingSessionInfo::Bonsai(BonsaiProvingSessionInfo {
+                            session_id: session.uuid,
+                            segments: stats.segments,
+                            total_cycles: stats.total_cycles,
+                            user_cycles: stats.cycles,
+                            receipt_type,
+                        }),
                     }) else {
                         error!("Bonsai proof receiver channel is closed");
                         return;
@@ -150,7 +152,7 @@ impl BonsaiProver {
         session: SessionId,
         image_id: Digest,
         receipt_type: ReceiptType,
-    ) -> anyhow::Result<Receipt> {
+    ) -> anyhow::Result<(Receipt, SessionStats)> {
         let (succinct_receipt, stats) = self.wait_stark_receipt(&session).await?;
         succinct_receipt
             .verify(image_id)
@@ -166,7 +168,7 @@ impl BonsaiProver {
         );
 
         if matches!(receipt_type, ReceiptType::Succinct) {
-            return Ok(succinct_receipt);
+            return Ok((succinct_receipt, stats));
         }
 
         let snark_session = self.client.create_snark(session.uuid.clone())?;
@@ -182,10 +184,10 @@ impl BonsaiProver {
 
         let groth16_receipt = self.wait_snark_receipt(&snark_session).await?;
         groth16_receipt
-            .verify_integrity_with_context(&VerifierContext::default())
-            .context("Failed to verify bonsai groth16 proof integrity")?;
+            .verify(image_id)
+            .context("Failed to verify bonsai groth16 proof")?;
 
-        Ok(groth16_receipt)
+        Ok((groth16_receipt, stats))
     }
 
     async fn wait_stark_receipt(
@@ -258,6 +260,7 @@ impl BonsaiProver {
     /// receiver channels that return the associated job id and proof result on finish.
     pub fn start_recovery(&self) -> anyhow::Result<Vec<oneshot::Receiver<ProofWithJob>>> {
         let sessions = self.ledger_db.get_pending_bonsai_sessions()?;
+        info!("Recovering Bonsai sessions: {:?}", sessions);
         if sessions.is_empty() {
             return Ok(vec![]);
         }

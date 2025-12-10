@@ -28,3 +28,7 @@ mod services;
 /// Light client prover tests
 #[cfg(test)]
 mod tests;
+
+/// Test utilities
+#[cfg(test)]
+pub(crate) use tests::test_utils::*;

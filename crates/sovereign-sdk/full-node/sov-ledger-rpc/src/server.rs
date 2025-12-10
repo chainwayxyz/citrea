@@ -1,5 +1,6 @@
 //! A JSON-RPC server implementation for any [`LedgerRpcProvider`].
 
+use alloy_primitives::ruint::UintTryTo;
 use alloy_primitives::{U32, U64};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::types::ErrorObjectOwned;
@@ -61,7 +62,12 @@ where
     }
 
     fn get_l2_block_range(&self, start: U64, end: U64) -> RpcResult<Vec<Option<L2BlockResponse>>> {
-        if (end - start).to::<u32>() > self.config.max_l2_blocks_per_request {
+        let diff: u32 = (end - start).uint_try_to().map_err(|_| {
+            to_ledger_rpc_error(
+                "Invalid range: start must be less than end or the difference is too large",
+            )
+        })?;
+        if diff > self.config.max_l2_blocks_per_request {
             return Err(to_ledger_rpc_error(format!(
                 "requested batch range too large. Max: {}",
                 self.config.max_l2_blocks_per_request

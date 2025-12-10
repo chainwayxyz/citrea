@@ -14,7 +14,7 @@ use jmt::storage::{NibblePath, Node, NodeKey, StaleNodeIndex};
 use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::StateDiff;
-use sov_rollup_interface::zk::Proof;
+use sov_rollup_interface::zk::{Proof, ProvingSessionInfo};
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 use uuid::Uuid;
@@ -23,8 +23,8 @@ use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
 use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
-    AccessoryKey, AccessoryStateValue, BonsaiSession, DbHash, JmtValue, L1Height, L2BlockNumber,
-    L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber, StateKey,
+    AccessoryKey, AccessoryStateValue, BonsaiSession, BoundlessSession, DbHash, JmtValue, L1Height,
+    L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber, StateKey,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -50,7 +50,6 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     L2RangeByL1Height::table_name(),
     LastPrunedBlock::table_name(),
     MempoolTxs::table_name(),
-    PendingSequencerCommitment::table_name(),
     SequencerCommitmentByIndex::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
     StateDiffByBlockNumber::table_name(),
@@ -102,8 +101,11 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     L2BlockByNumber::table_name(),
     L2GenesisStateRoot::table_name(),
     LastPrunedBlock::table_name(),
+    PendingBonsaiSessionByJobId::table_name(),
     PendingL1SubmissionJobs::table_name(),
+    PendingBoundlessSessionByJobId::table_name(),
     ProofByJobId::table_name(),
+    ProvingSessionInfoByJobId::table_name(),
     ProverLastScannedSlot::table_name(),
     ProverPendingCommitments::table_name(),
     ProverStateDiffs::table_name(),
@@ -123,9 +125,12 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
 pub const LIGHT_CLIENT_PROVER_LEDGER_TABLES: &[&str] = &[
     // Don't know if this will be needed
     CommitmentMerkleRoots::table_name(),
+    PendingBonsaiSessionByJobId::table_name(),
+    PendingBoundlessSessionByJobId::table_name(),
     ExecutedMigrations::table_name(),
     LightClientProofBySlotNumber::table_name(),
     ProverLastScannedSlot::table_name(),
+    ProvingSessionInfoBySlotNumber::table_name(),
     SlotByHash::table_name(),
     // #### TESTS RELATED TABLES ####
     #[cfg(test)]
@@ -158,13 +163,15 @@ pub const LEDGER_TABLES: &[&str] = &[
     PendingL1SubmissionJobs::table_name(),
     PendingProofs::table_name(),
     PendingProvingSessions::table_name(),
-    PendingSequencerCommitment::table_name(),
     PendingSequencerCommitments::table_name(),
     ProofByJobId::table_name(),
+    ProvingSessionInfoByJobId::table_name(),
+    ProvingSessionInfoBySlotNumber::table_name(),
     ProofsBySlotNumber::table_name(),
     ProofsBySlotNumberV2::table_name(),
     ProverLastScannedSlot::table_name(),
     ProverPendingCommitments::table_name(),
+    PendingBoundlessSessionByJobId::table_name(),
     ProverStateDiffs::table_name(),
     SequencerCommitmentByIndex::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
@@ -366,6 +373,11 @@ define_table_with_default_codec!(
     (ProofByJobId) Uuid => StoredBatchProof
 );
 
+define_table_with_seek_key_codec!(
+    /// Proving session information by job ID
+    (ProvingSessionInfoByJobId) Uuid => ProvingSessionInfo
+);
+
 define_table_with_default_codec!(
     /// Secondary index table for quickly associating commitment idx with its proving job id
     (JobIdOfCommitment) u32 => Uuid
@@ -386,9 +398,14 @@ define_table_with_default_codec!(
     (PendingL1SubmissionJobs) Uuid => ()
 );
 
-define_table_with_default_codec!(
+define_table_with_seek_key_codec!(
     /// Pending Bonsai proving sessions by job id
     (PendingBonsaiSessionByJobId) Uuid => BonsaiSession
+);
+
+define_table_with_seek_key_codec!(
+    /// Pending Boundless proving sessions by job id
+    (PendingBoundlessSessionByJobId) Uuid => BoundlessSession
 );
 
 define_table_with_default_codec!(
@@ -416,12 +433,6 @@ define_table_with_default_codec!(
     (L2GenesisStateRoot) () => Vec<u8>
 );
 
-define_table_with_default_codec!(
-    /// The primary source for in progress sequencer commitments
-    /// This table is used to store the pending sequencer commitments indexes
-    (PendingSequencerCommitment) () => Vec<u32>
-);
-
 define_table_with_seek_key_codec!(
     /// Prover uses this table to store the last slot it scanned
     /// Full node also uses this table to store the last slot it scanned
@@ -443,6 +454,11 @@ define_table_with_default_codec!(
 define_table_with_default_codec!(
     /// Light client proof data by l1 height
     (LightClientProofBySlotNumber) SlotNumber => StoredLightClientProof
+);
+
+define_table_with_seek_key_codec!(
+    /// Proving session information by slot number
+    (ProvingSessionInfoBySlotNumber) SlotNumber => ProvingSessionInfo
 );
 
 define_table_with_default_codec!(
@@ -482,7 +498,7 @@ define_table_with_seek_key_codec!(
 );
 
 define_table_with_default_codec!(
-    /// Stores merkle hash of seuencer commitment => l2 range
+    /// Stores merkle hash of sequencer commitment => l2 range
     (CommitmentMerkleRoots) [u8; 32] => L2HeightRange
 );
 
@@ -491,12 +507,12 @@ define_table_with_seek_key_codec!(
     (L2StatusHeights) (L2HeightStatus, u64) => L2HeightAndIndex
 );
 
-define_table_with_default_codec!(
+define_table_with_seek_key_codec!(
     /// Out of order sequencer commitments
     (PendingSequencerCommitments) u32 => (SequencerCommitment, L1Height)
 );
 
-define_table_with_default_codec!(
+define_table_with_seek_key_codec!(
     /// Out of order proofs
     (PendingProofs) (u32, u32) => (Proof, L1Height)
 );
@@ -517,7 +533,7 @@ impl KeyEncoder<JmtNodes> for NodeKey {
     fn encode_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
         // 8 bytes for version, 4 each for the num_nibbles and bytes.len() fields, plus 1 byte per byte of nibblepath
         let mut output =
-            Vec::with_capacity(8 + 4 + 4 + ((self.nibble_path().num_nibbles() + 1) / 2));
+            Vec::with_capacity(8 + 4 + 4 + self.nibble_path().num_nibbles().div_ceil(2));
         let version = self.version().to_be_bytes();
         output.extend_from_slice(&version);
         BorshSerialize::serialize(self.nibble_path(), &mut output)?;
@@ -681,5 +697,81 @@ impl ValueCodec<LastPrunedL2Height> for u64 {
 
     fn decode_value(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
         Ok(BorshDeserialize::deserialize_reader(&mut &data[..])?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sov_schema_db::test::{TestCompositeField, TestField};
+    use sov_schema_db::{define_schema, Schema, SchemaBatch, DB};
+
+    define_schema!(
+        TestSchemaDefaultCodec,
+        TestCompositeField,
+        TestField,
+        "TestDefault"
+    );
+    define_schema!(
+        TestSchemaSeekKeyCodec,
+        TestCompositeField,
+        TestField,
+        "TestSeekKey"
+    );
+
+    // Define tables using both codecs for comparison
+    define_table_with_default_codec!(
+        /// Test table with default codec (little endian)
+        (TestTableDefault) (u32, u32) => u32
+    );
+
+    define_table_with_seek_key_codec!(
+        /// Test table with seek key codec (big endian)
+        (TestTableSeekKey) (u32, u32) => u32
+    );
+
+    #[test]
+    fn test_codec_ordering_comparison() {
+        let test_values: Vec<((u32, u32), u32)> = (0..8)
+            .map(|i| {
+                let val = 1u32 << (i * 4);
+                ((val, val + 1), val)
+            })
+            .collect();
+
+        // Test default codec
+        let default_ordering = {
+            let db = DB::open_temp("test-default", vec![TestTableDefault::COLUMN_FAMILY_NAME]);
+            let mut batch = SchemaBatch::new();
+            for (key, value) in &test_values {
+                batch.put::<TestTableDefault>(key, value).unwrap();
+            }
+            db.write_schemas(batch).unwrap();
+
+            let mut iter = db.iter::<TestTableDefault>().unwrap();
+            iter.seek_to_first();
+            iter.map(|item| item.unwrap().key.0).collect::<Vec<_>>()
+        };
+
+        // Test seek key codec
+        let seekkey_ordering = {
+            let db = DB::open_temp("test-seekkey", vec![TestTableSeekKey::COLUMN_FAMILY_NAME]);
+            let mut batch = SchemaBatch::new();
+            for (key, value) in &test_values {
+                batch.put::<TestTableSeekKey>(key, value).unwrap();
+            }
+            db.write_schemas(batch).unwrap();
+
+            let mut iter = db.iter::<TestTableSeekKey>().unwrap();
+            iter.seek_to_first();
+            iter.map(|item| item.unwrap().key.0).collect::<Vec<_>>()
+        };
+
+        // Verify seek key codec maintains ordering
+        let mut expected = seekkey_ordering.clone();
+        expected.sort();
+        assert_eq!(seekkey_ordering, expected);
+
+        // Verify default codec produces incorrect ordering
+        assert_ne!(default_ordering, seekkey_ordering);
     }
 }

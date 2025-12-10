@@ -63,6 +63,17 @@ pub struct ProcessL2BlockResult {
     pub block_size: usize,
 }
 
+/// Result from applying an L2 block before committing
+pub struct AppliedL2Block {
+    pub l2_height: u64,
+    pub l2_block: L2Block,
+    pub state_diff: StateDiff,
+    pub state_root: StorageRootHash,
+    pub tx_hashes: Vec<[u8; 32]>,
+    pub tx_bodies: Option<Vec<Vec<u8>>>,
+    pub block_size: usize,
+}
+
 enum SyncError {
     ResponseOverLimit,
     Call(String),
@@ -141,8 +152,18 @@ impl SequentialL2BlockBuffer {
     }
 }
 
+/// Commit an L2 block to the ledger database
+/// This is the second step of processing an L2 block
+pub fn commit_l2_block<DB: SharedLedgerOps>(
+    ledger_db: &DB,
+    applied: AppliedL2Block,
+) -> anyhow::Result<()> {
+    ledger_db.commit_l2_block(applied.l2_block, applied.tx_hashes, applied.tx_bodies)?;
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
-pub async fn process_l2_block<Da: DaService, DB: SharedLedgerOps>(
+pub async fn apply_l2_block<Da: DaService, DB: SharedLedgerOps>(
     l2_block_response: &L2BlockResponse,
     storage_manager: &ProverStorageManager,
     fork_manager: &mut ForkManager<'_>,
@@ -153,9 +174,7 @@ pub async fn process_l2_block<Da: DaService, DB: SharedLedgerOps>(
     current_state_root: StorageRootHash,
     sequencer_pub_key: &K256PublicKey,
     include_tx_body: bool,
-) -> Result<ProcessL2BlockResult, L2SyncerError> {
-    let start = Instant::now();
-
+) -> Result<AppliedL2Block, L2SyncerError> {
     let l2_height = l2_block_response.header.height.to();
 
     info!(
@@ -236,24 +255,19 @@ pub async fn process_l2_block<Da: DaService, DB: SharedLedgerOps>(
     let tx_hashes = compute_tx_hashes(&l2_block.txs, current_spec);
     let tx_bodies = if include_tx_body { tx_bodies } else { None };
 
-    ledger_db.commit_l2_block(l2_block, tx_hashes, tx_bodies)?;
-
     info!(
         "New State Root after l2 block #{} is: 0x{}",
         l2_height,
         hex::encode(next_state_root)
     );
 
-    let duration = Instant::now()
-        .saturating_duration_since(start)
-        .as_secs_f64();
-
-    Ok(ProcessL2BlockResult {
+    Ok(AppliedL2Block {
         l2_height,
-        l2_block_hash: l2_block_response.header.hash,
-        state_root: next_state_root,
+        l2_block,
         state_diff: l2_block_result.state_diff,
-        process_duration: duration,
+        state_root: next_state_root,
+        tx_hashes,
+        tx_bodies,
         block_size,
     })
 }
@@ -399,9 +413,9 @@ pub trait L2BlockProcessor<DB> {
     /// # Arguments
     /// * `result` - The processed l2 block result
     /// * `db` - Database handle for storage
-    fn process_result(result: &ProcessL2BlockResult, db: &DB) -> anyhow::Result<()>;
+    fn process_result(result: &AppliedL2Block, db: &DB) -> anyhow::Result<()>;
     /// Record metrics for the processed block
-    fn record_metrics(result: &ProcessL2BlockResult);
+    fn record_metrics(l2_height: u64, _block_size: usize, process_block_duration_secs: f64);
 }
 
 /// Component responsible for synchronizing and processing L2 blocks
@@ -594,7 +608,9 @@ where
         &mut self,
         l2_block_response: &L2BlockResponse,
     ) -> Result<(), L2SyncerError> {
-        let l2_block_result = process_l2_block(
+        let start = Instant::now();
+
+        let applied_l2_block_data = apply_l2_block(
             l2_block_response,
             &self.storage_manager,
             &mut self.fork_manager,
@@ -608,14 +624,28 @@ where
         )
         .await?;
 
-        self.state_root = l2_block_result.state_root;
-        self.l2_block_hash = l2_block_result.l2_block_hash;
+        // Save state diff BEFORE committing the L2 block
+        // This prevents race conditions where the batch prover might shut down
+        // between committing the L2 block and saving the state diff
+        P::process_result(&applied_l2_block_data, &self.ledger_db)?;
 
-        P::process_result(&l2_block_result, &self.ledger_db)?;
-        P::record_metrics(&l2_block_result);
+        let l2_height = applied_l2_block_data.l2_height;
+        let state_root = applied_l2_block_data.state_root;
+        let block_size = applied_l2_block_data.block_size;
+
+        commit_l2_block(&self.ledger_db, applied_l2_block_data)?;
+
+        let process_duration = Instant::now()
+            .saturating_duration_since(start)
+            .as_secs_f64();
+
+        self.state_root = state_root;
+        self.l2_block_hash = l2_block_response.header.hash;
+
+        P::record_metrics(l2_height, block_size, process_duration);
 
         // Only errors when there are no receivers
-        let _ = self.l2_block_tx.send(l2_block_result.l2_height);
+        let _ = self.l2_block_tx.send(l2_height);
 
         Ok(())
     }

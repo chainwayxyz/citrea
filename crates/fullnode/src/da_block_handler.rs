@@ -6,7 +6,7 @@
 use core::panic;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use anyhow::anyhow;
 use citrea_common::backup::BackupManager;
@@ -29,8 +29,7 @@ use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sov_rollup_interface::Network;
 use tokio::select;
-use tokio::sync::Mutex;
-use tokio::time::Duration;
+use tokio::sync::{Mutex, Notify};
 use tracing::{debug, error, info, instrument, warn};
 
 use crate::error::{CommitmentError, HaltingError, ProcessingError, ProofError, SkippableError};
@@ -133,17 +132,18 @@ where
     /// * `shutdown_signal` - Signal to gracefully shut down
     #[instrument(name = "L1BlockHandler", skip_all)]
     pub async fn run(mut self, start_l1_height: u64, mut shutdown_signal: GracefulShutdown) {
-        let mut interval = tokio::time::interval(Duration::from_secs(1));
-        interval.tick().await;
+        let notifier = Arc::new(Notify::new());
 
         let l1_sync_worker = sync_l1(
             start_l1_height,
             self.da_service.clone(),
             self.queued_l1_blocks.clone(),
             self.l1_block_cache.clone(),
+            notifier.clone(),
         );
         tokio::pin!(l1_sync_worker);
 
+        tokio::time::sleep(Duration::from_secs(1)).await; // Gives time for queue to fill up on startup
         loop {
             select! {
                 biased;
@@ -152,7 +152,7 @@ where
                     return;
                 }
                 _ = &mut l1_sync_worker => {},
-                _ = interval.tick() => {
+                _ = notifier.notified() => {
                     if let Err(e) = self.process_queued_l1_blocks().await {
                         error!("{e}");
                         return;
@@ -561,8 +561,16 @@ where
         tracing::trace!("ZK proof: {:?}", proof);
 
         // Extract and verify the proof using the appropriate ZKVM
-        let batch_proof_output = Vm::extract_output::<BatchProofCircuitOutput>(&proof)
-            .map_err(|e| anyhow!("Failed to extract batch proof output from proof: {:?}", e))?;
+        let Ok(batch_proof_output) = Vm::extract_output::<BatchProofCircuitOutput>(&proof) else {
+            return Ok(ProcessingResult::Discarded);
+        };
+
+        tracing::info!(
+            "Extracted batch proof output with last L2 height: {}, commitment index range: {}-{}",
+            batch_proof_output.last_l2_height(),
+            batch_proof_output.sequencer_commitment_index_range().0,
+            batch_proof_output.sequencer_commitment_index_range().1
+        );
 
         // Get the code commitment for the appropriate fork
         let spec_id = fork_from_block_number(batch_proof_output.last_l2_height()).spec_id;
@@ -572,12 +580,15 @@ where
             .expect("Proof public input must contain valid spec id");
 
         // Verify the proof against the code commitment
-        Vm::verify(
+        if Vm::verify(
             proof.as_slice(),
             code_commitment,
             network_to_dev_mode(self.network),
         )
-        .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
+        .is_err()
+        {
+            return Ok(ProcessingResult::Discarded);
+        }
 
         // Process the verified proof using Tangerine-specific logic
         self.process_tangerine_zk_proof(
@@ -771,12 +782,10 @@ where
         current_l1_block_height: u64,
     ) -> Result<(), ProcessingError> {
         let pending_commitments = self.ledger_db.get_pending_commitments()?;
-        if pending_commitments.is_empty() {
-            return Ok(());
-        }
 
         // Try to process each pending commitment in order
-        for (index, commitment, found_in_l1_height) in pending_commitments {
+        for item in pending_commitments {
+            let (index, (commitment, found_in_l1_height)) = item?.into_tuple();
             // A commitment is processable if:
             // - For index 1: all its L2 blocks are synced
             // - For other indices: its previous commitment exists
@@ -844,11 +853,9 @@ where
         current_l1_block_height: u64,
     ) -> Result<(), ProcessingError> {
         let pending_proofs = self.ledger_db.get_pending_proofs()?;
-        if pending_proofs.is_empty() {
-            return Ok(());
-        }
 
-        for ((min_index, max_index), proof, found_in_l1_height) in pending_proofs {
+        for item in pending_proofs {
+            let ((min_index, max_index), (proof, found_in_l1_height)) = item?.into_tuple();
             match self
                 .process_zk_proof(current_l1_block_height, found_in_l1_height, proof)
                 .await
@@ -868,7 +875,10 @@ where
                     self.ledger_db.remove_pending_proof(min_index, max_index)?;
                 }
                 Ok(ProcessingResult::Pending) => {
-                    debug!("Keeping proof over commitment index range {min_index}-{max_index} as pending")
+                    debug!("Keeping proof over commitment index range {min_index}-{max_index} as pending");
+                    // Proofs are sorted by min_index.
+                    // We can break on the first pending proof as subsequent ones will depend on it and should be kept as pending
+                    break;
                 }
             }
         }

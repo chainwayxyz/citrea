@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use bitcoin_da::fee::FeeService;
@@ -13,6 +14,7 @@ use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use bitcoincore_rpc::{Auth, Client};
 use citrea_common::backup::{create_backup_rpc_module, BackupManager};
+use citrea_common::config::risc0::Risc0HostConfig;
 use citrea_common::config::ProverGuestRunConfig;
 use citrea_common::{FullNodeConfig, RpcConfig};
 use citrea_primitives::forks::use_network_forks;
@@ -113,13 +115,20 @@ impl RollupBlueprint for BitcoinRollup {
             network,
         };
         let da_config = &rollup_config.da;
+
+        // Use configured timeouts or defaults
+        let timeout = da_config.rpc_timeout_secs.map(Duration::from_secs);
+        let connect_timeout = da_config.rpc_connect_timeout_secs.map(Duration::from_secs);
+
         let client = Arc::new(
-            Client::new(
+            Client::with_timeouts(
                 &da_config.node_url,
                 Auth::UserPass(
                     da_config.node_username.clone(),
                     da_config.node_password.clone(),
                 ),
+                timeout,
+                connect_timeout,
             )
             .await?,
         );
@@ -267,12 +276,13 @@ impl RollupBlueprint for BitcoinRollup {
     async fn create_prover_service(
         &self,
         proving_mode: ProverGuestRunConfig,
+        risc0_host_config: Risc0HostConfig,
         da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,
         proof_sampling_number: usize,
         is_light_client_prover: bool,
     ) -> ParallelProverService<Self::DaService, Self::Vm> {
-        let vm = Risc0Host::new(ledger_db.clone(), self.network);
+        let vm = Risc0Host::new(ledger_db.clone(), self.network, risc0_host_config).await;
         // let vm = SP1Host::new(
         //     include_bytes!("../guests/sp1/batch-prover-bitcoin/elf/zkvm-elf"),
         //     ledger_db.clone(),

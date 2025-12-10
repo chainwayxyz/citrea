@@ -9,6 +9,8 @@ use bitcoin::hashes::Hash;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::PartitionMode;
+use citrea_common::config::risc0::Risc0HostConfig;
+use citrea_common::FromEnv;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::{
     BatchProverConfig, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig,
@@ -28,7 +30,7 @@ use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::Zkvm as _;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
-use sov_rollup_interface::zk::{ReceiptType, ZkvmHost};
+use sov_rollup_interface::zk::{ProvingSessionInfo, ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
 use uuid::Uuid;
 
@@ -1192,13 +1194,16 @@ impl TestCase for SubmitFakeProofRpcTest {
         let zkvm_prove_output = job_response.proof.unwrap().proof_output;
 
         // also submit fake proof of commitment index 5 through rpc
-        let native_prove_output = batch_prover
+        let fake_proof_response = batch_prover
             .client
             .http_client()
             .submit_fake_proof(5, 5)
             .await
-            .unwrap()
-            .proof_output;
+            .unwrap();
+        // assert that fake proof response has null info field
+        assert!(fake_proof_response.info.is_none());
+
+        let native_prove_output = fake_proof_response.proof_output;
         // compare actual zkvm
         assert_eq!(zkvm_prove_output, native_prove_output);
 
@@ -1263,7 +1268,8 @@ impl TestCase for BatchProverCreateInputTest {
         let network = Network::Nightly;
 
         let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
-        let mut risc0_host = Risc0Host::new(ledger_db, network);
+        let risc0_config = Risc0HostConfig::from_env().expect("Failed to load risc0 config");
+        let mut risc0_host = Risc0Host::new(ledger_db, network, risc0_config).await;
 
         for input in inputs {
             // Decode raw circuit input
@@ -1280,6 +1286,7 @@ impl TestCase for BatchProverCreateInputTest {
                     ReceiptType::Groth16,
                     false,
                 )
+                .await
                 .expect("Proof generation failed")
                 .await
                 .expect("Proof channel should not close");
@@ -1310,6 +1317,21 @@ impl TestCase for BatchProverCreateInputTest {
             assert_eq!(state_roots[1], l2_block.header.state_root);
         }
 
+        // Test that non-existent commitment ranges are properly rejected
+        let result = batch_prover
+            .client
+            .http_client()
+            .create_circuit_input(100, 200, PartitionMode::Normal)
+            .await;
+
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(
+            error_msg.contains("No commitments found"),
+            "Expected error about no commitments found, got: {}",
+            error_msg
+        );
+
         sequencer.wait_until_stopped().await?;
         batch_prover.wait_until_stopped().await?;
 
@@ -1339,7 +1361,7 @@ impl TestCase for InvokeCachePruningTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            max_l2_blocks_per_commitment: 60,
+            max_l2_blocks_per_commitment: 55,
             mempool_conf: SequencerMempoolConfig {
                 pending_tx_limit: 1_000_000,
                 pending_tx_size: 100_000_000,
@@ -1348,6 +1370,7 @@ impl TestCase for InvokeCachePruningTest {
                 base_fee_tx_limit: 1_000_000,
                 base_fee_tx_size: 100_000_000,
                 max_account_slots: 1_000_000,
+                ..Default::default()
             },
             ..Default::default()
         }
@@ -1375,7 +1398,7 @@ impl TestCase for InvokeCachePruningTest {
         }
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
-        // we publish 60 blocks, but actually, 55th block hits state diff
+        // we publish 55 blocks - this should hit the state diff limit
         for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
@@ -1400,7 +1423,8 @@ impl TestCase for InvokeCachePruningTest {
         // Wait for batch proof transactions to hit the mempool
         // In this proof, cache limit of 6MB will be hit and pruning will occur.
         // If the proving session ended successfully, we are gucci
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(2, Some(Duration::from_secs(300)))
+            .await?;
 
         // Finalize the zk proof
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -1420,15 +1444,209 @@ impl TestCase for InvokeCachePruningTest {
             .unwrap()
             .unwrap();
         assert_eq!(last_proven_l2_data.commitment_index, 1);
+        // Should be exactly 55 blocks in the commitment
         assert_eq!(last_proven_l2_data.height, 55);
 
         Ok(())
     }
 }
 
+impl InvokeCachePruningTest {
+    async fn create_deploy_transactions(&self) -> Vec<Vec<u8>> {
+        // 11 tx fits into a single block
+        const DEPLOY_COUNT: usize = 55 * 11;
+
+        let bytecode_hex = fs::read_to_string("tests/bitcoin/test-data/big-contract.bin").unwrap();
+        let bytecode_size = bytecode_hex.len() / 2;
+
+        // extra 32 bytes for constructor argument
+        let mut bytecode_with_args = vec![0; bytecode_size + 32];
+        hex::decode_to_slice(bytecode_hex, &mut bytecode_with_args[0..bytecode_size]).unwrap();
+
+        // prepare signer
+        let private_key: [u8; 32] =
+            hex::decode("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let mut signer = PrivateKeySigner::from_slice(&private_key).unwrap();
+        signer.set_chain_id(Some(5655));
+
+        let mut signed_txs = Vec::with_capacity(DEPLOY_COUNT);
+        for i in 0..DEPLOY_COUNT {
+            // set constructor argument different for each contract.
+            // since constructor argument sets immutable storage variable
+            // this will make bytecode of each contract different
+            bytecode_with_args[bytecode_size..]
+                .copy_from_slice(U256::from(i).to_be_bytes::<32>().as_slice());
+
+            let mut tx = TxLegacy {
+                chain_id: Some(5655),
+                nonce: i as u64,
+                gas_price: 1_000_000_000 * 1_000_000_000, // 1_000_000_000 gwei
+                gas_limit: 3_000_000,                     // 3 million gas
+                to: TxKind::Create,
+                value: U256::ZERO,
+                input: Bytes::copy_from_slice(&bytecode_with_args),
+            };
+
+            let signature = signer.sign_transaction(&mut tx).await.unwrap();
+            let signed_tx = tx.into_signed(signature);
+
+            let mut rlp_buf = Vec::with_capacity(signed_tx.rlp_encoded_length());
+            signed_tx.rlp_encode(&mut rlp_buf);
+
+            signed_txs.push(rlp_buf);
+        }
+
+        signed_txs
+    }
+}
+
 #[tokio::test]
 async fn invoke_cache_prune_test() -> Result<()> {
     TestCaseRunner::new(InvokeCachePruningTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+struct RetryProvingTest;
+
+#[async_trait]
+impl TestCase for RetryProvingTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        for _ in 0..max_l2_blocks_per_commitment * 4 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for blob inscribe tx to be in mempool
+        da.wait_mempool_len(8, None).await?;
+
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        // Wait for batch proof tx to hit mempool
+        da.wait_mempool_len(2, None).await?;
+
+        let proving_job = batch_prover
+            .client
+            .http_client()
+            .get_proving_job_of_commitment(1)
+            .await?
+            .unwrap();
+        assert_eq!(proving_job.commitments.len(), 4);
+
+        // retry proving the same job
+        let new_job_id = batch_prover
+            .client
+            .http_client()
+            .retry_proving_job(proving_job.id)
+            .await?;
+        assert_ne!(new_job_id, proving_job.id, "new job id should be different");
+
+        // check the commitments of the new proving job
+        let new_proving_job = wait_for_prover_job(batch_prover, new_job_id, None).await?;
+        assert_eq!(new_proving_job.commitments.len(), 4);
+
+        // check the mapping from commitment to proving job is updated
+        let job_from_commitment = batch_prover
+            .client
+            .http_client()
+            .get_proving_job_of_commitment(1)
+            .await?
+            .unwrap();
+        assert_eq!(job_from_commitment.id, new_job_id);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn retry_proving_test() -> Result<()> {
+    TestCaseRunner::new(RetryProvingTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+struct ProvingSessionInfoTest;
+
+#[async_trait]
+impl TestCase for ProvingSessionInfoTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        // Wait for blob inscribe tx to be in mempool
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+
+        // Wait for batch proof tx to hit mempool
+        da.wait_mempool_len(2, None).await?;
+
+        let proving_job = batch_prover
+            .client
+            .http_client()
+            .get_proving_job_of_commitment(1)
+            .await?
+            .expect("proving job should exist");
+        assert_eq!(proving_job.commitments.len(), 1);
+
+        let proving_info = proving_job.proof.expect("proof should exist").info;
+        let Some(ProvingSessionInfo::Local(local_info)) = proving_info else {
+            panic!("unexpected proving info type");
+        };
+
+        assert!(local_info.segments > 0);
+        assert!(local_info.total_cycles > 0);
+        assert!(local_info.user_cycles > 0);
+        assert!(local_info.paging_cycles > 0);
+        assert!(local_info.reserved_cycles > 0);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn proving_session_info_test() -> Result<()> {
+    TestCaseRunner::new(ProvingSessionInfoTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await

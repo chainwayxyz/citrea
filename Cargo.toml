@@ -41,13 +41,16 @@ members = [
 ]
 
 [workspace.package]
-version = "0.7.2"
+version = "1.0.1"
 edition = "2021"
-license = "GPL-3.0"
+license = "GPL-3.0-only"
 authors = ["Chainway Labs <info@chainway.xyz>"]
 homepage = "https://citrea.xyz"
 publish = false
 repository = "https://github.com/chainwayxyz/citrea"
+
+[workspace.lints]
+clippy.doc_overindented_list_items = "allow"
 
 [workspace.dependencies]
 # External dependencies
@@ -83,10 +86,10 @@ k256 = { version = "0.13.4" }
 lru = "0.13"
 hex = { version = "0.4.3", default-features = false, features = ["alloc", "serde"] }
 log-panics = { version = "2", features = ["with-backtrace"] }
-metrics = "0.23.0"
-metrics-derive = "0.1.0"
-metrics-exporter-prometheus = "0.15.3"
-metrics-util = "0.17.0"
+metrics = "0.24.0"
+metrics-derive = "0.1"
+metrics-exporter-prometheus = { version = "0.16.0", default-features = false }
+metrics-util = "0.19.0"
 # 1.13 uses getrandom 0.3
 uuid = { version = "=1.12.1", default-features = false, features = ["serde", "borsh", "v7"] }
 parking_lot = "0.12.3"
@@ -98,7 +101,7 @@ rustc_version_runtime = { version = "0.3.0", default-features = false }
 rs_merkle = "1.4.2"
 reqwest = { version = "0.12.12", features = ["rustls-tls", "json", "http2"], default-features = false }
 rocksdb = { version = "0.22.0", features = ["lz4"], default-features = false }
-serde = { version = "1", default-features = false, features = ["alloc", "derive"] }
+serde = { version = "=1.0.218", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1", default-features = false, features = ["alloc"] }
 sha2 = { version = "0.10.8", default-features = false, features = ["asm"] }
 schemars = { version = "0.8.16", features = ["derive"] }
@@ -110,18 +113,22 @@ tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json", "fm
 toml = "0.8.0"
 tempfile = "3.8"
 tokio = { version = "1.44.2", features = ["full"] }
+tokio-stream = { version = "0.1" }
 tower-http = { version = "0.5.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
+url = { version = "2.5.4" }
 
 # Risc0 dependencies
-bonsai-sdk = { version = "1.4" }
-risc0-binfmt = "2.0.2"
-risc0-zkvm = { version = "2.3.1", default-features = false }
-risc0-zkvm-platform = "2.0.3"
-risc0-zkp = "2.0.2"
-risc0-circuit-rv32im = "3.0.0"
-risc0-build = "2.3.1"
-rzup = "0.4.1"
+bonsai-sdk = { version = "1.4.1" }
+boundless-market = { version = "1.0.0", default-features = false }
+risc0-ethereum-contracts = { version = "3.0.1" }
+risc0-binfmt = "3.0.2"
+risc0-zkvm = { version = "3.0.3", default-features = false }
+risc0-zkvm-platform = "2.2.0"
+risc0-zkp = "3.0.2"
+risc0-circuit-rv32im = "4.0.2"
+risc0-build = "3.0.3"
+rzup = "0.5.1"
 
 # EVM dependencies
 revm-inspectors = { version = "0.18.0", default-features = false }
@@ -154,18 +161,23 @@ alloy-rpc-types = { version = "0.13", features = ["eth"], default-features = fal
 alloy-rpc-types-eth = { version = "0.13", default-features = false }
 alloy-rpc-types-trace = { version = "0.13", default-features = false }
 alloy-rpc-types-txpool = { version = "0.13", default-features = false }
-alloy-primitives = { version = "0.8.25", default-features = false, features = ["rand", "serde", "tiny-keccak", "k256"] }
+alloy-primitives = { version = "0.8.26", default-features = false, features = ["serde", "tiny-keccak", "k256"] }
 alloy-serde = { version = "0.13", default-features = false }
-alloy-sol-types = { version = "0.8.25", default-features = false, features = ["json"] }
+alloy-sol-types = { version = "0.8.26", default-features = false, features = ["json"] }
 alloy = { version = "0.13", default-features = false }
 alloy-eips = { version = "0.13", default-features = false }
 alloy-consensus = { version = "0.13", default-features = false, features = ["serde", "serde-bincode-compat"] }
 alloy-network = { version = "0.13", default-features = false }
+alloy-signer = { version = "0.13", default-features = false }
+alloy-signer-local = { version = "0.13.0", default-features = false }
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "edc4c86" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "10ff3e2" }
 
 [patch.crates-io]
-bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "0fe8a8b" }
+bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "a6e011a" }
+# Use our fork of revm-inspectors to apply fixes after v0.18.1
+# Cannot update to latest as it requires latest revm, which we cannot use yet
+revm-inspectors = { git = "https://github.com/chainwayxyz/revm-inspectors", rev = "574d614ce505d3c0c4534d8b8e62d8acb3fa9651" }
 
 [profile.release]
 opt-level = 3

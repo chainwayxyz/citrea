@@ -113,7 +113,6 @@ fn build_commit_transaction(
         let (chosen_utxos, sum, leftover_utxos) =
             choose_utxos(prev_utxo.clone(), &utxos, input_total)?;
         let has_change = (sum - input_total) >= REVEAL_OUTPUT_AMOUNT;
-        let direct_return = !has_change;
 
         let outputs = if !has_change {
             vec![
@@ -152,20 +151,9 @@ fn build_commit_transaction(
             })
             .collect();
 
-        if direct_return {
-            break (
-                leftover_utxos,
-                Transaction {
-                    lock_time: LockTime::ZERO,
-                    version: bitcoin::transaction::Version(2),
-                    input: inputs,
-                    output: outputs,
-                },
-            );
-        }
-
         let size = get_size_commit(&inputs, &outputs);
 
+        // Size didn't change on this iteration. Fee calculation was done against current transaction vsize
         if size == last_size {
             break (
                 leftover_utxos,
@@ -415,7 +403,7 @@ fn get_size_reveal(
 fn choose_utxos(
     required_utxo: Option<UTXO>,
     utxos: &[UTXO],
-    mut amount: u64,
+    amount: u64,
 ) -> Result<(Vec<UTXO>, u64, Vec<UTXO>), anyhow::Error> {
     let mut chosen_utxos = vec![];
     let mut sum = 0;
@@ -428,11 +416,13 @@ fn choose_utxos(
     }
     if sum >= amount {
         return Ok((chosen_utxos, sum, utxos.to_vec()));
-    } else {
-        amount -= sum;
     }
 
-    let mut bigger_utxos: Vec<&UTXO> = utxos.iter().filter(|utxo| utxo.amount >= amount).collect();
+    let remaining_amount = amount - sum;
+    let mut bigger_utxos: Vec<&UTXO> = utxos
+        .iter()
+        .filter(|utxo| utxo.amount >= remaining_amount)
+        .collect();
 
     if !bigger_utxos.is_empty() {
         // sort vec by amount (small first)
@@ -444,8 +434,10 @@ fn choose_utxos(
         sum += utxo.amount;
         chosen_utxos.push(utxo.clone());
     } else {
-        let mut smaller_utxos: Vec<&UTXO> =
-            utxos.iter().filter(|utxo| utxo.amount < amount).collect();
+        let mut smaller_utxos: Vec<&UTXO> = utxos
+            .iter()
+            .filter(|utxo| utxo.amount < remaining_amount)
+            .collect();
 
         // sort vec by amount (large first)
         smaller_utxos.sort_by(|a, b| b.amount.cmp(&a.amount));

@@ -164,7 +164,8 @@ where
     /// * `shutdown_signal` - A signal to gracefully shut down the prover service
     #[instrument(name = "BatchProver", skip_all)]
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
-        self.recover_proving_sessions().await;
+        self.recover_proving_sessions(self.prover_config.enable_recovery)
+            .await;
 
         'run_loop: loop {
             select! {
@@ -178,7 +179,7 @@ where
 
                     debug!("Got L1 signal to try proving");
                     if let Err(e) = self.try_proving(PartitionMode::Normal, true).await {
-                        error!("Failed to start proving: {}", e);
+                        error!("Failed to start proving: {:?}", e);
                     }
                 },
                 l2_signal = self.l2_block_rx.recv() => {
@@ -202,7 +203,7 @@ where
 
                     debug!("Got L2 signal to try proving");
                     if let Err(e) = self.try_proving(PartitionMode::Normal, true).await {
-                        error!("Failed to start proving: {}", e);
+                        error!("Failed to start proving: {:?}", e);
                     }
                 }
                 request = self.request_rx.recv() => {
@@ -342,7 +343,7 @@ where
     ///
     /// # Arguments
     /// * `commitments` - A mutable reference to the vector of pending commitments
-    ///     This vector is mutable because it will be updated with the filtered commitments.
+    ///    This vector is mutable because it will be updated with the filtered commitments.
     /// * `mode` - The partition mode to use for partitioning the commitments
     ///
     /// # Returns
@@ -462,11 +463,11 @@ where
     /// If there are more than one commitment, the commitments are iterated and following conditions are checked at each iteration:
     /// 0. The state diff is increased at each iteration with the current commitment state diff and reset after each partition to the current commitments state diff.
     /// 1. If other than the first commitment, the index of the current commitment and the previous commitment index is checked,
-    ///     if they are not consecutive, a partition is formed with the IndexGap PartitionReason.
+    ///    if they are not consecutive, a partition is formed with the IndexGap PartitionReason.
     /// 2. If the previous commitment l2 end block number and the current commitment l2 end block number are from different forks,
-    ///     a partition is formed with the SpecChange PartitionReason.
+    ///    a partition is formed with the SpecChange PartitionReason.
     /// 3. If serialized and then compressed cumulative state diff of the (current commitment included) partition exceeds the MAX_TX_BODY_SIZE,
-    ///     a partition is formed with the StateDiff PartitionReason.
+    ///    a partition is formed with the StateDiff PartitionReason.
     /// 4. If there is a remaining commitment after the loop, it is added as a last partition with the Finish PartitionReason.
     ///
     /// # Gotchas:
@@ -476,6 +477,7 @@ where
     /// # Arguments
     /// * `commitments` - A slice of sequencer commitments to partition
     /// * `mode` - The partition mode to use for partitioning the commitments
+    /// * `max_commitments_per_proof` - Optional maximum number of commitments per proof partition
     fn partition_commitments<'a>(
         &self,
         commitments: &'a [SequencerCommitment],
@@ -494,6 +496,7 @@ where
 
         let mut cumulative_state_diff = StateDiff::new();
         let mut commitment_start_height = state.next_partition_start_height();
+        let mut commitments_in_current_partition = 0usize;
 
         for (i, commitment) in commitments.iter().enumerate() {
             let commitment_end_height = commitment.l2_end_block_number;
@@ -506,6 +509,7 @@ where
             // if first commitment, no need to check any condition
             if i == 0 {
                 cumulative_state_diff = commitment_state_diff;
+                commitments_in_current_partition = 1;
                 continue;
             }
 
@@ -515,11 +519,22 @@ where
                 "Commitments with index gap must be filtered before calling partition"
             );
 
+            // check commitment count limit, before adding the current commitment.
+            if let Some(max_count) = self.prover_config.max_commitments_per_proof {
+                if commitments_in_current_partition >= max_count {
+                    cumulative_state_diff = commitment_state_diff;
+                    state.add_partition(i - 1, PartitionReason::CommitmentCount)?;
+                    commitments_in_current_partition = 1;
+                    continue;
+                }
+            }
+
             // check spec change
             let current_spec = fork_from_block_number(commitment_end_height);
             if current_spec != fork_from_block_number(commitments[i - 1].l2_end_block_number) {
                 cumulative_state_diff = commitment_state_diff;
                 state.add_partition(i - 1, PartitionReason::SpecChange)?;
+                commitments_in_current_partition = 1;
                 continue;
             }
 
@@ -534,8 +549,11 @@ where
             if compressed_diff.len() > MAX_TX_BODY_SIZE {
                 cumulative_state_diff = commitment_state_diff;
                 state.add_partition(i - 1, PartitionReason::StateDiff)?;
+                commitments_in_current_partition = 1;
                 continue;
             }
+
+            commitments_in_current_partition += 1;
         }
 
         // Add all remaining commitments as last partition
@@ -689,37 +707,44 @@ where
         // start watching the proving jobs to finish in the background
         tokio::spawn(async move {
             while let Some((job_id, rx)) = proving_jobs.recv().await {
-                let proof_with_duration = rx.await.expect("Proof channel should never close");
-                info!("Proving job finished {}", job_id);
-
-                let output = extract_proof_output::<Vm>(
-                    &job_id,
-                    &proof_with_duration.proof,
-                    &code_commitments_by_spec,
-                    network,
+                let ProofWithDuration {
+                    proof,
+                    duration,
+                    info,
+                } = rx.await.expect("Proof channel should never close");
+                info!(
+                    "Proving job finished {}, took {:?} seconds",
+                    job_id, duration
                 );
+
+                let output =
+                    extract_proof_output::<Vm>(&job_id, &proof, &code_commitments_by_spec, network);
 
                 // stores proof and marks job as waiting for da
                 ledger_db
-                    .put_proof_by_job_id(job_id, proof_with_duration.proof.clone(), output.into())
+                    .put_proof_by_job_id(job_id, proof.clone(), output.into(), info)
                     .expect("Should put proof to db");
 
                 // Record the proving time metric
-                BATCH_PROVER_METRICS
-                    .proving_time
-                    .record(proof_with_duration.duration);
+                BATCH_PROVER_METRICS.proving_time.record(duration);
 
-                let tx_id = prover_service
-                    .submit_proof(proof_with_duration.proof, job_id)
-                    .await
-                    .expect("Failed to submit proof");
+                let prover_service = prover_service.clone();
+                let ledger_db = ledger_db.clone();
 
-                info!("Job {} proof sent to DA", job_id);
+                // submit the proof to the DA service in the background
+                tokio::spawn(async move {
+                    let tx_id = prover_service
+                        .submit_proof(proof, job_id)
+                        .await
+                        .expect("Failed to submit proof");
 
-                // stores tx id and removes job from pending da submission
-                ledger_db
-                    .finalize_proving_job(job_id, tx_id.into())
-                    .expect("Should update proving job tx id");
+                    info!("Job {} proof sent to DA", job_id);
+
+                    // stores tx id and removes job from pending da submission
+                    ledger_db
+                        .finalize_proving_job(job_id, tx_id.into())
+                        .expect("Should update proving job tx id");
+                });
             }
         });
     }
@@ -731,42 +756,52 @@ where
     /// This function will also recover proofs of jobs that are pending for DA submission,
     /// and submit the recovered proofs to the DA service with them.
     #[instrument(name = "recovery", skip_all)]
-    async fn recover_proving_sessions(&self) {
-        // recover proving sessions
-        let proving_jobs = self
-            .prover_service
-            .start_session_recovery()
-            .expect("Failed to start proving session recovery");
-        let mut proving_jobs = proving_jobs
-            .into_iter()
-            .map(|rx| async move { rx.await.expect("Proof recovery channel closed abruptly") })
-            .collect::<FuturesUnordered<_>>();
+    async fn recover_proving_sessions(&self, enable_proof_session_recovery: bool) {
+        let mut proofs = if enable_proof_session_recovery {
+            // recover proving sessions
+            let proving_jobs = self
+                .prover_service
+                .start_session_recovery()
+                .expect("Failed to start proving session recovery");
+            let mut proving_jobs = proving_jobs
+                .into_iter()
+                .map(|rx| async move { rx.await.expect("Proof recovery channel closed abruptly") })
+                .collect::<FuturesUnordered<_>>();
 
-        info!("Recovering {} proving sessions", proving_jobs.len());
+            info!("Recovering {} proving sessions", proving_jobs.len());
 
-        let mut proofs = HashMap::with_capacity(proving_jobs.len());
-        while let Some(ProofWithJob { job_id, proof }) = proving_jobs.next().await {
-            info!("Proving job finished {}", job_id);
+            let mut proofs = HashMap::with_capacity(proving_jobs.len());
+            while let Some(ProofWithJob {
+                job_id,
+                proof,
+                info,
+            }) = proving_jobs.next().await
+            {
+                info!("Proving job finished {}", job_id);
 
-            let output = extract_proof_output::<Vm>(
-                &job_id,
-                &proof,
-                &self.code_commitments_by_spec,
-                self.network,
-            );
+                let output = extract_proof_output::<Vm>(
+                    &job_id,
+                    &proof,
+                    &self.code_commitments_by_spec,
+                    self.network,
+                );
 
-            // stores proof and marks job as waiting for da
-            self.ledger_db
-                .put_proof_by_job_id(job_id, proof.clone(), output.into())
-                .expect("Should put proof to db");
+                // stores proof and marks job as waiting for da
+                self.ledger_db
+                    .put_proof_by_job_id(job_id, proof.clone(), output.into(), info)
+                    .expect("Should put proof to db");
 
-            info!("Completed proving job {}", job_id);
+                info!("Completed proving job {}", job_id);
 
-            proofs.insert(job_id, proof);
+                proofs.insert(job_id, proof);
 
-            // TODO: there is a quite small chance that proving has started, but job commitment indices
-            // pending commitments haven't been updated in db, maybe we should also try to recover that?
-        }
+                // TODO: there is a quite small chance that proving has started, but job commitment indices
+                // pending commitments haven't been updated in db, maybe we should also try to recover that?
+            }
+            proofs
+        } else {
+            HashMap::new()
+        };
 
         // merge proofs of da submission pending jobs
         let job_ids = self
@@ -790,17 +825,23 @@ where
 
         // submit all proofs to da
         for (job_id, proof) in proofs {
-            let tx_id = self
-                .prover_service
-                .submit_proof(proof, job_id)
-                .await
-                .expect("Failed to submit transaction");
-            info!("Job {} proof sent to DA", job_id);
+            let prover_service = self.prover_service.clone();
+            let ledger_db = self.ledger_db.clone();
+            info!("Submitting recovered proof for job {}", job_id);
+            // submit in the background
+            tokio::spawn(async move {
+                let tx_id = prover_service
+                    .submit_proof(proof, job_id)
+                    .await
+                    .expect("Failed to submit transaction");
+                info!("Recovered Job {} proof sent to DA", job_id);
 
-            // stores tx id and removes job from pending da submission
-            self.ledger_db
-                .finalize_proving_job(job_id, tx_id.into())
-                .expect("Should update proving job tx id");
+                // stores tx id and removes job from pending da submission
+                ledger_db
+                    .finalize_proving_job(job_id, tx_id.into())
+                    .expect("Should update proving job tx id");
+                info!("Finalized recovered proving job: {}", job_id);
+            });
         }
     }
 
@@ -1224,7 +1265,7 @@ fn extract_proof_output<Vm: ZkvmHost>(
         code_commitment,
         network_to_dev_mode(network),
     )
-    .unwrap_or_else(|_| panic!("Failed to verify proof with job_id={}", job_id));
+    .unwrap_or_else(|_| panic!("Failed to verify proof with job_id={job_id}"));
 
     debug!("circuit output: {:?}", output);
     output
@@ -1253,13 +1294,13 @@ mod tests {
     use tokio::sync::{broadcast, mpsc};
 
     use super::{Prover, ProverRequest};
-    use crate::PartitionMode;
+    use crate::partition::PartitionMode;
 
     // This might be a bit problematic if another unit test in this crate wants
     // to use different set of forks for any reason.
     const TEST_FORKS: &[Fork] = &[
         Fork::new(SpecId::Tangerine, 0),
-        Fork::new(SpecId::Fork3, 10),
+        Fork::new(SpecId::Tangelo, 10),
     ];
 
     struct MockProverData {
@@ -1527,5 +1568,317 @@ mod tests {
         assert_eq!(partition_2.start_height, 9);
         assert_eq!(partition_2.end_height, 11);
         assert_eq!(partition_2.commitments.len(), 2);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn commitment_count_max_one() {
+        // max_commitments_per_proof = 1
+        let MockProverData { mut prover, .. } = create_mock_prover();
+        prover.prover_config.max_commitments_per_proof = Some(1);
+
+        put_l2_blocks(
+            &prover.ledger_db,
+            vec![(1, 100), (2, 100), (3, 100), (4, 100)],
+        );
+
+        let mut commitments = vec![
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 1,
+                l2_end_block_number: 1,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 2,
+                l2_end_block_number: 2,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 3,
+                l2_end_block_number: 3,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 4,
+                l2_end_block_number: 4,
+            },
+        ];
+        put_commitments(&prover.ledger_db, &commitments);
+
+        let partitions = prover
+            .create_partitions(&mut commitments, PartitionMode::Normal)
+            .unwrap();
+
+        assert_eq!(partitions.len(), 4);
+        assert_eq!(partitions[0].commitments.len(), 1);
+        assert_eq!(partitions[0].commitments[0].index, 1);
+        assert_eq!(partitions[0].start_height, 1);
+        assert_eq!(partitions[0].end_height, 1);
+
+        assert_eq!(partitions[1].commitments.len(), 1);
+        assert_eq!(partitions[1].commitments[0].index, 2);
+        assert_eq!(partitions[1].start_height, 2);
+        assert_eq!(partitions[1].end_height, 2);
+
+        assert_eq!(partitions[2].commitments.len(), 1);
+        assert_eq!(partitions[2].commitments[0].index, 3);
+        assert_eq!(partitions[2].start_height, 3);
+        assert_eq!(partitions[2].end_height, 3);
+
+        assert_eq!(partitions[3].commitments.len(), 1);
+        assert_eq!(partitions[3].commitments[0].index, 4);
+        assert_eq!(partitions[3].start_height, 4);
+        assert_eq!(partitions[3].end_height, 4);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn commitment_count_max_two() {
+        // max_commitments_per_proof = 2
+        let MockProverData { mut prover, .. } = create_mock_prover();
+        prover.prover_config.max_commitments_per_proof = Some(2);
+
+        put_l2_blocks(
+            &prover.ledger_db,
+            vec![(1, 100), (2, 100), (3, 100), (4, 100), (5, 100), (6, 100)],
+        );
+
+        let mut commitments = vec![
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 1,
+                l2_end_block_number: 1,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 2,
+                l2_end_block_number: 2,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 3,
+                l2_end_block_number: 3,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 4,
+                l2_end_block_number: 4,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 5,
+                l2_end_block_number: 5,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 6,
+                l2_end_block_number: 6,
+            },
+        ];
+        put_commitments(&prover.ledger_db, &commitments);
+
+        let partitions = prover
+            .create_partitions(&mut commitments, PartitionMode::Normal)
+            .unwrap();
+
+        assert_eq!(partitions.len(), 3,);
+
+        // Partition 1: commitments 1 and 2
+        assert_eq!(partitions[0].commitments.len(), 2);
+        assert_eq!(partitions[0].commitments[0].index, 1);
+        assert_eq!(partitions[0].commitments[1].index, 2);
+        assert_eq!(partitions[0].start_height, 1);
+        assert_eq!(partitions[0].end_height, 2);
+
+        // Partition 2: commitments 3 and 4
+        assert_eq!(partitions[1].commitments.len(), 2);
+        assert_eq!(partitions[1].commitments[0].index, 3);
+        assert_eq!(partitions[1].commitments[1].index, 4);
+        assert_eq!(partitions[1].start_height, 3);
+        assert_eq!(partitions[1].end_height, 4);
+
+        // Partition 3: commitments 5 and 6
+        assert_eq!(partitions[2].commitments.len(), 2);
+        assert_eq!(partitions[2].commitments[0].index, 5);
+        assert_eq!(partitions[2].commitments[1].index, 6);
+        assert_eq!(partitions[2].start_height, 5);
+        assert_eq!(partitions[2].end_height, 6);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn commitment_count_max_three() {
+        // max_commitments_per_proof = 3, 7 commitments
+        let MockProverData { mut prover, .. } = create_mock_prover();
+        prover.prover_config.max_commitments_per_proof = Some(3);
+
+        put_l2_blocks(
+            &prover.ledger_db,
+            vec![
+                (1, 100),
+                (2, 100),
+                (3, 100),
+                (4, 100),
+                (5, 100),
+                (6, 100),
+                (7, 100),
+            ],
+        );
+
+        let mut commitments = vec![
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 1,
+                l2_end_block_number: 1,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 2,
+                l2_end_block_number: 2,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 3,
+                l2_end_block_number: 3,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 4,
+                l2_end_block_number: 4,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 5,
+                l2_end_block_number: 5,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 6,
+                l2_end_block_number: 6,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 7,
+                l2_end_block_number: 7,
+            },
+        ];
+        put_commitments(&prover.ledger_db, &commitments);
+
+        let partitions = prover
+            .create_partitions(&mut commitments, PartitionMode::Normal)
+            .unwrap();
+
+        assert_eq!(partitions.len(), 3,);
+
+        // Partition 1: commitments 1, 2, 3
+        assert_eq!(partitions[0].commitments.len(), 3,);
+        assert_eq!(partitions[0].commitments[0].index, 1);
+        assert_eq!(partitions[0].commitments[1].index, 2);
+        assert_eq!(partitions[0].commitments[2].index, 3);
+        assert_eq!(partitions[0].start_height, 1);
+        assert_eq!(partitions[0].end_height, 3);
+
+        // Partition 2: commitments 4, 5, 6
+        assert_eq!(partitions[1].commitments.len(), 3,);
+        assert_eq!(partitions[1].commitments[0].index, 4);
+        assert_eq!(partitions[1].commitments[1].index, 5);
+        assert_eq!(partitions[1].commitments[2].index, 6);
+        assert_eq!(partitions[1].start_height, 4);
+        assert_eq!(partitions[1].end_height, 6);
+
+        // Partition 3: commitment 7
+        assert_eq!(partitions[2].commitments.len(), 1,);
+        assert_eq!(partitions[2].commitments[0].index, 7);
+        assert_eq!(partitions[2].start_height, 7);
+        assert_eq!(partitions[2].end_height, 7);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn commitment_count_with_remainder() {
+        // max=2, 3 commitments
+        let MockProverData { mut prover, .. } = create_mock_prover();
+        prover.prover_config.max_commitments_per_proof = Some(2);
+
+        put_l2_blocks(&prover.ledger_db, vec![(1, 100), (2, 100), (3, 100)]);
+
+        let mut commitments = vec![
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 1,
+                l2_end_block_number: 1,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 2,
+                l2_end_block_number: 2,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 3,
+                l2_end_block_number: 3,
+            },
+        ];
+        put_commitments(&prover.ledger_db, &commitments);
+
+        let partitions = prover
+            .create_partitions(&mut commitments, PartitionMode::Normal)
+            .unwrap();
+
+        assert_eq!(partitions.len(), 2);
+
+        // First partition: commitments 1 and 2
+        assert_eq!(partitions[0].commitments.len(), 2);
+        assert_eq!(partitions[0].commitments[0].index, 1);
+        assert_eq!(partitions[0].commitments[1].index, 2);
+
+        // Second partition: commitment 3
+        assert_eq!(partitions[1].commitments.len(), 1);
+        assert_eq!(partitions[1].commitments[0].index, 3);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn commitment_count_no_limit() {
+        // No limit set (None) - all commitments in one partition
+        let MockProverData { mut prover, .. } = create_mock_prover();
+        prover.prover_config.max_commitments_per_proof = None;
+
+        put_l2_blocks(
+            &prover.ledger_db,
+            vec![(1, 100), (2, 100), (3, 100), (4, 100), (5, 100)],
+        );
+
+        let mut commitments = vec![
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 1,
+                l2_end_block_number: 1,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 2,
+                l2_end_block_number: 2,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 3,
+                l2_end_block_number: 3,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 4,
+                l2_end_block_number: 4,
+            },
+            SequencerCommitment {
+                merkle_root: [0; 32],
+                index: 5,
+                l2_end_block_number: 5,
+            },
+        ];
+        put_commitments(&prover.ledger_db, &commitments);
+
+        let partitions = prover
+            .create_partitions(&mut commitments, PartitionMode::Normal)
+            .unwrap();
+
+        assert_eq!(partitions.len(), 1);
+        assert_eq!(partitions[0].commitments.len(), 5);
     }
 }

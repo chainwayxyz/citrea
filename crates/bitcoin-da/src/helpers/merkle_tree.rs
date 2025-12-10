@@ -65,7 +65,7 @@ impl BitcoinMerkleTree {
             }
             curr_level_offset += 1;
             // Calculate the size of the level we just created
-            prev_level_size = (prev_level_size + 1) / 2; // Ceiling division to handle odd numbers
+            prev_level_size = prev_level_size.div_ceil(2); // Ceiling division to handle odd numbers
         }
         tree
     }
@@ -126,6 +126,11 @@ impl BitcoinMerkleTree {
             level += 1;
             index /= 2;
         }
+
+        assert!(
+            index == 0,
+            "Merkle proof is invalid: index should be 0 at the end"
+        );
         combined_hash
     }
 }
@@ -272,5 +277,29 @@ mod tests {
         let f = [6; 32];
 
         BitcoinMerkleTree::new(vec![a, b, c, d, a, b, c, d, e, f]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Merkle proof is invalid: index should be 0 at the end")]
+    fn test_cant_extend_index() {
+        let mut transactions: Vec<[u8; 32]> = vec![];
+        for i in 0u8..100u8 {
+            let tx = [i; 32];
+            transactions.push(tx);
+        }
+        let tree = BitcoinMerkleTree::new(transactions.clone());
+        let root = tree.root();
+        let idx_path = tree.get_idx_path(0);
+        let calculated_root =
+            BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[0], 0, &idx_path);
+        assert_eq!(root, calculated_root);
+
+        // with a 7 level tree like ours, represent 0 with
+        // 0000000 in bits
+        // without the assert!(index == 0) at the and of the verify function
+        // any index that has its last 7 bits 0 would pass
+        // e.g. 10000000 (128) or 100000000 (256) or even 101110000000 (2944)
+        let _ =
+            BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[0], 2944, &idx_path);
     }
 }

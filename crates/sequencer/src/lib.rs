@@ -50,7 +50,9 @@ use listen_mode::mempool_syncer::MempoolSyncer;
 use listen_mode::ListenModeSequencer;
 use mempool::CitreaMempool;
 use parking_lot::Mutex;
+use reth_provider::CanonStateNotification;
 use reth_tasks::TaskExecutor;
+use reth_transaction_pool::maintain::{maintain_transaction_pool_future, MaintainPoolConfig};
 pub use rpc::SequencerRpcClient;
 pub use runner::{CitreaSequencer, MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK};
 use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps};
@@ -60,7 +62,8 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::MempoolTransactionSignal;
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::mpsc::unbounded_channel;
-use tokio::sync::{broadcast, Mutex as AsyncMutex};
+use tokio::sync::{broadcast, mpsc, Mutex as AsyncMutex};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 /// Module containing commitment-related functionality
 mod commitment;
@@ -150,6 +153,29 @@ where
     )?);
     let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
 
+    // Create the canonical state notification channel for mempool maintenance
+    let (canon_state_tx, canon_state_rx) = mpsc::unbounded_channel::<CanonStateNotification>();
+
+    // Spawn the mempool maintenance task
+    {
+        let pool = mempool.inner_pool().clone();
+        let client = db_provider.clone();
+        let events_stream = UnboundedReceiverStream::new(canon_state_rx);
+
+        // Convert MempoolMaintenanceConfig to reth's MaintainPoolConfig
+        let maintain_config: MaintainPoolConfig =
+            sequencer_config.mempool_conf.maintenance.clone().into();
+
+        let maintenance_future = maintain_transaction_pool_future(
+            client,
+            pool,
+            events_stream,
+            task_executor.clone(),
+            maintain_config,
+        );
+        task_executor.spawn_critical("mempool-maintenance", maintenance_future);
+    }
+
     let rpc_storage = storage_manager.create_final_view_storage();
     let rpc_context = rpc::create_rpc_context(
         mempool.clone(),
@@ -234,6 +260,7 @@ where
             mempool_transaction_tx,
             backup_manager,
             rpc_message_rx,
+            canon_state_tx,
         )
         .unwrap();
         Ok((SequencerType::Normal(seq), rpc_module))

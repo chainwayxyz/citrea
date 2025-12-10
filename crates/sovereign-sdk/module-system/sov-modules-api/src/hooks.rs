@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_keys::default_signature::K256PublicKey;
@@ -63,7 +65,7 @@ pub trait ApplyL2BlockHooks<Da: DaSpec> {
 
 /// Post fork 2 Information about the l2 block block
 /// Does not include l1 data
-#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq)]
+#[derive(PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq)]
 pub struct HookL2BlockInfo {
     // L2 block height
     pub l2_height: u64,
@@ -77,6 +79,19 @@ pub struct HookL2BlockInfo {
     pub l1_fee_rate: u128,
     /// Timestamp
     pub timestamp: u64,
+}
+
+impl Debug for HookL2BlockInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HookL2BlockInfo")
+            .field("l2_height", &self.l2_height)
+            .field("pre_state_root", &hex::encode(self.pre_state_root))
+            .field("current_spec", &self.current_spec)
+            .field("sequencer_pub_key", &self.sequencer_pub_key)
+            .field("l1_fee_rate", &self.l1_fee_rate)
+            .field("timestamp", &self.timestamp)
+            .finish()
+    }
 }
 
 impl HookL2BlockInfo {

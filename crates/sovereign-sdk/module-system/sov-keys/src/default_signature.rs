@@ -99,7 +99,7 @@ pub mod k256_private_key {
 }
 
 #[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct K256PublicKey {
     #[cfg_attr(feature = "native", schemars(with = "&[u8]", length(equal = 33)))]
     pub pub_key: k256::ecdsa::VerifyingKey,
@@ -142,10 +142,18 @@ impl TryFrom<&[u8]> for K256PublicKey {
 
 #[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct K256Signature {
     #[cfg_attr(feature = "native", schemars(with = "&[u8]", length(equal = 64)))]
     pub(crate) msg_sig: k256::ecdsa::Signature,
+}
+
+impl Debug for K256Signature {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("K256Signature")
+            .field(&hex::encode(self.msg_sig.to_bytes()))
+            .finish()
+    }
 }
 
 impl BorshDeserialize for K256Signature {
@@ -169,6 +177,14 @@ impl BorshSerialize for K256Signature {
 impl std::fmt::Display for K256PublicKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", hex::encode(self.pub_key.to_sec1_bytes()))
+    }
+}
+
+impl Debug for K256PublicKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("K256PublicKey")
+            .field(&hex::encode(self.pub_key.to_sec1_bytes()))
+            .finish()
     }
 }
 
@@ -207,7 +223,7 @@ impl PublicKey for K256PublicKey {
 
 #[cfg(feature = "native")]
 fn map_error_k256(e: k256::ecdsa::signature::Error) -> std::io::Error {
-    std::io::Error::new(std::io::ErrorKind::Other, e)
+    std::io::Error::other(e)
 }
 #[cfg(not(feature = "native"))]
 fn map_error_k256(_e: k256::ecdsa::signature::Error) -> std::io::Error {

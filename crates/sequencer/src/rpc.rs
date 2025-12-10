@@ -4,8 +4,8 @@ use std::time::Instant;
 
 use alloy_eips::eip2718::Encodable2718;
 use alloy_eips::BlockId;
-use alloy_primitives::{Address, Bytes, B256};
-use alloy_rpc_types::Transaction;
+use alloy_primitives::{Address, Bytes, B256, U256};
+use alloy_rpc_types::{SyncInfo, SyncStatus as EthSyncStatus, Transaction};
 use alloy_rpc_types_txpool::TxpoolContent;
 use citrea_common::rpc::utils::internal_rpc_error;
 use citrea_evm::Evm;
@@ -29,7 +29,7 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error};
 
-use crate::deposit_data_mempool::DepositDataMempool;
+use crate::deposit_data_mempool::{Deposit, DepositDataMempool};
 use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS as SM;
 use crate::types::SequencerRpcMessage;
@@ -208,6 +208,10 @@ pub trait SequencerRpc {
     /// Returns the hashes of the removed transactions.
     #[method(name = "txpool_removeTransactionsBySender")]
     async fn txpool_remove_txs_by_sender(&self, sender: Address) -> RpcResult<Vec<B256>>;
+
+    /// Returns the sync status
+    #[method(name = "eth_syncing")]
+    async fn eth_syncing(&self) -> RpcResult<EthSyncStatus>;
 }
 
 /// Sequencer RPC server implementation
@@ -266,9 +270,6 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             .insert_mempool_tx(hash.to_vec(), rlp_encoded_tx)
         {
             tracing::warn!("Failed to insert mempool tx into db: {:?}", e);
-        } else {
-            SM.mempool_txs.increment(1);
-            SM.mempool_txs_inc.increment(1);
         }
 
         Ok(hash)
@@ -353,11 +354,25 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
         match tx_res {
             Ok(hex_res) => {
                 tracing::debug!("Deposit tx processed successfully {}", hex_res);
-                self.context
+                let add_result = self
+                    .context
                     .deposit_mempool
                     .lock()
-                    .add_deposit_tx(deposit.to_vec());
-                Ok(())
+                    .add_deposit_tx(Deposit::from(deposit.to_vec()));
+
+                match add_result {
+                    Ok(true) => Ok(()),
+                    Ok(false) => Err(jsonrpsee::types::error::ErrorObject::owned(
+                        jsonrpsee::types::error::INVALID_PARAMS_CODE,
+                        "Deposit already pending in mempool",
+                        None::<()>,
+                    )),
+                    Err(_) => Err(jsonrpsee::types::error::ErrorObject::owned(
+                        jsonrpsee::types::error::INVALID_PARAMS_CODE,
+                        "Invalid deposit",
+                        None::<()>,
+                    )),
+                }
             }
             Err(e) => {
                 error!("Error processing deposit tx: {:?}", e);
@@ -501,6 +516,26 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
         let removed_txs = self.context.mempool.remove_transactions_by_sender(sender);
         let removed_hashes: Vec<B256> = removed_txs.iter().map(|tx| *tx.hash()).collect();
         Ok(removed_hashes)
+    }
+
+    /// Returns the sync status
+    async fn eth_syncing(&self) -> RpcResult<EthSyncStatus> {
+        debug!("Sequencer: eth_syncing");
+
+        let current_l2_height = self
+            .context
+            .ledger
+            .get_head_l2_block_height()
+            .map_err(|e| internal_rpc_error(format!("Failed to get head L2 block height: {e}")))?;
+
+        Ok(EthSyncStatus::Info(Box::new(SyncInfo {
+            starting_block: U256::from(0),
+            current_block: U256::from(current_l2_height),
+            highest_block: U256::from(current_l2_height),
+            warp_chunks_amount: None,
+            warp_chunks_processed: None,
+            stages: None,
+        })))
     }
 }
 
