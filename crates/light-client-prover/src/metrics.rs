@@ -61,7 +61,7 @@ pub static LIGHT_CLIENT_METRICS: LazyLock<LightClientProverMetrics> = LazyLock::
 /// Returns error if database operations fail
 pub fn initialize_metrics<DB>(ledger_db: &DB) -> Result<(), anyhow::Error>
 where
-    DB: sov_db::ledger_db::LightClientProverLedgerOps + sov_db::ledger_db::SharedLedgerOps,
+    DB: sov_db::ledger_db::LightClientProverLedgerOps,
 {
     use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
     use tracing::debug;

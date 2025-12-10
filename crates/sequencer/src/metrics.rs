@@ -184,7 +184,7 @@ pub static RETH_BLOB_STORE_METRICS: LazyLock<BlobStoreMetrics> = LazyLock::new(|
 /// Returns error if database operations fail
 pub fn initialize_metrics<DB>(ledger_db: &DB) -> Result<(), anyhow::Error>
 where
-    DB: sov_db::ledger_db::SequencerLedgerOps + sov_db::ledger_db::SharedLedgerOps,
+    DB: sov_db::ledger_db::SequencerLedgerOps,
 {
     use tracing::debug;
 
