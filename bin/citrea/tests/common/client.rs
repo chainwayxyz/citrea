@@ -830,8 +830,15 @@ impl TestClient {
         self.http_client.pause_proving().await.unwrap()
     }
 
-    pub(crate) async fn get_proving_job(&self, id: Uuid) -> Option<JobRpcResponse> {
-        self.http_client.get_proving_job(id).await.unwrap()
+    pub(crate) async fn get_proving_job(
+        &self,
+        id: Uuid,
+        with_proof: Option<bool>,
+    ) -> Option<JobRpcResponse> {
+        self.http_client
+            .get_proving_job(id, with_proof)
+            .await
+            .unwrap()
     }
 
     pub(crate) async fn get_proving_jobs(

@@ -529,7 +529,7 @@ pub async fn wait_for_prover_job(
     let timeout = timeout.unwrap_or(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)); // Default 600 seconds timeout
     loop {
         debug!("Waiting for prover job {}", job_id);
-        let response = prover_client.get_proving_job(job_id).await;
+        let response = prover_client.get_proving_job(job_id, Some(true)).await;
         if let Some(response) = response {
             if let Some(proof) = &response.proof {
                 if proof.l1_tx_id.is_some() {

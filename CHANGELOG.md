@@ -28,6 +28,8 @@
   `batchProver_getProvingJob*` endpoints now return information about the proving session, including cycle counts and request IDs (bonsai and boundless proofs).
 - chore: Add/modify Citrea mainnet values and ZK circuits. ([#3024](https://github.com/chainwayxyz/citrea/pull/3024), [#3025](https://github.com/chainwayxyz/citrea/pull/3025), [#3026](https://github.com/chainwayxyz/citrea/pull/3026), [#3027](https://github.com/chainwayxyz/citrea/pull/3027), [#3028](https://github.com/chainwayxyz/citrea/pull/3028), [#3029](https://github.com/chainwayxyz/citrea/pull/3029), [#3030](https://github.com/chainwayxyz/citrea/pull/3030), [#3031](https://github.com/chainwayxyz/citrea/pull/3031))
 
+- feat: add with_proof option to batchProver_getProvingJob ([#3071](https://github.com/chainwayxyz/citrea/pull/3071)) 
+
 ## v0.9.0 (2025-11-12)
 - feat: Implement eth filter rpc endpoints. ([#2956](https://github.com/chainwayxyz/citrea/pull/2956))\
   &nbsp;&nbsp;**New env vars:**\
