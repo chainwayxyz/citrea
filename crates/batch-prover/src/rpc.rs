@@ -69,6 +69,17 @@ pub struct ProvingJobResponse {
     pub status: JobStatus,
 }
 
+/// Response type for the proving session info.
+/// Contains the session ID and its current session info.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvingSessionResponse {
+    /// The unique identifier for the proving session
+    pub session_id: Uuid,
+    /// The current session info of the proving session
+    pub session_info: ProvingSessionInfo,
+}
+
 /// Context for the RPC methods.
 pub struct RpcContext<Da, DB, Vm>
 where
@@ -239,6 +250,21 @@ pub trait BatchProverRpc {
         limit: U64,
         skip: Option<U64>,
     ) -> RpcResult<Vec<ProvingJobResponse>>;
+
+    /// Gets last `count` number of proving sessions. Returns ids in descending order, so latest session is the first index.
+    ///
+    /// # Arguments
+    /// * `limit` - The number of latest proving sessions to retrieve.
+    /// * `skip` - The number of latest proving sessions to skip for pagination (default is 0).
+    ///
+    /// # Returns
+    /// A vector of `ProvingSessionResponse` containing session IDs and their infos.
+    #[method(name = "getProvingSessions")]
+    async fn get_proving_sessions(
+        &self,
+        limit: U64,
+        skip: Option<U64>,
+    ) -> RpcResult<Vec<ProvingSessionResponse>>;
 
     /// Gets proving job details of the commitment index.
     ///
@@ -620,6 +646,30 @@ where
             .map(|(id, status)| ProvingJobResponse { job_id: id, status })
             .collect();
         Ok(jobs)
+    }
+
+    async fn get_proving_sessions(
+        &self,
+        limit: U64,
+        skip: Option<U64>,
+    ) -> RpcResult<Vec<ProvingSessionResponse>> {
+        let skip = skip.unwrap_or(U64::ZERO).to::<usize>();
+        let limit = limit.to::<usize>();
+        let limit = limit.min(self.context.rpc_config.proving_jobs_limit);
+
+        let sessions = self
+            .context
+            .ledger_db
+            .get_latest_proving_sessions(limit, skip)
+            .map_err(internal_rpc_error)?;
+        let sessions = sessions
+            .into_iter()
+            .map(|(session_id, session_info)| ProvingSessionResponse {
+                session_id,
+                session_info,
+            })
+            .collect();
+        Ok(sessions)
     }
 
     async fn get_proving_job_of_commitment(&self, index: u32) -> RpcResult<Option<JobRpcResponse>> {
