@@ -9,7 +9,7 @@ use alloy::network::TxSigner as _;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer as _;
 use alloy_primitives::ruint::aliases::U256;
-use alloy_primitives::{eip191_hash_message, Bytes, TxKind, B256, U64, U64};
+use alloy_primitives::{eip191_hash_message, Bytes, TxKind, B256, U64};
 use alloy_signer::SignerSync;
 use anyhow::bail;
 use bitcoin_da::fee::FeeService;

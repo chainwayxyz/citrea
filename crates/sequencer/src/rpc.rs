@@ -546,7 +546,7 @@ async fn get_l2_block_response(
 ) -> Result<L2BlockResponse, Box<dyn std::error::Error + Send + Sync>> {
     let l2_block = ledger
         .get_l2_block(&L2BlockIdentifier::Number(block_height))?
-        .ok_or(format!("L2 block at height {} not found", block_height))?;
+        .ok_or(format!("L2 block at height {block_height} not found"))?;
 
     Ok(l2_block)
 }

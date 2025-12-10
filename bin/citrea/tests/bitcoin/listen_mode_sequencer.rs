@@ -724,8 +724,7 @@ impl TestCase for MempoolSyncerTest {
                 .await?;
             assert!(
                 tx.is_some(),
-                "Transaction not found in mempool: {:?}",
-                tx_hash
+                "Transaction not found in mempool: {tx_hash:?}"
             );
         }
 
@@ -755,8 +754,7 @@ impl TestCase for MempoolSyncerTest {
                 .unwrap();
             assert!(
                 tx.block_number.is_some(),
-                "Transaction should not be in mempool: {:?}",
-                tx_hash
+                "Transaction should not be in mempool: {tx_hash:?}"
             );
         }
 
@@ -769,8 +767,7 @@ impl TestCase for MempoolSyncerTest {
                 .await?;
             assert!(
                 tx.is_some(),
-                "Transaction not found in mempool: {:?}",
-                tx_hash
+                "Transaction not found in mempool: {tx_hash:?}"
             );
         }
 
@@ -815,8 +812,7 @@ impl TestCase for MempoolSyncerTest {
                 .unwrap();
             assert!(
                 tx.block_number.is_some(),
-                "Transaction not in block: {:?}",
-                tx_hash
+                "Transaction not in block: {tx_hash:?}"
             );
         }
 

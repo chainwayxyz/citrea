@@ -1018,6 +1018,8 @@ mod tests {
         };
         assert_eq!(listen_mode_config, expected);
     }
+
+    #[test]
     fn test_correct_prover_config_local() {
         let config = r#"
             proving_mode = "execute"

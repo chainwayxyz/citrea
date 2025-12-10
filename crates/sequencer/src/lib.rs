@@ -91,6 +91,7 @@ mod types;
 /// Module containing utility functions and helpers
 mod utils;
 
+#[allow(clippy::large_enum_variant)]
 pub enum SequencerType<DA, DB>
 where
     DA: DaService,

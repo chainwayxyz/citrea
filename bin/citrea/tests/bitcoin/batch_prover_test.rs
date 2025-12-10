@@ -1451,58 +1451,6 @@ impl TestCase for InvokeCachePruningTest {
     }
 }
 
-impl InvokeCachePruningTest {
-    async fn create_deploy_transactions(&self) -> Vec<Vec<u8>> {
-        // 11 tx fits into a single block
-        const DEPLOY_COUNT: usize = 55 * 11;
-
-        let bytecode_hex = fs::read_to_string("tests/bitcoin/test-data/big-contract.bin").unwrap();
-        let bytecode_size = bytecode_hex.len() / 2;
-
-        // extra 32 bytes for constructor argument
-        let mut bytecode_with_args = vec![0; bytecode_size + 32];
-        hex::decode_to_slice(bytecode_hex, &mut bytecode_with_args[0..bytecode_size]).unwrap();
-
-        // prepare signer
-        let private_key: [u8; 32] =
-            hex::decode("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
-                .unwrap()
-                .try_into()
-                .unwrap();
-        let mut signer = PrivateKeySigner::from_slice(&private_key).unwrap();
-        signer.set_chain_id(Some(5655));
-
-        let mut signed_txs = Vec::with_capacity(DEPLOY_COUNT);
-        for i in 0..DEPLOY_COUNT {
-            // set constructor argument different for each contract.
-            // since constructor argument sets immutable storage variable
-            // this will make bytecode of each contract different
-            bytecode_with_args[bytecode_size..]
-                .copy_from_slice(U256::from(i).to_be_bytes::<32>().as_slice());
-
-            let mut tx = TxLegacy {
-                chain_id: Some(5655),
-                nonce: i as u64,
-                gas_price: 1_000_000_000 * 1_000_000_000, // 1_000_000_000 gwei
-                gas_limit: 3_000_000,                     // 3 million gas
-                to: TxKind::Create,
-                value: U256::ZERO,
-                input: Bytes::copy_from_slice(&bytecode_with_args),
-            };
-
-            let signature = signer.sign_transaction(&mut tx).await.unwrap();
-            let signed_tx = tx.into_signed(signature);
-
-            let mut rlp_buf = Vec::with_capacity(signed_tx.rlp_encoded_length());
-            signed_tx.rlp_encode(&mut rlp_buf);
-
-            signed_txs.push(rlp_buf);
-        }
-
-        signed_txs
-    }
-}
-
 #[tokio::test]
 async fn invoke_cache_prune_test() -> Result<()> {
     TestCaseRunner::new(InvokeCachePruningTest)
