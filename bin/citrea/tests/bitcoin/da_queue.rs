@@ -59,19 +59,13 @@ impl DaTransactionQueueingTest {
         // Fill mempool
         for i in 1..=3 {
             da_service
-                .send_transaction_with_fee_rate(
-                    DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                    1.0,
-                )
+                .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
                 .await?;
             da.wait_mempool_len(8 * i, None).await?;
         }
 
         da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                1.0,
-            )
+            .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
             .await?;
 
         // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
@@ -86,10 +80,7 @@ impl DaTransactionQueueingTest {
         // Try to send when queue is already filled up.
         // This is to test that utxos is correctly selected and that it's doesn't hang on waiting for list of queued txids to be returned
         let res = da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                1.0,
-            )
+            .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
             .await;
 
         assert!(matches!(res, Err(BitcoinServiceError::QueueNotEmpty)));
@@ -164,16 +155,13 @@ impl DaTransactionQueueingTest {
 
         // This over the mempool limit proof should be accepted and split up over multiple blocks
         let res = da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::ZKProof(verifiable_400kb_batch_proof.clone()),
-                1.0,
-            )
+            .send_transaction(DaTxRequest::ZKProof(verifiable_400kb_batch_proof.clone()))
             .await;
         assert!(res.is_ok());
 
         // Queue is already not empty and proof cannot be sent.
         let res = da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_400kb_batch_proof), 1.0)
+            .send_transaction(DaTxRequest::ZKProof(verifiable_400kb_batch_proof))
             .await;
         assert!(res.is_err());
 
@@ -397,19 +385,13 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         // Fill mempool
         for i in 1..=3 {
             da_service
-                .send_transaction_with_fee_rate(
-                    DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                    1.0,
-                )
+                .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
                 .await?;
             da.wait_mempool_len(8 * i, None).await?;
         }
 
         da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                1.0,
-            )
+            .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
             .await?;
 
         // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
@@ -424,10 +406,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         // Try to send when queue is already filled up.
         // This is to test that utxos is correctly selected and that it's doesn't hang on waiting for list of queued txids to be returned
         let res = da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                1.0,
-            )
+            .send_transaction(DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()))
             .await;
 
         assert!(res.is_ok());

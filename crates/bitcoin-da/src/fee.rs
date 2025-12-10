@@ -243,7 +243,7 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
     mempool_space_url: &str,
 ) -> Result<Option<f64>> {
     match network {
-        bitcoin::Network::Bitcoin | bitcoin::Network::Testnet => {}
+        bitcoin::Network::Bitcoin | bitcoin::Network::Testnet | bitcoin::Network::Regtest => {}
         _ => {
             trace!("Unsupported network for mempool space fee estimation");
             return Ok(None);
@@ -257,7 +257,7 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
 
     for endpoint in endpoints {
         let url = match network {
-            bitcoin::Network::Bitcoin => {
+            bitcoin::Network::Bitcoin | bitcoin::Network::Regtest => {
                 format!("{mempool_space_url}{endpoint}")
             }
             bitcoin::Network::Testnet => {
