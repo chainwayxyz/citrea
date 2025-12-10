@@ -231,7 +231,7 @@ pub async fn start_rollup(
         );
         let span = info_span!("Sequencer");
 
-        let (mut sequencer, rpc_module) = CitreaRollupBlueprint::create_sequencer(
+        let (mut sequencer, rpc_module, _) = CitreaRollupBlueprint::create_sequencer(
             &mock_demo_rollup,
             genesis_config,
             rollup_config.clone(),

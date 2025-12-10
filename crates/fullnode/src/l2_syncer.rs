@@ -4,20 +4,24 @@
 //! and processing them to maintain the fullnode's state.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use backoff::backoff::Backoff;
 use backoff::ExponentialBackoff;
 use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::l2::{apply_l2_block, commit_l2_block, sync_l2};
+use citrea_common::l2::{apply_l2_block, commit_l2_block};
+use citrea_network::types::{BlocksByRangeRequest, Eth2Request, L2SyncMessage, NetworkRequest};
+use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::CitreaRuntime;
-use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+use libp2p::PeerId;
 use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::L2Block;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
@@ -26,9 +30,10 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::StorageRootHash;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
-use tracing::{error, info, instrument};
+use tracing::{debug, error, info, instrument};
 
 use crate::metrics::FULLNODE_METRICS;
+use crate::sync_manager::{BatchProcessingError, DownloadInfo, SyncManager, SyncManagerMessage};
 use crate::{InitParams, RollupPublicKeys, RunnerConfig};
 
 /// Component responsible for synchronizing and processing L2 blocks
@@ -44,7 +49,7 @@ where
     DB: SharedLedgerOps + Clone,
 {
     /// Starting height for L2 block synchronization
-    start_l2_height: u64,
+    _start_l2_height: u64,
     /// Data availability service instance
     da_service: Arc<DA>,
     /// State transition function blueprint
@@ -57,8 +62,6 @@ where
     state_root: StorageRootHash,
     /// Current L2 block hash
     l2_block_hash: L2BlockHash,
-    /// HTTP client for connecting to the sequencer
-    sequencer_client: HttpClient,
     /// Sequencer's public key for signature verification
     sequencer_pub_key: K256PublicKey,
     /// Whether to include transaction bodies in block storage
@@ -73,6 +76,8 @@ where
     l2_block_tx: broadcast::Sender<u64>,
     /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
+    syncer_event_rx: mpsc::Receiver<L2SyncMessage>,
+    network_request_tx: mpsc::Sender<NetworkRequest>,
 }
 
 impl<DA, DB> L2Syncer<DA, DB>
@@ -107,21 +112,20 @@ where
         l2_block_tx: broadcast::Sender<u64>,
         backup_manager: Arc<BackupManager>,
         include_tx_body: bool,
+        syncer_event_rx: mpsc::Receiver<L2SyncMessage>,
+        network_request_tx: mpsc::Sender<NetworkRequest>,
     ) -> Result<Self, anyhow::Error> {
         let start_l2_height = ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
 
         info!("Starting L2 height: {}", start_l2_height);
-
         Ok(Self {
-            start_l2_height,
+            _start_l2_height: start_l2_height,
             da_service,
             stf,
             storage_manager,
             ledger_db,
             state_root: init_params.prev_state_root,
             l2_block_hash: init_params.prev_l2_block_hash,
-            sequencer_client: HttpClientBuilder::default()
-                .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: K256PublicKey::try_from_slice(&public_keys.sequencer_public_key)?,
             include_tx_body,
             sync_blocks_count: runner_config.sync_blocks_count,
@@ -129,6 +133,8 @@ where
             fork_manager,
             l2_block_tx,
             backup_manager,
+            syncer_event_rx,
+            network_request_tx,
         })
     }
 
@@ -141,39 +147,26 @@ where
     /// 4. Maintains metrics about syncing progress
     #[instrument(name = "L2Syncer", skip_all)]
     pub async fn run(&mut self, mut shutdown_signal: GracefulShutdown) {
-        let (l2_tx, mut l2_rx) = mpsc::channel(1);
-        let l2_sync_worker = sync_l2(
-            self.start_l2_height,
-            self.sequencer_client.clone(),
-            l2_tx,
-            self.sync_blocks_count,
-        );
-        tokio::pin!(l2_sync_worker);
+        let (manager_tx, manager_rx) = mpsc::channel(1);
 
-        let backup_manager = self.backup_manager.clone();
+        let sync_manager = SyncManager::new(
+            self.ledger_db.clone(),
+            manager_rx,
+            self.network_request_tx.clone(),
+            self.sync_blocks_count,
+            // P2P-TODO: make these configurable
+            Duration::from_secs(5),
+            Duration::from_secs(1),
+        );
+        let handle = tokio::spawn(sync_manager.run());
         loop {
             select! {
-                _ = &mut l2_sync_worker => {},
-                Some(l2_blocks) = l2_rx.recv() => {
-                    // While syncing, we'd like to process L2 blocks as they come without any delays.
-                    for l2_block in l2_blocks {
-                        let mut backoff = ExponentialBackoff::default();
-                        loop {
-                            let _l2_lock = backup_manager.start_l2_processing().await;
-                            match self.process_l2_block(&l2_block).await {
-                                Ok(_) => break,
-                                Err(e) => {
-                                    error!("Failed to process L2 block {}: {}", l2_block.header.height, e);
-                                    let backoff_duration = backoff.next_backoff().expect("Failed to process L2 block multiple times. Killing L2Syncer...");
-                                    tokio::time::sleep(backoff_duration).await;
-                                }
-                            }
-                        }
-                    }
+                Some(syncer_event) = self.syncer_event_rx.recv() => {
+                    self.on_syncer_event(syncer_event, &manager_tx).await;
                 },
                 _ = &mut shutdown_signal => {
                     info!("Shutting down L2 sync worker");
-                    l2_rx.close();
+                    handle.abort();
                     return;
                 },
             }
@@ -191,6 +184,9 @@ where
         &mut self,
         l2_block_response: &L2BlockResponse,
     ) -> anyhow::Result<()> {
+        // P2P-TODO: return custom error, slash depending on it,
+        // and continue exponential backoff depending on error type
+        let _l2_lock = self.backup_manager.start_l2_processing().await; // P2P-TODO: is this safe?
         let start = std::time::Instant::now();
 
         let applied = apply_l2_block(
@@ -227,6 +223,166 @@ where
         FULLNODE_METRICS.process_l2_block.record(process_duration);
         FULLNODE_METRICS.l2_block_size.record(block_size as f64);
 
+        Ok(())
+    }
+
+    async fn on_syncer_event(
+        &mut self,
+        event: L2SyncMessage,
+        manager_tx: &mpsc::Sender<SyncManagerMessage>,
+    ) {
+        match event {
+            L2SyncMessage::BlockBatch(peer_id, l2_blocks) => {
+                let start_height = l2_blocks
+                    .first()
+                    .expect("Block batch is non-empty")
+                    .header
+                    .height
+                    .to();
+                let end_height = l2_blocks
+                    .last()
+                    .expect("Block batch is non-empty")
+                    .header
+                    .height
+                    .to();
+
+                let processing_result = self
+                    .process_l2_blocks_with_backoff(l2_blocks)
+                    .await
+                    .map_err(|_| BatchProcessingError::ValidationError);
+                manager_tx
+                    .send(SyncManagerMessage::BatchProcessed(
+                        DownloadInfo {
+                            peer_id,
+                            start: start_height,
+                            end: end_height,
+                        },
+                        processing_result,
+                    ))
+                    .await
+                    .expect("SyncManager receiver dropped");
+            }
+            L2SyncMessage::PeerStatus(peer_id, response) => {
+                manager_tx
+                    .send(SyncManagerMessage::PeerStatus((peer_id, response)))
+                    .await
+                    .expect("SyncManager receiver dropped");
+            }
+            L2SyncMessage::NewPeer(peer_id) => {
+                manager_tx
+                    .send(SyncManagerMessage::NewPeer(peer_id))
+                    .await
+                    .expect("SyncManager receiver dropped");
+            }
+            L2SyncMessage::GossipBlock(peer_id, block) => {
+                self.on_gossip_block(peer_id, block).await;
+            }
+            L2SyncMessage::DisconnectedPeer(peer_id) => {
+                manager_tx
+                    .send(SyncManagerMessage::DisconnectedPeer(peer_id))
+                    .await
+                    .expect("SyncManager receiver dropped");
+            }
+            L2SyncMessage::RPCFailed { peer_id, request } => {
+                match request {
+                    Eth2Request::Status => {
+                        // P2P-TODO: slash lightly
+                        debug!("Ignoring failed status request to peer {}", peer_id);
+                    }
+                    Eth2Request::BlocksByRange(BlocksByRangeRequest { start, end }) => {
+                        manager_tx
+                            .send(SyncManagerMessage::BatchProcessed(
+                                DownloadInfo {
+                                    peer_id,
+                                    start,
+                                    end,
+                                },
+                                Err(BatchProcessingError::DownloadFailed),
+                            ))
+                            .await
+                            .expect("SyncManager receiver dropped");
+                    }
+                }
+            }
+        }
+    }
+
+    async fn on_gossip_block(&mut self, peer_id: PeerId, l2_block_response: L2BlockResponse) {
+        debug!("Received gossiped L2 block from peer {}", peer_id);
+
+        let l2_block: L2Block = match l2_block_response.clone().try_into() {
+            Ok(block) => block,
+            Err(e) => {
+                error!(
+                    "Failed to convert L2BlockResponse to L2Block from peer {}: {}",
+                    peer_id, e
+                );
+                // P2P-TODO: slash peer
+                return;
+            }
+        };
+        let height = l2_block.height();
+        let current_spec = fork_from_block_number(height).spec_id;
+
+        // Verify block, slash peer if invalid
+        if self
+            .stf
+            .verify_l2_block(&l2_block, &self.sequencer_pub_key, current_spec)
+            .is_err()
+        {
+            // P2P-TODO: slash peer
+            return;
+        }
+
+        let head_height = self
+            .ledger_db
+            .get_head_l2_block_height()
+            .expect("DB error")
+            .unwrap_or(0);
+
+        // P2P-TODO: perform more checks here regarding the block, even if we can't process it fully
+        // P2P-TODO: research propagating gossiped blocks further
+        if height == head_height + 1 {
+            if let Err(e) = self
+                .process_l2_blocks_with_backoff(vec![l2_block_response])
+                .await
+            {
+                error!(
+                    "Failed to process gossiped L2 block at height {}: {}",
+                    height, e
+                );
+            }
+        } else {
+            info!(
+                "Ignoring gossiped L2 block at height {}: current head is {}",
+                height, head_height
+            );
+        }
+    }
+
+    async fn process_l2_blocks_with_backoff(
+        &mut self,
+        l2_blocks: Vec<L2BlockResponse>,
+    ) -> anyhow::Result<()> {
+        for l2_block in l2_blocks {
+            let mut backoff = ExponentialBackoff::default();
+            loop {
+                let result = self.process_l2_block(&l2_block).await;
+                match result {
+                    Ok(_) => break,
+                    Err(e) => {
+                        error!(
+                            "Failed to process L2 block {}: {}",
+                            l2_block.header.height, e
+                        );
+                        let backoff_duration = backoff.next_backoff().expect(
+                            "Failed to process L2 block multiple times. Killing L2Syncer...",
+                        );
+                        tokio::time::sleep(backoff_duration).await;
+                    }
+                }
+            }
+        }
         Ok(())
     }
 }

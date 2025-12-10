@@ -2641,6 +2641,7 @@ dependencies = [
  "citrea-storage-ops",
  "hex",
  "jsonrpsee",
+ "libp2p",
  "metrics 0.23.1",
  "metrics-derive",
  "reth-tasks",
@@ -2705,6 +2706,10 @@ dependencies = [
  "futures",
  "libp2p",
  "reth-tasks",
+ "serde",
+ "serde_json",
+ "sov-db",
+ "sov-rollup-interface",
  "tokio",
  "tracing",
  "yamux 0.13.4",
@@ -2778,6 +2783,7 @@ dependencies = [
  "chrono",
  "citrea-common",
  "citrea-evm",
+ "citrea-network",
  "citrea-primitives",
  "citrea-stf",
  "digest 0.10.7",
@@ -2802,6 +2808,7 @@ dependencies = [
  "revm",
  "rs_merkle",
  "schnellru",
+ "serde_json",
  "sov-accounts",
  "sov-db",
  "sov-keys",
@@ -4163,6 +4170,16 @@ dependencies = [
  "futures-io",
  "futures-sink",
  "futures-task",
+ "futures-util",
+]
+
+[[package]]
+name = "futures-bounded"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91f328e7fb845fc832912fb6a34f40cf6d1888c92f974d1893a54e97b5ff542e"
+dependencies = [
+ "futures-timer",
  "futures-util",
 ]
 
@@ -5766,6 +5783,7 @@ dependencies = [
  "libp2p-noise",
  "libp2p-ping",
  "libp2p-quic",
+ "libp2p-request-response",
  "libp2p-swarm",
  "libp2p-tcp",
  "libp2p-upnp",
@@ -5983,6 +6001,25 @@ dependencies = [
  "socket2",
  "thiserror 2.0.12",
  "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "libp2p-request-response"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9f1cca83488b90102abac7b67d5c36fc65bc02ed47620228af7ed002e6a1478"
+dependencies = [
+ "async-trait",
+ "futures",
+ "futures-bounded",
+ "libp2p-core",
+ "libp2p-identity",
+ "libp2p-swarm",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "smallvec",
  "tracing",
 ]
 

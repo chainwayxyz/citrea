@@ -38,7 +38,8 @@ use std::sync::Arc;
 use anyhow::Result;
 use citrea_common::backup::BackupManager;
 pub use citrea_common::SequencerConfig;
-use citrea_common::{InitParams, RollupPublicKeys};
+use citrea_common::{InitParams, NetworkConfig, RollupPublicKeys};
+use citrea_network::NetworkService;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use db_provider::DbProvider;
 use deposit_data_mempool::DepositDataMempool;
@@ -104,6 +105,7 @@ mod utils;
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn build_services<Da>(
     sequencer_config: SequencerConfig,
+    network_config: NetworkConfig,
     init_params: InitParams,
     native_stf: StfBlueprint<
         DefaultContext,
@@ -119,7 +121,7 @@ pub fn build_services<Da>(
     rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
     task_executor: TaskExecutor,
-) -> Result<(CitreaSequencer<Da>, RpcModule<()>)>
+) -> Result<(CitreaSequencer<Da>, RpcModule<()>, NetworkService)>
 where
     Da: DaService,
 {
@@ -168,6 +170,13 @@ where
     );
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
 
+    let (network_tx, network_rx) = mpsc::channel(100);
+    let network = NetworkService::build(
+        network_config,
+        ledger_db.clone(),
+        network_rx,
+        None, // L2 sync channel not needed for sequencer
+    )?;
     let seq = CitreaSequencer::new(
         da_service,
         sequencer_config,
@@ -184,8 +193,9 @@ where
         backup_manager,
         rpc_message_rx,
         canon_state_tx,
+        network_tx,
     )
     .unwrap();
 
-    Ok((seq, rpc_module))
+    Ok((seq, rpc_module, network))
 }

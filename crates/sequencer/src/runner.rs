@@ -17,6 +17,7 @@ use citrea_evm::{
     populate_deposit_system_events, populate_set_block_info_event, AccountInfo, CallMessage, Evm,
     RlpEvmTransaction, MIN_TRANSACTION_GAS, SYSTEM_SIGNER,
 };
+use citrea_network::types::NetworkRequest;
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::merkle::{compute_tx_hashes, compute_tx_merkle_root};
@@ -49,6 +50,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::block::{L2Header, SignedL2Header};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
+use sov_rollup_interface::rpc::LedgerRpcProvider;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::{L2BlockResult, StateTransitionError};
 use sov_rollup_interface::transaction::Transaction;
@@ -119,6 +121,8 @@ where
     backup_manager: Arc<BackupManager>,
     /// Channel for sending canonical state notifications to mempool maintenance
     canon_state_tx: mpsc::UnboundedSender<CanonStateNotification>,
+    /// Channel for sending network requests
+    network_tx: mpsc::Sender<NetworkRequest>,
 }
 
 impl<Da> CitreaSequencer<Da>
@@ -159,6 +163,7 @@ where
         backup_manager: Arc<BackupManager>,
         rpc_message_rx: UnboundedReceiver<SequencerRpcMessage>,
         canon_state_tx: mpsc::UnboundedSender<CanonStateNotification>,
+        network_tx: mpsc::Sender<NetworkRequest>,
     ) -> anyhow::Result<Self> {
         let sov_tx_signer_priv_key =
             K256PrivateKey::try_from(hex::decode(&config.private_key)?.as_slice())?;
@@ -181,6 +186,7 @@ where
             l2_block_tx,
             backup_manager,
             canon_state_tx,
+            network_tx,
         })
     }
 
@@ -430,7 +436,8 @@ where
         last_used_l1_height: &mut u64,
     ) -> anyhow::Result<()> {
         let start: Instant = Instant::now();
-        let l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
+        let l2_height =
+            SharedLedgerOps::get_head_l2_block_height(&self.ledger_db)?.unwrap_or(0) + 1;
         self.fork_manager.register_block(l2_height)?;
         let result = {
             if da_blocks.len() == 1 && da_blocks[0].header().height() == *last_used_l1_height {
@@ -448,6 +455,23 @@ where
                 if let Err(_closed) = self.l2_block_tx.send(l2_height) {
                     debug!("l2_block_tx is closed");
                 }
+
+                let l2_block =
+                    LedgerRpcProvider::get_l2_block_by_number(&self.ledger_db, l2_height)?.unwrap();
+                // serde serialization
+                // P2P-TODO: consider using a more efficient serialization method
+                let serialized_block = serde_json::to_vec(&l2_block)
+                    .map_err(|e| anyhow!("Failed to serialize L2 block: {}", e))?;
+                let network_request = NetworkRequest::PublishMessage {
+                    topic: "new-head".to_string(),
+                    message: serialized_block,
+                };
+                // P2P-TODO: what if the channel is full?
+                // consider using tokio spawn here
+                self.network_tx
+                    .send(network_request)
+                    .await
+                    .expect("Failed to send network request");
             }
             Err(e) => {
                 error!("Sequencer error: {}", e);
@@ -1104,7 +1128,8 @@ where
         let prestate = self.storage_manager.create_final_view_storage();
         let mut working_set = WorkingSet::new(prestate.clone());
         let evm = Evm::<DefaultContext>::default();
-        let head_l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0);
+        let head_l2_height =
+            SharedLedgerOps::get_head_l2_block_height(&self.ledger_db)?.unwrap_or(0);
         let _spec_id = fork_from_block_number(head_l2_height).spec_id;
 
         // Get last processed L1 height from light client

@@ -14,7 +14,7 @@ use citrea_fullnode::da_block_handler::L1BlockHandler as FullNodeL1BlockHandler;
 use citrea_fullnode::L2Syncer as FullNodeL2Syncer;
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientProverL1BlockHandler;
-use citrea_network::Network as CitreaNetwork;
+use citrea_network::NetworkService;
 use citrea_primitives::forks::get_forks;
 use citrea_sequencer::CitreaSequencer;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
@@ -208,7 +208,11 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
         task_executor: TaskExecutor,
-    ) -> Result<(CitreaSequencer<Self::DaService>, RpcModule<()>)> {
+    ) -> Result<(
+        CitreaSequencer<Self::DaService>,
+        RpcModule<()>,
+        NetworkService,
+    )> {
         let current_l2_height = ledger_db
             .get_head_l2_block()
             .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
@@ -224,6 +228,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         citrea_sequencer::build_services(
             sequencer_config,
+            rollup_config.network.clone(),
             init_params,
             native_stf,
             rollup_config.public_keys,
@@ -257,7 +262,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         FullNodeL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
         Option<PrunerService>,
         RpcModule<()>,
-        CitreaNetwork,
+        NetworkService,
     )> {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 

@@ -35,6 +35,7 @@ bincode = { workspace = true }
 borsh = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true }
+libp2p = { workspace = true }
 metrics = { workspace = true }
 metrics-derive = { workspace = true }
 reth-tasks = { workspace = true }

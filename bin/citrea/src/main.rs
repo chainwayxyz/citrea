@@ -259,7 +259,7 @@ where
 
     match node_type {
         NodeWithConfig::Sequencer(sequencer_config) => {
-            let (mut sequencer, rpc_module) = rollup_blueprint
+            let (mut sequencer, rpc_module, network_service) = rollup_blueprint
                 .create_sequencer(
                     genesis_config,
                     rollup_config.clone(),
@@ -282,6 +282,13 @@ where
                     if let Err(e) = sequencer.run(shutdown_signal).await {
                         error!("Error: {}", e);
                     }
+                },
+            );
+
+            task_executor.spawn_critical_with_graceful_shutdown_signal(
+                "NetworkService",
+                |shutdown_signal| async move {
+                    network_service.run(shutdown_signal).await;
                 },
             );
         }
@@ -351,7 +358,7 @@ where
             );
         }
         _ => {
-            let (mut l2_syncer, l1_block_handler, pruner_service, rpc_module, network) =
+            let (mut l2_syncer, l1_block_handler, pruner_service, rpc_module, network_service) =
                 CitreaRollupBlueprint::create_full_node(
                     &rollup_blueprint,
                     network,
@@ -403,8 +410,8 @@ where
             );
 
             task_executor.spawn_critical_with_graceful_shutdown_signal(
-                "Network",
-                |shutdown_signal| async move { network.run(shutdown_signal).await },
+                "NetworkService",
+                |shutdown_signal| async move { network_service.run(shutdown_signal).await },
             );
         }
     }
