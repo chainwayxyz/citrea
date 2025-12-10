@@ -65,3 +65,39 @@ pub static BATCH_PROVER_METRICS: LazyLock<BatchProverMetrics> = LazyLock::new(||
     BatchProverMetrics::describe();
     BatchProverMetrics::default()
 });
+
+/// Initializes batch prover metrics with current DB state
+///
+/// # Arguments
+/// * `ledger_db` - The ledgerDB to read metrics from
+///
+/// # Errors
+/// Returns error if database operations fail
+pub fn initialize_metrics<DB>(ledger_db: &DB) -> Result<(), anyhow::Error>
+where
+    DB: sov_db::ledger_db::BatchProverLedgerOps,
+{
+    use tracing::debug;
+
+    if let Ok(Some(last_scanned)) = ledger_db.get_last_scanned_l1_height() {
+        BATCH_PROVER_METRICS
+            .current_l1_block
+            .set(last_scanned.0 as f64);
+        debug!(
+            "Initialized batch_prover current_l1_block metric: {}",
+            last_scanned.0
+        );
+    }
+
+    if let Ok(Some(head_l2_height)) = ledger_db.get_head_l2_block_height() {
+        BATCH_PROVER_METRICS
+            .current_l2_block
+            .set(head_l2_height as f64);
+        debug!(
+            "Initialized batch_prover current_l2_block metric: {}",
+            head_l2_height
+        );
+    }
+
+    Ok(())
+}

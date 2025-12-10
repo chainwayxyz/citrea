@@ -20,7 +20,7 @@ use sov_rollup_interface::services::da::{DaService, SlotData};
 use tokio::select;
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::{mpsc, Mutex, Notify};
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{error, info, instrument, warn};
 
 use crate::metrics::BATCH_PROVER_METRICS as BPM;
 
@@ -107,16 +107,6 @@ where
             .expect("Failed to get last scanned l1 height when starting l1 syncer")
             .map(|h| h.0)
             .unwrap_or(self.scan_l1_start_height);
-
-        if let Ok(Some(last_scanned)) = self.ledger_db.get_last_scanned_l1_height() {
-            crate::metrics::BATCH_PROVER_METRICS
-                .current_l1_block
-                .set(last_scanned.0 as f64);
-            debug!(
-                "Initialized batch_prover current_l1_block metric: {}",
-                last_scanned.0
-            );
-        }
 
         let notifier = Arc::new(Notify::new());
         let l1_sync_worker = sync_l1(
