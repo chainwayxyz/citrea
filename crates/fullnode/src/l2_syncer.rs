@@ -26,7 +26,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::StorageRootHash;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
-use tracing::{debug, error, info, instrument};
+use tracing::{error, info, instrument};
 
 use crate::metrics::FULLNODE_METRICS;
 use crate::{InitParams, RollupPublicKeys, RunnerConfig};
@@ -141,11 +141,6 @@ where
     /// 4. Maintains metrics about syncing progress
     #[instrument(name = "L2Syncer", skip_all)]
     pub async fn run(&mut self, mut shutdown_signal: GracefulShutdown) {
-        if let Ok(Some(head_l2_height)) = self.ledger_db.get_head_l2_block_height() {
-            FULLNODE_METRICS.current_l2_block.set(head_l2_height as f64);
-            debug!("Initialized current_l2_block metric: {}", head_l2_height);
-        }
-
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
         let l2_sync_worker = sync_l2(
             self.start_l2_height,

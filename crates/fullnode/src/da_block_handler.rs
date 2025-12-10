@@ -132,31 +132,6 @@ where
     /// * `shutdown_signal` - Signal to gracefully shut down
     #[instrument(name = "L1BlockHandler", skip_all)]
     pub async fn run(mut self, start_l1_height: u64, mut shutdown_signal: GracefulShutdown) {
-        if let Ok(Some(committed_height)) = self
-            .ledger_db
-            .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)
-        {
-            FM.highest_committed_l2_height
-                .set(committed_height.height as f64);
-            FM.highest_committed_index
-                .set(committed_height.commitment_index as f64);
-            debug!(
-                "Initialized highest_committed_l2_height metric: {} at index {}",
-                committed_height.height, committed_height.commitment_index
-            );
-        }
-
-        if let Ok(Some(proven_height)) = self
-            .ledger_db
-            .get_highest_l2_height_for_status(L2HeightStatus::Proven, None)
-        {
-            FM.highest_proven_l2_height.set(proven_height.height as f64);
-            debug!(
-                "Initialized highest_proven_l2_height metric: {}",
-                proven_height.height
-            );
-        }
-
         let notifier = Arc::new(Notify::new());
 
         let l1_sync_worker = sync_l1(
