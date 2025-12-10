@@ -66,6 +66,11 @@ where
     let rpc_context = rpc::create_rpc_context(ledger_db.clone(), rpc_storage);
     let rpc_module = rpc::register_rpc_methods(rpc_module, rpc_context)?;
 
+    // Initialize metrics once at component startup
+    if let Err(e) = crate::metrics::initialize_metrics(&ledger_db) {
+        tracing::debug!("Failed to initialize light client prover metrics: {:?}", e);
+    }
+
     let l1_block_handler = L1BlockHandler::new(
         network,
         prover_config,

@@ -139,31 +139,6 @@ where
         last_l1_height_scanned: StartVariant,
         mut shutdown_signal: GracefulShutdown,
     ) {
-        if let Ok(Some(last_scanned_l1_height)) = self.ledger_db.get_last_scanned_l1_height() {
-            let l1_height = last_scanned_l1_height.0;
-
-            if let Ok(Some(proof_data)) = self
-                .ledger_db
-                .get_light_client_proof_data_by_l1_height(l1_height)
-            {
-                let circuit_output =
-                    LightClientCircuitOutput::from(proof_data.light_client_proof_output);
-
-                LPM.current_l1_block.set(l1_height as f64);
-                LPM.highest_proven_l2_height
-                    .set(circuit_output.last_l2_height as f64);
-                LPM.highest_proven_index
-                    .set(circuit_output.last_sequencer_commitment_index as f64);
-
-                debug!(
-                    "Initialized metrics from L1 block {}: L2 height {} at index {}",
-                    l1_height,
-                    circuit_output.last_l2_height,
-                    circuit_output.last_sequencer_commitment_index
-                );
-            }
-        }
-
         // if self.prover_config.enable_recovery {
         //     if let Err(e) = self.check_and_recover_ongoing_proving_sessions().await {
         //         error!("Failed to recover ongoing proving sessions: {:?}", e);
