@@ -5,6 +5,8 @@
 - perf: Remove validation from backup creation. Backup validation should now be handled by `backup_validate` RPC method. ([#3045](https://github.com/chainwayxyz/citrea/pull/3045))
 - feat: Add create backup `citrea-cli` command([#3047](https://github.com/chainwayxyz/citrea/pull/3047))\
   Usage: citrea-cli create-backup --node-type <NODE_TYPE> --db-path <DB_PATH> --backup-path <BACKUP_PATH>
+- feat: Add `validate-backup` `citrea-cli` command([#3068](https://github.com/chainwayxyz/citrea/pull/3068))\
+  Usage: citrea-cli validate-backup --backup-path <BACKUP_PATH>
 - feat: Store proving session info of LCP ([#3050](https://github.com/chainwayxyz/citrea/pull/3050))\
   `lightClientProver_getLightClientProofByL1Height` endpoint now returns information about the proving session, using the same structure as the batch prover responses.
 - ci: Run citrea-e2e tests against bitcoin v30
@@ -18,6 +20,7 @@
   &nbsp;&nbsp;&nbsp;&nbsp; `BOUNDLESS_S3_USE_PRESIGNED` Use presigned URLs for S3 (default: false)
   &nbsp;\
   New configuration values can also be set inside `batch_prover_config.toml` files under `[risc0_host.prover.Boundless.storage]` with key `s3_use_presigned`.
+- fix: multiple tracing related issues fixed. ([#3064](https://github.com/chainwayxyz/citrea/pull/3064))
 
 ## v1.0.0 (2025-12-01)
 ### Added
