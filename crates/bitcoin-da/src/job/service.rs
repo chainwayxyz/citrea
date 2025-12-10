@@ -210,15 +210,6 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         Ok(txids)
     }
 
-    /// Check if any job is in progress.
-    pub async fn has_job_in_progress(&self) -> Result<bool> {
-        let in_progress_jobs = self
-            .ledger_db
-            .get_job_ids_by_status(DaJobStatus::InProgress.as_u8())?;
-
-        Ok(!in_progress_jobs.is_empty())
-    }
-
     fn notify_new_status(&self, job_id: JobId, progress: &JobProgress) {
         let result = match &progress.status {
             DaJobStatus::Completed => {
