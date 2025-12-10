@@ -134,7 +134,7 @@ pub trait DaService: Send + Sync + 'static {
 
     /// Recover an ongoing da job sending session
     /// Returns the receiver if available
-    async fn recover_existing_job(
+    async fn recover_existing_job_waiter(
         &self,
         job_id: Uuid,
     ) -> Result<oneshot::Receiver<Result<Self::TransactionId, Self::Error>>, Self::Error>;

@@ -239,7 +239,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         self.job_waiters.lock().insert(job_id, waiter);
     }
 
-    pub(crate) fn recover_job(
+    pub(crate) fn recover_job_waiter(
         &self,
         job_id: Uuid,
     ) -> Result<oneshot::Receiver<std::result::Result<TxidWrapper, BitcoinServiceError>>> {

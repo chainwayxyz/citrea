@@ -1415,14 +1415,14 @@ impl DaService for BitcoinService {
         Ok((job_id, rx))
     }
 
-    async fn recover_existing_job(
+    async fn recover_existing_job_waiter(
         &self,
         job_id: Uuid,
     ) -> Result<oneshot::Receiver<Result<TxidWrapper>>> {
         self.job_service
             .lock()
             .await
-            .recover_job(job_id)
+            .recover_job_waiter(job_id)
             .map_err(Into::into)
     }
 

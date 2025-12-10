@@ -520,7 +520,7 @@ impl DaService for MockDaService {
         }
     }
 
-    async fn recover_existing_job(
+    async fn recover_existing_job_waiter(
         &self,
         _job_id: Uuid,
     ) -> Result<oneshot::Receiver<Result<Self::TransactionId, Self::Error>>, Self::Error> {

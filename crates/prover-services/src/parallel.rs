@@ -254,7 +254,7 @@ where
         &self,
         da_job_id: Uuid,
     ) -> Result<DaJobWaiter<Da>, <Da as DaService>::Error> {
-        self.da_service.recover_existing_job(da_job_id).await
+        self.da_service.recover_existing_job_waiter(da_job_id).await
     }
 }
 
