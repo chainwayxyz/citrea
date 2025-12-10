@@ -31,6 +31,7 @@ k256 = { workspace = true }
 lru = { workspace = true, optional = true }
 metrics = { workspace = true, optional = true }
 metrics-derive = { workspace = true, optional = true }
+parking_lot = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 reth-tasks = { workspace = true, optional = true }
 secp256k1 = { version = "0.29", optional = true, features = ["rand-std", "std", "global-context"] }
@@ -53,22 +54,23 @@ native = [
   "dep:async-trait",
   "dep:backoff",
   "dep:bincode",
+  "dep:bitcoincore-rpc",
+  "dep:citrea-common",
   "dep:futures",
+  "dep:jsonrpsee",
   "dep:lru",
-  "dep:tokio",
   "dep:metrics",
   "dep:metrics-derive",
+  "dep:parking_lot",
   "dep:reth-tasks",
-  "dep:tracing",
-  "dep:serde_json",
-  "sov-rollup-interface/native",
-  "dep:citrea-common",
-  "dep:bitcoincore-rpc",
   "dep:reqwest",
-  "dep:jsonrpsee",
   "dep:secp256k1",
+  "dep:serde_json",
   "dep:sov-db",
+  "dep:tokio",
+  "dep:tracing",
   "dep:uuid",
+  "sov-rollup-interface/native",
 ]
 testing = []
 

@@ -2862,6 +2862,7 @@ dependencies = [
  "lru 0.13.0",
  "metrics",
  "metrics-derive",
+ "parking_lot",
  "rand 0.8.5",
  "reqwest",
  "reth-tasks",

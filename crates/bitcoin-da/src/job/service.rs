@@ -1,11 +1,12 @@
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use anyhow::Context;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
 use lru::LruCache;
+use parking_lot::Mutex;
 use sov_db::ledger_db::DaLedgerOps;
 use sov_db::schema::types::da_jobs::{DaJobStatus, JobId, JobProgress};
 use sov_rollup_interface::da::DataOnDa;
@@ -60,7 +61,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
 
         METRICS.record_job_submitted();
 
-        self.job_waiters.lock().unwrap().insert(job_id, tx);
+        self.job_waiters.lock().insert(job_id, tx);
 
         info!("Job {job_id} submitted and persisted");
         Ok(job_id)
@@ -100,7 +101,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
     /// * `Result<RawTxData>` - The raw transaction data or an error
     #[instrument(level = "trace", skip(self), ret)]
     pub(crate) fn get_job_data(&self, job_id: Uuid, job_data: DaTxRequest) -> Result<RawTxData> {
-        if let Some(data) = self.raw_tx_data_cache.lock().unwrap().get(&job_id) {
+        if let Some(data) = self.raw_tx_data_cache.lock().get(&job_id) {
             return Ok(data.to_owned());
         }
 
@@ -126,7 +127,6 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
 
         self.raw_tx_data_cache
             .lock()
-            .unwrap()
             .push(job_id, raw_tx_data.clone());
 
         Ok(raw_tx_data)
@@ -235,7 +235,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
             DaJobStatus::Pending | DaJobStatus::InProgress => return,
         };
 
-        if let Some(tx) = self.job_waiters.lock().unwrap().remove(&job_id) {
+        if let Some(tx) = self.job_waiters.lock().remove(&job_id) {
             let _ = tx.send(result);
         }
     }
@@ -245,7 +245,7 @@ impl<DB: DaLedgerOps> DaJobService<DB> {
         job_id: JobId,
         waiter: oneshot::Sender<std::result::Result<TxidWrapper, BitcoinServiceError>>,
     ) {
-        self.job_waiters.lock().unwrap().insert(job_id, waiter);
+        self.job_waiters.lock().insert(job_id, waiter);
     }
 
     pub(crate) fn recover_job(
