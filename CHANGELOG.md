@@ -13,6 +13,7 @@
 
 - feat: Add `citrea-cli db-migrate` subcommand([#3015](https://github.com/chainwayxyz/citrea/pull/3015))\
   Usage: citrea-cli db-migrate --node-type <NODE_TYPE> --db-path <DB_PATH>
+- fix: Initialize metrics at startup. ([#2954](https://github.com/chainwayxyz/citrea/pull/2954))
 
 ### Changed
 - chore: renamed `BOUNDLESS_S3_NO_PRESIGNED` to `BOUNDLESS_S3_USE_PRESIGNED`. ([#3046](https://github.com/chainwayxyz/citrea/pull/3046))\
