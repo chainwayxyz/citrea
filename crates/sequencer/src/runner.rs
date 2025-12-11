@@ -1065,10 +1065,6 @@ where
         &mut self,
         mut shutdown_signal: GracefulShutdown,
     ) -> Result<(), anyhow::Error> {
-        if let Err(e) = crate::metrics::initialize_metrics(&self.ledger_db) {
-            debug!("Failed to initialize sequencer metrics: {:?}", e);
-        }
-
         let l1_fee_rate_multiplier = self.config.l1_fee_rate_multiplier;
         let max_l1_fee_rate_sat_vb = self.config.max_l1_fee_rate_sat_vb;
 
