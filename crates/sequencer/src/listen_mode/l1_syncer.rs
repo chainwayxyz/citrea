@@ -51,8 +51,6 @@ where
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     /// Queue of L1 blocks waiting to be processed
     queued_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
-    /// Queue of pending L1 blocks to be processed
-    pending_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
     /// Manager for prover storage
@@ -88,7 +86,6 @@ where
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             l1_block_cache,
             queued_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
-            pending_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             backup_manager,
             storage_manager,
         })
@@ -137,7 +134,7 @@ where
         let l1_sync_worker = sync_l1(
             scan_l1_start_height,
             self.da_service.clone(),
-            self.pending_l1_blocks.clone(),
+            self.queued_l1_blocks.clone(),
             self.l1_block_cache.clone(),
             notifier.clone(),
         );
@@ -154,7 +151,6 @@ where
                     return;
                 }
                  _ = notifier.notified() => {
-                    let _l1_guard = backup_manager.start_l1_processing().await;
                     if let Err(e) = self.process_queued_l1_blocks().await {
                         error!("Could not process queued L1 blocks: {:?}", e);
                     }
@@ -184,16 +180,11 @@ where
     /// 2. Extracts sequencer commitments and stores them by slot number
     /// 3. Updates the CommitmentsByNumber table with found commitments
     async fn process_l1_block(&mut self, l1_block: Da::FilteredBlock) -> Result<(), anyhow::Error> {
-        // let mut pending_l1_blocks = self.pending_l1_blocks.lock().await; let start_scanning = Instant::now();
         let start_scanning = Instant::now();
         let _l1_lock = self.backup_manager.start_l1_processing().await;
 
         let l1_height = l1_block.header().height();
         info!("Processing L1 block at height: {}", l1_height);
-
-        // Set the l1 height of the l1 hash
-        self.ledger_db
-            .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)?;
 
         // Extract sequencer commitments
         let l1_commitments = extract_sequencer_commitments::<Da>(
