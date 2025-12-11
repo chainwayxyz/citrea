@@ -158,10 +158,11 @@ jobs:
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Toolchain
-        uses: dtolnay/rust-toolchain@nightly
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
         with:
-          components: rustfmt, clippy
+          toolchain: nightly
+          override: true
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
