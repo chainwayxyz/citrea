@@ -761,10 +761,9 @@ impl TestCase for BackupBatchProverTest {
             .wait_for_l1_height(second_commitment_l1_height, None)
             .await?;
 
-        let restored_job_ids = wait_for_prover_job_count(batch_prover, 1, None).await?;
-        assert_eq!(restored_job_ids.len(), 1);
+        let restored_job_ids = wait_for_prover_job_count(batch_prover, 2, None).await?;
+        assert_eq!(restored_job_ids.len(), 2);
         let restored_job_id = restored_job_ids[0];
-
         let restored_response = wait_for_prover_job(batch_prover, restored_job_id, None).await?;
         let restored_proof = restored_response.proof.unwrap();
 
@@ -826,8 +825,8 @@ impl TestCase for BackupBatchProverTest {
             .wait_for_l1_height(second_commitment_l1_height, None)
             .await?;
 
-        let rollback_job_ids = wait_for_prover_job_count(batch_prover, 1, None).await?;
-        assert_eq!(rollback_job_ids.len(), 1);
+        let rollback_job_ids = wait_for_prover_job_count(batch_prover, 2, None).await?;
+        assert_eq!(rollback_job_ids.len(), 2);
         let rollback_job_id = rollback_job_ids[0];
         let rollback_response = wait_for_prover_job(batch_prover, rollback_job_id, None).await?;
         let rollback_proof = rollback_response.proof.unwrap();
