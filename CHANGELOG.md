@@ -1,5 +1,62 @@
 # Changelog
 
+## [Unreleased]
+### Added
+- perf: Remove validation from backup creation. Backup validation should now be handled by `backup_validate` RPC method. ([#3045](https://github.com/chainwayxyz/citrea/pull/3045))
+- feat: Add create backup `citrea-cli` command([#3047](https://github.com/chainwayxyz/citrea/pull/3047))\
+  Usage: citrea-cli create-backup --node-type <NODE_TYPE> --db-path <DB_PATH> --backup-path <BACKUP_PATH>
+- feat: Add `validate-backup` `citrea-cli` command([#3068](https://github.com/chainwayxyz/citrea/pull/3068))\
+  Usage: citrea-cli validate-backup --backup-path <BACKUP_PATH>
+- feat: Store proving session info of LCP ([#3050](https://github.com/chainwayxyz/citrea/pull/3050))\
+  `lightClientProver_getLightClientProofByL1Height` endpoint now returns information about the proving session, using the same structure as the batch prover responses.
+- ci: Run citrea-e2e tests against bitcoin v30
+
+- feat: Add `citrea-cli db-migrate` subcommand([#3015](https://github.com/chainwayxyz/citrea/pull/3015))\
+  Usage: citrea-cli db-migrate --node-type <NODE_TYPE> --db-path <DB_PATH>
+
+### Changed
+- chore: renamed `BOUNDLESS_S3_NO_PRESIGNED` to `BOUNDLESS_S3_USE_PRESIGNED`. ([#3046](https://github.com/chainwayxyz/citrea/pull/3046))\
+  &nbsp;&nbsp;**New env var:**
+  &nbsp;&nbsp;&nbsp;&nbsp; `BOUNDLESS_S3_USE_PRESIGNED` Use presigned URLs for S3 (default: false)
+  &nbsp;\
+  New configuration values can also be set inside `batch_prover_config.toml` files under `[risc0_host.prover.Boundless.storage]` with key `s3_use_presigned`.
+- fix: multiple tracing related issues fixed. ([#3064](https://github.com/chainwayxyz/citrea/pull/3064))
+
+## v1.0.0 (2025-12-01)
+### Added
+- feat(prover): Store proving info by job id ([#3011](https://github.com/chainwayxyz/citrea/pull/3011))\
+  `batchProver_getProvingJob*` endpoints now return information about the proving session, including cycle counts and request IDs (bonsai and boundless proofs).
+- chore: Add/modify Citrea mainnet values and ZK circuits. ([#3024](https://github.com/chainwayxyz/citrea/pull/3024), [#3025](https://github.com/chainwayxyz/citrea/pull/3025), [#3026](https://github.com/chainwayxyz/citrea/pull/3026), [#3027](https://github.com/chainwayxyz/citrea/pull/3027), [#3028](https://github.com/chainwayxyz/citrea/pull/3028), [#3029](https://github.com/chainwayxyz/citrea/pull/3029), [#3030](https://github.com/chainwayxyz/citrea/pull/3030), [#3031](https://github.com/chainwayxyz/citrea/pull/3031))
+
+## v0.9.0 (2025-11-12)
+- feat: Implement eth filter rpc endpoints. ([#2956](https://github.com/chainwayxyz/citrea/pull/2956))\
+  &nbsp;&nbsp;**New env vars:**\
+  &nbsp;&nbsp;&nbsp;&nbsp; `RPC_STALE_FILTER_TTL` duration in seconds before a stale filter is evicted from active filters cache (default: 300)\
+  &nbsp;&nbsp;&nbsp;&nbsp; `RPC_ENABLE_FILTERS` enables or disables the eth filter RPC endpoints (default: true)
+  &nbsp;\
+  New configuration values can also be set inside `rollup_config.toml` files under `[rpc]` with keys `stale_filter_ttl` or `enable_filters`.
+
+- fix: `eth_estimateGas` and `eth_createAccessList` now supports `state_overrides`. ([#3013](https://github.com/chainwayxyz/citrea/pull/3013))
+
+- feat: Risc0 host configs can now be passed from `prover_config.toml` files. ([#2994](https://github.com/chainwayxyz/citrea/pull/2994))
+
+## v0.8.1 (2025-10-25)
+Fixes Testnet guest list for Light Client Prover.
+
+## v0.8.0 (2025-10-24)
+Release for Citrea Tangelo network upgrade.
+
+With this upgrade:
+- Minimum base fee is reduced to 0.001 Gwei.
+- Security fixes from past audits are applied.
+- Light Client Proof Batch Proof Method ID updates are now done by the security council.
+
+## v0.7.5 (2025-10-02)
+- New config `RPC_ENABLE_JS_TRACER` to enable/disable `JsTracer` for EVM trace RPCs. (Default true).
+- Better mempool handling in the sequencer.
+- `eth_getBlockByNumber` now supports `pending` block tag.
+- Miscellaneous security fixes.
+
 ## v0.7.4 (2025-09-08)
 Release for improved memory usage in L1 syncing. Node operators on v0.7.3 are highly recommended to upgrade to v0.7.4.
 
@@ -7,6 +64,7 @@ Shutdown pre-v0.7.4 node run below citrea-cli command before running v0.7.4:
 ```sh
 citrea-cli rollback --node-type fullnode --db-path path/to/db --l2-target 9999999999 --l1-target 74247 --sequencer-commitment-index 0
 ```
+
 ## v0.7.3 (2025-08-28)
 Release for various bug & vulnerability fixes.
 
@@ -24,7 +82,7 @@ Node operators need to rescan L1:
 # use citrea-cli v0.7.2
 citrea-cli --rollback --node-type fullnode --db-path path/to/db --l2-target 9999999999 --l1-target 74247 --sequencer-commitment-index 0
 
-citrea-cli clear-pending --db-path path/to/dbs 
+citrea-cli clear-pending --db-path path/to/dbs
 ```
 
 
@@ -37,7 +95,7 @@ Node operators need to rescan L1:
 # use citrea-cli v0.7.1
 citrea-cli --rollback --node-type fullnode --db-path path/to/db --l2-target 9999999999 --l1-target 74247 --sequencer-commitment-index 0
 
-citrea-cli clear-pending --db-path path/to/dbs 
+citrea-cli clear-pending --db-path path/to/dbs
 ```
 
 ## v0.7.0 (2025-04-18)
@@ -102,3 +160,5 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes would query more l2 blocks than intended. ([#1230](https://github.com/chainwayxyz/citrea/pull/1230))
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
+
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/release-v0.8.1...HEAD

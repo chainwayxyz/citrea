@@ -22,6 +22,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
+use citrea_light_client_prover::circuit::citrea_network_to_chain_id;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::REVEAL_TX_PREFIX;
@@ -37,6 +38,7 @@ use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
+use sov_rollup_interface::zk::ProvingSessionInfo;
 use sov_rollup_interface::Network;
 
 use super::get_citrea_path;
@@ -83,7 +85,6 @@ impl TestCase for LightClientProvingTest {
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
             enable_recovery: false,
-            initial_da_height: 171,
             ..Default::default()
         }
     }
@@ -664,6 +665,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         let method_id_body = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id,
             activation_l2_height: 210,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
 
         let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
@@ -893,6 +895,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id,
             activation_l2_height: 220,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
         let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
             .map(|s| hex::decode(s).unwrap().try_into().unwrap());
@@ -935,6 +938,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body2 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id2,
             activation_l2_height: 230,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
         let msg2 = method_id_body2.serialize();
         let prehash2 = eip191_hash_message(msg2.as_slice());
@@ -976,6 +980,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body3 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
         let msg3 = method_id_body3.serialize();
         let prehash3 = eip191_hash_message(msg3.as_slice());
@@ -1015,6 +1020,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body3 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
         let msg3 = method_id_body3.serialize();
         let prehash3 = eip191_hash_message(msg3.as_slice());
@@ -1054,6 +1060,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body3 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
         let msg3 = method_id_body3.serialize();
         let prehash3 = eip191_hash_message(msg3.as_slice());
@@ -1091,6 +1098,82 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         assert!(!batch_proof_method_ids3
             .iter()
             .any(|x| x.method_id == new_batch_proof_method_id3.into()));
+
+        // Case 5: Test with wrong network (should be rejected)
+        let new_batch_proof_method_id4 = [5u32; 8];
+        let method_id_body4 = BatchProofMethodIdBody {
+            method_id: new_batch_proof_method_id4,
+            activation_l2_height: 250,
+            chain_id: citrea_network_to_chain_id(Network::Mainnet),
+        };
+        let msg4 = method_id_body4.serialize();
+        let prehash4 = eip191_hash_message(msg4.as_slice());
+        let signatures_with_index = create_valid_signatures(&signers, &prehash4);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+                    body: method_id_body4.clone(),
+                    signatures_with_index,
+                }),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let method_id_l1_height4 = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(method_id_l1_height4, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let batch_proof_method_ids4 = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert!(!batch_proof_method_ids4
+            .iter()
+            .any(|x| x.method_id == new_batch_proof_method_id4.into()));
+
+        // Case 6: Test signature indexes not ascending order (should be rejected)
+        let new_batch_proof_method_id5 = [6u32; 8];
+        let method_id_body5 = BatchProofMethodIdBody {
+            method_id: new_batch_proof_method_id5,
+            activation_l2_height: 260,
+
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
+        };
+        let msg5 = method_id_body5.serialize();
+        let prehash5 = eip191_hash_message(msg5.as_slice());
+        let mut signatures_with_index = create_valid_signatures(&signers, &prehash5);
+        // Make indexes not in ascending order
+        signatures_with_index.swap(0, 2);
+
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
+                    body: method_id_body5.clone(),
+                    signatures_with_index,
+                }),
+                1,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let method_id_l1_height5 = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(method_id_l1_height5, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let batch_proof_method_ids5 = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert!(!batch_proof_method_ids5
+            .iter()
+            .any(|x| x.method_id == new_batch_proof_method_id5.into()));
 
         Ok(())
     }
@@ -1919,39 +2002,24 @@ impl TestCase for UnchainedBatchProofsTest {
             Some(fake_sequencer_commitment.serialize_and_calculate_sha_256()),
         );
 
-        let mut txs = bitcoin_da_service
+        bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp1), 1)
             .await
             .unwrap();
 
-        txs.extend(
-            bitcoin_da_service
-                .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2), 1)
-                .await
-                .unwrap(),
-        );
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2), 1)
+            .await
+            .unwrap();
 
-        txs.extend(
-            bitcoin_da_service
-                .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp3), 1)
-                .await
-                .unwrap(),
-        );
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp3), 1)
+            .await
+            .unwrap();
 
         da.wait_mempool_len(6, None).await?;
 
-        da.generate_block(
-            da.get_new_address(None, None)
-                .await?
-                .assume_checked()
-                .to_string(),
-            txs.into_iter()
-                .flat_map(|tx| [tx[0].id.to_string(), tx[1].id.to_string()])
-                .collect(),
-        )
-        .await?;
-
-        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         light_client_prover
             .wait_for_l1_height(start_l1_height + DEFAULT_FINALITY_DEPTH, None)
@@ -2632,25 +2700,14 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
             None,
         );
 
-        let txs = batch_prover_bitcoin_da_service
+        batch_prover_bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp1), 1)
             .await
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate_block(
-            da.get_new_address(None, None)
-                .await?
-                .assume_checked()
-                .to_string(),
-            txs.into_iter()
-                .flat_map(|tx| [tx[0].id.to_string(), tx[1].id.to_string()])
-                .collect(),
-        )
-        .await?;
-
-        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         light_client_prover
             .wait_for_l1_height(start_l1_height + DEFAULT_FINALITY_DEPTH, None)
@@ -2703,25 +2760,14 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
             None,
         );
 
-        let txs = batch_prover_bitcoin_da_service
+        batch_prover_bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp1), 1)
             .await
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate_block(
-            da.get_new_address(None, None)
-                .await?
-                .assume_checked()
-                .to_string(),
-            txs.into_iter()
-                .flat_map(|tx| [tx[0].id.to_string(), tx[1].id.to_string()])
-                .collect(),
-        )
-        .await?;
-
-        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         light_client_prover
             .wait_for_l1_height(finalized_height + DEFAULT_FINALITY_DEPTH, None)
@@ -2781,25 +2827,14 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
             Some(fake_sequencer_commitment.serialize_and_calculate_sha_256()),
         );
 
-        let txs = malicious_bitcoin_da_service
+        malicious_bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2.clone()), 1)
             .await
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate_block(
-            da.get_new_address(None, None)
-                .await?
-                .assume_checked()
-                .to_string(),
-            txs.into_iter()
-                .flat_map(|tx| [tx[0].id.to_string(), tx[1].id.to_string()])
-                .collect(),
-        )
-        .await?;
-
-        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
         light_client_prover
             .wait_for_l1_height(finalized_height + DEFAULT_FINALITY_DEPTH, None)
@@ -2822,25 +2857,14 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
         assert_eq!(lcp_output.last_sequencer_commitment_index, U32::from(1));
 
         // Now send batch proof with the correct da pub key and expect it to transition
-        let txs = batch_prover_bitcoin_da_service
+        batch_prover_bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2.clone()), 1)
             .await
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
 
-        da.generate_block(
-            da.get_new_address(None, None)
-                .await?
-                .assume_checked()
-                .to_string(),
-            txs.into_iter()
-                .flat_map(|tx| [tx[0].id.to_string(), tx[1].id.to_string()])
-                .collect(),
-        )
-        .await?;
-
-        da.generate(DEFAULT_FINALITY_DEPTH - 1).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height(None).await?;
 
         light_client_prover
@@ -3606,4 +3630,49 @@ async fn test_undecompressable_blob() -> Result<()> {
     .set_citrea_path(get_citrea_path())
     .run()
     .await
+}
+
+struct ProvingSessionInfoTest;
+
+#[async_trait]
+impl TestCase for ProvingSessionInfoTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_light_client_prover: true,
+            with_sequencer: false,
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+
+        light_client_prover.wait_for_l1_height(1, None).await?;
+        let proof_response = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(U64::from(1))
+            .await?
+            .expect("proving job should exist");
+
+        let proving_info = proof_response.info;
+        let Some(ProvingSessionInfo::Local(local_info)) = proving_info else {
+            panic!("unexpected proving info type");
+        };
+
+        assert!(local_info.segments > 0);
+        assert!(local_info.total_cycles > 0);
+        assert!(local_info.user_cycles > 0);
+        assert!(local_info.paging_cycles > 0);
+        assert!(local_info.reserved_cycles > 0);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn proving_session_info_test() -> Result<()> {
+    TestCaseRunner::new(ProvingSessionInfoTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
 }

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
 use anyhow::bail;
@@ -11,6 +12,7 @@ use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
 use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
+use citrea_e2e::node::NodeKind;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
@@ -26,7 +28,7 @@ impl TestCase for BitcoinReorgTest {
         TestCaseConfig {
             with_sequencer: true,
             with_batch_prover: true,
-            n_nodes: 2,
+            n_nodes: HashMap::from([(NodeKind::Bitcoin, 2)]),
             ..Default::default()
         }
     }

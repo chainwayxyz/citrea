@@ -102,7 +102,7 @@ impl<'a> Manifest<'a> {
             Self::err(
                 &constants_dir,
                 parent,
-                format!("Failed to parse `workspace_root` as json: {}", e),
+                format!("Failed to parse `workspace_root` as json: {e}"),
             )
         })?;
         let ws_root = metadata.get("workspace_root").ok_or_else(|| {
@@ -189,7 +189,7 @@ impl<'a> Manifest<'a> {
             Self::err(
                 &self.path,
                 field,
-                format!("manifest does not contain a `{}` attribute", field),
+                format!("manifest does not contain a `{field}` attribute"),
             )
         })?;
         let value = self.value_to_tokens(field, value, ty)?;
@@ -207,11 +207,7 @@ impl<'a> Manifest<'a> {
         ty: &Type,
     ) -> Result<TokenStream, syn::Error> {
         match value {
-            Value::Null => Err(Self::err(
-                &self.path,
-                field,
-                format!("`{}` is `null`", field),
-            )),
+            Value::Null => Err(Self::err(&self.path, field, format!("`{field}` is `null`"))),
             Value::Bool(b) => Ok(quote::quote!(#b)),
             Value::Number(n) => {
                 if n.is_u64() {
@@ -234,8 +230,7 @@ impl<'a> Manifest<'a> {
                         &self.path,
                         field,
                         format!(
-                            "Found value of type {:?} while parsing `{}` but expected an array type ",
-                            ty, field
+                            "Found value of type {ty:?} while parsing `{field}` but expected an array type "
                         ),
                     ));
                 };

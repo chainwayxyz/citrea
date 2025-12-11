@@ -179,7 +179,7 @@ where
 
                     debug!("Got L1 signal to try proving");
                     if let Err(e) = self.try_proving(PartitionMode::Normal, true).await {
-                        error!("Failed to start proving: {}", e);
+                        error!("Failed to start proving: {:?}", e);
                     }
                 },
                 l2_signal = self.l2_block_rx.recv() => {
@@ -203,7 +203,7 @@ where
 
                     debug!("Got L2 signal to try proving");
                     if let Err(e) = self.try_proving(PartitionMode::Normal, true).await {
-                        error!("Failed to start proving: {}", e);
+                        error!("Failed to start proving: {:?}", e);
                     }
                 }
                 request = self.request_rx.recv() => {
@@ -343,7 +343,7 @@ where
     ///
     /// # Arguments
     /// * `commitments` - A mutable reference to the vector of pending commitments
-    ///     This vector is mutable because it will be updated with the filtered commitments.
+    ///    This vector is mutable because it will be updated with the filtered commitments.
     /// * `mode` - The partition mode to use for partitioning the commitments
     ///
     /// # Returns
@@ -463,11 +463,11 @@ where
     /// If there are more than one commitment, the commitments are iterated and following conditions are checked at each iteration:
     /// 0. The state diff is increased at each iteration with the current commitment state diff and reset after each partition to the current commitments state diff.
     /// 1. If other than the first commitment, the index of the current commitment and the previous commitment index is checked,
-    ///     if they are not consecutive, a partition is formed with the IndexGap PartitionReason.
+    ///    if they are not consecutive, a partition is formed with the IndexGap PartitionReason.
     /// 2. If the previous commitment l2 end block number and the current commitment l2 end block number are from different forks,
-    ///     a partition is formed with the SpecChange PartitionReason.
+    ///    a partition is formed with the SpecChange PartitionReason.
     /// 3. If serialized and then compressed cumulative state diff of the (current commitment included) partition exceeds the MAX_TX_BODY_SIZE,
-    ///     a partition is formed with the StateDiff PartitionReason.
+    ///    a partition is formed with the StateDiff PartitionReason.
     /// 4. If there is a remaining commitment after the loop, it is added as a last partition with the Finish PartitionReason.
     ///
     /// # Gotchas:
@@ -707,28 +707,26 @@ where
         // start watching the proving jobs to finish in the background
         tokio::spawn(async move {
             while let Some((job_id, rx)) = proving_jobs.recv().await {
-                let proof_with_duration = rx.await.expect("Proof channel should never close");
+                let ProofWithDuration {
+                    proof,
+                    duration,
+                    info,
+                } = rx.await.expect("Proof channel should never close");
                 info!(
                     "Proving job finished {}, took {:?} seconds",
-                    job_id, proof_with_duration.duration
+                    job_id, duration
                 );
 
-                let output = extract_proof_output::<Vm>(
-                    &job_id,
-                    &proof_with_duration.proof,
-                    &code_commitments_by_spec,
-                    network,
-                );
+                let output =
+                    extract_proof_output::<Vm>(&job_id, &proof, &code_commitments_by_spec, network);
 
                 // stores proof and marks job as waiting for da
                 ledger_db
-                    .put_proof_by_job_id(job_id, proof_with_duration.proof.clone(), output.into())
+                    .put_proof_by_job_id(job_id, proof.clone(), output.into(), info)
                     .expect("Should put proof to db");
 
                 // Record the proving time metric
-                BATCH_PROVER_METRICS
-                    .proving_time
-                    .record(proof_with_duration.duration);
+                BATCH_PROVER_METRICS.proving_time.record(duration);
 
                 let prover_service = prover_service.clone();
                 let ledger_db = ledger_db.clone();
@@ -736,7 +734,7 @@ where
                 // submit the proof to the DA service in the background
                 tokio::spawn(async move {
                     let tx_id = prover_service
-                        .submit_proof(proof_with_duration.proof, job_id)
+                        .submit_proof(proof, job_id)
                         .await
                         .expect("Failed to submit proof");
 
@@ -773,7 +771,12 @@ where
             info!("Recovering {} proving sessions", proving_jobs.len());
 
             let mut proofs = HashMap::with_capacity(proving_jobs.len());
-            while let Some(ProofWithJob { job_id, proof }) = proving_jobs.next().await {
+            while let Some(ProofWithJob {
+                job_id,
+                proof,
+                info,
+            }) = proving_jobs.next().await
+            {
                 info!("Proving job finished {}", job_id);
 
                 let output = extract_proof_output::<Vm>(
@@ -785,7 +788,7 @@ where
 
                 // stores proof and marks job as waiting for da
                 self.ledger_db
-                    .put_proof_by_job_id(job_id, proof.clone(), output.into())
+                    .put_proof_by_job_id(job_id, proof.clone(), output.into(), info)
                     .expect("Should put proof to db");
 
                 info!("Completed proving job {}", job_id);
@@ -1262,7 +1265,7 @@ fn extract_proof_output<Vm: ZkvmHost>(
         code_commitment,
         network_to_dev_mode(network),
     )
-    .unwrap_or_else(|_| panic!("Failed to verify proof with job_id={}", job_id));
+    .unwrap_or_else(|_| panic!("Failed to verify proof with job_id={job_id}"));
 
     debug!("circuit output: {:?}", output);
     output
@@ -1297,7 +1300,7 @@ mod tests {
     // to use different set of forks for any reason.
     const TEST_FORKS: &[Fork] = &[
         Fork::new(SpecId::Tangerine, 0),
-        Fork::new(SpecId::Fork3, 10),
+        Fork::new(SpecId::Tangelo, 10),
     ];
 
     struct MockProverData {

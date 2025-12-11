@@ -216,6 +216,7 @@ pub async fn start_rollup(
             &mut rpc_module,
             sequencer_client_url,
             l2_block_rx,
+            task_executor.clone(),
         )
         .expect("Failed to register Ethereum RPC methods");
         register_healthcheck_rpc(&mut rpc_module, ledger_db.clone())
@@ -453,8 +454,10 @@ pub fn create_default_rollup_config(
             trace_chain_block_limit: None,
             proving_jobs_limit: 100,
             timeout: 30,
+            stale_filter_ttl: Some(10),
             enable_js_tracer: true,
             api_key: None,
+            enable_filters: false,
         },
         runner: match node_mode {
             NodeMode::FullNode(socket_addr)
@@ -509,7 +512,7 @@ pub async fn wait_for_l2_block(client: &TestClient, num: u64, timeout: Option<Du
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout. Latest L2 block is {:?}", latest_block);
+            panic!("Timeout. Latest L2 block is {latest_block:?}");
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -639,7 +642,7 @@ pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Op
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout. Latest L1 block is {}", da_block);
+            panic!("Timeout. Latest L1 block is {da_block}");
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -702,7 +705,7 @@ pub async fn wait_for_proof(test_client: &TestClient, slot_height: u64, timeout:
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout while waiting for proof at height {}", slot_height);
+            panic!("Timeout while waiting for proof at height {slot_height}");
         }
 
         sleep(Duration::from_secs(1)).await;

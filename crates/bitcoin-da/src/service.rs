@@ -139,7 +139,7 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
             utxo_selection_mode: read_env("UTXO_SELECTION_MODE")
                 .ok()
                 .map(|v| {
-                    serde_json::from_str(&format!("\"{}\"", v))
+                    serde_json::from_str(&format!("\"{v}\""))
                         .map_err(|e| anyhow!(e).context("Invalid UTXO_SELECTION_MODE"))
                 })
                 .transpose()?,
@@ -435,16 +435,24 @@ impl BitcoinService {
         }
 
         let utxos: Vec<UTXO> = match self.utxo_selection_mode {
-            UtxoSelectionMode::Chained => utxos
-                .into_iter()
-                .filter(|utxo| {
-                    utxo.spendable
-                        && utxo.solvable
-                        && utxo.safe
-                        && utxo.amount > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
-                })
-                .map(Into::into)
-                .collect(),
+            UtxoSelectionMode::Chained => {
+                let commit_txids = self
+                    .monitoring
+                    .get_in_mempool_commit_transaction_ids()
+                    .await;
+
+                utxos
+                    .into_iter()
+                    .filter(|utxo| {
+                        utxo.spendable
+                            && utxo.solvable
+                            // Accept either safe utxos OR unsafe commit change output that are monitored (and can be considered `mine` and thus safe)
+                            && (utxo.safe || (commit_txids.contains(&utxo.txid) && utxo.vout == 1))
+                            && utxo.amount > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
+                    })
+                    .map(Into::into)
+                    .collect()
+            }
 
             // When running in UtxoSelectionMode::Oldest, we're creating multiple utxos chain in parallel
             // to be able to send multiple proofs in the same block without hitting mempool policy limits.
@@ -804,7 +812,7 @@ impl BitcoinService {
     /// A Chunk is valid if:
     /// - It comes from previous L1 blocks
     /// - It comes from the same L1 block
-    ///    and its tx appears before its Aggregate tx.
+    ///   and its tx appears before its Aggregate tx.
     async fn verify_chunk_order(
         &self,
         block_height: u64,
@@ -821,8 +829,7 @@ impl BitcoinService {
                 // This means the chunk comes after the aggregate in the same block
                 // This is not a valid case because lcp expects all chunks to come before their aggregate
                 return Err(BitcoinServiceError::ChunkOrderingError(format!(
-                    "{}:{}: Chunk comes after aggregate. Block height: {}",
-                    tx_id, chunk_id, block_height,
+                    "{tx_id}:{chunk_id}: Chunk comes after aggregate. Block height: {block_height}",
                 )));
             }
         } else {
@@ -832,16 +839,14 @@ impl BitcoinService {
                 self.get_block_height_from_block_hash(tx_block_hash).await?
             } else {
                 return Err(BitcoinServiceError::ChunkOrderingError(format!(
-                    "{}:{}: Failed to get block hash for chunk",
-                    tx_id, chunk_id
+                    "{tx_id}:{chunk_id}: Failed to get block hash for chunk"
                 )));
             };
             if tx_block_height > block_height as usize {
                 // This means the chunk comes after the aggregate in a future block
                 // This is not a valid case because lcp expects all chunks to come before their aggregate
                 return Err(BitcoinServiceError::ChunkOrderingError(format!(
-                    "{}:{}: Chunk comes after aggregate. Block height: {}, Chunk block height: {}",
-                    tx_id, chunk_id, block_height, tx_block_height
+                    "{tx_id}:{chunk_id}: Chunk comes after aggregate. Block height: {block_height}, Chunk block height: {tx_block_height}"
                 )));
             }
         }

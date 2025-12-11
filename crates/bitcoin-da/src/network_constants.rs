@@ -60,12 +60,21 @@ pub struct NetworkConstants {
 
 /// Initial mainnet state.
 pub const INITIAL_MAINNET_STATE: LatestDaState = LatestDaState {
-    block_hash: [0; 32],
-    block_height: 0,
-    total_work: [0; 32],
-    current_target_bits: 0,
-    epoch_start_time: 0,
-    prev_11_timestamps: [0; 11],
+    block_hash: [
+        7, 70, 111, 131, 148, 15, 237, 67, 120, 187, 48, 227, 221, 219, 9, 248, 48, 200, 7, 15, 32,
+        11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ],
+    block_height: 924022,
+    total_work: [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 245, 222, 251, 39, 150, 241,
+        205, 11, 251, 145, 226, 113,
+    ],
+    current_target_bits: 0x1701d936,
+    epoch_start_time: 1762972230,
+    prev_11_timestamps: [
+        1763382783, 1763376418, 1763376646, 1763377224, 1763377967, 1763378188, 1763378745,
+        1763378849, 1763379342, 1763379690, 1763380954,
+    ],
 };
 
 /// Initial regtest state.

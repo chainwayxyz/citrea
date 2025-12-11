@@ -1,15 +1,22 @@
 use alloy_primitives::eip191_hash_message;
 use k256::ecdsa::signature::hazmat::PrehashVerifier;
 use k256::ecdsa::{Signature, VerifyingKey};
+use sov_rollup_interface::da::{
+    SECURITY_COUNCIL_SIGNATURE_SIZE, SECURITY_COUNCIL_SIGNATURE_THRESHOLD,
+};
+
+use crate::circuit::{SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT};
 
 /// The three out of 5 signatures should be verified for the method id upgrade to be valid.
-/// The signatures should be in the same order as the one in the initial values constants.
 /// For each signature, the corresponding public key from the initial values constants is used to verify the signature.
 /// If there are less than 3 valid signatures, the verification fails.
+/// Note that the pubkey indices of signatures must be in strict ascending order and within bounds [0,(SECURITY_COUNCIL_MEMBER_COUNT - 1)]
 pub fn verify_method_id_security_council(
-    initial_da_pubkeys: [[u8; 33]; 5],
+    initial_da_pubkeys: [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
+        SECURITY_COUNCIL_MEMBER_COUNT],
     msg: &[u8],
-    signatures_with_idx: &[([u8; 64], u8); 3],
+    signatures_with_idx: &[([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8);
+         SECURITY_COUNCIL_SIGNATURE_THRESHOLD],
 ) -> bool {
     // EIP-191 prefix + keccak256 → 32-byte prehash
     let prehash = eip191_hash_message(msg);
@@ -22,13 +29,16 @@ pub fn verify_method_id_security_council(
         }
     }
 
-    // Check for duplicate indices
-    if signatures_with_idx[0].1 == signatures_with_idx[1].1
-        || signatures_with_idx[0].1 == signatures_with_idx[2].1
-        || signatures_with_idx[1].1 == signatures_with_idx[2].1
-    {
-        log!("Duplicate signature indexes found");
-        return false;
+    // Make sure the indexes are in ascending order to prevent duplicates
+    for i in 0..signatures_with_idx.len() - 1 {
+        if signatures_with_idx[i].1 >= signatures_with_idx[i + 1].1 {
+            log!(
+                "Signature indices are not in ascending order, failing indices: {}, {}",
+                signatures_with_idx[i].1,
+                signatures_with_idx[i + 1].1
+            );
+            return false;
+        }
     }
 
     for signature_with_idx in signatures_with_idx.iter() {
@@ -61,8 +71,10 @@ pub fn verify_method_id_security_council(
 #[cfg(test)]
 mod tests {
     use sov_rollup_interface::da::{BatchProofMethodId, BatchProofMethodIdBody};
+    use sov_rollup_interface::Network;
 
     use super::*;
+    use crate::circuit::citrea_network_to_chain_id;
     use crate::{create_valid_signatures, generate_initial_pub_keys_with_signers};
 
     #[test]
@@ -70,6 +82,7 @@ mod tests {
         let body = BatchProofMethodIdBody {
             method_id: [0u32; 8],
             activation_l2_height: 0,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
         let msg = body.serialize();
         let prehash = eip191_hash_message(msg);
@@ -82,6 +95,7 @@ mod tests {
             body: BatchProofMethodIdBody {
                 method_id: [0u32; 8],
                 activation_l2_height: 0,
+                chain_id: citrea_network_to_chain_id(Network::Nightly),
             },
             signatures_with_index,
         };
@@ -98,6 +112,7 @@ mod tests {
         let body = BatchProofMethodIdBody {
             method_id: [0u32; 8],
             activation_l2_height: 0,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
         let msg = body.serialize();
         let prehash = eip191_hash_message(msg);
@@ -125,6 +140,7 @@ mod tests {
         let body = BatchProofMethodIdBody {
             method_id: [0u32; 8],
             activation_l2_height: 0,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
         let msg = body.serialize();
         let prehash = eip191_hash_message(msg);
@@ -152,6 +168,7 @@ mod tests {
         let body = BatchProofMethodIdBody {
             method_id: [0u32; 8],
             activation_l2_height: 0,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
         let msg = body.serialize();
         let prehash = eip191_hash_message(msg);
@@ -175,6 +192,7 @@ mod tests {
         let body = BatchProofMethodIdBody {
             method_id: [0u32; 8],
             activation_l2_height: 0,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
         let msg = body.serialize();
         let prehash = eip191_hash_message(msg);
