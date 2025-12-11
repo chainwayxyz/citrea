@@ -125,7 +125,7 @@ jobs:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
-        uses: dtolnay/rust-toolchain@1.88.0
+        uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt, clippy
       - name: Install risc0
