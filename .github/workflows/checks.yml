@@ -161,7 +161,7 @@ jobs:
       - name: Install nightly toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: nightly-2025-09-24
           override: true
       - name: Install risc0
         uses: ./.github/actions/install-risc0
