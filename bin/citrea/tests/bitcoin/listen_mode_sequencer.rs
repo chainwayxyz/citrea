@@ -928,6 +928,10 @@ impl TestCase for ListenModeStateDiffTriggerCommitment {
             main_sequencer.client.send_publish_batch_request().await?;
         }
 
+        main_sequencer
+            .wait_for_l2_height(commitment_state_diff_trigger_block_count * 3 / 2, None)
+            .await;
+
         sleep(Duration::from_secs(2)).await;
 
         let head = main_sequencer
@@ -975,10 +979,7 @@ impl TestCase for ListenModeStateDiffTriggerCommitment {
         }
 
         listen_mode_sequencer
-            .wait_for_l2_height(
-                2 * commitment_state_diff_trigger_block_count,
-                Some(Duration::from_secs(300)),
-            )
+            .wait_for_l2_height(2 * commitment_state_diff_trigger_block_count, None)
             .await?;
 
         // Wait for commitment transactions to hit the mempool
