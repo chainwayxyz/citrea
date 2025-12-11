@@ -180,7 +180,7 @@ where
         native_stf,
         storage_manager,
         public_keys,
-        ledger_db.clone(),
+        ledger_db,
         db_provider,
         mempool,
         deposit_mempool,
