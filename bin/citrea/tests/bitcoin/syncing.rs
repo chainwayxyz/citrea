@@ -11,6 +11,7 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::{NodeT, Restart};
 use citrea_e2e::Result;
 use ethereum_rpc::LayerStatus;
+use serial_test::serial;
 use sov_ledger_rpc::LedgerRpcClient;
 
 use super::get_citrea_path;
