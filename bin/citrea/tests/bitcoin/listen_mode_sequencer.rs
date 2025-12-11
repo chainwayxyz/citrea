@@ -930,7 +930,8 @@ impl TestCase for ListenModeStateDiffTriggerCommitment {
 
         main_sequencer
             .wait_for_l2_height(commitment_state_diff_trigger_block_count * 3 / 2, None)
-            .await;
+            .await
+            .unwrap();
 
         sleep(Duration::from_secs(2)).await;
 
