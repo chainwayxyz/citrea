@@ -13,7 +13,7 @@
   `lightClientProver_getLightClientProofByL1Height` endpoint now returns information about the proving session, using the same structure as the batch prover responses.
 - ci: Run citrea-e2e tests against bitcoin v30 ([#3054](https://github.com/chainwayxyz/citrea/pull/3054))
 - feat: Add `citrea-cli db-migrate` subcommand ([#3015](https://github.com/chainwayxyz/citrea/pull/3015))\
-  Usage: citrea-cli db-migrate --node-type <NODE_TYPE> --db-path <DB_PATH>
+  Usage: `citrea-cli db-migrate --node-type <NODE_TYPE> --db-path <DB_PATH>`
 
 ### Changed
 - chore: renamed `BOUNDLESS_S3_NO_PRESIGNED` to `BOUNDLESS_S3_USE_PRESIGNED`. ([#3046](https://github.com/chainwayxyz/citrea/pull/3046))\
