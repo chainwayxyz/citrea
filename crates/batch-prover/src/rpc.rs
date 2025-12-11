@@ -73,7 +73,7 @@ pub struct ProvingJobResponse {
 /// Contains the session ID and its current session info.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProvingSessionResponse {
+pub struct ProvingSessionInfoResponse {
     /// The unique identifier for the proving session
     pub session_id: Uuid,
     /// The current session info of the proving session
@@ -259,12 +259,12 @@ pub trait BatchProverRpc {
     ///
     /// # Returns
     /// A vector of `ProvingSessionResponse` containing session IDs and their infos.
-    #[method(name = "getProvingSessions")]
+    #[method(name = "getLatestProvingSessionInfos")]
     async fn get_proving_sessions(
         &self,
         limit: U64,
         skip: Option<U64>,
-    ) -> RpcResult<Vec<ProvingSessionResponse>>;
+    ) -> RpcResult<Vec<ProvingSessionInfoResponse>>;
 
     /// Gets proving job details of the commitment index.
     ///
@@ -652,7 +652,7 @@ where
         &self,
         limit: U64,
         skip: Option<U64>,
-    ) -> RpcResult<Vec<ProvingSessionResponse>> {
+    ) -> RpcResult<Vec<ProvingSessionInfoResponse>> {
         let skip = skip.unwrap_or(U64::ZERO).to::<usize>();
         let limit = limit.to::<usize>();
         let limit = limit.min(self.context.rpc_config.proving_jobs_limit);
@@ -664,7 +664,7 @@ where
             .map_err(internal_rpc_error)?;
         let sessions = sessions
             .into_iter()
-            .map(|(session_id, session_info)| ProvingSessionResponse {
+            .map(|(session_id, session_info)| ProvingSessionInfoResponse {
                 session_id,
                 session_info,
             })
