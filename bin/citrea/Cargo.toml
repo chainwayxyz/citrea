@@ -96,6 +96,7 @@ reqwest = { workspace = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 rs_merkle = { workspace = true }
 serde_json = { workspace = true }
+serial_test = { workspace = true }
 sha2 = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }

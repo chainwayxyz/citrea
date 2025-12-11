@@ -467,6 +467,7 @@ impl TestCase for HealthCheckTest {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_healthcheck() -> Result<()> {
     TestCaseRunner::new(HealthCheckTest)
         .set_citrea_path(get_citrea_path())
