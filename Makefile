@@ -47,7 +47,7 @@ test-nocapture: ## Runs test suite with output from tests printed
 	PARALLEL_PROOF_LIMIT=1 cargo nextest run --no-capture --retries 0 --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 test: $(EF_TESTS_DIR) ## Runs test suite using nextest
-	PARALLEL_PROOF_LIMIT=1 cargo nextest run -j25 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
+	PARALLEL_PROOF_LIMIT=1 cargo nextest run -j20 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 coverage: $(EF_TESTS_DIR) ## Coverage in lcov format
 	CITREA_CLI_E2E_TEST_BINARY=$(CURDIR)/target/llvm-cov-target/debug/citrea-cli \
