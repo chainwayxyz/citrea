@@ -1009,7 +1009,7 @@ impl TestCase for SubmitFakeProofRpcTest {
     }
 
     fn scan_l1_start_height() -> Option<u64> {
-        Some(170)
+        Some(195)
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
@@ -1032,6 +1032,7 @@ impl TestCase for SubmitFakeProofRpcTest {
         da.generate(DEFAULT_FINALITY_DEPTH).await.unwrap();
 
         let finalized_height = da.get_finalized_height(None).await.unwrap();
+
         // ensure batch prover saw 1 commitment
         batch_prover
             .wait_for_l1_height(finalized_height, None)

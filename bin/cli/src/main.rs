@@ -58,6 +58,12 @@ enum Commands {
         #[arg(long)]
         backup_path: PathBuf,
     },
+    /// Validate DBs backup
+    ValidateBackup {
+        /// The path of backup to validate
+        #[arg(long)]
+        backup_path: PathBuf,
+    },
     /// Restore DBs from backup
     RestoreBackup {
         /// The node kind
@@ -152,6 +158,9 @@ async fn main() -> anyhow::Result<()> {
             node_type,
         } => {
             commands::create_backup(node_type, db_path, backup_path).await?;
+        }
+        Commands::ValidateBackup { backup_path } => {
+            commands::validate_backup(backup_path).await?;
         }
         Commands::RestoreBackup {
             db_path,

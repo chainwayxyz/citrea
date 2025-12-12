@@ -1453,8 +1453,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let cfg_env = get_cfg_env(cfg, evm_spec_id);
         let l1_fee_rate = sealed_block.l1_fee_rate;
 
-        // EvmDB is the replacement of revm::CacheDB because cachedb requires immutable state
-        // TODO: Move to CacheDB once immutable state is implemented
         let mut evm_db = self.get_db(working_set);
 
         // TODO: Convert below steps to blocking task like in reth after implementing the semaphores

@@ -21,7 +21,9 @@ use alloy_rpc_types_trace::geth::{
     GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
 };
 use alloy_rpc_types_txpool::TxpoolContent;
-use citrea_batch_prover::rpc::{BatchProverRpcClient, ProvingJobResponse};
+use citrea_batch_prover::rpc::{
+    BatchProverRpcClient, ProvingJobResponse, ProvingSessionInfoResponse,
+};
 use citrea_batch_prover::PartitionMode;
 use citrea_evm::EstimatedDiffSize;
 use ethereum_rpc::SyncStatus;
@@ -841,6 +843,17 @@ impl TestClient {
     ) -> Vec<ProvingJobResponse> {
         self.http_client
             .get_proving_jobs(U64::from(limit as u64), skip.map(|v| U64::from(v as u64)))
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn get_proving_sessions(
+        &self,
+        limit: usize,
+        skip: Option<usize>,
+    ) -> Vec<ProvingSessionInfoResponse> {
+        self.http_client
+            .get_proving_session_infos(U64::from(limit as u64), skip.map(|v| U64::from(v as u64)))
             .await
             .unwrap()
     }

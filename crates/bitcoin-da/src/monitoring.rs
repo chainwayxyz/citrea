@@ -424,7 +424,6 @@ impl MonitoringService {
         let mut rebroadcast_interval = interval(Duration::from_secs(self.config.rebroadcast_delay));
         loop {
             select! {
-                biased;
                 _ = &mut shutdown_signal => {
                     info!("Shutting down monitoring service");
                     return;
