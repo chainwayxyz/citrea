@@ -11,13 +11,14 @@ priority = 100
 max-threads = 15
 
 [[profile.default.overrides]]
-filter = 'binary_id(citrea::mock_e2e)'
-priority = 90
-
-[[profile.default.overrides]]
 filter = 'test(general_state_tests)'
 test-group = 'state-tests'
-priority = 80
+priority = 90
 
 [test-groups.state-tests]
-max-threads = 5
+max-threads = 10
+
+[[profile.default.overrides]]
+filter = 'binary_id(citrea::mock_e2e)'
+priority = 80
+
