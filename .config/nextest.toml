@@ -3,20 +3,20 @@ slow-timeout = "3m" # Mark slow tests after exceeding 3 minutes
 retries = 2 # A flaky test is retried a total of 3 times.
 
 [[profile.default.overrides]]
-filter = 'binary_id(citrea::bitcoin_e2e)'
-test-group = 'bitcoin-e2e'
+filter = 'test(general_state_tests)'
+test-group = 'state-tests'
 priority = 100
 
-[test-groups.bitcoin-e2e]
+[test-groups.state-tests]
 max-threads = 15
 
 [[profile.default.overrides]]
-filter = 'test(general_state_tests)'
-test-group = 'state-tests'
+filter = 'binary_id(citrea::bitcoin_e2e)'
+test-group = 'bitcoin-e2e'
 priority = 90
 
-[test-groups.state-tests]
-max-threads = 10
+[test-groups.bitcoin-e2e]
+max-threads = 15
 
 [[profile.default.overrides]]
 filter = 'binary_id(citrea::mock_e2e)'
