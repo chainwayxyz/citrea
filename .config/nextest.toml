@@ -4,7 +4,11 @@ retries = 2 # A flaky test is retried a total of 3 times.
 
 [[profile.default.overrides]]
 filter = 'binary_id(citrea::bitcoin_e2e)'
+test-group = 'bitcoin-e2e'
 priority = 100
+
+[test-groups.bitcoin-e2e]
+max-threads = 15
 
 [[profile.default.overrides]]
 filter = 'binary_id(citrea::mock_e2e)'
@@ -12,4 +16,8 @@ priority = 90
 
 [[profile.default.overrides]]
 filter = 'test(general_state_tests)'
+test-group = 'state-tests'
 priority = 80
+
+[test-groups.state-tests]
+max-threads = 5
