@@ -258,9 +258,9 @@ pub trait BatchProverRpc {
     /// * `skip` - The number of latest proving sessions to skip for pagination (default is 0).
     ///
     /// # Returns
-    /// A vector of `ProvingSessionResponse` containing session IDs and their infos.
+    /// A vector of `ProvingSessionInfoResponse` containing session IDs and their infos.
     #[method(name = "getLatestProvingSessionInfos")]
-    async fn get_proving_sessions(
+    async fn get_proving_session_infos(
         &self,
         limit: U64,
         skip: Option<U64>,
@@ -648,7 +648,7 @@ where
         Ok(jobs)
     }
 
-    async fn get_proving_sessions(
+    async fn get_proving_session_infos(
         &self,
         limit: U64,
         skip: Option<U64>,

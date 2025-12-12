@@ -853,7 +853,7 @@ impl TestClient {
         skip: Option<usize>,
     ) -> Vec<ProvingSessionInfoResponse> {
         self.http_client
-            .get_proving_sessions(U64::from(limit as u64), skip.map(|v| U64::from(v as u64)))
+            .get_proving_session_infos(U64::from(limit as u64), skip.map(|v| U64::from(v as u64)))
             .await
             .unwrap()
     }
