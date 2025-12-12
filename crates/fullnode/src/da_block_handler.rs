@@ -1081,6 +1081,8 @@ where
         }
     }
 
+    /// Retrieves verified batch proofs by L1 slot height
+    /// First checks the schema batch, then falls back to the ledger DB
     fn get_verified_batch_proofs_by_slot_height(
         &self,
         l1_height: u64,
