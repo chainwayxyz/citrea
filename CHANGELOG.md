@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: Add `batchProver_getLatestProvingSessionInfos` rpc ([#3070](https://github.com/chainwayxyz/citrea/pull/3070))
+
 ## [v1.0.2] (2025-12-09)
 ### Added
 - perf: Remove validation from backup creation. Backup validation should now be handled by `backup_validate` RPC method. ([#3045](https://github.com/chainwayxyz/citrea/pull/3045))

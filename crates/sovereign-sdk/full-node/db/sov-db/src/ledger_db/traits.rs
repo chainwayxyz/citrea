@@ -270,6 +270,13 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get latest (job id, status) with max limit and skipped jobs (pagination).
     fn get_latest_jobs(&self, limit: usize, skip: usize) -> Result<Vec<(Uuid, JobStatus)>>;
 
+    /// Get latest (session id, proving session info) with max limit and skipped sessions (pagination).
+    fn get_latest_proving_sessions(
+        &self,
+        limit: usize,
+        skip: usize,
+    ) -> Result<Vec<(Uuid, ProvingSessionInfo)>>;
+
     /// Get commitment indices by l1 height
     fn get_prover_commitment_indices_by_l1(
         &self,
