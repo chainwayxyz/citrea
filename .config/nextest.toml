@@ -20,5 +20,8 @@ max-threads = 10
 
 [[profile.default.overrides]]
 filter = 'binary_id(citrea::mock_e2e)'
+test-group = 'mock-e2e'
 priority = 80
 
+[test-groups.mock-e2e]
+max-threads = 15
