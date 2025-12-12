@@ -9,3 +9,7 @@ priority = 100
 [[profile.default.overrides]]
 filter = 'binary_id(citrea::mock_e2e)'
 priority = 90
+
+[[profile.default.overrides]]
+filter = 'binary_id(citrea-evm)'
+priority = 80
