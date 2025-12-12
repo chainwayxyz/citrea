@@ -252,8 +252,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
     ) -> Result<(
-        FullNodeL2Syncer<Self::DaService, LedgerDB>,
-        FullNodeL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
+        FullNodeL2Syncer<Self::DaService>,
+        FullNodeL1BlockHandler<Self::Vm, Self::DaService>,
         Option<PrunerService>,
         RpcModule<()>,
     )> {
@@ -309,9 +309,9 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
     ) -> Result<(
-        BatchProverL2Syncer<Self::DaService, LedgerDB>,
-        BatchProverL1Syncer<Self::DaService, LedgerDB>,
-        Prover<Self::DaService, LedgerDB, Self::Vm>,
+        BatchProverL2Syncer<Self::DaService>,
+        BatchProverL1Syncer<Self::DaService>,
+        Prover<Self::DaService, Self::Vm>,
         RpcModule<()>,
     )> {
         let runner_config = rollup_config.runner.expect("Runner config is missing");
@@ -381,7 +381,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
     ) -> Result<(
-        LightClientProverL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
+        LightClientProverL1BlockHandler<Self::Vm, Self::DaService>,
         RpcModule<()>,
     )>
     where

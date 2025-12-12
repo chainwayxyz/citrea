@@ -66,6 +66,25 @@ impl SchemaBatch {
         Ok(None)
     }
 
+    /// Reads the last write for a given key in the batch.
+    /// Parses the value if the operation is a Put.
+    pub fn read_latest<S: Schema>(
+        &self,
+        key: &impl KeyCodec<S>,
+    ) -> anyhow::Result<Option<Option<S::Value>>> {
+        if let Some(operation) = self.read::<S>(key)? {
+            match operation {
+                Operation::Put { value } => {
+                    let parsed_value = S::Value::decode_value(value)?;
+                    Ok(Some(Some(parsed_value)))
+                }
+                Operation::Delete => Ok(Some(None)),
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Iterate over all the writes in the batch for a given column family in reversed lexicographic order
     /// Returns None column family name does not have any writes
     pub fn iter<S: Schema>(
@@ -90,7 +109,8 @@ impl SchemaBatch {
         }
     }
 
-    pub(crate) fn merge(&mut self, other: SchemaBatch) {
+    /// Merges another [`SchemaBatch`] into this one.
+    pub fn merge(&mut self, other: SchemaBatch) {
         for (cf_name, other_cf_map) in other.last_writes {
             let self_cf_map = self.last_writes.entry(cf_name).or_default();
 

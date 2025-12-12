@@ -7,16 +7,12 @@ use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, ProvingSessionInfo, StorageRootHash};
-use sov_schema_db::SchemaIterator;
+use sov_schema_db::SchemaBatch;
 use uuid::Uuid;
 
-use crate::schema::tables::{PendingProofs, PendingSequencerCommitments};
-use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
+use crate::schema::types::batch_proof::StoredBatchProofOutput;
 use crate::schema::types::job_status::JobStatus;
 use crate::schema::types::l2_block::StoredL2Block;
-use crate::schema::types::light_client_proof::{
-    StoredLightClientProof, StoredLightClientProofOutput,
-};
 use crate::schema::types::{
     BonsaiSession, BoundlessSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange,
     L2HeightStatus, SlotNumber,
@@ -36,7 +32,7 @@ pub trait SharedLedgerOps {
         l2_block: L2Block,
         tx_hashes: Vec<[u8; 32]>,
         tx_bodies: Option<Vec<Vec<u8>>>,
-    ) -> Result<()>;
+    ) -> Result<SchemaBatch>;
 
     /// Records the L2 height that was created as a l2 block of an L1 height
     fn extend_l2_range_of_l1_slot(
@@ -44,9 +40,6 @@ pub trait SharedLedgerOps {
         l1_height: SlotNumber,
         l2_height: L2BlockNumber,
     ) -> Result<()>;
-
-    /// Sets l1 height of l1 hash
-    fn set_l1_height_of_l1_hash(&self, hash: [u8; 32], height: u64) -> Result<()>;
 
     /// Gets l1 height of l1 hash
     fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>>;
@@ -57,7 +50,7 @@ pub trait SharedLedgerOps {
         &self,
         height: u64,
         commitment: SequencerCommitment,
-    ) -> Result<()>;
+    ) -> Result<SchemaBatch>;
 
     /// Set the genesis state root
     fn set_l2_genesis_state_root(&self, state_root: &StorageRootHash) -> anyhow::Result<()>;
@@ -89,9 +82,6 @@ pub trait SharedLedgerOps {
 
     /// Get the last scanned slot
     fn get_last_scanned_l1_height(&self) -> Result<Option<SlotNumber>>;
-
-    /// Set the last scanned slot
-    fn set_last_scanned_l1_height(&self, l1_height: SlotNumber) -> Result<()>;
 
     /// Get the last pruned block number
     fn get_last_pruned_l2_height(&self) -> Result<Option<u64>>;
@@ -139,18 +129,16 @@ pub trait SharedLedgerOps {
         &self,
         range: std::ops::RangeInclusive<u32>,
     ) -> anyhow::Result<Vec<SequencerCommitment>>;
+
+    /// Gets proving session info by L1 height
+    fn get_proving_session_info_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<Option<ProvingSessionInfo>>;
 }
 
 /// Node ledger operations
 pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
-    /// Stores proof related data on disk, accessible via l1 slot height
-    fn update_verified_proof_data(
-        &self,
-        l1_height: u64,
-        proof: Proof,
-        output: StoredBatchProofOutput,
-    ) -> Result<()>;
-
     /// Gets the commitments in the da slot with given height if any
     fn get_commitments_on_da_slot(&self, height: u64) -> Result<Option<Vec<SequencerCommitment>>>;
 
@@ -161,53 +149,11 @@ pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
         height: Option<u64>,
     ) -> Result<Option<L2HeightAndIndex>>;
 
-    /// Set L2 height by status
-    fn set_l2_height_status(
-        &self,
-        status: L2HeightStatus,
-        l1_height: u64,
-        l2_height_and_index: L2HeightAndIndex,
-    ) -> Result<()>;
-
     /// Get highest committed and proven L2 heights up to a specific L1 height
     fn get_l2_status_heights_by_l1_height(
         &self,
         l1_height: u64,
     ) -> Result<(Option<L2HeightAndIndex>, Option<L2HeightAndIndex>)>;
-
-    /// Store an either out of order or l2 range not synced yet commitment by index for later processing
-    fn store_pending_commitment(
-        &self,
-        commitment: SequencerCommitment,
-        found_in_l1_height: u64,
-    ) -> Result<()>;
-
-    /// Get a pending commitment by index
-    fn get_pending_commitment_by_index(
-        &self,
-        index: u32,
-    ) -> anyhow::Result<Option<(SequencerCommitment, u64)>>;
-
-    /// Get all out of order or l2 range not synced yet commitments to process, sorted by index
-    fn get_pending_commitments(&self) -> Result<SchemaIterator<'_, PendingSequencerCommitments>>;
-
-    /// Remove pending commitment by index
-    fn remove_pending_commitment(&self, index: u32) -> Result<()>;
-
-    /// Store an out of order proof by commitment index range for later processing
-    fn store_pending_proof(
-        &self,
-        min_commitment_index: u32,
-        max_commitment_index: u32,
-        proof: Proof,
-        found_in_l1_height: u64,
-    ) -> Result<()>;
-
-    /// Get all out of order commitment to process sorted by commitment index range
-    fn get_pending_proofs(&self) -> Result<SchemaIterator<'_, PendingProofs>>;
-
-    /// Remove a pending proof by its commitment index range
-    fn remove_pending_proof(&self, min_index: u32, max_index: u32) -> Result<()>;
 }
 
 /// Prover ledger operations
@@ -215,30 +161,11 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Save a specific L2 range state diff
     fn set_l2_state_diff(&self, l2_height: L2BlockNumber, state_diff: StateDiff) -> Result<()>;
 
-    /// Returns an L2 state diff
-    fn get_l2_state_diff(&self, l2_height: L2BlockNumber) -> Result<Option<StateDiff>>;
-
     /// Set commitment index to be proven
     fn put_prover_pending_commitment(&self, index: u32) -> Result<()>;
 
     /// Get commitment indices to be proven
     fn get_prover_pending_commitments(&self) -> anyhow::Result<Vec<SequencerCommitment>>;
-
-    /// Delete commitment indices from pending commitments table
-    fn delete_prover_pending_commitments(&self, indices: Vec<u32>) -> Result<()>;
-
-    /// Put commitment indices found in the L1 height
-    fn put_commitment_index_by_l1(&self, l1_height: SlotNumber, index: u32) -> Result<()>;
-
-    /// Inserts a new prover job with its corresponding commitment indices, marking job as running
-    #[allow(clippy::ptr_arg)]
-    fn insert_new_proving_job(&self, id: Uuid, commitment_indices: &Vec<u32>) -> Result<()>;
-
-    /// Get commitment indices of job id
-    fn get_commitment_indices_by_job_id(&self, id: Uuid) -> Result<Option<Vec<u32>>>;
-
-    /// Get job id by commitment index
-    fn get_job_id_by_commitment_index(&self, index: u32) -> anyhow::Result<Option<Uuid>>;
 
     /// Save proof by its job id
     fn put_proof_by_job_id(
@@ -249,14 +176,8 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
         info: ProvingSessionInfo,
     ) -> Result<()>;
 
-    /// Deletes proving job by its id
-    fn remove_proving_job_by_id(&self, id: Uuid) -> Result<()>;
-
     /// Updates job tx id and removes job from running jobs
     fn finalize_proving_job(&self, id: Uuid, l1_tx_id: [u8; 32]) -> Result<()>;
-
-    /// Get stored proof by job id
-    fn get_proof_by_job_id(&self, id: Uuid) -> Result<Option<StoredBatchProof>>;
 
     /// Get proving info by job id
     fn get_proving_session_info_by_job_id(
@@ -270,38 +191,8 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get latest (job id, status) with max limit and skipped jobs (pagination).
     fn get_latest_jobs(&self, limit: usize, skip: usize) -> Result<Vec<(Uuid, JobStatus)>>;
 
-    /// Get commitment indices by l1 height
-    fn get_prover_commitment_indices_by_l1(
-        &self,
-        l1_height: SlotNumber,
-    ) -> Result<Option<Vec<u32>>>;
-
     /// Get job status (non-existent job IS RUNNING)
     fn job_status(&self, id: Uuid) -> JobStatus;
-}
-
-/// Light client prover ledger operations
-pub trait LightClientProverLedgerOps: SharedLedgerOps + Send + Sync {
-    /// Inserts light client proof data by L1 height
-    fn insert_light_client_proof_data_by_l1_height(
-        &self,
-        l1_height: u64,
-        proof: Proof,
-        light_client_proof_output: StoredLightClientProofOutput,
-        info: ProvingSessionInfo,
-    ) -> Result<()>;
-
-    /// Gets light client proof data by L1 height
-    fn get_light_client_proof_data_by_l1_height(
-        &self,
-        l1_height: u64,
-    ) -> Result<Option<StoredLightClientProof>>;
-
-    /// Gets proving session info by L1 height
-    fn get_proving_session_info_by_l1_height(
-        &self,
-        l1_height: u64,
-    ) -> anyhow::Result<Option<ProvingSessionInfo>>;
 }
 
 /// Ledger operations for the Bonsai service

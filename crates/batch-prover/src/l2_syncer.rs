@@ -11,12 +11,13 @@ use backoff::ExponentialBackoff;
 use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::l2::{apply_l2_block, commit_l2_block, sync_l2};
+use citrea_common::l2::{apply_l2_block, sync_l2};
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use reth_tasks::shutdown::GracefulShutdown;
-use sov_db::ledger_db::BatchProverLedgerOps;
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
+use sov_db::schema::tables::ProverStateDiffs;
 use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::default_context::DefaultContext;
@@ -40,10 +41,9 @@ use crate::{InitParams, RollupPublicKeys, RunnerConfig};
 /// - Validating block signatures and contents
 /// - Processing blocks to update the local state
 /// - Managing forks and state transitions
-pub struct L2Syncer<DA, DB>
+pub struct L2Syncer<DA>
 where
     DA: DaService,
-    DB: BatchProverLedgerOps + Clone,
 {
     /// Starting height for L2 block synchronization
     start_l2_height: u64,
@@ -54,7 +54,7 @@ where
     /// Manager for prover storage
     storage_manager: ProverStorageManager,
     /// Database for ledger operations
-    ledger_db: DB,
+    ledger_db: LedgerDB,
     /// Current state root hash
     state_root: StorageRootHash,
     /// Current L2 block hash
@@ -77,10 +77,9 @@ where
     backup_manager: Arc<BackupManager>,
 }
 
-impl<DA, DB> L2Syncer<DA, DB>
+impl<DA> L2Syncer<DA>
 where
     DA: DaService,
-    DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
 {
     /// Creates a new `L2Syncer` instance.
     ///
@@ -103,7 +102,7 @@ where
         stf: StfBlueprint<DefaultContext, DA::Spec, CitreaRuntime<DefaultContext, DA::Spec>>,
         public_keys: RollupPublicKeys,
         da_service: Arc<DA>,
-        ledger_db: DB,
+        ledger_db: LedgerDB,
         storage_manager: ProverStorageManager,
         fork_manager: ForkManager<'static>,
         l2_block_tx: broadcast::Sender<u64>,
@@ -211,16 +210,17 @@ where
         )
         .await?;
 
-        // Save state diff BEFORE committing the L2 block
-        // This prevents race conditions where the batch prover might shut down
-        // between committing the L2 block and saving the state diff
-        self.ledger_db
-            .set_l2_state_diff(L2BlockNumber(applied.l2_height), applied.state_diff.clone())?;
-
         let l2_height = applied.l2_height;
         let state_root = applied.state_root;
+        let state_diff = applied.state_diff.clone();
 
-        commit_l2_block(&self.ledger_db, applied)?;
+        let mut schema_batch = self.ledger_db.commit_l2_block(
+            applied.l2_block,
+            applied.tx_hashes,
+            applied.tx_bodies,
+        )?;
+        schema_batch.put::<ProverStateDiffs>(&L2BlockNumber(l2_height), &state_diff)?;
+        self.ledger_db.write_schemas(schema_batch)?;
 
         let process_duration = Instant::now()
             .saturating_duration_since(start)

@@ -13,8 +13,13 @@ use citrea_common::LightClientProverConfig;
 use citrea_primitives::forks::fork_from_block_number;
 use prover_services::{ParallelProverService, ProofData, ProofWithDuration};
 use reth_tasks::shutdown::GracefulShutdown;
-use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
-use sov_db::schema::types::light_client_proof::StoredLightClientProofOutput;
+use sov_db::ledger_db::{LedgerDB, SchemaBatch};
+use sov_db::schema::tables::{
+    LightClientProofBySlotNumber, ProverLastScannedSlot, ProvingSessionInfoBySlotNumber, SlotByHash,
+};
+use sov_db::schema::types::light_client_proof::{
+    StoredLightClientProof, StoredLightClientProofOutput,
+};
 use sov_db::schema::types::SlotNumber;
 use sov_modules_api::Zkvm;
 use sov_prover_storage_manager::{ProverStorage, ProverStorageManager};
@@ -45,11 +50,10 @@ pub enum StartVariant {
 ///
 /// This component is responsible for processing finalized L1 blocks, running the light client proof circuit logic per L1 block,
 /// keeping track of the light client state, and generating proofs light client proofs.
-pub struct L1BlockHandler<Vm, Da, DB>
+pub struct L1BlockHandler<Vm, Da>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm + 'static,
-    DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
     Network: InitialValueProvider<Da::Spec>,
 {
     /// The Citrea network this handler is running on
@@ -61,7 +65,7 @@ where
     /// Manager for light client prover storage
     storage_manager: ProverStorageManager,
     /// Database for ledger operations
-    ledger_db: DB,
+    ledger_db: LedgerDB,
     /// Data availability service instance
     da_service: Arc<Da>,
     /// Code commitments for light client proof circuit
@@ -78,11 +82,10 @@ where
     circuit: LightClientProofCircuit<ProverStorage, Da::Spec, Vm>,
 }
 
-impl<Vm, Da, DB> L1BlockHandler<Vm, Da, DB>
+impl<Vm, Da> L1BlockHandler<Vm, Da>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
     Network: InitialValueProvider<Da::Spec>,
 {
     /// Creates a new instance of the L1BlockHandler
@@ -102,7 +105,7 @@ where
         prover_config: LightClientProverConfig,
         prover_service: Arc<ParallelProverService<Da, Vm>>,
         storage_manager: ProverStorageManager,
-        ledger_db: DB,
+        ledger_db: LedgerDB,
         da_service: Arc<Da>,
         light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
@@ -208,35 +211,37 @@ where
     /// 3. Asserts that the state update's state root matches the one in the circuit output, and finalizes the storage.
     async fn process_l1_block(&mut self, l1_block: Da::FilteredBlock) -> anyhow::Result<()> {
         let start_l1_block_processing = Instant::now();
+        let mut schema_batch = SchemaBatch::new();
         let l1_hash = l1_block.header().hash().into();
         let l1_height = l1_block.header().height();
 
         // Set the l1 height of the l1 hash
-        self.ledger_db
-            .set_l1_height_of_l1_hash(l1_hash, l1_height)
+        schema_batch
+            .put::<SlotByHash>(&l1_hash, &SlotNumber(l1_height))
             .expect("Setting l1 height of l1 hash in ledger db");
 
         let (da_data, inclusion_proof, completeness_proof) =
             self.da_service.extract_relevant_blobs_with_proof(&l1_block);
 
         let previous_l1_height = l1_height - 1;
-        let (previous_lcp_proof, l2_last_height, previous_lcp_output) = match self
-            .ledger_db
-            .get_light_client_proof_data_by_l1_height(previous_l1_height)?
-        {
-            Some(data) => {
-                let output = LightClientCircuitOutput::from(data.light_client_proof_output);
-                (Some(data.proof), output.last_l2_height, Some(output))
-            }
-            None => {
-                // first time proving a light client proof
-                tracing::warn!(
-                    "Creating initial light client proof on L1 block #{}",
-                    l1_height
-                );
-                (None, 0, None)
-            }
-        };
+        let (previous_lcp_proof, l2_last_height, previous_lcp_output) =
+            match self
+                .ledger_db
+                .get::<LightClientProofBySlotNumber>(SlotNumber(previous_l1_height))?
+            {
+                Some(data) => {
+                    let output = LightClientCircuitOutput::from(data.light_client_proof_output);
+                    (Some(data.proof), output.last_l2_height, Some(output))
+                }
+                None => {
+                    // first time proving a light client proof
+                    tracing::warn!(
+                        "Creating initial light client proof on L1 block #{}",
+                        l1_height
+                    );
+                    (None, 0, None)
+                }
+            };
 
         let storage = self.storage_manager.create_storage_for_next_l2_height();
 
@@ -292,20 +297,27 @@ where
         // Only save after the proof is generated
         self.storage_manager.finalize_storage(result.change_set);
 
-        let stored_proof_output = StoredLightClientProofOutput::from(circuit_output);
-
-        self.ledger_db.insert_light_client_proof_data_by_l1_height(
-            l1_height,
-            proof,
-            stored_proof_output,
-            proof_with_duration.info,
+        schema_batch.put::<LightClientProofBySlotNumber>(
+            &SlotNumber(l1_height),
+            &StoredLightClientProof {
+                proof,
+                light_client_proof_output: StoredLightClientProofOutput::from(circuit_output),
+            },
+        )?;
+        schema_batch.put::<ProvingSessionInfoBySlotNumber>(
+            &SlotNumber(l1_height),
+            &proof_with_duration.info,
         )?;
 
         LPM.set_lcp_proving_time(proof_with_duration.duration);
 
-        self.ledger_db
-            .set_last_scanned_l1_height(SlotNumber(l1_block.header().height()))
+        schema_batch
+            .put::<ProverLastScannedSlot>(&(), &SlotNumber(l1_block.header().height()))
             .expect("Saving last scanned l1 height to ledger db");
+
+        self.ledger_db
+            .write_schemas(schema_batch)
+            .expect("Failed to save changes to ledger db");
 
         LPM.current_l1_block.set(l1_height as f64);
         LPM.highest_proven_index

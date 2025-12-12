@@ -27,7 +27,9 @@ use std::time::Instant;
 
 use ::metrics::{gauge, histogram};
 use anyhow::format_err;
-pub use iterator::{RawDbReverseIterator, ScanDirection, SchemaIterator, SeekKeyEncoder};
+pub use iterator::{
+    RawDbReverseIterator, ScanDirection, SchemaIterator, SchemaIteratorTx, SeekKeyEncoder,
+};
 pub use rocksdb;
 use rocksdb::backup::BackupEngineInfo;
 pub use rocksdb::DEFAULT_COLUMN_FAMILY_NAME;
@@ -37,7 +39,7 @@ use tracing::info;
 
 pub use crate::metrics::SCHEMADB_METRICS;
 pub use crate::schema::Schema;
-use crate::schema::{ColumnFamilyName, KeyCodec, ValueCodec};
+use crate::schema::{KeyCodec, ValueCodec};
 pub use crate::schema_batch::{SchemaBatch, SchemaBatchIterator};
 
 /// This DB is a schematized RocksDB wrapper where all data passed in and out are typed according to
@@ -116,34 +118,6 @@ impl DB {
         cfds: impl IntoIterator<Item = rocksdb::ColumnFamilyDescriptor>,
     ) -> anyhow::Result<DB> {
         let inner = rocksdb::DB::open_cf_descriptors(db_opts, path, cfds)?;
-        Ok(Self::log_construct(name, inner))
-    }
-
-    /// Open db in readonly mode. This db is completely static, so any writes that occur on the primary
-    /// after it has been opened will not be visible to the readonly instance.
-    pub fn open_cf_readonly(
-        opts: &rocksdb::Options,
-        path: impl AsRef<Path>,
-        name: &'static str,
-        cfs: Vec<ColumnFamilyName>,
-    ) -> anyhow::Result<DB> {
-        let error_if_log_file_exists = false;
-        let inner = rocksdb::DB::open_cf_for_read_only(opts, path, cfs, error_if_log_file_exists)?;
-
-        Ok(Self::log_construct(name, inner))
-    }
-
-    /// Open db in secondary mode. A secondary db is does not support writes, but can be dynamically caught up
-    /// to the primary instance by a manual call. See <https://github.com/facebook/rocksdb/wiki/Read-only-and-Secondary-instances>
-    /// for more details.
-    pub fn open_cf_as_secondary<P: AsRef<Path>>(
-        opts: &rocksdb::Options,
-        primary_path: P,
-        secondary_path: P,
-        name: &'static str,
-        cfs: Vec<ColumnFamilyName>,
-    ) -> anyhow::Result<DB> {
-        let inner = rocksdb::DB::open_cf_as_secondary(opts, primary_path, secondary_path, cfs)?;
         Ok(Self::log_construct(name, inner))
     }
 
@@ -227,31 +201,6 @@ impl DB {
         let mut batch = SchemaBatch::new();
         batch.delete::<S>(key)?;
         self.write_schemas(batch)
-    }
-
-    /// Removes the database entries in the range `["from", "to")` using default write options.
-    ///
-    /// Note that this operation will be done lexicographic on the *encoding* of the seek keys. It is
-    /// up to the table creator to ensure that the lexicographic ordering of the encoded seek keys matches the
-    /// logical ordering of the type.
-    pub fn delete_range<S: Schema>(
-        &self,
-        from: &impl SeekKeyEncoder<S>,
-        to: &impl SeekKeyEncoder<S>,
-    ) -> anyhow::Result<()> {
-        tokio::task::block_in_place(|| self._delete_range(from, to))
-    }
-
-    fn _delete_range<S: Schema>(
-        &self,
-        from: &impl SeekKeyEncoder<S>,
-        to: &impl SeekKeyEncoder<S>,
-    ) -> anyhow::Result<()> {
-        let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
-        let from = from.encode_seek_key()?;
-        let to = to.encode_seek_key()?;
-        self.inner.delete_range_cf(cf_handle, from, to)?;
-        Ok(())
     }
 
     /// Delete range based on a seek key.

@@ -21,7 +21,11 @@ use reth_tasks::shutdown::GracefulShutdown;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
-use sov_db::ledger_db::BatchProverLedgerOps;
+use sov_db::ledger_db::{BatchProverLedgerOps, LedgerDB, SchemaBatch, SharedLedgerOps};
+use sov_db::schema::tables::{
+    CommitmentIndicesByJobId, JobIdOfCommitment, ProofByJobId, ProverPendingCommitments,
+    ProverStateDiffs,
+};
 use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::{L2Block, SpecId, StateDiff, Zkvm};
@@ -69,16 +73,15 @@ pub enum ProverRequest {
 /// - Tracking jobs with their job ids and update ledger db accordingly at each step.
 /// - Verifies generated proofs and submits them to the DA.
 /// - Listens to signals from L1 syncer, L2 syncer, and RPC requests to trigger proving operations.
-pub struct Prover<Da, DB, Vm>
+pub struct Prover<Da, Vm>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone + 'static,
     Vm: ZkvmHost + 'static,
 {
     /// Configuration for the batch prover
     prover_config: BatchProverConfig,
     /// Database for ledger operations
-    ledger_db: DB,
+    ledger_db: LedgerDB,
     /// Manager for prover storage
     storage_manager: ProverStorageManager,
     /// Service for parallel proving operations
@@ -103,10 +106,9 @@ where
     network: Network,
 }
 
-impl<Da, DB, Vm> Prover<Da, DB, Vm>
+impl<Da, Vm> Prover<Da, Vm>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone,
     Vm: ZkvmHost,
 {
     /// Creates a new instance of the Prover
@@ -126,7 +128,7 @@ where
     pub fn new(
         network: Network,
         prover_config: BatchProverConfig,
-        ledger_db: DB,
+        ledger_db: LedgerDB,
         storage_manager: ProverStorageManager,
         prover_service: Arc<ParallelProverService<Da, Vm>>,
         sequencer_pub_key: Vec<u8>,
@@ -303,6 +305,8 @@ where
         self.watch_proving_jobs(proving_jobs_rx);
 
         let mut job_ids = Vec::with_capacity(partitions.len());
+        let mut schema_batch = SchemaBatch::new();
+
         for partition in partitions {
             let id = Uuid::now_v7();
             let input = self
@@ -323,13 +327,16 @@ where
                 .collect::<Vec<_>>();
 
             // insert the proving job to the ledger db, and delete the pending commitments
-            self.ledger_db
-                .insert_new_proving_job(id, &commitment_indices)
-                .context("Failed to insert prover job")?;
-            self.ledger_db
-                .delete_prover_pending_commitments(commitment_indices)
-                .context("Failed to delete pending commitments")?;
+            schema_batch.put::<CommitmentIndicesByJobId>(&id, &commitment_indices)?;
+            for index in &commitment_indices {
+                schema_batch.put::<JobIdOfCommitment>(index, &id)?;
+            }
+            for index in &commitment_indices {
+                schema_batch.delete::<ProverPendingCommitments>(index)?;
+            }
         }
+
+        self.ledger_db.write_schemas(schema_batch)?;
 
         assert!(!job_ids.is_empty(), "received empty jobs list");
 
@@ -812,7 +819,7 @@ where
             if let hash_map::Entry::Vacant(entry) = proofs.entry(job_id) {
                 let stored_proof = self
                     .ledger_db
-                    .get_proof_by_job_id(job_id)
+                    .get::<ProofByJobId>(job_id)
                     .expect("Should get proof by job id")
                     .expect("Proof of job must exist");
                 assert_eq!(
@@ -859,7 +866,7 @@ where
         for l2_height in start_height..=end_height {
             let state_diff = self
                 .ledger_db
-                .get_l2_state_diff(L2BlockNumber(l2_height))?
+                .get::<ProverStateDiffs>(L2BlockNumber(l2_height))?
                 .expect("L2 state diff must exist");
             commitment_state_diff = merge_state_diffs(commitment_state_diff, state_diff);
         }
@@ -1279,9 +1286,9 @@ mod tests {
     use citrea_primitives::forks::FORKS;
     use citrea_primitives::MAX_TX_BODY_SIZE;
     use prover_services::{ParallelProverService, ProofGenMode};
-    use sov_db::ledger_db::{BatchProverLedgerOps, LedgerDB, SharedLedgerOps};
+    use sov_db::ledger_db::{LedgerDB, SchemaBatch, SharedLedgerOps};
     use sov_db::rocks_db_config::RocksdbConfig;
-    use sov_db::schema::tables::BATCH_PROVER_LEDGER_TABLES;
+    use sov_db::schema::tables::{ProverStateDiffs, BATCH_PROVER_LEDGER_TABLES};
     use sov_db::schema::types::L2BlockNumber;
     use sov_mock_da::{MockAddress, MockDaService};
     use sov_mock_zkvm::MockZkvm;
@@ -1304,7 +1311,7 @@ mod tests {
     ];
 
     struct MockProverData {
-        prover: Prover<MockDaService, LedgerDB, MockZkvm>,
+        prover: Prover<MockDaService, MockZkvm>,
         _l1_signal_tx: mpsc::Sender<()>,
         _l2_block_tx: broadcast::Sender<u64>,
         _request_tx: mpsc::Sender<ProverRequest>,
@@ -1365,6 +1372,7 @@ mod tests {
     }
 
     fn put_l2_blocks(ledger_db: &LedgerDB, l2_block_data: Vec<(u64, usize)>) {
+        let mut all_changes = SchemaBatch::new();
         for (l2_height, diff_size) in l2_block_data {
             let l2_block = L2Block::new(
                 SignedL2Header::new(
@@ -1374,7 +1382,7 @@ mod tests {
                 ),
                 vec![],
             );
-            ledger_db.commit_l2_block(l2_block, vec![], None).unwrap();
+            let mut schema_batch = ledger_db.commit_l2_block(l2_block, vec![], None).unwrap();
             // random key to ensures that with each block state size grows consistently
             let state_key = Arc::from(rand::random::<u64>().to_le_bytes());
             // random value ensures that the borsh can not compress properly
@@ -1382,10 +1390,12 @@ mod tests {
                 vec![0; diff_size].into_iter().map(|_| rand::random::<u8>()),
             ));
             let state_diff = vec![(state_key, state_value)];
-            ledger_db
-                .set_l2_state_diff(L2BlockNumber(l2_height), state_diff)
+            schema_batch
+                .put::<ProverStateDiffs>(&L2BlockNumber(l2_height), &state_diff)
                 .unwrap();
+            all_changes.merge(schema_batch);
         }
+        ledger_db.write_schemas(all_changes).unwrap();
     }
 
     fn put_commitments(ledger_db: &LedgerDB, commitments: &[SequencerCommitment]) {

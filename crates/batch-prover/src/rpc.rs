@@ -24,7 +24,13 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use serde::{Deserialize, Serialize};
-use sov_db::ledger_db::BatchProverLedgerOps;
+use sov_db::ledger_db::{BatchProverLedgerOps, LedgerDB, SchemaBatch, SharedLedgerOps};
+use sov_db::schema::tables::{
+    CommitmentIndicesByJobId, CommitmentIndicesByL1, JobIdOfCommitment,
+    PendingBonsaiSessionByJobId, PendingBoundlessSessionByJobId, PendingL1SubmissionJobs,
+    ProofByJobId, ProverPendingCommitments, ProverStateDiffs, ProvingSessionInfoByJobId,
+    SequencerCommitmentByIndex,
+};
 use sov_db::schema::types::batch_proof::StoredBatchProofOutput;
 use sov_db::schema::types::job_status::JobStatus;
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
@@ -70,14 +76,13 @@ pub struct ProvingJobResponse {
 }
 
 /// Context for the RPC methods.
-pub struct RpcContext<Da, DB, Vm>
+pub struct RpcContext<Da, Vm>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone,
     Vm: Zkvm + 'static,
 {
     /// The ledger database used for storing and retrieving commitments and proofs
-    pub ledger_db: DB,
+    pub ledger_db: LedgerDB,
     /// Channel to send requests to the prover
     pub request_tx: mpsc::Sender<ProverRequest>,
     /// Data availability service instance used for submitting proofs
@@ -101,23 +106,21 @@ where
 ///
 /// # Type Parameters
 /// * `Da` - The data availability service type.
-/// * `DB` - The database type implementing `BatchProverLedgerOps`.
 /// * `Vm` - The virtual machine type implementing `Zkvm`.
 ///
 /// # Returns
 /// A new `RpcContext` instance containing the provided data.
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub fn create_rpc_context<Da, DB, Vm>(
-    ledger_db: DB,
+pub fn create_rpc_context<Da, Vm>(
+    ledger_db: LedgerDB,
     request_tx: mpsc::Sender<ProverRequest>,
     da_service: Arc<Da>,
     storage_manager: ProverStorageManager,
     code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
     rpc_config: RpcConfig,
-) -> RpcContext<Da, DB, Vm>
+) -> RpcContext<Da, Vm>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone,
     Vm: Zkvm,
 {
     RpcContext {
@@ -138,18 +141,41 @@ where
 ///
 /// # Returns
 /// The updated RPC module or a registration error
-pub fn register_rpc_methods<Da, DB, Vm>(
-    rpc_context: RpcContext<Da, DB, Vm>,
+pub fn register_rpc_methods<Da, Vm>(
+    rpc_context: RpcContext<Da, Vm>,
     mut rpc_methods: jsonrpsee::RpcModule<()>,
 ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone + 'static,
     Vm: Zkvm,
 {
     let rpc = create_rpc_module(rpc_context);
     rpc_methods.merge(rpc)?;
     Ok(rpc_methods)
+}
+
+/// Deletes proving job by its id
+fn remove_proving_job_by_id(db: &LedgerDB, id: Uuid) -> anyhow::Result<()> {
+    let mut schema_batch = SchemaBatch::new();
+
+    let indices = db
+        .get::<CommitmentIndicesByJobId>(id)?
+        .expect("Proof must exist");
+
+    for index in indices {
+        schema_batch.delete::<JobIdOfCommitment>(&index)?;
+    }
+    schema_batch.delete::<ProofByJobId>(&id)?;
+    schema_batch.delete::<ProvingSessionInfoByJobId>(&id)?;
+    schema_batch.delete::<CommitmentIndicesByJobId>(&id)?;
+
+    // delete from pending job tables
+    schema_batch.delete::<PendingL1SubmissionJobs>(&id)?;
+    schema_batch.delete::<PendingBonsaiSessionByJobId>(&id)?;
+    schema_batch.delete::<PendingBoundlessSessionByJobId>(&id)?;
+
+    db.write_schemas(schema_batch)?;
+    Ok(())
 }
 
 /// Interface definition for batch prover RPC methods
@@ -272,27 +298,25 @@ pub trait BatchProverRpc {
 }
 
 /// Server implementation of the Batch Prover RPC interface
-pub struct BatchProverRpcServerImpl<Da, DB, Vm>
+pub struct BatchProverRpcServerImpl<Da, Vm>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: Zkvm + 'static,
 {
     /// Shared RPC context containing the ledger database and other services
-    context: Arc<RpcContext<Da, DB, Vm>>,
+    context: Arc<RpcContext<Da, Vm>>,
 }
 
-impl<Da, DB, Vm> BatchProverRpcServerImpl<Da, DB, Vm>
+impl<Da, Vm> BatchProverRpcServerImpl<Da, Vm>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: Zkvm + 'static,
 {
     /// Creates a new instance of the Batch Prover RPC server
     ///
     /// # Arguments
     /// * `context` - Shared context containing the ledger database and other services
-    pub fn new(context: RpcContext<Da, DB, Vm>) -> Self {
+    pub fn new(context: RpcContext<Da, Vm>) -> Self {
         Self {
             context: Arc::new(context),
         }
@@ -300,16 +324,17 @@ where
 }
 
 #[async_trait::async_trait]
-impl<Da, DB, Vm> BatchProverRpcServer for BatchProverRpcServerImpl<Da, DB, Vm>
+impl<Da, Vm> BatchProverRpcServer for BatchProverRpcServerImpl<Da, Vm>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: Zkvm + 'static,
 {
     async fn set_commitments(
         &self,
         commitments: Vec<SequencerCommitmentRpcParam>,
     ) -> RpcResult<()> {
+        let mut schema_batch = SchemaBatch::new();
+
         for commitment in commitments {
             let l1_height = commitment.l1_height.to::<u64>();
             let commitment = SequencerCommitment {
@@ -326,20 +351,32 @@ where
                 l1_height,
             );
 
-            self.context
-                .ledger_db
-                .put_commitment_by_index(&commitment)
+            schema_batch
+                .put::<SequencerCommitmentByIndex>(&commitment.index, &commitment)
                 .map_err(internal_rpc_error)?;
+            // put commitment index by l1
             // This might cause some duplicate commitment indices appear in l1 -> index table which is ok
-            self.context
+            // put commitment index by l1
+            let mut indices = self
+                .context
                 .ledger_db
-                .put_commitment_index_by_l1(SlotNumber(l1_height), commitment.index)
+                .get::<CommitmentIndicesByL1>(SlotNumber(l1_height))
+                .map_err(internal_rpc_error)?
+                .unwrap_or_default();
+            indices.push(commitment.index);
+            schema_batch
+                .put::<CommitmentIndicesByL1>(&SlotNumber(l1_height), &indices)
                 .map_err(internal_rpc_error)?;
-            self.context
-                .ledger_db
-                .put_prover_pending_commitment(commitment.index)
+            schema_batch
+                .put::<ProverPendingCommitments>(&commitment.index, &())
                 .map_err(internal_rpc_error)?;
         }
+
+        // Commit all changes to the ledger db
+        self.context
+            .ledger_db
+            .write_schemas(schema_batch)
+            .map_err(internal_rpc_error)?;
 
         Ok(())
     }
@@ -424,7 +461,7 @@ where
 
             for l2_height in start_l2_height..=end_l2_height {
                 let state_diff = ledger_db
-                    .get_l2_state_diff(L2BlockNumber(l2_height))
+                    .get::<ProverStateDiffs>(L2BlockNumber(l2_height))
                     .map_err(internal_rpc_error)?
                     .expect("L2 state diff must exist");
                 cumulative_state_diff.extend(state_diff);
@@ -561,7 +598,7 @@ where
         let ledger_db = &self.context.ledger_db;
 
         let Some(commitment_indices) = ledger_db
-            .get_commitment_indices_by_job_id(job_id)
+            .get::<CommitmentIndicesByJobId>(job_id)
             .map_err(internal_rpc_error)?
         else {
             return Ok(None);
@@ -581,7 +618,7 @@ where
         }
 
         let stored_proof = ledger_db
-            .get_proof_by_job_id(job_id)
+            .get::<ProofByJobId>(job_id)
             .map_err(internal_rpc_error)?;
 
         let proof = match stored_proof {
@@ -626,7 +663,7 @@ where
         let job_id = self
             .context
             .ledger_db
-            .get_job_id_by_commitment_index(index)
+            .get::<JobIdOfCommitment>(index)
             .map_err(internal_rpc_error)?;
         match job_id {
             Some(job_id) => self.get_proving_job(job_id).await,
@@ -637,7 +674,7 @@ where
     async fn get_commitment_indices_by_l1(&self, l1_height: u64) -> RpcResult<Option<Vec<u32>>> {
         self.context
             .ledger_db
-            .get_prover_commitment_indices_by_l1(SlotNumber(l1_height))
+            .get::<CommitmentIndicesByL1>(SlotNumber(l1_height))
             .map_err(internal_rpc_error)
     }
 
@@ -645,14 +682,12 @@ where
         let ledger_db = &self.context.ledger_db;
 
         let mut commitment_indices = ledger_db
-            .get_commitment_indices_by_job_id(job_id)
+            .get::<CommitmentIndicesByJobId>(job_id)
             .map_err(internal_rpc_error)?
             .ok_or_else(|| internal_rpc_error("Job ID not found"))?;
         commitment_indices.sort_unstable();
 
-        ledger_db
-            .remove_proving_job_by_id(job_id)
-            .map_err(internal_rpc_error)?;
+        remove_proving_job_by_id(ledger_db, job_id).map_err(internal_rpc_error)?;
 
         for index in &commitment_indices {
             ledger_db
@@ -662,7 +697,7 @@ where
         let _ = self.prove(PartitionMode::Normal).await?;
 
         let new_id = ledger_db
-            .get_job_id_by_commitment_index(commitment_indices[0])
+            .get::<JobIdOfCommitment>(commitment_indices[0])
             .map_err(internal_rpc_error)?
             .ok_or_else(|| internal_rpc_error("New job ID not found"))?;
 
@@ -680,12 +715,11 @@ where
 /// * `DB` - Database type implementing NodeLedgerOps
 /// * `Da` - Data availability service type implementing DaService
 /// * `Vm` - Virtual machine type implementing Zkvm
-pub fn create_rpc_module<Da, DB, Vm>(
-    rpc_context: RpcContext<Da, DB, Vm>,
-) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<Da, DB, Vm>>
+pub fn create_rpc_module<Da, Vm>(
+    rpc_context: RpcContext<Da, Vm>,
+) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<Da, Vm>>
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: Zkvm + 'static,
 {
     let server = BatchProverRpcServerImpl::new(rpc_context);

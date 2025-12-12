@@ -8,7 +8,9 @@ use alloy_primitives::U64;
 use citrea_common::rpc::utils::internal_rpc_error;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use sov_db::ledger_db::LightClientProverLedgerOps;
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
+use sov_db::schema::tables::LightClientProofBySlotNumber;
+use sov_db::schema::types::SlotNumber;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Spec, WorkingSet};
 use sov_rollup_interface::rpc::{BatchProofMethodIdRpcResponse, LightClientProofResponse};
@@ -17,12 +19,9 @@ use sov_state::ProverStorage;
 use crate::circuit::accessors::BatchProofMethodIdAccessor;
 
 /// Context containing shared data needed for RPC method implementations
-pub struct RpcContext<DB>
-where
-    DB: LightClientProverLedgerOps + Clone,
-{
+pub struct RpcContext {
     /// Database for ledger operations
-    pub ledger: DB,
+    pub ledger: LedgerDB,
     /// Database for storage operations
     pub storage: <DefaultContext as Spec>::Storage,
 }
@@ -32,10 +31,10 @@ where
 /// # Arguments
 /// * `ledger_db` - Database instance for ledger operations
 /// * `storage` - Database for storage operations
-pub fn create_rpc_context<DB: LightClientProverLedgerOps + Clone>(
-    ledger_db: DB,
+pub fn create_rpc_context(
+    ledger_db: LedgerDB,
     storage: <DefaultContext as Spec>::Storage,
-) -> RpcContext<DB> {
+) -> RpcContext {
     RpcContext {
         ledger: ledger_db,
         storage,
@@ -49,21 +48,18 @@ pub fn create_rpc_context<DB: LightClientProverLedgerOps + Clone>(
 ///
 /// # Type Parameters
 /// * `DB` - Database type implementing `LightClientProverLedgerOps`
-pub fn create_rpc_module<DB>(
-    rpc_context: RpcContext<DB>,
-) -> jsonrpsee::RpcModule<LightClientProverRpcServerImpl<DB>>
-where
-    DB: LightClientProverLedgerOps + Clone + Send + Sync + 'static,
-{
+pub fn create_rpc_module(
+    rpc_context: RpcContext,
+) -> jsonrpsee::RpcModule<LightClientProverRpcServerImpl> {
     let server = LightClientProverRpcServerImpl::new(rpc_context);
 
     LightClientProverRpcServer::into_rpc(server)
 }
 
 /// Updates the given RpcModule with Prover methods.
-pub fn register_rpc_methods<DB: LightClientProverLedgerOps + Clone + 'static>(
+pub fn register_rpc_methods(
     mut rpc_methods: jsonrpsee::RpcModule<()>,
-    rpc_context: RpcContext<DB>,
+    rpc_context: RpcContext,
 ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
     let rpc = create_rpc_module(rpc_context);
     rpc_methods.merge(rpc)?;
@@ -88,23 +84,17 @@ pub trait LightClientProverRpc {
 }
 
 /// Server implementation of the light client prover RPC interface
-pub struct LightClientProverRpcServerImpl<DB>
-where
-    DB: LightClientProverLedgerOps + Clone + Send + Sync + 'static,
-{
+pub struct LightClientProverRpcServerImpl {
     /// Context containing shared data needed for RPC method implementations
-    pub context: Arc<RpcContext<DB>>,
+    pub context: Arc<RpcContext>,
 }
 
-impl<DB> LightClientProverRpcServerImpl<DB>
-where
-    DB: LightClientProverLedgerOps + Clone + Send + Sync + 'static,
-{
+impl LightClientProverRpcServerImpl {
     /// Creates a new light client prover RPC server instance
     ///
     /// # Arguments
     /// * `context` - Context containing shared data for RPC methods
-    pub fn new(context: RpcContext<DB>) -> Self {
+    pub fn new(context: RpcContext) -> Self {
         Self {
             context: Arc::new(context),
         }
@@ -112,10 +102,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<DB> LightClientProverRpcServer for LightClientProverRpcServerImpl<DB>
-where
-    DB: LightClientProverLedgerOps + Clone + Send + Sync + 'static,
-{
+impl LightClientProverRpcServer for LightClientProverRpcServerImpl {
     async fn get_light_client_proof_by_l1_height(
         &self,
         l1_height: U64,
@@ -123,7 +110,7 @@ where
         let proof = self
             .context
             .ledger
-            .get_light_client_proof_data_by_l1_height(l1_height.to())
+            .get::<LightClientProofBySlotNumber>(SlotNumber(l1_height.to()))
             .map_err(internal_rpc_error)?;
         let Some(proof) = proof else {
             return Ok(None);
