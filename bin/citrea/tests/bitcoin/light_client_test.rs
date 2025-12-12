@@ -89,6 +89,10 @@ impl TestCase for LightClientProvingTest {
         }
     }
 
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(195)
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
@@ -228,7 +232,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
     }
 
     fn scan_l1_start_height() -> Option<u64> {
-        Some(169)
+        Some(195)
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
@@ -1210,6 +1214,10 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         }
     }
 
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
     async fn cleanup(self) -> Result<()> {
         self.task_manager
             .graceful_shutdown_with_timeout(Duration::from_secs(1));
@@ -1471,6 +1479,10 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             max_l2_blocks_per_commitment: 10000,
             ..Default::default()
         }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
     }
 
     async fn cleanup(self) -> Result<()> {
@@ -2109,6 +2121,10 @@ impl TestCase for UnknownL1HashBatchProofTest {
         }
     }
 
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
     async fn cleanup(self) -> Result<()> {
         self.task_manager
             .graceful_shutdown_with_timeout(Duration::from_secs(1));
@@ -2253,6 +2269,10 @@ impl TestCase for ChainProofByCommitmentIndex {
             max_l2_blocks_per_commitment: 10000,
             ..Default::default()
         }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
     }
 
     async fn cleanup(self) -> Result<()> {
@@ -2467,6 +2487,10 @@ impl TestCase for ProofWithMissingCommitment {
         }
     }
 
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
     async fn cleanup(self) -> Result<()> {
         self.task_manager
             .graceful_shutdown_with_timeout(Duration::from_secs(1));
@@ -2610,6 +2634,10 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
             max_l2_blocks_per_commitment: 10000,
             ..Default::default()
         }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(164)
     }
 
     async fn cleanup(self) -> Result<()> {
@@ -2925,6 +2953,10 @@ impl TestCase for ProofWithWrongPreviousCommitmentHash {
             max_l2_blocks_per_commitment: 10000,
             ..Default::default()
         }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
     }
 
     async fn cleanup(self) -> Result<()> {
