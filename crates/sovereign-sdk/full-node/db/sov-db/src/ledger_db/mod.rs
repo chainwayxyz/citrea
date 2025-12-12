@@ -24,11 +24,9 @@ use crate::schema::tables::{
     PendingL1SubmissionJobs, ProofByJobId, ProverLastScannedSlot, ProverPendingCommitments,
     ProverStateDiffs, ProvingSessionInfoByJobId, ProvingSessionInfoBySlotNumber,
     SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
-    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    LEDGER_TABLES,
 };
-use crate::schema::types::batch_proof::{
-    StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
-};
+use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
 use crate::schema::types::job_status::JobStatus;
 use crate::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use crate::schema::types::{
@@ -690,46 +688,6 @@ impl SequencerLedgerOps for LedgerDB {
 }
 
 impl NodeLedgerOps for LedgerDB {
-    /// Stores proof related data on disk, accessible via l1 slot height
-    #[instrument(level = "trace", skip(self, proof, proof_output), err, ret)]
-    fn update_verified_proof_data(
-        &self,
-        l1_height: u64,
-        proof: Proof,
-        proof_output: StoredBatchProofOutput,
-    ) -> anyhow::Result<SchemaBatch> {
-        let mut schema_batch = SchemaBatch::new();
-
-        let verified_proofs = self
-            .db
-            .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(l1_height))?;
-
-        match verified_proofs {
-            Some(mut verified_proofs) => {
-                let stored_verified_proof = StoredVerifiedProof {
-                    proof,
-                    proof_output,
-                };
-                verified_proofs.push(stored_verified_proof);
-                schema_batch.put::<VerifiedBatchProofsBySlotNumber>(
-                    &SlotNumber(l1_height),
-                    &verified_proofs,
-                )?;
-            }
-            None => {
-                schema_batch.put(
-                    &SlotNumber(l1_height),
-                    &vec![StoredVerifiedProof {
-                        proof,
-                        proof_output,
-                    }],
-                )?;
-            }
-        };
-
-        Ok(schema_batch)
-    }
-
     /// Gets the commitments in the da slot with given height if any
     #[instrument(level = "trace", skip(self), err)]
     fn get_commitments_on_da_slot(

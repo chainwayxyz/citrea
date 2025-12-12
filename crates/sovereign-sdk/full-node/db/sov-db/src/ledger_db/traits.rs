@@ -139,14 +139,6 @@ pub trait SharedLedgerOps {
 
 /// Node ledger operations
 pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
-    /// Stores proof related data on disk, accessible via l1 slot height
-    fn update_verified_proof_data(
-        &self,
-        l1_height: u64,
-        proof: Proof,
-        output: StoredBatchProofOutput,
-    ) -> Result<SchemaBatch>;
-
     /// Gets the commitments in the da slot with given height if any
     fn get_commitments_on_da_slot(&self, height: u64) -> Result<Option<Vec<SequencerCommitment>>>;
 

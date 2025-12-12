@@ -22,7 +22,9 @@ use sov_db::ledger_db::{LedgerDB, NodeLedgerOps, SchemaBatch, SharedLedgerOps};
 use sov_db::schema::tables::{
     CommitmentMerkleRoots, L2StatusHeights, PendingProofs, PendingSequencerCommitments,
     ProverLastScannedSlot, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
+    VerifiedBatchProofsBySlotNumber,
 };
+use sov_db::schema::types::batch_proof::StoredVerifiedProof;
 use sov_db::schema::types::l2_block::StoredL2Block;
 use sov_db::schema::types::{
     L1Height, L2BlockNumber, L2HeightAndIndex, L2HeightStatus, SlotNumber,
@@ -852,11 +854,16 @@ where
         }
 
         // store in ledger db
-        schema_batch.merge(self.ledger_db.update_verified_proof_data(
-            found_in_l1_block_height,
-            raw_proof,
-            batch_proof_output.into(),
-        )?);
+        let mut verified_on_slot =
+            self.get_verified_batch_proofs_by_slot_height(found_in_l1_block_height, schema_batch)?;
+        verified_on_slot.push(StoredVerifiedProof {
+            proof: raw_proof,
+            proof_output: batch_proof_output.into(),
+        });
+        schema_batch.put::<VerifiedBatchProofsBySlotNumber>(
+            &SlotNumber(found_in_l1_block_height),
+            &verified_on_slot,
+        )?;
 
         // Update the highest proven L2 height
         pending_status.insert(
@@ -1071,6 +1078,23 @@ where
             Ok(Some(commitment))
         } else {
             Ok(self.ledger_db.get_commitment_by_index(index)?)
+        }
+    }
+
+    fn get_verified_batch_proofs_by_slot_height(
+        &self,
+        l1_height: u64,
+        schema_batch: &SchemaBatch,
+    ) -> Result<Vec<StoredVerifiedProof>, ProcessingError> {
+        if let Some(proofs) =
+            schema_batch.read_latest::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(l1_height))?
+        {
+            Ok(proofs.unwrap_or_default())
+        } else {
+            Ok(self
+                .ledger_db
+                .get::<VerifiedBatchProofsBySlotNumber>(SlotNumber(l1_height))?
+                .unwrap_or_default())
         }
     }
 

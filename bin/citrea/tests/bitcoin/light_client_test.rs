@@ -228,7 +228,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
     }
 
     fn scan_l1_start_height() -> Option<u64> {
-        Some(169)
+        Some(195)
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
@@ -291,7 +291,14 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         full_node
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
             .await?;
-        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None, 2).await?;
+        let batch_proofs = wait_for_zkproofs(
+            full_node,
+            batch_proof_l1_height,
+            Some(Duration::from_secs(30)),
+            2,
+        )
+        .await
+        .unwrap();
         assert_eq!(batch_proofs.len(), 2);
 
         // Wait for light client prover to process batch proofs.
@@ -434,7 +441,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .await
             .unwrap();
 
-        let response = wait_for_prover_job(batch_prover, job_ids[0], None)
+        let response = wait_for_prover_job(batch_prover, job_ids[0], Some(Duration::from_secs(30)))
             .await
             .unwrap();
         assert_eq!(response.commitments.len(), 1);
@@ -446,7 +453,14 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         full_node
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
             .await?;
-        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None, 1).await?;
+        let batch_proofs = wait_for_zkproofs(
+            full_node,
+            batch_proof_l1_height,
+            Some(Duration::from_secs(30)),
+            1,
+        )
+        .await
+        .unwrap();
         assert_eq!(batch_proofs.len(), 1);
 
         // Wait for light client prover to process batch proofs.
