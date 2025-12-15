@@ -216,7 +216,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/docker
-          key: ${{ runner.os }}-docker-${{ env.TEST_BITCOIN_DOCKER }}
+          key: ${{ runner.os }}-docker-${{ env.BITCOIN_DOCKER_IMAGE }}
       - name: Load Docker image
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
@@ -388,7 +388,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/docker
-          key: ${{ runner.os }}-docker-${{ env.TEST_BITCOIN_DOCKER }}
+          key: ${{ runner.os }}-docker-${{ env.BITCOIN_DOCKER_IMAGE }}
       - name: Load Docker image
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
@@ -481,15 +481,15 @@ jobs:
         continue-on-error: true
         with:
           path: /tmp/docker
-          key: ${{ runner.os }}-docker-${{ env.TEST_BITCOIN_DOCKER }}
+          key: ${{ runner.os }}-docker-${{ env.BITCOIN_DOCKER_IMAGE }}
 
       - name: Pull Docker image
         if: steps.cache-docker.outputs.cache-hit != 'true'
         continue-on-error: true
         run: |
-          docker pull ${{ env.TEST_BITCOIN_DOCKER }}
+          docker pull ${{ env.BITCOIN_DOCKER_IMAGE }}
           mkdir -p /tmp/docker
-          docker save ${{ env.TEST_BITCOIN_DOCKER }} > /tmp/docker/bitcoin.tar
+          docker save ${{ env.BITCOIN_DOCKER_IMAGE }} > /tmp/docker/bitcoin.tar
 
       - name: Load Docker image from cache
         if: steps.cache-docker.outputs.cache-hit == 'true'
@@ -549,7 +549,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/docker
-          key: ${{ runner.os }}-docker-${{ env.TEST_BITCOIN_DOCKER }}
+          key: ${{ runner.os }}-docker-${{ env.BITCOIN_DOCKER_IMAGE }}
       - name: Load Docker image
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
