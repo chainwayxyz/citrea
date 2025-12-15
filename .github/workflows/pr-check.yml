@@ -72,38 +72,131 @@ jobs:
             echo "modified=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Comment if changelog is missing
+      - name: Check if PR type needs changelog
         if: steps.changelog-check.outputs.modified == 'false'
+        id: pr-type-check
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [[ "$PR_TITLE" =~ ^(feat|fix|perf)(\(.*\))?:.*$ ]]; then
+            echo "needs_changelog=true" >> $GITHUB_OUTPUT
+          else
+            echo "needs_changelog=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate changelog suggestion
+        if: steps.changelog-check.outputs.modified == 'false' && steps.pr-type-check.outputs.needs_changelog == 'true'
+        id: changelog-suggestion
+        env:
+          GEMINI_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          # Get the full diff
+          git fetch origin ${{ github.base_ref }}
+          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD)
+
+          echo "Diff size: ${#DIFF} characters"
+
+          # Limit diff size to avoid token limits (roughly 100k chars = ~25k tokens)
+          if [ ${#DIFF} -gt 100000 ]; then
+            echo "Diff too large, truncating to 100k characters"
+            DIFF="${DIFF:0:100000}"
+          fi
+
+          PROMPT=$(cat .github/prompts/changelog.txt)
+          PROMPT="${PROMPT//\{\{PR_TITLE\}\}/$PR_TITLE}"
+          PROMPT="${PROMPT//\{\{PR_BODY\}\}/$PR_BODY}"
+          PROMPT="${PROMPT//\{\{DIFF\}\}/$DIFF}"
+
+          PAYLOAD=$(jq -n \
+            --arg prompt "$PROMPT" \
+            '{
+              contents: [{
+                parts: [{
+                  text: $prompt
+                }]
+              }],
+              generationConfig: {
+                temperature: 0.3,
+                maxOutputTokens: 1000
+              }
+            }')
+
+          echo "Calling Gemini API..."
+          RESPONSE=$(curl -s -X POST \
+            "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=$GEMINI_KEY" \
+            -H 'Content-Type: application/json' \
+            -d "$PAYLOAD")
+
+          echo "API Response:"
+          echo "$RESPONSE" | jq '.'
+
+          if echo "$RESPONSE" | jq -e '.error' > /dev/null; then
+            # Fallback to PR title if API fails
+            echo "API Error - using PR title as fallback"
+            echo "$RESPONSE" | jq '.error'
+            SUGGESTION="$PR_TITLE ([#$PR_NUMBER]($PR_URL))"
+          else
+            AI_SUGGESTION=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // ""' | tr -d '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            if [ -z "$AI_SUGGESTION" ]; then
+              echo "Empty suggestion received, using PR title"
+              SUGGESTION="$PR_TITLE ([#$PR_NUMBER]($PR_URL))"
+            else
+              echo "Generated suggestion: $AI_SUGGESTION"
+              SUGGESTION="$AI_SUGGESTION ([#$PR_NUMBER]($PR_URL))"
+            fi
+          fi
+
+          echo "suggestion<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUGGESTION" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Comment if changelog is missing
+        if: steps.changelog-check.outputs.modified == 'false' && steps.pr-type-check.outputs.needs_changelog == 'true'
+        env:
+          CHANGELOG_ENTRY: ${{ steps.changelog-suggestion.outputs.suggestion }}
         uses: actions/github-script@v7
         with:
           script: |
-            const prTitle = context.payload.pull_request.title;
-
-            // Check if bot already commented
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.pull_request.number,
             });
 
+            // Check if bot already commented
             const botComment = comments.find(comment =>
               comment.user.type === 'Bot' &&
               comment.body.includes('Changelog entry missing')
             );
 
+            // Check if changelog was already dismissed by an authorized user
+            const prAuthor = context.payload.pull_request.user.login;
+            const dismissalComment = comments.find(comment => {
+              const isAuthorized = comment.user.login === prAuthor ||
+                ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(comment.author_association);
+              const body = comment.body.toLowerCase();
+              const isDismissal = body.includes('skip-changelog') ||
+                                  body.includes('no changelog') ||
+                                  body.includes('/skip-changelog');
+              return isAuthorized && isDismissal;
+            });
+
             // Only comment if we haven't already
-            if (!botComment) {
+            if (!botComment && !dismissalComment) {
               const commentBody = `## ⚠️ Changelog entry missing
 
             No changes detected in \`CHANGELOG.md\`.
 
             **Recommendation:**
             \`\`\`
-            ${prTitle}
+            ${process.env.CHANGELOG_ENTRY}
             \`\`\`
 
             Please add an entry to the CHANGELOG.md or dismiss this if the change doesn't require documentation.
-
             **To dismiss:** Reply with \`/skip-changelog\` in any comment.`;
 
               await github.rest.issues.createComment({

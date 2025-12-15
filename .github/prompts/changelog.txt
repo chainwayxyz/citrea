@@ -1,0 +1,14 @@
+Generate a concise single-line changelog entry for this PR.
+
+Requirements:
+- Follow conventional commit format (feat/fix/docs/chore/refactor/etc)
+- Be specific about what changed
+- No markdown formatting or bullet points
+- Plain text only
+
+PR Title: {{PR_TITLE}}
+
+PR Description: {{PR_BODY}}
+
+Diff:
+{{DIFF}}
