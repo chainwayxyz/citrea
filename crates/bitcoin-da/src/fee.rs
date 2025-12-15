@@ -19,7 +19,6 @@ use crate::spec::utxo::UTXO;
 use crate::tx_signer::SignedTxPair;
 
 const DEFAULT_MEMPOOL_SPACE_URL: &str = "https://mempool.space/";
-const MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT: &str = "api/v1/fees/recommended";
 const MEMPOOL_SPACE_PRECISE_FEE_ENDPOINT: &str = "api/v1/fees/precise";
 const MEMPOOL_SPACE_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -250,44 +249,34 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
         }
     }
 
-    let endpoints = [
-        MEMPOOL_SPACE_PRECISE_FEE_ENDPOINT,
-        MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT,
-    ];
-
-    for endpoint in endpoints {
-        let url = match network {
-            bitcoin::Network::Bitcoin => {
-                format!("{mempool_space_url}{endpoint}")
-            }
-            bitcoin::Network::Testnet => {
-                format!("{mempool_space_url}testnet4/{endpoint}")
-            }
-            _ => unreachable!(), // Already checked above
-        };
-
-        let response = match get_with_timeout(url.clone(), MEMPOOL_SPACE_TIMEOUT).await {
-            Ok(response) => response,
-            Err(e) => {
-                trace!("Failed to fetch from {}: {:?}", url, e);
-                continue;
-            }
-        };
-
-        let json = match response.json::<serde_json::Value>().await {
-            Ok(json) => json,
-            Err(e) => {
-                trace!("Failed to parse JSON from {}: {:?}", url, e);
-                continue;
-            }
-        };
-
-        if let Some(fee_rate) = json.get("fastestFee").and_then(|fee| fee.as_f64()) {
-            return Ok(Some(fee_rate * 1000.0));
+    let url = match network {
+        bitcoin::Network::Bitcoin => {
+            format!("{mempool_space_url}{MEMPOOL_SPACE_PRECISE_FEE_ENDPOINT}")
         }
-    }
+        bitcoin::Network::Testnet => {
+            format!("{mempool_space_url}testnet4/{MEMPOOL_SPACE_PRECISE_FEE_ENDPOINT}")
+        }
+        _ => unreachable!(), // Already checked above
+    };
 
-    Err(FeeServiceError::MempoolSpaceParseError)
+    let response = get_with_timeout(url.clone(), MEMPOOL_SPACE_TIMEOUT)
+        .await
+        .map_err(|e| {
+            trace!("Failed to fetch from {}: {:?}", url, e);
+            FeeServiceError::MempoolSpaceParseError
+        })?;
+
+    let json = response.json::<serde_json::Value>().await.map_err(|e| {
+        trace!("Failed to parse JSON from {}: {:?}", url, e);
+        FeeServiceError::MempoolSpaceParseError
+    })?;
+
+    let fee_rate = json
+        .get("fastestFee")
+        .and_then(|fee| fee.as_f64())
+        .ok_or(FeeServiceError::MempoolSpaceParseError)?;
+
+    Ok(Some(fee_rate * 1000.0))
 }
 
 pub(crate) fn validate_txs_fee_rate(
