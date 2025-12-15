@@ -130,25 +130,19 @@ impl FeeService {
         // If network is regtest or signet, mempool space is not available
         let smart_fee =
             match get_fee_rate_from_mempool_space(self.network, &self.mempool_space_url).await {
-                Ok(Some(fee_rate)) => fee_rate,
-                Ok(None) | Err(_) => {
-                    match self
-                        .client
+                Ok(fee_rate) => fee_rate,
+                Err(e) => {
+                    tracing::error!(?e, "Failed to get fee rate from mempool.space");
+                    self.client
                         .estimate_smart_fee(1, Some(EstimateMode::Conservative))
-                        .await
-                    {
-                        Ok(response) => response
-                            .fee_rate
-                            .map_or(1000.0, |rate| rate.to_sat() as f64),
-                        Err(e) => {
-                            tracing::error!(?e, "Failed to get fee rate from estimate_smart_fee");
-                            1000.0
-                        }
-                    }
+                        .await?
+                        .fee_rate
+                        .map(|rate| rate.to_sat() as f64)
                 }
             };
 
-        let sat_vb = smart_fee / 1000.0;
+        let sat_vkb = smart_fee.unwrap_or(1000.0);
+        let sat_vb = sat_vkb / 1000.0;
         tracing::debug!("Fee rate: {} sat/vb", sat_vb);
         Ok(sat_vb)
     }
