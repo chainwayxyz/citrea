@@ -130,7 +130,7 @@ impl TestCase for PreStateRootMismatchTest {
 
         // Send the first proof
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof), 1.0)
             .await
             .unwrap();
 
@@ -190,7 +190,7 @@ impl TestCase for PreStateRootMismatchTest {
 
         // Send the invalid proof
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(invalid_proof), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(invalid_proof), 1.0)
             .await
             .unwrap();
 
@@ -329,7 +329,7 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(correct_commitment.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -384,7 +384,7 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
             None,
         );
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(fake_proof), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(fake_proof), 1.0)
             .await
             .unwrap();
 
@@ -475,7 +475,7 @@ impl TestCase for PendingCommitmentHaltingErrorTest {
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(wrong_merkle_root_commitment.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -939,7 +939,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(zero_index_commitment.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -965,7 +965,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(second_commitment.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -992,7 +992,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(first_commitment.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1125,7 +1125,7 @@ impl TestCase for ConflictingCommitmentsTest {
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment_a.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1150,7 +1150,7 @@ impl TestCase for ConflictingCommitmentsTest {
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(conflicting_commitment_different_root.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1176,7 +1176,7 @@ impl TestCase for ConflictingCommitmentsTest {
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment_b.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1224,7 +1224,7 @@ impl TestCase for ConflictingCommitmentsTest {
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment_c.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1502,7 +1502,7 @@ impl TestCase for OutOfRangeProofTest {
 
         // Send the proof first. It should be discard as none of its commitments exist
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof1.clone()), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof1.clone()), 1.0)
             .await
             .unwrap();
 
@@ -1525,7 +1525,7 @@ impl TestCase for OutOfRangeProofTest {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment1.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1557,7 +1557,7 @@ impl TestCase for OutOfRangeProofTest {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment2.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1633,7 +1633,7 @@ impl TestCase for OutOfRangeProofTest {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment1.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1641,7 +1641,7 @@ impl TestCase for OutOfRangeProofTest {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment2.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1665,7 +1665,7 @@ impl TestCase for OutOfRangeProofTest {
 
         // Send the proof first. It should be processed as its commitments exist
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof1), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof1), 1.0)
             .await
             .unwrap();
 
@@ -1689,7 +1689,7 @@ impl TestCase for OutOfRangeProofTest {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment3.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1697,7 +1697,7 @@ impl TestCase for OutOfRangeProofTest {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment4.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1750,7 +1750,7 @@ impl TestCase for OutOfRangeProofTest {
         );
         // Send the third proof first. It should be set as pending as its commitments exist but it's starting commitment index is not proven proof last commitment index + 1
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof3), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof3), 1.0)
             .await
             .unwrap();
 
@@ -1808,7 +1808,7 @@ impl TestCase for OutOfRangeProofTest {
 
         // Now send the second proof. It should be processed and trigger a processing of pending proof3
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof2), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof2), 1.0)
             .await
             .unwrap();
 
@@ -2037,7 +2037,7 @@ impl TestCase for OverlappingProofRangesTest {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment1.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -2071,7 +2071,7 @@ impl TestCase for OverlappingProofRangesTest {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment2.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -2079,7 +2079,7 @@ impl TestCase for OverlappingProofRangesTest {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment3.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -2185,7 +2185,7 @@ impl TestCase for OverlappingProofRangesTest {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment1.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -2193,7 +2193,7 @@ impl TestCase for OverlappingProofRangesTest {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment2.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -2201,7 +2201,7 @@ impl TestCase for OverlappingProofRangesTest {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment3.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -2209,7 +2209,7 @@ impl TestCase for OverlappingProofRangesTest {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment4.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -2255,7 +2255,7 @@ impl TestCase for OverlappingProofRangesTest {
 
         // Send proof_a over commitments [1,2,3]
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_a.clone()), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_a.clone()), 1.0)
             .await
             .unwrap();
 
@@ -2341,7 +2341,7 @@ impl TestCase for OverlappingProofRangesTest {
 
         // Send proof_b with overlapping range of [2,3,4]
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_b.clone()), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_b.clone()), 1.0)
             .await
             .unwrap();
 
@@ -2548,7 +2548,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment_1.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -2594,7 +2594,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment_2.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -2639,7 +2639,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(commitment_3.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -3091,7 +3091,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
         let _ = batch_prover_da_service
             .test_send_separate_chunk_transaction_with_fee_rate(
                 DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -3202,7 +3202,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
         let _ = batch_prover_da_service
             .test_send_separate_chunk_transaction_with_fee_rate(
                 DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -3326,7 +3326,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
         let _ = batch_prover_da_service
             .test_send_separate_chunk_transaction_with_fee_rate(
                 DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -3444,7 +3444,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
         let _ = batch_prover_da_service
             .test_send_separate_chunk_transaction_with_fee_rate(
                 DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -3625,7 +3625,10 @@ impl TestCase for FullNodeL1SyncHaltOnMerkleRootMismatch {
                 .await;
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(correct_commitment), 1)
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(correct_commitment),
+                1.0,
+            )
             .await
             .unwrap();
 
@@ -3652,7 +3655,7 @@ impl TestCase for FullNodeL1SyncHaltOnMerkleRootMismatch {
         sequencer_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(wrong_merkle_root_commitment),
-                1,
+                1.0,
             )
             .await
             .unwrap();

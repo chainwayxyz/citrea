@@ -689,7 +689,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     body: method_id_body,
                     signatures_with_index,
                 }),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -917,7 +917,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
                     body: method_id_body.clone(),
                     signatures_with_index,
                 }),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -958,7 +958,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
                     body: method_id_body2.clone(),
                     signatures_with_index,
                 }),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -999,7 +999,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
                     body: method_id_body3.clone(),
                     signatures_with_index,
                 }),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1039,7 +1039,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
                     body: method_id_body3.clone(),
                     signatures_with_index,
                 }),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1083,7 +1083,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
                     body: method_id_body3.clone(),
                     signatures_with_index,
                 }),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1119,7 +1119,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
                     body: method_id_body4.clone(),
                     signatures_with_index,
                 }),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1159,7 +1159,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
                     body: method_id_body5.clone(),
                     signatures_with_index,
                 }),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1281,7 +1281,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1295,7 +1295,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment_2.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1309,7 +1309,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment_3.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1323,7 +1323,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment_4.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1344,7 +1344,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             None,
         );
         let _ = bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1.0)
             .await
             .unwrap();
 
@@ -1359,7 +1359,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             Some(fake_sequencer_commitment_2.serialize_and_calculate_sha_256()),
         );
         let _ = bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1.0)
             .await
             .unwrap();
 
@@ -1375,7 +1375,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             Some(fake_sequencer_commitment_3.serialize_and_calculate_sha_256()),
         );
         let _ = bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unparsable_batch_proof), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unparsable_batch_proof), 1.0)
             .await
             .unwrap();
 
@@ -1390,7 +1390,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             Some(fake_sequencer_commitment.serialize_and_calculate_sha_256()),
         );
         let _ = bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1.0)
             .await
             .unwrap();
 
@@ -1407,7 +1407,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             Some(fake_sequencer_commitment_3.serialize_and_calculate_sha_256()),
         );
         let _ = bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unverifiable_batch_proof), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unverifiable_batch_proof), 1.0)
             .await
             .unwrap();
 
@@ -1521,7 +1521,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1535,7 +1535,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment2.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1549,7 +1549,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment3.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1603,7 +1603,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         );
 
         let _ = bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_100kb_batch_proof), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_100kb_batch_proof), 1.0)
             .await
             .unwrap();
 
@@ -1664,7 +1664,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         );
 
         let _ = bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_130kb_batch_proof), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_130kb_batch_proof), 1.0)
             .await
             .unwrap();
 
@@ -1776,7 +1776,10 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             Some(fake_sequencer_commitment2.serialize_and_calculate_sha_256()),
         );
         let _ = bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unverifiable_100kb_batch_proof), 1)
+            .send_transaction_with_fee_rate(
+                DaTxRequest::ZKProof(unverifiable_100kb_batch_proof),
+                1.0,
+            )
             .await
             .unwrap();
 
@@ -1893,7 +1896,7 @@ impl TestCase for UnchainedBatchProofsTest {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1907,7 +1910,7 @@ impl TestCase for UnchainedBatchProofsTest {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment2.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1921,7 +1924,7 @@ impl TestCase for UnchainedBatchProofsTest {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment3.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -1935,7 +1938,7 @@ impl TestCase for UnchainedBatchProofsTest {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment4.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -2015,17 +2018,17 @@ impl TestCase for UnchainedBatchProofsTest {
         );
 
         bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp1), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp1), 1.0)
             .await
             .unwrap();
 
         bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2), 1.0)
             .await
             .unwrap();
 
         bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp3), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp3), 1.0)
             .await
             .unwrap();
 
@@ -2053,7 +2056,7 @@ impl TestCase for UnchainedBatchProofsTest {
         assert_eq!(lcp_output.last_sequencer_commitment_index, U32::from(1));
 
         bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp4), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp4), 1.0)
             .await
             .unwrap();
 
@@ -2157,7 +2160,7 @@ impl TestCase for UnknownL1HashBatchProofTest {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -2201,7 +2204,7 @@ impl TestCase for UnknownL1HashBatchProofTest {
         );
 
         bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp), 1.0)
             .await
             .unwrap();
 
@@ -2310,7 +2313,7 @@ impl TestCase for ChainProofByCommitmentIndex {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -2324,7 +2327,7 @@ impl TestCase for ChainProofByCommitmentIndex {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment2.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -2338,7 +2341,7 @@ impl TestCase for ChainProofByCommitmentIndex {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment3.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -2392,7 +2395,7 @@ impl TestCase for ChainProofByCommitmentIndex {
         );
 
         bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp), 1.0)
             .await
             .unwrap();
 
@@ -2411,7 +2414,7 @@ impl TestCase for ChainProofByCommitmentIndex {
         );
 
         bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp), 1.0)
             .await
             .unwrap();
 
@@ -2560,7 +2563,7 @@ impl TestCase for ProofWithMissingCommitment {
         );
 
         bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp), 1.0)
             .await
             .unwrap();
 
@@ -2686,7 +2689,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
         let _ = malicious_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -2729,7 +2732,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
         );
 
         batch_prover_bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp1), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp1), 1.0)
             .await
             .unwrap();
 
@@ -2761,7 +2764,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -2789,7 +2792,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
         );
 
         batch_prover_bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp1), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp1), 1.0)
             .await
             .unwrap();
 
@@ -2828,7 +2831,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment2.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -2856,7 +2859,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
         );
 
         malicious_bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2.clone()), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2.clone()), 1.0)
             .await
             .unwrap();
 
@@ -2886,7 +2889,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
 
         // Now send batch proof with the correct da pub key and expect it to transition
         batch_prover_bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2.clone()), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(bp2.clone()), 1.0)
             .await
             .unwrap();
 
@@ -3023,7 +3026,7 @@ impl TestCase for ProofWithWrongPreviousCommitmentHash {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -3037,7 +3040,7 @@ impl TestCase for ProofWithWrongPreviousCommitmentHash {
         let _ = sequencer_bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(fake_sequencer_commitment_2.clone()),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -3058,7 +3061,7 @@ impl TestCase for ProofWithWrongPreviousCommitmentHash {
             None,
         );
         let _ = batch_prover_bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1.0)
             .await
             .unwrap();
 
@@ -3097,7 +3100,7 @@ impl TestCase for ProofWithWrongPreviousCommitmentHash {
             ),
         );
         let _ = batch_prover_bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(wrong_prev_hash_batch_proof), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(wrong_prev_hash_batch_proof), 1.0)
             .await
             .unwrap();
 
@@ -3129,7 +3132,7 @@ impl TestCase for ProofWithWrongPreviousCommitmentHash {
             Some(fake_sequencer_commitment.serialize_and_calculate_sha_256()),
         );
         let _ = batch_prover_bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(correct_prev_hash_proof), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(correct_prev_hash_proof), 1.0)
             .await
             .unwrap();
 
@@ -3317,8 +3320,8 @@ impl UndecompressableBlobTest {
             None,
             utxos,
             change_address,
-            1,
-            1,
+            1.0,
+            1.0,
             bitcoin::Network::Regtest,
             REVEAL_TX_PREFIX,
         )?
@@ -3375,8 +3378,8 @@ impl UndecompressableBlobTest {
             None,
             utxos,
             change_address,
-            2,
-            2,
+            2.0,
+            2.0,
             bitcoin::Network::Regtest,
             REVEAL_TX_PREFIX,
         )?
