@@ -1,6 +1,9 @@
 # Changelog
 
 ## [Unreleased]
+### Added
+
+- feat: add with_proof option to batchProver_getProvingJob ([#3071](https://github.com/chainwayxyz/citrea/pull/3071)) 
 
 - feat: Add `batchProver_getLatestProvingSessionInfos` rpc ([#3070](https://github.com/chainwayxyz/citrea/pull/3070))
 - feat: Use floating point precision in calculating bitcoin fee rate. ([#3066](https://github.com/chainwayxyz/citrea/pull/3066))
