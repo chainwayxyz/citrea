@@ -370,7 +370,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"03e6028f183993c8fd7bb4082a27c3b44f716bba91dcd8c6f37f7c1e6a77233379",
+            b"0284aece094f0190da7d20660828cb13c9807e4ed5fa1f6eb92d21a3bfd8db6f95",
         ) {
             Ok(k) => k,
             Err(_) => {
@@ -386,7 +386,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"03f56e848d9864362f4925e0d53863902c5f86766ee59359f52647df43a0890ce7",
+            b"03fac103b0964d29d1787506e1ecf72d3d0714692ed09e31ada71fb646878b44d3",
         ) {
             Ok(k) => k,
             Err(_) => {
@@ -394,7 +394,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"02af3ac556337a5b8f5c0b6d4a03591f6756851b065c382c19aefa6d2c5af92b4a",
+            b"022dc52b114ca23f4ea3d9bda6de89edd5622c6b6864c555f3b96c393bd1e20592",
         ) {
             Ok(k) => k,
             Err(_) => {
