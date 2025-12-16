@@ -1009,7 +1009,7 @@ impl TestCase for SubmitFakeProofRpcTest {
     }
 
     fn scan_l1_start_height() -> Option<u64> {
-        Some(170)
+        Some(195)
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
@@ -1032,6 +1032,7 @@ impl TestCase for SubmitFakeProofRpcTest {
         da.generate(DEFAULT_FINALITY_DEPTH).await.unwrap();
 
         let finalized_height = da.get_finalized_height(None).await.unwrap();
+
         // ensure batch prover saw 1 commitment
         batch_prover
             .wait_for_l1_height(finalized_height, None)
@@ -1555,7 +1556,7 @@ impl TestCase for RetryProvingTest {
         let proving_job = batch_prover
             .client
             .http_client()
-            .get_proving_job_of_commitment(1)
+            .get_proving_job_of_commitment(1, Some(true))
             .await?
             .unwrap();
         assert_eq!(proving_job.commitments.len(), 4);
@@ -1594,10 +1595,11 @@ impl TestCase for RetryProvingTest {
         let job_from_commitment = batch_prover
             .client
             .http_client()
-            .get_proving_job_of_commitment(1)
+            .get_proving_job_of_commitment(1, Some(true))
             .await?
             .unwrap();
         assert_eq!(job_from_commitment.id, new_job_id);
+
         Ok(())
     }
 }
@@ -1642,10 +1644,28 @@ impl TestCase for ProvingSessionInfoTest {
         // Wait for batch proof tx to hit mempool
         da.wait_mempool_len(2, None).await?;
 
+        // check with_proof=false
+        let empty_proof = batch_prover
+            .client
+            .http_client()
+            .get_proving_job_of_commitment(1, Some(false))
+            .await?
+            .expect("proving job should exist");
+        assert!(empty_proof.proof.is_none(), "proof should not be here");
+
+        // Check RPC default with_proof=true for getting proving job by commitment
+        let with_proof_default = batch_prover
+            .client
+            .http_client()
+            .get_proving_job_of_commitment(1, None) // by default with_proof=true
+            .await?
+            .unwrap();
+        assert!(with_proof_default.proof.is_some(), "proof should exist");
+
         let proving_job = batch_prover
             .client
             .http_client()
-            .get_proving_job_of_commitment(1)
+            .get_proving_job_of_commitment(1, Some(true))
             .await?
             .expect("proving job should exist");
         assert_eq!(proving_job.commitments.len(), 1);

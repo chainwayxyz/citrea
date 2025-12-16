@@ -104,8 +104,8 @@ pub fn create_inscription_transactions(
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
     change_address: Address,
-    commit_fee_rate: u64,
-    reveal_fee_rate: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: Vec<u8>,
 ) -> Result<DaTxs, anyhow::Error> {
@@ -168,8 +168,8 @@ pub fn create_inscription_type_0(
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
     change_address: Address,
-    commit_fee_rate: u64,
-    reveal_fee_rate: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: &[u8],
 ) -> Result<DaTxs, anyhow::Error> {
@@ -234,13 +234,14 @@ pub fn create_inscription_type_0(
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
         let reveal_value = REVEAL_OUTPUT_AMOUNT;
-        let fee = get_size_reveal(
+        let fee = (get_size_reveal(
             change_address.script_pubkey(),
             reveal_value,
             &reveal_script,
             &control_block,
-        ) as u64
-            * reveal_fee_rate;
+        ) as f64
+            * reveal_fee_rate)
+            .ceil() as u64;
         let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
 
         // build commit tx
@@ -340,8 +341,8 @@ pub fn create_inscription_type_1(
     mut prev_utxo: Option<UTXO>,
     mut utxos: Vec<UTXO>,
     change_address: Address,
-    commit_fee_rate: u64,
-    reveal_fee_rate: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: &[u8],
     sent_commits: Vec<Transaction>,
@@ -419,13 +420,14 @@ pub fn create_inscription_type_1(
             let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
             let reveal_value = REVEAL_OUTPUT_AMOUNT;
-            let fee = get_size_reveal(
+            let fee = (get_size_reveal(
                 change_address.script_pubkey(),
                 reveal_value,
                 &reveal_script,
                 &control_block,
-            ) as u64
-                * reveal_fee_rate;
+            ) as f64
+                * reveal_fee_rate)
+                .ceil() as u64;
             let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
 
             // build commit tx
@@ -610,13 +612,14 @@ pub fn create_inscription_type_1(
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
         let reveal_value = REVEAL_OUTPUT_AMOUNT;
-        let fee = get_size_reveal(
+        let fee = (get_size_reveal(
             change_address.script_pubkey(),
             reveal_value,
             &reveal_script,
             &control_block,
-        ) as u64
-            * reveal_fee_rate;
+        ) as f64
+            * reveal_fee_rate)
+            .ceil() as u64;
         let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
 
         // build commit tx
@@ -717,8 +720,8 @@ pub fn create_inscription_type_3(
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
     change_address: Address,
-    commit_fee_rate: u64,
-    reveal_fee_rate: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: &[u8],
 ) -> Result<DaTxs, anyhow::Error> {
@@ -780,13 +783,14 @@ pub fn create_inscription_type_3(
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
         let reveal_value = REVEAL_OUTPUT_AMOUNT;
-        let fee = get_size_reveal(
+        let fee = (get_size_reveal(
             change_address.script_pubkey(),
             reveal_value,
             &reveal_script,
             &control_block,
-        ) as u64
-            * reveal_fee_rate;
+        ) as f64
+            * reveal_fee_rate)
+            .ceil() as u64;
         let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
 
         // build commit tx
@@ -889,8 +893,8 @@ pub fn create_inscription_type_4(
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
     change_address: Address,
-    commit_fee_rate: u64,
-    reveal_fee_rate: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: &[u8],
 ) -> Result<DaTxs, anyhow::Error> {
@@ -954,13 +958,14 @@ pub fn create_inscription_type_4(
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
         let reveal_value = REVEAL_OUTPUT_AMOUNT;
-        let fee = get_size_reveal(
+        let fee = (get_size_reveal(
             change_address.script_pubkey(),
             reveal_value,
             &reveal_script,
             &control_block,
-        ) as u64
-            * reveal_fee_rate;
+        ) as f64
+            * reveal_fee_rate)
+            .ceil() as u64;
         let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
 
         // build commit tx

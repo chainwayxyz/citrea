@@ -1267,7 +1267,7 @@ impl TestCase for OutOfRangeProofTest {
     }
 
     fn scan_l1_start_height() -> Option<u64> {
-        Some(150)
+        Some(170)
     }
 
     fn light_client_prover_config() -> LightClientProverConfig {
@@ -2381,7 +2381,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
     }
 
     fn scan_l1_start_height() -> Option<u64> {
-        Some(170)
+        Some(195)
     }
 
     fn light_client_prover_config() -> LightClientProverConfig {
@@ -2811,7 +2811,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
     }
 
     fn scan_l1_start_height() -> Option<u64> {
-        Some(170)
+        Some(204)
     }
 
     fn light_client_prover_config() -> LightClientProverConfig {
@@ -2867,13 +2867,6 @@ impl TestCase for FullNodeLcpChunkProofTest {
                 .await;
 
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let finalized_height = da.get_finalized_height(None).await?;
-
-        // Wait for light client prover to create light client proof.
-        light_client_prover
-            .wait_for_l1_height(finalized_height, Some(TEN_MINS))
-            .await
-            .unwrap();
 
         let genesis_state_root = full_node
             .client
@@ -3030,7 +3023,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
         let _ = batch_prover_da_service
             .test_send_separate_chunk_transaction_with_fee_rate(
                 DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -3141,7 +3134,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
         let _ = batch_prover_da_service
             .test_send_separate_chunk_transaction_with_fee_rate(
                 DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -3265,7 +3258,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
         let _ = batch_prover_da_service
             .test_send_separate_chunk_transaction_with_fee_rate(
                 DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
-                1,
+                1.0,
             )
             .await
             .unwrap();
@@ -3383,7 +3376,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
         let _ = batch_prover_da_service
             .test_send_separate_chunk_transaction_with_fee_rate(
                 DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
-                1,
+                1.0,
             )
             .await
             .unwrap();

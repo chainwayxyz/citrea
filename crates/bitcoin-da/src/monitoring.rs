@@ -41,7 +41,7 @@ pub enum TxStatus {
     #[serde(rename_all = "camelCase")]
     InMempool {
         /// Base fee rate.
-        base_fee: u64,
+        base_fee: f64,
         /// Timestamp.
         timestamp: u64,
         /// Block height when transaction entered pool
@@ -415,7 +415,6 @@ impl MonitoringService {
         let mut rebroadcast_interval = interval(Duration::from_secs(self.config.rebroadcast_delay));
         loop {
             select! {
-                biased;
                 _ = &mut shutdown_signal => {
                     info!("Shutting down monitoring service");
                     return;
@@ -723,7 +722,7 @@ impl MonitoringService {
         } else {
             match self.client.get_mempool_entry(&tx_result.info.txid).await {
                 Ok(entry) => {
-                    let base_fee = entry.fees.base.to_sat();
+                    let base_fee = entry.fees.base.to_sat() as f64;
                     TxStatus::InMempool {
                         base_fee,
                         timestamp: get_timestamp(),

@@ -24,7 +24,7 @@ impl BitcoinService {
     pub async fn test_send_separate_chunk_transaction_with_fee_rate(
         &self,
         tx_request: DaTxRequest,
-        fee_sat_per_vbyte: u64,
+        fee_sat_per_vbyte: f64,
     ) -> Result<()> {
         let network = self.network;
 

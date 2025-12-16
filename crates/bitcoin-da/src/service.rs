@@ -73,7 +73,7 @@ pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
 const POLLING_INTERVAL: u64 = 10; // 10 seconds
 
 const DEFAULT_FEE_RATE_CAP_DURATION_SECS: u64 = 3600; // 1 hour default cap duration
-const DEFAULT_MAX_FEE_RATE_SAT_VB: u64 = 15; // 15sat/vb default max fee rate
+const DEFAULT_MAX_FEE_RATE_SAT_VB: f64 = 15.0; // 15sat/vb default max fee rate
 
 /// Map sov Network to Bitcoin Network.
 pub fn network_to_bitcoin_network(network: &Network) -> bitcoin::Network {
@@ -133,7 +133,7 @@ pub struct BitcoinServiceConfig {
     pub rpc_connect_timeout_secs: Option<u64>,
 
     /// Max fee rate in sat/vb
-    pub max_fee_rate_sat_to_pay: Option<u64>,
+    pub max_fee_rate_sat_to_pay: Option<f64>,
 
     /// Fee rate cap duration in seconds
     pub fee_rate_cap_duration_secs: Option<u64>,
@@ -164,7 +164,7 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
                 .and_then(|v| v.parse::<u64>().ok()),
             max_fee_rate_sat_to_pay: read_env("BITCOIN_MAX_FEE_RATE_SAT_TO_PAY")
                 .ok()
-                .and_then(|v| v.parse::<u64>().ok()),
+                .and_then(|v| v.parse::<f64>().ok()),
             fee_rate_cap_duration_secs: read_env("BITCOIN_FEE_RATE_CAP_DURATION_SECS")
                 .ok()
                 .and_then(|v| v.parse::<u64>().ok()),
@@ -188,7 +188,7 @@ pub struct BitcoinService {
     utxo_selection_mode: UtxoSelectionMode,
     // Persistent job queue
     pub(crate) job_service: Mutex<DaJobService<LedgerDB>>,
-    max_fee_rate_sat_to_pay: u64,
+    max_fee_rate_sat_to_pay: f64,
     fee_rate_cap_duration_secs: u64,
     job_notifier: Arc<Notify>,
 }
@@ -206,7 +206,7 @@ impl BitcoinService {
         tx_backup_dir: PathBuf,
         utxo_selection_mode: UtxoSelectionMode,
         job_service: Mutex<DaJobService<LedgerDB>>,
-        max_fee_rate_sat_to_pay: u64,
+        max_fee_rate_sat_to_pay: f64,
         fee_rate_cap_duration_secs: u64,
     ) -> Self {
         Self {
@@ -501,7 +501,7 @@ impl BitcoinService {
     }
 
     /// Validates fee rate against `max_fee_rate_sat_to_pay`
-    fn validate_fee_rate(&self, job_id: JobId, fee_sat_per_vbyte: u64) -> Result<()> {
+    fn validate_fee_rate(&self, job_id: JobId, fee_sat_per_vbyte: f64) -> Result<()> {
         if fee_sat_per_vbyte <= self.max_fee_rate_sat_to_pay {
             return Ok(());
         }
@@ -646,7 +646,7 @@ impl BitcoinService {
     #[instrument(level = "trace", fields(prev_utxo), ret, err, skip(self))]
     async fn create_da_transactions_with_fee_rate(
         &self,
-        fee_sat_per_vbyte: u64,
+        fee_sat_per_vbyte: f64,
         utxos: Vec<UTXO>,
         prev_utxo: Option<UTXO>,
         data: RawTxData,

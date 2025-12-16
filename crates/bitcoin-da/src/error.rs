@@ -32,7 +32,7 @@ pub enum BitcoinServiceError {
     MissingPreviousUTXO,
     /// Fee calculation fails to meet min relay fee
     #[error("Fee calculation error. Doesn't meet min relay fee rate of {0}")]
-    FeeCalculation(u64),
+    FeeCalculation(f64),
     /// Monitoring error.
     #[error("Monitoring error: {0}")]
     MonitorError(#[from] MonitorError),
@@ -112,9 +112,9 @@ pub enum BitcoinServiceError {
     #[error("Fee cap exceeded: current rate {current_rate} sat/vb > max {max_rate} sat/vb (elapsed: {elapsed_secs}s / max: {max_duration_secs}s)")]
     FeeCapExceeded {
         /// Current fee rate as sat/vb
-        current_rate: u64,
+        current_rate: f64,
         /// Max fee rate in sat/vb
-        max_rate: u64,
+        max_rate: f64,
         /// Duration since the transaction has been blocked by max fee rate cap
         elapsed_secs: u64,
         /// Max duration before sending transaction above max fee rate
