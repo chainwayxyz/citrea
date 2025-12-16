@@ -72,6 +72,9 @@ pub mod rpc;
 #[cfg(feature = "native")]
 pub mod job;
 
+#[cfg(feature = "native")]
+pub mod utxo_manager;
+
 #[cfg(feature = "testing")]
 pub mod test_utils;
 

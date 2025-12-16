@@ -43,7 +43,7 @@ impl BitcoinService {
                     RawTxData::Chunks(chunks) => {
                         for body in chunks {
                             // get all available utxos that are not already spent
-                            let utxos = self.get_utxos(&sent_txids).await?;
+                            let utxos = self.utxo_manager.get_available_utxos(&sent_txids).await?;
                             let utxos = utxos
                                 .into_iter()
                                 .filter(|utxo| {
@@ -53,7 +53,7 @@ impl BitcoinService {
                                 })
                                 .collect::<Vec<_>>();
 
-                            let prev_utxo = self.get_prev_utxo().await;
+                            let prev_utxo = self.utxo_manager.get_prev_utxo().await;
 
                             // get address from a utxo
                             let address = utxos[0]
@@ -102,12 +102,12 @@ impl BitcoinService {
                             borsh::to_vec(&aggregate).expect("Aggregate serialize must not fail");
 
                         // get all available utxos that are not already spent
-                        let utxos = self.get_utxos(&sent_txids).await?;
+                        let utxos = self.utxo_manager.get_available_utxos(&sent_txids).await?;
                         let utxos = utxos
                             .into_iter()
                             .filter(|utxo| utxo.amount >= 50 * 10_u64.pow(8))
                             .collect::<Vec<_>>();
-                        let prev_utxo = self.get_prev_utxo().await;
+                        let prev_utxo = self.utxo_manager.get_prev_utxo().await;
 
                         // get address from a utxo
                         let address = utxos[0]
