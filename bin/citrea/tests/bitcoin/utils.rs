@@ -299,7 +299,7 @@ pub async fn wait_for_prover_job(
         let response = batch_prover
             .client
             .http_client()
-            .get_proving_job(job_id)
+            .get_proving_job(job_id, Some(true))
             .await?;
         if let Some(response) = response {
             if let Some(proof) = &response.proof {

@@ -377,9 +377,9 @@ impl FromEnv for MempoolMaintenanceConfig {
 impl From<MempoolMaintenanceConfig> for reth_transaction_pool::maintain::MaintainPoolConfig {
     fn from(config: MempoolMaintenanceConfig) -> Self {
         Self {
-            max_update_depth: Default::default(),
             max_reload_accounts: config.max_reload_accounts,
             max_tx_lifetime: std::time::Duration::from_secs(config.max_tx_lifetime_secs),
+            ..Default::default()
         }
     }
 }
