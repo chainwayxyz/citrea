@@ -168,8 +168,8 @@ impl TestCase for TaprootKeySpendTest {
                 available_utxos: vec![utxo.clone()],
             },
             change_address.clone(),
-            10, // commit fee rate
-            10, // reveal fee rate
+            10.0, // commit fee rate
+            10.0, // reveal fee rate
             network,
             &[],
         )?;

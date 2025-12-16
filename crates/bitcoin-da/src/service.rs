@@ -281,7 +281,7 @@ impl BitcoinService {
                         loop {
                             // Build and queue tx with retries:
                             let fee_sat_per_vbyte = match self.fee.get_fee_rate().await {
-                                Ok(rate) => (rate as f64 * fee_rate_multiplier).ceil() as u64,
+                                Ok(rate) => rate * fee_rate_multiplier,
                                 Err(e) => {
                                     error!(?e, "Failed to call get_fee_rate. Retrying...");
                                     tokio::time::sleep(Duration::from_secs(1)).await;
@@ -332,7 +332,7 @@ impl BitcoinService {
     pub async fn send_transaction_with_fee_rate(
         &self,
         tx_request: DaTxRequest,
-        fee_sat_per_vbyte: u64,
+        fee_sat_per_vbyte: f64,
     ) -> Result<Vec<[TxWithId; 2]>> {
         let now = Instant::now();
 
@@ -393,7 +393,7 @@ impl BitcoinService {
     async fn create_da_transactions_with_fee_rate(
         &self,
         tx_request: DaTxRequest,
-        fee_sat_per_vbyte: u64,
+        fee_sat_per_vbyte: f64,
         utxo_context: UtxoContext,
     ) -> Result<DaTxs> {
         let data = match tx_request {

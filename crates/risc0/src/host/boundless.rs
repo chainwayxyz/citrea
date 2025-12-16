@@ -73,10 +73,13 @@ impl BoundlessProver {
             client.storage_provider.is_some(),
             "a storage provider is required to upload the zkVM guest ELF"
         );
+
+        let pricing_service = PricingService::from_config(&prover_config.pricing_service);
+
         Self {
             client,
             ledger_db,
-            pricing_service: PricingService::new(),
+            pricing_service,
             config: prover_config,
         }
     }

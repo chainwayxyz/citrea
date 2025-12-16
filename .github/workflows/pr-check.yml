@@ -72,8 +72,20 @@ jobs:
             echo "modified=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Comment if changelog is missing
+      - name: Check if PR type needs changelog
         if: steps.changelog-check.outputs.modified == 'false'
+        id: pr-type-check
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [[ "$PR_TITLE" =~ ^(feat|fix|perf)(\(.*\))?:.*$ ]]; then
+            echo "needs_changelog=true" >> $GITHUB_OUTPUT
+          else
+            echo "needs_changelog=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment if changelog is missing
+        if: steps.changelog-check.outputs.modified == 'false' && steps.pr-type-check.outputs.needs_changelog == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -91,8 +103,21 @@ jobs:
               comment.body.includes('Changelog entry missing')
             );
 
+
+            // Check if changelog was already dismissed by an authorized user
+            const prAuthor = context.payload.pull_request.user.login;
+            const dismissalComment = comments.find(comment => {
+              const isAuthorized = comment.user.login === prAuthor ||
+                ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(comment.author_association);
+              const body = comment.body.toLowerCase();
+              const isDismissal = body.includes('skip-changelog') ||
+                                  body.includes('no changelog') ||
+                                  body.includes('/skip-changelog');
+              return isAuthorized && isDismissal;
+            });
+
             // Only comment if we haven't already
-            if (!botComment) {
+            if (!botComment && !dismissalComment) {
               const commentBody = `## ⚠️ Changelog entry missing
 
             No changes detected in \`CHANGELOG.md\`.

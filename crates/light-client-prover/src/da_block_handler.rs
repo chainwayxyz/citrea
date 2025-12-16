@@ -298,6 +298,7 @@ where
             l1_height,
             proof,
             stored_proof_output,
+            proof_with_duration.info,
         )?;
 
         LPM.set_lcp_proving_time(proof_with_duration.duration);

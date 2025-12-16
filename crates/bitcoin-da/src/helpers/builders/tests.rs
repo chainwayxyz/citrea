@@ -196,7 +196,7 @@ fn build_commit_transaction() {
         recipient.clone(),
         address.clone(),
         5_000,
-        8,
+        8.0,
     )
     .unwrap();
     assert_eq!(leftover_utxos.len(), 2);
@@ -225,7 +225,7 @@ fn build_commit_transaction() {
         recipient.clone(),
         address.clone(),
         5_000,
-        45,
+        45.0,
     )
     .unwrap();
     assert_eq!(leftover_utxos.len(), 2);
@@ -254,7 +254,7 @@ fn build_commit_transaction() {
         recipient.clone(),
         address.clone(),
         5_000,
-        32,
+        32.0,
     )
     .unwrap();
     assert_eq!(leftover_utxos.len(), 2);
@@ -288,7 +288,7 @@ fn build_commit_transaction() {
         recipient.clone(),
         address.clone(),
         1_050_000,
-        5,
+        5.0,
     )
     .unwrap();
     assert_eq!(leftover_utxos.len(), 1);
@@ -333,7 +333,7 @@ fn build_commit_transaction() {
         recipient.clone(),
         address.clone(),
         100_000_000_000,
-        32,
+        32.0,
     );
 
     assert!(tx.is_err());
@@ -372,7 +372,7 @@ fn build_commit_transaction() {
         recipient.clone(),
         address.clone(),
         50000,
-        32,
+        32.0,
     )
     .unwrap();
     assert_eq!(leftover_utxos.len(), 4);
@@ -386,7 +386,7 @@ fn build_commit_transaction() {
         recipient.clone(),
         address.clone(),
         100_000_000_000,
-        32,
+        32.0,
     );
 
     assert!(tx.is_err());
@@ -413,7 +413,7 @@ fn build_commit_transaction() {
         recipient.clone(),
         address.clone(),
         100_000_000_000,
-        32,
+        32.0,
     );
 
     assert!(tx.is_err());
@@ -441,7 +441,7 @@ fn build_reveal_transaction() {
         utxo.vout,
         address.clone(),
         REVEAL_OUTPUT_AMOUNT,
-        8,
+        8.0,
         &script,
         &control_block,
     )
@@ -470,7 +470,7 @@ fn build_reveal_transaction() {
         utxo.vout,
         address.clone(),
         REVEAL_OUTPUT_AMOUNT,
-        75,
+        75.0,
         &script,
         &control_block,
     );
@@ -489,7 +489,7 @@ fn build_reveal_transaction() {
         utxo.vout,
         address.clone(),
         9999,
-        1,
+        1.0,
         &script,
         &control_block,
     );
@@ -516,8 +516,8 @@ fn create_inscription_transactions() {
             available_utxos: utxos.clone(),
         },
         address.clone(),
-        12,
-        10,
+        12.0,
+        10.0,
         bitcoin::Network::Bitcoin,
         tx_prefix.to_vec(),
     )
@@ -641,7 +641,7 @@ fn reproduce_direct_return_bug() {
         recipient.clone(),
         address.clone(),
         output_value,
-        1,
+        1.0,
     );
 
     // Should fail with not enough UTXO
@@ -717,7 +717,7 @@ fn reproduce_direct_return_bug() {
         recipient.clone(),
         address.clone(),
         output_value,
-        1,
+        1.0,
     )
     .unwrap();
 
@@ -730,4 +730,97 @@ fn reproduce_direct_return_bug() {
     let fee_rate = fee as f64 / expected_fee as f64;
 
     assert!(fee_rate >= 1.0); // Assert that it meets min_relay_fee
+}
+
+#[test]
+fn test_floating_point_fee_rates() {
+    let (_, address, utxos) = get_mock_data();
+
+    let recipient =
+        Address::from_str("bc1p2e37kuhnsdc5zvc8zlj2hn6awv3ruavak6ayc8jvpyvus59j3mwqwdt0zc")
+            .unwrap()
+            .require_network(bitcoin::Network::Bitcoin)
+            .unwrap();
+
+    // Fee rate 2.33 sat/vB
+    let (mut tx, _) = super::build_commit_transaction(
+        None,
+        utxos.clone(),
+        recipient.clone(),
+        address.clone(),
+        5_000,
+        2.33,
+    )
+    .unwrap();
+
+    tx.input[0].witness.push(
+        Signature::from_slice(&[0; SCHNORR_SIGNATURE_SIZE])
+            .unwrap()
+            .as_ref(),
+    );
+
+    let vsize = tx.vsize();
+    assert_eq!(vsize, 154);
+
+    let total_input: u64 = utxos
+        .iter()
+        .filter(|utxo| {
+            tx.input
+                .iter()
+                .any(|input| input.previous_output.txid == utxo.tx_id)
+        })
+        .map(|utxo| utxo.amount)
+        .sum();
+
+    let total_output: u64 = tx.output.iter().map(|o| o.value.to_sat()).sum();
+    let actual_fee = total_input - total_output;
+
+    // fee = ceil(154 * 2.33) = 359
+    let expected_fee = ((vsize as f64) * 2.33).ceil() as u64;
+    assert_eq!(actual_fee, expected_fee);
+    assert_eq!(actual_fee, 359);
+
+    let actual_fee_rate = actual_fee as f64 / vsize as f64;
+    assert!(actual_fee_rate >= 2.33);
+
+    // Fee rate 99.99 sat/vB
+    let (mut tx, _) = super::build_commit_transaction(
+        None,
+        utxos.clone(),
+        recipient.clone(),
+        address.clone(),
+        5_000,
+        99.99,
+    )
+    .unwrap();
+
+    tx.input[0].witness.push(
+        Signature::from_slice(&[0; SCHNORR_SIGNATURE_SIZE])
+            .unwrap()
+            .as_ref(),
+    );
+
+    let vsize = tx.vsize();
+    assert_eq!(vsize, 154);
+
+    let total_input: u64 = utxos
+        .iter()
+        .filter(|utxo| {
+            tx.input
+                .iter()
+                .any(|input| input.previous_output.txid == utxo.tx_id)
+        })
+        .map(|utxo| utxo.amount)
+        .sum();
+
+    let total_output: u64 = tx.output.iter().map(|o| o.value.to_sat()).sum();
+    let actual_fee = total_input - total_output;
+
+    // Expected fee: ceil(154 * 99.99) = 15399
+    let expected_fee = ((vsize as f64) * 99.99).ceil() as u64;
+    assert_eq!(actual_fee, expected_fee);
+    assert_eq!(actual_fee, 15399);
+
+    let actual_fee_rate = actual_fee as f64 / vsize as f64;
+    assert!(actual_fee_rate >= 99.99);
 }
