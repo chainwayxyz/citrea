@@ -41,6 +41,20 @@ pub(crate) async fn create_backup(
         .await
 }
 
+pub(crate) async fn validate_backup(backup_path: PathBuf) -> anyhow::Result<()> {
+    let kind = backup_kind_from_metadata(&backup_path).await?;
+
+    info!(
+        "Validating backup at {} for {}.",
+        backup_path.display(),
+        kind,
+    );
+
+    let backup_manager = BackupManager::new(kind, None, None);
+
+    backup_manager.validate_backup(&backup_path)
+}
+
 pub(crate) async fn restore_backup(
     node_type: NodeType,
     db_path: PathBuf,
