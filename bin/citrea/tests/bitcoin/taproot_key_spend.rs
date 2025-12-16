@@ -11,6 +11,7 @@ use bitcoin::{
 };
 use bitcoin_da::helpers::builders::body_builders::{create_inscription_type_0, DaTxs};
 use bitcoin_da::spec::utxo::UTXO;
+use bitcoin_da::utxo_manager::UtxoContext;
 use bitcoincore_rpc::RpcApi;
 use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
@@ -162,8 +163,10 @@ impl TestCase for TaprootKeySpendTest {
         let inscription_txs = create_inscription_type_0(
             test_data.to_vec(),
             &private_key,
-            None,
-            vec![utxo.clone()],
+            UtxoContext {
+                prev_utxo: None,
+                available_utxos: vec![utxo.clone()],
+            },
             change_address.clone(),
             10, // commit fee rate
             10, // reveal fee rate

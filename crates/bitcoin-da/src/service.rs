@@ -56,10 +56,9 @@ use crate::spec::header::HeaderWrapper;
 use crate::spec::proof::InclusionMultiProof;
 use crate::spec::short_proof::BitcoinHeaderShortProof;
 use crate::spec::transaction::TransactionWrapper;
-use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
 use crate::tx_signer::{SignedTxPair, TxSigner};
-use crate::utxo_manager::{UtxoManager, UtxoSelectionMode};
+use crate::utxo_manager::{UtxoContext, UtxoManager, UtxoSelectionMode};
 use crate::verifier::{
     BitcoinVerifier, MINIMUM_WITNESS_COMMITMENT_SIZE, WITNESS_COMMITMENT_PREFIX,
 };
@@ -343,8 +342,7 @@ impl BitcoinService {
             .create_da_transactions_with_fee_rate(
                 tx_request,
                 fee_sat_per_vbyte,
-                utxo_context.available_utxos.clone(),
-                utxo_context.prev_utxo.clone(),
+                utxo_context.clone(),
             )
             .await?;
         let signed_txs = self.tx_signer.sign_da_txs(da_txs).await?;
@@ -396,8 +394,7 @@ impl BitcoinService {
         &self,
         tx_request: DaTxRequest,
         fee_sat_per_vbyte: u64,
-        utxos: Vec<UTXO>,
-        prev_utxo: Option<UTXO>,
+        utxo_context: UtxoContext,
     ) -> Result<DaTxs> {
         let data = match tx_request {
             DaTxRequest::ZKProof(zkproof) => split_proof(zkproof)?,
@@ -416,7 +413,7 @@ impl BitcoinService {
         let network = self.network;
         let da_private_key = self.da_private_key.expect("No private key set");
         // get address from a utxo
-        let address = utxos[0]
+        let address = utxo_context.available_utxos[0]
             .address
             .clone()
             .ok_or(BitcoinServiceError::MissingAddress)?
@@ -429,8 +426,7 @@ impl BitcoinService {
             create_inscription_transactions(
                 data,
                 da_private_key,
-                prev_utxo,
-                utxos,
+                utxo_context,
                 address,
                 fee_sat_per_vbyte,
                 fee_sat_per_vbyte,

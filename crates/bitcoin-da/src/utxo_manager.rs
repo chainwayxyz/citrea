@@ -38,6 +38,7 @@ impl Default for UtxoSelectionMode {
     }
 }
 
+#[derive(Debug, Clone)]
 /// UTXOs needed to build a transaction.
 pub struct UtxoContext {
     /// Filtered UTXOs

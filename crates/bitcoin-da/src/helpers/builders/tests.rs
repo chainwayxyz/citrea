@@ -12,6 +12,7 @@ use super::body_builders::{DaTxs, RawTxData};
 use crate::helpers::builders::sign_blob_with_private_key;
 use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
 use crate::spec::utxo::UTXO;
+use crate::utxo_manager::UtxoContext;
 use crate::REVEAL_OUTPUT_AMOUNT;
 
 #[test]
@@ -510,8 +511,10 @@ fn create_inscription_transactions() {
     let DaTxs::Complete { commit, reveal } = super::body_builders::create_inscription_transactions(
         RawTxData::Complete(body.clone()),
         da_private_key,
-        None,
-        utxos.clone(),
+        UtxoContext {
+            prev_utxo: None,
+            available_utxos: utxos.clone(),
+        },
         address.clone(),
         12,
         10,
