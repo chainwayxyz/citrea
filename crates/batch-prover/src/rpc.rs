@@ -356,7 +356,6 @@ where
                 .map_err(internal_rpc_error)?;
             // put commitment index by l1
             // This might cause some duplicate commitment indices appear in l1 -> index table which is ok
-            // put commitment index by l1
             let mut indices = self
                 .context
                 .ledger_db

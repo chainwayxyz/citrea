@@ -56,8 +56,7 @@ where
     D: rocksdb::DBAccess,
 {
     /// Creates a new [`SchemaIterator`] from a raw RocksDB iterator, with the given scan direction.
-    // FIXME: Solve public constructor exposure
-    pub fn new(
+    pub(crate) fn new(
         db_iter: rocksdb::DBRawIteratorWithThreadMode<'a, D>,
         direction: ScanDirection,
     ) -> Self {
