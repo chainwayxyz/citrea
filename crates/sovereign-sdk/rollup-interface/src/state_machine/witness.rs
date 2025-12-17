@@ -30,6 +30,12 @@ impl Witness {
         self.hints.push_back(borsh::to_vec(hint).unwrap())
     }
 
+    pub fn add_hint_with_capacity<T: BorshSerialize>(&mut self, hint: &T, capacity: usize) {
+        let mut buf = Vec::with_capacity(capacity);
+        BorshSerialize::serialize(hint, &mut buf).unwrap();
+        self.hints.push_back(buf)
+    }
+
     /// Get the next deserializable hint
     pub fn get_hint<T: BorshDeserialize>(&mut self) -> T {
         let hint = self.hints.pop_front().expect("No more hints left");

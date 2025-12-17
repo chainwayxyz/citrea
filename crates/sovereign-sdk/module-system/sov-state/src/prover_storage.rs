@@ -97,7 +97,7 @@ impl Storage for ProverStorage {
 
     fn get(&self, key: &StorageKey, witness: &mut Witness) -> Option<StorageValue> {
         let val = self.read_value(key);
-        witness.add_hint(&val);
+        witness.add_hint_with_capacity(&val, val.map_or(0, |v| v.value().len()));
         val
     }
 
@@ -113,7 +113,7 @@ impl Storage for ProverStorage {
             .unwrap();
         let val = val.map(Into::into);
 
-        witness.add_hint(&val);
+        witness.add_hint_with_capacity(&val, val.map_or(0, |v| v.value().len()));
         witness.add_hint(&proof);
 
         val
@@ -125,7 +125,7 @@ impl Storage for ProverStorage {
             .get_value_option(key.as_ref(), self.version())
             .unwrap()
             .map(Into::into);
-        witness.add_hint(&val);
+        witness.add_hint_with_capacity(&val, val.map_or(0, |v| v.value().len()));
         val
     }
 
@@ -160,7 +160,7 @@ impl Storage for ProverStorage {
         let prev_root = jmt
             .get_root_hash(version)
             .expect("Previous root hash was just populated");
-        witness.add_hint(&prev_root.0);
+        witness.add_hint_with_capacity(&prev_root.0, 32);
 
         // For each value that's been read from the tree, read it from the logged JMT to populate hints
         for (key, read_value) in state_log.ordered_reads() {
@@ -209,7 +209,7 @@ impl Storage for ProverStorage {
             .expect("JMT update must succeed");
 
         witness.add_hint(&update_proof);
-        witness.add_hint(&new_root.0);
+        witness.add_hint_with_capacity(&new_root.0, 32);
 
         let state_update = ProverStateUpdate {
             node_batch: tree_update.node_batch,
