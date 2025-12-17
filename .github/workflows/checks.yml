@@ -640,11 +640,11 @@ jobs:
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Rust cache
-        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
-        uses: ubicloud/rust-cache@v2
-        with:
-            shared-key: build
+      # - name: Rust cache
+      #   if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+      #   uses: ubicloud/rust-cache@v2
+      #   with:
+      #       shared-key: build
       - name: Cache ethereum-tests
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
         uses: actions/cache@v4
