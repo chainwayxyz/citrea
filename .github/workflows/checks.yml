@@ -567,19 +567,32 @@ jobs:
           chmod +x ./.github/scripts/run-proving-test.sh
           ./.github/scripts/run-proving-test.sh patch-stats.json
         shell: bash
+
+      - name: Resolve base and head refs
+        id: refs
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "base-ref=${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
+            echo "head-sha=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+          else
+            echo "base-ref=main" >> $GITHUB_OUTPUT
+            echo "head-sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          fi
+
       # Run/recover tests on the base branch
       - name: Get current commit hash
         id: current-commit
         run: |
-          echo "patch-hash=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+          echo "patch-hash=${{ steps.refs.outputs.head-sha }}" >> $GITHUB_OUTPUT
           echo "head-hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
       - name: Get commit hash of the base branch
         id: base-commit
+        shell: bash
         run: |
-            BASE_REF="${{ github.event.pull_request.base.ref }}"
-            git fetch origin "$BASE_REF"
-            echo "base-hash=$(git rev-parse origin/"$BASE_REF")" >> $GITHUB_OUTPUT
+          git fetch origin "${{ steps.refs.outputs.base-ref }}"
+          echo "base-hash=$(git rev-parse origin/${{ steps.refs.outputs.base-ref }})" >> $GITHUB_OUTPUT
 
       - name: Restore base branch test cache
         id: restore-test-cache
