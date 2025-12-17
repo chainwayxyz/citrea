@@ -1,7 +1,5 @@
 //! Defines versioned witness types to be used.
 
-use std::collections::VecDeque;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 
 /// A [`VecDeque`]-based implementation of [`Witness`] with no special logic.
@@ -21,36 +19,42 @@ use borsh::{BorshDeserialize, BorshSerialize};
 /// ```
 #[derive(Default, BorshDeserialize, BorshSerialize, Debug)]
 pub struct Witness {
-    hints: VecDeque<Vec<u8>>,
+    hints: Vec<Vec<u8>>,
+    cursor: usize,
 }
 
 impl Witness {
     /// Add a serializable hint
     pub fn add_hint<T: BorshSerialize>(&mut self, hint: &T) {
-        self.hints.push_back(borsh::to_vec(hint).unwrap())
+        self.hints.push(borsh::to_vec(hint).unwrap())
     }
 
     /// Get the next deserializable hint
     pub fn get_hint<T: BorshDeserialize>(&mut self) -> T {
-        let hint = self.hints.pop_front().expect("No more hints left");
-        T::deserialize_reader(&mut hint.as_slice()).expect("Hint deserialization should never fail")
+        assert!(self.cursor < self.hints.len());
+
+        let bytes = &self.hints[self.cursor];
+        self.cursor += 1;
+
+        T::deserialize_reader(&mut bytes.as_slice())
+            .expect("Hint deserialization should never fail")
     }
 
     /// Number of hints left
     pub fn remaining(&self) -> usize {
-        self.hints.len()
+        self.hints.len() - self.cursor
     }
 
     #[cfg(feature = "testing")]
     /// Get the hints
-    pub fn get_hints(&self) -> VecDeque<Vec<u8>> {
+    pub fn get_hints(&self) -> Vec<Vec<u8>> {
         self.hints.clone()
     }
 }
 
 #[cfg(feature = "testing")]
-impl From<VecDeque<Vec<u8>>> for Witness {
-    fn from(hints: VecDeque<Vec<u8>>) -> Self {
-        Self { hints }
+impl From<Vec<Vec<u8>>> for Witness {
+    fn from(hints: Vec<Vec<u8>>) -> Self {
+        Self { hints, cursor: 0 }
     }
 }
