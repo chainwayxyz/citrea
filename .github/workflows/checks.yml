@@ -576,7 +576,7 @@ jobs:
             echo "base-ref=${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
             echo "head-sha=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
           else
-            echo "base-ref=main" >> $GITHUB_OUTPUT
+            echo "base-ref=nightly" >> $GITHUB_OUTPUT
             echo "head-sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           fi
 
