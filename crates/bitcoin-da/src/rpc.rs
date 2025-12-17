@@ -24,7 +24,7 @@ pub struct MonitoredTxResponse {
     /// Virtual size of the transaction.
     pub vsize: usize,
     /// Base fee for the transaction, if applicable.
-    pub base_fee: Option<u64>,
+    pub base_fee: Option<f64>,
     /// Initial broadcast time of the transaction.
     pub initial_broadcast: u64,
     /// Initial height at which the transaction was broadcast.

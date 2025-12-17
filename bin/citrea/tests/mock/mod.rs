@@ -189,7 +189,7 @@ async fn test_all_flow() {
         .unwrap();
     assert_eq!(job_ids.len(), 1);
 
-    // // Test RPC proving jobs limit
+    // Test RPC proving jobs limit
     let arg_limited_proving_jobs = prover_client.get_proving_jobs(0, None).await;
     assert_eq!(arg_limited_proving_jobs, vec![]);
 
@@ -201,6 +201,18 @@ async fn test_all_flow() {
     let response = wait_for_prover_job(&prover_client, job_ids[0], None)
         .await
         .unwrap();
+
+    // Test RPC proving sessions
+    let arg_limited_proving_sessions = prover_client.get_proving_sessions(1, None).await;
+    assert_eq!(arg_limited_proving_sessions.len(), 1);
+
+    // Test RPC proving sessions limit
+    let arg_limited_proving_sessions = prover_client.get_proving_sessions(0, None).await;
+    assert_eq!(arg_limited_proving_sessions.len(), 0);
+
+    // Test RPC proving sessions skip
+    let arg_skipped_proving_sessions = prover_client.get_proving_sessions(1, Some(1)).await;
+    assert_eq!(arg_skipped_proving_sessions.len(), 0);
 
     let commitments = prover_client
         .batch_prover_get_commitments_by_l1(3)
