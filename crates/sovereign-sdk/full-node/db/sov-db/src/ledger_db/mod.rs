@@ -554,6 +554,32 @@ impl BatchProverLedgerOps for LedgerDB {
         Ok(jobs)
     }
 
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_latest_proving_sessions(
+        &self,
+        limit: usize,
+        skip: usize,
+    ) -> anyhow::Result<Vec<(Uuid, ProvingSessionInfo)>> {
+        let mut read_opts = ReadOptions::default();
+        // Do not fill the cache with garbage data just to read ids
+        read_opts.fill_cache(false);
+
+        let mut iter = self
+            .db
+            .iter_with_direction::<ProvingSessionInfoByJobId>(read_opts, ScanDirection::Backward)?;
+        iter.seek_to_last();
+
+        let mut sessions = Vec::with_capacity(limit);
+        for el in iter.skip(skip).take(limit) {
+            let el = el?;
+            let job_id = el.key;
+            let session = el.value;
+            sessions.push((job_id, session));
+        }
+
+        Ok(sessions)
+    }
+
     #[instrument(level = "trace", skip(self))]
     fn job_status(&self, id: Uuid) -> JobStatus {
         if let Some(el) = self.db.get::<ProofByJobId>(&id).unwrap() {

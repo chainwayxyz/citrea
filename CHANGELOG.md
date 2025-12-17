@@ -1,21 +1,34 @@
 # Changelog
 
 ## [Unreleased]
+
+- feat: Add `batchProver_getLatestProvingSessionInfos` rpc ([#3070](https://github.com/chainwayxyz/citrea/pull/3070))
+
+## [v1.0.2] (2025-12-09)
 ### Added
 - perf: Remove validation from backup creation. Backup validation should now be handled by `backup_validate` RPC method. ([#3045](https://github.com/chainwayxyz/citrea/pull/3045))
 - feat: Add create backup `citrea-cli` command([#3047](https://github.com/chainwayxyz/citrea/pull/3047))\
-  Usage: citrea-cli create-backup --node-type <NODE_TYPE> --db-path <DB_PATH> --backup-path <BACKUP_PATH>
+  Usage: `citrea-cli create-backup --node-type <NODE_TYPE> --db-path <DB_PATH> --backup-path <BACKUP_PATH>`
+- feat: Add `validate-backup` `citrea-cli` command([#3068](https://github.com/chainwayxyz/citrea/pull/3068))\
+  Usage: `citrea-cli validate-backup --backup-path <BACKUP_PATH>`
 - feat: Store proving session info of LCP ([#3050](https://github.com/chainwayxyz/citrea/pull/3050))\
   `lightClientProver_getLightClientProofByL1Height` endpoint now returns information about the proving session, using the same structure as the batch prover responses.
+- ci: Run citrea-e2e tests against bitcoin v30 ([#3054](https://github.com/chainwayxyz/citrea/pull/3054))
+- feat: Add `citrea-cli db-migrate` subcommand ([#3015](https://github.com/chainwayxyz/citrea/pull/3015))\
+  Usage: `citrea-cli db-migrate --node-type <NODE_TYPE> --db-path <DB_PATH>`
 
 ### Changed
 - chore: renamed `BOUNDLESS_S3_NO_PRESIGNED` to `BOUNDLESS_S3_USE_PRESIGNED`. ([#3046](https://github.com/chainwayxyz/citrea/pull/3046))\
-  &nbsp;&nbsp;**New env var:**
-  &nbsp;&nbsp;&nbsp;&nbsp; `BOUNDLESS_S3_USE_PRESIGNED` Use presigned URLs for S3 (default: false)
-  &nbsp;\
+  **New env var:**\
+  `BOUNDLESS_S3_USE_PRESIGNED`: Use presigned URLs for S3 (default: false)\
   New configuration values can also be set inside `batch_prover_config.toml` files under `[risc0_host.prover.Boundless.storage]` with key `s3_use_presigned`.
+- fix: multiple tracing related issues fixed. ([#3064](https://github.com/chainwayxyz/citrea/pull/3064))
 
-## v1.0.0 (2025-12-01)
+## [v1.0.1] (2025-12-03)
+- chore: Upgrade debian ([#3048](https://github.com/chainwayxyz/citrea/pull/3048))\
+  Fixes docker container `chainwayxyz/citrea-full-node`
+
+## [v1.0.0] (2025-12-01)
 ### Added
 - feat(prover): Store proving info by job id ([#3011](https://github.com/chainwayxyz/citrea/pull/3011))\
   `batchProver_getProvingJob*` endpoints now return information about the proving session, including cycle counts and request IDs (bonsai and boundless proofs).
@@ -141,11 +154,11 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - `eth_call`, `eth_estimateGas` and `eth_createAccessList` RPCs now supports "pending" block tag. ([#1303](https://github.com/chainwayxyz/citrea/pull/1303))
 - Bitcoin DA adapter uses mempool.space API for fee estimation. ([#1302](https://github.com/chainwayxyz/citrea/pull/1302))
 - New RPC for prover node: `prover_generateInput`. ([#1280](https://github.com/chainwayxyz/citrea/pull/1280))
-- Enhance `eth_estimateGas` RPC L1 fee estimatation. ([#1261](https://github.com/chainwayxyz/citrea/pull/1261))
+- Enhance `eth_estimateGas` RPC L1 fee estimation. ([#1261](https://github.com/chainwayxyz/citrea/pull/1261))
 - Structured concurrency and graceful shutdown: fixes breaking storage on shutdown while syncing for the first time. ([#1214](https://github.com/chainwayxyz/citrea/pull/1214) and [#1216](https://github.com/chainwayxyz/citrea/pull/1216))
 
 ## v0.5.2 (2024-09-30)
-- Added config for disableing prover proving session recovery. ([#1241](https://github.com/chainwayxyz/citrea/pull/1241))
+- Added config for disabling prover proving session recovery. ([#1241](https://github.com/chainwayxyz/citrea/pull/1241))
 - Nodes now log each RPC request and response. ([#1236](https://github.com/chainwayxyz/citrea/pull/1236))
 
 ## v0.5.1 (2024-09-26)
@@ -154,4 +167,7 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
 
-[unreleased]: https://github.com/chainwayxyz/citrea/compare/release-v0.8.1...HEAD
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/v1.0.2...HEAD
+[v1.0.2]: https://github.com/chainwayxyz/citrea/compare/v1.0.1...v1.0.2
+[v1.0.1]: https://github.com/chainwayxyz/citrea/compare/v1.0.0...v1.0.1
+[v1.0.0]: https://github.com/chainwayxyz/citrea/compare/v0.9.0...v1.0.0

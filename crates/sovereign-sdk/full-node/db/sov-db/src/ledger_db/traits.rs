@@ -191,6 +191,13 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get latest (job id, status) with max limit and skipped jobs (pagination).
     fn get_latest_jobs(&self, limit: usize, skip: usize) -> Result<Vec<(Uuid, JobStatus)>>;
 
+    /// Get latest (session id, proving session info) with max limit and skipped sessions (pagination).
+    fn get_latest_proving_sessions(
+        &self,
+        limit: usize,
+        skip: usize,
+    ) -> Result<Vec<(Uuid, ProvingSessionInfo)>>;
+
     /// Get job status (non-existent job IS RUNNING)
     fn job_status(&self, id: Uuid) -> JobStatus;
 }

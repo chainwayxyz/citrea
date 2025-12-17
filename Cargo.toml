@@ -41,9 +41,9 @@ members = [
 ]
 
 [workspace.package]
-version = "1.0.0"
+version = "1.0.2"
 edition = "2021"
-license = "GPL-3.0"
+license = "GPL-3.0-only"
 authors = ["Chainway Labs <info@chainway.xyz>"]
 homepage = "https://citrea.xyz"
 publish = false
@@ -86,10 +86,10 @@ k256 = { version = "0.13.4" }
 lru = "0.13"
 hex = { version = "0.4.3", default-features = false, features = ["alloc", "serde"] }
 log-panics = { version = "2", features = ["with-backtrace"] }
-metrics = "0.23.0"
-metrics-derive = "0.1.0"
-metrics-exporter-prometheus = "0.15.3"
-metrics-util = "0.17.0"
+metrics = "0.24.0"
+metrics-derive = "0.1"
+metrics-exporter-prometheus = { version = "0.16.0", default-features = false }
+metrics-util = "0.19.0"
 # 1.13 uses getrandom 0.3
 uuid = { version = "=1.12.1", default-features = false, features = ["serde", "borsh", "v7"] }
 parking_lot = "0.12.3"
@@ -171,10 +171,13 @@ alloy-network = { version = "0.13", default-features = false }
 alloy-signer = { version = "0.13", default-features = false }
 alloy-signer-local = { version = "0.13.0", default-features = false }
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "1460c3e" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "10ff3e2" }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "a6e011a" }
+# Use our fork of revm-inspectors to apply fixes after v0.18.1
+# Cannot update to latest as it requires latest revm, which we cannot use yet
+revm-inspectors = { git = "https://github.com/chainwayxyz/revm-inspectors", rev = "574d614ce505d3c0c4534d8b8e62d8acb3fa9651" }
 
 [profile.release]
 opt-level = 3

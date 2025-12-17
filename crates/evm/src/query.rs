@@ -1453,8 +1453,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let cfg_env = get_cfg_env(cfg, evm_spec_id);
         let l1_fee_rate = sealed_block.l1_fee_rate;
 
-        // EvmDB is the replacement of revm::CacheDB because cachedb requires immutable state
-        // TODO: Move to CacheDB once immutable state is implemented
         let mut evm_db = self.get_db(working_set);
 
         // TODO: Convert below steps to blocking task like in reth after implementing the semaphores
@@ -1538,10 +1536,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let cfg_env = get_cfg_env(cfg, evm_spec_id);
 
-        let sealed_block = self
-            .get_sealed_block_by_number(Some(block_number), working_set, ledger_db)?
+        let l1_fee_block_num = match block_number {
+            // use l1 fee rate of latest block for pending block
+            BlockNumberOrTag::Pending => BlockNumberOrTag::Latest,
+            _ => block_number,
+        };
+        let l1_fee_block = self
+            .get_sealed_block_by_number(Some(l1_fee_block_num), working_set, ledger_db)?
             .ok_or_else(|| EthApiError::HeaderNotFound(block_id.unwrap()))?;
-        let l1_fee_rate = sealed_block.l1_fee_rate;
+        let l1_fee_rate = l1_fee_block.l1_fee_rate;
 
         let account = self
             .account_info(&request.from.unwrap_or_default(), working_set)

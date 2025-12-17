@@ -62,7 +62,7 @@ env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
-  TEST_BITCOIN_DOCKER: "bitcoin/bitcoin:29.0"
+  BITCOIN_DOCKER_IMAGE: "bitcoin/bitcoin:30.0"
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -161,7 +161,7 @@ jobs:
       - name: Install nightly toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: nightly-2025-09-24
           override: true
       - name: Install risc0
         uses: ./.github/actions/install-risc0
