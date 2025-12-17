@@ -49,6 +49,10 @@ on:
         description: 'Set RUST_LOG level (optional)'
         required: false
         type: string
+      with_proving_stats:
+        description: 'Run with. proving stats'
+        required: false
+        type: boolean
   merge_group:
     types: ["checks_requested"]
   push:
@@ -520,7 +524,7 @@ jobs:
     name: Proving stats
     runs-on: ubicloud-standard-2
     needs: [build, docker-setup]
-    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'guest-code')
+    if: (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'guest-code')) || inputs.with_proving_stats
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
