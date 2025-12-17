@@ -70,7 +70,7 @@ impl SchemaBatch {
     /// Returns None column family name does not have any writes
     pub fn iter<S: Schema>(
         &self,
-    ) -> SchemaBatchIterator<'_, S, Rev<btree_map::Iter<SchemaKey, Operation>>> {
+    ) -> SchemaBatchIterator<'_, S, Rev<btree_map::Iter<'_, SchemaKey, Operation>>> {
         let some_rows = self.last_writes.get(&S::COLUMN_FAMILY_NAME);
         SchemaBatchIterator {
             inner: some_rows.map(|rows| rows.iter().rev()),
@@ -82,7 +82,7 @@ impl SchemaBatch {
     pub fn iter_range<S: Schema>(
         &self,
         upper_bound: SchemaKey,
-    ) -> SchemaBatchIterator<'_, S, Rev<btree_map::Range<SchemaKey, Operation>>> {
+    ) -> SchemaBatchIterator<'_, S, Rev<btree_map::Range<'_, SchemaKey, Operation>>> {
         let some_rows = self.last_writes.get(&S::COLUMN_FAMILY_NAME);
         SchemaBatchIterator {
             inner: some_rows.map(|rows| rows.range(..=upper_bound).rev()),
