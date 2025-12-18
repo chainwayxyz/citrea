@@ -1,10 +1,11 @@
 # Changelog
 
 ## [Unreleased]
+- fix: Limit available RPC methods per node type ([#3088](https://github.com/chainwayxyz/citrea/pull/3088))
 
 ## [v1.1.0] (2025-12-17)
 ### Added
-- feat: add with_proof option to `batchProver_getProvingJob` ([#3071](https://github.com/chainwayxyz/citrea/pull/3071)) 
+- feat: add with_proof option to `batchProver_getProvingJob` ([#3071](https://github.com/chainwayxyz/citrea/pull/3071))
 - feat: Add `batchProver_getLatestProvingSessionInfos` rpc ([#3070](https://github.com/chainwayxyz/citrea/pull/3070))
 - feat: Use floating point precision in calculating bitcoin fee rate. ([#3066](https://github.com/chainwayxyz/citrea/pull/3066))
 
