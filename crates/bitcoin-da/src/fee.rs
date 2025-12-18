@@ -110,6 +110,11 @@ impl FeeService {
     /// Get the fee rate in sat/vB from the mempool space or via the Bitcoin Core client.
     #[instrument(level = "trace", skip_all, ret)]
     pub async fn get_fee_rate(&self) -> Result<f64> {
+        if self.network == bitcoin::Network::Regtest {
+            tracing::debug!("Using default fee rate for regtest network: 1 sat/vb");
+            return Ok(1.0);
+        }
+
         let sat_vkb = match get_fee_rate_from_mempool_space(&self.mempool_space_url).await {
             Ok(fee_rate) => fee_rate,
             Err(e) => {
