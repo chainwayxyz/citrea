@@ -114,6 +114,10 @@ pub struct BitcoinServiceConfig {
     /// Monitoring configuration.
     pub monitoring: Option<MonitoringConfig>,
     /// The URL of the mempool.space API.
+    /// It should end with a slash.
+    /// It should include the network but not api
+    /// So for mainnet: https://mempool.space/
+    /// For testnet: https://mempool.space/testnet4/
     pub mempool_space_url: Option<String>,
 
     /// UTXO selection mode
