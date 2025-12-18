@@ -12,7 +12,7 @@ use sov_db::schema::tables::{
     LightClientProofBySlotNumber, ProofsBySlotNumber, ProofsBySlotNumberV2, ProverStateDiffs,
     SlotByHash, VerifiedBatchProofsBySlotNumber,
 };
-use sov_db::schema::types::l2_block::StoredL2Block;
+use sov_db::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use sov_db::schema::types::light_client_proof::{
     StoredLatestDaState, StoredLightClientProof, StoredLightClientProofOutput,
 };
@@ -109,7 +109,10 @@ pub fn test_pruning_ledger_db_l2_blocks() {
 
             hash: [i as u8; 32],
             prev_hash: [(i as u8) - 1; 32],
-            txs: vec![],
+            txs: vec![StoredTransaction {
+                hash: [i as u8; 32],
+                body: Some(vec![i as u8; 100]), // 100 bytes per tx
+            }],
 
             state_root: [i as u8; 32],
             signature: vec![],
@@ -151,27 +154,58 @@ pub fn test_pruning_ledger_db_l2_blocks() {
 
     prune_ledger(NodeType::Sequencer, ledger_db.clone(), 10).unwrap();
 
-    // Pruned
-    assert!(ledger_db
+    let block_1 = ledger_db
         .get::<L2BlockByNumber>(&L2BlockNumber(1))
         .unwrap()
-        .is_none());
-    // Pruned
-    assert!(ledger_db
+        .expect("Block header should be retained");
+
+    assert_eq!(
+        block_1.txs.len(),
+        1,
+        "Transaction count should be preserved"
+    );
+    assert!(
+        block_1.txs[0].body.is_none(),
+        "Transaction body should be pruned"
+    );
+    assert_eq!(
+        block_1.txs[0].hash, [1u8; 32],
+        "Transaction hash should be retained"
+    );
+
+    assert_eq!(block_1.height, 1);
+    assert_eq!(block_1.hash, [1u8; 32]);
+
+    assert!(
+        ledger_db.get::<L2BlockByHash>(&[1; 32]).unwrap().is_some(),
+        "Block hash mapping should be retained"
+    );
+
+    let block_10 = ledger_db
         .get::<L2BlockByNumber>(&L2BlockNumber(10))
         .unwrap()
-        .is_none());
-    // NOT Pruned
-    assert!(ledger_db
+        .expect("Block header should be retained");
+    assert!(
+        block_10.txs[0].body.is_none(),
+        "Transaction body should be pruned"
+    );
+    assert_eq!(block_10.height, 10);
+    assert!(
+        ledger_db.get::<L2BlockByHash>(&[10; 32]).unwrap().is_some(),
+        "Block hash mapping should be retained"
+    );
+
+    // NOT pruned
+    let block_20 = ledger_db
         .get::<L2BlockByNumber>(&L2BlockNumber(20))
         .unwrap()
-        .is_some());
+        .expect("Non-pruned block should exist");
 
-    // Pruned
-    assert!(ledger_db.get::<L2BlockByHash>(&[1; 32]).unwrap().is_none());
-    // Pruned
-    assert!(ledger_db.get::<L2BlockByHash>(&[10; 32]).unwrap().is_none());
-    // NOT Pruned
+    assert_eq!(block_20.txs.len(), 1);
+    assert!(
+        block_20.txs[0].body.is_some(),
+        "Non-pruned block should have tx body"
+    );
     assert!(ledger_db.get::<L2BlockByHash>(&[20; 32]).unwrap().is_some());
 }
 
@@ -187,7 +221,10 @@ pub fn test_pruning_ledger_db_batch_prover_l2_blocks() {
 
             hash: [i as u8; 32],
             prev_hash: [(i as u8) - 1; 32],
-            txs: vec![],
+            txs: vec![StoredTransaction {
+                hash: [i as u8; 32],
+                body: Some(vec![i as u8; 100]), // 100 bytes per tx
+            }],
 
             state_root: [i as u8; 32],
             signature: vec![],
@@ -274,21 +311,48 @@ pub fn test_pruning_ledger_db_batch_prover_l2_blocks() {
 
     prune_ledger(NodeType::BatchProver, ledger_db.clone(), 10).unwrap();
 
-    // Pruned
-    assert!(ledger_db
+    let block_1 = ledger_db
         .get::<L2BlockByNumber>(&L2BlockNumber(1))
         .unwrap()
-        .is_none());
-    // Pruned
-    assert!(ledger_db
+        .expect("Block header should be retained");
+
+    assert_eq!(
+        block_1.txs.len(),
+        1,
+        "Transaction count should be preserved"
+    );
+    assert!(
+        block_1.txs[0].body.is_none(),
+        "Transaction body should be pruned"
+    );
+    assert_eq!(
+        block_1.txs[0].hash, [1u8; 32],
+        "Transaction hash should be retained"
+    );
+
+    assert_eq!(block_1.height, 1);
+    assert_eq!(block_1.hash, [1u8; 32]);
+
+    let block_10 = ledger_db
         .get::<L2BlockByNumber>(&L2BlockNumber(10))
         .unwrap()
-        .is_none());
-    // NOT Pruned
-    assert!(ledger_db
+        .expect("Block header should be retained");
+    assert!(
+        block_10.txs[0].body.is_none(),
+        "Transaction body should be pruned"
+    );
+    assert_eq!(block_10.height, 10);
+
+    // NOT pruned
+    let block_20 = ledger_db
         .get::<L2BlockByNumber>(&L2BlockNumber(20))
         .unwrap()
-        .is_some());
+        .expect("Non-pruned block should exist");
+    assert_eq!(block_20.txs.len(), 1);
+    assert!(
+        block_20.txs[0].body.is_some(),
+        "Non-pruned block should have tx body"
+    );
 
     assert!(ledger_db
         .get::<ProverStateDiffs>(&L2BlockNumber(1))
