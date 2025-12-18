@@ -1227,7 +1227,7 @@ impl DaService for BitcoinService {
     async fn get_fee_rate(&self) -> Result<u128> {
         let sat_vb_ceil = self
             .fee
-            .get_fee_rate_as_sat_vb()
+            .get_fee_rate()
             .await
             .map_err(|_| BitcoinServiceError::FeeRateError)? as u128;
 
