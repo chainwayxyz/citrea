@@ -20,7 +20,7 @@ use bitcoin::block::Header;
 use bitcoin::consensus::Decodable;
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
-use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
+use bitcoin::{BlockHash, CompactTarget, Transaction, Txid, Wtxid};
 use bitcoincore_rpc::{Client, Error as BitcoinError, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
 use citrea_common::utils::read_env;
@@ -56,13 +56,12 @@ use crate::spec::header::HeaderWrapper;
 use crate::spec::proof::InclusionMultiProof;
 use crate::spec::short_proof::BitcoinHeaderShortProof;
 use crate::spec::transaction::TransactionWrapper;
-use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
 use crate::tx_signer::{SignedTxPair, TxSigner};
+use crate::utxo_manager::{UtxoContext, UtxoManager, UtxoSelectionMode};
 use crate::verifier::{
     BitcoinVerifier, MINIMUM_WITNESS_COMMITMENT_SIZE, WITNESS_COMMITMENT_PREFIX,
 };
-use crate::REVEAL_OUTPUT_AMOUNT;
 
 pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
 
@@ -75,23 +74,6 @@ pub fn network_to_bitcoin_network(network: &Network) -> bitcoin::Network {
         Network::Testnet => bitcoin::Network::Testnet4,
         Network::Devnet => bitcoin::Network::Signet,
         Network::Nightly | Network::TestNetworkWithForks => bitcoin::Network::Regtest,
-    }
-}
-
-/// Utxo selection mode.
-/// How previous utxo should be chosen when tx queue is not empty
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum UtxoSelectionMode {
-    /// Default behaviour, always use latest utxo and keep transactions chained
-    Chained,
-    /// Choose the utxo with the highest amount of confirmations
-    Oldest,
-}
-
-impl Default for UtxoSelectionMode {
-    fn default() -> Self {
-        Self::Chained
     }
 }
 
@@ -173,7 +155,7 @@ pub struct BitcoinService {
     l1_block_hash_to_height: Arc<Mutex<LruCache<BlockHash, usize>>>,
     tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
     pub(crate) tx_signer: TxSigner,
-    utxo_selection_mode: UtxoSelectionMode,
+    pub(crate) utxo_manager: UtxoManager,
 }
 
 impl BitcoinService {
@@ -188,7 +170,8 @@ impl BitcoinService {
         da_private_key: Option<SecretKey>,
         reveal_tx_prefix: Vec<u8>,
         tx_backup_dir: PathBuf,
-        utxo_selection_mode: UtxoSelectionMode,
+        tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
+        utxo_manager: UtxoManager,
     ) -> Self {
         Self {
             tx_signer: TxSigner::new(client.clone()),
@@ -204,8 +187,8 @@ impl BitcoinService {
             l1_block_hash_to_height: Arc::new(Mutex::new(LruCache::new(
                 NonZeroUsize::new(100).unwrap(),
             ))),
-            tx_queue: Arc::new(Mutex::new(VecDeque::new())),
-            utxo_selection_mode,
+            tx_queue,
+            utxo_manager,
         }
     }
 
@@ -245,7 +228,15 @@ impl BitcoinService {
             .transpose()
             .map_err(|_| BitcoinServiceError::InvalidPrivateKey)?;
 
-        let utxo_selection_mode = config.utxo_selection_mode.clone().unwrap_or_default();
+        let tx_queue = Arc::new(Mutex::new(VecDeque::new()));
+        let utxo_manager = UtxoManager::new(
+            client.clone(),
+            monitoring.clone(),
+            tx_queue.clone(),
+            network_constants,
+            config.utxo_selection_mode.clone().unwrap_or_default(),
+        );
+
         Ok(Self::new(
             client,
             network,
@@ -256,7 +247,8 @@ impl BitcoinService {
             da_private_key,
             chain_params.reveal_tx_prefix,
             tx_backup_dir.to_path_buf(),
-            utxo_selection_mode,
+            tx_queue,
+            utxo_manager,
         ))
     }
 
@@ -348,16 +340,13 @@ impl BitcoinService {
     ) -> Result<Vec<[TxWithId; 2]>> {
         let now = Instant::now();
 
-        let prev_utxo = self.select_prev_utxo().await?;
-        // get all available utxos
-        let utxos = self.get_utxos().await?;
+        let utxo_context = self.utxo_manager.prepare_context().await?;
 
         let da_txs = self
             .create_da_transactions_with_fee_rate(
                 tx_request,
                 fee_sat_per_vbyte,
-                utxos.clone(),
-                prev_utxo.clone(),
+                utxo_context.clone(),
             )
             .await?;
         let signed_txs = self.tx_signer.sign_da_txs(da_txs).await?;
@@ -366,7 +355,7 @@ impl BitcoinService {
         if !self.test_mempool_accept_queue_tx(&signed_txs).await? {
             // If it failed on mempool policy limit, it can also fail on meeting min relay fee
             // Stateless validation of signed txs fee
-            validate_txs_fee_rate(&signed_txs, fee_sat_per_vbyte, utxos, prev_utxo)?;
+            validate_txs_fee_rate(&signed_txs, fee_sat_per_vbyte, utxo_context)?;
         }
 
         // backup to file after mempool acceptance
@@ -392,121 +381,6 @@ impl BitcoinService {
         Ok(txs)
     }
 
-    async fn select_prev_utxo(&self) -> Result<Option<UTXO>> {
-        let prev_utxo = self.get_prev_utxo().await;
-        if self.tx_queue.lock().await.is_empty() {
-            return Ok(prev_utxo);
-        }
-
-        match self.utxo_selection_mode {
-            UtxoSelectionMode::Chained => {
-                // Prevent UTXO conflicts when queue is not empty and running UtxoSelectionMode::Chained mode
-                Err(BitcoinServiceError::QueueNotEmpty)
-            }
-            UtxoSelectionMode::Oldest => Ok(if prev_utxo.is_some() {
-                // Latest monitored TX has been successfully accepted to mempool and can be used as starting point for another utxo chain
-                prev_utxo
-            } else {
-                // Latest monitored TX has `Queued` status and internal `get_tx_out` errors.
-                self.get_highest_confirmation_utxo().await?
-            }),
-        }
-    }
-
-    /// Retrieves the most recent spendable UTXO from the transaction chain on startup.
-    #[instrument(level = "trace", skip_all, ret)]
-    pub(crate) async fn get_prev_utxo(&self) -> Option<UTXO> {
-        let (txid, tx) = self.monitoring.get_last_tx().await?;
-
-        let utxos = tx.to_utxos()?;
-
-        // Check that tx out is still spendable
-        // If not found, utxo is already spent
-        self.client.get_tx_out(&txid, 0, Some(true)).await.ok()??;
-
-        // Return first vout
-        utxos.into_iter().next()
-    }
-
-    #[instrument(level = "trace", skip_all, ret)]
-    pub(crate) async fn get_utxos(&self) -> Result<Vec<UTXO>> {
-        let utxos = self
-            .client
-            .list_unspent(Some(0), None, None, None, None)
-            .await?;
-        if utxos.is_empty() {
-            return Err(BitcoinServiceError::MissingUTXO);
-        }
-
-        let utxos: Vec<UTXO> = match self.utxo_selection_mode {
-            UtxoSelectionMode::Chained => {
-                let commit_txids = self
-                    .monitoring
-                    .get_in_mempool_commit_transaction_ids()
-                    .await;
-
-                utxos
-                    .into_iter()
-                    .filter(|utxo| {
-                        utxo.spendable
-                            && utxo.solvable
-                            // Accept either safe utxos OR unsafe commit change output that are monitored (and can be considered `mine` and thus safe)
-                            && (utxo.safe || (commit_txids.contains(&utxo.txid) && utxo.vout == 1))
-                            && utxo.amount > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
-                    })
-                    .map(Into::into)
-                    .collect()
-            }
-
-            // When running in UtxoSelectionMode::Oldest, we're creating multiple utxos chain in parallel
-            // to be able to send multiple proofs in the same block without hitting mempool policy limits.
-            // To make sure there are no conflicts between parallel utxos chain,
-            // this additional filters out any UTXO used by queued txs and any change UTXO that are not finalized
-            UtxoSelectionMode::Oldest => {
-                let txids = self
-                    .tx_queue
-                    .lock()
-                    .await
-                    .iter()
-                    .flat_map(|tx| {
-                        tx.commit
-                            .tx
-                            .input
-                            .iter()
-                            .map(|input| input.previous_output.txid)
-                    })
-                    .collect::<Vec<_>>();
-
-                utxos.into_iter().filter(|utxo| {
-                    utxo.spendable
-                    && utxo.solvable
-                    && utxo.safe
-                    && utxo.amount > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
-                    // Remove utxo already in use by queued txs
-                    && !txids.contains(&utxo.txid)
-                    // Only keep finalized change output
-                    && (utxo.vout == 0 || utxo.confirmations as u64 >= self.network_constants.finality_depth)
-                })
-                .map(Into::into)
-                .collect()
-            }
-        };
-
-        if utxos.is_empty() {
-            return Err(BitcoinServiceError::MissingSpendableUTXO);
-        }
-
-        Ok(utxos)
-    }
-
-    /// Returns the UTXO with the highest number of confirmations
-    #[instrument(level = "trace", skip_all, ret)]
-    async fn get_highest_confirmation_utxo(&self) -> Result<Option<UTXO>> {
-        let mut utxos = self.get_utxos().await?;
-        utxos.sort_by(|a, b| b.confirmations.cmp(&a.confirmations));
-        Ok(utxos.first().cloned())
-    }
-
     #[instrument(level = "trace", skip_all, ret)]
     async fn get_pending_transactions(&self) -> Vec<Transaction> {
         self.monitoring
@@ -524,8 +398,7 @@ impl BitcoinService {
         &self,
         tx_request: DaTxRequest,
         fee_sat_per_vbyte: f64,
-        utxos: Vec<UTXO>,
-        prev_utxo: Option<UTXO>,
+        utxo_context: UtxoContext,
     ) -> Result<DaTxs> {
         let data = match tx_request {
             DaTxRequest::ZKProof(zkproof) => split_proof(zkproof)?,
@@ -544,7 +417,7 @@ impl BitcoinService {
         let network = self.network;
         let da_private_key = self.da_private_key.expect("No private key set");
         // get address from a utxo
-        let address = utxos[0]
+        let address = utxo_context.available_utxos[0]
             .address
             .clone()
             .ok_or(BitcoinServiceError::MissingAddress)?
@@ -557,8 +430,7 @@ impl BitcoinService {
             create_inscription_transactions(
                 data,
                 da_private_key,
-                prev_utxo,
-                utxos,
+                utxo_context,
                 address,
                 fee_sat_per_vbyte,
                 fee_sat_per_vbyte,
@@ -577,7 +449,7 @@ impl BitcoinService {
     }
 
     pub(crate) async fn process_transaction_queue(&self) -> Result<Vec<Txid>> {
-        match self.utxo_selection_mode {
+        match self.utxo_manager.mode {
             UtxoSelectionMode::Chained => self.process_transaction_queue_chained().await,
             UtxoSelectionMode::Oldest => self.process_transaction_queue_oldest_mode().await,
         }
@@ -758,7 +630,7 @@ impl BitcoinService {
             return Err(BitcoinServiceError::WrongStatusForBumping(tx.status));
         };
 
-        let Some(utxo) = self.get_prev_utxo().await else {
+        let Some(utxo) = self.utxo_manager.get_prev_utxo().await else {
             return Err(BitcoinServiceError::MissingPreviousUTXO);
         };
 
