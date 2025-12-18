@@ -214,9 +214,14 @@ impl FeeService {
 }
 
 pub(crate) async fn get_fee_rate_from_mempool_space(mempool_space_url: &str) -> Result<f64> {
-    // url should end with a slash
-    // it should already contain network path
-    let url = format!("{mempool_space_url}{MEMPOOL_SPACE_PRECISE_FEE_ENDPOINT}");
+    // url should end with a slash and already contain network path
+    // tolerate missing trailing slash by normalizing here
+    let normalized_base_url = if mempool_space_url.ends_with('/') {
+        mempool_space_url.to_string()
+    } else {
+        format!("{mempool_space_url}/")
+    };
+    let url = format!("{normalized_base_url}{MEMPOOL_SPACE_PRECISE_FEE_ENDPOINT}");
 
     let response = get_with_timeout(url.clone(), MEMPOOL_SPACE_TIMEOUT)
         .await
