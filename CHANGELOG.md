@@ -1,6 +1,10 @@
 # Changelog
 
 ## [Unreleased]
+### Added
+
+### Changed
+- fix: `bitcoin::network::Testnet` vs `bitcoin::network::Testnet4` confusion in mempool.space fee retrieval ([#3087](https://github.com/chainwayxyz/citrea/pull/3087))
 - fix: Limit available RPC methods per node type ([#3088](https://github.com/chainwayxyz/citrea/pull/3088))
 
 ## [v1.1.0] (2025-12-17)
