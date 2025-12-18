@@ -1,8 +1,9 @@
 use citrea_common::NodeType;
-use sov_db::schema::tables::{L2BlockByHash, L2BlockByNumber, L2StatusHeights, ProverStateDiffs};
+use sov_db::schema::tables::{L2BlockByNumber, L2StatusHeights, ProverStateDiffs};
 use sov_db::schema::types::{L2BlockNumber, L2HeightStatus};
 use sov_schema_db::{ScanDirection, DB};
 
+/// Prunes L2 blocks by removing transaction bodies while keeping block headers.
 pub(crate) fn prune_l2_blocks(
     node_type: NodeType,
     ledger_db: &DB,
@@ -12,7 +13,7 @@ pub(crate) fn prune_l2_blocks(
         .iter_with_direction::<L2BlockByNumber>(Default::default(), ScanDirection::Forward)?;
     l2_blocks.seek_to_first();
 
-    let mut deleted = 0;
+    let mut pruned = 0;
     for record in l2_blocks {
         let Ok(record) = record else {
             continue;
@@ -24,9 +25,12 @@ pub(crate) fn prune_l2_blocks(
             break;
         }
 
-        ledger_db.delete::<L2BlockByNumber>(&l2_block_number)?;
+        let mut pruned_block = record.value;
+        for tx in &mut pruned_block.txs {
+            tx.body = None; // Clear tx body
+        }
 
-        ledger_db.delete::<L2BlockByHash>(&record.value.hash)?;
+        ledger_db.put::<L2BlockByNumber>(&l2_block_number, &pruned_block)?;
 
         if matches!(node_type, NodeType::BatchProver) {
             ledger_db.delete::<ProverStateDiffs>(&l2_block_number)?;
@@ -36,8 +40,8 @@ pub(crate) fn prune_l2_blocks(
             ledger_db.delete::<L2StatusHeights>(&(L2HeightStatus::Committed, l2_block_number.0))?;
         }
 
-        deleted += 1;
+        pruned += 1;
     }
 
-    Ok(deleted)
+    Ok(pruned)
 }
