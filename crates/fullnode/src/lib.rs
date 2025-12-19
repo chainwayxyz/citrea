@@ -226,6 +226,11 @@ where
         PrunerService::new(pruner, last_pruned_block, l2_block_tx.subscribe())
     });
 
+    // Initialize metrics once at component startup
+    if let Err(e) = crate::metrics::initialize_metrics(&ledger_db) {
+        tracing::debug!("Failed to initialize fullnode metrics: {:?}", e);
+    }
+
     let include_tx_bodies = runner_config.include_tx_body;
     let l2_syncer = L2Syncer::new(
         runner_config,
