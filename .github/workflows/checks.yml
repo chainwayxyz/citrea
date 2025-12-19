@@ -591,6 +591,10 @@ jobs:
         uses: actions/cache@v4
         with:
           key: citrea-build-${{ steps.base-commit.outputs.base-hash }}
+          path: |
+            target/debug/citrea
+            target/debug/citrea-cli
+            target/debug/**/methods.rs
 
       - name: Checkout to base branch
         if: steps.restore-test-cache.outputs.cache-hit != 'true'
