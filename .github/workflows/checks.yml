@@ -585,17 +585,16 @@ jobs:
           key: proving-stats-${{ steps.base-commit.outputs.base-hash }}
 
       # --- Run test only if cache missed ---
-      - name: Download base build artifact
-        id: download-artifact
+      - name: Restore base build artifact
+        id: restore-artifact
         if: steps.restore-test-cache.outputs.cache-hit != 'true'
-        continue-on-error: true
-        uses: dawidd6/action-download-artifact@v11
+        uses: actions/cache@v4
         with:
-          name: citrea-build
-          ref: ${{ steps.base-commit.outputs.base-hash }}
-          path: target/debug
-          if_no_artifact_found: warn
-          workflow_conclusion: ""
+          key: citrea-build-${{ steps.base-commit.outputs.base-hash }}
+          path: |
+            target/debug/citrea
+            target/debug/citrea-cli
+            target/debug/**/methods.rs
 
       - name: Checkout to base branch
         if: steps.restore-test-cache.outputs.cache-hit != 'true'
@@ -610,32 +609,32 @@ jobs:
 
       # --- Build only if the artifact is not found ---
       - name: Install Rust toolchain
-        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: dtolnay/rust-toolchain@nightly
 
       - name: Setup mold linker
-        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: rui314/setup-mold@v1
 
       - name: Install Protoc
-        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: arduino/setup-protoc@v3
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Rust cache
-        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: ubicloud/rust-cache@v2
         with:
             shared-key: build
       - name: Cache ethereum-tests
-        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: actions/cache@v4
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
       - name: Build citrea on the base branch
-        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.download-artifact.outputs.found_artifact != 'true'
+        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         run: make build
 
       - name: Checkout to PR branch
