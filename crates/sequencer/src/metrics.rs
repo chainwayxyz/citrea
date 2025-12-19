@@ -195,9 +195,6 @@ where
         SEQUENCER_METRICS
             .latest_sequencer_commitment_l2_end_height
             .set(commitment.l2_end_block_number as f64);
-        SEQUENCER_METRICS
-            .currently_committing_index
-            .set(commitment.index as f64);
         debug!(
             "Initialized sequencer commitment metrics: index={}, end_height={}",
             commitment.index, commitment.l2_end_block_number
