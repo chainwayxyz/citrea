@@ -109,6 +109,7 @@ jobs:
             target/debug/citrea
             target/debug/citrea-cli
             target/debug/**/methods.rs
+          # update proving stats' cache restore if key format changes
           key: citrea-build-${{ github.sha }}
 
   check:
