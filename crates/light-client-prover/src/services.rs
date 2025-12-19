@@ -7,7 +7,7 @@ use citrea_common::backup::BackupManager;
 use citrea_common::LightClientProverConfig;
 use jsonrpsee::RpcModule;
 use prover_services::ParallelProverService;
-use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
+use sov_db::ledger_db::LightClientProverLedgerOps;
 use sov_modules_api::{SpecId, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::DaService;
@@ -59,12 +59,17 @@ pub fn build_services<Vm, Da, DB>(
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    DB: LightClientProverLedgerOps + SharedLedgerOps + Clone + 'static,
+    DB: LightClientProverLedgerOps + Clone + 'static,
     Network: InitialValueProvider<Da::Spec>,
 {
     let rpc_storage = storage_manager.create_final_view_storage();
     let rpc_context = rpc::create_rpc_context(ledger_db.clone(), rpc_storage);
     let rpc_module = rpc::register_rpc_methods(rpc_module, rpc_context)?;
+
+    // Initialize metrics once at component startup
+    if let Err(e) = crate::metrics::initialize_metrics(&ledger_db) {
+        tracing::debug!("Failed to initialize light client prover metrics: {:?}", e);
+    }
 
     let l1_block_handler = L1BlockHandler::new(
         network,

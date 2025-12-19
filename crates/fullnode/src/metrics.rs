@@ -71,3 +71,52 @@ pub static FULLNODE_METRICS: LazyLock<FullnodeMetrics> = LazyLock::new(|| {
     FullnodeMetrics::describe();
     FullnodeMetrics::default()
 });
+
+/// Initializes fullnode metrics with current DB state
+///
+/// # Arguments
+/// * `ledger_db` - The ledgerDB to read metrics from
+///
+/// # Errors
+/// Returns error if database operations fail
+pub fn initialize_metrics<DB>(ledger_db: &DB) -> Result<(), anyhow::Error>
+where
+    DB: sov_db::ledger_db::NodeLedgerOps,
+{
+    use sov_db::schema::types::L2HeightStatus;
+    use tracing::debug;
+
+    if let Ok(Some(committed_height)) =
+        ledger_db.get_highest_l2_height_for_status(L2HeightStatus::Committed, None)
+    {
+        FULLNODE_METRICS
+            .highest_committed_l2_height
+            .set(committed_height.height as f64);
+        FULLNODE_METRICS
+            .highest_committed_index
+            .set(committed_height.commitment_index as f64);
+        debug!(
+            "Initialized highest_committed_l2_height metric: {} at index {}",
+            committed_height.height, committed_height.commitment_index
+        );
+    }
+
+    if let Ok(Some(proven_height)) =
+        ledger_db.get_highest_l2_height_for_status(L2HeightStatus::Proven, None)
+    {
+        FULLNODE_METRICS
+            .highest_proven_l2_height
+            .set(proven_height.height as f64);
+        debug!(
+            "Initialized highest_proven_l2_height metric: {}",
+            proven_height.height
+        );
+    }
+
+    if let Ok(Some(head_l2_height)) = ledger_db.get_head_l2_block_height() {
+        FULLNODE_METRICS.current_l2_block.set(head_l2_height as f64);
+        debug!("Initialized current_l2_block metric: {}", head_l2_height);
+    }
+
+    Ok(())
+}
