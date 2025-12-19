@@ -7,6 +7,7 @@ use std::sync::LazyLock;
 
 use metrics::{histogram, Gauge, Histogram};
 use metrics_derive::Metrics;
+use prover_services::PARALLEL_PROVER_METRICS;
 
 /// Collection of metrics for monitoring batch prover performance and state
 /// Also note the struct methods below will be recording to histogram for some metrics as well
@@ -98,6 +99,9 @@ where
             head_l2_height
         );
     }
+
+    PARALLEL_PROVER_METRICS.ongoing_proving_jobs.set(0.0);
+    debug!("Initialized parallel_prover_service ongoing_proving_jobs metric: 0");
 
     Ok(())
 }
