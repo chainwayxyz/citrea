@@ -1,10 +1,14 @@
 # Changelog
 
 ## [Unreleased]
+## Added
+
+## Changed
+- fix: `bitcoin::network::Testnet` vs `bitcoin::network::Testnet4` confusion in mempool.space fee retrieval ([#3087](https://github.com/chainwayxyz/citrea/pull/3087))
+
+## [v1.1.0] (2025-12-17)
 ### Added
-
-- feat: add with_proof option to batchProver_getProvingJob ([#3071](https://github.com/chainwayxyz/citrea/pull/3071)) 
-
+- feat: add with_proof option to `batchProver_getProvingJob` ([#3071](https://github.com/chainwayxyz/citrea/pull/3071)) 
 - feat: Add `batchProver_getLatestProvingSessionInfos` rpc ([#3070](https://github.com/chainwayxyz/citrea/pull/3070))
 - feat: Use floating point precision in calculating bitcoin fee rate. ([#3066](https://github.com/chainwayxyz/citrea/pull/3066))
 
@@ -171,7 +175,8 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
 
-[unreleased]: https://github.com/chainwayxyz/citrea/compare/v1.0.2...HEAD
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/v1.1.0...HEAD
+[v1.1.0]: https://github.com/chainwayxyz/citrea/compare/v1.0.2...v1.1.0
 [v1.0.2]: https://github.com/chainwayxyz/citrea/compare/v1.0.1...v1.0.2
 [v1.0.1]: https://github.com/chainwayxyz/citrea/compare/v1.0.0...v1.0.1
 [v1.0.0]: https://github.com/chainwayxyz/citrea/compare/v0.9.0...v1.0.0

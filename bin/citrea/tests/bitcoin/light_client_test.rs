@@ -8,6 +8,7 @@ use bitcoin::hashes::Hash;
 use bitcoin::Txid;
 use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
 use bitcoin_da::spec::RollupParams;
+use bitcoin_da::utxo_manager::UtxoContext;
 use bitcoin_da::verifier::BitcoinVerifier;
 use bitcoincore_rpc::{Client, RpcApi};
 use borsh::BorshDeserialize;
@@ -3317,8 +3318,10 @@ impl UndecompressableBlobTest {
         let DaTxs::Complete { commit, reveal } = create_inscription_type_0(
             body,
             &da_private_key,
-            None,
-            utxos,
+            UtxoContext {
+                prev_utxo: None,
+                available_utxos: utxos,
+            },
             change_address,
             1.0,
             1.0,
@@ -3375,8 +3378,10 @@ impl UndecompressableBlobTest {
         } = create_inscription_type_1(
             chunks,
             &da_private_key,
-            None,
-            utxos,
+            UtxoContext {
+                available_utxos: utxos,
+                prev_utxo: None,
+            },
             change_address,
             2.0,
             2.0,
