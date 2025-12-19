@@ -1,8 +1,16 @@
 # Changelog
 
 ## [Unreleased]
+<<<<<<< HEAD
 ### Added
 - fix: Initialize metrics at startup. ([#2954](https://github.com/chainwayxyz/citrea/pull/2954))
+||||||| a48fc3a2e
+=======
+## Added
+
+## Changed
+- fix: `bitcoin::network::Testnet` vs `bitcoin::network::Testnet4` confusion in mempool.space fee retrieval ([#3087](https://github.com/chainwayxyz/citrea/pull/3087))
+>>>>>>> origin/nightly
 
 ## [v1.1.0] (2025-12-17)
 ### Added

@@ -96,6 +96,10 @@ pub struct BitcoinServiceConfig {
     /// Monitoring configuration.
     pub monitoring: Option<MonitoringConfig>,
     /// The URL of the mempool.space API.
+    /// It should end with a slash.
+    /// It should include the network but not api
+    /// So for mainnet: https://mempool.space/
+    /// For testnet: https://mempool.space/testnet4/
     pub mempool_space_url: Option<String>,
 
     /// UTXO selection mode
@@ -1223,7 +1227,7 @@ impl DaService for BitcoinService {
     async fn get_fee_rate(&self) -> Result<u128> {
         let sat_vb_ceil = self
             .fee
-            .get_fee_rate_as_sat_vb()
+            .get_fee_rate()
             .await
             .map_err(|_| BitcoinServiceError::FeeRateError)? as u128;
 
