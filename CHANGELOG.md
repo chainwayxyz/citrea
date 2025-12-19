@@ -1,6 +1,8 @@
 # Changelog
 
 ## [Unreleased]
+### Added
+- fix: Initialize metrics at startup. ([#2954](https://github.com/chainwayxyz/citrea/pull/2954))
 
 ## [v1.1.0] (2025-12-17)
 ### Added
@@ -20,7 +22,6 @@
 - ci: Run citrea-e2e tests against bitcoin v30 ([#3054](https://github.com/chainwayxyz/citrea/pull/3054))
 - feat: Add `citrea-cli db-migrate` subcommand ([#3015](https://github.com/chainwayxyz/citrea/pull/3015))\
   Usage: `citrea-cli db-migrate --node-type <NODE_TYPE> --db-path <DB_PATH>`
-- fix: Initialize metrics at startup. ([#2954](https://github.com/chainwayxyz/citrea/pull/2954))
 
 ### Changed
 - chore: renamed `BOUNDLESS_S3_NO_PRESIGNED` to `BOUNDLESS_S3_USE_PRESIGNED`. ([#3046](https://github.com/chainwayxyz/citrea/pull/3046))\
@@ -172,14 +173,8 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
 
-<<<<<<< HEAD
-[unreleased]: https://github.com/chainwayxyz/citrea/compare/release-v0.8.1...HEAD
-||||||| 8c77d6e1f
-[unreleased]: https://github.com/chainwayxyz/citrea/compare/release-v0.8.1...HEAD
-=======
 [unreleased]: https://github.com/chainwayxyz/citrea/compare/v1.1.0...HEAD
 [v1.1.0]: https://github.com/chainwayxyz/citrea/compare/v1.0.2...v1.1.0
 [v1.0.2]: https://github.com/chainwayxyz/citrea/compare/v1.0.1...v1.0.2
 [v1.0.1]: https://github.com/chainwayxyz/citrea/compare/v1.0.0...v1.0.1
 [v1.0.0]: https://github.com/chainwayxyz/citrea/compare/v0.9.0...v1.0.0
->>>>>>> origin/nightly
