@@ -518,7 +518,7 @@ jobs:
 
   proving-stats:
     name: Proving stats
-    runs-on: ubicloud-standard-2
+    runs-on: ubicloud-standard-30
     needs: [build, docker-setup]
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'guest-code')
     steps:

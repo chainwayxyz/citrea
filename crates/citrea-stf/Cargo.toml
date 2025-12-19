@@ -30,6 +30,7 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 
 citrea-evm = { path = "../evm" }
+ecrecover-address-provider = { path = "../ecrecover-address-provider", default-features = false }
 l2-block-rule-enforcer = { path = "../l2-block-rule-enforcer" }
 short-header-proof-provider = { path = "../short-header-proof-provider" }
 
@@ -50,6 +51,7 @@ sov-state = { path = "../sovereign-sdk/module-system/sov-state", features = ["na
 default = []
 native = [
   "short-header-proof-provider/native",
+  "ecrecover-address-provider/native",
   "dep:sov-db",
   "sov-accounts/native",
   "sov-modules-api/native",

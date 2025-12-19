@@ -4,7 +4,9 @@ use alloy_eips::eip2718::Decodable2718;
 use alloy_primitives::Bytes as RethBytes;
 #[cfg(feature = "native")]
 use alloy_primitives::U256;
+use ecrecover_address_provider::ECRECOVER_ADDRESS_PROVIDER;
 use reth_primitives::{Recovered, TransactionSigned};
+#[cfg(feature = "native")]
 use reth_primitives_traits::SignedTransaction;
 use revm::context::{TransactTo, TxEnv};
 use revm::state::AccountInfo as ReVmAccountInfo;
@@ -110,8 +112,72 @@ impl TryFrom<RlpEvmTransaction> for Recovered<TransactionSigned> {
         if tx.signature() == &SYSTEM_SIGNATURE {
             return Ok(Self::new_unchecked(tx, SYSTEM_SIGNER));
         }
-        tx.try_into_recovered()
-            .map_err(|_| ConversionError::InvalidSignature)
+
+        #[cfg(not(feature = "native"))]
+        {
+            // Use pre-computed address from provider
+            let address = ECRECOVER_ADDRESS_PROVIDER
+                .get()
+                .expect("Ecrecover address provider not initialized")
+                .get_next()
+                .expect("Missing ecrecover address in witness");
+
+            return Ok(Self::new_unchecked(
+                tx,
+                alloy_primitives::Address::from(address),
+            ));
+        }
+
+        #[cfg(feature = "native")]
+        {
+            tx.try_into_recovered()
+                .map_err(|_| ConversionError::InvalidSignature)
+        }
+    }
+}
+
+/// Convert RlpEvmTransaction to Recovered<TransactionSigned>.
+///
+/// This function implements the ecrecover optimization pattern:
+/// - On native: Performs actual ECDSA recovery and records the address to be added to input
+/// - In non native: Uses pre-computed addresses from input
+///
+/// Addresses are recorded/consumed in deterministic order (block by block, tx by tx).
+pub fn recover_raw_transaction(
+    evm_tx: RlpEvmTransaction,
+) -> Result<Recovered<TransactionSigned>, ConversionError> {
+    let tx = TransactionSigned::try_from(evm_tx)?;
+    if tx.signature() == &SYSTEM_SIGNATURE {
+        return Ok(Recovered::new_unchecked(tx, SYSTEM_SIGNER));
+    }
+
+    #[cfg(not(feature = "native"))]
+    {
+        // Use pre-computed address from provider
+        let address = ECRECOVER_ADDRESS_PROVIDER
+            .get()
+            .expect("Ecrecover address provider not initialized")
+            .get_next()
+            .expect("Missing ecrecover address in witness");
+
+        return Ok(Recovered::new_unchecked(
+            tx,
+            alloy_primitives::Address::from(address),
+        ));
+    }
+
+    #[cfg(feature = "native")]
+    {
+        let recovered = tx
+            .try_into_recovered()
+            .map_err(|_| ConversionError::InvalidSignature)?;
+
+        // Record the address
+        if let Some(provider) = ECRECOVER_ADDRESS_PROVIDER.get() {
+            provider.record(recovered.signer().into_array());
+        }
+
+        Ok(recovered)
     }
 }
 

@@ -11,8 +11,10 @@ repository.workspace = true
 [dependencies]
 # Citrea Deps
 citrea-common = { path = "../common" }
+citrea-evm = { path = "../evm" }
 citrea-primitives = { path = "../primitives" }
 citrea-stf = { path = "../citrea-stf" }
+ecrecover-address-provider = { path = "../ecrecover-address-provider", features = ["native"] }
 prover-services = { path = "../prover-services" }
 short-header-proof-provider = { path = "../short-header-proof-provider", features = ["native"] }
 # Sov SDK deps

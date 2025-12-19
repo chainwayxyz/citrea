@@ -1,7 +1,8 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 mod call;
-mod evm;
+/// EVM handler and transaction processing
+pub mod evm;
 mod genesis;
 mod hooks;
 #[cfg(feature = "native")]

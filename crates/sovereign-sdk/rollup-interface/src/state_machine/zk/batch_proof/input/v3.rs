@@ -40,6 +40,8 @@ pub struct BatchProofCircuitInputV3Part1 {
     pub cache_prune_l2_heights: Vec<u64>,
     /// The witness needed to access the last L1 hash on the bitcoin light client contract
     pub last_l1_hash_witness: Witness,
+    /// Pre-computed ecrecovered addresses
+    pub recovered_addresses: VecDeque<Vec<[u8; 20]>>,
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -73,6 +75,8 @@ pub struct BatchProofCircuitInputV3 {
     /// To verify the first `prev_hash`, we need a merkle proof for the last header in the previous
     /// sequencer commitment.
     pub prev_hash_proof: Option<PrevHashProof>,
+    /// Pre-computed ecrecovered addresses
+    pub recovered_addresses: VecDeque<Vec<[u8; 20]>>,
 }
 
 impl BatchProofCircuitInputV3 {
@@ -108,6 +112,7 @@ impl BatchProofCircuitInputV3 {
                 last_l1_hash_witness: self.last_l1_hash_witness,
                 previous_sequencer_commitment: self.previous_sequencer_commitment,
                 prev_hash_proof: self.prev_hash_proof,
+                recovered_addresses: self.recovered_addresses,
             },
             BatchProofCircuitInputV3Part2(x),
         )

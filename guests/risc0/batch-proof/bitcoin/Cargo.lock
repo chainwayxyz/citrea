@@ -1208,6 +1208,7 @@ dependencies = [
  "alloy-sol-types",
  "borsh",
  "citrea-primitives",
+ "ecrecover-address-provider",
  "k256",
  "reth-primitives",
  "reth-primitives-traits",
@@ -1253,6 +1254,7 @@ version = "1.1.0"
 dependencies = [
  "borsh",
  "citrea-evm",
+ "ecrecover-address-provider",
  "l2-block-rule-enforcer",
  "serde",
  "short-header-proof-provider",
@@ -1578,6 +1580,13 @@ dependencies = [
  "serdect",
  "signature",
  "spki",
+]
+
+[[package]]
+name = "ecrecover-address-provider"
+version = "1.1.0"
+dependencies = [
+ "thiserror 2.0.12",
 ]
 
 [[package]]

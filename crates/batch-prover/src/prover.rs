@@ -13,6 +13,7 @@ use citrea_primitives::compression::compress_blob;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::{network_to_dev_mode, MAX_TX_BODY_SIZE, MAX_WITNESS_CACHE_SIZE};
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
+use ecrecover_address_provider::ECRECOVER_ADDRESS_PROVIDER;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use prover_services::{ParallelProverService, ProofData, ProofWithDuration};
@@ -593,6 +594,7 @@ where
             cache_prune_l2_heights,
             committed_l2_blocks,
             last_l1_hash_witness,
+            recovered_addresses,
         } = get_batch_proof_circuit_input_from_commitments::<Da, _>(
             partition.start_height,
             partition.commitments,
@@ -633,6 +635,7 @@ where
             last_l1_hash_witness,
             previous_sequencer_commitment,
             prev_hash_proof,
+            recovered_addresses,
         })
     }
 
@@ -900,6 +903,8 @@ pub(crate) struct CommitmentStateTransitionData {
     committed_l2_blocks: VecDeque<Vec<L2Block>>,
     /// Witness needed to get the last Bitcoin hash on Bitcoin Light Client contract
     last_l1_hash_witness: Witness,
+    /// Pre-computed ecrecovered addresses
+    recovered_addresses: VecDeque<Vec<[u8; 20]>>,
 }
 
 /// This function retrieves the batch proof circuit input from the sequencer commitments
@@ -984,6 +989,7 @@ pub(crate) fn get_batch_proof_circuit_input_from_commitments<
         cache_prune_l2_heights,
         short_header_proofs,
         last_l1_hash_witness,
+        recovered_addresses,
     ) = generate_cumulative_witness::<Da, _>(
         &committed_l2_blocks,
         ledger_db,
@@ -1005,6 +1011,7 @@ pub(crate) fn get_batch_proof_circuit_input_from_commitments<
         cache_prune_l2_heights,
         committed_l2_blocks,
         last_l1_hash_witness,
+        recovered_addresses,
     })
 }
 
@@ -1038,7 +1045,8 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
     VecDeque<Vec<(Witness, Witness)>>,
     Vec<u64>,
     VecDeque<Vec<u8>>,
-    Witness, // last hash witness
+    Witness,                 // last hash witness
+    VecDeque<Vec<[u8; 20]>>, // recovered addresses per commitment
 )> {
     let mut short_header_proofs: VecDeque<Vec<u8>> = VecDeque::new();
 
@@ -1061,6 +1069,8 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
         .last()
         .expect("must have at least one l2 block")
         .height();
+
+    let mut all_recovered_addresses = VecDeque::new();
 
     for l2_blocks_in_commitment in committed_l2_blocks {
         let mut witnesses = Vec::with_capacity(l2_blocks_in_commitment.len());
@@ -1147,6 +1157,11 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
             short_header_proofs.push_back(serialized_shp);
         }
 
+        // Extract recorded ecrecover addresses for this commitment.
+        // These addresses were collected during transaction recovery in recover_raw_transaction()
+        let addresses = ECRECOVER_ADDRESS_PROVIDER.get().unwrap().take_addresses()?;
+
+        all_recovered_addresses.push_back(addresses);
         state_transition_witnesses.push_back(witnesses);
     }
 
@@ -1172,6 +1187,7 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
         cache_prune_l2_heights,
         short_header_proofs,
         last_l1_hash_witness,
+        all_recovered_addresses,
     ))
 }
 

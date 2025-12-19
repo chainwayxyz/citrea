@@ -43,7 +43,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let users_txs: Vec<Recovered<TransactionSigned>> = txs
             .into_iter()
-            .map(|tx| tx.try_into())
+            .map(crate::evm::conversions::recover_raw_transaction)
             .collect::<Result<Vec<_>, ConversionError>>()
             .map_err(|_| L2BlockModuleCallError::EvmTxNotSerializable)?;
 
