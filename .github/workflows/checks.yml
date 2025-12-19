@@ -592,7 +592,7 @@ jobs:
         continue-on-error: true
         uses: dawidd6/action-download-artifact@v11
         with:
-          name: citrea-build
+          name: citrea-build-${{ steps.base-commit.outputs.base-hash }}
           ref: ${{ steps.base-commit.outputs.base-hash }}
           path: target/debug
           if_no_artifact_found: warn
