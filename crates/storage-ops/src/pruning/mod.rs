@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Result;
 use citrea_common::config::PruningConfig;
 use citrea_common::NodeType;
 use futures::future;
@@ -62,7 +63,7 @@ impl Pruner {
     }
 
     /// Prune everything
-    pub async fn prune(&self, node_type: NodeType, up_to_block: u64) {
+    pub async fn prune(&self, node_type: NodeType, up_to_block: u64) -> Result<()> {
         info!("Pruning up to L2 block: {}", up_to_block);
         let ledger_db = self.ledger_db.clone();
 
@@ -70,8 +71,9 @@ impl Pruner {
 
         // let state_db = self.state_db.clone();
 
-        let ledger_pruning_handle =
-            tokio::task::spawn_blocking(move || prune_ledger(node_type, ledger_db, up_to_block));
+        let ledger_pruning_handle = tokio::task::spawn_blocking(move || {
+            prune_ledger(node_type, ledger_db, up_to_block)
+        });
 
         // TODO: Fix me
         // let state_db_pruning_handle =
@@ -80,11 +82,13 @@ impl Pruner {
         let native_db_pruning_handle =
             tokio::task::spawn_blocking(move || prune_native_db(native_db, up_to_block));
 
-        future::join_all([
+        future::try_join_all([
             ledger_pruning_handle,
             // state_db_pruning_handle,
             native_db_pruning_handle,
         ])
-        .await;
+        .await
+        .map(|_| ())
+        .map_err(|e| anyhow::anyhow!("Pruning task failed: {}", e))
     }
 }
