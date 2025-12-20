@@ -1,7 +1,4 @@
-use std::collections::VecDeque;
-
 use citrea_evm::{keccak256, Evm, BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS, U256};
-use ecrecover_address_provider::{ZkEcrecoverAddressProvider, ECRECOVER_ADDRESS_PROVIDER};
 use short_header_proof_provider::{ZkShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER};
 use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::fork::Fork;
@@ -64,16 +61,20 @@ where
         }
 
         // Initialize ecrecover address provider with pre-computed addresses from input
-        let mut flat_addresses = VecDeque::new();
-        for commitment_addresses in data.recovered_addresses {
-            flat_addresses.extend(commitment_addresses);
-        }
-        let ecrecover_provider = ZkEcrecoverAddressProvider::new(flat_addresses);
-        if ECRECOVER_ADDRESS_PROVIDER
-            .set(Box::new(ecrecover_provider))
-            .is_err()
+        #[cfg(not(feature = "native"))]
         {
-            panic!("Ecrecover address provider already set");
+            let mut flat_addresses = std::collections::VecDeque::new();
+            for commitment_addresses in data.recovered_addresses {
+                flat_addresses.extend(commitment_addresses);
+            }
+            let ecrecover_provider =
+                ecrecover_address_provider::EcrecoverAddressProvider::new(flat_addresses);
+            if ecrecover_address_provider::ECRECOVER_ADDRESS_PROVIDER
+                .set(ecrecover_provider)
+                .is_err()
+            {
+                panic!("Ecrecover address provider already set");
+            }
         }
 
         println!("going into apply_l2_blocks_from_sequencer_commitments");

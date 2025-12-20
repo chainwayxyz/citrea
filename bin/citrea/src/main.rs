@@ -18,7 +18,7 @@ use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use clap::Parser;
-use ecrecover_address_provider::{NativeEcrecoverAddressCollector, ECRECOVER_ADDRESS_PROVIDER};
+use ecrecover_address_provider::{EcrecoverAddressProvider, ECRECOVER_ADDRESS_PROVIDER};
 use metrics_exporter_prometheus::PrometheusBuilder;
 use reth_tasks::TaskManager;
 use short_header_proof_provider::{
@@ -230,7 +230,7 @@ where
         Err(_) => tracing::error!("Short header proof provider already set"),
     }
 
-    match ECRECOVER_ADDRESS_PROVIDER.set(Box::new(NativeEcrecoverAddressCollector::new())) {
+    match ECRECOVER_ADDRESS_PROVIDER.set(EcrecoverAddressProvider::new()) {
         Ok(_) => {}
         Err(_) => panic!("Ecrecover address provider already initialized"),
     }
