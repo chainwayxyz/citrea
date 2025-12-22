@@ -174,3 +174,39 @@ pub static RETH_BLOB_STORE_METRICS: LazyLock<BlobStoreMetrics> = LazyLock::new(|
     BlobStoreMetrics::describe();
     BlobStoreMetrics::default()
 });
+
+/// Initializes sequencer metrics with current DB state
+///
+/// # Arguments
+/// * `ledger_db` - The ledgerDB to read metrics from
+///
+/// # Errors
+/// Returns error if database operations fail
+pub fn initialize_metrics<DB>(ledger_db: &DB) -> Result<(), anyhow::Error>
+where
+    DB: sov_db::ledger_db::SequencerLedgerOps,
+{
+    use tracing::debug;
+
+    if let Ok(Some(commitment)) = ledger_db.get_last_commitment() {
+        SEQUENCER_METRICS
+            .latest_sequencer_commitment_index
+            .set(commitment.index as f64);
+        SEQUENCER_METRICS
+            .latest_sequencer_commitment_l2_end_height
+            .set(commitment.l2_end_block_number as f64);
+        debug!(
+            "Initialized sequencer commitment metrics: index={}, end_height={}",
+            commitment.index, commitment.l2_end_block_number
+        );
+    }
+
+    if let Ok(Some(head_l2_height)) = ledger_db.get_head_l2_block_height() {
+        SEQUENCER_METRICS
+            .current_l2_block
+            .set(head_l2_height as f64);
+        debug!("Initialized current_l2_block metric: {}", head_l2_height);
+    }
+
+    Ok(())
+}
