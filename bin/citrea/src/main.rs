@@ -237,6 +237,7 @@ where
 
     let rpc_storage = storage_manager.create_final_view_storage();
     let mut rpc_module = rollup_blueprint.create_rpc_methods(
+        (&node_type).into(),
         rpc_storage.clone(),
         &ledger_db,
         &da_service,

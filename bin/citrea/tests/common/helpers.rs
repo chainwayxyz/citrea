@@ -226,6 +226,7 @@ pub async fn start_rollup(
     let rpc_storage = storage_manager.create_final_view_storage();
     let mut rpc_module = mock_demo_rollup
         .create_rpc_methods(
+            NodeType::FullNode, // Allow all RPC in tests
             rpc_storage.clone(),
             &ledger_db,
             &da_service,
