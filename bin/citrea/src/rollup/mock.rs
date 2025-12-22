@@ -6,7 +6,7 @@ use citrea_common::backup::{create_backup_rpc_module, BackupManager};
 // use citrea_sp1::host::SP1Host;
 use citrea_common::config::risc0::Risc0HostConfig;
 use citrea_common::config::ProverGuestRunConfig;
-use citrea_common::{FullNodeConfig, RpcConfig};
+use citrea_common::{FullNodeConfig, NodeType, RpcConfig};
 use citrea_primitives::forks::use_network_forks;
 use citrea_risc0_adapter::host::Risc0Host;
 use citrea_stf::genesis_config::StorageConfig;
@@ -16,8 +16,9 @@ use reth_tasks::TaskExecutor;
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier};
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::{Address, Spec, SpecId, Zkvm};
+use sov_modules_api::{Spec, SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
+use sov_modules_stf_blueprint::Runtime;
 use sov_prover_storage_manager::ProverStorageManager;
 
 use crate::guests::{BATCH_PROOF_LATEST_MOCK_GUESTS, LIGHT_CLIENT_LATEST_MOCK_GUESTS};
@@ -45,19 +46,23 @@ impl RollupBlueprint for MockDemoRollup {
 
     fn create_rpc_methods(
         &self,
+        _node_type: NodeType,
         storage: <DefaultContext as Spec>::Storage,
         ledger_db: &LedgerDB,
         _da_service: &Arc<Self::DaService>,
         backup_manager: &Arc<BackupManager>,
         rpc_config: RpcConfig,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
-        // TODO set the sequencer address
-        let sequencer = Address::new([0; 32]);
+        // runtime rpc.
+        let mut rpc_methods =
+            <CitreaRuntime<DefaultContext, Self::DaSpec>>::rpc_methods(storage, ledger_db.clone());
 
-        let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
-            Self::DaService,
-            CitreaRuntime<DefaultContext, Self::DaSpec>,
-        >(storage.clone(), ledger_db, sequencer, rpc_config)?;
+        // ledger rpc.
+        let ledger_db_methods = sov_ledger_rpc::server::create_rpc_module::<LedgerDB>(
+            ledger_db.clone(),
+            rpc_config.into(),
+        );
+        rpc_methods.merge(ledger_db_methods)?;
 
         let backup_methods = create_backup_rpc_module(ledger_db.clone(), backup_manager.clone());
         rpc_methods.merge(backup_methods)?;
