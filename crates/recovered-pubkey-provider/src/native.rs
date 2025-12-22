@@ -1,8 +1,7 @@
 use parking_lot::Mutex;
 
-use crate::Secp256k1Pubkey;
-
 use super::EcrecoverProviderError;
+use crate::Secp256k1Pubkey;
 
 /// Collects ecrecover pubkeys during native execution in deterministic order.
 ///

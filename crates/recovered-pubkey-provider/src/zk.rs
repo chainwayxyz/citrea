@@ -1,7 +1,8 @@
-use super::EcrecoverProviderError;
-use crate::Secp256k1Pubkey;
 use std::cell::RefCell;
 use std::collections::VecDeque;
+
+use super::EcrecoverProviderError;
+use crate::Secp256k1Pubkey;
 
 /// Provides pre-computed pubkeys zk context
 pub struct RecoveredPubkeyProvider {
