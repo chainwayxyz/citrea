@@ -19,4 +19,6 @@ mod zk;
 #[cfg(not(feature = "native"))]
 pub use zk::RecoveredPubkeyProvider;
 
+pub type Secp256k1Pubkey = [u8; 65];
+
 pub static RECOVERED_PUBKEY_PROVIDER: OnceLock<RecoveredPubkeyProvider> = OnceLock::new();

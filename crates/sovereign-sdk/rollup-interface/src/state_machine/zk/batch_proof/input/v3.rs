@@ -41,7 +41,7 @@ pub struct BatchProofCircuitInputV3Part1 {
     /// The witness needed to access the last L1 hash on the bitcoin light client contract
     pub last_l1_hash_witness: Witness,
     /// Pre-computed recovered pubkeys
-    pub recovered_pubkeys: VecDeque<Vec<Vec<u8>>>,
+    pub recovered_pubkeys: VecDeque<Vec<[u8; 65]>>,
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -76,7 +76,7 @@ pub struct BatchProofCircuitInputV3 {
     /// sequencer commitment.
     pub prev_hash_proof: Option<PrevHashProof>,
     /// Pre-computed recovered pubkeys
-    pub recovered_pubkeys: VecDeque<Vec<Vec<u8>>>,
+    pub recovered_pubkeys: VecDeque<Vec<[u8; 65]>>,
 }
 
 impl BatchProofCircuitInputV3 {

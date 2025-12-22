@@ -17,7 +17,7 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use prover_services::{ParallelProverService, ProofData, ProofWithDuration};
 use rand::Rng;
-use recovered_pubkey_provider::RECOVERED_PUBKEY_PROVIDER;
+use recovered_pubkey_provider::{Secp256k1Pubkey, RECOVERED_PUBKEY_PROVIDER};
 use reth_tasks::shutdown::GracefulShutdown;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -904,7 +904,7 @@ pub(crate) struct CommitmentStateTransitionData {
     /// Witness needed to get the last Bitcoin hash on Bitcoin Light Client contract
     last_l1_hash_witness: Witness,
     /// Pre-computed ecrecovered pubkeys
-    recovered_pubkeys: VecDeque<Vec<Vec<u8>>>,
+    recovered_pubkeys: VecDeque<Vec<Secp256k1Pubkey>>,
 }
 
 /// This function retrieves the batch proof circuit input from the sequencer commitments
@@ -1045,8 +1045,8 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
     VecDeque<Vec<(Witness, Witness)>>,
     Vec<u64>,
     VecDeque<Vec<u8>>,
-    Witness,                // last hash witness
-    VecDeque<Vec<Vec<u8>>>, // recovered pubkeys per commitment
+    Witness,                        // last hash witness
+    VecDeque<Vec<Secp256k1Pubkey>>, // recovered pubkeys per commitment
 )> {
     let mut short_header_proofs: VecDeque<Vec<u8>> = VecDeque::new();
 

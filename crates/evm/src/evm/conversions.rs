@@ -187,11 +187,15 @@ pub fn recover_raw_transaction(
         )
         .map_err(|_| ConversionError::InvalidSignature)?;
 
-        let encoded = verifying_key.to_sec1_bytes();
+        let encoded = verifying_key.to_encoded_point(false).as_bytes().to_vec();
+
+        let pubkey: [u8; 65] = encoded
+            .try_into()
+            .expect("secp256k1 uncompressed pubkey must be 65 bytes");
 
         // Record the pubkey
         if let Some(provider) = RECOVERED_PUBKEY_PROVIDER.get() {
-            provider.record(encoded.to_vec());
+            provider.record(pubkey);
         }
 
         Ok(recovered)

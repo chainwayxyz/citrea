@@ -1,35 +1,37 @@
 use parking_lot::Mutex;
 
+use crate::Secp256k1Pubkey;
+
 use super::EcrecoverProviderError;
 
-/// Collects ecrecover addresses during native execution in deterministic order.
+/// Collects ecrecover pubkeys during native execution in deterministic order.
 ///
 /// Addresses are recorded during transaction recovery and later extracted to be
 /// included inside the input
 pub struct RecoveredPubkeyProvider {
-    addresses: Mutex<Vec<Vec<u8>>>,
+    pubkeys: Mutex<Vec<Secp256k1Pubkey>>,
 }
 
 impl RecoveredPubkeyProvider {
     pub fn new() -> Self {
         Self {
-            addresses: Mutex::new(Vec::new()),
+            pubkeys: Mutex::new(Vec::new()),
         }
     }
 
     /// Record a recovered pubkey bytes in deterministic order
-    pub fn record(&self, pubkey_bytes: Vec<u8>) {
-        self.addresses.lock().push(pubkey_bytes);
+    pub fn record(&self, pubkey_bytes: Secp256k1Pubkey) {
+        self.pubkeys.lock().push(pubkey_bytes);
     }
 
-    /// Clear all recorded addresses
+    /// Clear all recorded pubkeys
     pub fn clear(&self) {
-        self.addresses.lock().clear();
+        self.pubkeys.lock().clear();
     }
 
     /// Take all recorded pubkeys and clear the internal buffer
-    pub fn take_pubkeys(&self) -> Result<Vec<Vec<u8>>, EcrecoverProviderError> {
-        let mut vec = self.addresses.lock();
+    pub fn take_pubkeys(&self) -> Result<Vec<Secp256k1Pubkey>, EcrecoverProviderError> {
+        let mut vec = self.pubkeys.lock();
         Ok(std::mem::take(&mut *vec))
     }
 }
