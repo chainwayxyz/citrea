@@ -1225,14 +1225,14 @@ impl DaService for BitcoinService {
 
     #[instrument(level = "trace", skip(self))]
     async fn get_fee_rate(&self) -> Result<u128> {
-        let sat_vb_ceil = self
+        let sat_vb = self
             .fee
             .get_fee_rate()
             .await
-            .map_err(|_| BitcoinServiceError::FeeRateError)? as u128;
+            .map_err(|_| BitcoinServiceError::FeeRateError)?;
 
         // multiply with 10^10/4 = 25*10^8 = 2_500_000_000 for BTC to CBTC conversion (decimals)
-        let multiplied_fee = sat_vb_ceil.saturating_mul(2_500_000_000);
+        let multiplied_fee = (sat_vb * 2_500_000_000f64).ceil() as u128;
         Ok(multiplied_fee)
     }
 
