@@ -74,8 +74,6 @@ impl RollupBlueprint for BitcoinRollup {
         backup_manager: &Arc<BackupManager>,
         rpc_config: RpcConfig,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
-        // unused inside register RPC
-
         let mut rpc_methods = RpcModule::new(());
 
         if !matches!(node_type, NodeType::LightClientProver) {
