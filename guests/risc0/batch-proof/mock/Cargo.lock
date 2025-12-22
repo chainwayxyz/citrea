@@ -1147,8 +1147,8 @@ dependencies = [
  "alloy-sol-types",
  "borsh",
  "citrea-primitives",
- "ecrecover-address-provider",
  "k256",
+ "recovered-pubkey-provider",
  "reth-primitives",
  "reth-primitives-traits",
  "revm",
@@ -1193,8 +1193,8 @@ version = "1.1.0"
 dependencies = [
  "borsh",
  "citrea-evm",
- "ecrecover-address-provider",
  "l2-block-rule-enforcer",
+ "recovered-pubkey-provider",
  "serde",
  "short-header-proof-provider",
  "sov-accounts",
@@ -1519,13 +1519,6 @@ dependencies = [
  "serdect",
  "signature",
  "spki",
-]
-
-[[package]]
-name = "ecrecover-address-provider"
-version = "1.1.0"
-dependencies = [
- "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -2738,6 +2731,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d25bf25ec5ae4a3f1b92f929810509a2f53d7dca2f50b794ff57e3face536c8f"
 dependencies = [
  "rand_core 0.6.4",
+]
+
+[[package]]
+name = "recovered-pubkey-provider"
+version = "1.1.0"
+dependencies = [
+ "thiserror 2.0.12",
 ]
 
 [[package]]

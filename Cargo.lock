@@ -3599,7 +3599,6 @@ dependencies = [
  "citrea-stf",
  "citrea-storage-ops",
  "clap",
- "ecrecover-address-provider",
  "ethereum-rpc",
  "futures",
  "hex",
@@ -3614,6 +3613,7 @@ dependencies = [
  "metrics-util",
  "prover-services",
  "rand 0.8.5",
+ "recovered-pubkey-provider",
  "regex",
  "reqwest",
  "reth-primitives",
@@ -3662,7 +3662,6 @@ dependencies = [
  "citrea-evm",
  "citrea-primitives",
  "citrea-stf",
- "ecrecover-address-provider",
  "faster-hex",
  "futures",
  "hex",
@@ -3673,6 +3672,7 @@ dependencies = [
  "prover-services",
  "rand 0.8.5",
  "rayon",
+ "recovered-pubkey-provider",
  "reth-tasks",
  "risc0-zkvm",
  "rs_merkle",
@@ -3804,7 +3804,6 @@ dependencies = [
  "borsh",
  "bytes",
  "citrea-primitives",
- "ecrecover-address-provider",
  "hex",
  "itertools 0.13.0",
  "jsonrpsee",
@@ -3813,6 +3812,7 @@ dependencies = [
  "metrics-derive",
  "rand 0.8.5",
  "rayon",
+ "recovered-pubkey-provider",
  "reth-chainspec",
  "reth-db",
  "reth-errors",
@@ -4042,9 +4042,9 @@ dependencies = [
  "citrea-evm",
  "citrea-primitives",
  "citrea-stf",
- "ecrecover-address-provider",
  "jsonrpsee",
  "l2-block-rule-enforcer",
+ "recovered-pubkey-provider",
  "rs_merkle",
  "serde",
  "serde_json",
@@ -4926,14 +4926,6 @@ dependencies = [
  "serdect",
  "signature 2.2.0",
  "spki 0.7.3",
-]
-
-[[package]]
-name = "ecrecover-address-provider"
-version = "1.1.0"
-dependencies = [
- "parking_lot",
- "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -8929,6 +8921,14 @@ checksum = "1465873a3dfdaa8ae7cb14b4383657caab0b3e8a0aa9ae8e04b044854c8dfce2"
 dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
+]
+
+[[package]]
+name = "recovered-pubkey-provider"
+version = "1.1.0"
+dependencies = [
+ "parking_lot",
+ "thiserror 2.0.12",
 ]
 
 [[package]]

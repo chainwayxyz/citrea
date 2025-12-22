@@ -16,7 +16,7 @@ use citrea_common::{
 use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
-use ecrecover_address_provider::{EcrecoverAddressProvider, ECRECOVER_ADDRESS_PROVIDER};
+use recovered_pubkey_provider::{RecoveredPubkeyProvider, RECOVERED_PUBKEY_PROVIDER};
 use reth_tasks::TaskManager;
 use short_header_proof_provider::{
     NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
@@ -183,7 +183,7 @@ pub async fn start_rollup(
         Err(_) => tracing::error!("Short header proof provider already set"),
     }
 
-    match ECRECOVER_ADDRESS_PROVIDER.set(EcrecoverAddressProvider::new()) {
+    match RECOVERED_PUBKEY_PROVIDER.set(RecoveredPubkeyProvider::new()) {
         Ok(_) => tracing::debug!("ecrecover address provider set"),
         Err(_) => tracing::error!("ecrecover address provider already set"),
     }

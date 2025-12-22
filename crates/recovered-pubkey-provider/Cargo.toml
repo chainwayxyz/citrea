@@ -1,5 +1,5 @@
 [package]
-name = "ecrecover-address-provider"
+name = "recovered-pubkey-provider"
 authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }

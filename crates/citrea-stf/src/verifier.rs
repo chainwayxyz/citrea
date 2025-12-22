@@ -60,20 +60,20 @@ where
             panic!("Short header proof provider already set");
         }
 
-        // Initialize ecrecover address provider with pre-computed addresses from input
+        // Initialize pubkey provider with pre-computed pubkeys from input
         #[cfg(not(feature = "native"))]
         {
-            let mut flat_addresses = std::collections::VecDeque::new();
-            for commitment_addresses in data.recovered_addresses {
-                flat_addresses.extend(commitment_addresses);
+            let mut flat_pubkeys = std::collections::VecDeque::new();
+            for commitment_addresses in data.recovered_pubkeys {
+                flat_pubkeys.extend(commitment_addresses);
             }
-            let ecrecover_provider =
-                ecrecover_address_provider::EcrecoverAddressProvider::new(flat_addresses);
-            if ecrecover_address_provider::ECRECOVER_ADDRESS_PROVIDER
-                .set(ecrecover_provider)
+            let recovered_pubkey_provider =
+                recovered_pubkey_provider::RecoveredPubkeyProvider::new(flat_pubkeys);
+            if recovered_pubkey_provider::RECOVERED_PUBKEY_PROVIDER
+                .set(recovered_pubkey_provider)
                 .is_err()
             {
-                panic!("Ecrecover address provider already set");
+                panic!("Recovered pubkey provider already set");
             }
         }
 

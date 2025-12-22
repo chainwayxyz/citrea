@@ -12,11 +12,11 @@ pub enum EcrecoverProviderError {
 #[cfg(feature = "native")]
 mod native;
 #[cfg(feature = "native")]
-pub use native::EcrecoverAddressProvider;
+pub use native::RecoveredPubkeyProvider;
 
 #[cfg(not(feature = "native"))]
 mod zk;
 #[cfg(not(feature = "native"))]
-pub use zk::EcrecoverAddressProvider;
+pub use zk::RecoveredPubkeyProvider;
 
-pub static ECRECOVER_ADDRESS_PROVIDER: OnceLock<EcrecoverAddressProvider> = OnceLock::new();
+pub static RECOVERED_PUBKEY_PROVIDER: OnceLock<RecoveredPubkeyProvider> = OnceLock::new();

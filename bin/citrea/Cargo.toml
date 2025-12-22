@@ -26,9 +26,9 @@ citrea-sequencer = { path = "../../crates/sequencer" }
 # citrea-sp1 = { path = "../../crates/sp1", features = ["native"] }
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
 citrea-storage-ops = { path = "../../crates/storage-ops" }
-ecrecover-address-provider = { path = "../../crates/ecrecover-address-provider", features = ["native"] }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
 prover-services = { path = "../../crates/prover-services" }
+recovered-pubkey-provider = { path = "../../crates/recovered-pubkey-provider", features = ["native"] }
 short-header-proof-provider = { path = "../../crates/short-header-proof-provider", features = ["native"] }
 
 # Sovereign-SDK deps

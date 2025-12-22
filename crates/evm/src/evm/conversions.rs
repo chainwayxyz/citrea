@@ -1,12 +1,11 @@
 use alloy_consensus::constants::KECCAK_EMPTY;
-use alloy_consensus::Transaction;
+use alloy_consensus::{SignableTransaction, Transaction};
 use alloy_eips::eip2718::Decodable2718;
 use alloy_primitives::Bytes as RethBytes;
 #[cfg(feature = "native")]
 use alloy_primitives::U256;
-use ecrecover_address_provider::ECRECOVER_ADDRESS_PROVIDER;
+use recovered_pubkey_provider::RECOVERED_PUBKEY_PROVIDER;
 use reth_primitives::{Recovered, TransactionSigned};
-#[cfg(feature = "native")]
 use reth_primitives_traits::SignedTransaction;
 use revm::context::{TransactTo, TxEnv};
 use revm::state::AccountInfo as ReVmAccountInfo;
@@ -113,36 +112,18 @@ impl TryFrom<RlpEvmTransaction> for Recovered<TransactionSigned> {
             return Ok(Self::new_unchecked(tx, SYSTEM_SIGNER));
         }
 
-        #[cfg(not(feature = "native"))]
-        {
-            // Use pre-computed address from provider
-            let address = ECRECOVER_ADDRESS_PROVIDER
-                .get()
-                .expect("Ecrecover address provider not initialized")
-                .get_next()
-                .expect("Missing ecrecover address in witness");
-
-            return Ok(Self::new_unchecked(
-                tx,
-                alloy_primitives::Address::from(address),
-            ));
-        }
-
-        #[cfg(feature = "native")]
-        {
-            tx.try_into_recovered()
-                .map_err(|_| ConversionError::InvalidSignature)
-        }
+        tx.try_into_recovered()
+            .map_err(|_| ConversionError::InvalidSignature)
     }
 }
 
 /// Convert RlpEvmTransaction to Recovered<TransactionSigned>.
 ///
 /// This function implements the ecrecover optimization pattern:
-/// - On native: Performs actual ECDSA recovery and records the address to be added to input
-/// - In non native: Uses pre-computed addresses from input
+/// - On native: Performs actual ecrecover and records the pubkey to be added to input
+/// - In non native: Uses pre-computed pubkeys from input to verify and derive address
 ///
-/// Addresses are recorded/consumed in deterministic order (block by block, tx by tx).
+/// Pubkeys are recorded/consumed in deterministic order (block by block, tx by tx).
 pub fn recover_raw_transaction(
     evm_tx: RlpEvmTransaction,
 ) -> Result<Recovered<TransactionSigned>, ConversionError> {
@@ -153,28 +134,64 @@ pub fn recover_raw_transaction(
 
     #[cfg(not(feature = "native"))]
     {
-        // Use pre-computed address from provider
-        let address = ECRECOVER_ADDRESS_PROVIDER
-            .get()
-            .expect("Ecrecover address provider not initialized")
-            .get_next()
-            .expect("Missing ecrecover address in witness");
+        use alloy_primitives::{keccak256, Address};
+        use k256::ecdsa::signature::hazmat::PrehashVerifier;
+        use k256::ecdsa::VerifyingKey;
+        use k256::elliptic_curve::sec1::ToEncodedPoint;
 
-        return Ok(Recovered::new_unchecked(
-            tx,
-            alloy_primitives::Address::from(address),
-        ));
+        // Use pre-computed pubkey from provider
+        let pubkey_bytes = RECOVERED_PUBKEY_PROVIDER
+            .get()
+            .expect("Ecrecover pubkey provider not initialized")
+            .get_next()
+            .expect("Missing ecrecover pubkey in witness");
+
+        let verifying_key = VerifyingKey::from_sec1_bytes(&pubkey_bytes)
+            .map_err(|_| ConversionError::InvalidSignature)?;
+
+        let sig = *tx.signature();
+        let prehash = tx.signature_hash();
+
+        let normalized_sig = sig.normalized_s();
+        let k256_sig = normalized_sig
+            .to_k256()
+            .map_err(|_| ConversionError::InvalidSignature)?;
+
+        verifying_key
+            .verify_prehash(prehash.as_slice(), &k256_sig)
+            .map_err(|_| ConversionError::InvalidSignature)?;
+
+        // Compute address from pubkey
+        let affine = verifying_key.as_ref();
+        let encoded = affine.to_encoded_point(false);
+        let digest = keccak256(&encoded.as_bytes()[1..]);
+        let address = Address::from_slice(&digest[12..]);
+
+        return Ok(Recovered::new_unchecked(tx, Address::from(address)));
     }
 
     #[cfg(feature = "native")]
     {
+        let sig = *tx.signature();
+        let prehash = *tx.signature_hash();
+
         let recovered = tx
             .try_into_recovered()
             .map_err(|_| ConversionError::InvalidSignature)?;
 
-        // Record the address
-        if let Some(provider) = ECRECOVER_ADDRESS_PROVIDER.get() {
-            provider.record(recovered.signer().into_array());
+        let normalized_sig = sig.normalized_s();
+        let verifying_key = k256::ecdsa::VerifyingKey::recover_from_prehash(
+            prehash.as_slice(),
+            &normalized_sig.to_k256().unwrap(),
+            normalized_sig.recid(),
+        )
+        .map_err(|_| ConversionError::InvalidSignature)?;
+
+        let encoded = verifying_key.to_sec1_bytes();
+
+        // Record the pubkey
+        if let Some(provider) = RECOVERED_PUBKEY_PROVIDER.get() {
+            provider.record(encoded.to_vec());
         }
 
         Ok(recovered)

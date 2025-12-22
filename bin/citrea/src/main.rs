@@ -18,8 +18,8 @@ use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use clap::Parser;
-use ecrecover_address_provider::{EcrecoverAddressProvider, ECRECOVER_ADDRESS_PROVIDER};
 use metrics_exporter_prometheus::PrometheusBuilder;
+use recovered_pubkey_provider::{RecoveredPubkeyProvider, RECOVERED_PUBKEY_PROVIDER};
 use reth_tasks::TaskManager;
 use short_header_proof_provider::{
     NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
@@ -230,9 +230,9 @@ where
         Err(_) => tracing::error!("Short header proof provider already set"),
     }
 
-    match ECRECOVER_ADDRESS_PROVIDER.set(EcrecoverAddressProvider::new()) {
+    match RECOVERED_PUBKEY_PROVIDER.set(RecoveredPubkeyProvider::new()) {
         Ok(_) => {}
-        Err(_) => panic!("Ecrecover address provider already initialized"),
+        Err(_) => panic!("recovered pubkey provider already initialized"),
     }
 
     let rpc_storage = storage_manager.create_final_view_storage();
