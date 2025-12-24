@@ -8,6 +8,8 @@ use tokio::select;
 use tokio::sync::mpsc;
 use tracing::{debug, error, warn};
 
+const HEAD_BLOCK_MARGIN: u64 = 5;
+
 pub struct DownloadInfo {
     pub peer_id: PeerId,
     pub start: u64,
@@ -19,7 +21,6 @@ pub enum BatchProcessingError {
     ValidationError,
 }
 
-#[allow(dead_code)] // P2P-TODO: remove when all events are handled
 pub(crate) enum SyncManagerMessage {
     // P2P-TODO: add gossip block to update known head
     // so that we can prune some peers that are not useful
@@ -119,6 +120,9 @@ where
                         "Successfully processed L2 blocks {}-{} from peer {}",
                         download_info.start, download_info.end, download_info.peer_id
                     );
+                    if let Err(e) = self.download_from_best_peer().await {
+                        error!("Failed to download from best peer: {}", e);
+                    }
                 }
             }
             SyncManagerMessage::NewPeer(peer_id) => {
@@ -142,23 +146,33 @@ where
 
         // filter peers such that:
         // - have status
-        // - have head block > local head block
+        // - has tx bodies
+        // - have head block + HEAD_BLOCK_MARGIN > local head block
+        // - last pruned block <= local head height
+
         let best_peer = self
             .peer_states
             .iter()
             .filter_map(|(peer_id, status_opt)| {
                 status_opt.as_ref().map(|status| (*peer_id, status))
             })
-            .filter(|(_, status)| status.head_block > head_block)
+            .filter(|(_, status)| status.has_tx_bodies)
+            .filter(|(_, status)| status.head_block + HEAD_BLOCK_MARGIN > head_block)
+            .filter(|(_, status)| {
+                status
+                    .last_pruned_block
+                    .is_none_or(|pruned_height| pruned_height <= head_block)
+            })
             .max_by_key(|(_, status)| status.head_block);
 
-        let Some((peer_id, status)) = best_peer else {
+        let Some((peer_id, _)) = best_peer else {
             warn!("No suitable peer found for downloading L2 blocks");
             // P2P-TODO: slash some peers here
+            // may be started with peers that don't have tx bodies
             return Ok(());
         };
         let start = head_block + 1;
-        let end = (start + self.sync_blocks_count - 1).min(status.head_block);
+        let end = start + self.sync_blocks_count - 1;
         // P2P-TODO: dynamically change sync blocks count if there is response errors
         let request = NetworkRequest::GetL2BlockRange {
             peer_id,

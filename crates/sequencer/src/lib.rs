@@ -176,6 +176,7 @@ where
         ledger_db.clone(),
         network_rx,
         None, // L2 sync channel not needed for sequencer
+        true,
     )?;
     let seq = CitreaSequencer::new(
         da_service,

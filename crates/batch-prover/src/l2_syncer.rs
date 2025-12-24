@@ -209,7 +209,13 @@ where
             &self.sequencer_pub_key,
             self.include_tx_body,
         )
-        .await?;
+        .await
+        .map_err(|_| {
+            anyhow::anyhow!(
+                "Error applying L2 block {}",
+                l2_block_response.header.height,
+            ) // TODO: FIX
+        })?;
 
         // Save state diff BEFORE committing the L2 block
         // This prevents race conditions where the batch prover might shut down

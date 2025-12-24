@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use alloy_primitives::U64;
-use anyhow::{bail, Context as _};
+use anyhow::Context as _;
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
 use citrea_primitives::merkle::compute_tx_hashes;
@@ -19,6 +19,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::stf::StateTransitionError;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use tokio::sync::mpsc;
@@ -44,6 +45,10 @@ enum SyncError {
     Connection(String),
     Unknown(String),
 }
+pub enum ApplyL2BlockError {
+    STF(StateTransitionError),
+    Other(anyhow::Error),
+}
 
 /// Apply an L2 block and return intermediate results before committing
 /// This is the first step of processing an L2 block
@@ -59,7 +64,7 @@ pub async fn apply_l2_block<Da: DaService, DB: SharedLedgerOps>(
     current_state_root: StorageRootHash,
     sequencer_pub_key: &K256PublicKey,
     include_tx_body: bool,
-) -> anyhow::Result<AppliedL2Block> {
+) -> Result<AppliedL2Block, ApplyL2BlockError> {
     let l2_height = l2_block_response.header.height.to();
 
     info!(
@@ -69,7 +74,10 @@ pub async fn apply_l2_block<Da: DaService, DB: SharedLedgerOps>(
     );
 
     if current_l2_block_hash != l2_block_response.header.prev_hash {
-        bail!("Previous hash mismatch at height: {}", l2_height);
+        return Err(ApplyL2BlockError::Other(anyhow::anyhow!(
+            "Previous hash mismatch at height: {}",
+            l2_height
+        )));
     }
 
     let pre_state = storage_manager.create_storage_for_next_l2_height();
@@ -89,13 +97,16 @@ pub async fn apply_l2_block<Da: DaService, DB: SharedLedgerOps>(
 
     // Register this new block with the fork manager to active
     // the new fork on the next block.
-    fork_manager.register_block(l2_height)?;
+    fork_manager
+        .register_block(l2_height)
+        .map_err(ApplyL2BlockError::Other)?;
     let current_spec = fork_manager.active_fork().spec_id;
 
     let l2_block: L2Block = l2_block_response
         .clone()
         .try_into()
-        .context("Failed to parse transactions")?;
+        .context("Failed to parse transactions")
+        .map_err(ApplyL2BlockError::Other)?;
 
     let block_size = l2_block.calculate_size();
 
@@ -104,7 +115,8 @@ pub async fn apply_l2_block<Da: DaService, DB: SharedLedgerOps>(
         // Then store the short header proofs of those blocks in the ledger db
 
         decode_sov_tx_and_update_short_header_proofs(l2_block_response, ledger_db, da_service)
-            .await?;
+            .await
+            .map_err(ApplyL2BlockError::Other)?;
 
         stf.apply_l2_block(
             current_spec,
@@ -116,13 +128,18 @@ pub async fn apply_l2_block<Da: DaService, DB: SharedLedgerOps>(
             Default::default(),
             Default::default(),
             &l2_block,
-        )?
+        )
+        .map_err(ApplyL2BlockError::STF)?
     };
 
     let next_state_root = l2_block_result.state_root_transition.final_root;
     // Check if post state root is the same as the one in the l2 block
     if next_state_root.as_ref().to_vec() != l2_block.state_root() {
-        bail!("Post state root mismatch at height: {}", l2_height)
+        Err(anyhow::anyhow!(
+            "Post state root mismatch at height: {}",
+            l2_height
+        ))
+        .map_err(ApplyL2BlockError::Other)?
     }
 
     storage_manager.finalize_storage(l2_block_result.change_set);

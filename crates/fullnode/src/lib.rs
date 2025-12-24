@@ -268,6 +268,7 @@ where
         ledger_db,
         network_request_rx,
         Some(l2_syncer_tx),
+        include_tx_bodies,
     )?;
     Ok((
         l2_syncer,

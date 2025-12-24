@@ -7,6 +7,7 @@ use anyhow::Result;
 use citrea_common::NetworkConfig;
 use futures::stream::StreamExt;
 use gossipsub::Message as GossipsubMessage;
+use libp2p::gossipsub::{MessageAcceptance, MessageId};
 use libp2p::request_response::{InboundRequestId, OutboundRequestId, ResponseChannel};
 use libp2p::swarm::{NetworkBehaviour, SwarmEvent};
 use libp2p::{
@@ -209,18 +210,27 @@ impl Network {
     async fn on_gossipsub_event(&mut self, event: gossipsub::Event) -> Option<NetworkEvent> {
         match event {
             gossipsub::Event::Message {
-                propagation_source: peer_id,
-                message_id: _id,
+                propagation_source,
+                message_id,
                 message,
             } => {
-                // P2P-TODO: research gossipsub broadcast guarantees
-                let GossipsubMessage { data, .. } = message; // P2P-TODO: consider handling topic/peer_id/sequence_number
+                let GossipsubMessage { data, .. } = message;
                 let l2_block_response: L2BlockResponse = match serde_json::from_slice(&data) {
                     Ok(msg) => msg,
-                    // P2P-TODO: who to slash for bad messages, propagation source or the original sender?
-                    Err(_) => return None,
+                    Err(_) => {
+                        self.report_message_validation_result(
+                            &propagation_source,
+                            message_id,
+                            MessageAcceptance::Reject,
+                        );
+                        return None;
+                    }
                 };
-                Some(NetworkEvent::GossipBlock(peer_id, l2_block_response))
+                Some(NetworkEvent::GossipBlock {
+                    peer_id: propagation_source,
+                    l2_block_response,
+                    message_id,
+                })
             }
             gossipsub::Event::GossipsubNotSupported { .. } => {
                 // P2P-TODO: ban peer
@@ -287,5 +297,19 @@ impl Network {
             }
             request_response::Event::ResponseSent { .. } => None,
         }
+    }
+
+    /// Informs the gossipsub about the result of a message validation.
+    /// If the message is valid it will get propagated by gossipsub.
+    pub fn report_message_validation_result(
+        &mut self,
+        propagation_source: &PeerId,
+        message_id: MessageId,
+        validation_result: MessageAcceptance,
+    ) {
+        self.swarm
+            .behaviour_mut()
+            .gossipsub
+            .report_message_validation_result(&message_id, propagation_source, validation_result);
     }
 }

@@ -18,6 +18,7 @@ pub struct NetworkService {
     ledger_db: LedgerDB,
     request_rx: mpsc::Receiver<NetworkRequest>,
     l2_sync_tx: Option<mpsc::Sender<L2SyncMessage>>,
+    has_tx_bodies: bool,
 }
 
 impl NetworkService {
@@ -26,6 +27,7 @@ impl NetworkService {
         ledger_db: LedgerDB,
         request_rx: mpsc::Receiver<NetworkRequest>,
         l2_sync_tx: Option<mpsc::Sender<L2SyncMessage>>,
+        has_tx_bodies: bool,
     ) -> Result<Self> {
         let network = Network::build(network_config).context("Failed to build network")?;
         Ok(Self {
@@ -33,6 +35,7 @@ impl NetworkService {
             ledger_db,
             request_rx,
             l2_sync_tx,
+            has_tx_bodies,
         })
     }
 
@@ -52,7 +55,7 @@ impl NetworkService {
                             let tx = response_tx.clone();
                             // don't block the event loop
                             tokio::spawn(async move {
-                                let result = Self::on_inbound_request(&ledger_db, request);
+                                let result = Self::on_inbound_request(&ledger_db, request, self.has_tx_bodies);
                                 let _ = tx.send((request_id, result)).await;
                             });
                         }
@@ -67,15 +70,15 @@ impl NetworkService {
                                 error!("Failed to notify L2 syncer of new peer {}: {:?}", peer_id, e);
                             }
                         }
-                        NetworkEvent::GossipBlock(peer_id, block) => {
-                            let message = L2SyncMessage::GossipBlock(peer_id, block);
+                        NetworkEvent::GossipBlock { peer_id, l2_block_response, message_id } => {
+                            let message = L2SyncMessage::GossipBlock(peer_id, l2_block_response, message_id);
                             if let Err(e) = self.send_l2_sync_message(message) {
                                 error!("Failed to notify L2 syncer of gossiped block from peer {}: {:?}", peer_id, e);
                             }
                         }
                         NetworkEvent::RPCFailed { peer_id, request } => {
                             error!("RPC request {:?} to peer {} failed", request, peer_id);
-                            let message = L2SyncMessage::RPCFailed { peer_id, request };
+                            let message = L2SyncMessage::RPCFailed(peer_id, request );
                             if let Err(e) = self.send_l2_sync_message(message) {
                                 error!("Failed to notify L2 syncer of failed RPC to peer {}: {:?}", peer_id, e);
                             }
@@ -138,19 +141,34 @@ impl NetworkService {
             NetworkRequest::GetPeerStatus(peer_id) => {
                 self.network.send_rpc_request(peer_id, Eth2Request::Status);
             }
+            NetworkRequest::GossipBlockValidationResult {
+                peer_id,
+                message_id,
+                validation_result,
+            } => {
+                self.network.report_message_validation_result(
+                    &peer_id,
+                    message_id,
+                    validation_result,
+                );
+            }
         }
     }
 
-    fn on_inbound_request(ledger_db: &LedgerDB, request: Eth2Request) -> Result<Eth2Response> {
+    fn on_inbound_request(
+        ledger_db: &LedgerDB,
+        request: Eth2Request,
+        has_tx_bodies: bool,
+    ) -> Result<Eth2Response> {
         match request {
             Eth2Request::Status => {
                 // Handle status request
-                // P2P-TODO: Implement proper status response
                 let last_pruned_block = ledger_db.get_last_pruned_l2_height()?;
                 let head_block = LedgerRpcProvider::get_head_l2_block_height(ledger_db)?;
                 Ok(Eth2Response::Status(StatusResponse {
                     head_block,
                     last_pruned_block,
+                    has_tx_bodies,
                 }))
             }
             Eth2Request::BlocksByRange(blocks_request) => {
@@ -196,6 +214,9 @@ pub fn l2_blocks_by_range(
     start: u64,
     end: u64,
 ) -> Result<Vec<L2BlockResponse>> {
+    if end < start {
+        return Err(anyhow::anyhow!("Invalid range"));
+    }
     let diff = end - start;
 
     // P2P-TODO: Make this configurable
@@ -205,6 +226,11 @@ pub fn l2_blocks_by_range(
         ));
     }
 
+    let head_block = LedgerRpcProvider::get_head_l2_block_height(ledger_db)?;
+    let end = end.min(head_block);
+
+    // P2P-TODO: check if start > pruned && end <= head
+    // return error
     ledger_db
         .get_l2_blocks_range(start, end)?
         .into_iter()
