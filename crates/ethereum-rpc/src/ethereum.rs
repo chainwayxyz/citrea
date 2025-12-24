@@ -49,7 +49,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         storage: C::Storage,
         ledger_db: LedgerDB,
         sequencer_client: Option<HttpClient>,
-        l2_block_rx: Option<broadcast::Receiver<u64>>,
+        l2_block_rx: &Option<broadcast::Receiver<u64>>,
         task_executor: reth_tasks::TaskExecutor,
     ) -> Self {
         let evm = Evm::<C>::default();
@@ -68,8 +68,9 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
 
         let trace_cache = Mutex::new(LruMap::new(ByLength::new(MAX_TRACE_BLOCK)));
 
-        let subscription_manager = l2_block_rx
-            .map(|rx| SubscriptionManager::new::<C>(storage.clone(), ledger_db.clone(), rx));
+        let subscription_manager = l2_block_rx.as_ref().map(|rx| {
+            SubscriptionManager::new::<C>(storage.clone(), ledger_db.clone(), rx.resubscribe())
+        });
 
         let citrea_filter = Arc::new(CitreaFilter::new(
             task_executor,
