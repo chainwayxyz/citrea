@@ -3,6 +3,7 @@
 ## [Unreleased]
 ### Added
 - fix: Initialize metrics at startup. ([#2954](https://github.com/chainwayxyz/citrea/pull/2954))
+- feat: implement `eth_sendRawTransactionSync` RPC as per eip-7966. ([#3095](https://github.com/chainwayxyz/citrea/pull/3095))
 
 ### Changed
 - fix: `bitcoin::network::Testnet` vs `bitcoin::network::Testnet4` confusion in mempool.space fee retrieval ([#3087](https://github.com/chainwayxyz/citrea/pull/3087))
