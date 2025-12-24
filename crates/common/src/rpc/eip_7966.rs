@@ -48,7 +48,7 @@ pub fn timeout_error(hash: B256, timeout_ms: u64) -> ErrorObjectOwned {
 ///
 /// # Arguments
 /// * `reason` - Unreadiness error string
-/// * `hash` - Optional transaction hash if the transaction was succesfully submitted
+/// * `hash` - Optional transaction hash if the transaction was successfully submitted
 pub fn unready_error(reason: &str, hash: Option<B256>) -> ErrorObjectOwned {
     ErrorObjectOwned::owned(UNREADY_ERROR_CODE, reason.to_string(), hash)
 }
