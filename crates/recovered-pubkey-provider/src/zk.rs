@@ -1,18 +1,17 @@
 use std::cell::RefCell;
-use std::collections::VecDeque;
 
 use super::EcrecoverProviderError;
 use crate::Secp256k1Pubkey;
 
 /// Provides pre-computed pubkeys zk context
 pub struct RecoveredPubkeyProvider {
-    pubkeys: RefCell<VecDeque<Secp256k1Pubkey>>,
+    pubkeys: RefCell<std::vec::IntoIter<Secp256k1Pubkey>>,
 }
 
 impl RecoveredPubkeyProvider {
-    pub fn new(pubkeys: VecDeque<Secp256k1Pubkey>) -> Self {
+    pub fn new(pubkeys: Vec<Secp256k1Pubkey>) -> Self {
         Self {
-            pubkeys: RefCell::new(pubkeys),
+            pubkeys: RefCell::new(pubkeys.into_iter()),
         }
     }
 
@@ -20,7 +19,7 @@ impl RecoveredPubkeyProvider {
     pub fn get_next(&self) -> Result<Secp256k1Pubkey, EcrecoverProviderError> {
         self.pubkeys
             .borrow_mut()
-            .pop_front()
+            .next()
             .ok_or(EcrecoverProviderError::NoMoreAddresses)
     }
 }

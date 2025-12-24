@@ -63,7 +63,7 @@ where
         // Initialize pubkey provider with pre-computed pubkeys from input
         #[cfg(not(feature = "native"))]
         {
-            let mut flat_pubkeys = std::collections::VecDeque::new();
+            let mut flat_pubkeys = std::vec::Vec::new();
             for commitment_addresses in data.recovered_pubkeys {
                 flat_pubkeys.extend(commitment_addresses);
             }
