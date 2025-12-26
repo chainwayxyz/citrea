@@ -1,0 +1,115 @@
+name: Build CI Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      push:
+        description: 'Push image to registry'
+        required: false
+        default: true
+        type: boolean
+  # Allow this workflow to be called from other workflows (e.g., checks.yml)
+  workflow_call:
+    inputs:
+      push:
+        description: 'Push image to registry'
+        required: false
+        default: true
+        type: boolean
+    outputs:
+      image:
+        description: 'The full image reference (registry/name:tag)'
+        value: ${{ jobs.build-and-push.outputs.image }}
+      image_tag:
+        description: 'The image tag (sha-xxx)'
+        value: ${{ jobs.build-and-push.outputs.image_tag }}
+  push:
+    branches: ["nightly"]
+    paths:
+      - 'docker/ci/Dockerfile'
+      - 'rust-toolchain.toml'
+      - '.github/actions/install-risc0/action.yml'
+      - '.github/workflows/ci-image-build.yml'
+  schedule:
+    # Weekly rebuild for security updates (Sundays at 00:00 UTC)
+    - cron: '0 0 * * 0'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}-ci
+
+jobs:
+  build-and-push:
+    runs-on: ubicloud-standard-8
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.output.outputs.image }}
+      image_tag: ${{ steps.output.outputs.image_tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-
+            type=ref,event=branch
+            type=semver,pattern=v{{version}}
+            type=semver,pattern=v{{major}}.{{minor}}
+            type=semver,pattern=v{{major}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/ci/Dockerfile
+          push: ${{ github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.push) || (github.event_name == 'workflow_call' && inputs.push) }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Set output
+        id: output
+        run: |
+          echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "image_tag=sha-${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Test image
+        run: |
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }} bash -c "
+            echo '=== Verifying installed tools ==='
+            echo 'Rust:' && rustc --version
+            echo 'Cargo:' && cargo --version
+            echo 'Mold:' && mold --version
+            echo 'Protoc:' && protoc --version
+            echo 'Node:' && node --version
+            echo 'NPM:' && npm --version
+            echo 'Python:' && python3 --version
+            echo 'Foundry:' && forge --version
+            echo 'risc0:' && cargo risczero --version
+            echo 'dprint:' && dprint --version
+            echo 'nextest:' && cargo nextest --version
+            echo 'llvm-cov:' && cargo llvm-cov --version
+            echo 'Docker CLI:' && docker --version
+            echo ''
+            echo '=== All tools verified ==='
+          "
