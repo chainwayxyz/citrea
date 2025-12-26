@@ -79,16 +79,12 @@ impl NetworkService {
                         }
                         NetworkEvent::GossipBlock { peer_id, l2_block_response, message_id } => {
                             let message = L2SyncMessage::GossipBlock(peer_id, l2_block_response, message_id);
-                            if let Err(e) = self.send_l2_sync_message(message) {
-                                error!("Failed to notify L2 syncer of gossiped block from peer {}: {:?}", peer_id, e);
-                            }
+                            send_l2_sync_message(self.l2_sync_tx.clone(), message);
                         }
                         NetworkEvent::RPCFailed { peer_id, request } => {
                             error!("RPC request {:?} to peer {} failed", request, peer_id);
-                            let message = L2SyncMessage::RPCFailed(peer_id, request );
-                            if let Err(e) = self.send_l2_sync_message(message) {
-                                error!("Failed to notify L2 syncer of failed RPC to peer {}: {:?}", peer_id, e);
-                            }
+                            let message = L2SyncMessage::RPCFailed(peer_id, request);
+                            send_l2_sync_message(self.l2_sync_tx.clone(), message);
                         }
                     }
                 }
@@ -209,10 +205,11 @@ impl NetworkService {
             Eth2Response::BlocksByRange(blocks) => {
                 info!("Received {} blocks from peer {}", blocks.len(), peer_id);
                 let message = L2SyncMessage::BlockBatch(peer_id, blocks);
-                self.send_l2_sync_message(message)
+                send_l2_sync_message(self.l2_sync_tx.clone(), message);
+                Ok(())
             }
         }
-    }
+        }
 
     async fn on_pm_heartbeat_tick(&mut self) {
         match self.peer_manager.heartbeat().await {
@@ -228,15 +225,6 @@ impl NetworkService {
             }
             HeartbeatResult::NoAction => {},
         }
-    }
-
-    fn send_l2_sync_message(&self, message: L2SyncMessage) -> anyhow::Result<()> {
-        if let Some(l2_sync_tx) = &self.l2_sync_tx {
-            if let Err(e) = l2_sync_tx.try_send(message) {
-                return Err(anyhow::anyhow!("Failed to send L2 sync message: {:?}", e));
-            }
-        }
-        Ok(())
     }
 }
 
@@ -268,4 +256,15 @@ pub fn l2_blocks_by_range(
         .into_iter()
         .map(|block_opt| block_opt.ok_or_else(|| anyhow::anyhow!("Block not found")))
         .collect()
+}
+
+
+fn send_l2_sync_message(l2_sync_tx: Option<mpsc::Sender<L2SyncMessage>>, message: L2SyncMessage) {
+    if let Some(l2_sync_tx) = l2_sync_tx {
+        tokio::spawn(async move {
+            if let Err(e) = l2_sync_tx.send(message).await {
+                error!("Failed to send L2 sync message: {:?}", e);
+            }
+        });
+    }
 }
