@@ -171,8 +171,10 @@ where
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
 
     let (network_tx, network_rx) = mpsc::channel(100);
+    let network_globals = Arc::new(citrea_network::NetworkGlobals::new());
     let network = NetworkService::build(
         network_config,
+        network_globals,
         ledger_db.clone(),
         network_rx,
         None, // L2 sync channel not needed for sequencer

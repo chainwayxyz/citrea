@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::{Context, Result};
 use citrea_common::NetworkConfig;
 use reth_tasks::shutdown::GracefulShutdown;
@@ -9,12 +11,13 @@ use tracing::{error, info};
 
 use crate::types::{
     BlocksByRangeRequest, Eth2Request, Eth2Response, L2SyncMessage, NetworkEvent, NetworkRequest,
-    StatusResponse,
+    PeerStatus,
 };
-use crate::Network;
+use crate::{Network, NetworkGlobals};
 
 pub struct NetworkService {
     network: Network,
+    network_globals: Arc<NetworkGlobals>,
     ledger_db: LedgerDB,
     request_rx: mpsc::Receiver<NetworkRequest>,
     l2_sync_tx: Option<mpsc::Sender<L2SyncMessage>>,
@@ -24,6 +27,7 @@ pub struct NetworkService {
 impl NetworkService {
     pub fn build(
         network_config: NetworkConfig,
+        network_globals: Arc<NetworkGlobals>,
         ledger_db: LedgerDB,
         request_rx: mpsc::Receiver<NetworkRequest>,
         l2_sync_tx: Option<mpsc::Sender<L2SyncMessage>>,
@@ -32,6 +36,7 @@ impl NetworkService {
         let network = Network::build(network_config).context("Failed to build network")?;
         Ok(Self {
             network,
+            network_globals,
             ledger_db,
             request_rx,
             l2_sync_tx,
@@ -60,14 +65,8 @@ impl NetworkService {
                             });
                         }
                         NetworkEvent::ResponseReceived { peer_id, response } => {
-                            if let Err(e) = self.on_response_received(peer_id, response) {
+                            if let Err(e) = self.on_response_received(peer_id, response).await {
                                 error!("Error handling response from peer {peer_id}: {e:?}");
-                            }
-                        }
-                        NetworkEvent::NewPeer(peer_id) => {
-                            let message = L2SyncMessage::NewPeer(peer_id);
-                            if let Err(e) = self.send_l2_sync_message(message) {
-                                error!("Failed to notify L2 syncer of new peer {}: {:?}", peer_id, e);
                             }
                         }
                         NetworkEvent::GossipBlock { peer_id, l2_block_response, message_id } => {
@@ -81,12 +80,6 @@ impl NetworkService {
                             let message = L2SyncMessage::RPCFailed(peer_id, request );
                             if let Err(e) = self.send_l2_sync_message(message) {
                                 error!("Failed to notify L2 syncer of failed RPC to peer {}: {:?}", peer_id, e);
-                            }
-                        }
-                        NetworkEvent::DisconnectedPeer(peer_id) => {
-                            let message = L2SyncMessage::DisconnectedPeer(peer_id);
-                            if let Err(e) = self.send_l2_sync_message(message) {
-                                error!("Failed to notify L2 syncer of disconnected peer {}: {:?}", peer_id, e);
                             }
                         }
                     }
@@ -165,7 +158,7 @@ impl NetworkService {
                 // Handle status request
                 let last_pruned_block = ledger_db.get_last_pruned_l2_height()?;
                 let head_block = LedgerRpcProvider::get_head_l2_block_height(ledger_db)?;
-                Ok(Eth2Response::Status(StatusResponse {
+                Ok(Eth2Response::Status(PeerStatus {
                     head_block,
                     last_pruned_block,
                     has_tx_bodies,
@@ -179,7 +172,7 @@ impl NetworkService {
         }
     }
 
-    fn on_response_received(
+    async fn on_response_received(
         &self,
         peer_id: libp2p::PeerId,
         response: Eth2Response,
@@ -187,8 +180,16 @@ impl NetworkService {
         match response {
             Eth2Response::Status(status) => {
                 info!("Received status from peer {}: {:?}", peer_id, status);
-                let message = L2SyncMessage::PeerStatus(peer_id, status);
-                self.send_l2_sync_message(message)
+                self
+                    .network_globals.peers
+                    .write()
+                    .await
+                    // update or insert peer status
+                    .get_mut(&peer_id)
+                    .map(|peers| {
+                        peers.status = Some(status);
+                    });
+                Ok(())
             }
             Eth2Response::BlocksByRange(blocks) => {
                 info!("Received {} blocks from peer {}", blocks.len(), peer_id);

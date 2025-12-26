@@ -1,6 +1,7 @@
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use tokio::sync::RwLock;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -19,9 +20,24 @@ use tracing::{error, info};
 use crate::types::{Eth2Request, Eth2Response, NetworkEvent};
 
 mod rpc;
+mod peer_manager;
 pub mod service;
 pub mod types;
 pub use service::NetworkService;
+
+pub use types::{NetworkRequest, PeerInfo, PeerStatus};
+
+#[derive(Default)]
+pub struct NetworkGlobals {
+    pub peers: RwLock<HashMap<PeerId, PeerInfo>>,
+}
+impl NetworkGlobals {
+    pub fn new() -> Self {
+        Self {
+            peers: RwLock::new(HashMap::new()),
+        }
+    }
+}
 
 #[derive(NetworkBehaviour)]
 struct MyBehaviour {
@@ -125,12 +141,6 @@ impl Network {
                 }
                 SwarmEvent::NewListenAddr { address, .. } => {
                     info!("Local node is listening on {address}");
-                }
-                SwarmEvent::ConnectionEstablished { peer_id, .. } => {
-                    return Ok(NetworkEvent::NewPeer(peer_id));
-                }
-                SwarmEvent::ConnectionClosed { peer_id, .. } => {
-                    return Ok(NetworkEvent::DisconnectedPeer(peer_id));
                 }
                 _ => {}
             }

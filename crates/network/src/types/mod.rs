@@ -4,6 +4,9 @@ use libp2p::PeerId;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 
+mod peers;
+pub use peers::{PeerAction, PeerInfo, PeerStatus, Score};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlocksByRangeRequest {
     pub start: u64,
@@ -17,17 +20,11 @@ pub enum Eth2Request {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StatusResponse {
-    pub head_block: u64,
-    pub last_pruned_block: Option<u64>,
-    pub has_tx_bodies: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Eth2Response {
-    Status(StatusResponse),
+    Status(PeerStatus),
     // P2P-TODO: use Result<Vec<L2BlockResponse>, Error> instead,
     // Errors: invalid range, too many blocks, size limit exceeded
+    // on size limit we might be getting IO error!
     BlocksByRange(Vec<L2BlockResponse>),
 }
 
@@ -55,9 +52,6 @@ pub enum NetworkRequest {
 pub enum L2SyncMessage {
     GossipBlock(PeerId, L2BlockResponse, MessageId),
     BlockBatch(PeerId, Vec<L2BlockResponse>),
-    NewPeer(PeerId),
-    DisconnectedPeer(PeerId),
-    PeerStatus(PeerId, StatusResponse),
     RPCFailed(PeerId, Eth2Request),
 }
 
@@ -79,6 +73,4 @@ pub(crate) enum NetworkEvent {
         peer_id: PeerId,
         request: Eth2Request,
     },
-    NewPeer(PeerId),
-    DisconnectedPeer(PeerId),
 }

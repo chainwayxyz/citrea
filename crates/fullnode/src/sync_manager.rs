@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
-use citrea_network::types::{NetworkRequest, StatusResponse};
+use citrea_network::{NetworkRequest, NetworkGlobals};
 use libp2p::PeerId;
 use sov_db::ledger_db::SharedLedgerOps;
 use tokio::select;
@@ -26,9 +26,6 @@ pub(crate) enum SyncManagerMessage {
     // so that we can prune some peers that are not useful
     // we may also remove ledger db import and just rely on messages from l2 syncer
     // or implement a threshold where we dont download blocks if we are close to head of the peer
-    NewPeer(PeerId),
-    DisconnectedPeer(PeerId),
-    PeerStatus((PeerId, StatusResponse)),
     BatchProcessed(DownloadInfo, Result<(), BatchProcessingError>),
 }
 
@@ -44,7 +41,7 @@ where
     ledger_db: DB,
     event_rx: mpsc::Receiver<SyncManagerMessage>,
     network_tx: mpsc::Sender<NetworkRequest>,
-    peer_states: HashMap<PeerId, Option<StatusResponse>>,
+    network_globals: Arc<NetworkGlobals>,
     sync_blocks_count: u64,
     status_interval: Duration,
     sync_interval: Duration,
@@ -59,6 +56,7 @@ where
         ledger_db: DB,
         event_rx: mpsc::Receiver<SyncManagerMessage>,
         network_tx: mpsc::Sender<NetworkRequest>,
+        network_globals: Arc<NetworkGlobals>,
         sync_blocks_count: u64,
         status_interval: Duration,
         sync_interval: Duration,
@@ -67,7 +65,7 @@ where
             ledger_db,
             event_rx,
             network_tx,
-            peer_states: HashMap::new(),
+            network_globals,
             sync_blocks_count,
             status_interval,
             sync_interval,
@@ -85,7 +83,7 @@ where
                     self.on_sync_manager_event(event).await;
                 }
                 _ = status_interval.tick() => {
-                    for peer_id in self.peer_states.keys() {
+                    for peer_id in self.network_globals.peers.read().await.keys() {
                         let request = NetworkRequest::GetPeerStatus(*peer_id);
                         self.send_network_message(request).await;
                         debug!("Requested status from peer {}", peer_id);
@@ -125,44 +123,35 @@ where
                     }
                 }
             }
-            SyncManagerMessage::NewPeer(peer_id) => {
-                self.peer_states.insert(peer_id, None);
-            }
-            SyncManagerMessage::DisconnectedPeer(peer_id) => {
-                // even if downloading from this peer,
-                // not resetting the download state here,
-                // expecting BatchProcessed to handle it
-                self.peer_states.remove(&peer_id);
-            }
-            SyncManagerMessage::PeerStatus((peer_id, status)) => {
-                self.peer_states.insert(peer_id, Some(status));
-            }
         }
     }
 
     async fn download_from_best_peer(&mut self) -> anyhow::Result<()> {
         let head_block = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0);
-        // P2P-TODO: handle pruned blocks
+        let peers = self
+            .network_globals
+            .peers
+            .read()
+            .await;
 
         // filter peers such that:
-        // - have status
-        // - has tx bodies
-        // - have head block + HEAD_BLOCK_MARGIN > local head block
-        // - last pruned block <= local head height
-
-        let best_peer = self
-            .peer_states
+        let best_peer = peers
             .iter()
-            .filter_map(|(peer_id, status_opt)| {
-                status_opt.as_ref().map(|status| (*peer_id, status))
+            // is connected
+            .filter(|(_, info)| info.is_connected)
+            // has status
+            .filter_map(|(peer_id, info)| {
+                info.status.as_ref().map(|status| (peer_id, status))
             })
+            // has tx bodies
             .filter(|(_, status)| status.has_tx_bodies)
+            // head block + HEAD_BLOCK_MARGIN > local head block
             .filter(|(_, status)| status.head_block + HEAD_BLOCK_MARGIN > head_block)
+            // last pruned block <= local head height
             .filter(|(_, status)| {
-                status
-                    .last_pruned_block
-                    .is_none_or(|pruned_height| pruned_height <= head_block)
+                status.last_pruned_block.is_none_or(|pruned_height| pruned_height <= head_block)
             })
+            // pick the one with highest head block
             .max_by_key(|(_, status)| status.head_block);
 
         let Some((peer_id, _)) = best_peer else {
@@ -175,13 +164,13 @@ where
         let end = start + self.sync_blocks_count - 1;
         // P2P-TODO: dynamically change sync blocks count if there is response errors
         let request = NetworkRequest::GetL2BlockRange {
-            peer_id,
+            peer_id: *peer_id,
             start,
             end,
         };
         self.send_network_message(request).await;
         self.download_state = DownloadState::Syncing(DownloadInfo {
-            peer_id,
+            peer_id: *peer_id,
             start,
             end,
         });

@@ -13,6 +13,7 @@ use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::l2::{apply_l2_block, commit_l2_block, ApplyL2BlockError};
 use citrea_network::types::{BlocksByRangeRequest, Eth2Request, L2SyncMessage, NetworkRequest};
+use citrea_network::NetworkGlobals;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::CitreaRuntime;
@@ -84,6 +85,7 @@ where
     backup_manager: Arc<BackupManager>,
     syncer_event_rx: mpsc::Receiver<L2SyncMessage>,
     network_request_tx: mpsc::Sender<NetworkRequest>,
+    network_globals: Arc<NetworkGlobals>,
 }
 
 impl<DA, DB> L2Syncer<DA, DB>
@@ -120,6 +122,7 @@ where
         include_tx_body: bool,
         syncer_event_rx: mpsc::Receiver<L2SyncMessage>,
         network_request_tx: mpsc::Sender<NetworkRequest>,
+        network_globals: Arc<NetworkGlobals>,
     ) -> Result<Self, anyhow::Error> {
         let start_l2_height = ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
 
@@ -141,6 +144,7 @@ where
             backup_manager,
             syncer_event_rx,
             network_request_tx,
+            network_globals,
         })
     }
 
@@ -159,6 +163,7 @@ where
             self.ledger_db.clone(),
             manager_rx,
             self.network_request_tx.clone(),
+            self.network_globals.clone(),
             self.sync_blocks_count,
             // P2P-TODO: make these configurable
             Duration::from_secs(5),
@@ -278,26 +283,8 @@ where
                     .await
                     .expect("SyncManager receiver dropped");
             }
-            L2SyncMessage::PeerStatus(peer_id, response) => {
-                manager_tx
-                    .send(SyncManagerMessage::PeerStatus((peer_id, response)))
-                    .await
-                    .expect("SyncManager receiver dropped");
-            }
-            L2SyncMessage::NewPeer(peer_id) => {
-                manager_tx
-                    .send(SyncManagerMessage::NewPeer(peer_id))
-                    .await
-                    .expect("SyncManager receiver dropped");
-            }
             L2SyncMessage::GossipBlock(peer_id, block, message_id) => {
                 self.on_gossip_block(peer_id, block, message_id).await;
-            }
-            L2SyncMessage::DisconnectedPeer(peer_id) => {
-                manager_tx
-                    .send(SyncManagerMessage::DisconnectedPeer(peer_id))
-                    .await
-                    .expect("SyncManager receiver dropped");
             }
             L2SyncMessage::RPCFailed(peer_id, request) => {
                 match request {

@@ -124,7 +124,7 @@ use anyhow::Result;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::{InitParams, NetworkConfig, RollupPublicKeys, RunnerConfig};
-use citrea_network::NetworkService;
+use citrea_network::{NetworkGlobals, NetworkService};
 use citrea_stf::runtime::CitreaRuntime;
 use citrea_storage_ops::pruning::{Pruner, PrunerService};
 use da_block_handler::L1BlockHandler;
@@ -236,6 +236,7 @@ where
     let (network_request_tx, network_request_rx) = mpsc::channel(100);
     let (l2_syncer_tx, l2_syncer_rx) = mpsc::channel(100);
 
+    let network_globals = Arc::new(NetworkGlobals::new());
     let l2_syncer = L2Syncer::new(
         runner_config,
         init_params,
@@ -250,6 +251,7 @@ where
         include_tx_bodies,
         l2_syncer_rx,
         network_request_tx,
+        network_globals.clone(),
     )?;
 
     let l1_block_handler = L1BlockHandler::new(
@@ -263,8 +265,10 @@ where
         backup_manager,
     );
 
+    let network_globals = Arc::new(NetworkGlobals::new());
     let citrea_network = NetworkService::build(
         network_config,
+        network_globals,
         ledger_db,
         network_request_rx,
         Some(l2_syncer_tx),
