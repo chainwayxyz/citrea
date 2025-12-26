@@ -132,7 +132,7 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v5
-      # All tools are pre-installed in the container image
+
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
         with:
@@ -636,8 +636,6 @@ jobs:
       - name: Checkout to base branch
         if: steps.restore-test-cache.outputs.cache-hit != 'true'
         run: git checkout -f ${{ steps.base-commit.outputs.base-hash }}
-
-      # All tools are pre-installed in the container - no need to install risc0/rust/mold/protoc
 
       # --- Build only if the artifact is not found ---
       - name: Rust cache

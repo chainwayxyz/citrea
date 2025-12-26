@@ -106,7 +106,9 @@ RUN curl -L https://risczero.com/install | bash && \
     /root/.risc0/bin/rzup install rust 1.88.0 && \
     /root/.risc0/bin/rzup default cargo-risczero ${RISC0_VERSION} && \
     /root/.risc0/bin/rzup default r0vm ${RISC0_VERSION} && \
-    /root/.risc0/bin/rzup default rust 1.88.0
+    /root/.risc0/bin/rzup default rust 1.88.0 && \
+    # Link risc0 rust toolchain to rustup so risc0-build can find it
+    rustup toolchain link risc0 /root/.risc0/toolchains/rust-1.88.0
 
 # ============================================================================
 # Foundry (Solidity development)
