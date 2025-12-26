@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use citrea_common::NetworkConfig;
@@ -9,15 +10,20 @@ use sov_rollup_interface::rpc::LedgerRpcProvider;
 use tokio::sync::mpsc;
 use tracing::{error, info};
 
+use crate::peer_manager::{HeartbeatResult, PeerManager, ReportPeerResult};
 use crate::types::{
     BlocksByRangeRequest, Eth2Request, Eth2Response, L2SyncMessage, NetworkEvent, NetworkRequest,
-    PeerStatus,
+    PeerStatus, SCORE_HALFLIFE,
 };
 use crate::{Network, NetworkGlobals};
+
+// Peer Manager Heartbeat interval
+pub const PM_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 
 pub struct NetworkService {
     network: Network,
     network_globals: Arc<NetworkGlobals>,
+    peer_manager: PeerManager,
     ledger_db: LedgerDB,
     request_rx: mpsc::Receiver<NetworkRequest>,
     l2_sync_tx: Option<mpsc::Sender<L2SyncMessage>>,
@@ -33,7 +39,9 @@ impl NetworkService {
         l2_sync_tx: Option<mpsc::Sender<L2SyncMessage>>,
         has_tx_bodies: bool,
     ) -> Result<Self> {
+        let target_peers = network_config.target_peers;
         let network = Network::build(network_config).context("Failed to build network")?;
+        let peer_manager = PeerManager::new(network_globals.clone(), target_peers, SCORE_HALFLIFE);
         Ok(Self {
             network,
             network_globals,
@@ -41,17 +49,17 @@ impl NetworkService {
             request_rx,
             l2_sync_tx,
             has_tx_bodies,
+            peer_manager,
         })
     }
 
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
         // P2P-TODO: parameterize channel size
         let (response_tx, mut response_rx) = mpsc::channel(100);
+        let mut pm_heartbeat = tokio::time::interval(PM_HEARTBEAT_INTERVAL);
         loop {
             tokio::select! {
-                Some(request) = self.request_rx.recv() => {
-                    self.on_network_request(request);
-                }
+                Some(request) = self.request_rx.recv() => self.on_network_request(request).await,
                 network_event = self.network.next_event() => {
                     let event = network_event.expect("Failed to get network event");
                     match event {
@@ -97,6 +105,7 @@ impl NetworkService {
                         }
                     }
                 }
+                _ = pm_heartbeat.tick() => self.on_pm_heartbeat_tick().await,
                 _ = &mut shutdown_signal => {
                     info!("Shutting down NetworkService");
                     return;
@@ -105,7 +114,7 @@ impl NetworkService {
         }
     }
 
-    fn on_network_request(&mut self, request: NetworkRequest) {
+    async fn on_network_request(&mut self, request: NetworkRequest) {
         match request {
             NetworkRequest::PublishMessage { topic, message } => {
                 self.network.publish_message(&topic, message);
@@ -128,8 +137,14 @@ impl NetworkService {
                 );
             }
             // P2P-TODO: add slashing
-            NetworkRequest::ReportPeer(_peer_id) => {
-                unimplemented!();
+            NetworkRequest::ReportPeer(peer_id, action) => {
+                match self.peer_manager.report_peer(&peer_id, action).await {
+                    ReportPeerResult::Ban => {
+                        info!("Peer {} has been banned by PeerManager", peer_id);
+                        self.network.disconnect_peer(&peer_id);
+                    }
+                    ReportPeerResult::NoAction => {}
+                }
             }
             NetworkRequest::GetPeerStatus(peer_id) => {
                 self.network.send_rpc_request(peer_id, Eth2Request::Status);
@@ -196,6 +211,22 @@ impl NetworkService {
                 let message = L2SyncMessage::BlockBatch(peer_id, blocks);
                 self.send_l2_sync_message(message)
             }
+        }
+    }
+
+    async fn on_pm_heartbeat_tick(&mut self) {
+        match self.peer_manager.heartbeat().await {
+            HeartbeatResult::WantedPeers(wanted) => {
+                // P2P-TODO: request from discovery
+                info!("PeerManager requests {} more peers", wanted);
+            }
+            HeartbeatResult::ExcessPeers(excess_peers) => {
+                info!("PeerManager suggests dropping {} excess peers", excess_peers.len());
+                for peer_id in excess_peers {
+                    self.network.disconnect_peer(&peer_id);
+                }
+            }
+            HeartbeatResult::NoAction => {},
         }
     }
 

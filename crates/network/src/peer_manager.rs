@@ -14,7 +14,7 @@ pub enum HeartbeatResult {
     NoAction,
 }
 
-struct PeerManager {
+pub(crate) struct PeerManager {
     network_globals: Arc<NetworkGlobals>,
     target_peers: usize,
     score_halflife: Duration,

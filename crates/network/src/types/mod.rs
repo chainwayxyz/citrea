@@ -40,7 +40,7 @@ pub enum NetworkRequest {
         start: u64,
         end: u64,
     },
-    ReportPeer(PeerId), // P2P-TODO: add degree/reason
+    ReportPeer(PeerId, PeerAction),
     GetPeerStatus(PeerId),
     GossipBlockValidationResult {
         peer_id: PeerId,

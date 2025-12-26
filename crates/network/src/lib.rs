@@ -10,7 +10,7 @@ use futures::stream::StreamExt;
 use gossipsub::Message as GossipsubMessage;
 use libp2p::gossipsub::{MessageAcceptance, MessageId};
 use libp2p::request_response::{InboundRequestId, OutboundRequestId, ResponseChannel};
-use libp2p::swarm::{NetworkBehaviour, SwarmEvent};
+use libp2p::swarm::{ConnectionId, NetworkBehaviour, SwarmEvent};
 use libp2p::{
     gossipsub, mdns, noise, request_response, tcp, yamux, Multiaddr, PeerId, Swarm, SwarmBuilder,
 };
@@ -50,6 +50,7 @@ struct Network {
     swarm: Swarm<MyBehaviour>,
     pending_inbound_requests: HashMap<InboundRequestId, ResponseChannel<Eth2Response>>,
     pending_outbound_requests: HashMap<OutboundRequestId, Eth2Request>,
+    connection_id_by_peer_id: HashMap<PeerId, Vec<ConnectionId>>,
 }
 
 impl Network {
@@ -123,6 +124,7 @@ impl Network {
             swarm,
             pending_inbound_requests: HashMap::new(),
             pending_outbound_requests: HashMap::new(),
+            connection_id_by_peer_id: HashMap::new(),
         })
     }
 
@@ -141,6 +143,22 @@ impl Network {
                 }
                 SwarmEvent::NewListenAddr { address, .. } => {
                     info!("Local node is listening on {address}");
+                }
+                SwarmEvent::ConnectionEstablished { peer_id, connection_id, .. } => {
+                    info!("Connection established with peer {peer_id} (connection id: {connection_id})");
+                    self.connection_id_by_peer_id
+                        .entry(peer_id)
+                        .or_default()
+                        .push(connection_id);
+                }
+                SwarmEvent::ConnectionClosed { peer_id, connection_id, .. } => {
+                    info!("Connection closed with peer {peer_id} (connection id: {connection_id})");
+                    if let Some(connections) = self.connection_id_by_peer_id.get_mut(&peer_id) {
+                        connections.retain(|&id| id != connection_id);
+                        if connections.is_empty() {
+                            self.connection_id_by_peer_id.remove(&peer_id);
+                        }
+                    }
                 }
                 _ => {}
             }
@@ -321,5 +339,17 @@ impl Network {
             .behaviour_mut()
             .gossipsub
             .report_message_validation_result(&message_id, propagation_source, validation_result);
+    }
+
+    pub fn disconnect_peer(&mut self, peer_id: &PeerId) {
+        let Some(connections) = self.connection_id_by_peer_id.get(peer_id) else {
+            error!("No connections found for peer {peer_id}, cannot disconnect");
+            return;
+        };
+        for connection_id in connections {
+            if !self.swarm.close_connection(*connection_id) {
+                error!("Failed to close connection to peer {peer_id}, connection id: {connection_id}");
+            }
+        }
     }
 }

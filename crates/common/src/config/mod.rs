@@ -455,6 +455,7 @@ pub struct NetworkConfig {
     /// Gossipsub configuration.
     #[serde(default)]
     pub gossipsub_config: GossipsubConfig,
+    pub target_peers: usize,
 }
 
 const fn default_heartbeat_interval_secs() -> u64 {
@@ -499,9 +500,12 @@ impl FromEnv for NetworkConfig {
     fn from_env() -> anyhow::Result<Self> {
         let dial_addr = read_env("NETWORK_DIAL_ADDR").ok();
         let gossipsub_config = GossipsubConfig::from_env()?;
+        let target_peers = read_env("NETWORK_TARGET_PEERS")?.parse()?;
+        
         Ok(Self {
             dial_addr,
             gossipsub_config,
+            target_peers,
         })
     }
 }
