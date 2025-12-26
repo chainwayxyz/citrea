@@ -99,16 +99,17 @@ RUN rustup toolchain install 1.88.0 --profile minimal --component rustfmt,clippy
 # risc0 toolchain
 # ============================================================================
 ARG RISC0_VERSION=3.0.3
+ARG RISC0_RUST_VERSION=1.88.0
 RUN curl -L https://risczero.com/install | bash && \
     /root/.risc0/bin/rzup install cargo-risczero ${RISC0_VERSION} && \
     /root/.risc0/bin/rzup install cpp && \
     /root/.risc0/bin/rzup install r0vm ${RISC0_VERSION} && \
-    /root/.risc0/bin/rzup install rust 1.88.0 && \
+    /root/.risc0/bin/rzup install rust ${RISC0_RUST_VERSION} && \
     /root/.risc0/bin/rzup default cargo-risczero ${RISC0_VERSION} && \
     /root/.risc0/bin/rzup default r0vm ${RISC0_VERSION} && \
-    /root/.risc0/bin/rzup default rust 1.88.0 && \
-    # Link risc0 rust toolchain to rustup so risc0-build can find it
-    rustup toolchain link risc0 /root/.risc0/toolchains/rust-1.88.0
+    /root/.risc0/bin/rzup default rust ${RISC0_RUST_VERSION}
+
+ENV RISC0_HOME="/root/.risc0"
 
 # ============================================================================
 # Foundry (Solidity development)
