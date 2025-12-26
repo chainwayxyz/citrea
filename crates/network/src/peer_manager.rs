@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::{Duration, Instant}};
 use libp2p::PeerId;
 
 use crate::{types::PeerAction, NetworkGlobals};
@@ -17,17 +17,17 @@ pub enum HeartbeatResult {
 struct PeerManager {
     network_globals: Arc<NetworkGlobals>,
     target_peers: usize,
-    score_halflife_secs: f32,
-    last_decay: std::time::Instant,
+    score_halflife: Duration,
+    last_decay: Instant,
 }
 
 impl PeerManager {
     pub fn new(
         network_globals: Arc<NetworkGlobals>,
         target_peers: usize,
-        score_halflife_secs: f32,
+        score_halflife: Duration,
     ) -> Self {
-        Self { network_globals, target_peers, score_halflife_secs, last_decay: std::time::Instant::now() }
+        Self { network_globals, target_peers, score_halflife, last_decay: Instant::now() }
     }
 
     pub async fn report_peer(&self, peer_id: &PeerId, action: PeerAction) -> ReportPeerResult {
@@ -44,9 +44,9 @@ impl PeerManager {
 
     pub async fn heartbeat(&mut self) -> HeartbeatResult {
         // Decay scores if score halflife has passed
-        if self.last_decay.elapsed().as_secs_f32() >= self.score_halflife_secs {
+        if self.last_decay.elapsed() >= self.score_halflife {
             self.decay_scores().await;
-            self.last_decay = std::time::Instant::now();
+            self.last_decay = Instant::now();
         }
         // Check peer count against target
         let num_peers = self.network_globals.peers.read().await.len();

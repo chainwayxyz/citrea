@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 
 mod peers;
-pub use peers::{PeerAction, PeerInfo, PeerStatus, Score};
+pub use peers::{PeerAction, PeerInfo, PeerStatus, Score, SCORE_HALFLIFE};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlocksByRangeRequest {

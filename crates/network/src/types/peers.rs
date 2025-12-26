@@ -7,7 +7,7 @@ const MIN_SCORE_BEFORE_BAN: f32 = -50.0;
 /// The minimum score a peer can obtain.
 const MIN_SCORE: f32 = -100.0;
 /// The halflife of a peer's score. I.e the number of seconds it takes for the score to decay to half its value.
-const SCORE_HALFLIFE: f32 = 600.0;
+pub const SCORE_HALFLIFE: Duration = Duration::from_secs(600);
 /// The number of seconds we ban a peer for before their score begins to decay.
 const BANNED_BEFORE_DECAY: Duration = Duration::from_secs(12 * 3600); // 12 hours
 
