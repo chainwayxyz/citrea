@@ -132,12 +132,13 @@ jobs:
       - name: Verify image
         if: steps.check-image.outputs.exists == 'false'
         run: |
-          docker run --rm ghcr.io/${{ github.repository }}-ci:df-${{ steps.dockerfile-hash.outputs.hash }} bash -c "
-            echo '=== Verifying installed tools ==='
+          docker run --rm ghcr.io/${{ github.repository }}-ci:df-${{ steps.dockerfile-hash.outputs.hash }} bash -c '
+            echo "=== Verifying installed tools ==="
+            echo "PATH=$PATH"
             rustc --version && cargo --version && mold --version && protoc --version
-            node --version && forge --version && cargo risczero --version
-            echo '=== All tools verified ==='
-          "
+            node --version && /root/.foundry/bin/forge --version && cargo risczero --version
+            echo "=== All tools verified ==="
+          '
 
   build:
     name: build
@@ -187,6 +188,9 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
       # All tools are pre-installed in the container image!
@@ -215,6 +219,9 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
       # All tools are pre-installed in the container image
@@ -314,6 +321,9 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
       # Node.js is pre-installed in the container image
@@ -364,6 +374,9 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
       # Python and jq are pre-installed in the container image
@@ -400,6 +413,9 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
       # Node.js is pre-installed in the container image
@@ -497,6 +513,9 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
         with:
@@ -527,6 +546,9 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
         with:
@@ -581,6 +603,9 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
       # codespell is pre-installed in the container image

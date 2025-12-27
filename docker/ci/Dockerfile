@@ -123,8 +123,11 @@ RUN curl -L https://risczero.com/install | bash && \
 # Foundry (Solidity development)
 # ============================================================================
 ARG FOUNDRY_VERSION=v1.3.6
-RUN curl -L https://foundry.paradigm.xyz | bash && \
-    /root/.foundry/bin/foundryup --version ${FOUNDRY_VERSION}
+RUN curl -L https://foundry.paradigm.xyz | bash
+# Run foundryup in a separate RUN to ensure PATH is updated
+RUN /root/.foundry/bin/foundryup --version ${FOUNDRY_VERSION} && \
+    # Verify forge was installed correctly
+    /root/.foundry/bin/forge --version
 
 # ============================================================================
 # Cargo tools
