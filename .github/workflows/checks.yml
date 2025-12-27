@@ -130,6 +130,10 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      # Override GitHub Actions' HOME-based paths to match container paths
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
 
@@ -137,6 +141,7 @@ jobs:
         uses: ubicloud/rust-cache@v2
         with:
           shared-key: build
+          prefix-key: v0-rust
       - name: Cache ethereum-tests
         uses: actions/cache@v4
         with:
@@ -214,6 +219,8 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
+          # Use stable rust - cargo-deny doesn't need the exact toolchain from rust-toolchain.toml
+          rust-version: stable
 
   coverage:
     needs:
@@ -228,11 +235,17 @@ jobs:
       # Mount Docker socket for Docker-in-Docker support
       volumes:
         - /var/run/docker.sock:/var/run/docker.sock
+    env:
+      # Override GitHub Actions' HOME-based paths to match container paths
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
       # All tools are pre-installed in the container image
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
+        with:
+          prefix-key: v0-rust
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
         run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
@@ -410,11 +423,17 @@ jobs:
       # Mount Docker socket for Docker-in-Docker support
       volumes:
         - /var/run/docker.sock:/var/run/docker.sock
+    env:
+      # Override GitHub Actions' HOME-based paths to match container paths
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
       # All tools are pre-installed in the container image
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
+        with:
+          prefix-key: v0-rust
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
         run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
@@ -564,6 +583,10 @@ jobs:
       # Mount Docker socket for Docker-in-Docker support
       volumes:
         - /var/run/docker.sock:/var/run/docker.sock
+    env:
+      # Override GitHub Actions' HOME-based paths to match container paths
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
       # All tools (Python, risc0, etc.) are pre-installed in the container image
@@ -642,7 +665,8 @@ jobs:
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: ubicloud/rust-cache@v2
         with:
-            shared-key: build
+          shared-key: build
+          prefix-key: v0-rust
       - name: Cache ethereum-tests
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: actions/cache@v4

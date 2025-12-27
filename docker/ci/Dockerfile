@@ -10,13 +10,23 @@ FROM --platform=$PLATFORM ubuntu:24.04
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
+# ============================================================================
+# CRITICAL: Set explicit paths for all tools
+# GitHub Actions overrides HOME, RUSTUP_HOME, CARGO_HOME when running containers.
+# We must set these explicitly to where we install the tools during docker build.
+# ============================================================================
+ENV RUSTUP_HOME="/root/.rustup"
+ENV CARGO_HOME="/root/.cargo"
+ENV RISC0_HOME="/root/.risc0"
+ENV FOUNDRY_HOME="/root/.foundry"
+
 # CI environment variables
 ENV CARGO_TERM_COLOR=always
 ENV RUSTFLAGS="-D warnings"
 ENV FOUNDRY_PROFILE=ci
 
-# Add tool paths
-ENV PATH="/root/.cargo/bin:/root/.risc0/bin:/root/.foundry/bin:/root/.local/bin:${PATH}"
+# Add tool paths (use explicit paths, not $HOME-relative)
+ENV PATH="/root/.cargo/bin:/root/.rustup/bin:/root/.risc0/bin:/root/.foundry/bin:/root/.local/bin:/usr/local/bin:${PATH}"
 
 # ============================================================================
 # System Dependencies
@@ -109,8 +119,6 @@ RUN curl -L https://risczero.com/install | bash && \
     /root/.risc0/bin/rzup default r0vm ${RISC0_VERSION} && \
     /root/.risc0/bin/rzup default rust ${RISC0_RUST_VERSION}
 
-ENV RISC0_HOME="/root/.risc0"
-
 # ============================================================================
 # Foundry (Solidity development)
 # ============================================================================
@@ -146,6 +154,13 @@ RUN pip3 install --break-system-packages codespell
 # ============================================================================
 RUN mkdir -p /root/.cargo && \
     echo '[target.x86_64-unknown-linux-gnu]\nlinker = "clang"\nrustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/mold"]' > /root/.cargo/config.toml
+
+# ============================================================================
+# Git configuration
+# GitHub Actions mounts the workspace with different ownership than the container user.
+# This prevents "dubious ownership" errors.
+# ============================================================================
+RUN git config --global --add safe.directory '*'
 
 # ============================================================================
 # Workspace setup
