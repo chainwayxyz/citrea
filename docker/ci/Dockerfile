@@ -124,7 +124,7 @@ RUN cargo install --locked cargo-udeps --version 0.1.55
 # Configure mold as default linker for Rust
 # ============================================================================
 RUN mkdir -p /root/.cargo && \
-    echo '[target.x86_64-unknown-linux-gnu]\nlinker = "clang"\nrustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/mold"]' > /root/.cargo/config.toml
+    printf '[target.x86_64-unknown-linux-gnu]\nlinker = "clang"\nrustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/mold"]\n' > /root/.cargo/config.toml
 
 # ============================================================================
 # Git configuration
@@ -142,12 +142,6 @@ RUN mkdir -p ${EF_TESTS_DIR} && \
     wget -q ${EF_TESTS_URL} -O /tmp/ethereum-tests.tar.gz && \
     tar -xzf /tmp/ethereum-tests.tar.gz --strip-components=1 -C ${EF_TESTS_DIR} && \
     rm /tmp/ethereum-tests.tar.gz
-
-RUN mkdir -p \
-    /root/.cargo/git/db \
-    /root/.cargo/git/checkouts \
-    /root/.cargo/registry \
-    chmod -R 777 /root/.cargo
 
 # ============================================================================
 # Workspace setup
