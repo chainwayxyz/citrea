@@ -240,8 +240,6 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
-          # Use stable rust - cargo-deny doesn't need the exact toolchain from rust-toolchain.toml
-          rust-version: stable
 
   coverage:
     needs:
