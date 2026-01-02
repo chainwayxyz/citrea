@@ -162,7 +162,7 @@ jobs:
         uses: ubicloud/rust-cache@v2
         with:
           shared-key: build
-          prefix-key: v0-rust
+
       - name: Build citrea
         run: make build
       - name: Cache binaries
@@ -264,7 +264,7 @@ jobs:
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
         with:
-          prefix-key: v0-rust
+
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
         run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
@@ -435,7 +435,7 @@ jobs:
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
         with:
-          prefix-key: v0-rust
+
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
         run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
@@ -660,7 +660,7 @@ jobs:
         uses: ubicloud/rust-cache@v2
         with:
           shared-key: build
-          prefix-key: v0-rust
+
       - name: Link ethereum-tests from image cache
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         run: ln -sf /ef-tests crates/evm/ethereum-tests
