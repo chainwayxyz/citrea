@@ -196,8 +196,6 @@ jobs:
       # No need for: setup-mold, setup-protoc, rust-toolchain, install-risc0
       - name: Check TOML
         run: dprint check
-      - name: Build guests
-        run: make build-risc0
       - name: Run lint
         run: |
           if ! make lint ; then
@@ -223,7 +221,6 @@ jobs:
       RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
-
       - name: Run cargo-udeps
         env:
           RUSTFLAGS: -A warnings

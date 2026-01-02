@@ -19,10 +19,6 @@ build-sp1:
 build: ## Build the project
 	@cargo build
 
-.PHONY: build-risc0
-build-risc0: ## Build risc0 guest crates (generates methods.rs)
-	@cargo build -p citrea-risc0-batch-proof -p citrea-risc0-light-client
-
 build-reproducible: build-sp1 ## Build the project in release mode with reproducible guest builds
 	REPR_GUEST_BUILD=1 cargo build --release --locked
 
