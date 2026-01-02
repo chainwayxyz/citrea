@@ -161,8 +161,6 @@ jobs:
         with:
           shared-key: build
           prefix-key: v0-rust
-      - name: Link ethereum-tests from image cache
-        run: ln -s /ef-tests crates/evm/ethereum-tests
       - name: Build citrea
         run: make build
       - name: Cache binaries
@@ -260,8 +258,6 @@ jobs:
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
         run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
-      - name: Link ethereum-tests from image cache
-        run: ln -s /ef-tests crates/evm/ethereum-tests
       - name: Restore cached Docker image
         uses: actions/cache@v4
         with:
@@ -454,8 +450,6 @@ jobs:
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
         run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
-      - name: Link ethereum-tests from image cache
-        run: ln -s /ef-tests crates/evm/ethereum-tests
       - name: Restore cached Docker image
         uses: actions/cache@v4
         with:

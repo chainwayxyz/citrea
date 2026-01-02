@@ -94,13 +94,13 @@ RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none
 
 # Install required Rust toolchains:
-# - 1.88.0: Primary toolchain (from rust-toolchain.toml)
+# - 1.88: Primary toolchain (must match rust-toolchain.toml exactly)
 # - nightly: For formatting and some features
 # - nightly-2025-09-24: For udeps (pinned version)
-RUN rustup toolchain install 1.88.0 --profile minimal --component rustfmt,clippy,llvm-tools-preview,rust-src && \
+RUN rustup toolchain install 1.88 --profile minimal --component rustfmt,clippy,llvm-tools-preview,rust-src && \
     rustup toolchain install nightly --profile minimal --component rustfmt,clippy,llvm-tools-preview && \
     rustup toolchain install nightly-2025-09-24 --profile minimal && \
-    rustup default 1.88.0 && \
+    rustup default 1.88 && \
     rustup target add thumbv6m-none-eabi
 
 # ============================================================================
@@ -157,9 +157,10 @@ RUN git config --global --add safe.directory '*'
 # Ethereum Foundation tests (cached to avoid download during CI)
 # ============================================================================
 ARG EF_TESTS_URL=https://github.com/ethereum/tests/archive/refs/tags/v16.0.tar.gz
-RUN mkdir -p /ef-tests && \
+ARG EF_TESTS_DIR=crates/evm/ethereum-tests
+RUN mkdir -p ${EF_TESTS_DIR} && \
     wget -q ${EF_TESTS_URL} -O /tmp/ethereum-tests.tar.gz && \
-    tar -xzf /tmp/ethereum-tests.tar.gz --strip-components=1 -C /ef-tests && \
+    tar -xzf /tmp/ethereum-tests.tar.gz --strip-components=1 -C ${EF_TESTS_DIR} && \
     rm /tmp/ethereum-tests.tar.gz
 
 # ============================================================================
