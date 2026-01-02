@@ -290,21 +290,13 @@ jobs:
 
   uniswap:
     runs-on: ubicloud-standard-2
-    needs:
-      - build-ci-image
-      - build
+    needs: build
     if: github.event.pull_request.draft == false
-    container:
-      image: ${{ needs.build-ci-image.outputs.image }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    env:
-      CARGO_HOME: /root/.cargo
-      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
-      # Node.js is pre-installed in the container image
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 18
       - name: Restore binaries
         uses: actions/cache@v4
         with:
@@ -343,21 +335,14 @@ jobs:
 
   web3_py:
     runs-on: ubicloud-standard-2
-    needs:
-      - build-ci-image
-      - build
+    needs: build
     if: github.event.pull_request.draft == false
-    container:
-      image: ${{ needs.build-ci-image.outputs.image }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    env:
-      CARGO_HOME: /root/.cargo
-      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
-      # Python and jq are pre-installed in the container image
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - uses: dcarbone/install-jq-action@v2
       - name: Restore binaries
         uses: actions/cache@v4
         with:
@@ -370,7 +355,7 @@ jobs:
         run: chmod +x target/debug/citrea
       - name: Install dependencies
         working-directory: ./bin/citrea/tests/mock/evm/web3_py
-        run: pip install --break-system-packages -r requirements.txt
+        run: pip install -r requirements.txt
       - name: Run web3.py tests
         run: |
           RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ --dev &
@@ -378,25 +363,17 @@ jobs:
           RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ --dev &
           sleep 2
           cd ./bin/citrea/tests/mock/evm/web3_py
-          python3 test.py
+          python test.py
 
   ethers_js:
     runs-on: ubicloud-standard-2
-    needs:
-      - build-ci-image
-      - build
+    needs: build
     if: github.event.pull_request.draft == false
-    container:
-      image: ${{ needs.build-ci-image.outputs.image }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    env:
-      CARGO_HOME: /root/.cargo
-      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
-      # Node.js is pre-installed in the container image
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 18
       - name: Restore binaries
         uses: actions/cache@v4
         with:
@@ -487,6 +464,9 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          cache: false
+          version: "v1.3.6"
 
       - name: Run Forge build
         run: |
@@ -500,6 +480,7 @@ jobs:
           cd crates/evm/src/evm/system_contracts
           forge test -vvv
         id: test
+
   check_genesis_files:
     strategy:
       fail-fast: true
@@ -555,19 +536,15 @@ jobs:
 
   codespell:
     name: codespell
-    needs: build-ci-image
     runs-on: ubicloud-standard-2
-    container:
-      image: ${{ needs.build-ci-image.outputs.image }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    env:
-      CARGO_HOME: /root/.cargo
-      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
-      # codespell is pre-installed in the container image
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install codespell
+        run: pip install codespell
       - name: Run codespell
         run: |
           codespell --skip="*.lock,./target,./crates/evm/ethereum-tests," -I="codespell_ignore.txt"

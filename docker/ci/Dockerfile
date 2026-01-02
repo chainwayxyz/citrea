@@ -40,12 +40,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     wget \
     git \
-    jq \
     unzip \
-    # Python
-    python3 \
-    python3-pip \
-    python3-venv \
     # SSL/TLS
     ca-certificates \
     gnupg \
@@ -80,13 +75,6 @@ ARG PROTOC_VERSION=23.2
 RUN wget -q https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip && \
     unzip -q protoc-${PROTOC_VERSION}-linux-x86_64.zip -d /usr/local && \
     rm protoc-${PROTOC_VERSION}-linux-x86_64.zip
-
-# ============================================================================
-# Node.js 18.x (for uniswap/ethers tests)
-# ============================================================================
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
-    apt-get install -y nodejs && \
-    rm -rf /var/lib/apt/lists/*
 
 # ============================================================================
 # Rust toolchains
@@ -134,11 +122,6 @@ RUN cargo install --locked cargo-udeps --version 0.1.55
 
 # cargo-hack - Feature flag testing
 RUN cargo install --locked cargo-hack --version 0.6.36
-
-# ============================================================================
-# Python tools
-# ============================================================================
-RUN pip3 install --break-system-packages codespell
 
 # ============================================================================
 # Configure mold as default linker for Rust
