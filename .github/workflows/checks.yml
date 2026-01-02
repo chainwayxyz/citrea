@@ -134,9 +134,8 @@ jobs:
         run: |
           docker run --rm ghcr.io/${{ github.repository }}-ci:df-${{ steps.dockerfile-hash.outputs.hash }} bash -c '
             echo "=== Verifying installed tools ==="
-            echo "PATH=$PATH"
             rustc --version && cargo --version && mold --version && protoc --version
-            node --version && /root/.foundry/bin/forge --version && cargo risczero --version
+            node --version && cargo risczero --version
             echo "=== All tools verified ==="
           '
 
@@ -505,22 +504,15 @@ jobs:
     strategy:
       fail-fast: true
     name: Foundry project
-    needs: build-ci-image
     runs-on: ubicloud-standard-2
     if: github.event.pull_request.draft == false
-    container:
-      image: ${{ needs.build-ci-image.outputs.image }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    env:
-      CARGO_HOME: /root/.cargo
-      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
         with:
           submodules: recursive
-      # Foundry is pre-installed in the container image
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
 
       - name: Run Forge build
         run: |
@@ -538,22 +530,15 @@ jobs:
     strategy:
       fail-fast: true
     name: Check Genesis Files
-    needs: build-ci-image
     runs-on: ubicloud-standard-2
     if: github.event.pull_request.draft == false
-    container:
-      image: ${{ needs.build-ci-image.outputs.image }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    env:
-      CARGO_HOME: /root/.cargo
-      RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
         with:
           submodules: recursive
-      # Python and Foundry are pre-installed in the container image
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
 
       - name: Run check_genesis.sh
         run: ./.github/scripts/check_genesis.sh
