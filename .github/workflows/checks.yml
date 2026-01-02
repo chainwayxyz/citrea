@@ -223,16 +223,12 @@ jobs:
       RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
-      # All tools are pre-installed in the container image
-      # Switch to the pinned nightly toolchain for udeps
-      - name: Switch to nightly toolchain
-        run: rustup default nightly-2025-09-24
-      - name: Build guests
-        run: make build-risc0
+
       - name: Run cargo-udeps
         env:
           RUSTFLAGS: -A warnings
           SKIP_GUEST_BUILD: 1
+          RUSTUP_TOOLCHAIN: nightly-2025-09-24
         run: cargo udeps --workspace --all-features --all-targets
 
   deny:
