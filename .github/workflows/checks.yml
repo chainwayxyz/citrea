@@ -149,20 +149,14 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
       volumes:
+        - ${{ github.workspace }}/.ci/cargo:/root/.cargo
         - ${{ github.workspace }}/target:${{ github.workspace }}/target
-        - ${{ github.workspace }}/cargo-registry:/root/.cargo/registry
-        - ${{ github.workspace }}/cargo-git:/root/.cargo/git
     env:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
 
-      - name: Initialize cargo directories
-        run: |
-          mkdir -p /root/.cargo/git/db
-          mkdir -p /root/.cargo/git/checkouts
-          mkdir -p /root/.cargo/registry
 
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
@@ -191,19 +185,13 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
       volumes:
+        - ${{ github.workspace }}/.ci/cargo:/root/.cargo
         - ${{ github.workspace }}/target:${{ github.workspace }}/target
-        - ${{ github.workspace }}/cargo-registry:/root/.cargo/registry
-        - ${{ github.workspace }}/cargo-git:/root/.cargo/git
     env:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
-      - name: Initialize cargo directories
-        run: |
-          mkdir -p /root/.cargo/git/db
-          mkdir -p /root/.cargo/git/checkouts
-          mkdir -p /root/.cargo/registry
       - name: Run lint
         run: |
           if ! make lint ; then
@@ -225,19 +213,13 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
       volumes:
+        - ${{ github.workspace }}/.ci/cargo:/root/.cargo
         - ${{ github.workspace }}/target:${{ github.workspace }}/target
-        - ${{ github.workspace }}/cargo-registry:/root/.cargo/registry
-        - ${{ github.workspace }}/cargo-git:/root/.cargo/git
     env:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
-      - name: Initialize cargo directories
-        run: |
-          mkdir -p /root/.cargo/git/db
-          mkdir -p /root/.cargo/git/checkouts
-          mkdir -p /root/.cargo/registry
       - name: Run cargo-udeps
         env:
           RUSTFLAGS: -A warnings
@@ -266,9 +248,8 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
       volumes:
+        - ${{ github.workspace }}/.ci/cargo:/root/.cargo
         - ${{ github.workspace }}/target:${{ github.workspace }}/target
-        - ${{ github.workspace }}/cargo-registry:/root/.cargo/registry
-        - ${{ github.workspace }}/cargo-git:/root/.cargo/git
         # Mount Docker socket for Docker-in-Docker support
         - /var/run/docker.sock:/var/run/docker.sock
     env:
@@ -276,11 +257,6 @@ jobs:
       RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
-      - name: Initialize cargo directories
-        run: |
-          mkdir -p /root/.cargo/git/db
-          mkdir -p /root/.cargo/git/checkouts
-          mkdir -p /root/.cargo/registry
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
 
@@ -440,9 +416,8 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
       volumes:
+        - ${{ github.workspace }}/.ci/cargo:/root/.cargo
         - ${{ github.workspace }}/target:${{ github.workspace }}/target
-        - ${{ github.workspace }}/cargo-registry:/root/.cargo/registry
-        - ${{ github.workspace }}/cargo-git:/root/.cargo/git
         # Mount Docker socket for Docker-in-Docker support
         - /var/run/docker.sock:/var/run/docker.sock
     env:
@@ -450,11 +425,6 @@ jobs:
       RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
-      - name: Initialize cargo directories
-        run: |
-          mkdir -p /root/.cargo/git/db
-          mkdir -p /root/.cargo/git/checkouts
-          mkdir -p /root/.cargo/registry
       # All tools are pre-installed in the container image
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
@@ -596,9 +566,8 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
       volumes:
+        - ${{ github.workspace }}/.ci/cargo:/root/.cargo
         - ${{ github.workspace }}/target:${{ github.workspace }}/target
-        - ${{ github.workspace }}/cargo-registry:/root/.cargo/registry
-        - ${{ github.workspace }}/cargo-git:/root/.cargo/git
         # Mount Docker socket for Docker-in-Docker support
         - /var/run/docker.sock:/var/run/docker.sock
     env:
@@ -606,11 +575,6 @@ jobs:
       RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
-      - name: Initialize cargo directories
-        run: |
-          mkdir -p /root/.cargo/git/db
-          mkdir -p /root/.cargo/git/checkouts
-          mkdir -p /root/.cargo/registry
 
       - name: Restore binaries
         uses: actions/cache@v4
