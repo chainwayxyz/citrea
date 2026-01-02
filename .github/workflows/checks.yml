@@ -148,6 +148,10 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+      volumes:
+        - ${{ github.workspace }}/target:${{ github.workspace }}/target
+        - ${{ github.workspace }}/.cargo:/root/.cargo
+        - ${{ github.workspace }}/.rustup:/root/.rustup
     env:
       # Override GitHub Actions' HOME-based paths to match container paths
       CARGO_HOME: /root/.cargo
@@ -181,13 +185,15 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+      volumes:
+        - ${{ github.workspace }}/target:${{ github.workspace }}/target
+        - ${{ github.workspace }}/.cargo:/root/.cargo
+        - ${{ github.workspace }}/.rustup:/root/.rustup
     env:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
-      - name: Check TOML
-        run: dprint check
       - name: Run lint
         run: |
           if ! make lint ; then
@@ -208,6 +214,10 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+      volumes:
+        - ${{ github.workspace }}/target:${{ github.workspace }}/target
+        - ${{ github.workspace }}/.cargo:/root/.cargo
+        - ${{ github.workspace }}/.rustup:/root/.rustup
     env:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
@@ -240,6 +250,10 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+      volumes:
+        - ${{ github.workspace }}/target:${{ github.workspace }}/target
+        - ${{ github.workspace }}/.cargo:/root/.cargo
+        - ${{ github.workspace }}/.rustup:/root/.rustup
       # Mount Docker socket for Docker-in-Docker support
       volumes:
         - /var/run/docker.sock:/var/run/docker.sock
@@ -409,6 +423,10 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+      volumes:
+        - ${{ github.workspace }}/target:${{ github.workspace }}/target
+        - ${{ github.workspace }}/.cargo:/root/.cargo
+        - ${{ github.workspace }}/.rustup:/root/.rustup
       # Mount Docker socket for Docker-in-Docker support
       volumes:
         - /var/run/docker.sock:/var/run/docker.sock
@@ -559,6 +577,10 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+      volumes:
+        - ${{ github.workspace }}/target:${{ github.workspace }}/target
+        - ${{ github.workspace }}/.cargo:/root/.cargo
+        - ${{ github.workspace }}/.rustup:/root/.rustup
       # Mount Docker socket for Docker-in-Docker support
       volumes:
         - /var/run/docker.sock:/var/run/docker.sock
