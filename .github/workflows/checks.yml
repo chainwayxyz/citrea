@@ -156,6 +156,12 @@ jobs:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
     steps:
+      - name: Initialize cargo directories
+        run: |
+          mkdir -p /root/.cargo/git/db
+          mkdir -p /root/.cargo/git/checkouts
+          mkdir -p /root/.cargo/registry
+
       - uses: actions/checkout@v5
 
       - name: Rust Cache
@@ -192,6 +198,12 @@ jobs:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
     steps:
+      - name: Initialize cargo directories
+        run: |
+          mkdir -p /root/.cargo/git/db
+          mkdir -p /root/.cargo/git/checkouts
+          mkdir -p /root/.cargo/registry
+
       - uses: actions/checkout@v5
       - name: Run lint
         run: |
@@ -221,6 +233,12 @@ jobs:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
     steps:
+      - name: Initialize cargo directories
+        run: |
+          mkdir -p /root/.cargo/git/db
+          mkdir -p /root/.cargo/git/checkouts
+          mkdir -p /root/.cargo/registry
+
       - uses: actions/checkout@v5
       - name: Run cargo-udeps
         env:
@@ -259,6 +277,12 @@ jobs:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
     steps:
+      - name: Initialize cargo directories
+        run: |
+          mkdir -p /root/.cargo/git/db
+          mkdir -p /root/.cargo/git/checkouts
+          mkdir -p /root/.cargo/registry
+
       - uses: actions/checkout@v5
       # All tools are pre-installed in the container image
       - name: Rust Cache
@@ -429,6 +453,12 @@ jobs:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
     steps:
+      - name: Initialize cargo directories
+        run: |
+          mkdir -p /root/.cargo/git/db
+          mkdir -p /root/.cargo/git/checkouts
+          mkdir -p /root/.cargo/registry
+
       - uses: actions/checkout@v5
       # All tools are pre-installed in the container image
       - name: Rust Cache
@@ -580,6 +610,12 @@ jobs:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
     steps:
+      - name: Initialize cargo directories
+        run: |
+          mkdir -p /root/.cargo/git/db
+          mkdir -p /root/.cargo/git/checkouts
+          mkdir -p /root/.cargo/registry
+
       - uses: actions/checkout@v5
       # All tools (Python, risc0, etc.) are pre-installed in the container image
 
