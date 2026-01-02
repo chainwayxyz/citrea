@@ -10,21 +10,20 @@ FROM --platform=$PLATFORM ubuntu:24.04
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
+# CI environment variables
+ENV CARGO_TERM_COLOR=always
+ENV RUSTFLAGS="-D warnings"
+
 # ============================================================================
 # CRITICAL: Set explicit paths for all tools
 # GitHub Actions overrides HOME, RUSTUP_HOME, CARGO_HOME when running containers.
 # We must set these explicitly to where we install the tools during docker build.
 # ============================================================================
-ENV RUSTUP_HOME="/root/.rustup"
-ENV CARGO_HOME="/root/.cargo"
-ENV RISC0_HOME="/root/.risc0"
+ENV RUSTUP_HOME="/usr/local/rustup"
+ENV CARGO_HOME="/usr/local/cargo"
+ENV RISC0_HOME="/usr/local/risc0"
 
-# CI environment variables
-ENV CARGO_TERM_COLOR=always
-ENV RUSTFLAGS="-D warnings"
-
-# Add tool paths (use explicit paths, not $HOME-relative)
-ENV PATH="/root/.cargo/bin:/root/.rustup/bin:/root/.risc0/bin:/root/.local/bin:/usr/local/bin:${PATH}"
+ENV PATH="/usr/local/cargo/bin:/usr/local/rustup/bin:/usr/local/risc0/bin:/root/.local/bin:/usr/local/bin:${PATH}"
 
 # ============================================================================
 # System Dependencies
