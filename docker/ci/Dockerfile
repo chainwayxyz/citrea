@@ -137,7 +137,7 @@ RUN git config --global --add safe.directory '*'
 # Ethereum Foundation tests (cached to avoid download during CI)
 # ============================================================================
 ARG EF_TESTS_URL=https://github.com/ethereum/tests/archive/refs/tags/v16.0.tar.gz
-ARG EF_TESTS_DIR=crates/evm/ethereum-tests
+ARG EF_TESTS_DIR=/workspace/crates/evm/ethereum-tests
 RUN mkdir -p ${EF_TESTS_DIR} && \
     wget -q ${EF_TESTS_URL} -O /tmp/ethereum-tests.tar.gz && \
     tar -xzf /tmp/ethereum-tests.tar.gz --strip-components=1 -C ${EF_TESTS_DIR} && \
