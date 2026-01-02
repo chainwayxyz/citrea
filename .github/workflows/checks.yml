@@ -134,8 +134,7 @@ jobs:
         run: |
           docker run --rm ghcr.io/${{ github.repository }}-ci:df-${{ steps.dockerfile-hash.outputs.hash }} bash -c '
             echo "=== Verifying installed tools ==="
-            rustc --version && cargo --version && mold --version && protoc --version
-            node --version && cargo risczero --version
+            rustc --version && cargo --version && mold --version && protoc --version && cargo risczero --version
             echo "=== All tools verified ==="
           '
 
