@@ -157,12 +157,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Rust Cache
-        uses: ubicloud/rust-cache@v2
+      - name: Restore Rust cache
+        uses: actions/cache@v4
         with:
-          shared-key: build
-        env:
-          CARGO_HOME: ${{ github.workspace }}/.ci/cargo
+          path: |
+            ${{ github.workspace }}/.ci/cargo
+            ${{ github.workspace }}/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
 
       - name: Build citrea
         run: make build
