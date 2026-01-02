@@ -145,7 +145,6 @@ jobs:
     timeout-minutes: 60
     container:
       image: ${{ needs.build-ci-image.outputs.image }}
-      user: root
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -188,7 +187,6 @@ jobs:
     timeout-minutes: 60
     container:
       image: ${{ needs.build-ci-image.outputs.image }}
-      user: root
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -224,7 +222,6 @@ jobs:
     if: github.event.pull_request.draft == false
     container:
       image: ${{ needs.build-ci-image.outputs.image }}
-      user: root
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -267,7 +264,6 @@ jobs:
     runs-on: ubicloud-standard-30
     container:
       image: ${{ needs.build-ci-image.outputs.image }}
-      user: root
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -444,7 +440,6 @@ jobs:
     timeout-minutes: 60
     container:
       image: ${{ needs.build-ci-image.outputs.image }}
-      user: root
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -602,7 +597,6 @@ jobs:
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'guest-code')
     container:
       image: ${{ needs.build-ci-image.outputs.image }}
-      user: root
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
