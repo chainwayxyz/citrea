@@ -120,9 +120,6 @@ RUN cargo install --locked cargo-llvm-cov --version 0.6.16
 # cargo-udeps - Unused dependencies checker
 RUN cargo install --locked cargo-udeps --version 0.1.55
 
-# cargo-hack - Feature flag testing
-RUN cargo install --locked cargo-hack --version 0.6.36
-
 # ============================================================================
 # Configure mold as default linker for Rust
 # ============================================================================
