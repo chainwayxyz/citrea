@@ -150,8 +150,8 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
       volumes:
         - ${{ github.workspace }}/target:${{ github.workspace }}/target
-        - ${{ github.workspace }}/.cargo:/root/.cargo
-        - ${{ github.workspace }}/.rustup:/root/.rustup
+        - ${{ github.workspace }}/cargo-registry:/root/.cargo/registry
+        - ${{ github.workspace }}/cargo-git:/root/.cargo/git
     env:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
@@ -186,8 +186,8 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
       volumes:
         - ${{ github.workspace }}/target:${{ github.workspace }}/target
-        - ${{ github.workspace }}/.cargo:/root/.cargo
-        - ${{ github.workspace }}/.rustup:/root/.rustup
+        - ${{ github.workspace }}/cargo-registry:/root/.cargo/registry
+        - ${{ github.workspace }}/cargo-git:/root/.cargo/git
     env:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
@@ -215,8 +215,8 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
       volumes:
         - ${{ github.workspace }}/target:${{ github.workspace }}/target
-        - ${{ github.workspace }}/.cargo:/root/.cargo
-        - ${{ github.workspace }}/.rustup:/root/.rustup
+        - ${{ github.workspace }}/cargo-registry:/root/.cargo/registry
+        - ${{ github.workspace }}/cargo-git:/root/.cargo/git
     env:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
@@ -251,8 +251,8 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
       volumes:
         - ${{ github.workspace }}/target:${{ github.workspace }}/target
-        - ${{ github.workspace }}/.cargo:/root/.cargo
-        - ${{ github.workspace }}/.rustup:/root/.rustup
+        - ${{ github.workspace }}/cargo-registry:/root/.cargo/registry
+        - ${{ github.workspace }}/cargo-git:/root/.cargo/git
         # Mount Docker socket for Docker-in-Docker support
         - /var/run/docker.sock:/var/run/docker.sock
     env:
@@ -422,8 +422,8 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
       volumes:
         - ${{ github.workspace }}/target:${{ github.workspace }}/target
-        - ${{ github.workspace }}/.cargo:/root/.cargo
-        - ${{ github.workspace }}/.rustup:/root/.rustup
+        - ${{ github.workspace }}/cargo-registry:/root/.cargo/registry
+        - ${{ github.workspace }}/cargo-git:/root/.cargo/git
         # Mount Docker socket for Docker-in-Docker support
         - /var/run/docker.sock:/var/run/docker.sock
     env:
@@ -574,8 +574,8 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
       volumes:
         - ${{ github.workspace }}/target:${{ github.workspace }}/target
-        - ${{ github.workspace }}/.cargo:/root/.cargo
-        - ${{ github.workspace }}/.rustup:/root/.rustup
+        - ${{ github.workspace }}/cargo-registry:/root/.cargo/registry
+        - ${{ github.workspace }}/cargo-git:/root/.cargo/git
         # Mount Docker socket for Docker-in-Docker support
         - /var/run/docker.sock:/var/run/docker.sock
     env:
