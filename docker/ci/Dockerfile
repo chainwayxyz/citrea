@@ -146,7 +146,8 @@ RUN mkdir -p ${EF_TESTS_DIR} && \
 RUN mkdir -p \
     /root/.cargo/git/db \
     /root/.cargo/git/checkouts \
-    /root/.cargo/registry
+    /root/.cargo/registry \
+    chmod -R 777 /root/.cargo
 
 # ============================================================================
 # Workspace setup
