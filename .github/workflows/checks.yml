@@ -162,7 +162,7 @@ jobs:
         with:
           shared-key: build
         env:
-        CARGO_HOME: ${{ github.workspace }}/.ci/cargo
+          CARGO_HOME: ${{ github.workspace }}/.ci/cargo
 
       - name: Build citrea
         run: make build
