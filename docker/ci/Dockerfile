@@ -143,6 +143,11 @@ RUN mkdir -p ${EF_TESTS_DIR} && \
     tar -xzf /tmp/ethereum-tests.tar.gz --strip-components=1 -C ${EF_TESTS_DIR} && \
     rm /tmp/ethereum-tests.tar.gz
 
+RUN mkdir -p \
+    /root/.cargo/git/db \
+    /root/.cargo/git/checkouts \
+    /root/.cargo/registry
+
 # ============================================================================
 # Workspace setup
 # ============================================================================
