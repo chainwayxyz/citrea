@@ -161,11 +161,8 @@ jobs:
         with:
           shared-key: build
           prefix-key: v0-rust
-      - name: Cache ethereum-tests
-        uses: actions/cache@v4
-        with:
-          key: "eth-tests-1c23e3c"
-          path: crates/evm/ethereum-tests
+      - name: Link ethereum-tests from image cache
+        run: ln -s /ef-tests crates/evm/ethereum-tests
       - name: Build citrea
         run: make build
       - name: Cache binaries
@@ -192,8 +189,6 @@ jobs:
       RUSTUP_HOME: /root/.rustup
     steps:
       - uses: actions/checkout@v5
-      # All tools are pre-installed in the container image!
-      # No need for: setup-mold, setup-protoc, rust-toolchain, install-risc0
       - name: Check TOML
         run: dprint check
       - name: Run lint
@@ -265,11 +260,8 @@ jobs:
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
         run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
-      - name: Cache ethereum-tests
-        uses: actions/cache@v4
-        with:
-          key: "eth-tests-1c23e3c"
-          path: crates/evm/ethereum-tests
+      - name: Link ethereum-tests from image cache
+        run: ln -s /ef-tests crates/evm/ethereum-tests
       - name: Restore cached Docker image
         uses: actions/cache@v4
         with:
@@ -462,11 +454,8 @@ jobs:
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
         run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
-      - name: Cache ethereum-tests
-        uses: actions/cache@v4
-        with:
-          key: "eth-tests-1c23e3c"
-          path: crates/evm/ethereum-tests
+      - name: Link ethereum-tests from image cache
+        run: ln -s /ef-tests crates/evm/ethereum-tests
       - name: Restore cached Docker image
         uses: actions/cache@v4
         with:
@@ -687,12 +676,9 @@ jobs:
         with:
           shared-key: build
           prefix-key: v0-rust
-      - name: Cache ethereum-tests
+      - name: Link ethereum-tests from image cache
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
-        with:
-          key: "eth-tests-1c23e3c"
-          path: crates/evm/ethereum-tests
+        run: ln -sf /ef-tests crates/evm/ethereum-tests
       - name: Build citrea on the base branch
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         run: make build

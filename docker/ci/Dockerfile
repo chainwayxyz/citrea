@@ -154,6 +154,15 @@ RUN mkdir -p /root/.cargo && \
 RUN git config --global --add safe.directory '*'
 
 # ============================================================================
+# Ethereum Foundation tests (cached to avoid download during CI)
+# ============================================================================
+ARG EF_TESTS_URL=https://github.com/ethereum/tests/archive/refs/tags/v16.0.tar.gz
+RUN mkdir -p /ef-tests && \
+    wget -q ${EF_TESTS_URL} -O /tmp/ethereum-tests.tar.gz && \
+    tar -xzf /tmp/ethereum-tests.tar.gz --strip-components=1 -C /ef-tests && \
+    rm /tmp/ethereum-tests.tar.gz
+
+# ============================================================================
 # Workspace setup
 # ============================================================================
 WORKDIR /workspace
