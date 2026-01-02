@@ -156,13 +156,13 @@ jobs:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
     steps:
+      - uses: actions/checkout@v5
+
       - name: Initialize cargo directories
         run: |
           mkdir -p /root/.cargo/git/db
           mkdir -p /root/.cargo/git/checkouts
           mkdir -p /root/.cargo/registry
-
-      - uses: actions/checkout@v5
 
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
@@ -198,13 +198,12 @@ jobs:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
     steps:
+      - uses: actions/checkout@v5
       - name: Initialize cargo directories
         run: |
           mkdir -p /root/.cargo/git/db
           mkdir -p /root/.cargo/git/checkouts
           mkdir -p /root/.cargo/registry
-
-      - uses: actions/checkout@v5
       - name: Run lint
         run: |
           if ! make lint ; then
@@ -233,13 +232,12 @@ jobs:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
     steps:
+      - uses: actions/checkout@v5
       - name: Initialize cargo directories
         run: |
           mkdir -p /root/.cargo/git/db
           mkdir -p /root/.cargo/git/checkouts
           mkdir -p /root/.cargo/registry
-
-      - uses: actions/checkout@v5
       - name: Run cargo-udeps
         env:
           RUSTFLAGS: -A warnings
@@ -277,14 +275,12 @@ jobs:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
     steps:
+      - uses: actions/checkout@v5
       - name: Initialize cargo directories
         run: |
           mkdir -p /root/.cargo/git/db
           mkdir -p /root/.cargo/git/checkouts
           mkdir -p /root/.cargo/registry
-
-      - uses: actions/checkout@v5
-      # All tools are pre-installed in the container image
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
 
@@ -453,13 +449,12 @@ jobs:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
     steps:
+      - uses: actions/checkout@v5
       - name: Initialize cargo directories
         run: |
           mkdir -p /root/.cargo/git/db
           mkdir -p /root/.cargo/git/checkouts
           mkdir -p /root/.cargo/registry
-
-      - uses: actions/checkout@v5
       # All tools are pre-installed in the container image
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
@@ -610,14 +605,12 @@ jobs:
       CARGO_HOME: /root/.cargo
       RUSTUP_HOME: /root/.rustup
     steps:
+      - uses: actions/checkout@v5
       - name: Initialize cargo directories
         run: |
           mkdir -p /root/.cargo/git/db
           mkdir -p /root/.cargo/git/checkouts
           mkdir -p /root/.cargo/registry
-
-      - uses: actions/checkout@v5
-      # All tools (Python, risc0, etc.) are pre-installed in the container image
 
       - name: Restore binaries
         uses: actions/cache@v4
