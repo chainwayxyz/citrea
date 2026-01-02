@@ -263,7 +263,6 @@ jobs:
       # All tools are pre-installed in the container image
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
-        with:
 
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
@@ -434,7 +433,6 @@ jobs:
       # All tools are pre-installed in the container image
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
-        with:
 
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
