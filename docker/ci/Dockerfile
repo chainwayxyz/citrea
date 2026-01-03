@@ -1,64 +1,68 @@
-# Citrea CI Golden Image
+# Citrea CI Golden Image (Alpine-based for minimal size)
 # Contains all dependencies needed for CI workflows
 #
 # Build: docker build -t citrea-ci:latest -f docker/ci/Dockerfile .
 # Test:  docker run --rm -v $(pwd):/workspace -w /workspace citrea-ci:latest make build
 
 ARG PLATFORM=linux/amd64
-FROM --platform=$PLATFORM ubuntu:24.04
 
-# Prevent interactive prompts during package installation
-ENV DEBIAN_FRONTEND=noninteractive
+# ============================================================================
+# BUILDER STAGE - Build cargo tools (uses glibc for broader compatibility)
+# ============================================================================
+FROM --platform=$PLATFORM rust:1.88-slim-bookworm AS cargo-builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build all cargo tools in one layer to minimize build time
+RUN cargo install --locked dprint --version 0.49.1 && \
+    cargo install --locked cargo-nextest --version 0.9.95 && \
+    cargo install --locked cargo-llvm-cov --version 0.6.16 && \
+    cargo install --locked cargo-udeps --version 0.1.55 && \
+    rm -rf /usr/local/cargo/registry /usr/local/cargo/git
+
+# ============================================================================
+# FINAL STAGE - Alpine minimal runtime
+# ============================================================================
+FROM --platform=$PLATFORM alpine:3.21
 
 # CI environment variables
 ENV CARGO_TERM_COLOR=always
 ENV RUSTFLAGS="-D warnings"
 
-# ============================================================================
-# CRITICAL: Set explicit paths for all tools
-# GitHub Actions overrides HOME, RUSTUP_HOME, CARGO_HOME when running containers.
-# We must set these explicitly to where we install the tools during docker build.
-# ============================================================================
+# Tool paths - must be explicit for GitHub Actions
 ENV RUSTUP_HOME="/usr/local/rustup"
 ENV CARGO_HOME="/usr/local/cargo"
-ENV RISC0_HOME="/usr/local/risc0"
-
-ENV PATH="/usr/local/cargo/bin:/usr/local/rustup/bin:/usr/local/risc0/bin:/root/.local/bin:/usr/local/bin:${PATH}"
+ENV RISC0_HOME="/root/.risc0"
+ENV PATH="/usr/local/cargo/bin:${RISC0_HOME}/bin:${PATH}"
 
 # ============================================================================
 # System Dependencies
 # ============================================================================
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     # Build essentials
-    build-essential \
-    pkg-config \
-    libssl-dev \
+    build-base \
+    pkgconfig \
+    openssl-dev \
     clang \
+    llvm \
     cmake \
     # Utilities
     curl \
     wget \
     git \
     unzip \
+    bash \
     # SSL/TLS
     ca-certificates \
-    gnupg \
-    lsb-release \
-    && rm -rf /var/lib/apt/lists/*
+    # For Docker CLI
+    docker-cli \
+    # glibc compatibility layer (needed for pre-built Rust binaries)
+    gcompat
 
 # ============================================================================
-# Docker CLI (for tests that spawn containers)
-# ============================================================================
-RUN install -m 0755 -d /etc/apt/keyrings && \
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
-    chmod a+r /etc/apt/keyrings/docker.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-    $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
-    apt-get update && apt-get install -y docker-ce-cli && \
-    rm -rf /var/lib/apt/lists/*
-
-# ============================================================================
-# mold linker (fast linking)
+# mold linker (fast linking) - download pre-built binary
 # ============================================================================
 ARG MOLD_VERSION=2.34.1
 RUN wget -q https://github.com/rui314/mold/releases/download/v${MOLD_VERSION}/mold-${MOLD_VERSION}-x86_64-linux.tar.gz && \
@@ -68,7 +72,7 @@ RUN wget -q https://github.com/rui314/mold/releases/download/v${MOLD_VERSION}/mo
     rm -rf mold-${MOLD_VERSION}-x86_64-linux*
 
 # ============================================================================
-# Protoc (protobuf compiler)
+# Protoc (protobuf compiler) - download pre-built binary
 # ============================================================================
 ARG PROTOC_VERSION=23.2
 RUN wget -q https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip && \
@@ -76,18 +80,17 @@ RUN wget -q https://github.com/protocolbuffers/protobuf/releases/download/v${PRO
     rm protoc-${PROTOC_VERSION}-linux-x86_64.zip
 
 # ============================================================================
-# Rust toolchains
+# Rust toolchains (minimal install)
 # ============================================================================
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none
 
-# Install required Rust toolchains:
-# - 1.88: Primary toolchain (must match rust-toolchain.toml exactly)
-# - nightly: For formatting and some features
-# - nightly-2025-09-24: For udeps (pinned version)
+# Install required Rust toolchains with minimal components
 RUN rustup toolchain install 1.88 --profile minimal --component rustfmt,clippy,llvm-tools-preview,rust-src && \
     rustup toolchain install nightly-2025-09-24 --profile minimal && \
     rustup default 1.88 && \
-    rustup target add thumbv6m-none-eabi
+    rustup target add thumbv6m-none-eabi && \
+    # Clean up rustup downloads
+    rm -rf ${RUSTUP_HOME}/downloads ${RUSTUP_HOME}/tmp
 
 # ============================================================================
 # risc0 toolchain
@@ -95,28 +98,23 @@ RUN rustup toolchain install 1.88 --profile minimal --component rustfmt,clippy,l
 ARG RISC0_VERSION=3.0.3
 ARG RISC0_RUST_VERSION=1.88.0
 RUN curl -L https://risczero.com/install | bash && \
-    /root/.risc0/bin/rzup install cargo-risczero ${RISC0_VERSION} && \
-    /root/.risc0/bin/rzup install cpp && \
-    /root/.risc0/bin/rzup install r0vm ${RISC0_VERSION} && \
-    /root/.risc0/bin/rzup install rust ${RISC0_RUST_VERSION} && \
-    /root/.risc0/bin/rzup default cargo-risczero ${RISC0_VERSION} && \
-    /root/.risc0/bin/rzup default r0vm ${RISC0_VERSION} && \
-    /root/.risc0/bin/rzup default rust ${RISC0_RUST_VERSION}
+    ${RISC0_HOME}/bin/rzup install cargo-risczero ${RISC0_VERSION} && \
+    ${RISC0_HOME}/bin/rzup install cpp && \
+    ${RISC0_HOME}/bin/rzup install r0vm ${RISC0_VERSION} && \
+    ${RISC0_HOME}/bin/rzup install rust ${RISC0_RUST_VERSION} && \
+    ${RISC0_HOME}/bin/rzup default cargo-risczero ${RISC0_VERSION} && \
+    ${RISC0_HOME}/bin/rzup default r0vm ${RISC0_VERSION} && \
+    ${RISC0_HOME}/bin/rzup default rust ${RISC0_RUST_VERSION} && \
+    # Clean up risc0 downloads and caches
+    rm -rf ${RISC0_HOME}/downloads ${RISC0_HOME}/tmp /tmp/*
 
 # ============================================================================
-# Cargo tools
+# Copy pre-built cargo tools from builder (glibc-linked, need gcompat)
 # ============================================================================
-# dprint - TOML/code formatting
-RUN cargo install --locked dprint --version 0.49.1
-
-# cargo-nextest - Fast test runner
-RUN cargo install --locked cargo-nextest --version 0.9.95
-
-# cargo-llvm-cov - Code coverage
-RUN cargo install --locked cargo-llvm-cov --version 0.6.16
-
-# cargo-udeps - Unused dependencies checker
-RUN cargo install --locked cargo-udeps --version 0.1.55
+COPY --from=cargo-builder /usr/local/cargo/bin/dprint /usr/local/cargo/bin/
+COPY --from=cargo-builder /usr/local/cargo/bin/cargo-nextest /usr/local/cargo/bin/
+COPY --from=cargo-builder /usr/local/cargo/bin/cargo-llvm-cov /usr/local/cargo/bin/
+COPY --from=cargo-builder /usr/local/cargo/bin/cargo-udeps /usr/local/cargo/bin/
 
 # ============================================================================
 # Configure mold as default linker for Rust
@@ -126,8 +124,6 @@ RUN mkdir -p /root/.cargo && \
 
 # ============================================================================
 # Git configuration
-# GitHub Actions mounts the workspace with different ownership than the container user.
-# This prevents "dubious ownership" errors.
 # ============================================================================
 RUN git config --global --add safe.directory '*'
 
@@ -141,6 +137,9 @@ RUN mkdir -p ${EF_TESTS_DIR} && \
     tar -xzf /tmp/ethereum-tests.tar.gz --strip-components=1 -C ${EF_TESTS_DIR} && \
     rm /tmp/ethereum-tests.tar.gz
 
+# ============================================================================
+# Cargo directories setup
+# ============================================================================
 RUN mkdir -p /root/.cargo/git/db \
     /root/.cargo/git/checkouts \
     /root/.cargo/registry \
@@ -148,10 +147,9 @@ RUN mkdir -p /root/.cargo/git/db \
     && chmod -R 777 /root/.cargo
 
 # ============================================================================
-# Workspace setup
+# Final cleanup
 # ============================================================================
+RUN rm -rf /tmp/* /var/tmp/* /root/.cache
+
 WORKDIR /workspace
-
-# Default command
 CMD ["/bin/bash"]
-
