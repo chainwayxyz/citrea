@@ -85,7 +85,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --de
 # - nightly: For formatting and some features
 # - nightly-2025-09-24: For udeps (pinned version)
 RUN rustup toolchain install 1.88 --profile minimal --component rustfmt,clippy,llvm-tools-preview,rust-src && \
-    rustup toolchain install nightly --profile minimal --component rustfmt,clippy,llvm-tools-preview && \
     rustup toolchain install nightly-2025-09-24 --profile minimal && \
     rustup default 1.88 && \
     rustup target add thumbv6m-none-eabi
