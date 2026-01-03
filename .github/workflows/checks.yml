@@ -164,19 +164,6 @@ jobs:
           restore-keys: |
             cargo-build-${{ runner.os }}-
 
-      - name: Initialize cargo directories
-        run: |
-          mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
-          mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
-          touch $CARGO_HOME/.package-cache 2>/dev/null || true
-          if [ ! -f $CARGO_HOME/config.toml ]; then
-            cat > $CARGO_HOME/config.toml << 'EOF'
-          [target.x86_64-unknown-linux-gnu]
-          linker = "clang"
-          rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/mold"]
-          EOF
-          fi
-
       - name: Build citrea
         run: make build
       - name: Cache binaries
@@ -273,19 +260,6 @@ jobs:
           key: cargo-coverage-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             cargo-coverage-${{ runner.os }}-
-
-      - name: Initialize cargo directories
-        run: |
-          mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
-          mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
-          touch $CARGO_HOME/.package-cache 2>/dev/null || true
-          if [ ! -f $CARGO_HOME/config.toml ]; then
-            cat > $CARGO_HOME/config.toml << 'EOF'
-          [target.x86_64-unknown-linux-gnu]
-          linker = "clang"
-          rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/mold"]
-          EOF
-          fi
 
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
@@ -460,19 +434,6 @@ jobs:
           key: cargo-test-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             cargo-test-${{ runner.os }}-
-
-      - name: Initialize cargo directories
-        run: |
-          mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
-          mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
-          touch $CARGO_HOME/.package-cache 2>/dev/null || true
-          if [ ! -f $CARGO_HOME/config.toml ]; then
-            cat > $CARGO_HOME/config.toml << 'EOF'
-          [target.x86_64-unknown-linux-gnu]
-          linker = "clang"
-          rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/mold"]
-          EOF
-          fi
 
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}

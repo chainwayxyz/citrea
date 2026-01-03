@@ -135,15 +135,6 @@ RUN mkdir -p /root/.cargo && \
 RUN git config --global --add safe.directory '*'
 
 # ============================================================================
-# Cargo directories setup
-# ============================================================================
-RUN mkdir -p /root/.cargo/git/db \
-    /root/.cargo/git/checkouts \
-    /root/.cargo/registry \
-    && touch /root/.cargo/.package-cache \
-    && chmod -R 777 /root/.cargo
-
-# ============================================================================
 # Final cleanup
 # ============================================================================
 RUN rm -rf /tmp/* /var/tmp/* /root/.cache
