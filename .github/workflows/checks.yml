@@ -167,6 +167,20 @@ jobs:
           restore-keys: |
             cargo-${{ runner.os }}-
 
+      - name: Initialize cargo directories
+        run: |
+          mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
+          mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
+          mkdir -p $CARGO_HOME/.package-cache
+          # Restore mold linker config if missing
+          if [ ! -f $CARGO_HOME/config.toml ]; then
+            cat > $CARGO_HOME/config.toml << 'EOF'
+          [target.x86_64-unknown-linux-gnu]
+          linker = "clang"
+          rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/mold"]
+          EOF
+          fi
+
       - name: Build citrea
         run: make build
       - name: Cache binaries
@@ -196,6 +210,30 @@ jobs:
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
+
+      - name: Restore Rust cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/.ci/cargo
+            ${{ github.workspace }}/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Initialize cargo directories
+        run: |
+          mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
+          mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
+          mkdir -p $CARGO_HOME/.package-cache
+          if [ ! -f $CARGO_HOME/config.toml ]; then
+            cat > $CARGO_HOME/config.toml << 'EOF'
+          [target.x86_64-unknown-linux-gnu]
+          linker = "clang"
+          rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/mold"]
+          EOF
+          fi
+
       - name: Run lint
         run: |
           if ! make lint ; then
@@ -224,6 +262,30 @@ jobs:
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
+
+      - name: Restore Rust cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/.ci/cargo
+            ${{ github.workspace }}/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Initialize cargo directories
+        run: |
+          mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
+          mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
+          mkdir -p $CARGO_HOME/.package-cache
+          if [ ! -f $CARGO_HOME/config.toml ]; then
+            cat > $CARGO_HOME/config.toml << 'EOF'
+          [target.x86_64-unknown-linux-gnu]
+          linker = "clang"
+          rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/mold"]
+          EOF
+          fi
+
       - name: Run cargo-udeps
         env:
           RUSTFLAGS: -A warnings
@@ -261,8 +323,29 @@ jobs:
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
-      - name: Rust Cache
-        uses: ubicloud/rust-cache@v2
+
+      - name: Restore Rust cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/.ci/cargo
+            ${{ github.workspace }}/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Initialize cargo directories
+        run: |
+          mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
+          mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
+          mkdir -p $CARGO_HOME/.package-cache
+          if [ ! -f $CARGO_HOME/config.toml ]; then
+            cat > $CARGO_HOME/config.toml << 'EOF'
+          [target.x86_64-unknown-linux-gnu]
+          linker = "clang"
+          rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/mold"]
+          EOF
+          fi
 
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
@@ -429,9 +512,29 @@ jobs:
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
-      # All tools are pre-installed in the container image
-      - name: Rust Cache
-        uses: ubicloud/rust-cache@v2
+
+      - name: Restore Rust cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/.ci/cargo
+            ${{ github.workspace }}/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Initialize cargo directories
+        run: |
+          mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
+          mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
+          mkdir -p $CARGO_HOME/.package-cache
+          if [ ! -f $CARGO_HOME/config.toml ]; then
+            cat > $CARGO_HOME/config.toml << 'EOF'
+          [target.x86_64-unknown-linux-gnu]
+          linker = "clang"
+          rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/mold"]
+          EOF
+          fi
 
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
@@ -579,6 +682,29 @@ jobs:
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
+
+      - name: Restore Rust cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/.ci/cargo
+            ${{ github.workspace }}/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Initialize cargo directories
+        run: |
+          mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
+          mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
+          mkdir -p $CARGO_HOME/.package-cache
+          if [ ! -f $CARGO_HOME/config.toml ]; then
+            cat > $CARGO_HOME/config.toml << 'EOF'
+          [target.x86_64-unknown-linux-gnu]
+          linker = "clang"
+          rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/mold"]
+          EOF
+          fi
 
       - name: Restore binaries
         uses: actions/cache@v4
