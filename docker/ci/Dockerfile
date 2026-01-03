@@ -1,4 +1,4 @@
-# Citrea CI Golden Image (Alpine-based for minimal size)
+# Citrea CI Golden Image (Debian slim for minimal size with glibc compatibility)
 # Contains all dependencies needed for CI workflows
 #
 # Build: docker build -t citrea-ci:latest -f docker/ci/Dockerfile .
@@ -7,7 +7,7 @@
 ARG PLATFORM=linux/amd64
 
 # ============================================================================
-# BUILDER STAGE - Build cargo tools (uses glibc for broader compatibility)
+# BUILDER STAGE - Build cargo tools from source
 # ============================================================================
 FROM --platform=$PLATFORM rust:1.88-slim-bookworm AS cargo-builder
 
@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Build all cargo tools in one layer to minimize build time
+# Build all cargo tools in one layer
 RUN cargo install --locked dprint --version 0.49.1 && \
     cargo install --locked cargo-nextest --version 0.9.95 && \
     cargo install --locked cargo-llvm-cov --version 0.6.16 && \
@@ -23,9 +23,11 @@ RUN cargo install --locked dprint --version 0.49.1 && \
     rm -rf /usr/local/cargo/registry /usr/local/cargo/git
 
 # ============================================================================
-# FINAL STAGE - Alpine minimal runtime
+# FINAL STAGE - Debian slim runtime
 # ============================================================================
-FROM --platform=$PLATFORM alpine:3.21
+FROM --platform=$PLATFORM debian:trixie-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 # CI environment variables
 ENV CARGO_TERM_COLOR=always
@@ -38,28 +40,35 @@ ENV RISC0_HOME="/root/.risc0"
 ENV PATH="/usr/local/cargo/bin:${RISC0_HOME}/bin:${PATH}"
 
 # ============================================================================
-# System Dependencies
+# System Dependencies (minimal set)
 # ============================================================================
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     # Build essentials
-    build-base \
-    pkgconfig \
-    openssl-dev \
+    build-essential \
+    pkg-config \
+    libssl-dev \
     clang \
-    llvm \
     cmake \
     # Utilities
     curl \
     wget \
     git \
     unzip \
-    bash \
     # SSL/TLS
     ca-certificates \
-    # For Docker CLI
-    docker-cli \
-    # glibc compatibility layer (needed for pre-built Rust binaries)
-    gcompat
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
+# ============================================================================
+# Docker CLI (for tests that spawn containers)
+# ============================================================================
+RUN install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
+    chmod a+r /etc/apt/keyrings/docker.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
+    bookworm stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+    apt-get update && apt-get install -y --no-install-recommends docker-ce-cli && \
+    rm -rf /var/lib/apt/lists/*
 
 # ============================================================================
 # mold linker (fast linking) - download pre-built binary
@@ -89,7 +98,6 @@ RUN rustup toolchain install 1.88 --profile minimal --component rustfmt,clippy,l
     rustup toolchain install nightly-2025-09-24 --profile minimal && \
     rustup default 1.88 && \
     rustup target add thumbv6m-none-eabi && \
-    # Clean up rustup downloads
     rm -rf ${RUSTUP_HOME}/downloads ${RUSTUP_HOME}/tmp
 
 # ============================================================================
@@ -105,11 +113,10 @@ RUN curl -L https://risczero.com/install | bash && \
     ${RISC0_HOME}/bin/rzup default cargo-risczero ${RISC0_VERSION} && \
     ${RISC0_HOME}/bin/rzup default r0vm ${RISC0_VERSION} && \
     ${RISC0_HOME}/bin/rzup default rust ${RISC0_RUST_VERSION} && \
-    # Clean up risc0 downloads and caches
     rm -rf ${RISC0_HOME}/downloads ${RISC0_HOME}/tmp /tmp/*
 
 # ============================================================================
-# Copy pre-built cargo tools from builder (glibc-linked, need gcompat)
+# Copy pre-built cargo tools from builder
 # ============================================================================
 COPY --from=cargo-builder /usr/local/cargo/bin/dprint /usr/local/cargo/bin/
 COPY --from=cargo-builder /usr/local/cargo/bin/cargo-nextest /usr/local/cargo/bin/
