@@ -150,10 +150,11 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     env:
-      CARGO_HOME: ${{ github.workspace }}/.ci/cargo
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
+      - name: Set CARGO_HOME
+        run: echo "CARGO_HOME=$GITHUB_WORKSPACE/.ci/cargo" >> $GITHUB_ENV
 
       - name: Restore Rust cache
         uses: actions/cache@v4
@@ -188,6 +189,8 @@ jobs:
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
+      - name: Set CARGO_HOME
+        run: echo "CARGO_HOME=$GITHUB_WORKSPACE/.ci/cargo" >> $GITHUB_ENV
       - name: Restore Rust cache
         uses: actions/cache@v4
         with:
@@ -252,10 +255,11 @@ jobs:
         # Mount Docker socket for Docker-in-Docker support
         - /var/run/docker.sock:/var/run/docker.sock
     env:
-      CARGO_HOME: ${{ github.workspace }}/.ci/cargo
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
+      - name: Set CARGO_HOME
+        run: echo "CARGO_HOME=$GITHUB_WORKSPACE/.ci/cargo" >> $GITHUB_ENV
 
       - name: Restore Rust cache
         uses: actions/cache@v4
@@ -426,10 +430,11 @@ jobs:
         # Mount Docker socket for Docker-in-Docker support
         - /var/run/docker.sock:/var/run/docker.sock
     env:
-      CARGO_HOME: ${{ github.workspace }}/.ci/cargo
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
+      - name: Set CARGO_HOME
+        run: echo "CARGO_HOME=$GITHUB_WORKSPACE/.ci/cargo" >> $GITHUB_ENV
 
       - name: Restore Rust cache
         uses: actions/cache@v4
