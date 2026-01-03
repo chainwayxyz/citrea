@@ -148,17 +148,11 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-      volumes:
-        - ${{ github.workspace }}/.ci/cargo:/root/.cargo
-        - ${{ github.workspace }}/target:${{ github.workspace }}/target
     env:
-      CARGO_HOME: /root/.cargo
+      CARGO_HOME: ${{ github.workspace }}/.ci/cargo
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
-
-      - name: Prepare cache directories
-        run: mkdir -p .ci/cargo target
 
       - name: Restore Rust cache
         uses: actions/cache@v4
@@ -172,7 +166,6 @@ jobs:
 
       - name: Initialize cargo directories
         run: |
-          mkdir -p $CARGO_HOME
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
           mkdir -p $CARGO_HOME/.package-cache
@@ -205,11 +198,8 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-      volumes:
-        - ${{ github.workspace }}/.ci/cargo:/root/.cargo
-        - ${{ github.workspace }}/target:${{ github.workspace }}/target
     env:
-      CARGO_HOME: /root/.cargo
+      CARGO_HOME: ${{ github.workspace }}/.ci/cargo
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
@@ -218,15 +208,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ${{ github.workspace }}/.ci/cargo
-            ${{ github.workspace }}/target
+            .ci/cargo
+            target
           key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             cargo-${{ runner.os }}-
 
       - name: Initialize cargo directories
         run: |
-          mkdir -p $CARGO_HOME
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
           mkdir -p $CARGO_HOME/.package-cache
@@ -258,11 +247,8 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-      volumes:
-        - ${{ github.workspace }}/.ci/cargo:/root/.cargo
-        - ${{ github.workspace }}/target:${{ github.workspace }}/target
     env:
-      CARGO_HOME: /root/.cargo
+      CARGO_HOME: ${{ github.workspace }}/.ci/cargo
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
@@ -271,15 +257,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ${{ github.workspace }}/.ci/cargo
-            ${{ github.workspace }}/target
+            .ci/cargo
+            target
           key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             cargo-${{ runner.os }}-
 
       - name: Initialize cargo directories
         run: |
-          mkdir -p $CARGO_HOME
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
           mkdir -p $CARGO_HOME/.package-cache
@@ -319,12 +304,10 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
       volumes:
-        - ${{ github.workspace }}/.ci/cargo:/root/.cargo
-        - ${{ github.workspace }}/target:${{ github.workspace }}/target
         # Mount Docker socket for Docker-in-Docker support
         - /var/run/docker.sock:/var/run/docker.sock
     env:
-      CARGO_HOME: /root/.cargo
+      CARGO_HOME: ${{ github.workspace }}/.ci/cargo
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
@@ -333,15 +316,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ${{ github.workspace }}/.ci/cargo
-            ${{ github.workspace }}/target
+            .ci/cargo
+            target
           key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             cargo-${{ runner.os }}-
 
       - name: Initialize cargo directories
         run: |
-          mkdir -p $CARGO_HOME
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
           mkdir -p $CARGO_HOME/.package-cache
@@ -509,12 +491,10 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
       volumes:
-        - ${{ github.workspace }}/.ci/cargo:/root/.cargo
-        - ${{ github.workspace }}/target:${{ github.workspace }}/target
         # Mount Docker socket for Docker-in-Docker support
         - /var/run/docker.sock:/var/run/docker.sock
     env:
-      CARGO_HOME: /root/.cargo
+      CARGO_HOME: ${{ github.workspace }}/.ci/cargo
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
@@ -523,15 +503,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ${{ github.workspace }}/.ci/cargo
-            ${{ github.workspace }}/target
+            .ci/cargo
+            target
           key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             cargo-${{ runner.os }}-
 
       - name: Initialize cargo directories
         run: |
-          mkdir -p $CARGO_HOME
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
           mkdir -p $CARGO_HOME/.package-cache
@@ -680,12 +659,10 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
       volumes:
-        - ${{ github.workspace }}/.ci/cargo:/root/.cargo
-        - ${{ github.workspace }}/target:${{ github.workspace }}/target
         # Mount Docker socket for Docker-in-Docker support
         - /var/run/docker.sock:/var/run/docker.sock
     env:
-      CARGO_HOME: /root/.cargo
+      CARGO_HOME: ${{ github.workspace }}/.ci/cargo
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
@@ -694,15 +671,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ${{ github.workspace }}/.ci/cargo
-            ${{ github.workspace }}/target
+            .ci/cargo
+            target
           key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             cargo-${{ runner.os }}-
 
       - name: Initialize cargo directories
         run: |
-          mkdir -p $CARGO_HOME
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
           mkdir -p $CARGO_HOME/.package-cache
