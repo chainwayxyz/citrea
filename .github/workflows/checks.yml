@@ -694,9 +694,6 @@ jobs:
         with:
           shared-key: build
 
-      - name: Link ethereum-tests from image cache
-        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
-        run: ln -sf /ef-tests crates/evm/ethereum-tests
       - name: Build citrea on the base branch
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         run: make build
