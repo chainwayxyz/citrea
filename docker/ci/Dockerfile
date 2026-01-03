@@ -145,7 +145,7 @@ RUN mkdir -p ${EF_TESTS_DIR} && \
 RUN mkdir -p /root/.cargo/git/db \
     /root/.cargo/git/checkouts \
     /root/.cargo/registry \
-    /root/.cargo/.package-cache \
+    && touch /root/.cargo/.package-cache \
     && chmod -R 777 /root/.cargo
 
 # ============================================================================

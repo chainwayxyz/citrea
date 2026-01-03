@@ -168,7 +168,7 @@ jobs:
         run: |
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
-          mkdir -p $CARGO_HOME/.package-cache
+          touch $CARGO_HOME/.package-cache 2>/dev/null || true
           if [ ! -f $CARGO_HOME/config.toml ]; then
             cat > $CARGO_HOME/config.toml << 'EOF'
           [target.x86_64-unknown-linux-gnu]
@@ -218,7 +218,7 @@ jobs:
         run: |
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
-          mkdir -p $CARGO_HOME/.package-cache
+          touch $CARGO_HOME/.package-cache 2>/dev/null || true
           if [ ! -f $CARGO_HOME/config.toml ]; then
             cat > $CARGO_HOME/config.toml << 'EOF'
           [target.x86_64-unknown-linux-gnu]
@@ -267,7 +267,7 @@ jobs:
         run: |
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
-          mkdir -p $CARGO_HOME/.package-cache
+          touch $CARGO_HOME/.package-cache 2>/dev/null || true
           if [ ! -f $CARGO_HOME/config.toml ]; then
             cat > $CARGO_HOME/config.toml << 'EOF'
           [target.x86_64-unknown-linux-gnu]
@@ -326,7 +326,7 @@ jobs:
         run: |
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
-          mkdir -p $CARGO_HOME/.package-cache
+          touch $CARGO_HOME/.package-cache 2>/dev/null || true
           if [ ! -f $CARGO_HOME/config.toml ]; then
             cat > $CARGO_HOME/config.toml << 'EOF'
           [target.x86_64-unknown-linux-gnu]
@@ -513,7 +513,7 @@ jobs:
         run: |
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
-          mkdir -p $CARGO_HOME/.package-cache
+          touch $CARGO_HOME/.package-cache 2>/dev/null || true
           if [ ! -f $CARGO_HOME/config.toml ]; then
             cat > $CARGO_HOME/config.toml << 'EOF'
           [target.x86_64-unknown-linux-gnu]
@@ -681,7 +681,7 @@ jobs:
         run: |
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
-          mkdir -p $CARGO_HOME/.package-cache
+          touch $CARGO_HOME/.package-cache 2>/dev/null || true
           if [ ! -f $CARGO_HOME/config.toml ]; then
             cat > $CARGO_HOME/config.toml << 'EOF'
           [target.x86_64-unknown-linux-gnu]
