@@ -157,22 +157,25 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Prepare cache directories
+        run: mkdir -p .ci/cargo target
+
       - name: Restore Rust cache
         uses: actions/cache@v4
         with:
           path: |
-            ${{ github.workspace }}/.ci/cargo
-            ${{ github.workspace }}/target
+            .ci/cargo
+            target
           key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             cargo-${{ runner.os }}-
 
       - name: Initialize cargo directories
         run: |
+          mkdir -p $CARGO_HOME
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
           mkdir -p $CARGO_HOME/.package-cache
-          # Restore mold linker config if missing
           if [ ! -f $CARGO_HOME/config.toml ]; then
             cat > $CARGO_HOME/config.toml << 'EOF'
           [target.x86_64-unknown-linux-gnu]
@@ -223,6 +226,7 @@ jobs:
 
       - name: Initialize cargo directories
         run: |
+          mkdir -p $CARGO_HOME
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
           mkdir -p $CARGO_HOME/.package-cache
@@ -275,6 +279,7 @@ jobs:
 
       - name: Initialize cargo directories
         run: |
+          mkdir -p $CARGO_HOME
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
           mkdir -p $CARGO_HOME/.package-cache
@@ -336,6 +341,7 @@ jobs:
 
       - name: Initialize cargo directories
         run: |
+          mkdir -p $CARGO_HOME
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
           mkdir -p $CARGO_HOME/.package-cache
@@ -525,6 +531,7 @@ jobs:
 
       - name: Initialize cargo directories
         run: |
+          mkdir -p $CARGO_HOME
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
           mkdir -p $CARGO_HOME/.package-cache
@@ -695,6 +702,7 @@ jobs:
 
       - name: Initialize cargo directories
         run: |
+          mkdir -p $CARGO_HOME
           mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
           mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
           mkdir -p $CARGO_HOME/.package-cache
