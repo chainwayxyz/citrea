@@ -160,9 +160,9 @@ jobs:
           path: |
             .ci/cargo
             target
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: cargo-build-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            cargo-${{ runner.os }}-
+            cargo-build-${{ runner.os }}-
 
       - name: Initialize cargo directories
         run: |
@@ -210,9 +210,9 @@ jobs:
           path: |
             .ci/cargo
             target
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: cargo-build-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            cargo-${{ runner.os }}-
+            cargo-build-${{ runner.os }}-
 
       - name: Initialize cargo directories
         run: |
@@ -248,33 +248,9 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     env:
-      CARGO_HOME: ${{ github.workspace }}/.ci/cargo
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
-
-      - name: Restore Rust cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            .ci/cargo
-            target
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            cargo-${{ runner.os }}-
-
-      - name: Initialize cargo directories
-        run: |
-          mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
-          mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
-          touch $CARGO_HOME/.package-cache 2>/dev/null || true
-          if [ ! -f $CARGO_HOME/config.toml ]; then
-            cat > $CARGO_HOME/config.toml << 'EOF'
-          [target.x86_64-unknown-linux-gnu]
-          linker = "clang"
-          rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/mold"]
-          EOF
-          fi
 
       - name: Run cargo-udeps
         env:
@@ -318,9 +294,9 @@ jobs:
           path: |
             .ci/cargo
             target
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: cargo-coverage-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            cargo-${{ runner.os }}-
+            cargo-coverage-${{ runner.os }}-
 
       - name: Initialize cargo directories
         run: |
@@ -505,9 +481,9 @@ jobs:
           path: |
             .ci/cargo
             target
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: cargo-test-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            cargo-${{ runner.os }}-
+            cargo-test-${{ runner.os }}-
 
       - name: Initialize cargo directories
         run: |
@@ -662,33 +638,9 @@ jobs:
         # Mount Docker socket for Docker-in-Docker support
         - /var/run/docker.sock:/var/run/docker.sock
     env:
-      CARGO_HOME: ${{ github.workspace }}/.ci/cargo
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
-
-      - name: Restore Rust cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            .ci/cargo
-            target
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            cargo-${{ runner.os }}-
-
-      - name: Initialize cargo directories
-        run: |
-          mkdir -p $CARGO_HOME/git/db $CARGO_HOME/git/checkouts
-          mkdir -p $CARGO_HOME/registry/index $CARGO_HOME/registry/cache
-          touch $CARGO_HOME/.package-cache 2>/dev/null || true
-          if [ ! -f $CARGO_HOME/config.toml ]; then
-            cat > $CARGO_HOME/config.toml << 'EOF'
-          [target.x86_64-unknown-linux-gnu]
-          linker = "clang"
-          rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/mold"]
-          EOF
-          fi
 
       - name: Restore binaries
         uses: actions/cache@v4
