@@ -60,7 +60,7 @@ run-name: ${{ inputs.custom_name || github.event.pull_request.title || github.sh
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: -D warnings
+  RUSTFLAGS: -D warnings -C linker=clang -C link-arg=-fuse-ld=/usr/local/bin/mold
   FOUNDRY_PROFILE: ci
   BITCOIN_DOCKER_IMAGE: "bitcoin/bitcoin:30.0"
   CARGO_INCREMENTAL: 0
@@ -161,9 +161,7 @@ jobs:
           path: |
             .ci/cargo
             target
-          key: cargo-build-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            cargo-build-${{ runner.os }}-
+          key: cargo-v0-build-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build citrea
         run: make build
@@ -190,6 +188,13 @@ jobs:
       RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
+      - name: Restore Rust cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .ci/cargo
+            target
+          key: cargo-v0-build-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run lint
         run: |
