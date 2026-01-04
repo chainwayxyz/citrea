@@ -259,6 +259,11 @@ jobs:
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
         run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
+      - name: Cache ethereum-tests
+        uses: actions/cache@v4
+        with:
+          key: "eth-tests-1c23e3c"
+          path: crates/evm/ethereum-tests
       - name: Restore cached Docker image
         uses: actions/cache@v4
         with:
@@ -436,6 +441,11 @@ jobs:
       - name: Load Docker image
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
+      - name: Cache ethereum-tests
+        uses: actions/cache@v4
+        with:
+          key: "eth-tests-1c23e3c"
+          path: crates/evm/ethereum-tests
       - name: Run nextest
         run: make test
         env:
@@ -642,6 +652,13 @@ jobs:
         uses: ubicloud/rust-cache@v2
         with:
           shared-key: build
+
+      - name: Cache ethereum-tests
+        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          key: "eth-tests-1c23e3c"
+          path: crates/evm/ethereum-tests
 
       - name: Build citrea on the base branch
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
