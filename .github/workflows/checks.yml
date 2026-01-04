@@ -161,6 +161,7 @@ jobs:
         env:
           RUSTFLAGS: -A warnings
           SKIP_GUEST_BUILD: 1
+          CARGO_INCREMENTAL: 0
         uses: aig787/cargo-udeps-action@v1
         with:
           version: "latest"
