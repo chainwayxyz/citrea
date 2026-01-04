@@ -19,7 +19,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN cargo install --locked dprint --version 0.49.1 && \
     cargo install --locked cargo-nextest --version 0.9.95 && \
     cargo install --locked cargo-llvm-cov --version 0.6.16 && \
-    cargo install --locked cargo-udeps --version 0.1.55 && \
     rm -rf /usr/local/cargo/registry /usr/local/cargo/git
 
 # ============================================================================
@@ -95,7 +94,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --de
 
 # Install required Rust toolchains with minimal components
 RUN rustup toolchain install 1.88 --profile minimal --component rustfmt,clippy,llvm-tools-preview,rust-src && \
-    rustup toolchain install nightly-2025-09-24 --profile minimal && \
     rustup default 1.88 && \
     rustup target add thumbv6m-none-eabi && \
     rm -rf ${RUSTUP_HOME}/downloads ${RUSTUP_HOME}/tmp
@@ -121,7 +119,6 @@ RUN curl -L https://risczero.com/install | bash && \
 COPY --from=cargo-builder /usr/local/cargo/bin/dprint ${CARGO_HOME}/bin/
 COPY --from=cargo-builder /usr/local/cargo/bin/cargo-nextest ${CARGO_HOME}/bin/
 COPY --from=cargo-builder /usr/local/cargo/bin/cargo-llvm-cov ${CARGO_HOME}/bin/
-COPY --from=cargo-builder /usr/local/cargo/bin/cargo-udeps ${CARGO_HOME}/bin/
 
 # ============================================================================
 # Configure mold as default linker for Rust

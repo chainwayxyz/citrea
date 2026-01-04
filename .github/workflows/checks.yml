@@ -190,7 +190,7 @@ jobs:
             /root/.cargo/registry
             /root/.cargo/git
             target
-          key: cargo-v2-build-${{ hashFiles('**/Cargo.lock') }}
+          key: cargo-v2-check-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run lint
         run: |
