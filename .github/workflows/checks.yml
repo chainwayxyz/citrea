@@ -158,7 +158,7 @@ jobs:
             /root/.cargo/registry
             /root/.cargo/git
             target
-          key: cargo-v3-build-${{ hashFiles('**/Cargo.lock') }}
+          key: cargo-v4-build-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             cargo-v4-build-
 
