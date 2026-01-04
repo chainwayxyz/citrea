@@ -162,6 +162,8 @@ jobs:
 
       - name: Build citrea
         run: make build
+        env:
+          CARGO_LOG: cargo::core::compiler::fingerprint=info
       - name: Cache binaries
         uses: actions/cache@v4
         with:
