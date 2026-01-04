@@ -158,7 +158,9 @@ jobs:
             /root/.cargo/registry
             /root/.cargo/git
             target
-          key: cargo-v2-build-${{ hashFiles('**/Cargo.lock') }}
+          key: cargo-v3-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-v3-build-
 
       - name: Build citrea
         run: make build
@@ -192,7 +194,9 @@ jobs:
             /root/.cargo/registry
             /root/.cargo/git
             target
-          key: cargo-v2-check-${{ hashFiles('**/Cargo.lock') }}
+          key: cargo-v3-check-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-v3-check-
 
       - name: Run lint
         run: |
@@ -257,7 +261,9 @@ jobs:
             /root/.cargo/registry
             /root/.cargo/git
             target
-          key: cargo-v2-coverage-${{ hashFiles('**/Cargo.lock') }}
+          key: cargo-v3-coverage-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-v3-coverage-
 
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
@@ -431,7 +437,9 @@ jobs:
             /root/.cargo/registry
             /root/.cargo/git
             target
-          key: cargo-v2-test-${{ hashFiles('**/Cargo.lock') }}
+          key: cargo-v3-test-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-v3-test-
 
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
