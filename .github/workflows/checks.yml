@@ -203,24 +203,25 @@ jobs:
 
   udeps:
     name: udeps
-    needs: build-ci-image
     runs-on: ubicloud-standard-8
     timeout-minutes: 60
     if: github.event.pull_request.draft == false
-    container:
-      image: ${{ needs.build-ci-image.outputs.image }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v5
-
+      - uses: rui314/setup-mold@v1
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-2025-09-24
+          override: true
       - name: Run cargo-udeps
         env:
           RUSTFLAGS: -A warnings
           SKIP_GUEST_BUILD: 1
-          RUSTUP_TOOLCHAIN: nightly-2025-09-24
-        run: cargo udeps --workspace --all-features --all-targets
+        uses: aig787/cargo-udeps-action@v1
+        with:
+          version: "latest"
+          args: "--workspace --all-features --all-targets"
 
   deny:
     runs-on: ubuntu-latest
