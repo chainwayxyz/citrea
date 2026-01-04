@@ -60,7 +60,7 @@ run-name: ${{ inputs.custom_name || github.event.pull_request.title || github.sh
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: -D warnings -C linker=clang -C link-arg=-fuse-ld=/usr/local/bin/mold
+  RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
   BITCOIN_DOCKER_IMAGE: "bitcoin/bitcoin:30.0"
   CARGO_INCREMENTAL: 0
@@ -149,20 +149,16 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    env:
-      RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
-      - name: Set CARGO_HOME
-        run: echo "CARGO_HOME=$GITHUB_WORKSPACE/.ci/cargo" >> $GITHUB_ENV
-
-      - name: Restore Rust cache
+      - name: Rust Cache
         uses: actions/cache@v4
         with:
           path: |
-            .ci/cargo
+            /root/.cargo/registry
+            /root/.cargo/git
             target
-          key: cargo-v0-build-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: cargo-v2-build-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build citrea
         run: make build
@@ -185,19 +181,16 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    env:
-      RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
-      - name: Set CARGO_HOME
-        run: echo "CARGO_HOME=$GITHUB_WORKSPACE/.ci/cargo" >> $GITHUB_ENV
-      - name: Restore Rust cache
+      - name: Rust Cache
         uses: actions/cache@v4
         with:
           path: |
-            .ci/cargo
+            /root/.cargo/registry
+            /root/.cargo/git
             target
-          key: cargo-v0-build-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: cargo-v2-build-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run lint
         run: |
@@ -219,8 +212,6 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    env:
-      RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
 
@@ -254,22 +245,16 @@ jobs:
       volumes:
         # Mount Docker socket for Docker-in-Docker support
         - /var/run/docker.sock:/var/run/docker.sock
-    env:
-      RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
-      - name: Set CARGO_HOME
-        run: echo "CARGO_HOME=$GITHUB_WORKSPACE/.ci/cargo" >> $GITHUB_ENV
-
-      - name: Restore Rust cache
+      - name: Rust Cache
         uses: actions/cache@v4
         with:
           path: |
-            .ci/cargo
+            /root/.cargo/registry
+            /root/.cargo/git
             target
-          key: cargo-coverage-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            cargo-coverage-${{ runner.os }}-
+          key: cargo-v2-coverage-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
@@ -429,22 +414,16 @@ jobs:
       volumes:
         # Mount Docker socket for Docker-in-Docker support
         - /var/run/docker.sock:/var/run/docker.sock
-    env:
-      RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
-      - name: Set CARGO_HOME
-        run: echo "CARGO_HOME=$GITHUB_WORKSPACE/.ci/cargo" >> $GITHUB_ENV
-
-      - name: Restore Rust cache
+      - name: Rust Cache
         uses: actions/cache@v4
         with:
           path: |
-            .ci/cargo
+            /root/.cargo/registry
+            /root/.cargo/git
             target
-          key: cargo-test-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            cargo-test-${{ runner.os }}-
+          key: cargo-v2-test-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
@@ -585,8 +564,6 @@ jobs:
       volumes:
         # Mount Docker socket for Docker-in-Docker support
         - /var/run/docker.sock:/var/run/docker.sock
-    env:
-      RUSTUP_HOME: /usr/local/rustup
     steps:
       - uses: actions/checkout@v5
 

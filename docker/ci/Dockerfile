@@ -33,11 +33,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV CARGO_TERM_COLOR=always
 ENV RUSTFLAGS="-D warnings"
 
-# Tool paths - must be explicit for GitHub Actions
-ENV RUSTUP_HOME="/usr/local/rustup"
-ENV CARGO_HOME="/usr/local/cargo"
+# Tool paths - consistent with root user home
+ENV RUSTUP_HOME="/root/.rustup"
+ENV CARGO_HOME="/root/.cargo"
 ENV RISC0_HOME="/root/.risc0"
-ENV PATH="/usr/local/cargo/bin:${RISC0_HOME}/bin:${PATH}"
+ENV PATH="${CARGO_HOME}/bin:${RISC0_HOME}/bin:${PATH}"
 
 # ============================================================================
 # System Dependencies (minimal set)
@@ -118,16 +118,16 @@ RUN curl -L https://risczero.com/install | bash && \
 # ============================================================================
 # Copy pre-built cargo tools from builder
 # ============================================================================
-COPY --from=cargo-builder /usr/local/cargo/bin/dprint /usr/local/cargo/bin/
-COPY --from=cargo-builder /usr/local/cargo/bin/cargo-nextest /usr/local/cargo/bin/
-COPY --from=cargo-builder /usr/local/cargo/bin/cargo-llvm-cov /usr/local/cargo/bin/
-COPY --from=cargo-builder /usr/local/cargo/bin/cargo-udeps /usr/local/cargo/bin/
+COPY --from=cargo-builder /usr/local/cargo/bin/dprint ${CARGO_HOME}/bin/
+COPY --from=cargo-builder /usr/local/cargo/bin/cargo-nextest ${CARGO_HOME}/bin/
+COPY --from=cargo-builder /usr/local/cargo/bin/cargo-llvm-cov ${CARGO_HOME}/bin/
+COPY --from=cargo-builder /usr/local/cargo/bin/cargo-udeps ${CARGO_HOME}/bin/
 
 # ============================================================================
 # Configure mold as default linker for Rust
 # ============================================================================
-RUN mkdir -p /root/.cargo && \
-    printf '[target.x86_64-unknown-linux-gnu]\nlinker = "clang"\nrustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/mold"]\n' > /root/.cargo/config.toml
+RUN mkdir -p ${CARGO_HOME} && \
+    printf '[target.x86_64-unknown-linux-gnu]\nlinker = "clang"\nrustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/mold"]\n' > ${CARGO_HOME}/config.toml
 
 # ============================================================================
 # Git configuration
@@ -140,4 +140,5 @@ RUN git config --global --add safe.directory '*'
 RUN rm -rf /tmp/* /var/tmp/* /root/.cache
 
 WORKDIR /workspace
+
 CMD ["/bin/bash"]
