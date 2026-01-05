@@ -122,6 +122,8 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt, clippy
+      - name: Check TOML
+        uses: dprint/check@v2.2
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
       - name: Run lint
