@@ -222,7 +222,7 @@ jobs:
       - name: Cache riscv-guest
         uses: actions/cache@v4
         with:
-          key: build-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: coverage-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/llvm-cov-target/riscv-guest
           restore-keys: coverage-guests-v0-${{ runner.os }}-
 
