@@ -209,6 +209,7 @@ jobs:
   coverage:
     needs:
       - docker-setup
+      - build-guests
     runs-on: ubicloud-standard-30
     steps:
       - uses: actions/checkout@v5
@@ -374,6 +375,7 @@ jobs:
   nextest:
     needs:
       - docker-setup
+      - build-guests
     name: nextest
     runs-on: ubicloud-standard-30
     timeout-minutes: 60
