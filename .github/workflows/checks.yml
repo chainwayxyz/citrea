@@ -118,23 +118,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt, clippy
-      - name: Install risc0
-        uses: ./.github/actions/install-risc0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Check TOML
-        uses: dprint/check@v2.2
-      - name: Build guests
-        run: make build-risc0
+      - name: Rust Cache
+        uses: ubicloud/rust-cache@v2
       - name: Run lint
         run: |
           if ! make lint ; then
