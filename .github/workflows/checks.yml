@@ -100,6 +100,14 @@ jobs:
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
+
+      - name: Cache riscv-guest
+        uses: actions/cache@v4
+        with:
+          key: build-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          path: ${{ github.workspace }}/target/riscv-guest
+          restore-keys: build-guests-v0-${{ runner.os }}-
+
       - name: Build citrea
         run: make build
       - name: Cache binaries
@@ -210,6 +218,14 @@ jobs:
       - name: Load Docker image
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
+
+      - name: Cache riscv-guest
+        uses: actions/cache@v4
+        with:
+          key: build-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          path: ${{ github.workspace }}/target/riscv-guest
+          restore-keys: build-guests-v0-${{ runner.os }}-
+
       - name: Run coverage
         run: make coverage
         env:
@@ -382,6 +398,14 @@ jobs:
       - name: Load Docker image
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
+
+      - name: Cache riscv-guest
+        uses: actions/cache@v4
+        with:
+          key: build-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          path: ${{ github.workspace }}/target/riscv-guest
+          restore-keys: build-guests-v0-${{ runner.os }}-
+
       - name: Run nextest
         run: make test
         env:
