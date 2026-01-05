@@ -2,7 +2,8 @@
 use std::time::Duration;
 
 use alloy_primitives::U64;
-use citrea_common::{BatchProverConfig, SequencerConfig};
+use citrea_common::risc0::Risc0HostConfig;
+use citrea_common::{BatchProverConfig, FromEnv, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -74,6 +75,8 @@ async fn full_node_verify_proof_and_store() {
             proving_mode: citrea_common::ProverGuestRunConfig::Execute,
             proof_sampling_number: 0,
             enable_recovery: true,
+            max_commitments_per_proof: None,
+            risc0_host: Risc0HostConfig::from_env().expect("Failed to load Risc0HostConfig"),
         }),
         None,
         rollup_config,
@@ -243,6 +246,8 @@ async fn test_batch_prover_prove_rpcs() {
             // Make it impossible for proving to happen
             proof_sampling_number: 1_000_000,
             enable_recovery: true,
+            max_commitments_per_proof: None,
+            risc0_host: Risc0HostConfig::from_env().expect("Failed to load Risc0HostConfig"),
         }),
         None,
         rollup_config,

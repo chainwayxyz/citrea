@@ -8,12 +8,15 @@ use std::sync::Arc;
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{
-    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter, Index, SyncInfo,
-    SyncStatus as EthSyncStatus, Transaction,
+    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter, FilterChanges,
+    FilterId, Index, Log, SyncInfo, SyncStatus as EthSyncStatus, Transaction, TransactionRequest,
 };
-use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
+use alloy_rpc_types_trace::geth::{
+    GethDebugTracerType, GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace,
+    TraceResult,
+};
 use citrea_common::RpcConfig;
-use citrea_evm::{generate_eth_proof, Evm};
+use citrea_evm::{generate_eth_proof, Evm, FilterKind};
 use citrea_sequencer::SequencerRpcClient;
 pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
@@ -130,6 +133,16 @@ pub trait EthereumRpc {
         opts: Option<GethDebugTracingOptions>,
     ) -> RpcResult<GethTrace>;
 
+    /// Handler for `debug_traceCall`
+    #[method(name = "debug_traceCall")]
+    #[blocking]
+    fn debug_trace_call(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        opts: Option<GethDebugTracingCallOptions>,
+    ) -> RpcResult<GethTrace>;
+
     /// Returns the transaction pool content.
     #[method(name = "txpool_content")]
     fn txpool_content(&self) -> RpcResult<Value>;
@@ -175,6 +188,26 @@ pub trait EthereumRpc {
     /// Subscribe to Ethereum events.
     #[subscription(name = "eth_subscribe" => "eth_subscription", unsubscribe = "eth_unsubscribe", item = Value)]
     async fn subscribe_eth(&self, topic: String, filter: Option<Filter>) -> SubscriptionResult;
+
+    /// Install a new filter.
+    #[method(name = "eth_newFilter")]
+    async fn new_filter(&self, filter: Filter) -> RpcResult<FilterId>;
+
+    /// Uninstall a filter
+    #[method(name = "eth_uninstallFilter")]
+    async fn uninstall_filter(&self, filter_id: FilterId) -> RpcResult<bool>;
+
+    /// Filter changes
+    #[method(name = "eth_getFilterChanges")]
+    async fn get_filter_changes(&self, id: FilterId) -> RpcResult<FilterChanges<Transaction>>;
+
+    /// Filter logs
+    #[method(name = "eth_getFilterLogs")]
+    async fn get_filter_logs(&self, id: FilterId) -> RpcResult<Vec<Log>>;
+
+    /// Install a new block filter
+    #[method(name = "eth_newBlockFilter")]
+    async fn new_block_filter(&self) -> RpcResult<FilterId>;
 }
 
 const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
@@ -191,6 +224,7 @@ where
     ethereum: Arc<Ethereum<C, Da>>,
     starting_l2_height: U64,
     trace_chain_block_limit: Option<u64>,
+    enable_js_tracer: bool,
 }
 
 impl<C, Da> EthereumRpcServerImpl<C, Da>
@@ -202,11 +236,13 @@ where
         ethereum: Arc<Ethereum<C, Da>>,
         starting_l2_height: U64,
         trace_chain_block_limit: Option<u64>,
+        enable_js_tracer: bool,
     ) -> Self {
         Self {
             ethereum,
             starting_l2_height,
             trace_chain_block_limit,
+            enable_js_tracer,
         }
     }
 }
@@ -324,6 +360,7 @@ where
             &evm,
             &mut working_set,
             opts,
+            self.enable_js_tracer,
         )
         .map_err(to_eth_rpc_error)
     }
@@ -352,6 +389,7 @@ where
             &evm,
             &mut working_set,
             opts,
+            self.enable_js_tracer,
         )
         .map_err(to_eth_rpc_error)
     }
@@ -390,6 +428,7 @@ where
             &evm,
             &mut working_set,
             opts,
+            self.enable_js_tracer,
         )
         .map_err(to_eth_rpc_error)?;
 
@@ -400,6 +439,32 @@ where
                 Err(EthApiError::EvmCustom(error.clone()).into())
             }
         }
+    }
+
+    fn debug_trace_call(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        opts: Option<GethDebugTracingCallOptions>,
+    ) -> RpcResult<GethTrace> {
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+        let evm = Evm::<C>::default();
+
+        let is_js_tracer = matches!(
+            opts.as_ref()
+                .and_then(|o| o.tracing_options.tracer.as_ref()),
+            Some(GethDebugTracerType::JsTracer(_))
+        );
+        if is_js_tracer && !self.enable_js_tracer {
+            return Err(EthApiError::Unsupported("JsTracer is disabled.").into());
+        }
+        evm.debug_trace_call(
+            request,
+            block_id,
+            opts,
+            &mut working_set,
+            &self.ethereum.ledger_db,
+        )
     }
 
     // This method is implemented only for full nodes.
@@ -591,6 +656,7 @@ where
                 pending,
                 self.ethereum.clone(),
                 self.trace_chain_block_limit,
+                self.enable_js_tracer,
             )
             .await;
         } else {
@@ -634,8 +700,54 @@ where
         }
         Ok(())
     }
+
+    async fn new_filter(&self, filter: Filter) -> RpcResult<FilterId> {
+        let evm = Evm::<C>::default();
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+        self.ethereum
+            .citrea_filter
+            .install_filter(&mut working_set, &evm, FilterKind::Log(Box::new(filter)))
+            .await
+    }
+
+    async fn new_block_filter(&self) -> RpcResult<FilterId> {
+        let evm = Evm::<C>::default();
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+        self.ethereum
+            .citrea_filter
+            .install_filter(&mut working_set, &evm, FilterKind::Block)
+            .await
+    }
+
+    async fn uninstall_filter(&self, filter_id: FilterId) -> RpcResult<bool> {
+        self.ethereum
+            .citrea_filter
+            .uninstall_filter(filter_id)
+            .await
+    }
+
+    async fn get_filter_changes(&self, id: FilterId) -> RpcResult<FilterChanges<Transaction>> {
+        let evm = Evm::<C>::default();
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+        Ok(self
+            .ethereum
+            .citrea_filter
+            .filter_changes(&mut working_set, &evm, id)
+            .await?)
+    }
+
+    async fn get_filter_logs(&self, id: FilterId) -> RpcResult<Vec<Log>> {
+        let evm = Evm::<C>::default();
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+        Ok(self
+            .ethereum
+            .citrea_filter
+            .filter_logs(&mut working_set, &evm, id)
+            .await?)
+    }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn create_rpc_module<C, Da>(
     da_service: Arc<Da>,
     eth_rpc_config: EthRpcConfig,
@@ -644,6 +756,7 @@ pub fn create_rpc_module<C, Da>(
     ledger_db: LedgerDB,
     sequencer_client_url: Option<String>,
     l2_block_rx: Option<broadcast::Receiver<u64>>,
+    task_executor: reth_tasks::TaskExecutor,
 ) -> RpcModule<EthereumRpcServerImpl<C, Da>>
 where
     C: sov_modules_api::Context,
@@ -655,30 +768,26 @@ where
         None => 0u64,
     };
 
-    // Unpack config
-    let EthRpcConfig {
-        gas_price_oracle_config,
-        fee_history_cache_config,
-    } = eth_rpc_config;
-
     // If the node does not have a sequencer client, then it is the sequencer.
     let is_sequencer = sequencer_client_url.is_none();
     let enable_subscriptions = l2_block_rx.is_some();
+    let enable_filters = eth_rpc_config.enable_filters;
 
     // If the running node is a full node rpc context should also have sequencer client so that it can send txs to sequencer
     let ethereum = Arc::new(Ethereum::new(
         da_service,
-        gas_price_oracle_config,
-        fee_history_cache_config,
+        eth_rpc_config,
         storage,
         ledger_db,
         sequencer_client_url.map(|url| HttpClientBuilder::default().build(url).unwrap()),
         l2_block_rx,
+        task_executor,
     ));
     let server = EthereumRpcServerImpl::new(
         ethereum,
         U64::from(head_l2_block),
         rpc_config.trace_chain_block_limit,
+        rpc_config.enable_js_tracer,
     );
 
     let mut module = EthereumRpcServer::into_rpc(server);
@@ -686,6 +795,7 @@ where
     if is_sequencer {
         module.remove_method("eth_sendRawTransaction");
         module.remove_method("eth_getTransactionByHash");
+        module.remove_method("eth_syncing");
         module.remove_method("citrea_syncStatus");
         module.remove_method("txpool_content");
     }
@@ -695,6 +805,14 @@ where
         module.remove_method("eth_unsubscribe");
         module.remove_method("debug_subscribe");
         module.remove_method("debug_unsubscribe");
+    }
+
+    if !enable_filters {
+        module.remove_method("eth_newFilter");
+        module.remove_method("eth_newBlockFilter");
+        module.remove_method("eth_uninstallFilter");
+        module.remove_method("eth_getFilterChanges");
+        module.remove_method("eth_getFilterLogs");
     }
 
     module

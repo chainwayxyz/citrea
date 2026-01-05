@@ -5,20 +5,25 @@ use std::time::Duration;
 
 use alloy::eips::eip2930::AccessListWithGasUsed;
 use alloy::eips::eip7702::SignedAuthorization;
-use alloy::network::{AnyTransactionReceipt, TransactionBuilder7702};
+use alloy::network::{AnyTransactionReceipt, TransactionBuilder7702, TransactionResponse};
 use alloy::providers::network::{Ethereum, EthereumWallet};
 use alloy::providers::{PendingTransactionBuilder, Provider as AlloyProvider, ProviderBuilder};
 use alloy::rpc::types::eth::{Block, Transaction, TransactionRequest};
 use alloy::serde::WithOtherFields;
 use alloy::signers::local::PrivateKeySigner;
 use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U32, U64};
+use alloy_rpc_types::{
+    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, Filter, FilterChanges, Log,
+};
 // use reth_rpc_types::TransactionReceipt;
-use alloy_rpc_types::SyncStatus as EthSyncStatus;
-use alloy_rpc_types::{BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, Filter, Log};
+use alloy_rpc_types::{FilterId, SyncStatus as EthSyncStatus};
 use alloy_rpc_types_trace::geth::{
     GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
 };
-use citrea_batch_prover::rpc::{BatchProverRpcClient, ProvingJobResponse};
+use alloy_rpc_types_txpool::TxpoolContent;
+use citrea_batch_prover::rpc::{
+    BatchProverRpcClient, ProvingJobResponse, ProvingSessionInfoResponse,
+};
 use citrea_batch_prover::PartitionMode;
 use citrea_evm::EstimatedDiffSize;
 use ethereum_rpc::SyncStatus;
@@ -827,12 +832,37 @@ impl TestClient {
         self.http_client.pause_proving().await.unwrap()
     }
 
-    pub(crate) async fn get_proving_job(&self, id: Uuid) -> Option<JobRpcResponse> {
-        self.http_client.get_proving_job(id).await.unwrap()
+    pub(crate) async fn get_proving_job(
+        &self,
+        id: Uuid,
+        with_proof: Option<bool>,
+    ) -> Option<JobRpcResponse> {
+        self.http_client
+            .get_proving_job(id, with_proof)
+            .await
+            .unwrap()
     }
 
-    pub(crate) async fn get_proving_jobs(&self, count: usize) -> Vec<ProvingJobResponse> {
-        self.http_client.get_proving_jobs(count).await.unwrap()
+    pub(crate) async fn get_proving_jobs(
+        &self,
+        limit: usize,
+        skip: Option<usize>,
+    ) -> Vec<ProvingJobResponse> {
+        self.http_client
+            .get_proving_jobs(U64::from(limit as u64), skip.map(|v| U64::from(v as u64)))
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn get_proving_sessions(
+        &self,
+        limit: usize,
+        skip: Option<usize>,
+    ) -> Vec<ProvingSessionInfoResponse> {
+        self.http_client
+            .get_proving_session_infos(U64::from(limit as u64), skip.map(|v| U64::from(v as u64)))
+            .await
+            .unwrap()
     }
 
     pub(crate) async fn batch_prover_get_commitments_by_l1(
@@ -878,6 +908,104 @@ impl TestClient {
             .request("citrea_resumeCommitments", rpc_params![])
             .await?;
         Ok(())
+    }
+
+    /// Get the number of transactions in the mempool
+    pub(crate) async fn get_mempool_transaction_count(
+        &self,
+    ) -> Result<usize, Box<dyn std::error::Error>> {
+        let pool_content: TxpoolContent<Transaction> = self
+            .http_client
+            .request("txpool_content", rpc_params![])
+            .await?;
+
+        let pending_count = pool_content
+            .pending
+            .values()
+            .map(|account_txs| account_txs.len())
+            .sum::<usize>();
+        let queued_count = pool_content
+            .queued
+            .values()
+            .map(|account_txs| account_txs.len())
+            .sum::<usize>();
+
+        Ok(pending_count + queued_count)
+    }
+
+    /// Check if a specific transaction is in the mempool
+    pub(crate) async fn is_transaction_in_mempool(
+        &self,
+        tx_hash: TxHash,
+    ) -> Result<bool, Box<dyn std::error::Error>> {
+        let pool_content: TxpoolContent<Transaction> = self
+            .http_client
+            .request("txpool_content", rpc_params![])
+            .await?;
+
+        // Check pending transactions
+        for account_txs in pool_content.pending.values() {
+            for tx in account_txs.values() {
+                if tx.tx_hash() == tx_hash {
+                    return Ok(true);
+                }
+            }
+        }
+
+        // Check queued transactions
+        for account_txs in pool_content.queued.values() {
+            for tx in account_txs.values() {
+                if tx.tx_hash() == tx_hash {
+                    return Ok(true);
+                }
+            }
+        }
+
+        Ok(false)
+    }
+
+    pub(crate) async fn install_filter(
+        &self,
+        filter: Filter,
+    ) -> Result<FilterId, jsonrpsee::core::client::Error> {
+        self.http_client
+            .request("eth_newFilter", rpc_params![filter])
+            .await
+    }
+
+    pub(crate) async fn uninstall_filter(
+        &self,
+        id: FilterId,
+    ) -> Result<bool, jsonrpsee::core::client::Error> {
+        self.http_client
+            .request("eth_uninstallFilter", rpc_params![id])
+            .await
+    }
+
+    pub(crate) async fn new_block_filter(
+        &self,
+    ) -> Result<FilterId, jsonrpsee::core::client::Error> {
+        self.http_client
+            .request("eth_newBlockFilter", rpc_params![])
+            .await
+    }
+
+    pub(crate) async fn get_filter_changes(
+        &self,
+        id: FilterId,
+    ) -> Result<FilterChanges<Transaction>, jsonrpsee::core::client::Error> {
+        self.http_client
+            .request("eth_getFilterChanges", rpc_params![id])
+            .await
+    }
+
+    pub(crate) async fn get_filter_logs(
+        &self,
+        id: FilterId,
+    ) -> Result<Vec<Log>, jsonrpsee::core::client::Error> {
+        self.http_client
+            .request("eth_getFilterLogs", rpc_params![id])
+            .await
     }
 }
 

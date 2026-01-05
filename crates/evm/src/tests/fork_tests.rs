@@ -1,5 +1,4 @@
 use std::str::FromStr;
-use std::thread::sleep;
 
 use alloy_consensus::TxReceipt;
 use alloy_primitives::{address, keccak256, Address, Bytes, TxKind};
@@ -20,9 +19,7 @@ use crate::smart_contracts::{
 };
 use crate::tests::get_test_seq_pub_key;
 use crate::tests::test_signer::TestSigner;
-use crate::tests::utils::{
-    create_contract_message, get_evm, get_evm_config, get_evm_with_spec, set_arg_message,
-};
+use crate::tests::utils::{create_contract_message, get_evm, get_evm_config, get_evm_with_spec};
 use crate::{Evm, RlpEvmTransaction};
 type C = DefaultContext;
 
@@ -117,19 +114,19 @@ fn call_schnorr_verify_transaction(
 }
 
 #[test]
-fn test_cancun_transient_storage_activation() {
+fn test_cancun_transient_storage_works() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) =
-        get_evm_with_spec(&config, SovSpecId::Tangerine);
+        get_evm_with_spec(&config, SovSpecId::latest());
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -139,7 +136,7 @@ fn test_cancun_transient_storage_activation() {
     let sender_address = generate_address::<C>("sender");
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let deploy_message =
             create_contract_message(&dev_signer, 0, TransientStorageContract::default());
@@ -161,7 +158,7 @@ fn test_cancun_transient_storage_activation() {
     // Send money to transient storage contract
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
         let call_tx =
             send_money_to_contract_message(contract_addr, &dev_signer, 1, 10000000000000000000);
 
@@ -180,7 +177,7 @@ fn test_cancun_transient_storage_activation() {
     // Call claim gift from transient storage contract
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
         let call_tx =
             claim_gift_from_transient_storage_contract_transaction(contract_addr, &dev_signer, 2);
 
@@ -194,55 +191,28 @@ fn test_cancun_transient_storage_activation() {
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    l2_height += 1;
-
     let receipts: Vec<_> = evm
         .receipts
         .iter(&mut working_set.accessory_state())
         .collect();
 
-    // Last tx should have failed because cancun is not activated
     assert!(receipts.last().unwrap().receipt.status());
-
-    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
-    {
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
-        let call_tx =
-            claim_gift_from_transient_storage_contract_transaction(contract_addr, &dev_signer, 3);
-
-        evm.call(
-            CallMessage { txs: vec![call_tx] },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-    }
-    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-
-    let receipts: Vec<_> = evm
-        .receipts
-        .iter(&mut working_set.accessory_state())
-        .collect();
-
-    // This tx should fail as the contract has already been claimed
-    assert!(!receipts.last().unwrap().receipt.status());
 }
 
 #[test]
-fn test_cancun_mcopy_activation() {
+fn test_cancun_mcopy_works() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) =
-        get_evm_with_spec(&config, SovSpecId::Tangerine);
+        get_evm_with_spec(&config, SovSpecId::latest());
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -251,7 +221,7 @@ fn test_cancun_mcopy_activation() {
     let sender_address = generate_address::<C>("sender");
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let deploy_message = create_contract_message(&dev_signer, 0, McopyContract::default());
 
@@ -269,10 +239,9 @@ fn test_cancun_mcopy_activation() {
 
     l2_height += 1;
 
-    // Send money to transient storage contract
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
         let call_tx = call_mcopy(contract_addr, &dev_signer, 1);
 
         evm.call(
@@ -284,8 +253,6 @@ fn test_cancun_mcopy_activation() {
     }
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-
-    // l2_height += 1;
 
     let receipts: Vec<_> = evm
         .receipts
@@ -318,7 +285,7 @@ fn test_self_destructing_constructor() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -330,7 +297,7 @@ fn test_self_destructing_constructor() {
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         // deploy selfdestruct contract
         let rlp_transactions = vec![create_contract_message_with_bytecode(
@@ -391,14 +358,14 @@ fn test_blob_base_fee_should_return_1() {
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) =
-        get_evm_with_spec(&config, SovSpecId::Tangerine);
+        get_evm_with_spec(&config, SovSpecId::latest());
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -407,7 +374,7 @@ fn test_blob_base_fee_should_return_1() {
     let sender_address = generate_address::<C>("sender");
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let deploy_message =
             create_contract_message(&dev_signer, 0, BlobBaseFeeContract::default());
@@ -435,7 +402,7 @@ fn test_blob_base_fee_should_return_1() {
 
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
         let call_tx = store_blob_base_fee_transaction(contract_addr, &dev_signer, 1);
 
         evm.call(
@@ -475,7 +442,7 @@ fn test_kzg_point_eval_should_revert() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -484,7 +451,7 @@ fn test_kzg_point_eval_should_revert() {
     let sender_address = generate_address::<C>("sender");
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let deploy_message =
             create_contract_message(&dev_signer, 0, KZGPointEvaluationCallerContract::default());
@@ -530,7 +497,7 @@ fn test_kzg_point_eval_should_revert() {
 
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let deploy_message = call_kzg_point_evaluation_transaction(
             contract_addr,
@@ -571,20 +538,22 @@ fn test_kzg_point_eval_should_revert() {
 }
 
 // 1. deploy p256verify contract on fork1 (any fork will work)
-// 2. call p256verify with a valid data on tangerine (it must succeed because p256verify is enabled)
+// 2. call p256verify with a valid data after tangerine (it must succeed because p256verify is enabled)
+// this test also shows schnorr verify precompile works only after tangerine, see prague() in handler.rs
 #[test]
 fn test_p256_verify() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
+    let (mut evm, mut working_set, _spec_id, _ledger_db) =
+        get_evm_with_spec(&config, SovSpecId::Kumquat);
     let l1_fee_rate = 0;
-    let l2_height = 2;
+    let mut l2_height = 2;
 
-    let l2_block_info = HookL2BlockInfo {
+    let mut l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::Kumquat,
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -593,14 +562,14 @@ fn test_p256_verify() {
     let sender_address = generate_address::<C>("sender");
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
 
         let deploy_message =
             create_contract_message(&dev_signer, 0, P256VerifyCallerContract::default());
 
         let input = Bytes::from_str("b5a77e7a90aa14e0bf5f337f06f597148676424fae26e175c6e5621c34351955289f319789da424845c9eac935245fcddd805950e2f02506d09be7e411199556d262144475b1fa46ad85250728c600c53dfd10f8b3f4adf140e27241aec3c2da3a81046703fccf468b48b145f939efdbb96c3786db712b3113bb2488ef286cdcef8afe82d200a5bb36b5462166e8ce77f2d831a52ef2135b2af188110beaefb1").unwrap();
 
-        // This one should fail in Tangerine
+        // This one should fail in Kumquat because p256 precompile is not enabled
         let call_message = call_p256_verify_transaction(contract_addr, &dev_signer, 1, input);
 
         evm.call(
@@ -615,7 +584,7 @@ fn test_p256_verify() {
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    // expect this call to success because we enabled the p256 feature of revm enabled on tangerine
+    // expect this call to fail because we enabled the p256 feature of revm enabled on tangerine
     let receipts: Vec<_> = evm
         .receipts
         .iter(&mut working_set.accessory_state())
@@ -623,7 +592,45 @@ fn test_p256_verify() {
 
     let storage_value = evm
         .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
+        .unwrap_or_default();
+    assert_eq!(storage_value, U256::from(0));
+    assert!(!receipts.last().unwrap().receipt.status());
+
+    l2_block_info.current_spec = SovSpecId::Tangerine;
+    l2_block_info.l2_height += 1;
+    l2_height += 1;
+
+    let sender_address = generate_address::<C>("sender");
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+
+        let input = Bytes::from_str("b5a77e7a90aa14e0bf5f337f06f597148676424fae26e175c6e5621c34351955289f319789da424845c9eac935245fcddd805950e2f02506d09be7e411199556d262144475b1fa46ad85250728c600c53dfd10f8b3f4adf140e27241aec3c2da3a81046703fccf468b48b145f939efdbb96c3786db712b3113bb2488ef286cdcef8afe82d200a5bb36b5462166e8ce77f2d831a52ef2135b2af188110beaefb1").unwrap();
+
+        // This one should fail in Kumquat because p256 precompile is not enabled
+        let call_message = call_p256_verify_transaction(contract_addr, &dev_signer, 2, input);
+
+        evm.call(
+            CallMessage {
+                txs: vec![call_message],
+            },
+            &context,
+            &mut working_set,
+        )
         .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // expect this call to succeed because we enabled the p256 feature of revm enabled on tangerine
+    let receipts: Vec<_> = evm
+        .receipts
+        .iter(&mut working_set.accessory_state())
+        .collect();
+
+    let storage_value = evm
+        .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
+        .unwrap_or_default();
     assert_eq!(storage_value, U256::from(1));
     assert!(receipts.last().unwrap().receipt.status());
 }
@@ -640,7 +647,7 @@ fn test_schnorr_verify() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -651,7 +658,7 @@ fn test_schnorr_verify() {
     // Deploy schnorr verify contract
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let deploy_message =
             create_contract_message(&dev_signer, 0, SchnorrVerifyCallerContract::default());
@@ -675,12 +682,12 @@ fn test_schnorr_verify() {
             let l2_block_info = HookL2BlockInfo {
                 l2_height,
                 pre_state_root: [10u8; 32],
-                current_spec: SovSpecId::Tangerine,
+                current_spec: SovSpecId::latest(),
                 sequencer_pub_key: get_test_seq_pub_key(),
                 l1_fee_rate,
                 timestamp: 0,
             };
-            let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+            let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
             evm.begin_l2_block_hook(&l2_block_info, working_set);
             {
@@ -760,20 +767,22 @@ fn test_schnorr_verify() {
 }
 
 #[test]
+// this test was useful when offchain code was first implemented
+// now it shouldn't even be in this file
 fn test_offchain_contract_storage_evm() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (mut evm, mut working_set, _spec_id, ledger_db) =
-        get_evm_with_spec(&config, SovSpecId::Tangerine);
+        get_evm_with_spec(&config, SovSpecId::latest());
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
-    // Deployed a contract in Tangerine fork
+    // Deployed a contract in latest fork
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -782,7 +791,7 @@ fn test_offchain_contract_storage_evm() {
     let sender_address = generate_address::<C>("sender");
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let deploy_message =
             create_contract_message(&dev_signer, 0, SimpleStorageContract::default());
@@ -801,9 +810,7 @@ fn test_offchain_contract_storage_evm() {
 
     l2_height += 1;
 
-    sleep(std::time::Duration::from_secs(2));
-
-    //try to get it from offchain storage and expect it to not exist
+    //try to get it from offchain storage
     let contract_info = evm.account_info(&contract_addr, &mut working_set);
     let code_hash = contract_info.unwrap().code_hash.unwrap();
 
@@ -812,17 +819,9 @@ fn test_offchain_contract_storage_evm() {
         .get(&code_hash, &mut working_set.offchain_state())
         .unwrap();
 
-    // Try to get the code from Tangerine fork and expect it to exist
-    let code = evm
-        .get_code(contract_addr, None, &mut working_set, &ledger_db)
-        .unwrap();
+    assert!(!cont_code.is_empty());
 
-    assert_eq!(*cont_code.original_byte_slice(), code);
-
-    let evm_code = evm
-        .offchain_code
-        .get(&code_hash, &mut working_set.offchain_state())
-        .unwrap();
+    // compare rpc
 
     let code = evm
         .get_code(
@@ -835,12 +834,12 @@ fn test_offchain_contract_storage_evm() {
         )
         .unwrap();
 
-    assert_eq!(code, *evm_code.original_byte_slice());
+    assert_eq!(code, *cont_code.original_byte_slice());
 
-    // Deploy contract in fork1
+    // Deploy contract in latest fork
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let deploy_message =
             create_contract_message(&dev_signer, 1, SelfDestructorContract::default());
@@ -856,55 +855,10 @@ fn test_offchain_contract_storage_evm() {
     }
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-    l2_height += 1;
 
     let new_contract_address = address!("d26ff5586e488e65d86bcc3f0fe31551e381a596");
 
     let contract_info = evm.account_info(&new_contract_address, &mut working_set);
-    let code_hash = contract_info.unwrap().code_hash.unwrap();
-
-    let offchain_code = evm
-        .offchain_code
-        .get(&code_hash, &mut working_set.offchain_state());
-
-    assert!(offchain_code.is_some());
-
-    // make tx on the contract that was deployed before fork1 and see that you can read it from offchain storage afterwards
-    let l2_block_info = HookL2BlockInfo {
-        l2_height,
-        pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
-        sequencer_pub_key: get_test_seq_pub_key(),
-        l1_fee_rate,
-        timestamp: 0,
-    };
-
-    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
-    {
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
-
-        let call_message = set_arg_message(contract_addr, &dev_signer, 2, 99);
-
-        evm.call(
-            CallMessage {
-                txs: vec![call_message],
-            },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-    }
-    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
-
-    // Try to get the code from Tangerine fork and expect it to not exist because it is stored in offchain storage
-    let code = evm
-        .get_code(new_contract_address, None, &mut working_set, &ledger_db)
-        .unwrap();
-    assert_eq!(code, *offchain_code.unwrap().original_byte_slice());
-
-    // Now I should be able to read the contract from offchain storage
-    let contract_info = evm.account_info(&contract_addr, &mut working_set);
     let code_hash = contract_info.unwrap().code_hash.unwrap();
 
     let offchain_code = evm

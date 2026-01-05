@@ -20,6 +20,12 @@ pub struct LightClientProverMetrics {
     /// Tracking the time taken to prove a state transition, gauge because one proof is generated per l1 block
     #[metric(describe = "The duration of generating a light client proof")]
     pub proving_time: Gauge,
+    /// Gauge for the highest proven commitment index
+    #[metric(describe = "The highest proven commitment index")]
+    pub highest_proven_index: Gauge,
+    /// Gauge for the highest proven l2 height
+    #[metric(describe = "The highest proven l2 height")]
+    pub highest_proven_l2_height: Gauge,
 }
 
 impl LightClientProverMetrics {
@@ -45,3 +51,45 @@ pub static LIGHT_CLIENT_METRICS: LazyLock<LightClientProverMetrics> = LazyLock::
     LightClientProverMetrics::describe();
     LightClientProverMetrics::default()
 });
+
+/// Initializes light client prover metrics with current DB state
+///
+/// # Arguments
+/// * `ledger_db` - The ledgerDB to read metrics from
+///
+/// # Errors
+/// Returns error if database operations fail
+pub fn initialize_metrics<DB>(ledger_db: &DB) -> Result<(), anyhow::Error>
+where
+    DB: sov_db::ledger_db::LightClientProverLedgerOps,
+{
+    use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
+    use tracing::debug;
+
+    if let Ok(Some(last_scanned_l1_height)) = ledger_db.get_last_scanned_l1_height() {
+        let l1_height = last_scanned_l1_height.0;
+
+        if let Ok(Some(proof_data)) = ledger_db.get_light_client_proof_data_by_l1_height(l1_height)
+        {
+            let circuit_output =
+                LightClientCircuitOutput::from(proof_data.light_client_proof_output);
+
+            LIGHT_CLIENT_METRICS.current_l1_block.set(l1_height as f64);
+            LIGHT_CLIENT_METRICS
+                .highest_proven_l2_height
+                .set(circuit_output.last_l2_height as f64);
+            LIGHT_CLIENT_METRICS
+                .highest_proven_index
+                .set(circuit_output.last_sequencer_commitment_index as f64);
+
+            debug!(
+                "Initialized metrics from L1 block {}: L2 height {} at index {}",
+                l1_height,
+                circuit_output.last_l2_height,
+                circuit_output.last_sequencer_commitment_index
+            );
+        }
+    }
+
+    Ok(())
+}

@@ -33,6 +33,9 @@ pub enum PartitionReason {
     /// eg [1, 2, 3] with state diff combined 350kb and [4] with state diff 100kb will exceed the 400kb limit
     /// and create a partition for [1, 2, 3] and [4]
     StateDiff,
+    /// Partitions commitments when the maximum number of commitments per proof has been reached
+    /// e.g. if max commitments per proof is 10, [1-10] will be one partition and [11] will start a new one
+    CommitmentCount,
     /// Partitions remaining commitments into one last partition if none of the above conditions are met
     Finish,
 }

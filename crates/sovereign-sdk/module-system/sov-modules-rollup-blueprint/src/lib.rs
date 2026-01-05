@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use citrea_common::backup::BackupManager;
-use citrea_common::{FullNodeConfig, ProverGuestRunConfig, RpcConfig};
+use citrea_common::risc0::Risc0HostConfig;
+use citrea_common::{FullNodeConfig, NodeType, ProverGuestRunConfig, RpcConfig};
 use citrea_stf::runtime::CitreaRuntime;
 use prover_services::ParallelProverService;
 use reth_tasks::TaskExecutor;
@@ -22,15 +23,11 @@ use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_rollup_interface::Network;
 
-mod runtime_rpc;
-
-pub use runtime_rpc::*;
-
 /// This trait defines how to crate all the necessary dependencies required by a rollup.
 #[async_trait]
 pub trait RollupBlueprint: Sized + Send + Sync {
     /// Data Availability service.
-    type DaService: DaService<Spec = Self::DaSpec, Error = anyhow::Error> + Send + Sync;
+    type DaService: DaService<Spec = Self::DaSpec> + Send + Sync;
 
     /// A specification for the types used by a DA layer.
     type DaSpec: DaSpec + Send + Sync;
@@ -66,6 +63,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(
         &self,
+        node_type: NodeType,
         storage: ProverStorage,
         ledger_db: &LedgerDB,
         da_service: &Arc<Self::DaService>,
@@ -113,6 +111,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     async fn create_prover_service(
         &self,
         proving_mode: ProverGuestRunConfig,
+        risc0_host_config: Risc0HostConfig,
         da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,
         proof_sampling_number: usize,

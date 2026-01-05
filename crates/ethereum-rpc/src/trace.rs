@@ -29,6 +29,7 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
     pending: PendingSubscriptionSink,
     ethereum: Arc<Ethereum<C, Da>>,
     max_blocks: Option<u64>,
+    enable_js_tracer: bool,
 ) {
     // start block is exclusive, hence latest is not supported
     let BlockNumberOrTag::Number(start_block) = start_block else {
@@ -74,8 +75,7 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
     if (end_block - start_block) > max_blocks {
         pending
             .reject(EthApiError::InvalidParams(format!(
-                "Block range too large. Maximum allowed range is {} blocks",
-                max_blocks
+                "Block range too large. Maximum allowed range is {max_blocks} blocks"
             )))
             .await;
         return;
@@ -96,6 +96,7 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
                 &evm,
                 &mut working_set,
                 opts.clone(),
+                enable_js_tracer,
             );
             match traces {
                 Ok(traces) => {
@@ -136,7 +137,15 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     evm: &Evm<C>,
     working_set: &mut WorkingSet<C::Storage>,
     opts: Option<GethDebugTracingOptions>,
+    enable_js_tracer: bool,
 ) -> Result<Vec<TraceResult>, ErrorObjectOwned> {
+    let is_js_tracer = matches!(
+        opts.as_ref().and_then(|o| o.tracer.as_ref()),
+        Some(GethDebugTracerType::JsTracer(_))
+    );
+    if is_js_tracer && !enable_js_tracer {
+        return Err(EthApiError::Unsupported("JsTracer is disabled.").into());
+    }
     // If tracer option is not specified, or it is JsTracer, then do not check cache or insert cache, just perform the operation
     // Skip cache from JsTracer, MuxTracer and PreStateTracer
     let skip_cache = opts.as_ref().is_none_or(|o| {
@@ -473,7 +482,7 @@ fn convert_call_trace_into_4byte_map(
         if input.len() >= 4 {
             let input_size = input.0.len() - 4;
             let four_byte = &input.to_string()[2..10]; // Ignore the 0x
-            let key = format!("{}-{}", four_byte, input_size);
+            let key = format!("{four_byte}-{input_size}");
             let count = four_byte_map.entry(key).or_insert(0);
             *count += 1;
         }

@@ -23,11 +23,11 @@ jobs:
     timeout-minutes: 45
     runs-on: ubicloud-standard-4
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: mkdir artifacts
 
       - name: Checkout hive tests
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: chainwayxyz/hive
           ref: main
@@ -72,7 +72,7 @@ jobs:
           chmod +x /usr/local/bin/hive
 
       - name: Checkout hive tests
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: chainwayxyz/hive
           ref: main

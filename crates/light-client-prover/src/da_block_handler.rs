@@ -251,7 +251,7 @@ where
             self.network.initial_batch_proof_method_ids().to_vec(),
             &self.network.batch_prover_da_public_key(),
             &self.network.sequencer_da_public_key(),
-            &self.network.method_id_upgrade_authority_da_public_key(),
+            &self.network.method_id_upgrade_authority_da_public_keys(),
         );
 
         // This is not exactly right, but works for now because we have a single elf for
@@ -298,6 +298,7 @@ where
             l1_height,
             proof,
             stored_proof_output,
+            proof_with_duration.info,
         )?;
 
         LPM.set_lcp_proving_time(proof_with_duration.duration);
@@ -307,6 +308,11 @@ where
             .expect("Saving last scanned l1 height to ledger db");
 
         LPM.current_l1_block.set(l1_height as f64);
+        LPM.highest_proven_index
+            .set(result.last_sequencer_commitment_index as f64);
+        LPM.highest_proven_l2_height
+            .set(result.last_l2_height as f64);
+
         LPM.set_scan_l1_block_duration(
             Instant::now()
                 .saturating_duration_since(start_l1_block_processing)
