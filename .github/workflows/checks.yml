@@ -80,28 +80,16 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
         with:
           shared-key: build
-      - name: Install risc0
-        uses: ./.github/actions/install-risc0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Cache ethereum-tests
-        uses: actions/cache@v4
-        with:
-          key: "eth-tests-1c23e3c"
-          path: crates/evm/ethereum-tests
       - name: Build citrea
         run: make build
+        env:
+          SKIP_GUEST_BUILD: 1
       - name: Cache binaries
         uses: actions/cache@v4
         with:
@@ -110,6 +98,26 @@ jobs:
             target/debug/citrea-cli
             target/debug/**/methods.rs
           key: citrea-build-${{ github.sha }}
+
+  build-guests:
+    name: build-guests
+    runs-on: ubicloud-standard-30
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: rui314/setup-mold@v1
+      - name: Toolchain
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Rust Cache
+        uses: ubicloud/rust-cache@v2
+        with:
+          shared-key: build-guests
+      - name: Install risc0
+        uses: ./.github/actions/install-risc0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build citrea
+        run: cargo build -p citrea-risc0-light-client -p citrea-risc0-batch-proof
 
   check:
     name: check
