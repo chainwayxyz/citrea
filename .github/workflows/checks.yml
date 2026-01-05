@@ -110,7 +110,7 @@ jobs:
         uses: ubicloud/rust-cache@v2
         with:
           shared-key: build-guests
-          cache-directories: target/riscv-guest
+          cache-directories: ${{ github.workspace }}/target/riscv-guest
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
