@@ -110,11 +110,14 @@ jobs:
         uses: ubicloud/rust-cache@v2
         with:
           shared-key: build-guests
+
       - name: Cache riscv-guest
         uses: actions/cache@v4
         with:
           key: build-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/riscv-guest
+          restore-keys: build-guests-v0-${{ runner.os }}-
+
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
