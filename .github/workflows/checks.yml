@@ -95,8 +95,6 @@ jobs:
         with:
           path: |
             target/debug/citrea
-            target/debug/citrea-cli
-            target/debug/**/methods.rs
           key: citrea-build-${{ github.sha }}
 
   build-guests:
@@ -112,6 +110,7 @@ jobs:
         uses: ubicloud/rust-cache@v2
         with:
           shared-key: build-guests
+          cache-directories: target/riscv-guest
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
@@ -264,8 +263,6 @@ jobs:
         with:
           path: |
             target/debug/citrea
-            target/debug/citrea-cli
-            target/debug/**/methods.rs
           key: citrea-build-${{ github.sha }}
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
@@ -310,8 +307,6 @@ jobs:
         with:
           path: |
             target/debug/citrea
-            target/debug/citrea-cli
-            target/debug/**/methods.rs
           key: citrea-build-${{ github.sha }}
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
@@ -341,8 +336,6 @@ jobs:
         with:
           path: |
             target/debug/citrea
-            target/debug/citrea-cli
-            target/debug/**/methods.rs
           key: citrea-build-${{ github.sha }}
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
@@ -544,8 +537,6 @@ jobs:
         with:
           path: |
             target/debug/citrea
-            target/debug/citrea-cli
-            target/debug/**/methods.rs
           key: citrea-build-${{ github.sha }}
       - name: Make citrea executable
         run: chmod +x target/debug/citrea
@@ -601,8 +592,6 @@ jobs:
           key: citrea-build-${{ steps.base-commit.outputs.base-hash }}
           path: |
             target/debug/citrea
-            target/debug/citrea-cli
-            target/debug/**/methods.rs
 
       - name: Checkout to base branch
         if: steps.restore-test-cache.outputs.cache-hit != 'true'
