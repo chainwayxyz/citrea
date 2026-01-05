@@ -1239,7 +1239,7 @@ impl DaService for BitcoinService {
                 "Fee rate {} out of bounds, returning default fee rate of 1 CBTC/vB",
                 sat_vb
             );
-            1 * 2_500_000_000
+            2_500_000_000
         });
         Ok(multiplied_fee)
     }
