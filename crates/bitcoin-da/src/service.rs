@@ -1232,7 +1232,9 @@ impl DaService for BitcoinService {
             .map_err(|_| BitcoinServiceError::FeeRateError)?;
 
         // multiply with 10^10/4 = 25*10^8 = 2_500_000_000 for BTC to CBTC conversion (decimals)
-        let multiplied_fee = (sat_vb * 2_500_000_000f64).ceil() as u128;
+        // if somehow the value is out of bounds, return a default fee rate of 1 BTC/vB
+        let multiplied_fee =
+            f64_to_u128_or_default((sat_vb * 2_500_000_000f64).ceil(), 1 * 2_500_000_000);
         Ok(multiplied_fee)
     }
 
@@ -1418,4 +1420,13 @@ fn calculate_witness_root(txdata: &[TransactionWrapper], tx_count: usize) -> [u8
         })
         .collect();
     BitcoinMerkleTree::new(hashes).root()
+}
+
+fn f64_to_u128_or_default(x: f64, default: u128) -> u128 {
+    if x.is_finite() && x >= 0.0 && x <= (u128::MAX as f64) {
+        x as u128
+    } else {
+        warn!("Fee rate conversion out of bounds: {x}, using default {default}");
+        default
+    }
 }
