@@ -122,8 +122,13 @@ jobs:
         uses: ./.github/actions/install-risc0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build citrea
+      - name: Build guests
         run: cargo build -p citrea-risc0-light-client -p citrea-risc0-batch-proof
+      - name: Cache guests
+        uses: actions/cache/save@v4
+        with:
+          path: target/debug/**/methods.rs
+          key: citrea-guests-${{ github.sha }}
 
   check:
     name: check
@@ -234,6 +239,11 @@ jobs:
       - name: Load Docker image
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
+      - name: Restore guests
+        uses: actions/cache/restore@v4
+        with:
+          path: target/debug/**/methods.rs
+          key: citrea-guests-${{ github.sha }}
       - name: Run coverage
         run: make coverage
         env:
@@ -243,6 +253,7 @@ jobs:
           TEST_OUT_DIR: ${{ runner.temp }}/coverage
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/llvm-cov-target/debug/citrea
           CITREA_CLI_E2E_TEST_BINARY: ${{ github.workspace }}/target/llvm-cov-target/debug/citrea-cli
+          TEST_SKIP_GUEST_BUILD: 1
       - name: Upload e2e test dir
         if: always()
         uses: actions/upload-artifact@v4
@@ -400,6 +411,11 @@ jobs:
       - name: Load Docker image
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
+      - name: Restore guests
+        uses: actions/cache/restore@v4
+        with:
+          path: target/debug/**/methods.rs
+          key: citrea-guests-${{ github.sha }}
       - name: Run nextest
         run: make test
         env:
@@ -409,6 +425,7 @@ jobs:
           TEST_OUT_DIR: ${{ runner.temp }}/test
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
           CITREA_CLI_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea-cli
+          TEST_SKIP_GUEST_BUILD: 1
       - name: Upload e2e test dir
         if: always()
         uses: actions/upload-artifact@v4
