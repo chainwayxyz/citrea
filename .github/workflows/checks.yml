@@ -80,11 +80,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
       - name: Rust Cache
@@ -126,23 +121,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt, clippy
-      - name: Install risc0
-        uses: ./.github/actions/install-risc0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check TOML
         uses: dprint/check@v2.2
-      - name: Build guests
-        run: make build-risc0
+      - name: Rust Cache
+        uses: ubicloud/rust-cache@v2
       - name: Run lint
         run: |
           if ! make lint ; then
@@ -367,11 +353,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@1.88.0
       - name: Rust Cache
@@ -630,12 +611,6 @@ jobs:
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: rui314/setup-mold@v1
 
-      - name: Install Protoc
-        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Rust cache
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: ubicloud/rust-cache@v2
