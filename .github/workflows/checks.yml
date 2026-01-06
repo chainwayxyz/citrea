@@ -95,11 +95,6 @@ jobs:
         uses: ./.github/actions/install-risc0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Cache ethereum-tests
-        uses: ubicloud/cache@v4
-        with:
-          key: "eth-tests-1c23e3c"
-          path: crates/evm/ethereum-tests
 
       - name: Cache riscv-guest
         uses: ubicloud/cache@v4
