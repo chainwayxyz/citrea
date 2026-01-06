@@ -117,14 +117,10 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt, clippy
-      - name: Install risc0
-        uses: ./.github/actions/install-risc0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check TOML
         uses: dprint/check@v2.2
-      - name: Build guests
-        run: make build-risc0
+      - name: Rust Cache
+        uses: ubicloud/rust-cache@v2
       - name: Run lint
         run: |
           if ! make lint ; then
