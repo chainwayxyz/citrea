@@ -96,13 +96,13 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache ethereum-tests
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
 
       - name: Cache riscv-guest
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: build-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/riscv-guest
@@ -111,7 +111,7 @@ jobs:
       - name: Build citrea
         run: make build
       - name: Cache binaries
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: |
             target/debug/citrea
@@ -206,12 +206,12 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache ethereum-tests
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
       - name: Restore cached Docker image
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.BITCOIN_DOCKER_IMAGE }}
@@ -220,7 +220,7 @@ jobs:
         run: docker load < /tmp/docker/bitcoin.tar
 
       - name: Cache riscv-guest
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: coverage-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/llvm-cov-target/riscv-guest
@@ -258,7 +258,7 @@ jobs:
         with:
           node-version: 18
       - name: Restore binaries
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: |
             target/debug/citrea
@@ -304,7 +304,7 @@ jobs:
           python-version: "3.x"
       - uses: dcarbone/install-jq-action@v2
       - name: Restore binaries
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: |
             target/debug/citrea
@@ -335,7 +335,7 @@ jobs:
         with:
           node-version: 18
       - name: Restore binaries
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: |
             target/debug/citrea
@@ -386,12 +386,12 @@ jobs:
         # `cargo-nextest` is much faster than standard `cargo test`.
       - uses: taiki-e/install-action@nextest
       - name: Cache ethereum-tests
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
       - name: Restore cached Docker image
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.BITCOIN_DOCKER_IMAGE }}
@@ -400,7 +400,7 @@ jobs:
         run: docker load < /tmp/docker/bitcoin.tar
 
       - name: Cache riscv-guest
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: build-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/riscv-guest
@@ -491,7 +491,7 @@ jobs:
 
       - name: Cache Docker images
         id: cache-docker
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         continue-on-error: true
         with:
           path: /tmp/docker
@@ -546,7 +546,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Restore binaries
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: |
             target/debug/citrea
@@ -560,7 +560,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Restore cached Docker image
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.BITCOIN_DOCKER_IMAGE }}
@@ -593,7 +593,7 @@ jobs:
 
       - name: Restore base branch test cache
         id: restore-test-cache
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: proving-stats/results/base-stats.json
           key: proving-stats-${{ steps.base-commit.outputs.base-hash }}
@@ -602,7 +602,7 @@ jobs:
       - name: Restore base build artifact
         id: restore-artifact
         if: steps.restore-test-cache.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: citrea-build-${{ steps.base-commit.outputs.base-hash }}
           path: |
@@ -643,7 +643,7 @@ jobs:
             shared-key: build
       - name: Cache ethereum-tests
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
