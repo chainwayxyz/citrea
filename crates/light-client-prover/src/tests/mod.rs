@@ -20,7 +20,7 @@ use crate::circuit::accessors::{
     BatchProofMethodIdAccessor, SequencerCommitmentAccessor,
     VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
-use crate::circuit::initial_values::mockda::METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS;
+use crate::circuit::initial_values::mockda::METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES;
 use crate::circuit::{LightClientProofCircuit, LightClientVerificationError};
 
 type Height = u64;
@@ -85,7 +85,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -99,7 +99,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -150,7 +150,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -164,7 +164,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -243,7 +243,7 @@ fn test_light_client_circuit_commitment_chaining() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -257,7 +257,7 @@ fn test_light_client_circuit_commitment_chaining() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -321,7 +321,7 @@ fn test_previous_commitment_not_set_should_not_transition() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -335,7 +335,7 @@ fn test_previous_commitment_not_set_should_not_transition() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -385,7 +385,7 @@ fn test_batch_proof_with_missing_commitment_not_set_should_not_transition() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -399,7 +399,7 @@ fn test_batch_proof_with_missing_commitment_not_set_should_not_transition() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -462,7 +462,7 @@ fn test_wrong_order_da_blocks_should_still_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -476,7 +476,7 @@ fn test_wrong_order_da_blocks_should_still_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -547,7 +547,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -561,7 +561,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -627,7 +627,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -641,7 +641,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -705,7 +705,7 @@ fn test_header_chain_proof_height_and_hash() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -719,7 +719,7 @@ fn test_header_chain_proof_height_and_hash() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -771,7 +771,7 @@ fn test_header_chain_proof_height_and_hash() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -785,7 +785,7 @@ fn test_header_chain_proof_height_and_hash() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
     );
     assert!(matches!(
         res,
@@ -860,7 +860,7 @@ fn test_unverifiable_batch_proofs() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -874,7 +874,7 @@ fn test_unverifiable_batch_proofs() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -952,7 +952,7 @@ fn test_unverifiable_prev_light_client_proof() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -966,7 +966,7 @@ fn test_unverifiable_prev_light_client_proof() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -1005,7 +1005,7 @@ fn test_unverifiable_prev_light_client_proof() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -1019,7 +1019,7 @@ fn test_unverifiable_prev_light_client_proof() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 }
@@ -1068,7 +1068,7 @@ fn test_new_method_id_txs() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -1082,7 +1082,7 @@ fn test_new_method_id_txs() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
     let mut working_set = WorkingSet::new(
@@ -1116,7 +1116,7 @@ fn test_new_method_id_txs() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -1130,7 +1130,7 @@ fn test_new_method_id_txs() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
     let batch_proof_method_ids =
@@ -1162,7 +1162,7 @@ fn test_new_method_id_txs() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -1176,7 +1176,7 @@ fn test_new_method_id_txs() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -1228,7 +1228,7 @@ fn test_wrong_network_method_id_update_should_fail() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -1242,7 +1242,7 @@ fn test_wrong_network_method_id_update_should_fail() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
     let mut working_set = WorkingSet::new(
@@ -1311,7 +1311,7 @@ fn test_unverifiable_batch_proof_is_ignored() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -1325,7 +1325,7 @@ fn test_unverifiable_batch_proof_is_ignored() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -1440,7 +1440,7 @@ fn test_light_client_circuit_verify_chunks() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -1454,7 +1454,7 @@ fn test_light_client_circuit_verify_chunks() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -1557,7 +1557,7 @@ fn test_missing_chunk() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -1571,7 +1571,7 @@ fn test_missing_chunk() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -1661,7 +1661,7 @@ fn test_light_client_circuit_aggregate_size_overflow() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -1675,7 +1675,7 @@ fn test_light_client_circuit_aggregate_size_overflow() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -1755,7 +1755,7 @@ fn test_malicious_aggregate_should_not_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -1769,7 +1769,7 @@ fn test_malicious_aggregate_should_not_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -1808,7 +1808,7 @@ fn test_malicious_aggregate_should_not_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -1822,7 +1822,7 @@ fn test_malicious_aggregate_should_not_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -1874,7 +1874,7 @@ fn test_malicious_aggregate_should_not_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -1888,7 +1888,7 @@ fn test_malicious_aggregate_should_not_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -1960,7 +1960,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -1974,7 +1974,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -2033,7 +2033,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -2047,7 +2047,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -2102,7 +2102,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -2116,7 +2116,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -2153,7 +2153,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -2167,7 +2167,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -2229,7 +2229,7 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -2243,7 +2243,7 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -2280,7 +2280,7 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -2294,7 +2294,7 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -2370,7 +2370,7 @@ fn test_lcp_input_values_cant_be_tampered() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -2384,7 +2384,7 @@ fn test_lcp_input_values_cant_be_tampered() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -2411,7 +2411,7 @@ fn test_lcp_input_values_cant_be_tampered() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -2465,7 +2465,7 @@ fn test_lcp_input_values_cant_be_tampered() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 }
@@ -2525,7 +2525,7 @@ fn test_lcp_cant_be_passed_roots_from_a_different_tree() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -2539,7 +2539,7 @@ fn test_lcp_cant_be_passed_roots_from_a_different_tree() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 
@@ -2572,7 +2572,7 @@ fn test_lcp_cant_be_passed_roots_from_a_different_tree() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::Nightly,
     );
 
@@ -2586,7 +2586,7 @@ fn test_lcp_cant_be_passed_roots_from_a_different_tree() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 }

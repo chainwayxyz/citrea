@@ -1,4 +1,5 @@
 #![no_main]
+use alloy_primitives::Address;
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_light_client_prover::circuit::initial_values::bitcoinda;
@@ -67,16 +68,14 @@ const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
     }
 };
 
-pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8;
-    SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
-    SECURITY_COUNCIL_MEMBER_COUNT] = {
+pub const METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES: [Address; SECURITY_COUNCIL_MEMBER_COUNT] = {
     match NETWORK {
-        Network::Mainnet => bitcoinda::MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
-        Network::Testnet => bitcoinda::TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
-        Network::Devnet => bitcoinda::DEVNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
-        Network::Nightly => bitcoinda::NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Mainnet => bitcoinda::MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+        Network::Testnet => bitcoinda::TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+        Network::Devnet => bitcoinda::DEVNET_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+        Network::Nightly => bitcoinda::NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         Network::TestNetworkWithForks => {
-            bitcoinda::TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS
+            bitcoinda::TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES
         }
     }
 };
@@ -105,7 +104,7 @@ pub fn main() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &BATCH_PROVER_DA_PUBLIC_KEY,
             &SEQUENCER_DA_PUBLIC_KEY,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
         )
         .unwrap();
 

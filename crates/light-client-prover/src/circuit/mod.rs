@@ -7,6 +7,7 @@ use accessors::{
     BatchProofMethodIdAccessor, BlockHashAccessor, ChunkAccessor, SequencerCommitmentAccessor,
     VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
+use alloy_primitives::Address;
 use borsh::BorshDeserialize;
 use citrea_primitives::{network_to_dev_mode, MAX_COMPRESSED_BLOB_SIZE};
 use initial_values::LCP_JMT_GENESIS_ROOT;
@@ -393,8 +394,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
-        method_id_upgrade_authority_da_public_keys: &[[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
-             SECURITY_COUNCIL_MEMBER_COUNT],
+        method_id_upgrade_authority_da_addresses: &[Address; SECURITY_COUNCIL_MEMBER_COUNT],
     ) -> RunL1BlockResult<S> {
         let mut working_set =
             WorkingSet::with_witness(storage.clone(), witness, Default::default());
@@ -550,7 +550,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     // Verify the signatures only if the activation height is greater than the last one
                     // This prevents replay attacks of old method IDs
                     if !verify_method_id_security_council(
-                        *method_id_upgrade_authority_da_public_keys,
+                        *method_id_upgrade_authority_da_addresses,
                         batch_proof_method_id.body.serialize().as_slice(),
                         batch_proof_method_id.signatures_with_index(),
                     ) {
@@ -676,8 +676,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
-        method_id_upgrade_authority_da_public_keys: &[[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
-             SECURITY_COUNCIL_MEMBER_COUNT],
+        method_id_upgrade_authority_da_addresses: &[Address; SECURITY_COUNCIL_MEMBER_COUNT],
     ) -> Result<LightClientCircuitOutput, LightClientVerificationError<DaV>>
     where
         DaV: DaVerifier<Spec = DS>,
@@ -735,7 +734,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             initial_batch_proof_method_ids,
             batch_prover_da_public_key,
             sequencer_da_public_key,
-            method_id_upgrade_authority_da_public_keys,
+            method_id_upgrade_authority_da_addresses,
         );
 
         Ok(LightClientCircuitOutput {

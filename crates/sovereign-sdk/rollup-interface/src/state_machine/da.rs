@@ -13,7 +13,8 @@ use crate::{BasicAddress, Network};
 /// Minimum number of verified signatures required to approve a method id upgrade.
 pub const SECURITY_COUNCIL_SIGNATURE_THRESHOLD: usize = 3;
 /// Size of a signature in bytes.
-pub const SECURITY_COUNCIL_SIGNATURE_SIZE: usize = 64;
+/// 65 bytes long (r(32) + s(32) + v(1))
+pub const SECURITY_COUNCIL_SIGNATURE_SIZE: usize = 65;
 
 /// Commitments made to the DA layer from the sequencer.
 /// Has merkle root of l2 block hashes from L1 start block to L1 end block (inclusive)

@@ -1,4 +1,4 @@
-use alloy_primitives::eip191_hash_message;
+use alloy_primitives::{eip191_hash_message, keccak256, Address};
 use k256::ecdsa::signature::hazmat::PrehashVerifier;
 use k256::ecdsa::{Signature, VerifyingKey};
 use sov_rollup_interface::da::{
@@ -12,8 +12,7 @@ use crate::circuit::{SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_M
 /// If there are less than 3 valid signatures, the verification fails.
 /// Note that the pubkey indices of signatures must be in strict ascending order and within bounds [0,(SECURITY_COUNCIL_MEMBER_COUNT - 1)]
 pub fn verify_method_id_security_council(
-    initial_da_pubkeys: [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
-        SECURITY_COUNCIL_MEMBER_COUNT],
+    initial_da_addresses: [Address; SECURITY_COUNCIL_MEMBER_COUNT],
     msg: &[u8],
     signatures_with_idx: &[([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8);
          SECURITY_COUNCIL_SIGNATURE_THRESHOLD],
@@ -43,24 +42,28 @@ pub fn verify_method_id_security_council(
 
     for signature_with_idx in signatures_with_idx.iter() {
         let signature = signature_with_idx.0;
-        let pubkey_idx = signature_with_idx.1;
-        let const_pubkey = initial_da_pubkeys[pubkey_idx as usize];
+        let address_idx = signature_with_idx.1;
+        let const_address = initial_da_addresses[address_idx as usize];
 
-        // ensure the inscription pubkey matches the expected constant (compressed 33B)
-        let verifying_key = VerifyingKey::from_sec1_bytes(const_pubkey.as_slice())
-            .expect("Initial DA pubkeys must be parsable to k256 VerifyingKey form sec1 bytes");
+        let recovered_pubkey =
+            recover_pub_key_from_cast_sig_and_hash(signature.as_slice(), prehash.as_slice());
 
-        let Ok(parsed_sig) = Signature::from_bytes(&signature.into()) else {
-            log!("Invalid signature format");
-            return false; // invalid signature format, fail
-        };
+        let ep = recovered_pubkey.to_encoded_point(false); // uncompressed form
 
-        // verify prehash with the matching verifying key
-        if verifying_key
-            .verify_prehash(prehash.as_slice(), &parsed_sig)
-            .is_err()
-        {
-            log!("Signature verification failed for index: {}", pubkey_idx);
+        let bytes = ep.as_bytes();
+        debug_assert_eq!(bytes[0], 0x04);
+
+        // Hash the 64 bytes X||Y (skip the 0x04 prefix)
+        let hash = keccak256(&bytes[1..]);
+
+        // Take last 20 bytes
+        let address = Address::from_slice(&hash[12..]);
+
+        if address != const_address {
+            log!(
+                "Recovered address does not match constant address for index: {}",
+                address_idx
+            );
             return false;
         }
     }
@@ -264,16 +267,19 @@ fn test_eip191_signature_verification() {
 }
 
 /// Recovers the public key from a cast-style signature (65 bytes: r(32) + s(32) + v(1)) and the message hash.
-#[cfg(test)]
 fn recover_pub_key_from_cast_sig_and_hash(cast_sig: &[u8], hash: &[u8]) -> VerifyingKey {
     use k256::ecdsa::RecoveryId;
     assert_eq!(cast_sig.len(), 65, "Invalid signature length");
     assert_eq!(hash.len(), 32, "Invalid hash length");
 
     let y_odd = cast_sig[64] - 27;
-    let y_odd = y_odd != 0;
-
-    let signature = k256::ecdsa::Signature::from_slice(&cast_sig[0..64]).unwrap();
+    let mut y_odd = y_odd != 0;
+    let mut signature = k256::ecdsa::Signature::from_slice(&cast_sig[0..64]).unwrap();
+    // Adhere to alloy impl
+    if let Some(s) = signature.normalize_s() {
+        signature = s;
+        y_odd = !y_odd;
+    }
 
     VerifyingKey::recover_from_prehash(hash, &signature, RecoveryId::new(y_odd, false))
         .expect("Failed to recover public key")
