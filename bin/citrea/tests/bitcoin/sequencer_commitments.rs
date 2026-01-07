@@ -370,7 +370,7 @@ impl TestCase for SequencerCommitmentsFromDaTest {
             index: 1,
         };
         da_service
-            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment), 1.0)
             .await
             .unwrap();
         da.wait_mempool_len(2, None).await?;
@@ -383,7 +383,7 @@ impl TestCase for SequencerCommitmentsFromDaTest {
             index: 2,
         };
         da_service
-            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment), 1.0)
             .await
             .unwrap();
         // Restart sequencer, it should fetch commitment with index 1 and 2

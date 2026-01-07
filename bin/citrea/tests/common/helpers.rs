@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::bail;
@@ -44,6 +44,8 @@ use uuid::Uuid;
 use crate::common::client::TestClient;
 use crate::common::DEFAULT_PROOF_WAIT_DURATION;
 
+static PROMETHEUS_INITIALIZED: OnceLock<()> = OnceLock::new();
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeMode {
     FullNode(SocketAddr),
@@ -76,6 +78,29 @@ pub async fn start_rollup(
     }
     if rollup_prover_config.is_some() && light_client_prover_config.is_some() {
         panic!("Both batch prover and light client prover config cannot be set at the same time");
+    }
+
+    if rollup_config.telemetry.bind_host.is_some() && rollup_config.telemetry.bind_port.is_some() {
+        let bind_host = rollup_config.telemetry.bind_host.as_ref().unwrap();
+        let bind_port = rollup_config.telemetry.bind_port.unwrap();
+        PROMETHEUS_INITIALIZED.get_or_init(|| {
+            let telemetry_addr: std::net::SocketAddr = format!("{bind_host}:{bind_port}")
+                .parse()
+                .expect("Invalid telemetry address");
+
+            std::thread::spawn(move || {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    let builder = metrics_exporter_prometheus::PrometheusBuilder::new()
+                        .with_http_listener(telemetry_addr);
+                    let _ = builder.install();
+                    loop {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
+                    }
+                });
+            });
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        });
     }
 
     let (tables, migrations, backup_manager) = if sequencer_config.is_some() {
@@ -195,6 +220,7 @@ pub async fn start_rollup(
     let rpc_storage = storage_manager.create_final_view_storage();
     let mut rpc_module = mock_demo_rollup
         .create_rpc_methods(
+            NodeType::FullNode, // Allow all RPC in tests
             rpc_storage.clone(),
             &ledger_db,
             &da_service,
@@ -529,7 +555,7 @@ pub async fn wait_for_prover_job(
     let timeout = timeout.unwrap_or(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)); // Default 600 seconds timeout
     loop {
         debug!("Waiting for prover job {}", job_id);
-        let response = prover_client.get_proving_job(job_id).await;
+        let response = prover_client.get_proving_job(job_id, Some(true)).await;
         if let Some(response) = response {
             if let Some(proof) = &response.proof {
                 if proof.l1_tx_id.is_some() {

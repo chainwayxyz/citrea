@@ -46,6 +46,24 @@ enum Commands {
         #[arg(long)]
         sequencer_commitment_index: Option<u32>,
     },
+    /// Create DBs backup
+    CreateBackup {
+        /// The node kind
+        #[arg(long)]
+        node_type: NodeTypeArg,
+        /// The path of the databases to backup
+        #[arg(long)]
+        db_path: PathBuf,
+        /// The backup path
+        #[arg(long)]
+        backup_path: PathBuf,
+    },
+    /// Validate DBs backup
+    ValidateBackup {
+        /// The path of backup to validate
+        #[arg(long)]
+        backup_path: PathBuf,
+    },
     /// Restore DBs from backup
     RestoreBackup {
         /// The node kind
@@ -81,6 +99,18 @@ enum Commands {
             required_unless_present = "backup_id"
         )]
         num_to_keep: Option<u32>,
+    },
+    /// Run pending database migrations
+    DbMigrate {
+        /// The node type
+        #[arg(long)]
+        node_type: NodeTypeArg,
+        /// The path of the database to migrate
+        #[arg(long)]
+        db_path: PathBuf,
+        /// Maximum number of open files for RocksDB
+        #[arg(long)]
+        db_max_open_files: Option<i32>,
     },
 }
 
@@ -122,6 +152,16 @@ async fn main() -> anyhow::Result<()> {
             )
             .await?;
         }
+        Commands::CreateBackup {
+            db_path,
+            backup_path,
+            node_type,
+        } => {
+            commands::create_backup(node_type, db_path, backup_path).await?;
+        }
+        Commands::ValidateBackup { backup_path } => {
+            commands::validate_backup(backup_path).await?;
+        }
         Commands::RestoreBackup {
             db_path,
             backup_path,
@@ -136,6 +176,13 @@ async fn main() -> anyhow::Result<()> {
             num_to_keep,
         } => {
             commands::purge_backup(backup_path, num_to_keep, backup_id).await?;
+        }
+        Commands::DbMigrate {
+            node_type,
+            db_path,
+            db_max_open_files,
+        } => {
+            commands::db_migrate(node_type, db_path, db_max_open_files).await?;
         }
     }
 

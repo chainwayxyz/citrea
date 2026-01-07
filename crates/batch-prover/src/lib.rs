@@ -143,6 +143,11 @@ where
     );
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
 
+    // Initialize metrics once at component startup
+    if let Err(e) = crate::metrics::initialize_metrics(&ledger_db) {
+        tracing::debug!("Failed to initialize batch prover metrics: {:?}", e);
+    }
+
     let l2_syncer = L2Syncer::new(
         runner_config.clone(),
         init_params,

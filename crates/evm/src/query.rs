@@ -76,6 +76,8 @@ const ESTIMATE_GAS_ERROR_RATIO: f64 = 0.015;
 pub(crate) struct EstimatedTxExpenses {
     /// Evm gas used.
     pub gas_used: U64,
+    /// Gas limit of the block used for simulation.
+    block_gas_limit: U64,
     /// Base fee of the L2 block when tx was executed.
     base_fee: U256,
     /// L1 fee.
@@ -846,7 +848,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         Ok(AccessListWithGasUsed {
             access_list,
-            gas_used: gas_limit_to_return(U64::from(block_env.gas_limit), estimated),
+            gas_used: gas_limit_to_return(estimated),
         })
     }
 
@@ -943,16 +945,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             fork_fn,
         )?;
 
-        // TODO: this assumes all blocks have the same gas limit
-        // if gas limit ever changes this should be updated
-        let last_block = self
-            .blocks
-            .last(&mut working_set.accessory_state())
-            .expect("Head block must be set");
-
-        let block_gas_limit = U64::from(last_block.header.gas_limit);
-
-        Ok(gas_limit_to_return(block_gas_limit, estimated))
+        Ok(gas_limit_to_return(estimated))
     }
 
     /// Handler for: `eth_estimateDiffSize`
@@ -1067,6 +1060,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let request_gas_limit = request.gas;
         let request_gas_price = request.gas_price;
         let block_env_gas_limit = block_env.gas_limit;
+        let block_gas_limit = U64::from(block_env_gas_limit);
         let block_env_base_fee = U256::from(block_env.basefee);
 
         let nonce = request.nonce.unwrap_or(account.nonce);
@@ -1124,6 +1118,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                             }
                             return Ok(EstimatedTxExpenses {
                                 gas_used: U64::from(MIN_TRANSACTION_GAS),
+                                block_gas_limit,
                                 base_fee: block_env_base_fee,
                                 l1_fee,
                                 l1_diff_size: diff_size,
@@ -1343,6 +1338,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         Ok(EstimatedTxExpenses {
             gas_used: U64::from(highest_gas_limit),
+            block_gas_limit,
             base_fee: block_env_base_fee,
             l1_fee,
             l1_diff_size: diff_size,
@@ -1453,8 +1449,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let cfg_env = get_cfg_env(cfg, evm_spec_id);
         let l1_fee_rate = sealed_block.l1_fee_rate;
 
-        // EvmDB is the replacement of revm::CacheDB because cachedb requires immutable state
-        // TODO: Move to CacheDB once immutable state is implemented
         let mut evm_db = self.get_db(working_set);
 
         // TODO: Convert below steps to blocking task like in reth after implementing the semaphores
@@ -1538,10 +1532,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let cfg_env = get_cfg_env(cfg, evm_spec_id);
 
-        let sealed_block = self
-            .get_sealed_block_by_number(Some(block_number), working_set, ledger_db)?
+        let l1_fee_block_num = match block_number {
+            // use l1 fee rate of latest block for pending block
+            BlockNumberOrTag::Pending => BlockNumberOrTag::Latest,
+            _ => block_number,
+        };
+        let l1_fee_block = self
+            .get_sealed_block_by_number(Some(l1_fee_block_num), working_set, ledger_db)?
             .ok_or_else(|| EthApiError::HeaderNotFound(block_id.unwrap()))?;
-        let l1_fee_rate = sealed_block.l1_fee_rate;
+        let l1_fee_rate = l1_fee_block.l1_fee_rate;
 
         let account = self
             .account_info(&request.from.unwrap_or_default(), working_set)
@@ -2195,7 +2194,9 @@ fn set_state_to_end_of_evm_block<C: sov_modules_api::Context>(
 /// we want to return the gas estimation as is since the mempool will reject it
 /// anyway.
 #[inline]
-fn gas_limit_to_return(block_gas_limit: U64, estimated_tx_expenses: EstimatedTxExpenses) -> U256 {
+fn gas_limit_to_return(estimated_tx_expenses: EstimatedTxExpenses) -> U256 {
+    let block_gas_limit = estimated_tx_expenses.block_gas_limit;
+
     if estimated_tx_expenses.gas_used > block_gas_limit {
         estimated_tx_expenses.gas_with_l1_overhead()
     } else {
@@ -2274,28 +2275,24 @@ fn get_pending_block_env<C: sov_modules_api::Context>(
 #[test]
 fn test_gas_limit_to_return() {
     assert_eq!(
-        gas_limit_to_return(
-            U64::from(8_000_000),
-            EstimatedTxExpenses {
-                gas_used: U64::from(5_000_000),
-                base_fee: U256::from(10000000), // 0.01 gwei
-                l1_fee: U256::from(40_000_000_000_000u128),
-                l1_diff_size: 1 // not relevant to this test
-            }
-        ),
+        gas_limit_to_return(EstimatedTxExpenses {
+            gas_used: U64::from(5_000_000),
+            block_gas_limit: U64::from(8_000_000),
+            base_fee: U256::from(10000000), // 0.01 gwei
+            l1_fee: U256::from(40_000_000_000_000u128),
+            l1_diff_size: 1 // not relevant to this test
+        }),
         U256::from(8_000_000)
     );
 
     assert_eq!(
-        gas_limit_to_return(
-            U64::from(8_000_000),
-            EstimatedTxExpenses {
-                gas_used: U64::from(8_000_001),
-                base_fee: U256::from(10000000), // 0.01 gwei
-                l1_fee: U256::from(40_000_000u128),
-                l1_diff_size: 1 // not relevant to this test
-            }
-        ),
+        gas_limit_to_return(EstimatedTxExpenses {
+            gas_used: U64::from(8_000_001),
+            block_gas_limit: U64::from(8_000_000),
+            base_fee: U256::from(10000000), // 0.01 gwei
+            l1_fee: U256::from(40_000_000u128),
+            l1_diff_size: 1 // not relevant to this test
+        }),
         U256::from(8_000_005)
     );
 }

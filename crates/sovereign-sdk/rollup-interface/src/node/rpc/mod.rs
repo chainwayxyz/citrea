@@ -143,6 +143,8 @@ pub struct LightClientProofResponse {
     pub proof: ProofRpcResponse,
     /// The output of the light client proof circuit
     pub light_client_proof_output: LightClientProofOutputRpcResponse,
+    /// Info about the proving session
+    pub info: Option<ProvingSessionInfo>,
 }
 
 /// The response to JSON-RPC request for querying proving job

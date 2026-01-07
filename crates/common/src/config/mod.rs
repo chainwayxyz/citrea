@@ -280,7 +280,8 @@ pub struct SequencerConfig {
     /// Block production interval in ms
     pub block_production_interval_ms: u64,
     /// Bridge system contract initialize function parameters
-    pub bridge_initialize_params: String,
+    #[serde(with = "hex")]
+    pub bridge_initialize_params: Vec<u8>,
     /// L1 fee rate multiplier
     #[serde(default = "default_l1_fee_rate_multiplier")]
     pub l1_fee_rate_multiplier: f64,
@@ -299,7 +300,7 @@ impl Default for SequencerConfig {
             deposit_mempool_fetch_limit: 10,
             block_production_interval_ms: 100,
             da_update_interval_ms: 100,
-            bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
             mempool_conf: Default::default(),
             l1_fee_rate_multiplier: 1.0,
             max_l1_fee_rate_sat_vb: 1, // doesn't matter since mock da returns 10 wei/byte
@@ -317,7 +318,7 @@ impl FromEnv for SequencerConfig {
             mempool_conf: SequencerMempoolConfig::from_env()?,
             da_update_interval_ms: read_env("DA_UPDATE_INTERVAL_MS")?.parse()?,
             block_production_interval_ms: read_env("BLOCK_PRODUCTION_INTERVAL_MS")?.parse()?,
-            bridge_initialize_params: read_env("BRIDGE_INITIALIZE_PARAMS")?,
+            bridge_initialize_params: hex::decode(read_env("BRIDGE_INITIALIZE_PARAMS")?)?,
             l1_fee_rate_multiplier: read_env("L1_FEE_RATE_MULTIPLIER")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -377,9 +378,9 @@ impl FromEnv for MempoolMaintenanceConfig {
 impl From<MempoolMaintenanceConfig> for reth_transaction_pool::maintain::MaintainPoolConfig {
     fn from(config: MempoolMaintenanceConfig) -> Self {
         Self {
-            max_update_depth: Default::default(),
             max_reload_accounts: config.max_reload_accounts,
             max_tx_lifetime: std::time::Duration::from_secs(config.max_tx_lifetime_secs),
+            ..Default::default()
         }
     }
 }
@@ -673,7 +674,7 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
-            bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
             l1_fee_rate_multiplier: 0.75,
             max_l1_fee_rate_sat_vb: 15,
         };
@@ -738,7 +739,7 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
-            bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
             l1_fee_rate_multiplier: 1.0,
             max_l1_fee_rate_sat_vb: 40,
         };

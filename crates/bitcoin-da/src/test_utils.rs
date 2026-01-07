@@ -15,7 +15,7 @@ impl BitcoinService {
     pub async fn test_send_separate_chunk_transaction_with_fee_rate(
         &self,
         tx_request: DaTxRequest,
-        fee_sat_per_vbyte: u64,
+        fee_sat_per_vbyte: f64,
     ) -> Result<()> {
         let network = self.network;
 
@@ -33,7 +33,7 @@ impl BitcoinService {
                     RawTxData::Chunks(chunks) => {
                         for body in chunks {
                             // get all available utxos that are not already spent
-                            let utxos = self.get_utxos().await?;
+                            let utxos = self.utxo_manager.get_available_utxos().await?;
                             let utxos = utxos
                                 .into_iter()
                                 .filter(|utxo| {
@@ -43,7 +43,7 @@ impl BitcoinService {
                                 })
                                 .collect::<Vec<_>>();
 
-                            let prev_utxo = self.get_prev_utxo().await;
+                            let prev_utxo = self.utxo_manager.get_prev_utxo().await;
 
                             // get address from a utxo
                             let address = utxos[0]
@@ -92,12 +92,12 @@ impl BitcoinService {
                             borsh::to_vec(&aggregate).expect("Aggregate serialize must not fail");
 
                         // get all available utxos that are not already spent
-                        let utxos = self.get_utxos().await?;
+                        let utxos = self.utxo_manager.get_available_utxos().await?;
                         let utxos = utxos
                             .into_iter()
                             .filter(|utxo| utxo.amount >= 50 * 10_u64.pow(8))
                             .collect::<Vec<_>>();
-                        let prev_utxo = self.get_prev_utxo().await;
+                        let prev_utxo = self.utxo_manager.get_prev_utxo().await;
 
                         // get address from a utxo
                         let address = utxos[0]
