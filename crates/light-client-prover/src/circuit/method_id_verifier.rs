@@ -288,16 +288,25 @@ fn recover_pub_key_from_cast_sig_and_hash(
     assert_eq!(cast_sig.len(), 65, "Invalid signature length");
     assert_eq!(hash.len(), 32, "Invalid hash length");
 
-    let y_odd = cast_sig[64] - 27;
-    let mut y_odd = y_odd != 0;
+    let v = cast_sig[64];
+    let recid_u8 = match v {
+        0..=3 => v,
+        27..=30 => v - 27,
+        _ => anyhow::bail!("Invalid v: {}", v),
+    };
+
+    let mut y_odd = (recid_u8 & 1) == 1;
+    let x_reduced = (recid_u8 & 2) == 2;
+
     let mut signature = k256::ecdsa::Signature::from_slice(&cast_sig[0..64])
         .map_err(|e| anyhow::anyhow!("Invalid signature slice: {:?}", e))?;
-    // Adhere to alloy impl
+
+    // low-s normalization requires flipping parity
     if let Some(s) = signature.normalize_s() {
         signature = s;
         y_odd = !y_odd;
     }
 
-    VerifyingKey::recover_from_prehash(hash, &signature, RecoveryId::new(y_odd, false))
+    VerifyingKey::recover_from_prehash(hash, &signature, RecoveryId::new(y_odd, x_reduced))
         .map_err(|e| anyhow::anyhow!("Failed to recover public key: {:?}", e))
 }
