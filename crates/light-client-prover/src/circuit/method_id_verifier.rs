@@ -7,6 +7,21 @@ use sov_rollup_interface::da::{
 
 use crate::circuit::{SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT};
 
+/// Error type for public key recovery operations
+#[derive(Debug, Clone)]
+pub enum PubKeyRecoveryError {
+    /// Invalid signature length
+    InvalidSignatureLength,
+    /// Invalid hash length
+    InvalidHashLength,
+    /// Invalid recovery ID (v value)
+    InvalidRecoveryId(u8),
+    /// Failed to parse signature bytes
+    InvalidSignatureBytes(String),
+    /// Failed to recover the public key
+    RecoveryFailed(String),
+}
+
 /// The three out of 5 signatures should be verified for the method id upgrade to be valid.
 /// For each signature, the corresponding public key from the initial values constants is used to verify the signature.
 /// If there are less than 3 valid signatures, the verification fails.
@@ -81,6 +96,43 @@ pub fn verify_method_id_security_council(
     }
 
     true
+}
+
+/// Recovers the public key from a signature (65 bytes: r(32) + s(32) + v(1)) and the message hash.
+fn recover_pub_key_from_cast_sig_and_hash(
+    cast_sig: &[u8],
+    hash: &[u8],
+) -> Result<VerifyingKey, PubKeyRecoveryError> {
+    use k256::ecdsa::RecoveryId;
+
+    if cast_sig.len() != 65 {
+        return Err(PubKeyRecoveryError::InvalidSignatureLength);
+    }
+    if hash.len() != 32 {
+        return Err(PubKeyRecoveryError::InvalidHashLength);
+    }
+
+    let v = cast_sig[64];
+    let recid_u8 = match v {
+        0..=3 => v,
+        27..=30 => v - 27,
+        _ => return Err(PubKeyRecoveryError::InvalidRecoveryId(v)),
+    };
+
+    let mut y_odd = (recid_u8 & 1) == 1;
+    let x_reduced = (recid_u8 & 2) == 2;
+
+    let mut signature = k256::ecdsa::Signature::from_slice(&cast_sig[0..64])
+        .map_err(|e| PubKeyRecoveryError::InvalidSignatureBytes(format!("{:?}", e)))?;
+
+    // low-s normalization requires flipping parity
+    if let Some(s) = signature.normalize_s() {
+        signature = s;
+        y_odd = !y_odd;
+    }
+
+    VerifyingKey::recover_from_prehash(hash, &signature, RecoveryId::new(y_odd, x_reduced))
+        .map_err(|e| PubKeyRecoveryError::RecoveryFailed(format!("{:?}", e)))
 }
 
 #[cfg(test)]
@@ -277,36 +329,4 @@ fn test_eip191_signature_verification() {
     assert!(verifying_key
         .verify_prehash(prehash.as_slice(), &signature)
         .is_ok());
-}
-
-/// Recovers the public key from a cast-style signature (65 bytes: r(32) + s(32) + v(1)) and the message hash.
-fn recover_pub_key_from_cast_sig_and_hash(
-    cast_sig: &[u8],
-    hash: &[u8],
-) -> anyhow::Result<VerifyingKey> {
-    use k256::ecdsa::RecoveryId;
-    assert_eq!(cast_sig.len(), 65, "Invalid signature length");
-    assert_eq!(hash.len(), 32, "Invalid hash length");
-
-    let v = cast_sig[64];
-    let recid_u8 = match v {
-        0..=3 => v,
-        27..=30 => v - 27,
-        _ => anyhow::bail!("Invalid v: {}", v),
-    };
-
-    let mut y_odd = (recid_u8 & 1) == 1;
-    let x_reduced = (recid_u8 & 2) == 2;
-
-    let mut signature = k256::ecdsa::Signature::from_slice(&cast_sig[0..64])
-        .map_err(|e| anyhow::anyhow!("Invalid signature slice: {:?}", e))?;
-
-    // low-s normalization requires flipping parity
-    if let Some(s) = signature.normalize_s() {
-        signature = s;
-        y_odd = !y_odd;
-    }
-
-    VerifyingKey::recover_from_prehash(hash, &signature, RecoveryId::new(y_odd, x_reduced))
-        .map_err(|e| anyhow::anyhow!("Failed to recover public key: {:?}", e))
 }
