@@ -75,7 +75,7 @@ pub fn verify_method_id_security_council(
         let address_idx = signature_with_idx.1;
         let const_address = initial_da_addresses[address_idx as usize];
 
-        let recovered_pubkey = match recover_pub_key_from_cast_sig_and_hash(
+        let recovered_pubkey = match recover_pub_key_from_signature_and_prehash(
             signature.as_slice(),
             prehash.as_slice(),
         ) {
@@ -113,21 +113,21 @@ pub fn verify_method_id_security_council(
     true
 }
 
-/// Recovers the public key from a signature (65 bytes: r(32) + s(32) + v(1)) and the message hash.
-fn recover_pub_key_from_cast_sig_and_hash(
-    cast_sig: &[u8],
-    hash: &[u8],
+/// Recovers the public key from a signature (65 bytes: r(32) + s(32) + v(1)) and the message prehash.
+fn recover_pub_key_from_signature_and_prehash(
+    signature: &[u8],
+    message_prehash: &[u8],
 ) -> Result<VerifyingKey, PubKeyRecoveryError> {
     use k256::ecdsa::RecoveryId;
 
-    if cast_sig.len() != 65 {
+    if signature.len() != 65 {
         return Err(PubKeyRecoveryError::InvalidSignatureLength);
     }
-    if hash.len() != 32 {
+    if message_prehash.len() != 32 {
         return Err(PubKeyRecoveryError::InvalidHashLength);
     }
 
-    let v = cast_sig[64];
+    let v = signature[64];
     let recid_u8 = match v {
         0..=3 => v,
         27..=30 => v - 27,
@@ -137,7 +137,7 @@ fn recover_pub_key_from_cast_sig_and_hash(
     let mut y_odd = (recid_u8 & 1) == 1;
     let x_reduced = (recid_u8 & 2) == 2;
 
-    let mut signature = k256::ecdsa::Signature::from_slice(&cast_sig[0..64])
+    let mut signature = k256::ecdsa::Signature::from_slice(&signature[0..64])
         .map_err(|e| PubKeyRecoveryError::InvalidSignatureBytes(format!("{e:?}")))?;
 
     // low-s normalization requires flipping parity
@@ -146,8 +146,12 @@ fn recover_pub_key_from_cast_sig_and_hash(
         y_odd = !y_odd;
     }
 
-    VerifyingKey::recover_from_prehash(hash, &signature, RecoveryId::new(y_odd, x_reduced))
-        .map_err(|e| PubKeyRecoveryError::RecoveryFailed(format!("{e:?}")))
+    VerifyingKey::recover_from_prehash(
+        message_prehash,
+        &signature,
+        RecoveryId::new(y_odd, x_reduced),
+    )
+    .map_err(|e| PubKeyRecoveryError::RecoveryFailed(format!("{e:?}")))
 }
 
 #[cfg(test)]
@@ -326,9 +330,11 @@ fn test_eip191_signature_verification() {
     let prehash = eip191_hash_message(msg);
 
     let eip_191_signature = signer.sign_hash_sync(&prehash).unwrap();
-    let recovered_pub_key =
-        recover_pub_key_from_cast_sig_and_hash(&eip_191_signature.as_bytes(), prehash.as_slice())
-            .unwrap();
+    let recovered_pub_key = recover_pub_key_from_signature_and_prehash(
+        &eip_191_signature.as_bytes(),
+        prehash.as_slice(),
+    )
+    .unwrap();
 
     assert_eq!(pubkey, recovered_pub_key.to_sec1_bytes());
 
