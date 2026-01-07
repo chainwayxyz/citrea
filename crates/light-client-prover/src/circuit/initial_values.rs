@@ -10,7 +10,7 @@ use sov_rollup_interface::Network;
 #[cfg(feature = "native")]
 use self::non_empty_slice::NonEmptySlice;
 #[cfg(feature = "native")]
-use crate::circuit::{SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT};
+use crate::circuit::SECURITY_COUNCIL_MEMBER_COUNT;
 
 /// Genesis root for the Light Client Prover's Jellyfish Merkle Tree.
 pub(crate) const LCP_JMT_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
@@ -34,7 +34,7 @@ pub mod mockda {
     use alloy_primitives::{address, Address};
 
     use super::non_empty_slice::NonEmptySlice;
-    use crate::circuit::{SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT};
+    use crate::circuit::SECURITY_COUNCIL_MEMBER_COUNT;
 
     /// Genesis L2 genesis root for the mock DA.
     pub const GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
@@ -87,11 +87,11 @@ pub mod mockda {
 
 /// Module containing initial values for the Bitcoin DA (Data Availability) specification.
 pub mod bitcoinda {
-    use alloy_primitives::{address, hex, Address};
+    use alloy_primitives::{address, Address};
 
     use super::decode_to_u32_array;
     use super::non_empty_slice::NonEmptySlice;
-    use crate::circuit::{SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT};
+    use crate::circuit::SECURITY_COUNCIL_MEMBER_COUNT;
 
     /// Genesis L2 root for the Bitcoin DA on Mainnet.
     pub const MAINNET_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(

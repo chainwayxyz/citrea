@@ -1,11 +1,10 @@
 use alloy_primitives::{eip191_hash_message, keccak256, Address};
-use k256::ecdsa::signature::hazmat::PrehashVerifier;
-use k256::ecdsa::{Signature, VerifyingKey};
+use k256::ecdsa::VerifyingKey;
 use sov_rollup_interface::da::{
     SECURITY_COUNCIL_SIGNATURE_SIZE, SECURITY_COUNCIL_SIGNATURE_THRESHOLD,
 };
 
-use crate::circuit::{SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT};
+use crate::circuit::SECURITY_COUNCIL_MEMBER_COUNT;
 
 /// Error type for public key recovery operations
 #[derive(Debug, Clone)]
@@ -20,6 +19,22 @@ pub enum PubKeyRecoveryError {
     InvalidSignatureBytes(String),
     /// Failed to recover the public key
     RecoveryFailed(String),
+}
+
+impl std::fmt::Display for PubKeyRecoveryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PubKeyRecoveryError::InvalidSignatureLength => write!(f, "Invalid Signature Length"),
+            PubKeyRecoveryError::InvalidHashLength => write!(f, "Invalid Hash Length"),
+            PubKeyRecoveryError::InvalidRecoveryId(rec_id) => {
+                write!(f, "Invalid Recovery Id: {rec_id}")
+            }
+            PubKeyRecoveryError::InvalidSignatureBytes(bytes_str) => {
+                write!(f, "Invalid Signature Bytes: {bytes_str}")
+            }
+            PubKeyRecoveryError::RecoveryFailed(e) => write!(f, "Recovery Failed with error: {e}"),
+        }
+    }
 }
 
 /// The three out of 5 signatures should be verified for the method id upgrade to be valid.
@@ -69,7 +84,7 @@ pub fn verify_method_id_security_council(
                 log!(
                     "Failed to recover public key from signature for index {}: {:?}",
                     address_idx,
-                    e
+                    e.to_string()
                 );
                 return false;
             }
@@ -123,7 +138,7 @@ fn recover_pub_key_from_cast_sig_and_hash(
     let x_reduced = (recid_u8 & 2) == 2;
 
     let mut signature = k256::ecdsa::Signature::from_slice(&cast_sig[0..64])
-        .map_err(|e| PubKeyRecoveryError::InvalidSignatureBytes(format!("{:?}", e)))?;
+        .map_err(|e| PubKeyRecoveryError::InvalidSignatureBytes(format!("{e:?}")))?;
 
     // low-s normalization requires flipping parity
     if let Some(s) = signature.normalize_s() {
@@ -132,7 +147,7 @@ fn recover_pub_key_from_cast_sig_and_hash(
     }
 
     VerifyingKey::recover_from_prehash(hash, &signature, RecoveryId::new(y_odd, x_reduced))
-        .map_err(|e| PubKeyRecoveryError::RecoveryFailed(format!("{:?}", e)))
+        .map_err(|e| PubKeyRecoveryError::RecoveryFailed(format!("{e:?}")))
 }
 
 #[cfg(test)]
@@ -292,6 +307,7 @@ mod tests {
 fn test_eip191_signature_verification() {
     use alloy_signer::SignerSync;
     use alloy_signer_local::PrivateKeySigner;
+    use k256::ecdsa::signature::hazmat::PrehashVerifier;
 
     // signature created with cast: cast wallet sign --private-key d38ba32d6971702225da49b49baac41c5a7ec2f5e3f2bb426976195ccd3266f7 0x48656c6c6f2c20776f726c6421
     let msg = b"Hello, world!";
