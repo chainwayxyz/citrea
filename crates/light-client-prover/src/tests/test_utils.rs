@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use alloy_primitives::{eip191_hash_message, B256};
+use alloy_primitives::{eip191_hash_message, keccak256, Address, B256};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
 use rand::{thread_rng, Rng};
@@ -241,25 +241,25 @@ pub(crate) fn generate_initial_pub_keys_with_signers_from_pks(
 }
 
 /// Generates 5 valid keypairs and returns the public keys and signers
-pub(crate) fn generate_initial_pub_keys_with_signers() -> (
-    [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT],
+pub(crate) fn generate_initial_addresses_with_signers() -> (
+    [Address; SECURITY_COUNCIL_MEMBER_COUNT],
     Vec<PrivateKeySigner>,
 ) {
-    let mut initial_da_pubkeys =
-        [[0u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT];
+    let mut initial_da_addresses = [Address::random(); SECURITY_COUNCIL_MEMBER_COUNT];
     let mut signers = Vec::new();
 
     // Generate 5 valid keypairs and signatures
-    for (i, public_key) in initial_da_pubkeys.iter_mut().enumerate() {
+    for (i, address) in initial_da_addresses.iter_mut().enumerate() {
         let secret_key = [i as u8 + 1; 32];
         let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
         let verifying_key = signer.credential().verifying_key();
-        let pubkey = verifying_key.to_sec1_bytes();
-        *public_key = pubkey.to_vec().try_into().unwrap();
+        let ep = verifying_key.to_encoded_point(false); // uncompressed: 0x04 + X(32) + Y(32)
+        let bytes = ep.as_bytes();
+        *address = Address::from_slice(&keccak256(&bytes[1..])[12..]);
         signers.push(signer);
     }
 
-    (initial_da_pubkeys, signers)
+    (initial_da_addresses, signers)
 }
 
 /// Creates 3 valid signatures from the first 3 signers for the given prehash
@@ -386,8 +386,7 @@ impl NativeCircuitRunner {
         initial_batch_proof_method_ids: Vec<(u64, [u32; 8])>,
         batch_prover_da_pub_key: &[u8],
         sequencer_da_pub_key: &[u8],
-        method_id_upgrade_authority: &[[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
-             SECURITY_COUNCIL_MEMBER_COUNT],
+        method_id_upgrade_authority: &[Address; SECURITY_COUNCIL_MEMBER_COUNT],
         network: Network,
     ) -> LightClientCircuitInput<MockDaSpec> {
         let prover_storage = self

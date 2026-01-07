@@ -45,8 +45,20 @@ pub fn verify_method_id_security_council(
         let address_idx = signature_with_idx.1;
         let const_address = initial_da_addresses[address_idx as usize];
 
-        let recovered_pubkey =
-            recover_pub_key_from_cast_sig_and_hash(signature.as_slice(), prehash.as_slice());
+        let recovered_pubkey = match recover_pub_key_from_cast_sig_and_hash(
+            signature.as_slice(),
+            prehash.as_slice(),
+        ) {
+            Ok(recovered_pubkey) => recovered_pubkey,
+            Err(e) => {
+                log!(
+                    "Failed to recover public key from signature for index {}: {:?}",
+                    address_idx,
+                    e
+                );
+                return false;
+            }
+        };
 
         let ep = recovered_pubkey.to_encoded_point(false); // uncompressed form
 
@@ -78,7 +90,7 @@ mod tests {
 
     use super::*;
     use crate::circuit::citrea_network_to_chain_id;
-    use crate::{create_valid_signatures, generate_initial_pub_keys_with_signers};
+    use crate::{create_valid_signatures, generate_initial_addresses_with_signers};
 
     #[test]
     fn test_valid_signatures() {
@@ -90,7 +102,7 @@ mod tests {
         let msg = body.serialize();
         let prehash = eip191_hash_message(msg);
 
-        let (initial_pubkeys, signers) = generate_initial_pub_keys_with_signers();
+        let (initial_addresses, signers) = generate_initial_addresses_with_signers();
 
         let signatures_with_index = create_valid_signatures(&signers, &prehash);
 
@@ -104,7 +116,7 @@ mod tests {
         };
 
         assert!(verify_method_id_security_council(
-            initial_pubkeys,
+            initial_addresses,
             batch_proof_method_id.body.serialize().as_slice(),
             &batch_proof_method_id.signatures_with_index
         ));
@@ -120,7 +132,7 @@ mod tests {
         let msg = body.serialize();
         let prehash = eip191_hash_message(msg);
 
-        let (initial_pubkeys, signers) = generate_initial_pub_keys_with_signers();
+        let (initial_addresses, signers) = generate_initial_addresses_with_signers();
 
         let mut signatures_with_index = create_valid_signatures(&signers, &prehash);
 
@@ -132,7 +144,7 @@ mod tests {
             signatures_with_index,
         };
         assert!(!verify_method_id_security_council(
-            initial_pubkeys,
+            initial_addresses,
             batch_proof_method_id.body.serialize().as_slice(),
             &batch_proof_method_id.signatures_with_index
         ));
@@ -148,7 +160,7 @@ mod tests {
         let msg = body.serialize();
         let prehash = eip191_hash_message(msg);
 
-        let (initial_pubkeys, signers) = generate_initial_pub_keys_with_signers();
+        let (initial_addresses, signers) = generate_initial_addresses_with_signers();
 
         let mut signatures_with_index = create_valid_signatures(&signers, &prehash);
 
@@ -160,7 +172,7 @@ mod tests {
             signatures_with_index,
         };
         assert!(!verify_method_id_security_council(
-            initial_pubkeys,
+            initial_addresses,
             batch_proof_method_id.body.serialize().as_slice(),
             &batch_proof_method_id.signatures_with_index
         ));
@@ -175,7 +187,7 @@ mod tests {
         };
         let msg = body.serialize();
         let prehash = eip191_hash_message(msg);
-        let (initial_pubkeys, signers) = generate_initial_pub_keys_with_signers();
+        let (initial_addresses, signers) = generate_initial_addresses_with_signers();
         let mut signatures_with_index = create_valid_signatures(&signers, &prehash);
         // Set an out-of-bounds index
         signatures_with_index[0].1 = 5; // valid indexes are 0-
@@ -184,7 +196,7 @@ mod tests {
             signatures_with_index,
         };
         assert!(!verify_method_id_security_council(
-            initial_pubkeys,
+            initial_addresses,
             batch_proof_method_id.body.serialize().as_slice(),
             &batch_proof_method_id.signatures_with_index
         ));
@@ -200,7 +212,7 @@ mod tests {
         let msg = body.serialize();
         let prehash = eip191_hash_message(msg);
 
-        let (initial_pubkeys, signers) = generate_initial_pub_keys_with_signers();
+        let (initial_addresses, signers) = generate_initial_addresses_with_signers();
 
         let mut signatures_with_index = create_valid_signatures(&signers, &prehash);
 
@@ -216,7 +228,7 @@ mod tests {
 
         // Should not verify because points to different pubkeys now
         assert!(!verify_method_id_security_council(
-            initial_pubkeys,
+            initial_addresses,
             batch_proof_method_id.body.serialize().as_slice(),
             &batch_proof_method_id.signatures_with_index
         ));
@@ -247,7 +259,8 @@ fn test_eip191_signature_verification() {
 
     let eip_191_signature = signer.sign_hash_sync(&prehash).unwrap();
     let recovered_pub_key =
-        recover_pub_key_from_cast_sig_and_hash(&eip_191_signature.as_bytes(), prehash.as_slice());
+        recover_pub_key_from_cast_sig_and_hash(&eip_191_signature.as_bytes(), prehash.as_slice())
+            .unwrap();
 
     assert_eq!(pubkey, recovered_pub_key.to_sec1_bytes());
 
@@ -267,14 +280,18 @@ fn test_eip191_signature_verification() {
 }
 
 /// Recovers the public key from a cast-style signature (65 bytes: r(32) + s(32) + v(1)) and the message hash.
-fn recover_pub_key_from_cast_sig_and_hash(cast_sig: &[u8], hash: &[u8]) -> VerifyingKey {
+fn recover_pub_key_from_cast_sig_and_hash(
+    cast_sig: &[u8],
+    hash: &[u8],
+) -> anyhow::Result<VerifyingKey> {
     use k256::ecdsa::RecoveryId;
     assert_eq!(cast_sig.len(), 65, "Invalid signature length");
     assert_eq!(hash.len(), 32, "Invalid hash length");
 
     let y_odd = cast_sig[64] - 27;
     let mut y_odd = y_odd != 0;
-    let mut signature = k256::ecdsa::Signature::from_slice(&cast_sig[0..64]).unwrap();
+    let mut signature = k256::ecdsa::Signature::from_slice(&cast_sig[0..64])
+        .map_err(|e| anyhow::anyhow!("Invalid signature slice: {:?}", e))?;
     // Adhere to alloy impl
     if let Some(s) = signature.normalize_s() {
         signature = s;
@@ -282,5 +299,5 @@ fn recover_pub_key_from_cast_sig_and_hash(cast_sig: &[u8], hash: &[u8]) -> Verif
     }
 
     VerifyingKey::recover_from_prehash(hash, &signature, RecoveryId::new(y_odd, false))
-        .expect("Failed to recover public key")
+        .map_err(|e| anyhow::anyhow!("Failed to recover public key: {:?}", e))
 }
