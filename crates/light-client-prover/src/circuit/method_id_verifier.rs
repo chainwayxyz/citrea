@@ -26,8 +26,8 @@ impl std::fmt::Display for PubKeyRecoveryError {
         match self {
             PubKeyRecoveryError::InvalidSignatureLength => write!(f, "Invalid Signature Length"),
             PubKeyRecoveryError::InvalidHashLength => write!(f, "Invalid Hash Length"),
-            PubKeyRecoveryError::InvalidRecoveryId(rec_id) => {
-                write!(f, "Invalid Recovery Id: {rec_id}")
+            PubKeyRecoveryError::InvalidRecoveryId(recovery_id) => {
+                write!(f, "Invalid Recovery Id: {recovery_id}")
             }
             PubKeyRecoveryError::InvalidSignatureBytes(bytes_str) => {
                 write!(f, "Invalid Signature Bytes: {bytes_str}")
