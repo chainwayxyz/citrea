@@ -68,19 +68,14 @@ pub mod mockda {
     /// 3 out of 5 signatures are required to upgrade method IDs.
     pub const METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES: [Address; SECURITY_COUNCIL_MEMBER_COUNT] = [
         // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077
-        // Address: 0xd51bd554b82aa486f56030bef90b70a27a4f6d20
         address!("0xd51bd554b82aa486f56030bef90b70a27a4f6d20"),
         // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9076
-        // Address: 0xfef24931c137d6c0df4f76116e0e58d281203360
         address!("0xfef24931c137d6c0df4f76116e0e58d281203360"),
         // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9075
-        // Address: 0xbb3833932330eef589dd56e855f2ca1ac015d200
         address!("0xbb3833932330eef589dd56e855f2ca1ac015d200"),
         // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9074
-        // Address: 0xe976fdbc72670c34b7973ae3fa7d38478eade018
         address!("0xe976fdbc72670c34b7973ae3fa7d38478eade018"),
         // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9073
-        // Address: 0x8632ebc44c4515c9b85fae29eae3fd3722fd35ea
         address!("0x8632ebc44c4515c9b85fae29eae3fd3722fd35ea"),
     ];
 }
@@ -344,11 +339,11 @@ pub mod bitcoinda {
     pub const MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES: [Address;
         SECURITY_COUNCIL_MEMBER_COUNT] = [
         // TODO: Remove place holder addresses
-        address!("0xd51bd554b82aa486f56030bef90b70a27a4f6d20"),
-        address!("0xfef24931c137d6c0df4f76116e0e58d281203360"),
-        address!("0xbb3833932330eef589dd56e855f2ca1ac015d200"),
-        address!("0xe976fdbc72670c34b7973ae3fa7d38478eade018"),
-        address!("0x8632ebc44c4515c9b85fae29eae3fd3722fd35ea"),
+        address!("0xffffffffffffffffffffffffffffffffffffffff"),
+        address!("0xffffffffffffffffffffffffffffffffffffffff"),
+        address!("0xffffffffffffffffffffffffffffffffffffffff"),
+        address!("0xffffffffffffffffffffffffffffffffffffffff"),
+        address!("0xffffffffffffffffffffffffffffffffffffffff"),
     ];
 
     // TODO: Update with real addresses
@@ -357,11 +352,11 @@ pub mod bitcoinda {
     pub const TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES: [Address;
         SECURITY_COUNCIL_MEMBER_COUNT] = [
         // TODO: Remove place holder addresses
-        address!("0xd51bd554b82aa486f56030bef90b70a27a4f6d20"),
-        address!("0xfef24931c137d6c0df4f76116e0e58d281203360"),
-        address!("0xbb3833932330eef589dd56e855f2ca1ac015d200"),
-        address!("0xe976fdbc72670c34b7973ae3fa7d38478eade018"),
-        address!("0x8632ebc44c4515c9b85fae29eae3fd3722fd35ea"),
+        address!("0xffffffffffffffffffffffffffffffffffffffff"),
+        address!("0xffffffffffffffffffffffffffffffffffffffff"),
+        address!("0xffffffffffffffffffffffffffffffffffffffff"),
+        address!("0xffffffffffffffffffffffffffffffffffffffff"),
+        address!("0xffffffffffffffffffffffffffffffffffffffff"),
     ];
 
     // TODO: Update with real addresses
@@ -370,16 +365,16 @@ pub mod bitcoinda {
     pub const DEVNET_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES: [Address;
         SECURITY_COUNCIL_MEMBER_COUNT] = [
         // TODO: Remove place holder addresses
-        address!("0xd51bd554b82aa486f56030bef90b70a27a4f6d20"),
-        address!("0xfef24931c137d6c0df4f76116e0e58d281203360"),
-        address!("0xbb3833932330eef589dd56e855f2ca1ac015d200"),
-        address!("0xe976fdbc72670c34b7973ae3fa7d38478eade018"),
-        address!("0x8632ebc44c4515c9b85fae29eae3fd3722fd35ea"),
+        address!("0xffffffffffffffffffffffffffffffffffffffff"),
+        address!("0xffffffffffffffffffffffffffffffffffffffff"),
+        address!("0xffffffffffffffffffffffffffffffffffffffff"),
+        address!("0xffffffffffffffffffffffffffffffffffffffff"),
+        address!("0xffffffffffffffffffffffffffffffffffffffff"),
     ];
 
-    /// Public keys of the method ID upgrade authority in the Bitcoin DA on Nightly.
-    /// This public key is set at compile time via the `METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY` environment variable.
-    /// If the variable is not set, it defaults to a predefined value.
+    /// Addresses of the method ID upgrade authority in the Bitcoin DA on Nightly.
+    /// These addresses are set at compile time via the `METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS` environment variable.
+    /// If the variables are not set, they default to a predefined value.
     /// 3 out of 5 signatures are required to upgrade method IDs.
     pub const NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES: [Address;
         SECURITY_COUNCIL_MEMBER_COUNT] = [
@@ -451,9 +446,9 @@ pub mod bitcoinda {
         },
     ];
 
-    /// Public keys of the method ID upgrade authority in the Bitcoin DA on Test Network with Forks.
-    /// This public key is set at compile time via the `METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY` environment variable.
-    /// If the variable is not set, it defaults to a predefined value.
+    /// Addresses of the method ID upgrade authority in the Bitcoin DA on Test Network with Forks.
+    /// These addresses are set at compile time via the `METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS` environment variable.
+    /// If the variables are not set, they default to a predefined value.
     /// 3 out of 5 signatures are required to upgrade method IDs.
     pub const TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES: [Address;
         SECURITY_COUNCIL_MEMBER_COUNT] = [
