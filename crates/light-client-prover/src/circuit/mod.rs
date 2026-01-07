@@ -367,7 +367,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// * `initial_batch_proof_method_ids` - The initial batch proof method IDs that are used to initialize the batch proof method IDs in the JMT state if this is the first light client proof output.
     /// * `batch_prover_da_public_key` - The public key of the batch prover to check the sender of the batch proof transactions.
     /// * `sequencer_da_public_key` - The public key of the sequencer to check the sender of the sequencer commitment transactions.
-    /// * `method_id_upgrade_authority_da_public_key` - The public key of the method ID upgrade authority to check the sender of the batch proof method ID transactions.
+    /// * `method_id_upgrade_authority_da_addresses` - The addresses of the method ID upgrade authority to be verified against the signatures by recovering pubkeys.
     ///
     /// # Logic
     /// - The block hash of the header is inserted into the JMT.
