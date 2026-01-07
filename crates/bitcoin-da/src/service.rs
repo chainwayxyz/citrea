@@ -1428,8 +1428,16 @@ fn calculate_witness_root(txdata: &[TransactionWrapper], tx_count: usize) -> [u8
     BitcoinMerkleTree::new(hashes).root()
 }
 
+/// Safely converts f64 to u128, returning None for invalid inputs.
+///
+/// Returns `None` if:
+/// - `x` is NaN or infinite
+/// - `x` is negative
+/// - `x` >= 2^128 (would overflow u128)
 fn f64_to_u128(x: f64) -> Option<u128> {
-    if x.is_finite() && x >= 0.0 && x <= (u128::MAX as f64) {
+    // Note: (u128::MAX as f64) rounds up to 2^128 because f64 only has 53 bits
+    // of mantissa. We use strict less-than to reject values that would overflow.
+    if x.is_finite() && x >= 0.0 && x < (u128::MAX as f64) {
         Some(x as u128)
     } else {
         None
