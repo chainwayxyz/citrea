@@ -1225,14 +1225,22 @@ impl DaService for BitcoinService {
 
     #[instrument(level = "trace", skip(self))]
     async fn get_fee_rate(&self) -> Result<u128> {
-        let sat_vb_ceil = self
+        let sat_vb = self
             .fee
             .get_fee_rate()
             .await
-            .map_err(|_| BitcoinServiceError::FeeRateError)? as u128;
+            .map_err(|_| BitcoinServiceError::FeeRateError)?;
 
         // multiply with 10^10/4 = 25*10^8 = 2_500_000_000 for BTC to CBTC conversion (decimals)
-        let multiplied_fee = sat_vb_ceil.saturating_mul(2_500_000_000);
+        // if somehow the value is out of bounds, return a default fee rate of 1 BTC/vB
+        let sat_vb = (sat_vb * 2_500_000_000f64).ceil();
+        let multiplied_fee = f64_to_u128(sat_vb).unwrap_or_else(|| {
+            warn!(
+                "Fee rate {} out of bounds, returning default fee rate of 1 CBTC/vB",
+                sat_vb
+            );
+            2_500_000_000
+        });
         Ok(multiplied_fee)
     }
 
@@ -1418,4 +1426,20 @@ fn calculate_witness_root(txdata: &[TransactionWrapper], tx_count: usize) -> [u8
         })
         .collect();
     BitcoinMerkleTree::new(hashes).root()
+}
+
+/// Safely converts f64 to u128, returning None for invalid inputs.
+///
+/// Returns `None` if:
+/// - `x` is NaN or infinite
+/// - `x` is negative
+/// - `x` >= 2^128 (would overflow u128)
+fn f64_to_u128(x: f64) -> Option<u128> {
+    // Note: (u128::MAX as f64) rounds up to 2^128 because f64 only has 53 bits
+    // of mantissa. We use strict less-than to reject values that would overflow.
+    if x.is_finite() && x >= 0.0 && x < (u128::MAX as f64) {
+        Some(x as u128)
+    } else {
+        None
+    }
 }

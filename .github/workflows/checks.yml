@@ -80,11 +80,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
       - name: Rust Cache
@@ -96,14 +91,22 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache ethereum-tests
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
+
+      - name: Cache riscv-guest
+        uses: ubicloud/cache@v4
+        with:
+          key: build-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          path: ${{ github.workspace }}/target/riscv-guest
+          restore-keys: build-guests-v0-${{ runner.os }}-
+
       - name: Build citrea
         run: make build
       - name: Cache binaries
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: |
             target/debug/citrea
@@ -118,23 +121,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt, clippy
-      - name: Install risc0
-        uses: ./.github/actions/install-risc0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check TOML
         uses: dprint/check@v2.2
-      - name: Build guests
-        run: make build-risc0
+      - name: Rust Cache
+        uses: ubicloud/rust-cache@v2
       - name: Run lint
         run: |
           if ! make lint ; then
@@ -152,26 +146,16 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install nightly toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly-2025-09-24
           override: true
-      - name: Install risc0
-        uses: ./.github/actions/install-risc0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build guests
-        run: make build-risc0
       - name: Run cargo-udeps
         env:
           RUSTFLAGS: -A warnings
           SKIP_GUEST_BUILD: 1
+          CARGO_INCREMENTAL: 0
         uses: aig787/cargo-udeps-action@v1
         with:
           version: "latest"
@@ -208,18 +192,26 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache ethereum-tests
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
       - name: Restore cached Docker image
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.BITCOIN_DOCKER_IMAGE }}
       - name: Load Docker image
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
+
+      - name: Cache riscv-guest
+        uses: ubicloud/cache@v4
+        with:
+          key: coverage-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          path: ${{ github.workspace }}/target/llvm-cov-target/riscv-guest
+          restore-keys: coverage-guests-v0-${{ runner.os }}-
+
       - name: Run coverage
         run: make coverage
         env:
@@ -252,7 +244,7 @@ jobs:
         with:
           node-version: 18
       - name: Restore binaries
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: |
             target/debug/citrea
@@ -298,7 +290,7 @@ jobs:
           python-version: "3.x"
       - uses: dcarbone/install-jq-action@v2
       - name: Restore binaries
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: |
             target/debug/citrea
@@ -329,7 +321,7 @@ jobs:
         with:
           node-version: 18
       - name: Restore binaries
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: |
             target/debug/citrea
@@ -361,11 +353,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@1.88.0
       - name: Rust Cache
@@ -380,18 +367,26 @@ jobs:
         # `cargo-nextest` is much faster than standard `cargo test`.
       - uses: taiki-e/install-action@nextest
       - name: Cache ethereum-tests
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
       - name: Restore cached Docker image
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.BITCOIN_DOCKER_IMAGE }}
       - name: Load Docker image
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
+
+      - name: Cache riscv-guest
+        uses: ubicloud/cache@v4
+        with:
+          key: build-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          path: ${{ github.workspace }}/target/riscv-guest
+          restore-keys: build-guests-v0-${{ runner.os }}-
+
       - name: Run nextest
         run: make test
         env:
@@ -477,7 +472,7 @@ jobs:
 
       - name: Cache Docker images
         id: cache-docker
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         continue-on-error: true
         with:
           path: /tmp/docker
@@ -532,7 +527,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Restore binaries
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: |
             target/debug/citrea
@@ -546,7 +541,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Restore cached Docker image
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.BITCOIN_DOCKER_IMAGE }}
@@ -579,7 +574,7 @@ jobs:
 
       - name: Restore base branch test cache
         id: restore-test-cache
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: proving-stats/results/base-stats.json
           key: proving-stats-${{ steps.base-commit.outputs.base-hash }}
@@ -588,7 +583,7 @@ jobs:
       - name: Restore base build artifact
         id: restore-artifact
         if: steps.restore-test-cache.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: citrea-build-${{ steps.base-commit.outputs.base-hash }}
           path: |
@@ -616,12 +611,6 @@ jobs:
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: rui314/setup-mold@v1
 
-      - name: Install Protoc
-        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Rust cache
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: ubicloud/rust-cache@v2
@@ -629,7 +618,7 @@ jobs:
             shared-key: build
       - name: Cache ethereum-tests
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
