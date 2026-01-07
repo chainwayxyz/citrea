@@ -364,7 +364,7 @@ fn build_rpc_trait(
         #input
     };
 
-    let doc_string = format!("Generated RPC trait for {}", type_name);
+    let doc_string = format!("Generated RPC trait for {type_name}");
     let (_, ty_generics, where_clause) = generics.split_for_impl();
 
     let rpc_output = quote! {

@@ -4,17 +4,16 @@ use alloy_eips::Typed2718;
 use alloy_primitives::{Address, TxHash};
 use citrea_common::SequencerMempoolConfig;
 use citrea_evm::SYSTEM_SIGNER;
-use citrea_primitives::MIN_BASE_FEE_PER_GAS;
-use reth_execution_types::ChangedAccount;
+use citrea_primitives::min_base_fee_per_gas;
 use reth_tasks::TaskExecutor;
 use reth_transaction_pool::blobstore::NoopBlobStore;
 use reth_transaction_pool::error::{PoolError, PoolErrorKind};
 use reth_transaction_pool::{
     AllPoolTransactions, BestTransactions, BestTransactionsAttributes, CoinbaseTipOrdering,
     EthPooledTransaction, EthTransactionValidator, Pool, PoolConfig, PoolResult, PoolTransaction,
-    SubPoolLimit, TransactionPool, TransactionPoolExt, TransactionValidationTaskExecutor,
-    ValidPoolTransaction,
+    SubPoolLimit, TransactionPool, TransactionValidationTaskExecutor, ValidPoolTransaction,
 };
+use sov_modules_api::SpecId;
 
 use crate::db_provider::DbProvider;
 
@@ -61,7 +60,7 @@ impl CitreaMempool {
                 max_size: 0,
             },
             max_account_slots: mempool_conf.max_account_slots as usize,
-            minimal_protocol_basefee: MIN_BASE_FEE_PER_GAS,
+            minimal_protocol_basefee: min_base_fee_per_gas(SpecId::latest()),
             ..Default::default()
         };
 
@@ -139,13 +138,6 @@ impl CitreaMempool {
         self.0.remove_transactions_by_sender(sender)
     }
 
-    /// Performs account updates on the pool.
-    ///
-    /// This will either promote or discard transactions based on the new account state.
-    pub(crate) fn update_accounts(&self, account_updates: Vec<ChangedAccount>) {
-        self.0.update_accounts(account_updates);
-    }
-
     /// Gets the best transactions from the mempool with specific attributes
     ///
     /// # Arguments
@@ -161,11 +153,10 @@ impl CitreaMempool {
             .best_transactions_with_attributes(best_transactions_attributes)
     }
 
-    /// Gets the total number of transactions in the mempool
+    /// Returns a reference to the underlying pool implementation
     ///
-    /// # Returns
-    /// The number of transactions currently in the pool
-    pub(crate) fn len(&self) -> usize {
-        self.0.len()
+    /// This is needed for the maintenance task to access the pool directly
+    pub(crate) fn inner_pool(&self) -> &CitreaMempoolImpl {
+        &self.0
     }
 }

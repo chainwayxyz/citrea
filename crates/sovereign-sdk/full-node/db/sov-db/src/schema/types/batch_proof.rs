@@ -4,7 +4,7 @@ use alloy_primitives::{U32, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
-    BatchProofOutputRpcResponse, BatchProofResponse, SerializableHash, VerifiedBatchProofResponse,
+    BatchProofOutputRpcResponse, SerializableHash, VerifiedBatchProofResponse,
 };
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
@@ -35,16 +35,6 @@ pub struct StoredBatchProof {
     pub proof: Proof,
     /// Output
     pub proof_output: StoredBatchProofOutput,
-}
-
-impl From<StoredBatchProof> for BatchProofResponse {
-    fn from(value: StoredBatchProof) -> Self {
-        Self {
-            l1_tx_id: value.l1_tx_id,
-            proof: value.proof,
-            proof_output: BatchProofOutputRpcResponse::from(value.proof_output),
-        }
-    }
 }
 
 impl From<BatchProofCircuitOutput> for StoredBatchProofOutput {

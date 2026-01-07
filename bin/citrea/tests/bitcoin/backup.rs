@@ -7,7 +7,7 @@ use citrea_common::backup::{
     BackupInfoResponse, BackupRpcClient, BackupValidationResponse, CreateBackupInfo,
 };
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
-use citrea_e2e::config::{LightClientProverConfig, TestCaseConfig};
+use citrea_e2e::config::{LightClientProverConfig, SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::Sequencer;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -116,6 +116,13 @@ impl TestCase for BackupSequencerTest {
         }
     }
 
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 1_000, // Prevent commitments
+            ..Default::default()
+        }
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_mut().unwrap();
         let citrea_cli = f.citrea_cli.as_mut().unwrap();
@@ -124,9 +131,9 @@ impl TestCase for BackupSequencerTest {
 
         Self::test_guards(sequencer).await?;
 
-        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+        let block_to_generate = 10;
 
-        for _ in 0..max_l2_blocks_per_commitment {
+        for _ in 0..block_to_generate {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -171,7 +178,7 @@ impl TestCase for BackupSequencerTest {
         assert_eq!(incremental_backup.backup_id, 2);
 
         // Generate more blocks and assert backup height increases alongside
-        for _ in 0..max_l2_blocks_per_commitment {
+        for _ in 0..block_to_generate {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -192,7 +199,7 @@ impl TestCase for BackupSequencerTest {
         // Test restore flow
 
         // Generate blocks before restoring so that highest block doesn't match backup height
-        for _ in 0..max_l2_blocks_per_commitment {
+        for _ in 0..block_to_generate {
             sequencer.client.send_publish_batch_request().await?;
         }
         let current_height = sequencer.client.ledger_get_head_l2_block_height().await?;
@@ -226,7 +233,7 @@ impl TestCase for BackupSequencerTest {
         assert_ne!(restored_l2_height, current_height);
 
         // Test backup and restore post rollback
-        for _ in 0..max_l2_blocks_per_commitment {
+        for _ in 0..block_to_generate {
             sequencer.client.send_publish_batch_request().await?;
         }
 
@@ -276,7 +283,7 @@ impl TestCase for BackupSequencerTest {
         let post_rollback_backup_height = post_rollback_backup.l2_block_height.unwrap();
         assert_eq!(post_rollback_backup_height, rolled_back_height);
 
-        for _ in 0..max_l2_blocks_per_commitment {
+        for _ in 0..block_to_generate {
             sequencer.client.send_publish_batch_request().await?;
         }
 

@@ -33,7 +33,7 @@ impl NativeDB {
             &raw_options,
         )
     }
-    /// Convert it to [`SchmeaBatch`] which cannot be edited anymore
+    /// Convert it to [`SchemaBatch`] which cannot be edited anymore
     pub fn freeze(self) -> anyhow::Result<SchemaBatch> {
         let inner = Arc::into_inner(self.db).ok_or(anyhow::anyhow!(
             "NativeDB underlying DbTransaction has more than 1 strong references"

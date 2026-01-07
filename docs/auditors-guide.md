@@ -2,7 +2,7 @@
 
 ## Overview of the Project
 
-Citrea is a ZK rollup that uses Bitcoin as its data availability and settlement layer. 
+Citrea is a ZK rollup that uses Bitcoin as its data availability and settlement layer.
 
 There is 4 types of nodes that make up the Citrea rollup:
 - Sequencer
@@ -14,7 +14,7 @@ See [node-types.md](./node-types.md) for explanation on node types.
 
 Citrea's DA and settlement on Bitcoin is achieved through sequencer commitments and batch proofs. The sequencer commitments are bitcoin transactions that commit to the latest state of the rollup. Batch proofs are Bitcoin transactions that contain Risc0 Groth16 proofs that prove Citrea state goes from A to B when L2 blocks that were committed to by these sequencer commitments are executed. See [sequencer-commitment.md](./sequencer-commitment.md) and [batch-proof-circuit.md](./batch-proof-circuit.md).
 
-These commitments and proofs are read from Bitcoin by full nodes and the light client proof circuit. Full nodes are used by users to access the latest state of the rollup and track the finality of L2 blocks, the light client proof is used by our Bitcoin bridge [Clementine](https://citrea.xyz/clementine_whitepaper.pdf) to resolve disputes (operator challenges). For more detail on full node finality tracking see [finality-tracking.md](./finality-tracking.md); for more detail on the light client proof circuit see [light-client-circuit.md](./light-client-circuit.md). 
+These commitments and proofs are read from Bitcoin by full nodes and the light client proof circuit. Full nodes are used by users to access the latest state of the rollup and track the finality of L2 blocks, the light client proof is used by our Bitcoin bridge [Clementine](https://citrea.xyz/clementine_whitepaper.pdf) to resolve disputes (operator challenges). For more detail on full node finality tracking see [finality-tracking.md](./finality-tracking.md); for more detail on the light client proof circuit see [light-client-circuit.md](./light-client-circuit.md).
 
 ## What to look out for
 
@@ -38,7 +38,7 @@ There is only a single trusted entity in the Citrea rollup, the sequencer, and w
 - It won't charge unfair L1 fee rates.
 - It won't use [system transactions](./eth-mainnet-evm-differences.md#system-transactions) for anything other than [Bitcoin Light Client contract updates](./bitcoin-light-client-contract.md) and [Bridge deposits](./bridge-contract.md).
 
-The batch prover on the other hand is semi-trusted. The batch proof circuit makes sure the prover can't cheat but for now we've decided to have a single prover so batch proofs are signature checked. 
+The batch prover on the other hand is semi-trusted. The batch proof circuit makes sure the prover can't cheat but for now we've decided to have a single prover so batch proofs are signature checked.
 
 
 ## Crates
@@ -62,11 +62,11 @@ The batch prover on the other hand is semi-trusted. The batch proof circuit make
 
 - `crates/fullnode`: Citrea full node implementation. (See [](./node-types.md#2-full-node)).
 
-- `crates/l2-block-rule-enforcer`: `sov-module` that applies certain rules on L2 blocks. 
+- `crates/l2-block-rule-enforcer`: `sov-module` that applies certain rules on L2 blocks.
 
 - `crates/light-client-prover`: Prover node type for the light client proof circuit. (See [light-client-proof-circuit.md](./light-client-circuit.md) and [node-types.md](./node-types.md#4-light-client-prover)).
 
-- `crates/primitives`: Utility functions used by node-leve and circuit-level code.
+- `crates/primitives`: Utility functions used by node-level and circuit-level code.
 
 - `crates/prover-services`: Enables parallelizing ZK proof production.
 

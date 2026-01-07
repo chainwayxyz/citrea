@@ -20,6 +20,7 @@ use crate::circuit::accessors::{
     BatchProofMethodIdAccessor, SequencerCommitmentAccessor,
     VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
+use crate::circuit::initial_values::mockda::METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS;
 use crate::circuit::{LightClientProofCircuit, LightClientVerificationError};
 
 type Height = u64;
@@ -70,7 +71,6 @@ fn test_light_client_circuit_valid_da_valid_data() {
 
     let l2_genesis_state_root = [1u8; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -85,7 +85,8 @@ fn test_light_client_circuit_valid_da_valid_data() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output_1 = zk_circuit_runner
@@ -98,7 +99,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -149,7 +150,8 @@ fn test_light_client_circuit_valid_da_valid_data() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output_2 = zk_circuit_runner
@@ -162,7 +164,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -219,7 +221,6 @@ fn test_light_client_circuit_commitment_chaining() {
 
     let l2_genesis_state_root = [1u8; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -242,7 +243,8 @@ fn test_light_client_circuit_commitment_chaining() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output_1 = zk_circuit_runner
@@ -255,7 +257,7 @@ fn test_light_client_circuit_commitment_chaining() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -305,7 +307,6 @@ fn test_previous_commitment_not_set_should_not_transition() {
 
     let l2_genesis_state_root = [1u8; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -320,7 +321,8 @@ fn test_previous_commitment_not_set_should_not_transition() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output_1 = zk_circuit_runner
@@ -333,7 +335,7 @@ fn test_previous_commitment_not_set_should_not_transition() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -369,7 +371,6 @@ fn test_batch_proof_with_missing_commitment_not_set_should_not_transition() {
 
     let l2_genesis_state_root = [1u8; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -384,7 +385,8 @@ fn test_batch_proof_with_missing_commitment_not_set_should_not_transition() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output_1 = zk_circuit_runner
@@ -397,7 +399,7 @@ fn test_batch_proof_with_missing_commitment_not_set_should_not_transition() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -446,7 +448,6 @@ fn test_wrong_order_da_blocks_should_still_work() {
 
     let l2_genesis_state_root = [1u8; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -461,7 +462,8 @@ fn test_wrong_order_da_blocks_should_still_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output_1 = zk_circuit_runner
@@ -474,7 +476,7 @@ fn test_wrong_order_da_blocks_should_still_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -525,7 +527,6 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
 
     let l2_genesis_state_root = [1u8; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -546,7 +547,8 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output_1 = zk_circuit_runner
@@ -559,7 +561,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -625,7 +627,8 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output_2 = zk_circuit_runner
@@ -638,7 +641,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -688,7 +691,6 @@ fn test_header_chain_proof_height_and_hash() {
 
     let l2_genesis_state_root = [1u8; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -703,7 +705,8 @@ fn test_header_chain_proof_height_and_hash() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output_1 = zk_circuit_runner
@@ -716,7 +719,7 @@ fn test_header_chain_proof_height_and_hash() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -768,7 +771,8 @@ fn test_header_chain_proof_height_and_hash() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     // Header chain verification must fail because the l1 block 3 was given before l1 block 2
@@ -781,7 +785,7 @@ fn test_header_chain_proof_height_and_hash() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
     );
     assert!(matches!(
         res,
@@ -842,7 +846,6 @@ fn test_unverifiable_batch_proofs() {
 
     let l2_genesis_state_root = [1u8; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -857,7 +860,8 @@ fn test_unverifiable_batch_proofs() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output_1 = zk_circuit_runner
@@ -870,7 +874,7 @@ fn test_unverifiable_batch_proofs() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -934,7 +938,6 @@ fn test_unverifiable_prev_light_client_proof() {
 
     let l2_genesis_state_root = [1u8; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -949,7 +952,8 @@ fn test_unverifiable_prev_light_client_proof() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output_1 = zk_circuit_runner
@@ -962,7 +966,7 @@ fn test_unverifiable_prev_light_client_proof() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -1001,7 +1005,8 @@ fn test_unverifiable_prev_light_client_proof() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let _ = zk_circuit_runner
@@ -1014,7 +1019,7 @@ fn test_unverifiable_prev_light_client_proof() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 }
@@ -1031,7 +1036,7 @@ fn test_new_method_id_txs() {
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
+    let method_id_sender = [11u8; 32];
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
@@ -1048,7 +1053,7 @@ fn test_new_method_id_txs() {
         None,
         batch_prover_da_pub_key,
     );
-    let blob_2 = create_new_method_id_tx(10, [2u32; 8], method_id_upgrade_authority);
+    let blob_2 = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -1063,7 +1068,8 @@ fn test_new_method_id_txs() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output_1 = zk_circuit_runner
@@ -1076,7 +1082,7 @@ fn test_new_method_id_txs() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
     let mut working_set = WorkingSet::new(
@@ -1093,7 +1099,7 @@ fn test_new_method_id_txs() {
     );
 
     // now try wrong method id
-    let blob_2 = create_new_method_id_tx(10, [3u32; 8], batch_prover_da_pub_key);
+    let blob_2 = create_new_method_id_tx(10, [3u32; 8], batch_prover_da_pub_key, Network::Nightly);
 
     let block_header_2 = MockBlockHeader::from_height(2);
 
@@ -1110,7 +1116,8 @@ fn test_new_method_id_txs() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output_2 = zk_circuit_runner
@@ -1123,7 +1130,7 @@ fn test_new_method_id_txs() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
     let batch_proof_method_ids =
@@ -1137,8 +1144,8 @@ fn test_new_method_id_txs() {
     );
 
     // now try activation height < last activating height and activation height = last activation height
-    let blob_1 = create_new_method_id_tx(10, [2u32; 8], method_id_upgrade_authority);
-    let blob_2 = create_new_method_id_tx(3, [2u32; 8], method_id_upgrade_authority);
+    let blob_1 = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly);
+    let blob_2 = create_new_method_id_tx(3, [2u32; 8], method_id_sender, Network::Nightly);
 
     let block_header_3 = MockBlockHeader::from_height(3);
 
@@ -1155,7 +1162,8 @@ fn test_new_method_id_txs() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let _output_3 = zk_circuit_runner
@@ -1168,7 +1176,7 @@ fn test_new_method_id_txs() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -1189,6 +1197,68 @@ fn test_new_method_id_txs() {
 }
 
 #[test]
+fn test_wrong_network_method_id_update_should_fail() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_sender = [11u8; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    // Create method id update for a different network
+    let blob = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Mainnet);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
+    );
+
+    let _ = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        )
+        .unwrap();
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+
+    // didn't change
+    assert_eq!(batch_proof_method_ids.len(), 1);
+}
+
+#[test]
 fn test_unverifiable_batch_proof_is_ignored() {
     let db_dir = tempdir().unwrap();
     let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
@@ -1200,7 +1270,6 @@ fn test_unverifiable_batch_proof_is_ignored() {
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
@@ -1242,7 +1311,8 @@ fn test_unverifiable_batch_proof_is_ignored() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output = zk_circuit_runner
@@ -1255,7 +1325,7 @@ fn test_unverifiable_batch_proof_is_ignored() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -1274,7 +1344,6 @@ fn test_light_client_circuit_verify_chunks() {
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let state_diff = create_random_state_diff(100);
 
@@ -1371,7 +1440,8 @@ fn test_light_client_circuit_verify_chunks() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output = zk_circuit_runner
@@ -1384,7 +1454,7 @@ fn test_light_client_circuit_verify_chunks() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -1403,7 +1473,6 @@ fn test_missing_chunk() {
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let state_diff = create_random_state_diff(100);
 
@@ -1488,7 +1557,8 @@ fn test_missing_chunk() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output = zk_circuit_runner
@@ -1501,10 +1571,115 @@ fn test_missing_chunk() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
+    assert_eq!(output.l2_state_root, l2_genesis_state_root);
+    assert_eq!(output.last_l2_height, 0);
+    assert_eq!(output.last_sequencer_commitment_index, 0);
+}
+
+#[test]
+fn test_light_client_circuit_aggregate_size_overflow() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let seq_comm_1 = create_mock_sequencer_commitment(1, 41, [99u8; 32]);
+    let seq_comm_2 = create_mock_sequencer_commitment(2, 61, [98u8; 32]);
+    let seq_comm_3 = create_mock_sequencer_commitment(3, 101, [2u8; 32]);
+
+    let seq_comm_1_blob = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
+    let seq_comm_2_blob = create_mock_sequencer_commitment_blob(seq_comm_2.clone());
+    let seq_comm_3_blob = create_mock_sequencer_commitment_blob(seq_comm_3.clone());
+
+    let state_diff = create_random_state_diff(1100);
+    let serialized_mock_proof = create_serialized_mock_proof(
+        l2_genesis_state_root,
+        101,
+        true,
+        Some(state_diff),
+        block_header_1.hash.0,
+        vec![seq_comm_1.clone(), seq_comm_2.clone(), seq_comm_3.clone()],
+        None,
+    );
+
+    let mut chunk_blobs = vec![];
+
+    for (i, chunk) in serialized_mock_proof.chunks(39700).enumerate() {
+        let chunk_da_data = DataOnDa::Chunk(chunk.to_vec());
+        let chunk_serialized = borsh::to_vec(&chunk_da_data).expect("should serialize");
+
+        let blob = MockBlob::new(
+            chunk_serialized,
+            MockAddress::new([9u8; 32]),
+            [0u8; 32],
+            [(i + 1) as u8; 32],
+        );
+        blob.full_data();
+        chunk_blobs.push(blob);
+    }
+
+    let chunk_wtxids: Vec<[u8; 32]> = chunk_blobs.iter().map(|b| b.wtxid()).collect();
+
+    let aggregate_da_data = DataOnDa::Aggregate(chunk_wtxids.clone(), chunk_wtxids);
+
+    let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
+
+    let blob_aggregate = MockBlob::new(
+        aggregate_serialized,
+        MockAddress::new([9u8; 32]),
+        [0u8; 32],
+        [4; 32],
+    );
+    blob_aggregate.full_data();
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: [seq_comm_1_blob, seq_comm_2_blob, seq_comm_3_blob]
+                .into_iter()
+                .chain(chunk_blobs)
+                .chain([blob_aggregate])
+                .collect(),
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
+    );
+
+    let output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key.clone(),
+            &sequencer_da_pub_key,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        )
+        .unwrap();
+
+    // aggregate too large, should not be processed
     assert_eq!(output.l2_state_root, l2_genesis_state_root);
     assert_eq!(output.last_l2_height, 0);
     assert_eq!(output.last_sequencer_commitment_index, 0);
@@ -1522,7 +1697,6 @@ fn test_malicious_aggregate_should_not_work() {
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
@@ -1581,7 +1755,8 @@ fn test_malicious_aggregate_should_not_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output = zk_circuit_runner
@@ -1594,7 +1769,7 @@ fn test_malicious_aggregate_should_not_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -1633,7 +1808,8 @@ fn test_malicious_aggregate_should_not_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output = zk_circuit_runner
@@ -1646,7 +1822,7 @@ fn test_malicious_aggregate_should_not_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -1659,7 +1835,7 @@ fn test_malicious_aggregate_should_not_work() {
     let chunk3_da_data = DataOnDa::Chunk(chunk3.clone());
     let chunk3_serialized = borsh::to_vec(&chunk3_da_data).expect("should serialize");
 
-    // Last chhunk
+    // Last chunk
     let blob3 = MockBlob::new(
         chunk3_serialized,
         MockAddress::new([9u8; 32]),
@@ -1698,7 +1874,8 @@ fn test_malicious_aggregate_should_not_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output = zk_circuit_runner
@@ -1711,7 +1888,7 @@ fn test_malicious_aggregate_should_not_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -1769,7 +1946,6 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
 
     let l2_genesis_state_root = [1u8; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -1784,7 +1960,8 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output_1 = zk_circuit_runner
@@ -1797,7 +1974,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -1856,7 +2033,8 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output_2 = zk_circuit_runner
@@ -1869,7 +2047,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -1892,7 +2070,6 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
@@ -1925,7 +2102,8 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output = zk_circuit_runner
@@ -1938,7 +2116,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -1975,7 +2153,8 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     zk_circuit_runner
@@ -1988,7 +2167,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -2018,7 +2197,6 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
@@ -2051,7 +2229,8 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output = zk_circuit_runner
@@ -2064,7 +2243,7 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -2101,7 +2280,8 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     zk_circuit_runner
@@ -2114,7 +2294,7 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -2176,7 +2356,6 @@ fn test_lcp_input_values_cant_be_tampered() {
 
     let l2_genesis_state_root = [1u8; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -2191,7 +2370,8 @@ fn test_lcp_input_values_cant_be_tampered() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output_1 = zk_circuit_runner
@@ -2204,7 +2384,7 @@ fn test_lcp_input_values_cant_be_tampered() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -2231,7 +2411,8 @@ fn test_lcp_input_values_cant_be_tampered() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     // at this point returned witness will look like this:
@@ -2284,7 +2465,7 @@ fn test_lcp_input_values_cant_be_tampered() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 }
@@ -2330,7 +2511,6 @@ fn test_lcp_cant_be_passed_roots_from_a_different_tree() {
 
     let l2_genesis_state_root = [1u8; 32];
     let sequencer_da_pub_key = [45; 32];
-    let method_id_upgrade_authority = [11u8; 32];
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -2345,7 +2525,8 @@ fn test_lcp_cant_be_passed_roots_from_a_different_tree() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     let output_1 = zk_circuit_runner
@@ -2358,7 +2539,7 @@ fn test_lcp_cant_be_passed_roots_from_a_different_tree() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 
@@ -2391,7 +2572,8 @@ fn test_lcp_cant_be_passed_roots_from_a_different_tree() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &method_id_upgrade_authority,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly,
     );
 
     zk_circuit_runner
@@ -2404,7 +2586,7 @@ fn test_lcp_cant_be_passed_roots_from_a_different_tree() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &method_id_upgrade_authority,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
         )
         .unwrap();
 }

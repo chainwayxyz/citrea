@@ -68,7 +68,7 @@ impl VerifiableShortHeaderProof for BitcoinHeaderShortProof {
         }
 
         // Then extract the wtxid root from the coinbase tx
-        // and compare with self.header.txs_comitment()
+        // and compare with self.header.txs_commitment()
         let commitment_idx = self.coinbase_tx.output.iter().rposition(|output| {
             output.script_pubkey.as_bytes().len() >= MINIMUM_WITNESS_COMMITMENT_SIZE
                 && output

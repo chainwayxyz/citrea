@@ -7,7 +7,7 @@ use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::stf::StateDiff;
-use sov_rollup_interface::zk::{Proof, StorageRootHash};
+use sov_rollup_interface::zk::{Proof, ProvingSessionInfo, StorageRootHash};
 use sov_schema_db::{ScanDirection, Schema, SchemaBatch, SchemaIterator, SeekKeyEncoder, DB};
 use tracing::instrument;
 use uuid::Uuid;
@@ -19,11 +19,11 @@ use crate::schema::tables::{
     CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber,
     ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot,
     L2RangeByL1Height, L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs,
-    PendingBonsaiSessionByJobId, PendingL1SubmissionJobs, PendingProofs,
-    PendingSequencerCommitments, ProofByJobId, ProofsBySlotNumberV2, ProverLastScannedSlot,
-    ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
-    ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
-    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    PendingBonsaiSessionByJobId, PendingBoundlessSessionByJobId, PendingL1SubmissionJobs,
+    PendingProofs, PendingSequencerCommitments, ProofByJobId, ProverLastScannedSlot,
+    ProverPendingCommitments, ProverStateDiffs, ProvingSessionInfoByJobId,
+    ProvingSessionInfoBySlotNumber, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash,
+    SlotByHash, StateDiffByBlockNumber, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -34,7 +34,8 @@ use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
 use crate::schema::types::{
-    BonsaiSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber,
+    BonsaiSession, BoundlessSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange,
+    L2HeightStatus, SlotNumber,
 };
 
 /// Implementation of database migrator
@@ -467,14 +468,18 @@ impl LightClientProverLedgerOps for LedgerDB {
         l1_height: u64,
         proof: Proof,
         light_client_proof_output: StoredLightClientProofOutput,
+        info: ProvingSessionInfo,
     ) -> anyhow::Result<()> {
         let data_to_store = StoredLightClientProof {
             proof,
             light_client_proof_output,
         };
 
-        self.db
-            .put::<LightClientProofBySlotNumber>(&SlotNumber(l1_height), &data_to_store)
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<LightClientProofBySlotNumber>(&SlotNumber(l1_height), &data_to_store)?;
+        schema_batch.put::<ProvingSessionInfoBySlotNumber>(&SlotNumber(l1_height), &info)?;
+
+        self.db.write_schemas(schema_batch)
     }
 
     fn get_light_client_proof_data_by_l1_height(
@@ -483,6 +488,14 @@ impl LightClientProverLedgerOps for LedgerDB {
     ) -> anyhow::Result<Option<StoredLightClientProof>> {
         self.db
             .get::<LightClientProofBySlotNumber>(&SlotNumber(l1_height))
+    }
+
+    fn get_proving_session_info_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<Option<ProvingSessionInfo>> {
+        self.db
+            .get::<ProvingSessionInfoBySlotNumber>(&SlotNumber(l1_height))
     }
 }
 
@@ -577,6 +590,7 @@ impl BatchProverLedgerOps for LedgerDB {
         id: Uuid,
         proof: Proof,
         output: StoredBatchProofOutput,
+        info: ProvingSessionInfo,
     ) -> anyhow::Result<()> {
         let stored_proof = StoredBatchProof {
             l1_tx_id: None,
@@ -587,6 +601,7 @@ impl BatchProverLedgerOps for LedgerDB {
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<PendingL1SubmissionJobs>(&id, &())?;
         schema_batch.put::<ProofByJobId>(&id, &stored_proof)?;
+        schema_batch.put::<ProvingSessionInfoByJobId>(&id, &info)?;
 
         self.db.write_schemas(schema_batch)
     }
@@ -603,12 +618,13 @@ impl BatchProverLedgerOps for LedgerDB {
             schema_batch.delete::<JobIdOfCommitment>(&index)?;
         }
         schema_batch.delete::<ProofByJobId>(&id)?;
+        schema_batch.delete::<ProvingSessionInfoByJobId>(&id)?;
         schema_batch.delete::<CommitmentIndicesByJobId>(&id)?;
 
         // delete from pending job tables
-        // TODO: do the same for boundless sessions
         schema_batch.delete::<PendingL1SubmissionJobs>(&id)?;
         schema_batch.delete::<PendingBonsaiSessionByJobId>(&id)?;
+        schema_batch.delete::<PendingBoundlessSessionByJobId>(&id)?;
 
         self.db.write_schemas(schema_batch)?;
         Ok(())
@@ -637,6 +653,14 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
+    fn get_proving_session_info_by_job_id(
+        &self,
+        id: Uuid,
+    ) -> anyhow::Result<Option<ProvingSessionInfo>> {
+        self.db.get::<ProvingSessionInfoByJobId>(&id)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
     fn get_pending_l1_submission_jobs(&self) -> anyhow::Result<Vec<Uuid>> {
         let mut iter = self.db.iter::<PendingL1SubmissionJobs>()?;
         iter.seek_to_first();
@@ -650,7 +674,7 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_latest_jobs(&self, count: usize) -> anyhow::Result<Vec<(Uuid, JobStatus)>> {
+    fn get_latest_jobs(&self, limit: usize, skip: usize) -> anyhow::Result<Vec<(Uuid, JobStatus)>> {
         let mut read_opts = ReadOptions::default();
         // Do not fill the cache with garbage data just to read ids
         read_opts.fill_cache(false);
@@ -660,17 +684,40 @@ impl BatchProverLedgerOps for LedgerDB {
             .iter_with_direction::<CommitmentIndicesByJobId>(read_opts, ScanDirection::Backward)?;
         iter.seek_to_last();
 
-        let mut jobs = Vec::with_capacity(count);
-        for el in iter {
-            if jobs.len() == count {
-                break;
-            }
+        let mut jobs = Vec::with_capacity(limit);
+        for el in iter.skip(skip).take(limit) {
             let job_id = el?.key;
             let status = self.job_status(job_id);
             jobs.push((job_id, status));
         }
 
         Ok(jobs)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_latest_proving_sessions(
+        &self,
+        limit: usize,
+        skip: usize,
+    ) -> anyhow::Result<Vec<(Uuid, ProvingSessionInfo)>> {
+        let mut read_opts = ReadOptions::default();
+        // Do not fill the cache with garbage data just to read ids
+        read_opts.fill_cache(false);
+
+        let mut iter = self
+            .db
+            .iter_with_direction::<ProvingSessionInfoByJobId>(read_opts, ScanDirection::Backward)?;
+        iter.seek_to_last();
+
+        let mut sessions = Vec::with_capacity(limit);
+        for el in iter.skip(skip).take(limit) {
+            let el = el?;
+            let job_id = el.key;
+            let session = el.value;
+            sessions.push((job_id, session));
+        }
+
+        Ok(sessions)
     }
 
     #[instrument(level = "trace", skip(self), err)]
@@ -719,6 +766,30 @@ impl BonsaiLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err)]
     fn remove_pending_bonsai_session(&self, job_id: Uuid) -> anyhow::Result<()> {
         self.db.delete::<PendingBonsaiSessionByJobId>(&job_id)
+    }
+}
+
+impl BoundlessLedgerOps for LedgerDB {
+    /// Gets all pending sessions and step numbers
+    fn get_pending_boundless_sessions(&self) -> anyhow::Result<Vec<(Uuid, BoundlessSession)>> {
+        let mut iter = self.db.iter::<PendingBoundlessSessionByJobId>()?;
+        iter.seek_to_first();
+
+        iter.map(|item| item.map(|item| item.into_tuple()))
+            .collect()
+    }
+
+    fn upsert_pending_boundless_session(
+        &self,
+        job_id: Uuid,
+        session: BoundlessSession,
+    ) -> anyhow::Result<()> {
+        self.db
+            .put::<PendingBoundlessSessionByJobId>(&job_id, &session)
+    }
+
+    fn remove_pending_boundless_session(&self, job_id: Uuid) -> anyhow::Result<()> {
+        self.db.delete::<PendingBoundlessSessionByJobId>(&job_id)
     }
 }
 

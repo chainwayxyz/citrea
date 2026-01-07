@@ -29,6 +29,7 @@ parking_lot = { workspace = true }
 rs_merkle = { workspace = true }
 schnellru = "0.2.1"
 tokio = { workspace = true }
+tokio-stream = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 

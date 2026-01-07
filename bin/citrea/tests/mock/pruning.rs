@@ -88,7 +88,7 @@ async fn test_state_db_pruning() -> Result<(), anyhow::Error> {
         .unwrap();
     assert_eq!(balance, U256::from(50000000000000000000u128));
 
-    // Continnue block production
+    // Continue block production
     for i in 51..=101 {
         // send one ether to some address
         let _pending = seq_test_client

@@ -69,6 +69,9 @@ pub mod fee;
 #[cfg(feature = "native")]
 pub mod rpc;
 
+#[cfg(feature = "native")]
+pub mod utxo_manager;
+
 #[cfg(feature = "testing")]
 pub mod test_utils;
 

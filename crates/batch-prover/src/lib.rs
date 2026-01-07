@@ -29,7 +29,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::{BatchProverConfig, InitParams, RollupPublicKeys, RunnerConfig};
+use citrea_common::{BatchProverConfig, InitParams, RollupPublicKeys, RpcConfig, RunnerConfig};
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::RpcModule;
 pub use l1_syncer::L1Syncer;
@@ -101,6 +101,7 @@ pub async fn build_services<DA, DB, Vm>(
     network: Network,
     prover_config: BatchProverConfig,
     runner_config: RunnerConfig,
+    rpc_config: RpcConfig,
     init_params: InitParams,
     native_stf: StfBlueprint<
         DefaultContext,
@@ -125,7 +126,7 @@ pub async fn build_services<DA, DB, Vm>(
     RpcModule<()>,
 )>
 where
-    DA: DaService<Error = anyhow::Error>,
+    DA: DaService,
     DB: BatchProverLedgerOps + Clone + 'static,
     Vm: ZkvmHost + Zkvm + 'static,
 {
@@ -138,8 +139,14 @@ where
         da_service.clone(),
         storage_manager.clone(),
         code_commitments.clone(),
+        rpc_config.clone(),
     );
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
+
+    // Initialize metrics once at component startup
+    if let Err(e) = crate::metrics::initialize_metrics(&ledger_db) {
+        tracing::debug!("Failed to initialize batch prover metrics: {:?}", e);
+    }
 
     let l2_syncer = L2Syncer::new(
         runner_config.clone(),

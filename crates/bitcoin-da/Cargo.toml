@@ -65,3 +65,6 @@ native = [
   "dep:secp256k1",
 ]
 testing = []
+
+[lints]
+workspace = true

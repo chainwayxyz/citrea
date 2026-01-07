@@ -50,7 +50,7 @@ pub enum TxStatus {
     #[serde(rename_all = "camelCase")]
     InMempool {
         /// Base fee rate.
-        base_fee: u64,
+        base_fee: f64,
         /// Timestamp.
         timestamp: u64,
         /// Block height when transaction entered pool
@@ -424,7 +424,6 @@ impl MonitoringService {
         let mut rebroadcast_interval = interval(Duration::from_secs(self.config.rebroadcast_delay));
         loop {
             select! {
-                biased;
                 _ = &mut shutdown_signal => {
                     info!("Shutting down monitoring service");
                     return;
@@ -650,12 +649,13 @@ impl MonitoringService {
             match &monitored_tx.status {
                 // Check non-finalized TXs
                 TxStatus::Queued | TxStatus::Confirmed { .. } | TxStatus::Replaced { .. } => {
-                    let tx_result = self.client.get_transaction(txid, None).await?;
-                    let new_status = self
-                        .determine_tx_status(&tx_result, &monitored_tx.status)
-                        .await?;
+                    if let Ok(tx_result) = self.client.get_transaction(txid, None).await {
+                        let new_status = self
+                            .determine_tx_status(&tx_result, &monitored_tx.status)
+                            .await?;
 
-                    monitored_tx.status = new_status;
+                        monitored_tx.status = new_status;
+                    }
                 }
                 // Check evicted TXs that have already been rebroadcasted at least once
                 TxStatus::Evicted {
@@ -727,7 +727,7 @@ impl MonitoringService {
         } else {
             match self.client.get_mempool_entry(&tx_result.info.txid).await {
                 Ok(entry) => {
-                    let base_fee = entry.fees.base.to_sat();
+                    let base_fee = entry.fees.base.to_sat() as f64;
                     TxStatus::InMempool {
                         base_fee,
                         timestamp: get_timestamp(),
@@ -916,5 +916,23 @@ impl MonitoringService {
             }
         }
         Ok(())
+    }
+
+    /// Get all monitored in mempool commit transactions txids
+    pub async fn get_in_mempool_commit_transaction_ids(&self) -> Vec<Txid> {
+        self.monitored_txs
+            .read()
+            .await
+            .iter()
+            .filter_map(|monitored_tx| {
+                if matches!(monitored_tx.1.status, TxStatus::InMempool { .. })
+                    && monitored_tx.1.kind == MonitoredTxKind::Commit
+                {
+                    Some(*monitored_tx.0)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 }

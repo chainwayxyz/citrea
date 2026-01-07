@@ -173,7 +173,10 @@ fn verify_system_tx<C: sov_modules_api::Context>(
 
         let l1_block_hash = call._blockHash;
         let txs_commitment = call._witnessRoot;
-        let coinbase_depth = call._coinbaseDepth.to::<u8>();
+        let coinbase_depth = call
+            ._coinbaseDepth
+            .try_into()
+            .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
 
         let (last_l1_height, prev_hash) =
             get_last_l1_height_and_hash_in_light_client::<C>(db.evm, db.working_set);

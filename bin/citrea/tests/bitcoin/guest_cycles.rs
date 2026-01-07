@@ -53,6 +53,7 @@ impl TestCase for GenerateProofInput {
                 base_fee_tx_limit: 1_000_000,
                 base_fee_tx_size: 100_000_000,
                 max_account_slots: 1_000_000,
+                ..Default::default()
             },
             ..Default::default()
         }
@@ -180,7 +181,7 @@ async fn guest_cycles() {
         }
     };
 
-    println!("\nELF path: {:?}", elf_path);
+    println!("\nELF path: {elf_path:?}");
     let elf = fs::read(elf_path).unwrap();
 
     let exec_env = ExecutorEnvBuilder::default()
@@ -199,7 +200,7 @@ async fn guest_cycles() {
         .prove_with_opts(exec_env, &elf, &ProverOpts::groth16())
         .unwrap();
 
-    println!("Execution stats: {:?}", stats);
+    println!("Execution stats: {stats:?}");
 }
 
 /// This test generates a proving stats database by running transactions through the sequencer
@@ -233,6 +234,7 @@ impl TestCase for GenerateProvingStatsDB {
                 base_fee_tx_limit: 200_00000,
                 base_fee_tx_size: 400000,
                 max_account_slots: 100_000,
+                ..Default::default()
             },
             test_mode: true,
             ..Default::default()

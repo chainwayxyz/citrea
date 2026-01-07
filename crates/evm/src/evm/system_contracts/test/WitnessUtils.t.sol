@@ -1,9 +1,23 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
 import "forge-std/console.sol";
 import "../lib/WitnessUtils.sol";
+
+contract WitnessUtilsHarness {
+    function determineWitnessLengthAt(bytes memory _witness, uint256 _at) public pure returns (uint256) {
+        return WitnessUtils.determineWitnessLengthAt(_witness, _at);
+    }
+
+    function extractWitnessAtIndex(bytes memory _witness, uint256 _index) public pure returns (bytes memory) {
+        return WitnessUtils.extractWitnessAtIndex(_witness, _index);
+    }
+
+    function extractItemFromWitness(bytes memory _witness, uint256 _index) public pure returns (bytes memory) {
+        return WitnessUtils.extractItemFromWitness(_witness, _index);
+    }
+}
 
 contract WitnessUtilsTest is Test {
     bytes4 version = hex"01000000";
@@ -20,6 +34,12 @@ contract WitnessUtilsTest is Test {
     bytes badWitness3 = hex"06096af9822fdb33bbfb940c6e6ea3d182c36de9c428de5606dbb8f257b63a10b66f7e408fcf8ed73ce3c3abf2aa28d809ef64e1bc35146424d00e072631fe3a08749c3380609e8fcd080582e984c1b5026351016404031f73220a964e3d835c33a0be6ca70206c9044dbc1b2c04b3411e";
     bytes badArgWitness = hex"0101ff";
     bytes badArgWitness2 = hex"0101ff01ff";
+    WitnessUtilsHarness witnessUtils;
+
+    function setUp() public {
+        witnessUtils = new WitnessUtilsHarness();
+    }
+
     // Helper function to run Python script and get its output
     function getRandomWitness() public returns (bytes memory) {
         string[] memory inputs = new string[](2);
@@ -152,7 +172,21 @@ contract WitnessUtilsTest is Test {
         }
 
         assertEq(randomStackItemArray[x], WitnessUtils.extractItemFromWitness(randomWits, x));
-    } 
+    }
+
+    function testExtractWitnessAtIndexMalformedItemVarInt() public {
+        // Expects varInt to have 2 bytes as it starts with `0xfd`
+        bytes memory witnessMalformedItemVarInt = hex"01fd00";
+        vm.expectRevert("Bad VarInt in witness");
+        witnessUtils.extractWitnessAtIndex(witnessMalformedItemVarInt, 0);
+    }
+
+    function testExtractItemFromWitnessMalformedItemVarInt() public {
+        // Expects varInt to have 2 bytes as it starts with `0xfd`
+        bytes memory witnessMalformedItemVarInt = hex"01fd00";
+        vm.expectRevert("Bad VarInt in item");
+        witnessUtils.extractItemFromWitness(witnessMalformedItemVarInt, 0);
+    }
 }
 
 

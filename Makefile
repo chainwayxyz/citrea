@@ -44,16 +44,16 @@ clean-docker:
 clean-all: clean clean-node clean-txs
 
 test-nocapture: ## Runs test suite with output from tests printed
-	PARALLEL_PROOF_LIMIT=1 cargo nextest run --no-capture --retries 0 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
+	PARALLEL_PROOF_LIMIT=1 cargo nextest run --no-capture --retries 0 --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 test: $(EF_TESTS_DIR) ## Runs test suite using nextest
-	PARALLEL_PROOF_LIMIT=1 cargo nextest run -j15 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
+	PARALLEL_PROOF_LIMIT=1 cargo nextest run -j20 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 coverage: $(EF_TESTS_DIR) ## Coverage in lcov format
 	CITREA_CLI_E2E_TEST_BINARY=$(CURDIR)/target/llvm-cov-target/debug/citrea-cli \
 	CITREA_E2E_TEST_BINARY=$(CURDIR)/target/llvm-cov-target/debug/citrea \
 	PARALLEL_PROOF_LIMIT=1 \
-	cargo llvm-cov --locked --lcov --output-path lcov.info nextest -j10 --workspace --all-features
+	cargo llvm-cov --locked --lcov --output-path lcov.info nextest -j20 --workspace --all-features
 
 coverage-html: ## Coverage in HTML format
 	cargo llvm-cov --locked --all-features --html nextest --workspace --all-features
@@ -73,13 +73,13 @@ install-risc0:
 	curl -L https://risczero.com/install | bash && \
 	([ -f $$HOME/.bashrc ] && source $$HOME/.bashrc || true) && \
 	([ -f $$HOME/.zshrc ] && source $$HOME/.zshrc || true) && \
-	rzup install cargo-risczero 2.3.1 && \
+	rzup install cargo-risczero 3.0.3 && \
 	rzup install cpp && \
-	rzup install r0vm 2.3.1 && \
-	rzup install rust 1.85.0 && \
-	rzup default cargo-risczero 2.3.1 && \
-	rzup default r0vm 2.3.1 && \
-	rzup default rust 1.85.0
+	rzup install r0vm 3.0.3 && \
+	rzup install rust 1.88.0 && \
+	rzup default cargo-risczero 3.0.3 && \
+	rzup default r0vm 3.0.3 && \
+	rzup default rust 1.88.0
 
 install-sp1: ## Install necessary SP1 toolchain
 	curl -L https://sp1.succinct.xyz | bash

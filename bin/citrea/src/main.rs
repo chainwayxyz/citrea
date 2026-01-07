@@ -11,6 +11,7 @@ use citrea::{
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_light_client_prover};
+use citrea_common::utils::is_dev_mode_enabled_via_environment;
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig, NodeType};
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::StartVariant;
@@ -71,6 +72,11 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting node on {network}");
 
+    // Prevent dev mode on mainnet
+    if network == Network::Mainnet && is_dev_mode_enabled_via_environment() {
+        panic!("RISC0_DEV_MODE is enabled but network is set to Mainnet. Dev mode SHOULD NOT be used on mainnet.");
+    }
+
     match args.da_layer {
         SupportedDaLayer::Mock => {
             start_rollup::<MockDemoRollup, MockDaConfig>(
@@ -118,7 +124,7 @@ where
     if rollup_config.telemetry.bind_host.is_some() && rollup_config.telemetry.bind_port.is_some() {
         let bind_host = rollup_config.telemetry.bind_host.as_ref().unwrap();
         let bind_port = rollup_config.telemetry.bind_port.as_ref().unwrap();
-        let telemetry_addr: SocketAddr = format!("{}:{}", bind_host, bind_port)
+        let telemetry_addr: SocketAddr = format!("{bind_host}:{bind_port}")
             .parse()
             .map_err(|_| anyhow!("Invalid telemetry address"))?;
 
@@ -225,12 +231,15 @@ where
 
     let rpc_storage = storage_manager.create_final_view_storage();
     let mut rpc_module = rollup_blueprint.create_rpc_methods(
+        (&node_type).into(),
         rpc_storage.clone(),
         &ledger_db,
         &da_service,
         &backup_manager,
         rollup_config.rpc.clone(),
     )?;
+
+    let task_executor = task_manager.executor();
 
     if matches!(node_type, NodeWithConfig::LightClientProver(_)) {
         register_healthcheck_rpc_light_client_prover(&mut rpc_module, da_service.clone())
@@ -246,10 +255,9 @@ where
             &mut rpc_module,
             sequencer_client_url,
             l2_block_rx,
+            task_executor.clone(),
         )?;
     }
-
-    let task_executor = task_manager.executor();
 
     match node_type {
         NodeWithConfig::Sequencer(sequencer_config) => {

@@ -21,7 +21,7 @@ pub enum ParsedTransaction {
     /// Kind 2
     Chunk(ParsedChunk),
     /// Kind 3
-    BatchProverMethodId(ParsedBatchProverMethodId),
+    BatchProofMethodId(ParsedBatchProofMethodId),
     /// Kind 4
     SequencerCommitment(ParsedSequencerCommitment),
     // /// Kind ?
@@ -60,12 +60,22 @@ pub struct ParsedSequencerCommitment {
     pub(crate) public_key: Vec<u8>,
 }
 
-/// ParsedBatchProverMethodId is a transaction that contains the BatchProver method id.
+/// ParsedBatchProofMethodId is a transaction that contains the batch proof method ID
+/// and the security council signatures and pubkeys.
 #[derive(Debug, Clone)]
-pub struct ParsedBatchProverMethodId {
+pub struct ParsedBatchProofMethodId {
+    /// Contains borsh(BatchProofMethodId)
+    /// So it has public keys and signatures of security council and the body
+    /// which is BatchProofMethodIdBody{activation_l2_height, method_id}
     pub(crate) body: Vec<u8>,
-    pub(crate) signature: Vec<u8>,
-    pub(crate) public_key: Vec<u8>,
+}
+
+impl ParsedBatchProofMethodId {
+    /// Hash of the body
+    pub fn hash(&self) -> [u8; 32] {
+        let hash = sha2::Sha256::new_with_prefix(&self.body);
+        hash.finalize().into()
+    }
 }
 
 /// To verify the signature of the inscription and get the hash of the body
@@ -129,18 +139,6 @@ impl VerifyParsed for ParsedSequencerCommitment {
     }
 }
 
-impl VerifyParsed for ParsedBatchProverMethodId {
-    fn public_key(&self) -> &[u8] {
-        &self.public_key
-    }
-    fn signature(&self) -> &[u8] {
-        &self.signature
-    }
-    fn body(&self) -> &[u8] {
-        &self.body
-    }
-}
-
 /// Error type for the parser.
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum ParserError {
@@ -159,6 +157,9 @@ pub enum ParserError {
     /// Invalid opcode in the script.
     #[error("Invalid opcode in the script")]
     UnexpectedOpcode,
+    /// Body was not parsed correctly.
+    #[error("Body was not parsed correctly")]
+    InvalidBody,
     /// Some other script error.
     #[error("Script error: {0}")]
     ScriptError(String),
@@ -216,8 +217,9 @@ fn parse_transaction(
         TransactionKind::Chunks => {
             body_parsers::parse_type_2_body(instructions).map(ParsedTransaction::Chunk)
         }
-        TransactionKind::BatchProofMethodId => body_parsers::parse_type_3_body(instructions)
-            .map(ParsedTransaction::BatchProverMethodId),
+        TransactionKind::BatchProofMethodId => {
+            body_parsers::parse_type_3_body(instructions).map(ParsedTransaction::BatchProofMethodId)
+        }
         TransactionKind::SequencerCommitment => body_parsers::parse_type_4_body(instructions)
             .map(ParsedTransaction::SequencerCommitment),
         TransactionKind::Unknown(n) => Err(ParserError::InvalidHeaderType(n)),
@@ -263,11 +265,12 @@ mod body_parsers {
     use bitcoin::script::Instruction::{Op, PushBytes};
 
     use super::{
-        read_instr, read_opcode, read_push_bytes, ParsedAggregate, ParsedBatchProverMethodId,
-        ParsedChunk, ParsedComplete, ParsedSequencerCommitment, ParserError,
+        read_instr, read_opcode, read_push_bytes, ParsedAggregate, ParsedChunk, ParsedComplete,
+        ParsedSequencerCommitment, ParserError,
     };
+    use crate::helpers::parsers::ParsedBatchProofMethodId;
 
-    /// Parse transaction body of Type0
+    /// Parse transaction body of Type0 Complete proof
     pub(super) fn parse_type_0_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
     ) -> Result<ParsedComplete, ParserError> {
@@ -326,7 +329,7 @@ mod body_parsers {
         })
     }
 
-    /// Parse transaction body of Type1
+    /// Parse transaction body of Type1 Aggregate data
     pub(super) fn parse_type_1_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
     ) -> Result<ParsedAggregate, ParserError> {
@@ -385,7 +388,7 @@ mod body_parsers {
         })
     }
 
-    /// Parse transaction body of Type2
+    /// Parse transaction body of Type2 Chunk data
     pub(super) fn parse_type_2_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
     ) -> Result<ParsedChunk, ParserError> {
@@ -434,10 +437,10 @@ mod body_parsers {
         Ok(ParsedChunk { body })
     }
 
-    /// Parse transaction body of Type3
+    /// Parse transaction body of Type3 Batch Proof MethodId upgrade tx
     pub(super) fn parse_type_3_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
-    ) -> Result<ParsedBatchProverMethodId, ParserError> {
+    ) -> Result<ParsedBatchProofMethodId, ParserError> {
         let op_false = read_push_bytes(instructions)?;
         if !op_false.is_empty() {
             // OP_FALSE = OP_PUSHBYTES_0
@@ -448,9 +451,7 @@ mod body_parsers {
             return Err(ParserError::UnexpectedOpcode);
         }
 
-        let signature = read_push_bytes(instructions)?;
-        let public_key = read_push_bytes(instructions)?;
-        let body = read_push_bytes(instructions)?;
+        let body = read_push_bytes(instructions)?.as_bytes().to_vec();
 
         if OP_ENDIF != read_opcode(instructions)? {
             return Err(ParserError::UnexpectedOpcode);
@@ -466,18 +467,10 @@ mod body_parsers {
             return Err(ParserError::UnexpectedOpcode);
         }
 
-        let signature = signature.as_bytes().to_vec();
-        let public_key = public_key.as_bytes().to_vec();
-        let body = body.as_bytes().to_vec();
-
-        Ok(ParsedBatchProverMethodId {
-            body,
-            signature,
-            public_key,
-        })
+        Ok(ParsedBatchProofMethodId { body })
     }
 
-    /// Parse transaction body of Type4
+    /// Parse transaction body of Type4 Sequencer Commitment
     pub(super) fn parse_type_4_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
     ) -> Result<ParsedSequencerCommitment, ParserError> {

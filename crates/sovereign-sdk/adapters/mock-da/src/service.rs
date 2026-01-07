@@ -582,7 +582,7 @@ mod tests {
             let block_2_before = da.get_block_at(2).await.unwrap();
             let block_3_before = da.get_block_at(3).await.unwrap();
 
-            // Disabling this check because our modified mock da creates blocks whena a transaction is sent
+            // Disabling this check because our modified mock da creates blocks when a transaction is sent
             // let result = da.get_block_at(4).await;
             // assert!(result.is_err());
 
