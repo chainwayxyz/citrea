@@ -384,7 +384,6 @@ pub mod bitcoinda {
                 // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077
                 None => "0xd51bd554b82aa486f56030bef90b70a27a4f6d20",
             };
-            // hex!()
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
                 Err(_) => panic!(
@@ -401,7 +400,7 @@ pub mod bitcoinda {
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
                 Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_1 must be valid 20-byte hex string"
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_2 must be valid 20-byte hex string"
                 ),
             }
         },
@@ -414,7 +413,7 @@ pub mod bitcoinda {
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
                 Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_1 must be valid 20-byte hex string"
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_3 must be valid 20-byte hex string"
                 ),
             }
         },
@@ -427,7 +426,7 @@ pub mod bitcoinda {
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
                 Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_1 must be valid 20-byte hex string"
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_4 must be valid 20-byte hex string"
                 ),
             }
         },
@@ -440,7 +439,7 @@ pub mod bitcoinda {
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
                 Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_1 must be valid 20-byte hex string"
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_5 must be valid 20-byte hex string"
                 ),
             }
         },
@@ -458,7 +457,6 @@ pub mod bitcoinda {
                 // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077
                 None => "0xd51bd554b82aa486f56030bef90b70a27a4f6d20",
             };
-            // hex!()
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
                 Err(_) => panic!(
@@ -475,7 +473,7 @@ pub mod bitcoinda {
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
                 Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_1 must be valid 20-byte hex string"
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_2 must be valid 20-byte hex string"
                 ),
             }
         },
@@ -488,7 +486,7 @@ pub mod bitcoinda {
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
                 Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_1 must be valid 20-byte hex string"
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_3 must be valid 20-byte hex string"
                 ),
             }
         },
@@ -501,7 +499,7 @@ pub mod bitcoinda {
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
                 Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_1 must be valid 20-byte hex string"
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_4 must be valid 20-byte hex string"
                 ),
             }
         },
@@ -514,7 +512,7 @@ pub mod bitcoinda {
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
                 Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_1 must be valid 20-byte hex string"
+                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_5 must be valid 20-byte hex string"
                 ),
             }
         },
