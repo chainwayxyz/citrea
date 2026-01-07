@@ -2,18 +2,13 @@ use std::sync::LazyLock;
 
 use metrics::{Counter, Gauge, Histogram};
 use metrics_derive::Metrics;
+use reth_transaction_pool::metrics::{BlobStoreMetrics, MaintainPoolMetrics, TxPoolMetrics};
 
 /// Defines the metrics being collected for the sequencer
 #[allow(unused)]
 #[derive(Metrics)]
 #[metrics(scope = "sequencer")]
 pub struct SequencerMetrics {
-    /// Current number of transactions in the mempool
-    #[metric(describe = "How many transactions are currently in the mempool")]
-    pub mempool_txs: Gauge,
-    /// Counter for tracking mempool transaction increments
-    #[metric(describe = "An ever increasing transactions count into the mempool")]
-    pub mempool_txs_inc: Counter,
     /// Current number of transactions in the deposit data mempool
     #[metric(
         describe = "How many deposit data transactions are currently in the deposit data mempool"
@@ -107,6 +102,16 @@ pub struct SequencerMetrics {
         describe = "The time taken to maintain the mempool after processing an L2 block in milliseconds"
     )]
     pub maintain_mempool_time: Gauge,
+    /// Time taken to extract bundle state from the state log for mempool maintenance
+    #[metric(
+        describe = "The time taken to extract bundle state from state log for mempool maintenance in milliseconds"
+    )]
+    pub mempool_extract_bundle_state_time: Gauge,
+    /// Time taken to prepare and send canonical state notification for mempool maintenance
+    #[metric(
+        describe = "The time taken to prepare and send canonical state notification for mempool maintenance in milliseconds"
+    )]
+    pub mempool_canonical_notification_time: Gauge,
     /// Basically all the operations happening before the dry run, such as fetching the mempool transactions, preparing the dry run state, etc.
     #[metric(describe = "The time taken to prepare for a dry run in seconds per block")]
     pub dry_run_preparation_time: Gauge,
@@ -148,3 +153,60 @@ pub static SEQUENCER_METRICS: LazyLock<SequencerMetrics> = LazyLock::new(|| {
     SequencerMetrics::describe();
     SequencerMetrics::default()
 });
+
+/// Reth transaction pool metrics
+#[allow(dead_code)]
+pub static RETH_TX_POOL_METRICS: LazyLock<TxPoolMetrics> = LazyLock::new(|| {
+    TxPoolMetrics::describe();
+    TxPoolMetrics::default()
+});
+
+/// Reth maintain pool metrics
+#[allow(dead_code)]
+pub static RETH_MAINTAIN_POOL_METRICS: LazyLock<MaintainPoolMetrics> = LazyLock::new(|| {
+    MaintainPoolMetrics::describe();
+    MaintainPoolMetrics::default()
+});
+
+/// Reth blob store metrics
+#[allow(dead_code)]
+pub static RETH_BLOB_STORE_METRICS: LazyLock<BlobStoreMetrics> = LazyLock::new(|| {
+    BlobStoreMetrics::describe();
+    BlobStoreMetrics::default()
+});
+
+/// Initializes sequencer metrics with current DB state
+///
+/// # Arguments
+/// * `ledger_db` - The ledgerDB to read metrics from
+///
+/// # Errors
+/// Returns error if database operations fail
+pub fn initialize_metrics<DB>(ledger_db: &DB) -> Result<(), anyhow::Error>
+where
+    DB: sov_db::ledger_db::SequencerLedgerOps,
+{
+    use tracing::debug;
+
+    if let Ok(Some(commitment)) = ledger_db.get_last_commitment() {
+        SEQUENCER_METRICS
+            .latest_sequencer_commitment_index
+            .set(commitment.index as f64);
+        SEQUENCER_METRICS
+            .latest_sequencer_commitment_l2_end_height
+            .set(commitment.l2_end_block_number as f64);
+        debug!(
+            "Initialized sequencer commitment metrics: index={}, end_height={}",
+            commitment.index, commitment.l2_end_block_number
+        );
+    }
+
+    if let Ok(Some(head_l2_height)) = ledger_db.get_head_l2_block_height() {
+        SEQUENCER_METRICS
+            .current_l2_block
+            .set(head_l2_height as f64);
+        debug!("Initialized current_l2_block metric: {}", head_l2_height);
+    }
+
+    Ok(())
+}

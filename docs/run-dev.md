@@ -115,7 +115,7 @@ _Optional_: Run batch prover:
 PARALLEL_PROOF_LIMIT=1 ./target/debug/citrea --dev --da-layer bitcoin --rollup-config-path resources/configs/bitcoin-regtest/batch_prover_rollup_config.toml --batch-prover resources/configs/bitcoin-regtest/batch_prover_config.toml --genesis-paths resources/genesis/bitcoin-regtest
 ```
 
-If you want to test proofs, make sure to set `proof_sampling_number` in `resources/configs/bitcoin-regtest/batch_prover_config.toml` to 0, and you can set the `max_l2_blocks_per_commitment` to a number between 5-50, as higher numbers than that takes too long even if you run the prover in execute mode.
+If you want to test proofs, make sure to set `proof_sampling_number` in `resources/configs/bitcoin-regtest/batch_prover_config.toml` to 0, and you can set the `max_l2_blocks_per_commitment` to a number between 5-50, as higher numbers than that take too long even if you run the prover in execute mode.
 
 To publish blocks on Bitcoin Regtest, run the sequencer with `test_mode` in sequencer config set to false and blocks will be published every two seconds.
 
@@ -173,7 +173,7 @@ To run tests:
 make test
 ```
 
-This will run [`cargo nextest`](https://nexte.st), which will run all Rust tests inside the repo. As our e2e tests use docker, docker engine should be on when this is ran. 
+This will run [`cargo nextest`](https://nexte.st), which will run all Rust tests inside the repo. As our e2e tests use docker, docker engine should be on when this is ran.
 
 To run smart contract tests:
 ```sh

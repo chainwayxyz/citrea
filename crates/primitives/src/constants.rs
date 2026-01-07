@@ -1,3 +1,5 @@
+use sov_rollup_interface::spec::SpecId;
+
 /// Prefix for the reveal transaction ids.
 #[cfg(feature = "testing")]
 pub const REVEAL_TX_PREFIX: &[u8] = &[2]; // since we changed the prefix to 1 genesis fork proving tests fail
@@ -7,7 +9,13 @@ pub const REVEAL_TX_PREFIX: &[u8] = &[2, 2];
 pub const TEST_PRIVATE_KEY: &str =
     "1212121212121212121212121212121212121212121212121212121212121212";
 
-pub const MIN_BASE_FEE_PER_GAS: u64 = 10_000_000; // 0.01 gwei
+pub fn min_base_fee_per_gas(spec_id: SpecId) -> u64 {
+    if spec_id >= SpecId::Tangelo {
+        1_000_000 // 0.001 gwei
+    } else {
+        10_000_000 // 0.01 gwei
+    }
+}
 
 /// Maximum size of a bitcoin transaction body in bytes
 #[cfg(feature = "testing")]
@@ -48,3 +56,8 @@ pub const PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS: &[u8] = &[
 pub const MAX_DECOMPRESSED_BLOB_SIZE: usize = 1024 * 1024; // 1 MB
 #[cfg(not(feature = "testing"))]
 pub const MAX_DECOMPRESSED_BLOB_SIZE: usize = 1024 * 1024 * 100; // 100 MB
+
+/// Maximum size of a compressed blob in bytes.
+/// This limit is enforced during chunk aggregation to prevent excessive memory usage
+/// and potential denial of service attacks.
+pub const MAX_COMPRESSED_BLOB_SIZE: usize = MAX_DECOMPRESSED_BLOB_SIZE;

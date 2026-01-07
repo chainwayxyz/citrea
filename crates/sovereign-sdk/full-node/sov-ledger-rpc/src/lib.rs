@@ -109,7 +109,7 @@ pub trait LedgerRpc {
         height: U64,
     ) -> RpcResult<Option<Vec<VerifiedBatchProofResponse>>>;
 
-    /// Gets last verified proog
+    /// Gets last verified proof
     #[method(name = "getLastVerifiedBatchProof")]
     #[blocking]
     fn get_last_verified_batch_proof(&self) -> RpcResult<Option<LastVerifiedBatchProofResponse>>;

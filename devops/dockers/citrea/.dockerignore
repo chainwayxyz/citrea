@@ -1,0 +1,6 @@
+.dockerignore
+Dockerfile
+pre-build.sh
+pre-publish.sh
+pre-deploy.sh
+after-deploy.sh

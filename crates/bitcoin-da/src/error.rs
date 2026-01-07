@@ -5,6 +5,7 @@ use bitcoincore_rpc::Error as BitcoinRpcError;
 use thiserror::Error;
 use tokio::task::JoinError;
 
+use crate::fee::FeeServiceError;
 use crate::monitoring::{MonitorError, TxStatus};
 
 /// The top level error type that can be returned by the `BitcoinService`.
@@ -30,7 +31,7 @@ pub enum BitcoinServiceError {
     MissingPreviousUTXO,
     /// Fee calculation fails to meet min relay fee
     #[error("Fee calculation error. Doesn't meet min relay fee rate of {0}")]
-    FeeCalculation(u64),
+    FeeCalculation(f64),
     /// Monitoring error.
     #[error("Monitoring error: {0}")]
     MonitorError(#[from] MonitorError),
@@ -43,15 +44,72 @@ pub enum BitcoinServiceError {
     /// Cannot bump fee for TX.
     #[error("Cannot bump fee for TX with status: {0:?}. Transaction must be pending")]
     WrongStatusForBumping(TxStatus),
-    /// Tx requeste when queue is not empty.
+    /// Tx requested when queue is not empty.
     #[error("Cannot create DA transaction while da queue is not empty")]
     QueueNotEmpty,
     /// Transaction rejected by mempool.
     #[error(transparent)]
     MempoolRejection(#[from] MempoolRejection),
-    /// Other error.
-    #[error(transparent)]
-    Other(#[from] anyhow::Error),
+    /// Failed to decompress chunk data.
+    #[error("Failed to parse complete chunks")]
+    ChunkDecompressionError,
+    /// IO error when compressing blob.
+    #[error("Failure to compress blob: {0}")]
+    CompressionError(std::io::Error),
+    /// Channel send error.
+    #[error("Failed to send message through channel")]
+    ChannelSendError,
+    /// Tokio channel receive error.
+    #[error("Failed to receive message from channel: {0}")]
+    ChannelRecvError(#[from] tokio::sync::oneshot::error::RecvError),
+    /// Bitcoin transaction encoding/decoding error.
+    #[error("Transaction encoding error: {0}")]
+    TransactionEncodingError(#[from] bitcoin::consensus::encode::Error),
+    /// Bitcoin compact target parsing error.
+    #[error("Compact target parsing error: {0}")]
+    CompactTargetError(#[from] bitcoin::error::UnprefixedHexError),
+    /// Chunk ordering validation error.
+    #[error("Chunk ordering validation error: {0}")]
+    ChunkOrderingError(String),
+    /// Failed to get block information by hash.
+    #[error("Failed to get block info for hash {hash:?}: {source}")]
+    BlockInfoRequestError {
+        /// Requested blockhash
+        hash: bitcoin::BlockHash,
+        /// Source bitcoincore_rpc error
+        #[source]
+        source: bitcoincore_rpc::Error,
+    },
+    /// IO error when creating backup directory.
+    #[error("Failed to create tx backup directory: {0}")]
+    BackupDirectoryError(std::io::Error),
+    /// Invalid private key.
+    #[error("Invalid private key")]
+    InvalidPrivateKey,
+    /// Failed to backup transactions to file.
+    #[error("Failed to backup transactions to file: {0}")]
+    TransactionBackupError(String),
+    /// Missing UTXO address.
+    #[error("Missing address")]
+    MissingAddress,
+    /// No monitored transactions
+    #[error("No monitored transactions")]
+    NoMonitoredTransaction,
+    /// Parent transaction not found.
+    #[error("Parent transaction {0} not found")]
+    ParentTransactionNotFound(bitcoin::Txid),
+    /// Failure to get fee rate
+    #[error("Failed to get fee rate")]
+    FeeRateError,
+    /// Failure to bump TX
+    #[error("Failure to bump TX fee: {0}")]
+    FeeBumpFailure(String),
+    /// Body builders error.
+    #[error("Body builders error: {0}")]
+    TransactionBuilderError(String),
+    /// Fee service operation failure.
+    #[error("Fee service error: {0}")]
+    FeeServiceError(#[from] FeeServiceError),
 }
 
 /// Error type for mempool rejections via testmempoolaccept method.

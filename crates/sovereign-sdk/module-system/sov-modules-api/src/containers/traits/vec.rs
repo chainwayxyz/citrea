@@ -110,7 +110,7 @@ where
         }
     }
 
-    /// Sets all values in the tector.
+    /// Sets all values in the vector.
     ///
     /// If the length of the provided values is less than the length of the
     /// vector, the remaining values will be removed from storage.

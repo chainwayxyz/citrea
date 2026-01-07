@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::bail;
@@ -44,6 +44,8 @@ use uuid::Uuid;
 use crate::common::client::TestClient;
 use crate::common::DEFAULT_PROOF_WAIT_DURATION;
 
+static PROMETHEUS_INITIALIZED: OnceLock<()> = OnceLock::new();
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeMode {
     FullNode(SocketAddr),
@@ -76,6 +78,29 @@ pub async fn start_rollup(
     }
     if rollup_prover_config.is_some() && light_client_prover_config.is_some() {
         panic!("Both batch prover and light client prover config cannot be set at the same time");
+    }
+
+    if rollup_config.telemetry.bind_host.is_some() && rollup_config.telemetry.bind_port.is_some() {
+        let bind_host = rollup_config.telemetry.bind_host.as_ref().unwrap();
+        let bind_port = rollup_config.telemetry.bind_port.unwrap();
+        PROMETHEUS_INITIALIZED.get_or_init(|| {
+            let telemetry_addr: std::net::SocketAddr = format!("{bind_host}:{bind_port}")
+                .parse()
+                .expect("Invalid telemetry address");
+
+            std::thread::spawn(move || {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    let builder = metrics_exporter_prometheus::PrometheusBuilder::new()
+                        .with_http_listener(telemetry_addr);
+                    let _ = builder.install();
+                    loop {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
+                    }
+                });
+            });
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        });
     }
 
     let (tables, migrations, backup_manager) = if sequencer_config.is_some() {
@@ -195,6 +220,7 @@ pub async fn start_rollup(
     let rpc_storage = storage_manager.create_final_view_storage();
     let mut rpc_module = mock_demo_rollup
         .create_rpc_methods(
+            NodeType::FullNode, // Allow all RPC in tests
             rpc_storage.clone(),
             &ledger_db,
             &da_service,
@@ -216,6 +242,7 @@ pub async fn start_rollup(
             &mut rpc_module,
             sequencer_client_url,
             l2_block_rx,
+            task_executor.clone(),
         )
         .expect("Failed to register Ethereum RPC methods");
         register_healthcheck_rpc(&mut rpc_module, ledger_db.clone())
@@ -451,8 +478,12 @@ pub fn create_default_rollup_config(
             enable_subscriptions: true,
             max_subscriptions_per_connection: 100,
             trace_chain_block_limit: None,
+            proving_jobs_limit: 100,
             timeout: 30,
+            stale_filter_ttl: Some(10),
+            enable_js_tracer: true,
             api_key: None,
+            enable_filters: false,
         },
         runner: match node_mode {
             NodeMode::FullNode(socket_addr)
@@ -507,7 +538,7 @@ pub async fn wait_for_l2_block(client: &TestClient, num: u64, timeout: Option<Du
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout. Latest L2 block is {:?}", latest_block);
+            panic!("Timeout. Latest L2 block is {latest_block:?}");
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -524,7 +555,7 @@ pub async fn wait_for_prover_job(
     let timeout = timeout.unwrap_or(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)); // Default 600 seconds timeout
     loop {
         debug!("Waiting for prover job {}", job_id);
-        let response = prover_client.get_proving_job(job_id).await;
+        let response = prover_client.get_proving_job(job_id, Some(true)).await;
         if let Some(response) = response {
             if let Some(proof) = &response.proof {
                 if proof.l1_tx_id.is_some() {
@@ -614,7 +645,7 @@ pub async fn wait_for_prover_job_count(
             );
         }
 
-        let jobs = prover_client.get_proving_jobs(count).await;
+        let jobs = prover_client.get_proving_jobs(count, None).await;
         if jobs.len() >= count {
             let job_ids = jobs.into_iter().map(|j| j.job_id).collect();
             return Ok(job_ids);
@@ -637,12 +668,12 @@ pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Op
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout. Latest L1 block is {}", da_block);
+            panic!("Timeout. Latest L1 block is {da_block}");
         }
 
         sleep(Duration::from_secs(1)).await;
     }
-    // Let knowledgage of the new DA block propagate
+    // Let knowledge of the new DA block propagate
     sleep(Duration::from_secs(2)).await;
 }
 
@@ -700,7 +731,7 @@ pub async fn wait_for_proof(test_client: &TestClient, slot_height: u64, timeout:
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout while waiting for proof at height {}", slot_height);
+            panic!("Timeout while waiting for proof at height {slot_height}");
         }
 
         sleep(Duration::from_secs(1)).await;

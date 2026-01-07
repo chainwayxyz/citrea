@@ -585,8 +585,7 @@ where
         if !evm.is_system_caller() {
             if let Some(_out_of_funds) = decrease_caller_balance(evm.ctx(), l1_fee)? {
                 return Err(ERROR::from_string(format!(
-                    "Not enough funds for L1 fee: {}",
-                    l1_fee
+                    "Not enough funds for L1 fee: {l1_fee}"
                 )));
             }
             // add l1 fee to l1 fee vault

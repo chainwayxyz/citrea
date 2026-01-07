@@ -108,23 +108,11 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         l1_fee_rate,
                         &mut inspector,
                     )?;
-                    let mut frame = inspector
+                    let frame = inspector
                         .with_transaction_gas_limit(tx_env.gas_limit())
                         .into_geth_builder()
                         .geth_prestate_traces(&res, &prestate_config, &db_ref)
                         .map_err(EthApiError::from_eth_err)?;
-
-                    // Workaround for revm-inspectors v0.18.0 bug where disableCode doesn't filter post state
-                    // TODO: Remove this when upgrading revm-inspectors to a version with the fix
-                    if prestate_config.disable_code.unwrap_or(false) {
-                        if let alloy_rpc_types_trace::geth::PreStateFrame::Diff(ref mut diff_mode) =
-                            &mut frame
-                        {
-                            for (_, account_state) in diff_mode.post.iter_mut() {
-                                account_state.code = None;
-                            }
-                        }
-                    }
 
                     Ok(frame.into())
                 }
@@ -304,23 +292,11 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         l1_fee_rate,
                         &mut inspector,
                     )?;
-                    let mut frame = inspector
+                    let frame = inspector
                         .with_transaction_gas_limit(tx_env.gas_limit())
                         .into_geth_builder()
                         .geth_prestate_traces(&res, &prestate_config, db_ref)
                         .map_err(EthApiError::from_eth_err)?;
-
-                    // Workaround for revm-inspectors v0.18.0 bug where disableCode doesn't filter post state
-                    // TODO: Remove this when upgrading revm-inspectors to a version with the fix
-                    if prestate_config.disable_code.unwrap_or(false) {
-                        if let alloy_rpc_types_trace::geth::PreStateFrame::Diff(ref mut diff_mode) =
-                            &mut frame
-                        {
-                            for (_, account_state) in diff_mode.post.iter_mut() {
-                                account_state.code = None;
-                            }
-                        }
-                    }
 
                     Ok((frame.into(), res.state))
                 }
@@ -453,9 +429,10 @@ where
     I: for<'c> Inspector<CitreaContext<'c, DB>>,
 {
     let mut ext = CitreaChain::new(l1_fee_rate);
-    if let Some(tx_hash) = tx_hash {
-        ext.set_current_tx_hash(tx_hash);
-    }
+
+    let tx_hash = tx_hash.unwrap_or_else(|| b"hash_of_an_ephemeral_transaction".into());
+
+    ext.set_current_tx_hash(tx_hash);
 
     let mut journal = Journal::new(db);
     journal.set_spec_id(config_env.spec());

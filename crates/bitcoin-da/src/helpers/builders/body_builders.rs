@@ -23,6 +23,7 @@ use super::{
     get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind, TxWithId,
 };
 use crate::spec::utxo::UTXO;
+use crate::utxo_manager::UtxoContext;
 use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
 /// These are real blobs we put on DA.
@@ -85,11 +86,10 @@ pub enum DaTxs {
 pub fn create_inscription_transactions(
     data: RawTxData,
     da_private_key: SecretKey,
-    prev_utxo: Option<UTXO>,
-    utxos: Vec<UTXO>,
+    utxo_context: UtxoContext,
     change_address: Address,
-    commit_fee_rate: u64,
-    reveal_fee_rate: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: Vec<u8>,
 ) -> Result<DaTxs, anyhow::Error> {
@@ -97,8 +97,7 @@ pub fn create_inscription_transactions(
         RawTxData::Complete(body) => create_inscription_type_0(
             body,
             &da_private_key,
-            prev_utxo,
-            utxos,
+            utxo_context,
             change_address,
             commit_fee_rate,
             reveal_fee_rate,
@@ -108,8 +107,7 @@ pub fn create_inscription_transactions(
         RawTxData::Chunks(body) => create_inscription_type_1(
             body,
             &da_private_key,
-            prev_utxo,
-            utxos,
+            utxo_context,
             change_address,
             commit_fee_rate,
             reveal_fee_rate,
@@ -119,8 +117,7 @@ pub fn create_inscription_transactions(
         RawTxData::BatchProofMethodId(body) => create_inscription_type_3(
             body,
             &da_private_key,
-            prev_utxo,
-            utxos,
+            utxo_context,
             change_address,
             commit_fee_rate,
             reveal_fee_rate,
@@ -130,8 +127,7 @@ pub fn create_inscription_transactions(
         RawTxData::SequencerCommitment(body) => create_inscription_type_4(
             body,
             &da_private_key,
-            prev_utxo,
-            utxos,
+            utxo_context,
             change_address,
             commit_fee_rate,
             reveal_fee_rate,
@@ -147,14 +143,18 @@ pub fn create_inscription_transactions(
 pub fn create_inscription_type_0(
     body: Vec<u8>,
     da_private_key: &SecretKey,
-    prev_utxo: Option<UTXO>,
-    utxos: Vec<UTXO>,
+    utxo_context: UtxoContext,
     change_address: Address,
-    commit_fee_rate: u64,
-    reveal_fee_rate: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: &[u8],
 ) -> Result<DaTxs, anyhow::Error> {
+    let UtxoContext {
+        available_utxos: utxos,
+        prev_utxo,
+    } = utxo_context;
+
     // Create reveal key
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
@@ -216,13 +216,14 @@ pub fn create_inscription_type_0(
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
         let reveal_value = REVEAL_OUTPUT_AMOUNT;
-        let fee = get_size_reveal(
+        let fee = (get_size_reveal(
             change_address.script_pubkey(),
             reveal_value,
             &reveal_script,
             &control_block,
-        ) as u64
-            * reveal_fee_rate;
+        ) as f64
+            * reveal_fee_rate)
+            .ceil() as u64;
         let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
 
         // build commit tx
@@ -319,14 +320,18 @@ pub fn create_inscription_type_0(
 pub fn create_inscription_type_1(
     chunks: Vec<Vec<u8>>,
     da_private_key: &SecretKey,
-    mut prev_utxo: Option<UTXO>,
-    mut utxos: Vec<UTXO>,
+    utxo_context: UtxoContext,
     change_address: Address,
-    commit_fee_rate: u64,
-    reveal_fee_rate: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: &[u8],
 ) -> Result<DaTxs, anyhow::Error> {
+    let UtxoContext {
+        available_utxos: mut utxos,
+        mut prev_utxo,
+    } = utxo_context;
+
     // Create reveal key
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
@@ -385,13 +390,14 @@ pub fn create_inscription_type_1(
             let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
             let reveal_value = REVEAL_OUTPUT_AMOUNT;
-            let fee = get_size_reveal(
+            let fee = (get_size_reveal(
                 change_address.script_pubkey(),
                 reveal_value,
                 &reveal_script,
                 &control_block,
-            ) as u64
-                * reveal_fee_rate;
+            ) as f64
+                * reveal_fee_rate)
+                .ceil() as u64;
             let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
 
             // build commit tx
@@ -468,7 +474,7 @@ pub fn create_inscription_type_1(
                             tx_id: unsigned_commit_tx.compute_txid(),
                             vout: 1,
                             address: None,
-                            script_pubkey: unsigned_commit_tx.output[0]
+                            script_pubkey: unsigned_commit_tx.output[1]
                                 .script_pubkey
                                 .to_hex_string(),
                             amount: unsigned_commit_tx.output[1].value.to_sat(),
@@ -576,13 +582,14 @@ pub fn create_inscription_type_1(
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
         let reveal_value = REVEAL_OUTPUT_AMOUNT;
-        let fee = get_size_reveal(
+        let fee = (get_size_reveal(
             change_address.script_pubkey(),
             reveal_value,
             &reveal_script,
             &control_block,
-        ) as u64
-            * reveal_fee_rate;
+        ) as f64
+            * reveal_fee_rate)
+            .ceil() as u64;
         let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
 
         // build commit tx
@@ -679,23 +686,24 @@ pub fn create_inscription_type_1(
 pub fn create_inscription_type_3(
     body: Vec<u8>,
     da_private_key: &SecretKey,
-    prev_utxo: Option<UTXO>,
-    utxos: Vec<UTXO>,
+    utxo_context: UtxoContext,
     change_address: Address,
-    commit_fee_rate: u64,
-    reveal_fee_rate: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: &[u8],
 ) -> Result<DaTxs, anyhow::Error> {
+    let UtxoContext {
+        available_utxos: utxos,
+        prev_utxo,
+    } = utxo_context;
+
     // Create reveal key
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
     let kind = TransactionKind::BatchProofMethodId;
     let kind_bytes = kind.to_bytes();
-
-    // sign the body for authentication of the sequencer
-    let (signature, signer_public_key) = sign_blob_with_private_key(&body, da_private_key);
 
     let start = Instant::now();
 
@@ -705,12 +713,10 @@ pub fn create_inscription_type_3(
         .push_opcode(OP_CHECKSIGVERIFY)
         .push_slice(PushBytesBuf::from(kind_bytes))
         .push_opcode(OP_FALSE)
-        .push_opcode(OP_IF)
-        .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
-        .push_slice(
-            PushBytesBuf::try_from(signer_public_key).expect("Cannot push sequencer public key"),
-        );
+        .push_opcode(OP_IF);
+
     // push body in chunks of 520 bytes
+    // Body includes security council signatures and public keys
     for chunk in body.chunks(520) {
         reveal_script_builder = reveal_script_builder
             .push_slice(PushBytesBuf::try_from(chunk.to_vec()).expect("Cannot push body chunk"));
@@ -750,13 +756,14 @@ pub fn create_inscription_type_3(
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
         let reveal_value = REVEAL_OUTPUT_AMOUNT;
-        let fee = get_size_reveal(
+        let fee = (get_size_reveal(
             change_address.script_pubkey(),
             reveal_value,
             &reveal_script,
             &control_block,
-        ) as u64
-            * reveal_fee_rate;
+        ) as f64
+            * reveal_fee_rate)
+            .ceil() as u64;
         let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
 
         // build commit tx
@@ -856,11 +863,10 @@ pub fn create_inscription_type_3(
 pub fn create_inscription_type_4(
     body: Vec<u8>,
     da_private_key: &SecretKey,
-    prev_utxo: Option<UTXO>,
-    utxos: Vec<UTXO>,
+    utxo_context: UtxoContext,
     change_address: Address,
-    commit_fee_rate: u64,
-    reveal_fee_rate: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: &[u8],
 ) -> Result<DaTxs, anyhow::Error> {
@@ -868,6 +874,12 @@ pub fn create_inscription_type_4(
         body.len() < 520,
         "The body of a serialized sequencer commitment exceeds 520 bytes"
     );
+
+    let UtxoContext {
+        available_utxos: utxos,
+        prev_utxo,
+    } = utxo_context;
+
     // Create reveal key
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
@@ -924,13 +936,14 @@ pub fn create_inscription_type_4(
         let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
         let reveal_value = REVEAL_OUTPUT_AMOUNT;
-        let fee = get_size_reveal(
+        let fee = (get_size_reveal(
             change_address.script_pubkey(),
             reveal_value,
             &reveal_script,
             &control_block,
-        ) as u64
-            * reveal_fee_rate;
+        ) as f64
+            * reveal_fee_rate)
+            .ceil() as u64;
         let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
 
         // build commit tx
