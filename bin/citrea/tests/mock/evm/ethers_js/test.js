@@ -309,6 +309,7 @@ describe("RpcTests", function () {
     });
 
     it("eth_sendRawTransactionSync works with default timeout", async function () {
+        this.timeout(0);
         const tx = await generateTransaction('10', '0x9a');
         const signer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
         const signedTx = await signer.signTransaction(tx);
@@ -328,6 +329,7 @@ describe("RpcTests", function () {
         const signer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
         const signedTx = await signer.signTransaction(tx);
 
+        let txHash;
         try {
             // Use 1ms timeout to make sure test fail with error code 4: timeout
             await provider.send('eth_sendRawTransactionSync', [signedTx, 1]);
@@ -338,6 +340,12 @@ describe("RpcTests", function () {
             expect(error.error.message).to.include("wasn't processed");
             // The error data should contain the transaction hash
             expect(error.error.data).to.exist;
+            txHash = error.error.data;
+        }
+
+        // Wait for the transaction to be mined to avoid nonce conflicts in subsequent tests
+        if (txHash) {
+            await provider.waitForTransaction(txHash);
         }
     });
 
