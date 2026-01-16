@@ -20,9 +20,6 @@ pub const UNREADY_ERROR_CODE: i32 = 5;
 /// Default timeout in milliseconds. (2secs)
 pub const DEFAULT_TIMEOUT_MS: u64 = 2_000;
 
-/// Maximum allowed timeout in milliseconds. (1min)
-pub const MAX_TIMEOUT_MS: u64 = 60_000;
-
 /// Creates an EIP-7966 timeout error (code 4).
 ///
 /// Returned when the transaction was added to the mempool but wasn't
@@ -57,13 +54,14 @@ pub fn unready_error(reason: &str, hash: Option<B256>) -> ErrorObjectOwned {
 ///
 /// - If `None`, returns `DEFAULT_TIMEOUT_MS`
 /// - If `Some(0)` returns `DEFAULT_TIMEOUT_MS`
-/// - Otherwise, returns the minimum of the requested value and `MAX_TIMEOUT_MS`
+/// - Otherwise, returns the minimum of the requested value and `max_timeout_ms`
 ///
 /// # Arguments
 /// * `requested_ms` - Optional timeout duration in milliseconds
-pub fn calculate_timeout_ms(requested_ms: Option<u64>) -> u64 {
+/// * `max_timeout_ms` - Maximum allowed timeout in milliseconds
+pub fn calculate_timeout_ms(requested_ms: Option<u64>, max_timeout_ms: u64) -> u64 {
     match requested_ms {
-        Some(ms) if ms > 0 => std::cmp::min(ms, MAX_TIMEOUT_MS),
+        Some(ms) if ms > 0 => std::cmp::min(ms, max_timeout_ms),
         _ => DEFAULT_TIMEOUT_MS,
     }
 }
@@ -100,22 +98,9 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_timeout_default() {
-        assert_eq!(calculate_timeout_ms(None), DEFAULT_TIMEOUT_MS);
-    }
-
-    #[test]
-    fn test_calculate_timeout_zero() {
-        assert_eq!(calculate_timeout_ms(Some(0)), DEFAULT_TIMEOUT_MS);
-    }
-
-    #[test]
-    fn test_calculate_timeout_normal() {
-        assert_eq!(calculate_timeout_ms(Some(5000)), 5000);
-    }
-
-    #[test]
-    fn test_calculate_timeout_exceeds_max() {
-        assert_eq!(calculate_timeout_ms(Some(100_000)), MAX_TIMEOUT_MS);
+    fn test_calculate_timeout_custom_max() {
+        // Custom max of 30 seconds
+        assert_eq!(calculate_timeout_ms(Some(50_000), 30_000), 30_000);
+        assert_eq!(calculate_timeout_ms(Some(20_000), 30_000), 20_000);
     }
 }

@@ -237,6 +237,7 @@ where
     trace_chain_block_limit: Option<u64>,
     enable_js_tracer: bool,
     l2_block_rx: Option<broadcast::Receiver<u64>>,
+    max_sync_send_timeout_ms: u64,
 }
 
 impl<C, Da> EthereumRpcServerImpl<C, Da>
@@ -250,6 +251,7 @@ where
         trace_chain_block_limit: Option<u64>,
         enable_js_tracer: bool,
         l2_block_rx: Option<broadcast::Receiver<u64>>,
+        max_sync_send_timeout_ms: u64,
     ) -> Self {
         Self {
             ethereum,
@@ -257,6 +259,7 @@ where
             trace_chain_block_limit,
             enable_js_tracer,
             l2_block_rx,
+            max_sync_send_timeout_ms,
         }
     }
 }
@@ -519,7 +522,7 @@ where
     /// - Subscribes to new block subscription
     /// - Waits for transaction to be included in a block
     /// - Returns the transaction receipt
-    /// - Timeout in milliseconds (default: 2_000ms, max: 60_000ms)
+    /// - Timeout in milliseconds (default: 2_000ms, max: configurable via RpcConfig, default max: 60_000ms)
     ///
     /// Error codes:
     /// - Code 4: Transaction not included within timeout period
@@ -560,7 +563,7 @@ where
             return Ok(receipt);
         }
 
-        let timeout = eip_7966::calculate_timeout_ms(timeout_ms);
+        let timeout = eip_7966::calculate_timeout_ms(timeout_ms, self.max_sync_send_timeout_ms);
         let timeout_duration = tokio::time::Duration::from_millis(timeout);
         let deadline = tokio::time::Instant::now() + timeout_duration;
 
@@ -888,6 +891,7 @@ where
         rpc_config.trace_chain_block_limit,
         rpc_config.enable_js_tracer,
         l2_block_rx,
+        rpc_config.max_sync_send_timeout_ms,
     );
 
     let mut module = EthereumRpcServer::into_rpc(server);
