@@ -3967,6 +3967,7 @@ dependencies = [
 name = "citrea-risc0-light-client"
 version = "1.2.0"
 dependencies = [
+ "citrea-risc0-batch-proof",
  "risc0-build",
 ]
 

@@ -8,10 +8,11 @@ resolver = "2"
 
 [build-dependencies]
 risc0-build = { workspace = true, features = ["unstable"] }
+citrea-risc0-batch-proof = { path = "../batch-proof" }
 
 [package.metadata.risc0]
 methods = ["bitcoin", "mock"]
 
 [features]
 bench = []
-testing = []
+testing = ["citrea-risc0-batch-proof/testing"]
