@@ -16,3 +16,7 @@ methods = ["bitcoin", "mock"]
 [features]
 bench = []
 testing = ["citrea-risc0-batch-proof/testing"]
+
+# Used indirectly to ensure batch-proof method IDs are built.
+[package.metadata.cargo-udeps.ignore]
+build = ["citrea-risc0-batch-proof"]
