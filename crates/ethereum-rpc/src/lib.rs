@@ -565,40 +565,44 @@ where
 
         let timeout = eip_7966::calculate_timeout_ms(timeout_ms, self.max_sync_send_timeout_ms);
         let timeout_duration = tokio::time::Duration::from_millis(timeout);
-        let deadline = tokio::time::Instant::now() + timeout_duration;
 
         tracing::info!(
             transaction_hash = ?hash,
             timeout_ms = timeout,
             "Waiting for transaction inclusion"
         );
-        loop {
-            tokio::select! {
-                _ = tokio::time::sleep_until(deadline) => {
-                    return Err(eip_7966::timeout_error(hash, timeout));
-                }
-                block_result = block_rx.recv() => {
-                    match block_result {
-                        Ok(_) => {
-                            let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
-                            if let Ok(Some(receipt)) = evm.get_transaction_receipt(hash, &mut working_set) {
-                                return Ok(receipt);
-                            }
+
+        let wait_for_receipt = async {
+            loop {
+                match block_rx.recv().await {
+                    Ok(_) => {
+                        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+                        if let Ok(Some(receipt)) =
+                            evm.get_transaction_receipt(hash, &mut working_set)
+                        {
+                            return Ok(receipt);
                         }
-                        Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
-                            tracing::warn!("Block subscription lagged by {skipped} blocks");
-                            // Receiver lagged but try looking up the receipt anyway
-                            let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
-                            if let Ok(Some(receipt)) = evm.get_transaction_receipt(hash, &mut working_set) {
-                                return Ok(receipt);
-                            }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                        tracing::warn!("Block subscription lagged by {skipped} blocks");
+                        // Receiver lagged but try looking up the receipt anyway
+                        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+                        if let Ok(Some(receipt)) =
+                            evm.get_transaction_receipt(hash, &mut working_set)
+                        {
+                            return Ok(receipt);
                         }
-                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                            return Err(internal_rpc_error("Block subscription channel closed"));
-                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        return Err(internal_rpc_error("Block subscription channel closed"));
                     }
                 }
             }
+        };
+
+        match tokio::time::timeout(timeout_duration, wait_for_receipt).await {
+            Ok(result) => result,
+            Err(_) => Err(eip_7966::timeout_error(hash, timeout)),
         }
     }
 
