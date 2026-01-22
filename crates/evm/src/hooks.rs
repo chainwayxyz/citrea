@@ -3,7 +3,6 @@ use alloy_consensus::{proofs, Header as AlloyHeader, TxReceipt};
 use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::{Bloom, Bytes, B256, B64, U256};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
-use citrea_primitives::forks::get_tangelo_30m_activation_height;
 use revm::context::BlockEnv;
 use revm::context_interface::block::BlobExcessGasAndPrice;
 use revm::primitives::hardfork::SpecId;
@@ -19,7 +18,7 @@ use crate::evm::primitive_types::Block;
 use crate::evm::system_events::SystemEvent;
 #[cfg(feature = "native")]
 use crate::metrics::EVM_METRICS as EM;
-use crate::{citrea_spec_id_to_evm_spec_id, Evm};
+use crate::{citrea_spec_id_to_evm_spec_id, Evm, TANGELO_30M_BLOCK_GAS_LIMIT};
 
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Logic executed at the beginning of the slot. Here we set the state root of the previous head.
@@ -68,9 +67,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(working_set)
             .expect("EVM chain config should be set");
 
-        if get_tangelo_30m_activation_height().is_some_and(|num| num == parent_block_number + 1) {
-            cfg.block_gas_limit = 30_000_000;
-
+        if cfg.block_gas_limit < TANGELO_30M_BLOCK_GAS_LIMIT
+            && l2_block_info.current_spec >= sov_modules_api::SpecId::Tangelo30M
+        {
+            cfg.block_gas_limit = TANGELO_30M_BLOCK_GAS_LIMIT;
             self.cfg.set(&cfg, working_set);
         }
 

@@ -45,6 +45,8 @@ pub const BASE_FEE_VAULT: Address = address!("3100000000000000000000000000000000
 pub const L1_FEE_VAULT: Address = address!("3100000000000000000000000000000000000004");
 /// Priority fee vault address
 pub const PRIORITY_FEE_VAULT: Address = address!("3100000000000000000000000000000000000005");
+/// Block gas limit after Tangelo 30M fork
+pub const TANGELO_30M_BLOCK_GAS_LIMIT: u64 = 30_000_000;
 
 /// Stores information about an EVM account
 #[derive(Default, Deserialize, Serialize, Debug, PartialEq, Clone)]
