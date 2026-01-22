@@ -580,19 +580,15 @@ impl ForkActivationTest {
         let pending_tx_result = client
             .contract_transaction_with_gas(
                 contracts.crazy_keccak,
-                CrazyKeccakContract::default()
-                    .call_crazy_keccak(30000)
-                    .into(),
+                CrazyKeccakContract::default().call_crazy_keccak(30000),
                 None,
-                Some(20_000_000u64)
+                Some(20_000_000u64),
             )
             .await;
-        assert!(
-            pending_tx_result
-                .unwrap_err()
-                .to_string()
-                .contains("exceeds block gas limit"),
-        );
+        assert!(pending_tx_result
+            .unwrap_err()
+            .to_string()
+            .contains("exceeds block gas limit"),);
         // sync nonce after the failed tx
         client.sync_nonce().await;
         Ok(())

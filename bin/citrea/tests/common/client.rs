@@ -184,7 +184,7 @@ impl TestClient {
         contract_address: Address,
         data: Vec<u8>,
         nonce: Option<u64>,
-        gas: Option<u64>
+        gas: Option<u64>,
     ) -> anyhow::Result<PendingTransactionBuilder<Ethereum>> {
         let nonce = match nonce {
             Some(nonce) => nonce,
@@ -206,7 +206,8 @@ impl TestClient {
             .max_priority_fee_per_gas(10)
             .max_fee_per_gas(MAX_FEE_PER_GAS);
 
-        self.client.send_transaction(req)
+        self.client
+            .send_transaction(req)
             .await
             .map_err(|e| e.into())
     }
@@ -217,7 +218,9 @@ impl TestClient {
         data: Vec<u8>,
         nonce: Option<u64>,
     ) -> PendingTransactionBuilder<Ethereum> {
-        self.contract_transaction_with_gas(contract_address, data, nonce, None).await.unwrap()
+        self.contract_transaction_with_gas(contract_address, data, nonce, None)
+            .await
+            .unwrap()
     }
 
     #[allow(dead_code)]
