@@ -44,7 +44,7 @@ pub enum SpecId {
     Tangelo = 3,
     /// Increase EVM block gas limits to 30M
     Tangelo30M = 4,
-    /// Fork4 spec
+    /// Fork5 spec
     #[cfg(feature = "testing")]
     Fork5 = 5,
 }
