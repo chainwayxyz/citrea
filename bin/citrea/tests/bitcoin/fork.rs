@@ -18,6 +18,7 @@ use citrea_evm::smart_contracts::{
     CrazyKeccakContract, G1AddCallerContract, P256VerifyCallerContract,
     SchnorrVerifyCallerContract, SimpleStorageContract,
 };
+use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_primitives::forks::{get_forks, use_network_forks};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::Network;
@@ -118,6 +119,14 @@ impl TestCase for ForkActivationTest {
         self.test_tangelo30m_features(sequencer, &seq_test_client, &contracts)
             .await
             .unwrap();
+
+        // produce 15 more L2 blocks to make sure sequencer commits after Tangelo30M
+        for _ in 0..15 {
+            sequencer.client.send_publish_batch_request().await?;
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+
+        self.wait_for_finalization(da, full_node).await;
 
         Ok(())
     }
@@ -702,6 +711,44 @@ impl ForkActivationTest {
         assert!(!traces.is_empty());
 
         Ok(())
+    }
+
+    async fn wait_for_finalization(
+        &self,
+        da: &BitcoinNode,
+        full_node: &citrea_e2e::node::FullNode,
+    ) {
+        // 5 mins timeout
+        let timeout = Duration::from_secs(300);
+        let start = tokio::time::Instant::now();
+
+        while tokio::time::Instant::now() - start < timeout {
+            let finalized_height = da.get_finalized_height(None).await.unwrap();
+
+            full_node
+                .wait_for_l1_height(finalized_height, None)
+                .await
+                .unwrap();
+
+            let last_proven_l2_height = full_node
+                .client
+                .http_client()
+                .get_last_proven_l2_height()
+                .await
+                .unwrap()
+                .unwrap()
+                .height;
+
+            // last proven must be above tangelo30m activation height (400)
+            if last_proven_l2_height >= 400 {
+                return;
+            }
+
+            da.generate(1).await.unwrap();
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+
+        panic!("Timeout waiting for finalization");
     }
 }
 
