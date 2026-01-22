@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use alloy::signers::SignerSync;
 use alloy_primitives::{Address, Bytes, U256, U64};
+use alloy_rpc_types::TransactionRequest;
 use async_trait::async_trait;
 use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
 use citrea_e2e::config::{CitreaMode, SequencerConfig, TestCaseConfig};
@@ -105,11 +106,15 @@ impl TestCase for ForkActivationTest {
             .await
             .unwrap();
 
+        self.test_big_tx_before_tangelo30m(sequencer, &seq_test_client, &contracts)
+            .await
+            .unwrap();
+
         self.advance_to_tangelo30m(sequencer, tangelo30m_height)
             .await
             .unwrap();
 
-        self.test_tangelo30m_features(sequencer, &seq_test_client)
+        self.test_tangelo30m_features(sequencer, &seq_test_client, &contracts)
             .await
             .unwrap();
 
@@ -543,6 +548,37 @@ impl ForkActivationTest {
         Ok(())
     }
 
+    async fn test_big_tx_before_tangelo30m(
+        &self,
+        sequencer: &Sequencer,
+        client: &TestClient,
+        contracts: &TestContracts,
+    ) -> Result<()> {
+        println!(
+            "Running test_big_tx_before_tangelo30m at height {}",
+            sequencer.client.ledger_get_head_l2_block_height().await?
+        );
+
+        let req = TransactionRequest::default()
+            .from(client.from_addr)
+            .to(contracts.crazy_keccak)
+            .input(
+                CrazyKeccakContract::default()
+                    .call_crazy_keccak(30000)
+                    .into(),
+            );
+
+        assert!(client
+            .client
+            .estimate_gas(req)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("gas required exceeds: 10000000"));
+
+        Ok(())
+    }
+
     async fn advance_to_tangelo30m(
         &self,
         sequencer: &Sequencer,
@@ -569,6 +605,7 @@ impl ForkActivationTest {
         &self,
         sequencer: &Sequencer,
         client: &TestClient,
+        contracts: &TestContracts,
     ) -> Result<()> {
         let head_block = client.eth_get_block_by_number(None).await;
 
@@ -597,6 +634,27 @@ impl ForkActivationTest {
         println!("second block number: {}", head_block.header.number + 1);
         let new_head_block = client.eth_get_block_by_number(None).await;
         assert_eq!(new_head_block.header.gas_limit, 30_000_000);
+
+        // Try big tx again
+        let pending_tx = client
+            .contract_transaction(
+                contracts.crazy_keccak,
+                CrazyKeccakContract::default()
+                    .call_crazy_keccak(30000)
+                    .into(),
+                None,
+            )
+            .await;
+
+        sequencer.client.send_publish_batch_request().await?;
+
+        let receipt = pending_tx.get_receipt().await.unwrap();
+
+        assert!(receipt.status(), "Big tx should succeed after Tangelo30M");
+        assert!(
+            receipt.gas_used > 10_000_000,
+            "Big tx should use more than 10M gas"
+        );
 
         Ok(())
     }
