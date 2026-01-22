@@ -66,6 +66,8 @@ impl TestCase for ForkActivationTest {
         println!("Running with forks : {:?}", get_forks());
         let kumquat_height = get_forks()[1].activation_height;
         let tangerine_height = get_forks()[2].activation_height;
+        let _tangelo_height = get_forks()[3].activation_height;
+        let tangelo30m_height = get_forks()[4].activation_height;
 
         let seq_test_client = make_test_client(SocketAddr::new(
             sequencer.config().rpc_bind_host().parse()?,
@@ -100,6 +102,14 @@ impl TestCase for ForkActivationTest {
             .unwrap();
 
         self.verify_sequencer_commitment(sequencer, da, batch_prover, full_node, tangerine_height)
+            .await
+            .unwrap();
+
+        self.advance_to_tangelo30m(sequencer, tangelo30m_height)
+            .await
+            .unwrap();
+
+        self.test_tangelo30m_features(sequencer, &seq_test_client)
             .await
             .unwrap();
 
@@ -521,6 +531,64 @@ impl ForkActivationTest {
             "First commitment should be after Tangerine fork"
         );
         assert_eq!(commitment.index.to::<u32>(), 1);
+
+        Ok(())
+    }
+
+    async fn advance_to_tangelo30m(
+        &self,
+        sequencer: &Sequencer,
+        tangelo30m_height: u64,
+    ) -> Result<()> {
+        let current_height = sequencer.client.ledger_get_head_l2_block_height().await?;
+
+        if current_height >= tangelo30m_height {
+            return Ok(());
+        }
+
+        for _ in current_height..tangelo30m_height {
+            sequencer.client.send_publish_batch_request().await?;
+
+            if sequencer.client.ledger_get_head_l2_block_height().await? >= tangelo30m_height {
+                break;
+            }
+        }
+
+        sequencer.wait_for_l2_height(tangelo30m_height, None).await
+    }
+
+    async fn test_tangelo30m_features(
+        &self,
+        sequencer: &Sequencer,
+        client: &TestClient,
+    ) -> Result<()> {
+        let head_block = client.eth_get_block_by_number(None).await;
+
+        println!(
+            "Running test_tangelo30m_features at height {}",
+            head_block.header.number
+        );
+        assert_eq!(head_block.header.gas_limit, 30_000_000);
+
+        // before tangelo30m it should be 10_000_000
+
+        let tangelo30m_activation_height = get_forks()[4].activation_height;
+
+        let last_block_before_tangelo30m = client
+            .eth_get_block_by_number(Some((tangelo30m_activation_height - 1).into()))
+            .await;
+
+        assert_eq!(last_block_before_tangelo30m.header.gas_limit, 10_000_000);
+
+        // publish one more block and check gas limit is still 30_000_000
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer
+            .wait_for_l2_height(head_block.header.number + 1, None)
+            .await?;
+
+        println!("second block number: {}", head_block.header.number + 1);
+        let new_head_block = client.eth_get_block_by_number(None).await;
+        assert_eq!(new_head_block.header.gas_limit, 30_000_000);
 
         Ok(())
     }
