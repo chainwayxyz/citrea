@@ -39,7 +39,7 @@ impl CitreaMempool {
     ) -> anyhow::Result<Self> {
         let blob_store = NoopBlobStore::default();
 
-        let evm_config = client.cfg();
+        // let evm_config = client.cfg();
 
         // Default 10x'ed from standard limits
         let pool_config = PoolConfig {
@@ -71,7 +71,7 @@ impl CitreaMempool {
             .set_prague(true)
             // TODO: if we ever increase block gas limits, we need to pull this from
             // somewhere else
-            .set_block_gas_limit(evm_config.block_gas_limit)
+            .set_block_gas_limit(30_000_000/*evm_config.block_gas_limit*/)
             .build_with_tasks::<EthPooledTransaction, _, _>(task_executor, blob_store);
 
         Ok(Self(Pool::eth_pool(validator, blob_store, pool_config)))

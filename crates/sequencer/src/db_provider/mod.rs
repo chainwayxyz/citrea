@@ -216,7 +216,11 @@ impl BlockReaderIdExt for DbProvider {
             .evm
             .get_block_by_number(Some(id), None, &mut working_set, &self.ledger_db)
         {
-            Ok(Some(block)) => Ok(Some(block.inner.header.into_consensus())),
+            Ok(Some(block)) => {
+                let mut x = block.inner.header.clone();
+                x.gas_limit = 30_000_000;
+                Ok(Some(x.into_consensus()))
+            },
             Ok(None) => Ok(None),
             Err(_) => Ok(None),
         }
