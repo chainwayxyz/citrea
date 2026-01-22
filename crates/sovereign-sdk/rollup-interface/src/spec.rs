@@ -42,14 +42,16 @@ pub enum SpecId {
     /// 5. LCP Method ID update is now done with 3/5 multisig of security council
     /// 6. Minimum base fee is now set to 0.001 gwei
     Tangelo = 3,
+    /// Increase EVM block gas limits to 30M
+    Tangelo30M = 4,
     /// Fork4 spec
     #[cfg(feature = "testing")]
-    Fork4 = 4,
+    Fork5 = 5,
 }
 
 impl SpecId {
     /// Get the latest active (official) SpecId.
     pub const fn latest() -> Self {
-        Self::Tangelo
+        Self::Tangelo30M
     }
 }

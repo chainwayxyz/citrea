@@ -45,6 +45,18 @@ pub fn get_forks() -> &'static [Fork] {
     }
 }
 
+pub fn get_tangelo_30m_activation_height() -> u64 {
+    let forks = get_forks();
+    // TODO: remove .rev after we have more than 3 forks
+    // on mainnet
+    for fork in forks.iter().rev() {
+        if fork.spec_id == SpecId::Tangelo30M {
+            return fork.activation_height;
+        }
+    }
+    panic!("Tangelo30M fork not found in the current forks");
+}
+
 /// Get fork from the given block number. Forks must be set before calling this method if not in test environment.
 /// In test environment default forks are used.
 pub fn fork_from_block_number(block_number: u64) -> Fork {
@@ -69,11 +81,12 @@ pub const DEVNET_FORKS: [Fork; 2] = [
 
 pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::latest(), 0)];
 
-pub const ALL_FORKS: [Fork; 4] = [
+pub const ALL_FORKS: [Fork; 5] = [
     Fork::new(SpecId::Genesis, 0),
     Fork::new(SpecId::Kumquat, 100),
     Fork::new(SpecId::Tangerine, 200),
     Fork::new(SpecId::Tangelo, 210),
+    Fork::new(SpecId::Tangelo30M, 220),
     // Add the next fork here when needed
 ];
 
