@@ -555,7 +555,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
         None,
         rollup_config,
         Some(sequencer_config),
-        None,
+        Some(sov_rollup_interface::Network::TestNetworkWithForks),
         false,
     )
     .await;
