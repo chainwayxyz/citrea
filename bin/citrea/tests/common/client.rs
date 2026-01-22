@@ -179,12 +179,13 @@ impl TestClient {
         Ok(receipt_req)
     }
 
-    pub(crate) async fn contract_transaction(
+    pub(crate) async fn contract_transaction_with_gas(
         &self,
         contract_address: Address,
         data: Vec<u8>,
         nonce: Option<u64>,
-    ) -> PendingTransactionBuilder<Ethereum> {
+        gas: Option<u64>
+    ) -> anyhow::Result<PendingTransactionBuilder<Ethereum>> {
         let nonce = match nonce {
             Some(nonce) => nonce,
             None => self.current_nonce.fetch_add(1, Ordering::Relaxed),
@@ -194,7 +195,10 @@ impl TestClient {
             .to(contract_address)
             .input(data.into());
 
-        let gas = self.client.estimate_gas(req.clone()).await.unwrap();
+        let gas = match gas {
+            Some(g) => g,
+            None => self.client.estimate_gas(req.clone()).await.unwrap(),
+        };
 
         let req = req
             .gas_limit(gas)
@@ -202,7 +206,18 @@ impl TestClient {
             .max_priority_fee_per_gas(10)
             .max_fee_per_gas(MAX_FEE_PER_GAS);
 
-        self.client.send_transaction(req).await.unwrap()
+        self.client.send_transaction(req)
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub(crate) async fn contract_transaction(
+        &self,
+        contract_address: Address,
+        data: Vec<u8>,
+        nonce: Option<u64>,
+    ) -> PendingTransactionBuilder<Ethereum> {
+        self.contract_transaction_with_gas(contract_address, data, nonce, None).await.unwrap()
     }
 
     #[allow(dead_code)]
