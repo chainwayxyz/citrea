@@ -63,14 +63,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // since we know the previous state root only here, we can set the last block hash
         self.blockhash_set(parent_block_number, &last_block_hash, working_set);
 
-        let cfg = self
+        let mut cfg = self
             .cfg
             .get(working_set)
             .expect("EVM chain config should be set");
 
         if get_tangelo_30m_activation_height() == parent_block_number + 1 {
-            let mut cfg = cfg.clone();
-
             cfg.block_gas_limit = 30_000_000;
 
             self.cfg.set(&cfg, working_set);
