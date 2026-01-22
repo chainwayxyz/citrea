@@ -639,9 +639,7 @@ impl ForkActivationTest {
         let pending_tx = client
             .contract_transaction(
                 contracts.crazy_keccak,
-                CrazyKeccakContract::default()
-                    .call_crazy_keccak(30000)
-                    .into(),
+                CrazyKeccakContract::default().call_crazy_keccak(30000),
                 None,
             )
             .await;

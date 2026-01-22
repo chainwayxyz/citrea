@@ -1,9 +1,9 @@
-use alloy_primitives::{Bytes, U256};
+use alloy_primitives::U256;
 use alloy_sol_types::{sol, SolCall};
 
 use super::TestContract;
 
-// SchnorrVerifyCaller wrapper.
+// CrazyKeccak wrapper.
 sol! {
     #[sol(abi)]
     CrazyKeccak,
