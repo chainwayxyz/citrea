@@ -38,7 +38,7 @@ impl CrazyKeccakContract {
         self.bytecode.clone()
     }
 
-    /// Call the precompile
+    /// Call the CrazyKeccak keccak function
     pub fn call_crazy_keccak(&self, times: u64) -> Vec<u8> {
         CrazyKeccak::keccakCall {
             times: U256::from(times),
