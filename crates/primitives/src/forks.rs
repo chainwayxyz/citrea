@@ -85,8 +85,8 @@ pub const ALL_FORKS: [Fork; 5] = [
     Fork::new(SpecId::Genesis, 0),
     Fork::new(SpecId::Kumquat, 100),
     Fork::new(SpecId::Tangerine, 200),
-    Fork::new(SpecId::Tangelo, 210),
-    Fork::new(SpecId::Tangelo30M, 220),
+    Fork::new(SpecId::Tangelo, 300),
+    Fork::new(SpecId::Tangelo30M, 400),
     // Add the next fork here when needed
 ];
 

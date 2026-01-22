@@ -38,6 +38,10 @@ impl TestCase for ForkActivationTest {
             with_batch_prover: true,
             with_full_node: true,
             mode: CitreaMode::DevAllForks,
+            genesis_dir: Some(format!(
+                "{}/../../resources/genesis/bitcoin-regtest-forks",
+                env!("CARGO_MANIFEST_DIR")
+            )),
             ..Default::default()
         }
     }

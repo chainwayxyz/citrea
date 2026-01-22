@@ -154,11 +154,11 @@ pub mod bitcoinda {
     /// Genesis LCP root for the Bitcoin DA on Test Network with Forks.
     /// This root is set at compile time via the `L2_GENESIS_ROOT` environment variable.
     /// If the variable is not set, it defaults to the genesis root from the
-    /// genesis config under resources/genesis/bitcoin-regtest.
+    /// genesis config under resources/genesis/bitcoin-regtest-forks.
     pub const TEST_NETWORK_WITH_FORKS_GENESIS_ROOT: [u8; 32] = {
         let hex_root = match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
-            None => "87f4f2b4660485ea3ca667033a7fbd077a627946f0b444da101c6cc23a438382",
+            None => "c44fc1d33c53d4d5527662b489e3648af124bd81d9573ca5af9ad46bd0754f93",
         };
 
         match const_hex::const_decode_to_array(hex_root.as_bytes()) {
@@ -229,20 +229,12 @@ pub mod bitcoinda {
         const METHOD_IDS: &[(u64, [u32; 8])] = match option_env!("BATCH_PROOF_METHOD_ID") {
             Some(hex_method_id) => &[(0, decode_to_u32_array(hex_method_id))],
             None => &[
-                (
-                    0,
-                    decode_to_u32_array(
-                        "382a4e434d1b4b0912604a9de8876e75ff7603680c90107d78f6f71784ef1922",
-                    ),
-                ),
-                (
-                    100,
-                    decode_to_u32_array(
-                        "7d28b6b03836af95eedd4c0aedfe93ed89d28356f0714dd01009a0b892585c03",
-                    ),
-                ),
-                (100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
+                // tangerine
                 (200, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
+                // tangelo
+                (300, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
+                // tangelo30m
+                (400, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
             ],
         };
         NonEmptySlice::new(METHOD_IDS)
