@@ -3,6 +3,7 @@ use alloy_consensus::{proofs, Header as AlloyHeader, TxReceipt};
 use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::{Bloom, Bytes, B256, B64, U256};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
+use citrea_primitives::forks::get_tangelo_30m_activation_height;
 use revm::context::BlockEnv;
 use revm::context_interface::block::BlobExcessGasAndPrice;
 use revm::primitives::hardfork::SpecId;
@@ -66,6 +67,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .cfg
             .get(working_set)
             .expect("EVM chain config should be set");
+
+        if get_tangelo_30m_activation_height() == parent_block_number + 1 {
+            let mut cfg = cfg.clone();
+
+            cfg.block_gas_limit = 30_000_000;
+
+            self.cfg.set(&cfg, working_set);
+        }
+
         let basefee = calculate_next_block_base_fee(
             parent_block_gas_used,
             parent_block_gas_limit,
