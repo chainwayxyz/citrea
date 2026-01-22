@@ -68,7 +68,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(working_set)
             .expect("EVM chain config should be set");
 
-        if get_tangelo_30m_activation_height() == parent_block_number + 1 {
+        if get_tangelo_30m_activation_height().is_some_and(|num| num == parent_block_number + 1) {
             cfg.block_gas_limit = 30_000_000;
 
             self.cfg.set(&cfg, working_set);
