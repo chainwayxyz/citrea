@@ -4,7 +4,8 @@ use std::time::Duration;
 
 use alloy::signers::SignerSync;
 use alloy_primitives::{Address, Bytes, U256, U64};
-use alloy_rpc_types::TransactionRequest;
+use alloy_rpc_types::{BlockId, TransactionRequest};
+use alloy_rpc_types_trace::geth::{CallConfig, GethDebugTracingOptions};
 use async_trait::async_trait;
 use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
 use citrea_e2e::config::{CitreaMode, SequencerConfig, TestCaseConfig};
@@ -631,7 +632,6 @@ impl ForkActivationTest {
             .wait_for_l2_height(head_block.header.number + 1, None)
             .await?;
 
-        println!("second block number: {}", head_block.header.number + 1);
         let new_head_block = client.eth_get_block_by_number(None).await;
         assert_eq!(new_head_block.header.gas_limit, 30_000_000);
 
@@ -653,6 +653,39 @@ impl ForkActivationTest {
             receipt.gas_used > 10_000_000,
             "Big tx should use more than 10M gas"
         );
+
+        // now let's try some of the RPC calls that depend on block gas limit
+        let req = TransactionRequest::default()
+            .from(client.from_addr)
+            .to(contracts.crazy_keccak)
+            .input(
+                CrazyKeccakContract::default()
+                    .call_crazy_keccak(30000)
+                    .into(),
+            );
+
+        let _ = client
+            .client
+            .call(req.clone())
+            .block(BlockId::Number((tangelo30m_activation_height - 2).into()))
+            .await
+            .unwrap_err();
+
+        let _ = client
+            .client
+            .estimate_gas(req.clone())
+            .block(BlockId::Number((tangelo30m_activation_height - 2).into()))
+            .await
+            .unwrap_err();
+
+        let traces = client
+            .debug_trace_block_by_number(
+                alloy_rpc_types::BlockNumberOrTag::Number(receipt.block_number.unwrap()),
+                Some(GethDebugTracingOptions::call_tracer(CallConfig::default())),
+            )
+            .await;
+
+        assert!(!traces.is_empty());
 
         Ok(())
     }
