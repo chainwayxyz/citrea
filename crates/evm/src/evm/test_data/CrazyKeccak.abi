@@ -1,0 +1,1 @@
+[{"inputs":[{"internalType":"uint256","name":"times","type":"uint256"}],"name":"keccak","outputs":[{"internalType":"bytes32","name":"h","type":"bytes32"}],"stateMutability":"view","type":"function"}]

@@ -13,8 +13,8 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
 use citrea_evm::smart_contracts::{
-    G1AddCallerContract, P256VerifyCallerContract, SchnorrVerifyCallerContract,
-    SimpleStorageContract,
+    CrazyKeccakContract, G1AddCallerContract, P256VerifyCallerContract,
+    SchnorrVerifyCallerContract, SimpleStorageContract,
 };
 use citrea_primitives::forks::{get_forks, use_network_forks};
 use sov_ledger_rpc::LedgerRpcClient;
@@ -121,6 +121,7 @@ struct TestContracts {
     schnorr_caller: Address,
     p256_caller: Address,
     g1_add_caller: Address,
+    crazy_keccak: Address,
 }
 
 impl ForkActivationTest {
@@ -153,6 +154,12 @@ impl ForkActivationTest {
             .unwrap();
         let g1_add_caller = client.from_addr.create(3);
 
+        let _ = client
+            .deploy_contract(CrazyKeccakContract::default().byte_code(), None)
+            .await
+            .unwrap();
+        let crazy_keccak = client.from_addr.create(4);
+
         tokio::time::sleep(Duration::from_secs(1)).await;
         sequencer.client.send_publish_batch_request().await?;
         sequencer.wait_for_l2_height(1, None).await?;
@@ -161,6 +168,7 @@ impl ForkActivationTest {
             schnorr_caller,
             p256_caller,
             g1_add_caller,
+            crazy_keccak,
         };
 
         Ok(contracts)
