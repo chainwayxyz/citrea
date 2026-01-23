@@ -173,8 +173,10 @@ alloy-signer-local = { version = "0.13.0", default-features = false }
 
 citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "10ff3e2" }
 
+clementine-tx-sender = { git = "https://github.com/chainwayxyz/clementine", package = "clementine-tx-sender", rev = "4151bc5d4aacd0d1ccbe6c390ce931a429ebd49e", features = ["citrea", "standalone", "testing"] }
+
 [patch.crates-io]
-bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "a6e011a" }
+bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "84955c9695e462df42e48f0f90999640a54da774" }
 # Use our fork of revm-inspectors to apply fixes after v0.18.1
 # Cannot update to latest as it requires latest revm, which we cannot use yet
 revm-inspectors = { git = "https://github.com/chainwayxyz/revm-inspectors", rev = "574d614ce505d3c0c4534d8b8e62d8acb3fa9651" }

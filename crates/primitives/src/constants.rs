@@ -1,10 +1,10 @@
 use sov_rollup_interface::spec::SpecId;
 
 /// Prefix for the reveal transaction ids.
-#[cfg(feature = "testing")]
+// #[cfg(feature = "testing")]
 pub const REVEAL_TX_PREFIX: &[u8] = &[2]; // since we changed the prefix to 1 genesis fork proving tests fail
-#[cfg(not(feature = "testing"))]
-pub const REVEAL_TX_PREFIX: &[u8] = &[2, 2];
+                                          // #[cfg(not(feature = "testing"))]
+                                          // pub const REVEAL_TX_PREFIX: &[u8] = &[2, 2];
 
 pub const TEST_PRIVATE_KEY: &str =
     "1212121212121212121212121212121212121212121212121212121212121212";

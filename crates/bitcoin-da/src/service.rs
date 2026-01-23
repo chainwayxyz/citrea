@@ -26,6 +26,11 @@ use borsh::BorshDeserialize;
 use citrea_common::utils::read_env;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::{MAX_COMPRESSED_BLOB_SIZE, MAX_TX_BODY_SIZE};
+use clementine_tx_sender::config::TxSenderBitcoinRpcConfig;
+use clementine_tx_sender::jsonrpc::client::JsonRpcTxSenderClient;
+use clementine_tx_sender::task::spawn_txsender_loop_with_free_localhost_jsonrpc_port;
+use clementine_tx_sender::DEFAULT_FINALITY_DEPTH;
+use itertools::Itertools;
 use lru::LruCache;
 use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
@@ -156,11 +161,13 @@ pub struct BitcoinService {
     tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
     pub(crate) tx_signer: TxSigner,
     pub(crate) utxo_manager: UtxoManager,
+    pub(crate) tx_sender_client: Option<JsonRpcTxSenderClient>,
 }
 
 impl BitcoinService {
     #[allow(clippy::too_many_arguments)]
-    fn new(
+    async fn new(
+        btc_config: &BitcoinServiceConfig,
         client: Arc<Client>,
         network: bitcoin::Network,
         network_constants: NetworkConstants,
@@ -173,6 +180,29 @@ impl BitcoinService {
         tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
         utxo_manager: UtxoManager,
     ) -> Self {
+        let tx_sender_client = match da_private_key {
+            Some(da_private_key) => {
+                let (mut config, _, _) =
+                    clementine_tx_sender::test_utils::create_test_environment(true, false).await;
+                config.network = network;
+                config.secret_key = da_private_key;
+                config.bitcoin_rpc = TxSenderBitcoinRpcConfig {
+                    url: btc_config.node_url.clone(),
+                    user: btc_config.node_username.clone().into(),
+                    password: btc_config.node_password.clone().into(),
+                };
+                config.finality_depth = DEFAULT_FINALITY_DEPTH;
+                let (txsender_addr, _handle) =
+                    spawn_txsender_loop_with_free_localhost_jsonrpc_port(config);
+                let url = format!("http://{txsender_addr}");
+                Some(JsonRpcTxSenderClient::new(&url).expect("Failed to create tx sender client"))
+            }
+            None => {
+                tracing::warn!("No DA private key provided in config, not using txsender");
+                None
+            }
+        };
+
         Self {
             tx_signer: TxSigner::new(client.clone()),
             client,
@@ -189,6 +219,7 @@ impl BitcoinService {
             ))),
             tx_queue,
             utxo_manager,
+            tx_sender_client,
         }
     }
 
@@ -238,6 +269,7 @@ impl BitcoinService {
         );
 
         Ok(Self::new(
+            config,
             client,
             network,
             network_constants,
@@ -249,7 +281,8 @@ impl BitcoinService {
             tx_backup_dir.to_path_buf(),
             tx_queue,
             utxo_manager,
-        ))
+        )
+        .await)
     }
 
     /// Run the task to process the DA commands from the queue.
@@ -261,8 +294,6 @@ impl BitcoinService {
         mut shutdown: GracefulShutdown,
     ) {
         trace!("BitcoinDA queue is initialized. Waiting for the first request...");
-        let mut fee_rate_multiplier = self.fee.base_fee_rate_multiplier();
-
         loop {
             select! {
                 biased;
@@ -281,51 +312,44 @@ impl BitcoinService {
                 request_opt = rx.recv() => {
                     if let Some(request) = request_opt {
                         trace!("A new request is received");
-
-                        loop {
-                            // Build and queue tx with retries:
-                            let fee_sat_per_vbyte = match self.fee.get_fee_rate().await {
-                                Ok(rate) => rate * fee_rate_multiplier,
-                                Err(e) => {
-                                    error!(?e, "Failed to call get_fee_rate. Retrying...");
-                                    tokio::time::sleep(Duration::from_secs(1)).await;
-                                    continue;
-                                }
-                            };
-                            match self
-                                .send_transaction_with_fee_rate(
-                                    request.tx_request.clone(),
-                                    fee_sat_per_vbyte,
-                                )
-                                .await
-                            {
-                                Ok(txs) => {
-                                    let txid = txs.last().unwrap()[1].id;
-                                    let tx_id = TxidWrapper(txid);
-                                    info!(%txid, "Sent tx to BitcoinDA");
-                                    let _ = request.notify.send(Ok(tx_id));
-
-                                    fee_rate_multiplier = self.fee.base_fee_rate_multiplier();
-                                }
-                                Err(e) => {
-                                    error!(?e, "Failed to send transaction to DA layer");
-                                    tokio::time::sleep(Duration::from_secs(1)).await;
-
-                                    match e {
-                                        BitcoinServiceError::MempoolRejection(MempoolRejection::MinRelayFeeNotMet) | BitcoinServiceError::FeeCalculation(_) => {
-                                            fee_rate_multiplier = self.fee.get_next_fee_rate_multiplier(fee_rate_multiplier);
-                                        },
-                                        BitcoinServiceError::QueueNotEmpty => {
-                                            let _ = self.process_transaction_queue().await;
-                                        },
-                                        _ => {}
-                                    }
-
-                                    continue;
-                                }
+                        let data = match request.tx_request {
+                            DaTxRequest::ZKProof(zkproof) => split_proof(zkproof).expect("Failed to split proof"),
+                            DaTxRequest::SequencerCommitment(comm) => {
+                                let data = DataOnDa::SequencerCommitment(comm);
+                                let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
+                                RawTxData::SequencerCommitment(blob)
                             }
-                            break;
-                        }
+                            DaTxRequest::BatchProofMethodId(method_id) => {
+                                let data = DataOnDa::BatchProofMethodId(method_id);
+                                let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
+                                RawTxData::BatchProofMethodId(blob)
+                            }
+                        };
+
+                        let raw_tx_data = match data {
+                            RawTxData::SequencerCommitment(blob) => {
+                                tracing::warn!("Sending sequencer commitment tx, size: {}", blob.len());
+                                clementine_tx_sender::citrea::RawTxData::SequencerCommitment(blob)
+                            }
+                            RawTxData::BatchProofMethodId(blob) => {
+                                tracing::warn!("Sending batch proof method id tx, size: {}", blob.len());
+                                clementine_tx_sender::citrea::RawTxData::BatchProofMethodId(blob)
+                            }
+                            RawTxData::Complete(blob) => {
+                                tracing::warn!("Sending complete tx, size: {}", blob.len());
+                                clementine_tx_sender::citrea::RawTxData::BatchProof(blob)
+                            }
+                            RawTxData::Chunks(chunks) => {
+                                tracing::warn!("Sending chunks tx, number of chunks: {}, each chunk len: {}", chunks.len(), chunks.iter().map(|c| c.len()).join(","));
+                                clementine_tx_sender::citrea::RawTxData::Chunks(chunks)
+                            }
+                        };
+
+                        self.tx_sender_client.as_ref().expect("No da key given so no txsender exists").send_citrea_tx(raw_tx_data).await.expect("Failed to send transaction to txsender");
+
+                        let txid = Txid::all_zeros();
+                        let tx_id = TxidWrapper(txid);
+                        let _ = request.notify.send(Ok(tx_id));
                     }
                 }
             }

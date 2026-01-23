@@ -175,6 +175,7 @@ impl FeeService {
                     txid: utxo.tx_id,
                     vout: utxo.vout,
                     sequence: Some(Sequence::ENABLE_RBF_NO_LOCKTIME.to_consensus_u32()),
+                    weight: None,
                 }],
                 &outputs,
                 None,
