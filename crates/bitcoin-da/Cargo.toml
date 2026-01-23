@@ -20,6 +20,7 @@ async-trait = { workspace = true, optional = true }
 backoff = { workspace = true, optional = true }
 bitcoin = { workspace = true }
 borsh = { workspace = true }
+clementine-tx-sender = { workspace = true, optional = true, features = ["citrea", "standalone", "testing"] }
 crypto-bigint = { workspace = true }
 futures = { workspace = true, optional = true }
 hex = { workspace = true, features = ["serde"] }
@@ -38,7 +39,6 @@ sha2 = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"], optional = true }
 tracing = { workspace = true, optional = true }
-clementine-tx-sender = { workspace = true, optional = true, features = ["citrea", "standalone", "testing"] }
 
 bitcoincore-rpc = { workspace = true, optional = true }
 
