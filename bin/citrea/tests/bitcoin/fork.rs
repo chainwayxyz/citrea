@@ -692,14 +692,18 @@ impl ForkActivationTest {
             .call(req.clone())
             .block(BlockId::Number((tangelo30m_activation_height - 2).into()))
             .await
-            .unwrap_err();
+            .unwrap_err()
+            .to_string()
+            .contains("gas required exceeds: 10000000");
 
         let _ = client
             .client
             .estimate_gas(req.clone())
             .block(BlockId::Number((tangelo30m_activation_height - 2).into()))
             .await
-            .unwrap_err();
+            .unwrap_err()
+            .to_string()
+            .contains("gas required exceeds: 10000000");
 
         let traces = client
             .debug_trace_block_by_number(
