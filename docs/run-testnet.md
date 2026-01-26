@@ -4,11 +4,13 @@ Download our testnet docker-compose file:
 
 ```sh
 curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/docker/docker-compose.yml --output docker-compose.yml
+mkdir -p genesis
+curl -L https://static.testnet.citrea.xyz/genesis.tar.gz | tar xz --strip-components=1 -C genesis
 ```
 
 Then use `docker-compose` to both launch a Bitcoin testnet4 node and Citrea full node:
 ```sh
-docker-compose -f docker/docker-compose.yml up
+docker-compose -f docker-compose.yml up
 ```
 
 # Run a Citrea Testnet Full Node
@@ -260,4 +262,46 @@ If you've made any changes to your bitcoin node url, username or password, don't
 
 ### Option 3: Using Docker
 
-See the [top section](#tl-dr-i-want-to-run-it-asap).
+#### Quick Start with docker-compose
+
+See the [top section](#tl-dr-i-want-to-run-it-asap). Make sure your testnet genesis files are available at `./genesis` relative to the compose file.
+
+#### Running Docker Manually
+
+1. Download genesis files:
+```sh
+mkdir -p genesis
+curl -L https://static.testnet.citrea.xyz/genesis.tar.gz | tar xz -C genesis
+```
+
+2. Run the full node:
+```sh
+docker run -d \
+  -e NETWORK=testnet \
+  -e NODE_URL=http://<your-bitcoin-node>:18443 \
+  -e NODE_USERNAME=<citrea> \
+  -e NODE_PASSWORD=<citrea> \
+  -v $(pwd)/genesis:/app/genesis:ro \
+  -v citrea-data:/mnt/task/citrea-db \
+  -p 8080:8080 \
+  chainwayxyz/citrea-full-node:latest
+```
+
+#### Environment Variables
+
+**Required:**
+| Variable | Description |
+|----------|-------------|
+| `NETWORK` | Network to run on: `mainnet`, `testnet`, or `devnet` |
+| `NODE_URL` | Bitcoin node RPC URL |
+| `NODE_USERNAME` | Bitcoin RPC username |
+| `NODE_PASSWORD` | Bitcoin RPC password |
+
+**Auto-configured per network (can be overridden):**
+| Variable | Description |
+|----------|-------------|
+| `SEQUENCER_PUBLIC_KEY` | Sequencer's public key |
+| `SEQUENCER_DA_PUB_KEY` | Sequencer DA public key |
+| `PROVER_DA_PUB_KEY` | Prover DA public key |
+| `SCAN_L1_START_HEIGHT` | L1 block height to start syncing |
+| `SEQUENCER_CLIENT_URL` | Sequencer RPC URL |
