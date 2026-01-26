@@ -3,16 +3,18 @@ set -e
 
 NETWORK="${NETWORK:-mainnet}"
 DA_LAYER="${DA_LAYER:-bitcoin}"
-GENESIS_PATH="${GENESIS_PATH:-/app/genesis}"
 
 echo "=============================================="
 echo "Citrea Full Node - ${NETWORK}"
 echo "=============================================="
 
+# Resolve genesis path based on network (bundled in image)
+GENESIS_PATH="/app/genesis/${NETWORK}"
+
 # Validate genesis path exists
 if [ ! -d "$GENESIS_PATH" ]; then
   echo "ERROR: Genesis directory not found at $GENESIS_PATH"
-  echo "Please mount genesis files: -v /path/to/genesis:/app/genesis"
+  echo "Available networks: mainnet, testnet, devnet"
   exit 1
 fi
 

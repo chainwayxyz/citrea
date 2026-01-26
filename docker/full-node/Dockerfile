@@ -9,14 +9,12 @@ WORKDIR /app
 
 COPY citrea ./citrea
 COPY entrypoint.sh ./entrypoint.sh
+COPY genesis ./genesis
 RUN chmod +x ./entrypoint.sh ./citrea
 
 # Network defaults
 ENV NETWORK=mainnet
 ENV DA_LAYER=bitcoin
-
-# Genesis path - user mounts genesis files here
-ENV GENESIS_PATH=/app/genesis
 
 # Storage defaults
 ENV STORAGE_PATH=/mnt/task/citrea-db

@@ -4,8 +4,6 @@ Download our testnet docker-compose file:
 
 ```sh
 curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/docker/docker-compose.yml --output docker-compose.yml
-mkdir -p genesis
-curl -L https://static.testnet.citrea.xyz/genesis.tar.gz | tar xz --strip-components=1 -C genesis
 ```
 
 Then use `docker-compose` to both launch a Bitcoin testnet4 node and Citrea full node:
@@ -264,24 +262,17 @@ If you've made any changes to your bitcoin node url, username or password, don't
 
 #### Quick Start with docker-compose
 
-See the [top section](#tl-dr-i-want-to-run-it-asap). Make sure your testnet genesis files are available at `./genesis` relative to the compose file.
+See the [top section](#tl-dr-i-want-to-run-it-asap).
 
 #### Running Docker Manually
 
-1. Download genesis files:
-```sh
-mkdir -p genesis
-curl -L https://static.testnet.citrea.xyz/genesis.tar.gz | tar xz -C genesis
-```
-
-2. Run the full node:
+Run the full node:
 ```sh
 docker run -d \
   -e NETWORK=testnet \
-  -e NODE_URL=http://<your-bitcoin-node>:18443 \
-  -e NODE_USERNAME=<citrea> \
-  -e NODE_PASSWORD=<citrea> \
-  -v $(pwd)/genesis:/app/genesis:ro \
+  -e NODE_URL=<your_bitcoin_url> \
+  -e NODE_USERNAME=<your_usename> \
+  -e NODE_PASSWORD=<your_usename> \
   -v citrea-data:/mnt/task/citrea-db \
   -p 8080:8080 \
   chainwayxyz/citrea-full-node:latest

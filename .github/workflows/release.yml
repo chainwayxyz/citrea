@@ -162,6 +162,9 @@ jobs:
           # Download the binary using wget
           wget -O docker/full-node/citrea "${BINARY_URL}"
 
+          # Copy genesis files to Docker context
+          cp -r resources/genesis docker/full-node/genesis
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 

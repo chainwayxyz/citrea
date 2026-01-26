@@ -6,25 +6,16 @@ This guide covers running a Citrea full node on mainnet.
 
 - A fully synced Bitcoin mainnet node (with RPC enabled)
 - Docker installed
-- Mainnet genesis files
 
 ## Quick Start (Docker)
 
-1. Download genesis files:
-```sh
-mkdir -p genesis
-curl -L https://github.com/chainwayxyz/citrea/archive/refs/heads/nightly.tar.gz | \
-  tar xz --strip-components=4 -C genesis citrea-nightly/resources/genesis/mainnet
-```
-
-2. Run the full node:
+Run the full node:
 ```sh
 docker run -d \
   -e NETWORK=mainnet \
-  -e NODE_URL=http://<your-bitcoin-node>:8332 \
+  -e NODE_URL=<your_bitcoin_url> \
   -e NODE_USERNAME=<your_user> \
   -e NODE_PASSWORD=<your_pass> \
-  -v $(pwd)/genesis:/app/genesis:ro \
   -v citrea-data:/mnt/task/citrea-db \
   -p 8080:8080 \
   chainwayxyz/citrea-full-node:latest

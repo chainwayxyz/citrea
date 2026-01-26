@@ -54,7 +54,6 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./genesis:/app/genesis:ro
       - citrea-full-node:/mnt/task/citrea-db
     networks:
       - citrea-testnet-network
