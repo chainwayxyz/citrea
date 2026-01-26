@@ -164,7 +164,6 @@ jobs:
 
           mkdir -p docker/full-node/genesis
           cp -r resources/genesis/mainnet docker/full-node/genesis/
-          cp -r resources/genesis/devnet docker/full-node/genesis/
           cp -r resources/genesis/testnet docker/full-node/genesis/
 
       - name: Set up QEMU

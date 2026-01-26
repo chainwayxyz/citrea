@@ -283,7 +283,7 @@ docker run -d \
 **Required:**
 | Variable | Description |
 |----------|-------------|
-| `NETWORK` | Network to run on: `mainnet`, `testnet`, or `devnet` |
+| `NETWORK` | Network to run on: `mainnet` or `testnet` |
 | `NODE_URL` | Bitcoin node RPC URL |
 | `NODE_USERNAME` | Bitcoin RPC username |
 | `NODE_PASSWORD` | Bitcoin RPC password |
