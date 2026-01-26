@@ -2,7 +2,7 @@
 set -e
 
 NETWORK="${NETWORK:-mainnet}"
-DA_LAYER="${DA_LAYER:-bitcoin}"
+DA_LAYER="bitcoin"
 
 echo "=============================================="
 echo "Citrea Full Node - ${NETWORK}"
@@ -14,7 +14,7 @@ GENESIS_PATH="/app/genesis/${NETWORK}"
 # Validate genesis path exists
 if [ ! -d "$GENESIS_PATH" ]; then
   echo "ERROR: Genesis directory not found at $GENESIS_PATH"
-  echo "Available networks: mainnet, testnet, devnet"
+  echo "Available networks: mainnet, testnet"
   exit 1
 fi
 
@@ -34,15 +34,8 @@ case "$NETWORK" in
     : "${SCAN_L1_START_HEIGHT:=45496}"
     : "${SEQUENCER_CLIENT_URL:=https://rpc.testnet.citrea.xyz}"
     ;;
-  devnet)
-    : "${SEQUENCER_PUBLIC_KEY:=03745871636b11562a7f2d7c0e883a960b54c7e2c0a5427d4b99ac403588530589}"
-    : "${SEQUENCER_DA_PUB_KEY:=039cd55f9b3dcf306c4d54f66cd7c4b27cc788632cd6fb73d80c99d303c6536486}"
-    : "${PROVER_DA_PUB_KEY:=03fc6fb2ef68368009c895d2d4351dcca4109ec2f5f327291a0553570ce769f5e5}"
-    : "${SCAN_L1_START_HEIGHT:=0}"
-    : "${SEQUENCER_CLIENT_URL:=https://rpc.devnet.citrea.xyz}"
-    ;;
   *)
-    echo "ERROR: Unknown network '$NETWORK'. Valid options: mainnet, testnet, devnet"
+    echo "ERROR: Unknown network '$NETWORK'. Valid options: mainnet, testnet"
     exit 1
     ;;
 esac
