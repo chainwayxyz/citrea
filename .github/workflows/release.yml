@@ -162,8 +162,10 @@ jobs:
           # Download the binary using wget
           wget -O docker/full-node/citrea "${BINARY_URL}"
 
-          # Copy genesis files to Docker context
-          cp -r resources/genesis docker/full-node/genesis
+          mkdir -p docker/full-node/genesis
+          cp -r resources/genesis/mainnet docker/full-node/genesis/
+          cp -r resources/genesis/devnet docker/full-node/genesis/
+          cp -r resources/genesis/testnet docker/full-node/genesis/
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -202,4 +204,3 @@ jobs:
 
           docker push ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.VERSION_IMAGE_TAG }}
           docker push ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.GENERAL_IMAGE_TAG }}
-
