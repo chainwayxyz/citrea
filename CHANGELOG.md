@@ -1,6 +1,11 @@
 # Changelog
 
 ## [Unreleased]
+### Added
+- docs: Add mainnet run guide at `docks/run-mainnet.md`.
+
+### Changed
+- feat: unify fullnode docker image to be usable on mainnet.
 
 ## [v1.2.0] (2026-01-07)
 ### Added
