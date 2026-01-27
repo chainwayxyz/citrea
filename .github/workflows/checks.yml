@@ -188,7 +188,7 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
         with:
-          tool: cargo-llvm-cov@0.6.36
+          tool: cargo-llvm-cov@0.6.16
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
