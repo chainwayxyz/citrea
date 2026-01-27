@@ -624,9 +624,7 @@ impl BoundlessProver {
 
         let new_request = self.build_proof_request(
             // this now has receipt claim digest
-            failed_request.requirements.predicate.data.to_vec()[0..32]
-                .try_into()
-                .unwrap(),
+            receipt_claim.digest(),
             Url::parse(&failed_request.imageUrl).expect("Invalid image URL"),
             Url::parse(
                 core::str::from_utf8(&failed_request.input.data).expect("Invalid input URL"),
