@@ -193,12 +193,12 @@ impl BoundlessProver {
 
         // move non-Send logic to blocking thread
         // I had to do this because the executor env builder is not Send
-        let (journal, total_cycles_approx) = tokio::task::spawn_blocking({
+        let (journal, receipt_claim, total_cycles_approx,) = tokio::task::spawn_blocking({
             let elf = elf.clone(); // clone since we move into thread
             let input = input.clone();
             let assumptions = assumptions.clone();
 
-            move || -> anyhow::Result<(Journal, u64)> {
+            move || -> anyhow::Result<(Journal, ReceiptClaim, u64)> {
                 let mut env = ExecutorEnvBuilder::default();
                 for assumption in assumptions {
                     env.add_assumption(assumption);
@@ -216,7 +216,7 @@ impl BoundlessProver {
                     "Boundless proving session with job id: {job_id} takes {total_cycles_approx} cycles"
                 );
 
-                Ok((session_info.journal, total_cycles_approx))
+                Ok((session_info.journal, session_info.receipt_claim.expect("should exist"), total_cycles_approx))
             }
         })
         .await??;
@@ -252,8 +252,7 @@ impl BoundlessProver {
         let lock_timeout = cmp::max(lock_timeout, MIN_LOCK_TIMEOUT); // at least 200 seconds
 
         let request = self.build_proof_request(
-            image_id,
-            journal.digest(),
+            receipt_claim.digest(),
             image_url,
             input_url,
             U256::from(cmp::min(min_price, max_possible_price)),
@@ -264,12 +263,19 @@ impl BoundlessProver {
             lock_stake,
             bidding_start,
             total_cycles_approx,
-            Some(journal),
         );
 
         // Start boundless proving session
         let (req_id, request_expiry) = self
-            .send_request(request, job_id, image_id, receipt_type, total_cycles_approx)
+            .send_request(
+                request,
+                job_id,
+                image_id,
+                journal.clone(),
+                receipt_claim.clone(),
+                receipt_type,
+                total_cycles_approx,
+            )
             .await?;
 
         let rx = self.spawn_handler(
@@ -277,6 +283,8 @@ impl BoundlessProver {
             receipt_type,
             req_id,
             image_id,
+            journal,
+            receipt_claim,
             request_expiry,
             total_cycles_approx,
         );
@@ -287,8 +295,7 @@ impl BoundlessProver {
     #[allow(clippy::too_many_arguments)]
     pub fn build_proof_request(
         &self,
-        image_id: Digest,
-        journal_digest: Digest,
+        receipt_claim_digest: Digest,
         image_url: Url,
         input_url: Url,
         min_price_per_mcycle: U256,
@@ -299,40 +306,36 @@ impl BoundlessProver {
         lock_stake: u64,
         bidding_start: u64,
         total_cycles_approx: u64,
-        journal: Option<Journal>,
     ) -> RequestParams {
         // Note that offer ramp up period must be less than or equal to the lock timeout)
         let mcycles_count = total_cycles_approx.div_ceil(1_000_000);
 
-        let mut request_params =
-            self.client
-                .new_request()
-                .with_program_url(image_url)
-                .unwrap()
-                .with_input_url(input_url)
-                .unwrap()
-                .with_requirements(
-                    TryInto::<RequirementParams>::try_into(Requirements::new(
-                        Predicate::digest_match(image_id, journal_digest),
-                    ))
-                    .expect("TODO: handle error"),
-                )
-                .with_groth16_proof()
-                .with_offer(
-                    Offer::default()
-                        .with_min_price_per_mcycle(min_price_per_mcycle, mcycles_count)
-                        .with_max_price_per_mcycle(max_price_per_mcycle, mcycles_count)
-                        .with_lock_timeout(lock_timeout as u32)
-                        .with_timeout(timeout as u32)
-                        .with_ramp_up_period(ramp_up_period as u32)
-                        .with_lock_collateral(U256::from(lock_stake))
-                        .with_ramp_up_start(bidding_start),
-                )
-                .with_cycles(total_cycles_approx);
+        let request_params = self
+            .client
+            .new_request()
+            .with_program_url(image_url)
+            .unwrap()
+            .with_input_url(input_url)
+            .unwrap()
+            .with_requirements(
+                TryInto::<RequirementParams>::try_into(Requirements::new(
+                    Predicate::claim_digest_match(receipt_claim_digest),
+                ))
+                .expect("TODO: handle error"),
+            )
+            .with_groth16_proof()
+            .with_offer(
+                Offer::default()
+                    .with_min_price_per_mcycle(min_price_per_mcycle, mcycles_count)
+                    .with_max_price_per_mcycle(max_price_per_mcycle, mcycles_count)
+                    .with_lock_timeout(lock_timeout as u32)
+                    .with_timeout(timeout as u32)
+                    .with_ramp_up_period(ramp_up_period as u32)
+                    .with_lock_collateral(U256::from(lock_stake))
+                    .with_ramp_up_start(bidding_start),
+            )
+            .with_cycles(total_cycles_approx);
 
-        if let Some(journal) = journal {
-            request_params = request_params.with_journal(journal);
-        }
         request_params
     }
 
@@ -341,6 +344,8 @@ impl BoundlessProver {
         request: RequestParams,
         job_id: Uuid,
         image_id: Digest,
+        journal: Journal,
+        receipt_claim: ReceiptClaim,
         receipt_type: ReceiptType,
         total_cycles_approx: u64,
     ) -> Result<(String, u64), ClientError> {
@@ -376,6 +381,8 @@ impl BoundlessProver {
             request_id: req_id.clone(),
             request_expiry,
             image_id: image_id.into(),
+            journal_bytes: journal.bytes.to_vec(),
+            receipt_claim_bytes: borsh::to_vec(&receipt_claim).expect("should serialize"),
             receipt_type,
             total_cycles_approx,
         };
@@ -392,6 +399,8 @@ impl BoundlessProver {
         receipt_type: ReceiptType,
         request_id: String,
         image_id: Digest,
+        journal: Journal,
+        receipt_claim: ReceiptClaim,
         request_expiry: u64,
         total_cycles_approx: u64,
     ) -> oneshot::Receiver<ProofWithJob> {
@@ -403,7 +412,7 @@ impl BoundlessProver {
             let mut request_expiry = request_expiry;
             loop {
                 match this
-                    .handle_session(request_id.clone(), image_id, request_expiry)
+                    .handle_session(request_id.clone(), image_id, journal.clone(), receipt_claim.clone(), request_expiry)
                     .await
                 {
                     Ok(receipt) => {
@@ -451,6 +460,8 @@ impl BoundlessProver {
                             job_id,
                             &mut request_id,
                             &mut request_expiry,
+                            journal.clone(),
+                            receipt_claim.clone(),
                             total_cycles_approx,
                             image_id,
                             receipt_type,
@@ -502,6 +513,8 @@ impl BoundlessProver {
         job_id: Uuid,
         request_id: &mut String,
         request_expiry: &mut u64,
+        journal: Journal,
+        receipt_claim: ReceiptClaim,
         total_cycles_approx: u64,
         image_id: Digest,
         receipt_type: ReceiptType,
@@ -610,11 +623,8 @@ impl BoundlessProver {
         };
 
         let new_request = self.build_proof_request(
-            image_id,
-            // this now has image id and digest
-            // first 32 bytes is image id
-            // second 32 bytes is digest
-            failed_request.requirements.predicate.data.to_vec()[32..]
+            // this now has receipt claim digest
+            failed_request.requirements.predicate.data.to_vec()[0..32]
                 .try_into()
                 .unwrap(),
             Url::parse(&failed_request.imageUrl).expect("Invalid image URL"),
@@ -631,7 +641,6 @@ impl BoundlessProver {
             price_response.bidding_start,
             // TODO: https://github.com/chainwayxyz/citrea/issues/2820
             total_cycles_approx,
-            None,
         );
 
         let (new_req_id, new_exp_time) = match self
@@ -639,6 +648,8 @@ impl BoundlessProver {
                 new_request,
                 job_id,
                 image_id,
+                journal.clone(),
+                receipt_claim.clone(),
                 receipt_type,
                 total_cycles_approx,
             )
@@ -675,6 +686,8 @@ impl BoundlessProver {
         &self,
         request_id: String,
         image_id: Digest,
+        journal: Journal,
+        receipt_claim: ReceiptClaim,
         request_expiry: u64,
     ) -> Result<Receipt, ClientError> {
         let fulfilled_request = self
@@ -685,11 +698,10 @@ impl BoundlessProver {
                 request_expiry,
             )
             .await?;
-        let fulfillment_data = fulfilled_request.data().expect("TODO: handle error");
-        let journal = fulfillment_data.journal().expect("TODO: handle error");
+
         let seal = fulfilled_request.seal;
 
-        let claim = ReceiptClaim::ok(image_id, journal.clone().to_vec());
+        let claim = receipt_claim;
 
         // The first 4 bytes of the seal are reserved for metadata; the actual data starts at index 4.
         const SEAL_DATA_OFFSET: usize = 4;
@@ -698,7 +710,7 @@ impl BoundlessProver {
             MaybePruned::Value(claim),
             risc0_zkvm::Groth16ReceiptVerifierParameters::default().digest(),
         ));
-        let full_snark_receipt = Receipt::new(inner, journal.to_vec());
+        let full_snark_receipt = Receipt::new(inner, journal.bytes.to_vec());
         full_snark_receipt.verify(image_id).unwrap();
 
         tracing::info!(
@@ -735,6 +747,11 @@ impl BoundlessProver {
                 session.receipt_type,
                 session.request_id,
                 session.image_id.into(),
+                Journal {
+                    bytes: session.journal_bytes,
+                },
+                borsh::from_slice(&session.receipt_claim_bytes)
+                    .expect("Failed to deserialize receipt claim from bytes"),
                 session.request_expiry,
                 session.total_cycles_approx,
             );
