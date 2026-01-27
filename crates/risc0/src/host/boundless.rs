@@ -310,8 +310,7 @@ impl BoundlessProver {
         // Note that offer ramp up period must be less than or equal to the lock timeout)
         let mcycles_count = total_cycles_approx.div_ceil(1_000_000);
 
-        let request_params = self
-            .client
+        self.client
             .new_request()
             .with_program_url(image_url)
             .unwrap()
@@ -334,11 +333,10 @@ impl BoundlessProver {
                     .with_lock_collateral(U256::from(lock_stake))
                     .with_ramp_up_start(bidding_start),
             )
-            .with_cycles(total_cycles_approx);
-
-        request_params
+            .with_cycles(total_cycles_approx)
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn send_request(
         &self,
         request: RequestParams,
@@ -393,6 +391,7 @@ impl BoundlessProver {
         Ok((req_id.to_string(), request_expiry))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn spawn_handler(
         &self,
         job_id: Uuid,
@@ -508,6 +507,7 @@ impl BoundlessProver {
         rx
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn handle_resubmit_on_failed_request(
         &self,
         job_id: Uuid,
