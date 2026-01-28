@@ -1,6 +1,6 @@
 [package]
 name = "batch-proof-mock"
-version = "1.2.1"
+version = "1.2.2"
 edition = "2021"
 resolver = "2"
 
