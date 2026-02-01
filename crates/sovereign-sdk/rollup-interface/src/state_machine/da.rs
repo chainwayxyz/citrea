@@ -56,7 +56,7 @@ impl BatchProofMethodIdBody {
         borsh::to_vec(self).expect("BatchProofMethodIdBody serialization cannot fail")
     }
 }
-
+// TODO: For future message types, consider using enum_dispatch to avoid repeating code
 /// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
 #[derive(Debug, Clone, Eq, PartialEq, BorshSerialize, BorshDeserialize)]
 pub struct BatchProofMethodId {

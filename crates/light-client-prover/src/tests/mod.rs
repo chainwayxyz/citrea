@@ -20,7 +20,9 @@ use crate::circuit::accessors::{
     BatchProofMethodIdAccessor, SequencerCommitmentAccessor,
     VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
-use crate::circuit::initial_values::mockda::METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES;
+use crate::circuit::initial_values::mockda::{
+    EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME, METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+};
 use crate::circuit::{LightClientProofCircuit, LightClientVerificationError};
 
 type Height = u64;
@@ -100,6 +102,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -165,6 +168,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -258,6 +262,7 @@ fn test_light_client_circuit_commitment_chaining() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -336,6 +341,7 @@ fn test_previous_commitment_not_set_should_not_transition() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -400,6 +406,7 @@ fn test_batch_proof_with_missing_commitment_not_set_should_not_transition() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -477,6 +484,7 @@ fn test_wrong_order_da_blocks_should_still_work() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -562,6 +570,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -642,6 +651,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -720,6 +730,7 @@ fn test_header_chain_proof_height_and_hash() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -786,6 +797,7 @@ fn test_header_chain_proof_height_and_hash() {
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
         &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+        EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
     );
     assert!(matches!(
         res,
@@ -875,6 +887,7 @@ fn test_unverifiable_batch_proofs() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -967,6 +980,7 @@ fn test_unverifiable_prev_light_client_proof() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -1020,6 +1034,7 @@ fn test_unverifiable_prev_light_client_proof() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 }
@@ -1083,6 +1098,7 @@ fn test_new_method_id_txs() {
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
     let mut working_set = WorkingSet::new(
@@ -1131,6 +1147,7 @@ fn test_new_method_id_txs() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
     let batch_proof_method_ids =
@@ -1177,6 +1194,7 @@ fn test_new_method_id_txs() {
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -1243,6 +1261,7 @@ fn test_wrong_network_method_id_update_should_fail() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
     let mut working_set = WorkingSet::new(
@@ -1326,6 +1345,7 @@ fn test_unverifiable_batch_proof_is_ignored() {
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -1455,6 +1475,7 @@ fn test_light_client_circuit_verify_chunks() {
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -1572,6 +1593,7 @@ fn test_missing_chunk() {
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -1676,6 +1698,7 @@ fn test_light_client_circuit_aggregate_size_overflow() {
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -1770,6 +1793,7 @@ fn test_malicious_aggregate_should_not_work() {
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -1823,6 +1847,7 @@ fn test_malicious_aggregate_should_not_work() {
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -1889,6 +1914,7 @@ fn test_malicious_aggregate_should_not_work() {
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -1975,6 +2001,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -2048,6 +2075,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -2117,6 +2145,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -2168,6 +2197,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -2244,6 +2274,7 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -2295,6 +2326,7 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -2385,6 +2417,7 @@ fn test_lcp_input_values_cant_be_tampered() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -2466,6 +2499,7 @@ fn test_lcp_input_values_cant_be_tampered() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 }
@@ -2540,6 +2574,7 @@ fn test_lcp_cant_be_passed_roots_from_a_different_tree() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 
@@ -2587,6 +2622,7 @@ fn test_lcp_cant_be_passed_roots_from_a_different_tree() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 }

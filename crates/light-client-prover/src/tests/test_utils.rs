@@ -2,9 +2,11 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+// use alloy_dyn_abi::eip712::TypedData;
 use alloy_primitives::{eip191_hash_message, keccak256, Address, B256};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
+use alloy_sol_types::{eip712_domain, SolStruct};
 use rand::{thread_rng, Rng};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
@@ -22,9 +24,10 @@ use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutp
 use sov_rollup_interface::Network;
 
 use crate::circuit::accessors::ChunkAccessor;
+use crate::circuit::initial_values::{bitcoinda, mockda, InitialValueProvider};
 use crate::circuit::{
-    citrea_network_to_chain_id, LightClientProofCircuit, SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE,
-    SECURITY_COUNCIL_MEMBER_COUNT,
+    citrea_network_to_chain_id, BatchProofMethodIdUpdate, LightClientProofCircuit,
+    SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT,
 };
 
 /// Test private keys used for generating signatures in tests
@@ -263,14 +266,21 @@ pub(crate) fn generate_initial_addresses_with_signers() -> (
 }
 
 /// Creates 3 valid signatures from the first 3 signers for the given prehash
-pub(crate) fn create_valid_signatures(
+pub(crate) fn create_valid_signatures<T: SolStruct>(
     signers: &[PrivateKeySigner],
-    prehash: &B256,
+    // prehash: &B256,
+    payload: &T,
 ) -> [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
     let mut signatures_in_inscription = Vec::new();
 
+    let domain = eip712_domain! {
+        name: bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        version: "1",
+        chain_id: citrea_network_to_chain_id(Network::Nightly),
+    };
+
     for (i, signer) in signers.iter().enumerate().take(3) {
-        let sig = signer.sign_hash_sync(prehash).unwrap();
+        let sig = signer.sign_typed_data_sync(payload, &domain).unwrap();
         let signature = sig.as_bytes()[0..SECURITY_COUNCIL_SIGNATURE_SIZE].to_vec();
         signatures_in_inscription.push((signature, i as u8));
     }
@@ -287,16 +297,29 @@ pub(crate) fn create_new_method_id_tx(
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
-    let msg = borsh::to_vec(&BatchProofMethodIdBody {
+    let method_id_body = BatchProofMethodIdBody {
         activation_l2_height: activation_height,
         method_id: new_method_id,
         chain_id: citrea_network_to_chain_id(network),
-    })
-    .unwrap();
+    };
+
+    let batch_proof_method_id_update = BatchProofMethodIdUpdate::from(method_id_body);
+
+    let domain_name = bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME;
+    let chain_id = citrea_network_to_chain_id(Network::Nightly);
+
+    let domain = eip712_domain! {
+        name: domain_name,
+        version: "1",
+        chain_id: chain_id,
+    };
+
+    // this is basically keccak256("\x19\x01" ‖ domainSeparator ‖ hashStruct(message))
+    let prehash = batch_proof_method_id_update.eip712_signing_hash(&domain);
 
     let (_initial_pubkeys, signers) = generate_initial_pub_keys_with_signers_from_pks(pk_bytes_arr);
-    let prehash = eip191_hash_message(&msg);
-    let signatures_with_index = create_valid_signatures(&signers, &prehash);
+
+    let signatures_with_index = create_valid_signatures(&signers, &batch_proof_method_id_update);
 
     let da_data = DataOnDa::BatchProofMethodId(BatchProofMethodId {
         body: BatchProofMethodIdBody {
@@ -409,6 +432,8 @@ impl NativeCircuitRunner {
             )
             .unwrap();
 
+        let domain_name = <Network as InitialValueProvider<MockDaSpec>>::get_eip712_security_council_message_domain_name(&network);
+
         let res = self.circuit.run_l1_block(
             network,
             prover_storage,
@@ -421,6 +446,7 @@ impl NativeCircuitRunner {
             batch_prover_da_pub_key,
             sequencer_da_pub_key,
             method_id_upgrade_authority,
+            domain_name.to_string(),
         );
 
         self.prover_storage_manager.finalize_storage(res.change_set);

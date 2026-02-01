@@ -1,10 +1,11 @@
-use alloy_primitives::{eip191_hash_message, keccak256, Address};
+use alloy_primitives::{eip191_hash_message, keccak256, Address, B256};
+use alloy_sol_types::{eip712_domain, SolStruct};
 use k256::ecdsa::VerifyingKey;
 use sov_rollup_interface::da::{
-    SECURITY_COUNCIL_SIGNATURE_SIZE, SECURITY_COUNCIL_SIGNATURE_THRESHOLD,
+    BatchProofMethodIdBody, SECURITY_COUNCIL_SIGNATURE_SIZE, SECURITY_COUNCIL_SIGNATURE_THRESHOLD,
 };
 
-use crate::circuit::SECURITY_COUNCIL_MEMBER_COUNT;
+use crate::circuit::{BatchProofMethodIdUpdate, SECURITY_COUNCIL_MEMBER_COUNT};
 
 /// Error type for public key recovery operations
 #[derive(Debug, Clone)]
@@ -43,12 +44,22 @@ impl std::fmt::Display for PubKeyRecoveryError {
 /// Note that the pubkey indices of signatures must be in strict ascending order and within bounds [0,(SECURITY_COUNCIL_MEMBER_COUNT - 1)]
 pub fn verify_method_id_security_council(
     initial_da_addresses: [Address; SECURITY_COUNCIL_MEMBER_COUNT],
-    msg: &[u8],
+    batch_proof_method_id_body: BatchProofMethodIdBody,
     signatures_with_idx: &[([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8);
          SECURITY_COUNCIL_SIGNATURE_THRESHOLD],
+    domain_name: String,
+    chain_id: u64,
 ) -> bool {
-    // EIP-191 prefix + keccak256 → 32-byte prehash
-    let prehash = eip191_hash_message(msg);
+    let domain = eip712_domain! {
+        name: domain_name,
+        version: "1",
+        chain_id: chain_id,
+    };
+
+    let batch_proof_method_id_update = BatchProofMethodIdUpdate::from(batch_proof_method_id_body);
+
+    // this is basically keccak256("\x19\x01" ‖ domainSeparator ‖ hashStruct(message))
+    let prehash = batch_proof_method_id_update.eip712_signing_hash(&domain);
 
     // Check that signature indices are within bounds
     for &(_, index) in signatures_with_idx {
@@ -161,6 +172,7 @@ mod tests {
 
     use super::*;
     use crate::circuit::citrea_network_to_chain_id;
+    use crate::circuit::initial_values::bitcoinda;
     use crate::{create_valid_signatures, generate_initial_addresses_with_signers};
 
     #[test]
@@ -170,12 +182,12 @@ mod tests {
             activation_l2_height: 0,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
-        let msg = body.serialize();
-        let prehash = eip191_hash_message(msg);
+
+        let payload = BatchProofMethodIdUpdate::from(body);
 
         let (initial_addresses, signers) = generate_initial_addresses_with_signers();
 
-        let signatures_with_index = create_valid_signatures(&signers, &prehash);
+        let signatures_with_index = create_valid_signatures(&signers, &payload);
 
         let batch_proof_method_id = BatchProofMethodId {
             body: BatchProofMethodIdBody {
@@ -188,8 +200,10 @@ mod tests {
 
         assert!(verify_method_id_security_council(
             initial_addresses,
-            batch_proof_method_id.body.serialize().as_slice(),
-            &batch_proof_method_id.signatures_with_index
+            batch_proof_method_id.body,
+            &batch_proof_method_id.signatures_with_index,
+            bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            citrea_network_to_chain_id(Network::Nightly),
         ));
     }
 
@@ -200,12 +214,11 @@ mod tests {
             activation_l2_height: 0,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
-        let msg = body.serialize();
-        let prehash = eip191_hash_message(msg);
+        let payload = BatchProofMethodIdUpdate::from(body.clone());
 
         let (initial_addresses, signers) = generate_initial_addresses_with_signers();
 
-        let mut signatures_with_index = create_valid_signatures(&signers, &prehash);
+        let mut signatures_with_index = create_valid_signatures(&signers, &payload);
 
         // Invalidate one signature by changing one byte
         signatures_with_index[0].0[0] ^= 0xFF;
@@ -216,8 +229,10 @@ mod tests {
         };
         assert!(!verify_method_id_security_council(
             initial_addresses,
-            batch_proof_method_id.body.serialize().as_slice(),
-            &batch_proof_method_id.signatures_with_index
+            batch_proof_method_id.body,
+            &batch_proof_method_id.signatures_with_index,
+            bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            citrea_network_to_chain_id(Network::Nightly),
         ));
     }
 
@@ -228,12 +243,11 @@ mod tests {
             activation_l2_height: 0,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
-        let msg = body.serialize();
-        let prehash = eip191_hash_message(msg);
+        let payload = BatchProofMethodIdUpdate::from(body.clone());
 
         let (initial_addresses, signers) = generate_initial_addresses_with_signers();
 
-        let mut signatures_with_index = create_valid_signatures(&signers, &prehash);
+        let mut signatures_with_index = create_valid_signatures(&signers, &payload);
 
         // Duplicate the first signature's index
         signatures_with_index[1].1 = signatures_with_index[0].1;
@@ -244,8 +258,10 @@ mod tests {
         };
         assert!(!verify_method_id_security_council(
             initial_addresses,
-            batch_proof_method_id.body.serialize().as_slice(),
-            &batch_proof_method_id.signatures_with_index
+            batch_proof_method_id.body,
+            &batch_proof_method_id.signatures_with_index,
+            bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            citrea_network_to_chain_id(Network::Nightly),
         ));
     }
 
@@ -256,10 +272,9 @@ mod tests {
             activation_l2_height: 0,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
-        let msg = body.serialize();
-        let prehash = eip191_hash_message(msg);
+        let payload = BatchProofMethodIdUpdate::from(body.clone());
         let (initial_addresses, signers) = generate_initial_addresses_with_signers();
-        let mut signatures_with_index = create_valid_signatures(&signers, &prehash);
+        let mut signatures_with_index = create_valid_signatures(&signers, &payload);
         // Set an out-of-bounds index
         signatures_with_index[0].1 = 5; // valid indexes are 0-
         let batch_proof_method_id = BatchProofMethodId {
@@ -268,8 +283,10 @@ mod tests {
         };
         assert!(!verify_method_id_security_council(
             initial_addresses,
-            batch_proof_method_id.body.serialize().as_slice(),
-            &batch_proof_method_id.signatures_with_index
+            batch_proof_method_id.body,
+            &batch_proof_method_id.signatures_with_index,
+            bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            citrea_network_to_chain_id(Network::Nightly),
         ));
     }
 
@@ -280,12 +297,11 @@ mod tests {
             activation_l2_height: 0,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
-        let msg = body.serialize();
-        let prehash = eip191_hash_message(msg);
+        let payload = BatchProofMethodIdUpdate::from(body.clone());
 
         let (initial_addresses, signers) = generate_initial_addresses_with_signers();
 
-        let mut signatures_with_index = create_valid_signatures(&signers, &prehash);
+        let mut signatures_with_index = create_valid_signatures(&signers, &payload);
 
         // Swap pubkey indexes of two signatures
         let tmp = signatures_with_index[0].1;
@@ -300,8 +316,10 @@ mod tests {
         // Should not verify because points to different pubkeys now
         assert!(!verify_method_id_security_council(
             initial_addresses,
-            batch_proof_method_id.body.serialize().as_slice(),
-            &batch_proof_method_id.signatures_with_index
+            batch_proof_method_id.body,
+            &batch_proof_method_id.signatures_with_index,
+            bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            citrea_network_to_chain_id(Network::Nightly),
         ));
     }
 }

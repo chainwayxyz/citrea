@@ -7,14 +7,16 @@ use accessors::{
     BatchProofMethodIdAccessor, BlockHashAccessor, ChunkAccessor, SequencerCommitmentAccessor,
     VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
-use alloy_primitives::Address;
+use alloy_primitives::{Address, B256};
+use alloy_sol_types::sol;
 use borsh::BorshDeserialize;
 use citrea_primitives::{network_to_dev_mode, MAX_COMPRESSED_BLOB_SIZE};
 use initial_values::LCP_JMT_GENESIS_ROOT;
+use serde::Serialize;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::{BlobReaderTrait, DaSpec, WorkingSet, Zkvm};
 use sov_modules_core::{ReadWriteLog, Storage};
-use sov_rollup_interface::da::{DaVerifier, DataOnDa};
+use sov_rollup_interface::da::{BatchProofMethodIdBody, DaVerifier, DataOnDa};
 use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
@@ -395,6 +397,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         method_id_upgrade_authority_da_addresses: &[Address; SECURITY_COUNCIL_MEMBER_COUNT],
+        security_council_messages_domain: String,
     ) -> RunL1BlockResult<S> {
         let mut working_set =
             WorkingSet::with_witness(storage.clone(), witness, Default::default());
@@ -551,8 +554,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     // This prevents replay attacks of old method IDs
                     if !verify_method_id_security_council(
                         *method_id_upgrade_authority_da_addresses,
-                        batch_proof_method_id.body.serialize().as_slice(),
+                        batch_proof_method_id.body.clone(),
                         batch_proof_method_id.signatures_with_index(),
+                        security_council_messages_domain.clone(),
+                        circuit_chain_id,
                     ) {
                         log!("Method ID security council verification failed");
                         continue;
@@ -677,6 +682,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         method_id_upgrade_authority_da_addresses: &[Address; SECURITY_COUNCIL_MEMBER_COUNT],
+        security_council_messages_domain: String,
     ) -> Result<LightClientCircuitOutput, LightClientVerificationError<DaV>>
     where
         DaV: DaVerifier<Spec = DS>,
@@ -735,6 +741,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             batch_prover_da_public_key,
             sequencer_da_public_key,
             method_id_upgrade_authority_da_addresses,
+            security_council_messages_domain,
         );
 
         Ok(LightClientCircuitOutput {
@@ -766,5 +773,34 @@ pub fn citrea_network_to_chain_id(network: sov_rollup_interface::Network) -> u64
         sov_rollup_interface::Network::Devnet => 62298,
         sov_rollup_interface::Network::Nightly => 5665,
         sov_rollup_interface::Network::TestNetworkWithForks => 5665,
+    }
+}
+
+sol! {
+    #[derive(Debug, Serialize)]
+    struct BatchProofMethodIdUpdate {
+        uint64 activationL2Height;
+        bytes32 batchProofMethodId;
+        uint64 chainId;
+    }
+}
+
+impl From<BatchProofMethodIdBody> for BatchProofMethodIdUpdate {
+    fn from(batch_proof_method_id_body: BatchProofMethodIdBody) -> Self {
+        fn convert_u32_8_to_u8_32(value: [u32; 8]) -> [u8; 32] {
+            let mut output = [0u8; 32];
+            for (i, &val) in value.iter().enumerate() {
+                output[i * 4..(i + 1) * 4].copy_from_slice(&val.to_le_bytes());
+            }
+            output
+        }
+
+        BatchProofMethodIdUpdate {
+            activationL2Height: batch_proof_method_id_body.activation_l2_height,
+            batchProofMethodId: B256::from_slice(
+                convert_u32_8_to_u8_32(batch_proof_method_id_body.method_id).as_slice(),
+            ),
+            chainId: batch_proof_method_id_body.chain_id,
+        }
     }
 }

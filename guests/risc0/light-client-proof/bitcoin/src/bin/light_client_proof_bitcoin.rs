@@ -78,6 +78,18 @@ pub const METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES: [Address; SECURITY_COUNCIL_M
     }
 };
 
+pub const SECURITY_COUNCIL_DOMAIN_NAME: &str = {
+    match NETWORK {
+        Network::Mainnet => bitcoinda::MAINNET_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        Network::Testnet => bitcoinda::TESTNET_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        Network::Devnet => bitcoinda::DEVNET_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        Network::Nightly => bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        Network::TestNetworkWithForks => {
+            bitcoinda::TEST_NETWORK_WITH_FORKS_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME
+        }
+    }
+};
+
 pub fn main() {
     let storage = ZkStorage::new();
 
@@ -103,6 +115,7 @@ pub fn main() {
             &BATCH_PROVER_DA_PUBLIC_KEY,
             &SEQUENCER_DA_PUBLIC_KEY,
             &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            SECURITY_COUNCIL_DOMAIN_NAME.to_string(),
         )
         .unwrap();
 

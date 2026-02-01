@@ -78,6 +78,9 @@ pub mod mockda {
         // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9073
         address!("0x8632ebc44c4515c9b85fae29eae3fd3722fd35ea"),
     ];
+
+    /// EIP-712 domain name for security council messages in the mock DA.
+    pub const EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME: &str = "Citrea Mock DA Security Council";
 }
 
 /// Module containing initial values for the Bitcoin DA (Data Availability) specification.
@@ -517,6 +520,26 @@ pub mod bitcoinda {
             }
         },
     ];
+
+    /// Domain name for the security council eip712 typed messages for citrea mainnet.
+    pub const MAINNET_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME: &str =
+        "Citrea Mainnet Bitcoin DA Security Council";
+
+    /// Domain name for the security council eip712 typed messages for citrea testnet.
+    pub const TESTNET_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME: &str =
+        "Citrea Testnet Bitcoin DA Security Council";
+
+    /// Domain name for the security council eip712 typed messages for citrea devnet.
+    pub const DEVNET_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME: &str =
+        "Citrea Devnet Bitcoin DA Security Council";
+
+    /// Domain name for the security council eip712 typed messages for citrea nightly.
+    pub const NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME: &str =
+        "Citrea Nightly Bitcoin DA Security Council";
+
+    /// Domain name for the security council eip712 typed messages for citrea test network with forks.
+    pub const TEST_NETWORK_WITH_FORKS_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME: &str =
+        "Citrea Test Network With Forks Bitcoin DA Security Council";
 }
 
 /// Trait to provide initial values for the Light Client circuit based on the Data Availability specification.
@@ -538,6 +561,8 @@ pub trait InitialValueProvider<Das: DaSpec> {
     fn method_id_upgrade_authority_da_addresses(
         &self,
     ) -> [alloy_primitives::Address; SECURITY_COUNCIL_MEMBER_COUNT];
+
+    fn get_eip712_security_council_message_domain_name(&self) -> &str;
 }
 
 #[cfg(feature = "native")]
@@ -567,6 +592,11 @@ impl InitialValueProvider<MockDaSpec> for Network {
     fn sequencer_da_public_key(&self) -> [u8; 33] {
         assert_eq!(self, &Network::Nightly, "Only nightly allowed on mock da!");
         mockda::SEQUENCER_DA_PUBLIC_KEY
+    }
+
+    fn get_eip712_security_council_message_domain_name(&self) -> &str {
+        assert_eq!(self, &Network::Nightly, "Only nightly allowed on mock da!");
+        mockda::EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME
     }
 }
 
@@ -628,6 +658,18 @@ impl InitialValueProvider<BitcoinSpec> for Network {
             Network::Nightly => bitcoinda::NIGHTLY_SEQUENCER_DA_PUBLIC_KEY,
             Network::TestNetworkWithForks => {
                 bitcoinda::TEST_NETWORK_WITH_FORKS_SEQUENCER_DA_PUBLIC_KEY
+            }
+        }
+    }
+
+    fn get_eip712_security_council_message_domain_name(&self) -> &str {
+        match self {
+            Network::Mainnet => bitcoinda::MAINNET_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+            Network::Testnet => bitcoinda::TESTNET_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+            Network::Devnet => bitcoinda::DEVNET_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+            Network::Nightly => bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+            Network::TestNetworkWithForks => {
+                bitcoinda::TEST_NETWORK_WITH_FORKS_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME
             }
         }
     }
