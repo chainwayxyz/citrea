@@ -1,4 +1,4 @@
-use alloy_primitives::{eip191_hash_message, keccak256, Address, B256};
+use alloy_primitives::{keccak256, Address};
 use alloy_sol_types::{eip712_domain, SolStruct};
 use k256::ecdsa::VerifyingKey;
 use sov_rollup_interface::da::{

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 // use alloy_dyn_abi::eip712::TypedData;
-use alloy_primitives::{eip191_hash_message, keccak256, Address, B256};
+use alloy_primitives::{keccak256, Address};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_types::{eip712_domain, SolStruct};
@@ -24,7 +24,7 @@ use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutp
 use sov_rollup_interface::Network;
 
 use crate::circuit::accessors::ChunkAccessor;
-use crate::circuit::initial_values::{bitcoinda, mockda, InitialValueProvider};
+use crate::circuit::initial_values::{bitcoinda, InitialValueProvider};
 use crate::circuit::{
     citrea_network_to_chain_id, BatchProofMethodIdUpdate, LightClientProofCircuit,
     SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT,
@@ -268,7 +268,6 @@ pub(crate) fn generate_initial_addresses_with_signers() -> (
 /// Creates 3 valid signatures from the first 3 signers for the given prehash
 pub(crate) fn create_valid_signatures<T: SolStruct>(
     signers: &[PrivateKeySigner],
-    // prehash: &B256,
     payload: &T,
 ) -> [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
     let mut signatures_in_inscription = Vec::new();
@@ -313,9 +312,6 @@ pub(crate) fn create_new_method_id_tx(
         version: "1",
         chain_id: chain_id,
     };
-
-    // this is basically keccak256("\x19\x01" ‖ domainSeparator ‖ hashStruct(message))
-    let prehash = batch_proof_method_id_update.eip712_signing_hash(&domain);
 
     let (_initial_pubkeys, signers) = generate_initial_pub_keys_with_signers_from_pks(pk_bytes_arr);
 

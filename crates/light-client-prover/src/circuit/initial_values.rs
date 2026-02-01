@@ -562,6 +562,7 @@ pub trait InitialValueProvider<Das: DaSpec> {
         &self,
     ) -> [alloy_primitives::Address; SECURITY_COUNCIL_MEMBER_COUNT];
 
+    /// Returns the EIP-712 domain name for security council messages.
     fn get_eip712_security_council_message_domain_name(&self) -> &str;
 }
 
