@@ -3093,7 +3093,7 @@ dependencies = [
 [[package]]
 name = "bitcoincore-rpc"
 version = "0.18.0"
-source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=84955c9695e462df42e48f0f90999640a54da774#84955c9695e462df42e48f0f90999640a54da774"
+source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=13fb11651212868bb1581146305770654b909637#13fb11651212868bb1581146305770654b909637"
 dependencies = [
  "async-trait",
  "bitcoincore-rpc-json",
@@ -3108,7 +3108,7 @@ dependencies = [
 [[package]]
 name = "bitcoincore-rpc-json"
 version = "0.18.0"
-source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=84955c9695e462df42e48f0f90999640a54da774#84955c9695e462df42e48f0f90999640a54da774"
+source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=13fb11651212868bb1581146305770654b909637#13fb11651212868bb1581146305770654b909637"
 dependencies = [
  "bitcoin",
  "serde",
@@ -4315,7 +4315,7 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 [[package]]
 name = "clementine-config"
 version = "0.6.4"
-source = "git+https://github.com/chainwayxyz/clementine?rev=4151bc5d4aacd0d1ccbe6c390ce931a429ebd49e#4151bc5d4aacd0d1ccbe6c390ce931a429ebd49e"
+source = "git+https://github.com/chainwayxyz/clementine?rev=a66dda597f7684d775857c8633a11d7259c156e5#a66dda597f7684d775857c8633a11d7259c156e5"
 dependencies = [
  "bitcoin",
  "clementine-errors",
@@ -4327,7 +4327,7 @@ dependencies = [
 [[package]]
 name = "clementine-errors"
 version = "0.6.4"
-source = "git+https://github.com/chainwayxyz/clementine?rev=4151bc5d4aacd0d1ccbe6c390ce931a429ebd49e#4151bc5d4aacd0d1ccbe6c390ce931a429ebd49e"
+source = "git+https://github.com/chainwayxyz/clementine?rev=a66dda597f7684d775857c8633a11d7259c156e5#a66dda597f7684d775857c8633a11d7259c156e5"
 dependencies = [
  "alloy 0.13.0",
  "bitcoin",
@@ -4344,12 +4344,13 @@ dependencies = [
 [[package]]
 name = "clementine-extended-rpc"
 version = "0.6.4"
-source = "git+https://github.com/chainwayxyz/clementine?rev=4151bc5d4aacd0d1ccbe6c390ce931a429ebd49e#4151bc5d4aacd0d1ccbe6c390ce931a429ebd49e"
+source = "git+https://github.com/chainwayxyz/clementine?rev=a66dda597f7684d775857c8633a11d7259c156e5#a66dda597f7684d775857c8633a11d7259c156e5"
 dependencies = [
  "async-trait",
  "bitcoin",
  "bitcoincore-rpc",
  "clementine-errors",
+ "clementine-primitives",
  "eyre",
  "http 1.2.0",
  "reqwest",
@@ -4364,7 +4365,7 @@ dependencies = [
 [[package]]
 name = "clementine-primitives"
 version = "0.6.4"
-source = "git+https://github.com/chainwayxyz/clementine?rev=4151bc5d4aacd0d1ccbe6c390ce931a429ebd49e#4151bc5d4aacd0d1ccbe6c390ce931a429ebd49e"
+source = "git+https://github.com/chainwayxyz/clementine?rev=a66dda597f7684d775857c8633a11d7259c156e5#a66dda597f7684d775857c8633a11d7259c156e5"
 dependencies = [
  "bitcoin",
  "eyre",
@@ -4378,11 +4379,12 @@ dependencies = [
 [[package]]
 name = "clementine-tx-sender"
 version = "0.6.4"
-source = "git+https://github.com/chainwayxyz/clementine?rev=4151bc5d4aacd0d1ccbe6c390ce931a429ebd49e#4151bc5d4aacd0d1ccbe6c390ce931a429ebd49e"
+source = "git+https://github.com/chainwayxyz/clementine?rev=a66dda597f7684d775857c8633a11d7259c156e5#a66dda597f7684d775857c8633a11d7259c156e5"
 dependencies = [
  "async-trait",
  "bitcoin",
  "bitcoincore-rpc",
+ "borsh",
  "clementine-config",
  "clementine-errors",
  "clementine-extended-rpc",
@@ -4402,12 +4404,14 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.20",
+ "tx-sender-jsonrpc-client",
+ "tx-sender-types",
 ]
 
 [[package]]
 name = "clementine-utils"
 version = "0.6.4"
-source = "git+https://github.com/chainwayxyz/clementine?rev=4151bc5d4aacd0d1ccbe6c390ce931a429ebd49e#4151bc5d4aacd0d1ccbe6c390ce931a429ebd49e"
+source = "git+https://github.com/chainwayxyz/clementine?rev=a66dda597f7684d775857c8633a11d7259c156e5#a66dda597f7684d775857c8633a11d7259c156e5"
 dependencies = [
  "bitcoin",
  "clementine-errors",
@@ -4419,6 +4423,7 @@ dependencies = [
  "sqlx",
  "tracing",
  "tracing-subscriber 0.3.20",
+ "tx-sender-types",
 ]
 
 [[package]]
@@ -13928,6 +13933,27 @@ dependencies = [
  "sha1",
  "thiserror 2.0.12",
  "utf-8",
+]
+
+[[package]]
+name = "tx-sender-jsonrpc-client"
+version = "0.6.4"
+source = "git+https://github.com/chainwayxyz/clementine?rev=a66dda597f7684d775857c8633a11d7259c156e5#a66dda597f7684d775857c8633a11d7259c156e5"
+dependencies = [
+ "bitcoin",
+ "jsonrpsee",
+ "tx-sender-types",
+]
+
+[[package]]
+name = "tx-sender-types"
+version = "0.6.4"
+source = "git+https://github.com/chainwayxyz/clementine?rev=a66dda597f7684d775857c8633a11d7259c156e5#a66dda597f7684d775857c8633a11d7259c156e5"
+dependencies = [
+ "bitcoin",
+ "clementine-primitives",
+ "serde",
+ "sqlx",
 ]
 
 [[package]]

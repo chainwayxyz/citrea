@@ -26,6 +26,7 @@ use borsh::BorshDeserialize;
 use citrea_common::utils::read_env;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::{MAX_COMPRESSED_BLOB_SIZE, MAX_TX_BODY_SIZE};
+use clementine_tx_sender::citrea::CitreaTxRequest;
 use clementine_tx_sender::config::TxSenderBitcoinRpcConfig;
 use clementine_tx_sender::jsonrpc::client::JsonRpcTxSenderClient;
 use clementine_tx_sender::task::spawn_txsender_loop_with_free_localhost_jsonrpc_port;
@@ -185,13 +186,15 @@ impl BitcoinService {
                 let (mut config, _, _) =
                     clementine_tx_sender::test_utils::create_test_environment(true, false).await;
                 config.network = network;
-                config.secret_key = da_private_key;
+                config.secret_key = SecretKey::new(&mut bitcoin::secp256k1::rand::thread_rng());
+                config.private_da_key = Some(da_private_key);
                 config.bitcoin_rpc = TxSenderBitcoinRpcConfig {
                     url: btc_config.node_url.clone(),
                     user: btc_config.node_username.clone().into(),
                     password: btc_config.node_password.clone().into(),
                 };
                 config.finality_depth = DEFAULT_FINALITY_DEPTH;
+                config.include_unsafe = true;
                 let (txsender_addr, _handle) =
                     spawn_txsender_loop_with_free_localhost_jsonrpc_port(config);
                 let url = format!("http://{txsender_addr}");
@@ -312,40 +315,25 @@ impl BitcoinService {
                 request_opt = rx.recv() => {
                     if let Some(request) = request_opt {
                         trace!("A new request is received");
-                        let data = match request.tx_request {
-                            DaTxRequest::ZKProof(zkproof) => split_proof(zkproof).expect("Failed to split proof"),
+                        let citrea_rx_req = match request.tx_request {
+                            DaTxRequest::ZKProof(zkproof) => {
+                                let compressed_proof =
+                                    compress_blob(&zkproof).expect("Compression should not fail");
+                                CitreaTxRequest::BatchProof { bytes: compressed_proof, chunk_size: None }
+                            },
                             DaTxRequest::SequencerCommitment(comm) => {
                                 let data = DataOnDa::SequencerCommitment(comm);
                                 let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
-                                RawTxData::SequencerCommitment(blob)
+                                CitreaTxRequest::SequencerCommitment(blob)
                             }
                             DaTxRequest::BatchProofMethodId(method_id) => {
                                 let data = DataOnDa::BatchProofMethodId(method_id);
                                 let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
-                                RawTxData::BatchProofMethodId(blob)
+                                CitreaTxRequest::BatchProofMethodId(blob)
                             }
                         };
 
-                        let raw_tx_data = match data {
-                            RawTxData::SequencerCommitment(blob) => {
-                                tracing::warn!("Sending sequencer commitment tx, size: {}", blob.len());
-                                clementine_tx_sender::citrea::RawTxData::SequencerCommitment(blob)
-                            }
-                            RawTxData::BatchProofMethodId(blob) => {
-                                tracing::warn!("Sending batch proof method id tx, size: {}", blob.len());
-                                clementine_tx_sender::citrea::RawTxData::BatchProofMethodId(blob)
-                            }
-                            RawTxData::Complete(blob) => {
-                                tracing::warn!("Sending complete tx, size: {}", blob.len());
-                                clementine_tx_sender::citrea::RawTxData::BatchProof(blob)
-                            }
-                            RawTxData::Chunks(chunks) => {
-                                tracing::warn!("Sending chunks tx, number of chunks: {}, each chunk len: {}", chunks.len(), chunks.iter().map(|c| c.len()).join(","));
-                                clementine_tx_sender::citrea::RawTxData::Chunks(chunks)
-                            }
-                        };
-
-                        self.tx_sender_client.as_ref().expect("No da key given so no txsender exists").send_citrea_tx(raw_tx_data).await.expect("Failed to send transaction to txsender");
+                        let _id = self.tx_sender_client.as_ref().expect("No da key given so no txsender exists").send_citrea_tx(citrea_rx_req).await.expect("Failed to send transaction to txsender");
 
                         let txid = Txid::all_zeros();
                         let tx_id = TxidWrapper(txid);
@@ -1412,6 +1400,7 @@ pub(crate) fn split_proof(zk_proof: Proof) -> Result<RawTxData> {
         for chunk in original_compressed.chunks(MAX_TX_BODY_SIZE) {
             let data = DataOnDa::Chunk(chunk.to_vec());
             let blob = borsh::to_vec(&data).expect("zk::Proof Chunk serialize must not fail");
+
             chunks.push(blob)
         }
 
