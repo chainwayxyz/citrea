@@ -201,5 +201,9 @@ pub(crate) static LIGHT_CLIENT_DEVNET_GUESTS: LazyLock<HashMap<SpecId, (Digest, 
             SpecId::Tangelo,
             guest!("../../../resources/guests/risc0/devnet/light-client-proof-1.bin"),
         );
+        m.insert(
+            SpecId::TangeloSelfdestructFix,
+            guest!("../../../resources/guests/risc0/devnet/light-client-proof-1.bin"),
+        );
         m
     });
