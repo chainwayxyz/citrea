@@ -146,6 +146,10 @@ pub(crate) static BATCH_PROOF_DEVNET_GUESTS: LazyLock<HashMap<SpecId, (Digest, V
             SpecId::Tangelo,
             guest!("../../../resources/guests/risc0/devnet/batch-proof-1.bin"),
         );
+        m.insert(
+            SpecId::TangeloSelfdestructFix,
+            guest!("../../../resources/guests/risc0/devnet/batch-proof-2.bin"),
+        );
 
         m
     });
