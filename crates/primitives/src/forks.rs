@@ -55,11 +55,12 @@ pub fn fork_from_block_number(block_number: u64) -> Fork {
 
 pub const MAINNET_FORKS: [Fork; 1] = [Fork::new(SpecId::Tangelo, 0)];
 
-pub const TESTNET_FORKS: [Fork; 4] = [
+pub const TESTNET_FORKS: [Fork; 5] = [
     Fork::new(SpecId::Genesis, 0),
     Fork::new(SpecId::Kumquat, 5546000), // will be reached Jan 24 2025 ~7 PM
     Fork::new(SpecId::Tangerine, 9057000), // will be reached Apr 18 2025 6.30 AM
     Fork::new(SpecId::Tangelo, 17733000), // will be reached Nov 4 2025 ~2.30 PM
+    Fork::new(SpecId::TangeloSelfdestructFix, 21741000), // will be reached Feb 5 2026 ~11 AM
 ];
 
 pub const DEVNET_FORKS: [Fork; 3] = [
