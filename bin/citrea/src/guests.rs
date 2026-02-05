@@ -130,6 +130,10 @@ pub(crate) static BATCH_PROOF_TESTNET_GUESTS: LazyLock<HashMap<SpecId, (Digest, 
             SpecId::Tangelo,
             guest!("../../../resources/guests/risc0/testnet/batch-proof-1.bin"),
         );
+        m.insert(
+            SpecId::TangeloSelfdestructFix,
+            guest!("../../../resources/guests/risc0/testnet/batch-proof-2.bin"),
+        );
 
         m
     });
@@ -183,6 +187,10 @@ pub(crate) static LIGHT_CLIENT_TESTNET_GUESTS: LazyLock<HashMap<SpecId, (Digest,
         );
         m.insert(
             SpecId::Tangelo,
+            guest!("../../../resources/guests/risc0/testnet/light-client-proof-1.bin"),
+        );
+        m.insert(
+            SpecId::TangeloSelfdestructFix,
             guest!("../../../resources/guests/risc0/testnet/light-client-proof-1.bin"),
         );
 
