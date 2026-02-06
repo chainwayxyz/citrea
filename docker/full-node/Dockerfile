@@ -1,5 +1,7 @@
 FROM debian:trixie-slim
 
+ARG TARGETARCH
+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates && \
     update-ca-certificates && \
@@ -7,7 +9,7 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-COPY citrea ./citrea
+COPY citrea-${TARGETARCH} ./citrea
 COPY entrypoint.sh ./entrypoint.sh
 COPY genesis ./genesis
 RUN chmod +x ./entrypoint.sh ./citrea
