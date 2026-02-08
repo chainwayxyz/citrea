@@ -112,6 +112,33 @@ enum Commands {
         #[arg(long)]
         db_max_open_files: Option<i32>,
     },
+    /// Create a forced transaction inscription on Bitcoin
+    ForceInclude {
+        /// Hex-encoded signed EVM transaction (RLP)
+        #[arg(long)]
+        rlp_tx: String,
+        /// Bitcoin RPC URL
+        #[arg(long)]
+        bitcoin_url: String,
+        /// Bitcoin RPC username
+        #[arg(long)]
+        bitcoin_user: String,
+        /// Bitcoin RPC password
+        #[arg(long)]
+        bitcoin_password: String,
+        /// Hex-encoded private key for the DA inscription
+        #[arg(long)]
+        da_private_key: String,
+        /// Fee rate in sat/vByte
+        #[arg(long, default_value = "10")]
+        fee_rate: f64,
+        /// Bitcoin network (mainnet, testnet, signet, regtest)
+        #[arg(long, default_value = "regtest")]
+        network: String,
+        /// Hex-encoded reveal TX prefix for wtxid matching
+        #[arg(long, default_value = "0202")]
+        reveal_tx_prefix: String,
+    },
 }
 
 #[tokio::main]
@@ -183,6 +210,30 @@ async fn main() -> anyhow::Result<()> {
             db_max_open_files,
         } => {
             commands::db_migrate(node_type, db_path, db_max_open_files).await?;
+        }
+        Commands::ForceInclude {
+            rlp_tx,
+            bitcoin_url,
+            bitcoin_user,
+            bitcoin_password,
+            da_private_key,
+            fee_rate,
+            network,
+            reveal_tx_prefix,
+        } => {
+            let prefix = hex::decode(reveal_tx_prefix.trim_start_matches("0x"))
+                .expect("Invalid hex for reveal_tx_prefix");
+            commands::force_include(
+                rlp_tx,
+                da_private_key,
+                fee_rate,
+                network,
+                prefix,
+                bitcoin_url,
+                bitcoin_user,
+                bitcoin_password,
+            )
+            .await?;
         }
     }
 

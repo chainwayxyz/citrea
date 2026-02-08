@@ -98,6 +98,16 @@ impl TxSigner {
                     .await?,
                 ]
             }
+            DaTxs::ForcedTransaction { commit, reveal } => {
+                vec![
+                    self.sign_complete_transaction(
+                        commit,
+                        reveal,
+                        TransactionKind::ForcedTransaction,
+                    )
+                    .await?,
+                ]
+            }
             DaTxs::Chunked {
                 commit_chunks,
                 reveal_chunks,

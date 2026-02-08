@@ -9,7 +9,7 @@ use tokio::sync::oneshot::Sender as OneshotSender;
 
 use crate::da::BlockHeaderTrait;
 #[cfg(feature = "native")]
-use crate::da::{DaSpec, DaTxRequest, DaVerifier, SequencerCommitment};
+use crate::da::{DaSpec, DaTxRequest, DaVerifier, ForcedTransaction, SequencerCommitment};
 #[cfg(feature = "native")]
 use crate::zk::Proof;
 
@@ -124,6 +124,15 @@ pub trait DaService: Send + Sync + 'static {
         &self,
         sequencer_da_pub_key: &[u8],
     ) -> Vec<SequencerCommitment>;
+
+    /// Extract forced transactions from a block.
+    /// Returns a list of (tx_index, ForcedTransaction) pairs.
+    fn extract_relevant_forced_transactions(
+        &self,
+        _block: &Self::FilteredBlock,
+    ) -> Vec<(usize, ForcedTransaction)> {
+        vec![]
+    }
 
     /// Convert a DA layer block to short form header proof.
     fn block_to_short_header_proof(

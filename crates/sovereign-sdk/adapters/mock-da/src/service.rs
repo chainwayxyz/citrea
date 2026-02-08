@@ -447,6 +447,11 @@ impl DaService for MockDaService {
                 let req = DataOnDa::BatchProofMethodId(method_id);
                 borsh::to_vec(&req).unwrap()
             }
+            DaTxRequest::ForcedTransaction(forced_tx) => {
+                tracing::debug!("Adding a forced transaction");
+                let req = DataOnDa::ForcedTransaction(forced_tx);
+                borsh::to_vec(&req).unwrap()
+            }
         };
         let blocks = self.blocks.lock().await;
         let _ = self.add_blob(&blocks, blob, Default::default())?;

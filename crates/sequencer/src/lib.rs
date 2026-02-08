@@ -71,6 +71,8 @@ pub mod db_migrations;
 mod db_provider;
 /// Separate mempool implementation only for handling deposit data in FIFO (First-In-First-Out) order
 mod deposit_data_mempool;
+/// Mempool for forced transactions from L1 inscriptions
+pub mod forced_tx_mempool;
 /// Module containing mempool functionality for transaction management
 mod mempool;
 /// Module containing metrics collection and reporting functionality

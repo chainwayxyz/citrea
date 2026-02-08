@@ -11,7 +11,10 @@ use std::time::{Duration, Instant};
 use anyhow::anyhow;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::da::{extract_zk_proofs_and_sequencer_commitments, sync_l1, ProofOrCommitment};
+use citrea_common::da::{
+    extract_forced_transactions, extract_zk_proofs_and_sequencer_commitments, sync_l1,
+    ProofOrCommitment,
+};
 use citrea_common::utils::get_tangerine_activation_height_non_zero;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::network_to_dev_mode;
@@ -201,6 +204,16 @@ where
         // Set the l1 height of the l1 hash
         self.ledger_db
             .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)?;
+
+        // Extract and log forced transactions from L1 block
+        let forced_tx_count =
+            extract_forced_transactions(self.da_service.clone(), &l1_block).len();
+        if forced_tx_count > 0 {
+            info!(
+                "Found {} forced transaction(s) in L1 block {}",
+                forced_tx_count, l1_height
+            );
+        }
 
         let commitments_and_proofs = extract_zk_proofs_and_sequencer_commitments(
             self.da_service.clone(),

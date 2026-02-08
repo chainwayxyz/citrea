@@ -15,6 +15,7 @@ fn transaction_kind_to_backup_name(kind: &TransactionKind) -> &str {
         TransactionKind::Complete => "complete_zk_proof",
         TransactionKind::SequencerCommitment => "sequencer_commitment",
         TransactionKind::BatchProofMethodId => "method_id_update",
+        TransactionKind::ForcedTransaction => "forced_transaction",
         TransactionKind::Chunks => "chunks",
         TransactionKind::Aggregate => "aggregate",
         TransactionKind::Unknown(_) => "unknown",
@@ -30,7 +31,8 @@ pub(crate) fn backup_txs_to_file(
         match &tx.kind {
             TransactionKind::Complete
             | TransactionKind::BatchProofMethodId
-            | TransactionKind::SequencerCommitment => {
+            | TransactionKind::SequencerCommitment
+            | TransactionKind::ForcedTransaction => {
                 if txs.len() != 1 {
                     return Err(BitcoinServiceError::TransactionBackupError(format!(
                         "Expected exactly 2 transactions for {:?}, got {}",

@@ -176,6 +176,16 @@ impl DaVerifier for BitcoinVerifier {
                             ));
                         }
                     }
+                    ParsedTransaction::ForcedTransaction(forced_tx) => {
+                        if let Some(hash) = forced_tx.get_sig_verified_hash() {
+                            blobs.push(BlobWithSender::new(
+                                forced_tx.body,
+                                forced_tx.public_key,
+                                hash,
+                                *wtxid,
+                            ));
+                        }
+                    }
                 }
             }
         }

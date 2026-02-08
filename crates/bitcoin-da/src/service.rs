@@ -29,7 +29,7 @@ use citrea_primitives::{MAX_COMPRESSED_BLOB_SIZE, MAX_TX_BODY_SIZE};
 use lru::LruCache;
 use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{DaSpec, DaTxRequest, DataOnDa, SequencerCommitment};
+use sov_rollup_interface::da::{DaSpec, DaTxRequest, DataOnDa, ForcedTransaction, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
 use sov_rollup_interface::zk::Proof;
 use sov_rollup_interface::Network;
@@ -412,6 +412,11 @@ impl BitcoinService {
                 let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
                 RawTxData::BatchProofMethodId(blob)
             }
+            DaTxRequest::ForcedTransaction(ft) => {
+                let data = DataOnDa::ForcedTransaction(ft);
+                let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
+                RawTxData::ForcedTransaction(blob)
+            }
         };
 
         let network = self.network;
@@ -541,7 +546,8 @@ impl BitcoinService {
         match &tx.kind {
             TransactionKind::Complete
             | TransactionKind::BatchProofMethodId
-            | TransactionKind::SequencerCommitment => {
+            | TransactionKind::SequencerCommitment
+            | TransactionKind::ForcedTransaction => {
                 info!("Blob inscribe tx sent. Hash: {}", tx.reveal_txid())
             }
             TransactionKind::Chunks => {
@@ -683,6 +689,40 @@ impl BitcoinService {
         };
 
         Ok(new_txid)
+    }
+
+    /// Extract forced transactions from a block.
+    /// Any public key is accepted — the inscription signature only proves integrity.
+    pub fn extract_forced_transactions(
+        &self,
+        block: &BitcoinBlock,
+        l1_block_height: u64,
+    ) -> Vec<(usize, ForcedTransaction)> {
+        let mut forced_txs = Vec::new();
+
+        for (idx, tx) in block.txdata.iter().enumerate() {
+            if !tx
+                .compute_wtxid()
+                .to_byte_array()
+                .as_slice()
+                .starts_with(&self.reveal_tx_prefix)
+            {
+                continue;
+            }
+
+            if let Ok(ParsedTransaction::ForcedTransaction(ft)) = parse_relevant_transaction(tx) {
+                // Accept ANY public key — inscription signature only proves integrity
+                if ft.get_sig_verified_hash().is_some() {
+                    let data = DataOnDa::try_from_slice(&ft.body);
+                    if let Ok(DataOnDa::ForcedTransaction(mut forced_tx)) = data {
+                        // Set the L1 block height where it was observed
+                        forced_tx.l1_block_height = l1_block_height;
+                        forced_txs.push((idx, forced_tx));
+                    }
+                }
+            }
+        }
+        forced_txs
     }
 
     /// A Chunk is valid if:
@@ -920,6 +960,9 @@ impl DaService for BitcoinService {
                     ParsedTransaction::SequencerCommitment(_) => {
                         // ignore
                     }
+                    ParsedTransaction::ForcedTransaction(_) => {
+                        // ignore because these are not proofs
+                    }
                 }
             }
         }
@@ -1016,7 +1059,8 @@ impl DaService for BitcoinService {
                     ParsedTransaction::Complete(_)
                     | ParsedTransaction::Aggregate(_)
                     | ParsedTransaction::BatchProofMethodId(_)
-                    | ParsedTransaction::SequencerCommitment(_) => {
+                    | ParsedTransaction::SequencerCommitment(_)
+                    | ParsedTransaction::ForcedTransaction(_) => {
                         error!("{}:{}: Expected chunk, got other tx kind", tx_id, chunk_id);
                         continue 'aggregate;
                     }
@@ -1071,6 +1115,13 @@ impl DaService for BitcoinService {
             }
         }
         sequencer_commitments
+    }
+
+    fn extract_relevant_forced_transactions(
+        &self,
+        block: &Self::FilteredBlock,
+    ) -> Vec<(usize, ForcedTransaction)> {
+        self.extract_forced_transactions(block, block.header.height)
     }
 
     /// Extract the relevant transactions from a block, along with a proof that the extraction has been done correctly.
@@ -1191,6 +1242,17 @@ impl DaService for BitcoinService {
                                 wtxid.to_byte_array(),
                             );
 
+                            relevant_txs.push(relevant_tx);
+                        }
+                    }
+                    ParsedTransaction::ForcedTransaction(ft) => {
+                        if let Some(hash) = ft.get_sig_verified_hash() {
+                            let relevant_tx = BlobWithSender::new(
+                                ft.body,
+                                ft.public_key,
+                                hash,
+                                wtxid.to_byte_array(),
+                            );
                             relevant_txs.push(relevant_tx);
                         }
                     }

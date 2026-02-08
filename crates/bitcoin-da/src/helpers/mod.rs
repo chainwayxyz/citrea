@@ -29,8 +29,8 @@ pub(crate) enum TransactionKind {
     BatchProofMethodId = 3,
     /// SequencerCommitment
     SequencerCommitment = 4,
-    // /// ForcedTransaction
-    // ForcedTransaction, // = ?,
+    /// ForcedTransaction
+    ForcedTransaction = 5,
     /// An unknown type of transaction
     Unknown(NonZero<u16>),
 }
@@ -45,6 +45,7 @@ impl TransactionKind {
             TransactionKind::Chunks => 2u16.to_le_bytes(),
             TransactionKind::BatchProofMethodId => 3u16.to_le_bytes(),
             TransactionKind::SequencerCommitment => 4u16.to_le_bytes(),
+            TransactionKind::ForcedTransaction => 5u16.to_le_bytes(),
             TransactionKind::Unknown(n) => n.get().to_le_bytes(),
         }
     }
@@ -61,6 +62,7 @@ impl TransactionKind {
             2 => Some(TransactionKind::Chunks),
             3 => Some(TransactionKind::BatchProofMethodId),
             4 => Some(TransactionKind::SequencerCommitment),
+            5 => Some(TransactionKind::ForcedTransaction),
             n => Some(TransactionKind::Unknown(
                 NonZero::new(n).expect("Is not zero"),
             )),

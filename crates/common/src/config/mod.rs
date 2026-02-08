@@ -262,6 +262,16 @@ const fn default_max_l1_fee_rate_sat_vb() -> u64 {
     15 // sat/vbyte
 }
 
+#[inline]
+const fn default_forced_tx_fetch_limit() -> usize {
+    10
+}
+
+#[inline]
+const fn default_forced_tx_deadline_l1_blocks() -> u64 {
+    10
+}
+
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SequencerConfig {
@@ -288,6 +298,12 @@ pub struct SequencerConfig {
     /// Maximum L1 fee rate in sat/vbyte
     #[serde(default = "default_max_l1_fee_rate_sat_vb")]
     pub max_l1_fee_rate_sat_vb: u64,
+    /// Limit for the number of forced transactions to include per block
+    #[serde(default = "default_forced_tx_fetch_limit")]
+    pub forced_tx_fetch_limit: usize,
+    /// Number of L1 blocks after which a forced transaction deadline expires
+    #[serde(default = "default_forced_tx_deadline_l1_blocks")]
+    pub forced_tx_deadline_l1_blocks: u64,
 }
 
 impl Default for SequencerConfig {
@@ -304,6 +320,8 @@ impl Default for SequencerConfig {
             mempool_conf: Default::default(),
             l1_fee_rate_multiplier: 1.0,
             max_l1_fee_rate_sat_vb: 1, // doesn't matter since mock da returns 10 wei/byte
+            forced_tx_fetch_limit: default_forced_tx_fetch_limit(),
+            forced_tx_deadline_l1_blocks: default_forced_tx_deadline_l1_blocks(),
         }
     }
 }
@@ -327,6 +345,14 @@ impl FromEnv for SequencerConfig {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or_else(default_max_l1_fee_rate_sat_vb),
+            forced_tx_fetch_limit: read_env("FORCED_TX_FETCH_LIMIT")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_forced_tx_fetch_limit),
+            forced_tx_deadline_l1_blocks: read_env("FORCED_TX_DEADLINE_L1_BLOCKS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_forced_tx_deadline_l1_blocks),
         })
     }
 }
@@ -677,6 +703,8 @@ mod tests {
             bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
             l1_fee_rate_multiplier: 0.75,
             max_l1_fee_rate_sat_vb: 15,
+            forced_tx_fetch_limit: 10,
+            forced_tx_deadline_l1_blocks: 10,
         };
         assert_eq!(config, expected);
     }
@@ -742,6 +770,8 @@ mod tests {
             bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
             l1_fee_rate_multiplier: 1.0,
             max_l1_fee_rate_sat_vb: 40,
+            forced_tx_fetch_limit: 10,
+            forced_tx_deadline_l1_blocks: 10,
         };
         assert_eq!(sequencer_config, expected);
     }

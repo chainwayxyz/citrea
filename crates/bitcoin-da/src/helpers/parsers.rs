@@ -24,8 +24,8 @@ pub enum ParsedTransaction {
     BatchProofMethodId(ParsedBatchProofMethodId),
     /// Kind 4
     SequencerCommitment(ParsedSequencerCommitment),
-    // /// Kind ?
-    // ForcedTransaction(ForcedTransaction),
+    /// Kind 5
+    ForcedTransaction(ParsedForcedTransaction),
 }
 
 /// ParsedComplete is a transaction that contains the full body of a proof.
@@ -55,6 +55,14 @@ pub struct ParsedChunk {
 /// ParsedSequencerCommitment is a transaction that contains the sequencer commitment.
 #[derive(Debug, Clone)]
 pub struct ParsedSequencerCommitment {
+    pub(crate) body: Vec<u8>,
+    pub(crate) signature: Vec<u8>,
+    pub(crate) public_key: Vec<u8>,
+}
+
+/// ParsedForcedTransaction is a transaction that contains a forced transaction inscription.
+#[derive(Debug, Clone)]
+pub struct ParsedForcedTransaction {
     pub(crate) body: Vec<u8>,
     pub(crate) signature: Vec<u8>,
     pub(crate) public_key: Vec<u8>,
@@ -128,6 +136,18 @@ impl VerifyParsed for ParsedAggregate {
 }
 
 impl VerifyParsed for ParsedSequencerCommitment {
+    fn public_key(&self) -> &[u8] {
+        &self.public_key
+    }
+    fn signature(&self) -> &[u8] {
+        &self.signature
+    }
+    fn body(&self) -> &[u8] {
+        &self.body
+    }
+}
+
+impl VerifyParsed for ParsedForcedTransaction {
     fn public_key(&self) -> &[u8] {
         &self.public_key
     }
@@ -222,6 +242,8 @@ fn parse_transaction(
         }
         TransactionKind::SequencerCommitment => body_parsers::parse_type_4_body(instructions)
             .map(ParsedTransaction::SequencerCommitment),
+        TransactionKind::ForcedTransaction => body_parsers::parse_type_5_body(instructions)
+            .map(ParsedTransaction::ForcedTransaction),
         TransactionKind::Unknown(n) => Err(ParserError::InvalidHeaderType(n)),
     }
 }
@@ -266,7 +288,7 @@ mod body_parsers {
 
     use super::{
         read_instr, read_opcode, read_push_bytes, ParsedAggregate, ParsedChunk, ParsedComplete,
-        ParsedSequencerCommitment, ParserError,
+        ParsedForcedTransaction, ParsedSequencerCommitment, ParserError,
     };
     use crate::helpers::parsers::ParsedBatchProofMethodId;
 
@@ -507,6 +529,65 @@ mod body_parsers {
         let body = body.as_bytes().to_vec();
 
         Ok(ParsedSequencerCommitment {
+            body,
+            signature,
+            public_key,
+        })
+    }
+
+    /// Parse transaction body of Type5 Forced Transaction
+    pub(super) fn parse_type_5_body(
+        instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
+    ) -> Result<ParsedForcedTransaction, ParserError> {
+        let op_false = read_push_bytes(instructions)?;
+        if !op_false.is_empty() {
+            // OP_FALSE = OP_PUSHBYTES_0
+            return Err(ParserError::UnexpectedOpcode);
+        }
+
+        if OP_IF != read_opcode(instructions)? {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+
+        let signature = read_push_bytes(instructions)?;
+        let public_key = read_push_bytes(instructions)?;
+
+        let mut chunks = vec![];
+
+        loop {
+            let instr = read_instr(instructions)?;
+            match instr {
+                PushBytes(chunk) => {
+                    if chunk.is_empty() {
+                        return Err(ParserError::UnexpectedOpcode);
+                    }
+                    chunks.push(chunk)
+                }
+                Op(OP_ENDIF) => break,
+                Op(_) => return Err(ParserError::UnexpectedOpcode),
+            }
+        }
+
+        // Nonce
+        let _nonce = read_push_bytes(instructions)?;
+        if OP_NIP != read_opcode(instructions)? {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+        // END of transaction
+        if instructions.next().is_some() {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+
+        let body_size: usize = chunks.iter().map(|c| c.len()).sum();
+        let mut body = Vec::with_capacity(body_size);
+        for chunk in chunks {
+            body.extend_from_slice(chunk.as_bytes());
+        }
+
+        let signature = signature.as_bytes().to_vec();
+        let public_key = public_key.as_bytes().to_vec();
+
+        Ok(ParsedForcedTransaction {
             body,
             signature,
             public_key,

@@ -65,6 +65,7 @@ use crate::commitment::service::CommitmentService;
 use crate::da::{da_block_monitor, get_da_block_data};
 use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::{Deposit, DepositDataMempool};
+use crate::forced_tx_mempool::ForcedTxMempool;
 use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS as SM;
 use crate::types::SequencerRpcMessage;
@@ -103,6 +104,8 @@ where
     pub(crate) stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
     /// Mempool for deposit transactions
     pub(crate) deposit_mempool: Arc<Mutex<DepositDataMempool>>,
+    /// Mempool for forced transactions from L1 inscriptions
+    pub(crate) forced_tx_mempool: Arc<Mutex<ForcedTxMempool>>,
     /// Manager for prover storage
     pub(crate) storage_manager: ProverStorageManager,
     /// Current state root hash
@@ -173,6 +176,7 @@ where
             config,
             stf,
             deposit_mempool,
+            forced_tx_mempool: Arc::new(Mutex::new(ForcedTxMempool::new())),
             storage_manager,
             state_root: init_params.prev_state_root,
             l2_block_hash: init_params.prev_l2_block_hash,
@@ -192,6 +196,7 @@ where
     /// * `l2_block_info` - Block information for hooks
     /// * `deposit_data` - Deposit transaction data
     /// * `da_blocks` - Data availability blocks
+    /// * `forced_txs` - Forced transactions from L1 inscriptions to include before mempool txs
     ///
     /// # Returns
     /// A tuple containing the validated transactions and their hashes
@@ -205,6 +210,7 @@ where
         l2_block_info: HookL2BlockInfo,
         deposit_data: &[Deposit],
         da_blocks: Vec<Da::FilteredBlock>,
+        forced_txs: &[sov_rollup_interface::da::ForcedTransaction],
     ) -> anyhow::Result<(
         Vec<RlpEvmTransaction>,
         Vec<TxHash>,
@@ -254,6 +260,51 @@ where
             let mut l1_fee_failed_txs = vec![];
             // Track senders for successfully validated transactions
             let mut senders = vec![];
+
+            // Process forced transactions from L1 inscriptions before mempool txs
+            for ft in forced_txs {
+                let start_tx = Instant::now();
+                let rlp_tx = RlpEvmTransaction { rlp: ft.rlp_tx.clone() };
+                let call_txs = CallMessage {
+                    txs: vec![rlp_tx.clone()],
+                };
+                let raw_message = <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
+                    citrea_evm::Evm<DefaultContext>,
+                >>::encode_call(call_txs);
+
+                let signed_tx = self.sign_tx(l2_block_info.current_spec, raw_message, nonce)?;
+                nonce += 1;
+
+                let txs = vec![signed_tx];
+                let mut working_set = working_set_to_discard.checkpoint().to_revertable();
+
+                match self.stf.apply_l2_block_txs(&l2_block_info, &txs, &mut working_set) {
+                    Ok(()) => {
+                        // Forced tx included successfully (even if EVM-reverted, it counts)
+                        working_set_to_discard = working_set.checkpoint().to_revertable();
+                        // Recover sender from RLP for mempool maintenance
+                        let sender = match recover_raw_transaction(rlp_tx.rlp.clone().into()) {
+                            Ok(recovered) => recovered.signer(),
+                            Err(e) => {
+                                warn!("Failed to recover sender from forced tx RLP: {:?}", e);
+                                Address::ZERO
+                            }
+                        };
+                        senders.push(sender);
+                        all_txs.push(rlp_tx);
+                        SM.dry_run_single_tx_time.record(
+                            Instant::now()
+                                .saturating_duration_since(start_tx)
+                                .as_secs_f64(),
+                        );
+                    }
+                    Err(e) => {
+                        nonce = nonce.saturating_sub(1);
+                        warn!("Forced transaction dry-run failed, skipping: {:?}", e);
+                        working_set_to_discard = working_set.revert().to_revertable();
+                    }
+                }
+            }
 
             // using .next() instead of a for loop because its the intended
             // behaviour for the BestTransactions implementations
@@ -498,6 +549,12 @@ where
             .lock()
             .fetch_deposits(self.config.deposit_mempool_fetch_limit);
 
+        // Get pending forced transactions from L1 inscriptions
+        let forced_txs = self
+            .forced_tx_mempool
+            .lock()
+            .fetch(self.config.forced_tx_fetch_limit);
+
         let pub_key = self.sov_tx_signer_priv_key.pub_key();
 
         let l2_block_info = HookL2BlockInfo {
@@ -532,6 +589,7 @@ where
                 l2_block_info.clone(),
                 &deposit_data,
                 da_blocks,
+                &forced_txs,
             )
             .await?;
 
@@ -618,6 +676,15 @@ where
             debug!(
                 "Removed {} deposits from mempool after successful block production",
                 removed_count
+            );
+        }
+
+        // Remove successfully included forced transactions from the mempool
+        if !forced_txs.is_empty() {
+            self.forced_tx_mempool.lock().remove(&forced_txs);
+            debug!(
+                "Removed {} forced txs from mempool after successful block production",
+                forced_txs.len()
             );
         }
 
@@ -1172,6 +1239,18 @@ where
                         last_finalized_l1_height = new_finalized_l1_height;
 
                         info!("New finalized L1 block at height {}", last_finalized_l1_height);
+
+                        // Extract forced transactions from the new L1 block
+                        let forced_txs = self.da_service.extract_relevant_forced_transactions(&last_finalized_block);
+                        if !forced_txs.is_empty() {
+                            let mut ftm = self.forced_tx_mempool.lock();
+                            for (_idx, ft) in forced_txs {
+                                if ftm.add(ft) {
+                                    debug!("Added forced transaction from L1 block {}", last_finalized_l1_height);
+                                }
+                            }
+                            info!("Forced tx mempool size: {}", ftm.len());
+                        }
 
                         missed_da_blocks_count = self.da_blocks_missed(last_finalized_l1_height, last_used_l1_height);
                     }

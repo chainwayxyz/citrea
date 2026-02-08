@@ -146,6 +146,9 @@ pub struct SequencerMetrics {
     /// The l2 end height of the latest sequencer commitment
     #[metric(describe = "The l2 end height of the latest sequencer commitment")]
     pub latest_sequencer_commitment_l2_end_height: Gauge,
+    /// Current number of forced transactions in the mempool
+    #[metric(describe = "How many forced transactions are currently in the forced tx mempool")]
+    pub forced_tx_mempool_txs: Gauge,
 }
 
 /// Sequencer metrics

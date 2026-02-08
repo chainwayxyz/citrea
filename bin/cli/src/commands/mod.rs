@@ -3,6 +3,7 @@ use citrea_common::NodeType;
 use clap::ValueEnum;
 pub(crate) use db_migrate::*;
 use derive_more::Display;
+pub(crate) use force_include::*;
 pub(crate) use prune::*;
 pub(crate) use rollback::*;
 use sov_db::schema::tables::{
@@ -12,6 +13,7 @@ use sov_db::schema::tables::{
 
 mod backup;
 mod db_migrate;
+pub(crate) mod force_include;
 mod prune;
 mod rollback;
 

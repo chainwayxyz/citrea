@@ -3699,6 +3699,10 @@ name = "citrea-cli"
 version = "1.2.2"
 dependencies = [
  "anyhow",
+ "bitcoin",
+ "bitcoin-da",
+ "bitcoincore-rpc",
+ "borsh",
  "citrea-batch-prover",
  "citrea-common",
  "citrea-fullnode",
@@ -3707,7 +3711,9 @@ dependencies = [
  "citrea-storage-ops",
  "clap",
  "derive_more 1.0.0",
+ "hex",
  "sov-db",
+ "sov-rollup-interface",
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.20",

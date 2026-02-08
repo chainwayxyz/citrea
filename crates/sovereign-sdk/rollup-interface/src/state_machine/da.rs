@@ -15,6 +15,16 @@ pub const SECURITY_COUNCIL_SIGNATURE_THRESHOLD: usize = 3;
 /// Size of a signature in bytes.
 pub const SECURITY_COUNCIL_SIGNATURE_SIZE: usize = 64;
 
+/// A forced transaction published as a Bitcoin inscription.
+/// Contains an RLP-encoded signed EVM transaction that the sequencer MUST include.
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct ForcedTransaction {
+    /// RLP-encoded signed EVM transaction
+    pub rlp_tx: Vec<u8>,
+    /// L1 block height where the forced transaction was observed
+    pub l1_block_height: u64,
+}
+
 /// Commitments made to the DA layer from the sequencer.
 /// Has merkle root of l2 block hashes from L1 start block to L1 end block (inclusive)
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
@@ -111,6 +121,8 @@ pub enum DaTxRequest {
     ZKProof(Proof),
     /// Batch proof method id update for light client
     BatchProofMethodId(BatchProofMethodId),
+    /// A forced transaction inscription
+    ForcedTransaction(ForcedTransaction),
 }
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum
@@ -127,6 +139,8 @@ pub enum DataOnDa {
     BatchProofMethodId(BatchProofMethodId),
     /// Sequencer commitment
     SequencerCommitment(SequencerCommitment),
+    /// A forced transaction
+    ForcedTransaction(ForcedTransaction),
 }
 
 /// A specification for the types used by a DA layer.

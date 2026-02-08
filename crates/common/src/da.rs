@@ -5,7 +5,7 @@ use std::time::Duration;
 use anyhow::anyhow;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
-use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
+use sov_rollup_interface::da::{BlockHeaderTrait, ForcedTransaction, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
 use tokio::sync::{Mutex, Notify};
@@ -125,6 +125,24 @@ where
     sequencer_commitments.sort();
 
     sequencer_commitments
+}
+
+/// Extract ForcedTransactions from an L1 block, ordered by their position in the block.
+pub fn extract_forced_transactions<Da>(
+    da_service: Arc<Da>,
+    l1_block: &Da::FilteredBlock,
+) -> Vec<ForcedTransaction>
+where
+    Da: DaService,
+{
+    let mut indexed: Vec<_> = da_service
+        .as_ref()
+        .extract_relevant_forced_transactions(l1_block);
+
+    // Sort by transaction index to maintain ordering within the L1 block.
+    indexed.sort_by_key(|(idx, _)| *idx);
+
+    indexed.into_iter().map(|(_, ft)| ft).collect()
 }
 
 /// Extract proofs and commitments and return them sorted by tx index

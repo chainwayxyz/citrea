@@ -12,6 +12,7 @@ resolver = "2"
 
 [dependencies]
 # Citrea deps
+bitcoin-da = { path = "../../crates/bitcoin-da" }
 citrea-batch-prover = { path = "../../crates/batch-prover" }
 citrea-common = { path = "../../crates/common" }
 citrea-fullnode = { path = "../../crates/fullnode" }
@@ -21,11 +22,16 @@ citrea-storage-ops = { path = "../../crates/storage-ops" }
 
 # Sovereign-SDK deps
 sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
+sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface" }
 
 # 3rd-party deps
 anyhow = { workspace = true }
+bitcoin = { workspace = true }
+bitcoincore-rpc = { workspace = true }
+borsh = { workspace = true }
 clap = { workspace = true }
 derive_more = { workspace = true }
+hex = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

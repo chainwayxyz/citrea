@@ -98,6 +98,8 @@ pub enum L2BlockHookError {
     TooManyL2BlocksOnDaSlot,
     /// The timestamp of the l2 block is incorrect
     TimestampShouldBeGreater,
+    /// A forced transaction deadline was missed
+    ForcedTxDeadlineMissed,
 }
 
 #[derive(Debug, PartialEq)]
@@ -200,6 +202,9 @@ impl std::fmt::Display for L2BlockHookError {
             }
             L2BlockHookError::TimestampShouldBeGreater => {
                 write!(f, "Timestamp should be greater")
+            }
+            L2BlockHookError::ForcedTxDeadlineMissed => {
+                write!(f, "Forced transaction inclusion deadline missed")
             }
         }
     }

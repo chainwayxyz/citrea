@@ -583,6 +583,11 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         )
                     }
                 }
+                DataOnDa::ForcedTransaction(_) => {
+                    // Forced transactions are handled by the sequencer/fullnode,
+                    // not relevant for the light client prover circuit.
+                    log!("Found forced transaction, skipping in circuit");
+                }
             }
         }
 
