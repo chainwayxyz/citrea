@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+### Changed
+- feat: Separate l1 fee rate from block update
+
+
 ## [v1.2.2] (2026-01-28)
 ### Changed
 - feat: boundless uses claim digest match ([#3121](https://github.com/chainwayxyz/citrea/pull/3121))
