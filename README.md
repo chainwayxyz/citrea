@@ -7,7 +7,7 @@
 > [!WARNING]
 > Follow our [website](https://citrea.xyz) & [social media accounts](https://twitter.com/citrea_xyz) for announcements regarding the next phases of Citrea. \
 > \
-> Citrea uses **BTC** as its native token. **There's no Citrea token**. Please beware of scams! \
+> Citrea uses **BTC** as its native token. **There's no Citrea token**. Please beware of scams!
 
 
 
