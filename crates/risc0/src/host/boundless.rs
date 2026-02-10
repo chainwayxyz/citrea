@@ -364,7 +364,7 @@ impl BoundlessProver {
 
         let offer_layer = OfferLayer::new(provider, offer_layer_config);
 
-        let reqs = Requirements::new(Predicate::claim_digest_match(receipt_claim_digest))
+        let requirements = Requirements::new(Predicate::claim_digest_match(receipt_claim_digest))
             .with_groth16_proof();
 
         // Generate a random request id for gas estimation, since the gas cost can depend on the request id.
@@ -374,7 +374,7 @@ impl BoundlessProver {
 
         // Unwrap is safe here because no callbacks exist in requirements
         let gas_cost_estimate = offer_layer
-            .estimate_gas_cost_upper_bound(&reqs, &rand_request_id, gas_price)
+            .estimate_gas_cost_upper_bound(&requirements, &rand_request_id, gas_price)
             .unwrap();
 
         let max_price_cycle = max_price_per_cycle * U256::from(total_cycles_approx);
@@ -395,13 +395,7 @@ impl BoundlessProver {
             .unwrap()
             .with_input_url(input_url)
             .unwrap()
-            .with_requirements(
-                TryInto::<RequirementParams>::try_into(Requirements::new(
-                    Predicate::claim_digest_match(receipt_claim_digest),
-                ))
-                .expect("TODO: handle error"),
-            )
-            .with_groth16_proof()
+            .with_requirements(requirements)
             .with_offer(
                 Offer::default()
                     .with_min_price(min_price)
