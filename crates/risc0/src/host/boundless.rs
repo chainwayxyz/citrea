@@ -380,7 +380,7 @@ impl BoundlessProver {
         let max_price_cycle = max_price_per_cycle * U256::from(total_cycles_approx);
 
         // https://github.com/boundless-xyz/boundless/blob/eced0f1eab1b0666ac1cd263ce815861a9558925/crates/boundless-market/src/request_builder/offer_layer.rs#L329
-        // Add the gas price plus 10% to the max_price.
+        // Add the estimated gas cost plus 10% to the cycle-based max price.
         let max_price =
             max_price_cycle + (gas_cost_estimate + (gas_cost_estimate / U256::from(10)));
 
