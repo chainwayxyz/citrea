@@ -333,7 +333,35 @@ impl BoundlessProver {
             .build()
             .expect("Failed to build offer layer config");
 
-        let gas_price = provider.get_gas_price().await.unwrap();
+        let exponential_backoff = ExponentialBackoff::default();
+
+        let gas_price = retry_backoff(exponential_backoff, || {
+            let p = provider.clone();
+            async move {
+                match p.get_gas_price().await {
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to get gas price from provider, retrying... err={}",
+                            e
+                        );
+                        Err(backoff::Error::transient(e))
+                    }
+                    Ok(price) => Ok(price),
+                }
+            }
+        })
+        .await
+        .unwrap_or_else(|e| {
+            // BASE avg gas price is less than 0.1 gwei
+            let default_gas_price = 1_000_000_000u128; // 1 gwei
+            tracing::error!(
+                "Failed to get gas price from provider, using default gas price {}. err={}",
+                default_gas_price,
+                e
+            );
+            default_gas_price
+        });
+
         let offer_layer = OfferLayer::new(provider, offer_layer_config);
 
         let reqs = Requirements::new(Predicate::claim_digest_match(receipt_claim_digest))
