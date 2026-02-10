@@ -1,6 +1,15 @@
 # Changelog
 
-## [Unreleased]
+## [v1.2.2] (2026-01-28)
+### Changed
+- feat: boundless uses claim digest match ([#3121](https://github.com/chainwayxyz/citrea/pull/3121))
+
+## [v1.2.1] (2026-01-27)
+### Added
+- docs: Add mainnet run guide at `docs/run-mainnet.md`.
+
+### Changed
+- feat: unify fullnode docker image to be usable on mainnet.
 
 ## [v1.2.0] (2026-01-07)
 ### Added
@@ -179,7 +188,9 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
 
-[unreleased]: https://github.com/chainwayxyz/citrea/compare/v1.2.0...HEAD
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/v1.2.2...HEAD
+[v1.2.2]: https://github.com/chainwayxyz/citrea/compare/v1.2.1...v1.2.2
+[v1.2.1]: https://github.com/chainwayxyz/citrea/compare/v1.2.0...v1.2.1
 [v1.2.0]: https://github.com/chainwayxyz/citrea/compare/v1.1.0...v1.2.0
 [v1.1.0]: https://github.com/chainwayxyz/citrea/compare/v1.0.2...v1.1.0
 [v1.0.2]: https://github.com/chainwayxyz/citrea/compare/v1.0.1...v1.0.2

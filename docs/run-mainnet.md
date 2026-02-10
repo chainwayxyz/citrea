@@ -1,30 +1,16 @@
 
-## TL; DR: I want to run it ASAP
-Download our testnet docker-compose file:
+# Run a Citrea Mainnet Full Node
 
-```sh
-curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/docker/docker-compose.yml --output docker-compose.yml
-```
-
-Then use `docker-compose` to both launch a Bitcoin testnet4 node and Citrea full node:
-```sh
-docker-compose -f docker-compose.yml up
-```
-
-# Run a Citrea Testnet Full Node
-
-This guide goes over how to run a full node for Citrea testnet.
+This guide goes over how to run a full node for Citrea mainnet.
 
 It demonstrates different methods for running required software.
 
 
-## Bitcoin Testnet Setup
+## Bitcoin Mainnet Setup
 
-Citrea testnet uses Bitcoin testnet4 as its DA and settlement layer.
+Citrea mainnet uses Bitcoin mainnet as its DA and settlement layer.
 
-So running a Citrea fullnode requires a fully synced Bitcoin testnet4 node.
-
-Testnet4 is only enabled in versions bigger than 28.0.
+So running a Citrea fullnode requires a fully synced Bitcoin mainnet node.
 
 ### Option 1: Build from source
 
@@ -46,41 +32,38 @@ OSX: https://github.com/bitcoin/bitcoin/blob/v30.0/doc/build-osx.md
 Linux: https://github.com/bitcoin/bitcoin/blob/v30.0/doc/build-unix.md
 
 
-#### Step 1.3: Run testnet4 node:
+#### Step 1.3: Run mainnet node:
 
-After the setup, execute these commands to run a Bitcoin testnet4 node:
+After the setup, execute these commands to run a Bitcoin mainnet node:
 
 ```sh
-bitcoind -testnet4 -daemon -txindex=1 -rpcbind=0.0.0.0 -rpcport=18443 -rpcuser=citrea -rpcpassword=citrea
+bitcoind -daemon -txindex=1 -rpcbind=0.0.0.0 -rpcport=8332 -rpcuser=citrea -rpcpassword=citrea
 ```
 
 You can edit RPC parameters as you wish, but you also have to edit `rollup_config.toml`
 
 ### Option 2: Run Docker container
 
-If you are also going to run Citrea in Docker, follow [these steps](#tl-dr-i-want-to-run-it-asap).
-
 #### Step 2.1: Install Docker
 
 Follow instructions to install Docker here: https://docs.docker.com/engine/install/
 
-#### Step 2.2: Run testnet4 node:
+#### Step 2.2: Run mainnet node:
 
 After Docker is installed, run this command to pull Bitcoin v0.30.0 image and run it as a container:
 
 ```sh
 docker run -d \
-  -v ${PWD}/bitcoin-testnet4:/home/bitcoin/.bitcoin \
-  --name bitcoin-testnet4 \
-  -p 18443:18443 \
-  -p 18444:18444 \
+  -v ${PWD}/bitcoin-mainnet:/home/bitcoin/.bitcoin \
+  --name bitcoin-mainnet \
+  -p 8332:8332 \
+  -p 8333:8333 \
   bitcoin/bitcoin:30.0 \
   -printtoconsole \
-  -testnet4=1 \
   -rest \
   -rpcbind=0.0.0.0 \
   -rpcallowip=0.0.0.0/0 \
-  -rpcport=18443 \
+  -rpcport=8332 \
   -rpcuser=citrea \
   -rpcpassword=citrea \
   -server \
@@ -102,11 +85,13 @@ Before continuing we suggest creating a `citrea/` directory and executing these 
 
 Go to this [webpage](https://github.com/chainwayxyz/citrea/releases) and download latest binary for your operating system under "Assets" section.
 
-Run this command to download full node config and testnet genesis files:
+Run this command to download full node config and mainnet genesis files:
 ```sh
-curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/resources/configs/testnet/rollup_config.toml --output rollup_config.toml
-curl https://static.testnet.citrea.xyz/genesis.tar.gz --output genesis.tar.gz
-tar -xzvf genesis.tar.gz
+curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/resources/configs/mainnet/rollup_config.toml --output rollup_config.toml
+mkdir -p genesis
+curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/resources/genesis/mainnet/evm.json --output genesis/evm.json
+curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/resources/genesis/mainnet/accounts.json --output genesis/accounts.json
+curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/resources/genesis/mainnet/l2_block_rule_enforcer.json --output genesis/l2_block_rule_enforcer.json
 ```
 
 Look through the `rollup_config.toml` and apply changes as you wish, if you modified any Bitcoin RPC configs, change corresponding values under `[da]`.
@@ -117,19 +102,19 @@ Finally run this command to run your Citrea full node:
 
 Mac:
 ```sh
-./citrea-v1.2.2-osx-arm64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+./citrea-v1.2.2-osx-arm64 --network mainnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 or if you wish to use environment variables for configuring your node:
 
 ```sh
-SEQUENCER_PUBLIC_KEY=0201edff3b3ee593dbef54e2fbdd421070db55e2de2aebe75f398bd85ac97ed364 \
-SEQUENCER_DA_PUB_KEY=03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b \
-PROVER_DA_PUB_KEY=0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42 \
-NODE_URL=http://0.0.0.0:18443 \
+SEQUENCER_PUBLIC_KEY=03516a66ea4bc3dab67f94dd356edb4eee00a7b33ffe1ab5a1422de5c7c42df4d6 \
+SEQUENCER_DA_PUB_KEY=032a31a1fa359abd2e6fc1136b4dea711e5f18618504e021084cc61099f72bb2bd \
+PROVER_DA_PUB_KEY=038e501ede61097973e49e714d5f2ad740c82b798bb90fda427fd5138e51f2398e \
+NODE_URL=http://0.0.0.0:8332 \
 NODE_USERNAME=citrea \
 NODE_PASSWORD=citrea \
-NETWORK=testnet \
+NETWORK=mainnet \
 TX_BACKUP_DIR="" \
 STORAGE_PATH=resources/dbs \
 DB_MAX_OPEN_FILES=5000 \
@@ -141,31 +126,31 @@ RPC_MAX_RESPONSE_BODY_SIZE=10485760 \
 RPC_BATCH_REQUESTS_LIMIT=50 \
 RPC_ENABLE_SUBSCRIPTIONS=true \
 RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION=10 \
-SEQUENCER_CLIENT_URL=https://rpc.testnet.citrea.xyz \
+SEQUENCER_CLIENT_URL=https://rpc.mainnet.citrea.xyz \
 INCLUDE_TX_BODY=false \
 SYNC_BLOCKS_COUNT=10 \
-SCAN_L1_START_HEIGHT=45496 \
+SCAN_L1_START_HEIGHT=924022 \
 RUST_LOG=info \
 JSON_LOGS=1 \
-./citrea-v1.2.2-osx-arm64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
+./citrea-v1.2.2-osx-arm64 --network mainnet --da-layer bitcoin --genesis-paths ./genesis
 ```
 
 Linux:
 ```sh
-./citrea-v1.2.2-linux-amd64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+./citrea-v1.2.2-linux-amd64 --network mainnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 or if you wish to use environment variables for configuring your node:
 
 
 ```sh
-SEQUENCER_PUBLIC_KEY=0201edff3b3ee593dbef54e2fbdd421070db55e2de2aebe75f398bd85ac97ed364 \
-SEQUENCER_DA_PUB_KEY=03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b \
-PROVER_DA_PUB_KEY=0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42 \
-NODE_URL=http://0.0.0.0:18443 \
+SEQUENCER_PUBLIC_KEY=03516a66ea4bc3dab67f94dd356edb4eee00a7b33ffe1ab5a1422de5c7c42df4d6 \
+SEQUENCER_DA_PUB_KEY=032a31a1fa359abd2e6fc1136b4dea711e5f18618504e021084cc61099f72bb2bd \
+PROVER_DA_PUB_KEY=038e501ede61097973e49e714d5f2ad740c82b798bb90fda427fd5138e51f2398e \
+NODE_URL=http://0.0.0.0:8332 \
 NODE_USERNAME=citrea \
 NODE_PASSWORD=citrea \
-NETWORK=testnet \
+NETWORK=mainnet \
 TX_BACKUP_DIR="" \
 STORAGE_PATH=resources/dbs \
 DB_MAX_OPEN_FILES=5000 \
@@ -177,13 +162,13 @@ RPC_MAX_RESPONSE_BODY_SIZE=10485760 \
 RPC_BATCH_REQUESTS_LIMIT=50 \
 RPC_ENABLE_SUBSCRIPTIONS=true \
 RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION=10 \
-SEQUENCER_CLIENT_URL=https://rpc.testnet.citrea.xyz \
+SEQUENCER_CLIENT_URL=https://rpc.mainnet.citrea.xyz \
 INCLUDE_TX_BODY=false \
 SYNC_BLOCKS_COUNT=10 \
-SCAN_L1_START_HEIGHT=45496 \
+SCAN_L1_START_HEIGHT=924022 \
 RUST_LOG=info \
 JSON_LOGS=1 \
-./citrea-v1.2.2-linux-amd64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
+./citrea-v1.2.2-linux-amd64 --network mainnet --da-layer bitcoin --genesis-paths ./genesis
 ```
 
 Your full node should be serving RPC at `http://0.0.0.0:8080` now.
@@ -214,7 +199,7 @@ Compile Citrea by running command:
 SKIP_GUEST_BUILD=1 cargo build --release
 ```
 
-Citrea ZK proof circuits are read from `resources/guests`. Rebuilding the circuits are unnecessary if you only wish to run a testnet node, that's why build is made with `SKIP_GUEST_BUILD=1`.
+Citrea ZK proof circuits are read from `resources/guests`. Rebuilding the circuits are unnecessary if you only wish to run a mainnet node, that's why build is made with `SKIP_GUEST_BUILD=1`.
 
 #### Step 2.4: Run Citrea
 
@@ -223,19 +208,19 @@ Look through the `rollup_config.toml` and apply changes as you wish, if you modi
 And then run the full node by executing this command
 
 ```sh
-./target/release/citrea --network testnet --da-layer bitcoin --rollup-config-path ./resources/configs/testnet/rollup_config.toml --genesis-paths ./resources/genesis/testnet
+./target/release/citrea --network mainnet --da-layer bitcoin --rollup-config-path ./resources/configs/mainnet/rollup_config.toml --genesis-paths ./resources/genesis/mainnet
 ```
 
 If you'd like to use environment variables to pass configs instead of using .toml files you can do so like this:
 
 ```sh
-SEQUENCER_PUBLIC_KEY=0201edff3b3ee593dbef54e2fbdd421070db55e2de2aebe75f398bd85ac97ed364 \
-SEQUENCER_DA_PUB_KEY=03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b \
-PROVER_DA_PUB_KEY=0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42 \
-NODE_URL=http://0.0.0.0:18443 \
+SEQUENCER_PUBLIC_KEY=03516a66ea4bc3dab67f94dd356edb4eee00a7b33ffe1ab5a1422de5c7c42df4d6 \
+SEQUENCER_DA_PUB_KEY=032a31a1fa359abd2e6fc1136b4dea711e5f18618504e021084cc61099f72bb2bd \
+PROVER_DA_PUB_KEY=038e501ede61097973e49e714d5f2ad740c82b798bb90fda427fd5138e51f2398e \
+NODE_URL=http://0.0.0.0:8332 \
 NODE_USERNAME=citrea \
 NODE_PASSWORD=citrea \
-NETWORK=testnet \
+NETWORK=mainnet \
 TX_BACKUP_DIR="" \
 STORAGE_PATH=resources/dbs \
 DB_MAX_OPEN_FILES=5000 \
@@ -247,32 +232,26 @@ RPC_MAX_RESPONSE_BODY_SIZE=10485760 \
 RPC_BATCH_REQUESTS_LIMIT=50 \
 RPC_ENABLE_SUBSCRIPTIONS=true \
 RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION=10 \
-SEQUENCER_CLIENT_URL=https://rpc.testnet.citrea.xyz \
+SEQUENCER_CLIENT_URL=https://rpc.mainnet.citrea.xyz \
 INCLUDE_TX_BODY=false \
 SYNC_BLOCKS_COUNT=10 \
-SCAN_L1_START_HEIGHT=45496 \
+SCAN_L1_START_HEIGHT=924022 \
 RUST_LOG=info \
 JSON_LOGS=1 \
-./target/release/citrea --network testnet --da-layer bitcoin --genesis-paths ./resources/genesis/testnet
+./target/release/citrea --network mainnet --da-layer bitcoin --genesis-paths ./resources/genesis/mainnet
 ```
 
 If you've made any changes to your bitcoin node url, username or password, don't forget to change values for `NODE_URL`, `NODE_USERNAME` and `NODE_PASSWORD`.
 
 ### Option 3: Using Docker
 
-#### Quick Start with docker-compose
-
-See the [top section](#tl-dr-i-want-to-run-it-asap).
-
-#### Running Docker Manually
-
 Run the full node:
 ```sh
 docker run -d \
-  -e NETWORK=testnet \
+  -e NETWORK=mainnet \
   -e NODE_URL=<your_bitcoin_url> \
-  -e NODE_USERNAME=<your_usename> \
-  -e NODE_PASSWORD=<your_usename> \
+  -e NODE_USERNAME=<your_username> \
+  -e NODE_PASSWORD=<your_password> \
   -v citrea-data:/mnt/task/citrea-db \
   -p 8080:8080 \
   chainwayxyz/citrea-full-node:latest
@@ -283,7 +262,7 @@ docker run -d \
 **Required:**
 | Variable | Description |
 |----------|-------------|
-| `NETWORK` | Network to run on: `mainnet` or `testnet` |
+| `NETWORK` | Network to run on: `mainnet` |
 | `NODE_URL` | Bitcoin node RPC URL |
 | `NODE_USERNAME` | Bitcoin RPC username |
 | `NODE_PASSWORD` | Bitcoin RPC password |
