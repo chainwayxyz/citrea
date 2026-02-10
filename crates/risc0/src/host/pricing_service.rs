@@ -9,14 +9,14 @@ use tracing::info;
 /// Response structure for the pricing API
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PriceResponse {
-    pub min_price: u64,
-    pub max_price: u64,
+    pub min_price_wei_per_cycle: u64,
+    pub max_price_wei_per_cycle: u64,
     pub lock_timeout: u64,
-    pub max_possible_price: u64,
+    pub max_possible_price_wei_per_cycle: u64,
     pub lock_stake: u64,
     pub ramp_up_period: u64,
     pub timeout: u64,
-    pub bidding_start: u64,
+    pub bidding_start_delay: u64,
 }
 
 /// Service for fetching pricing information from the pricing API
