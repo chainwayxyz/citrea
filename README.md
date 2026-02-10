@@ -20,9 +20,9 @@ Every transaction occurring on Citrea, is fully secured by zero-knowledge proofs
 Citrea's vision is to build scalable infrastructure that advances Bitcoin into its next phase, the foundation for world's finance. Citrea represents **Bitcoin Security at Scale** with its execution shard that keeps the settlement and data availability on-chain, on-Bitcoin.
 
 ## Audits
-Citrea completed a private audit with [Sigma Prime](https://sigmaprime.io/), find the audit report here: [Sigma Prime Audit Report](https://github.com/chainwayxyz/citrea/blob/nightly/audits/Sigma_Prime_Chainway_Citrea_Security_Assessment_Report_v2_2.pdf) 
+Citrea completed a private audit with [Sigma Prime](https://sigmaprime.io/), find the audit report here: [Sigma Prime Audit Report](./audits/Sigma_Prime_Chainway_Citrea_Security_Assessment_Report_v2_2.pdf) 
 
-Citrea also held a public bug bounty competition on [Cantina](https://cantina.xyz/), find the report here: [Cantina Competition Report](https://github.com/chainwayxyz/citrea/blob/nightly/audits/cantina_competition_citrea_jul2025.pdf)
+Citrea also held a public bug bounty competition on [Cantina](https://cantina.xyz/), find the report here: [Cantina Competition Report](./audits/cantina_competition_citrea_jul2025.pdf)
 
 To see all past audits visit: [Audits & Security](https://docs.citrea.xyz/security/audits-inquiries)
 
