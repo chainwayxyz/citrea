@@ -367,14 +367,14 @@ impl BoundlessProver {
         let requirements = Requirements::new(Predicate::claim_digest_match(receipt_claim_digest))
             .with_groth16_proof();
 
-        // Generate a random request id for gas estimation, since the gas cost can depend on the request id.
-        // We can not use the actual request id since it is generated after the request is submitted.
-        // In our case it does not depend on the request id because it is not smart contract signed, that is why we use a random id.
-        let rand_request_id = RequestId::new(Address::new([1u8; 20]), 0);
+        // Use a dummy request id for gas estimation. The gas cost can depend on the request id,
+        // but in our case it does not, because the request is not smart contract signed.
+        // We cannot use the actual request id since it is generated after the request is submitted.
+        let dummy_request_id = RequestId::new(Address::new([1u8; 20]), 0);
 
         // Unwrap is safe here because no callbacks exist in requirements
         let gas_cost_estimate = offer_layer
-            .estimate_gas_cost_upper_bound(&requirements, &rand_request_id, gas_price)
+            .estimate_gas_cost_upper_bound(&requirements, &dummy_request_id, gas_price)
             .unwrap();
 
         let max_price_cycle = max_price_per_cycle * U256::from(total_cycles_approx);
