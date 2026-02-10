@@ -1,17 +1,20 @@
 # Citrea
 
-**The first rollup that enhances the capabilities of Bitcoin blockspace with zero-knowledge technology, now [live on Bitcoin Testnet](https://www.blog.citrea.xyz/citrea-testnet-live-on-bitcoin-testnet4)! 🎉🍊🍋**
+**The first rollup that enhances the capabilities of Bitcoin blockspace with zero-knowledge technology, now [live on Bitcoin Mainnet](https://www.blog.citrea.xyz/citrea-mainnet-is-live/)! 🎉🍊🍋**
 
 ![](resources/assets/banner.png)
 
 > [!WARNING]
-> Citrea Testnet is now launched on top of Bitcoin Testnet4. While many key features are completed, Citrea's proper integration with [Bitcoin Mainnet](https://github.com/bitcoin/bitcoin) and [Clementine](https://github.com/chainwayxyz/clementine) is still ongoing, and it is also going to be audited for the Mainnet. \
-> \
 > Follow our [website](https://citrea.xyz) & [social media accounts](https://twitter.com/citrea_xyz) for announcements regarding the next phases of Citrea. \
 > \
 > Citrea uses **BTC** as its native token. **There's no Citrea token**. Please beware of scams! \
+
+> [!INFO]
+> Citrea completed a private audit with [Sigma Prime](https://sigmaprime.io/), find the audit report here: [Sigma Prime Audit Report](https://github.com/chainwayxyz/citrea/blob/nightly/audits/Sigma_Prime_Chainway_Citrea_Security_Assessment_Report_v2_2.pdf) 
 > \
-> Please also note that **BTC** and **cBTC** of Citrea Testnet do not carry any real value.
+> Citrea also held a public bug bounty competition on [Cantina](https://cantina.xyz/), find the report here: [Cantina Competition Report](https://github.com/chainwayxyz/citrea/blob/nightly/audits/cantina_competition_citrea_jul2025.pdf)
+> \
+> To see all past audits visit: [Audits & Security](https://docs.citrea.xyz/security/audits-inquiries)
 
 ## What is Citrea?
 
@@ -28,7 +31,8 @@ Citrea's vision is to build scalable infrastructure that advances Bitcoin into i
 | How do I set up the development environment?     | [dev-setup.md](./docs/dev-setup.md)                                                                                         |
 | How do I run Citrea for testing and development? | [run-dev.md](./docs/run-dev.md)                                                                                                     |
 | Where can I read more about the architecture?    | Technical docs for the repo are in progress, in the meantime refer to [our official documentation.](https://docs.citrea.xyz) |
-| How do I run a Citrea testnet node?              | [run-testnet.md](./docs/run-testnet.md) |
+| How do I run a Citrea mainnet node?              | [run-mainnet.md](./docs/run-mainnet.md) |
+| How do I bridge to Citrea?                       | Follow our guide on [bridging to Citrea](https://docs.citrea.xyz/welcome/bridge-to-citrea) |
 
 ## Official Links
 
