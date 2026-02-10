@@ -4,7 +4,7 @@ use alloy_primitives::{keccak256, U256};
 use alloy_sol_types::SolCall;
 use reth_primitives::{Recovered, TransactionSigned};
 use revm::context::result::{EVMError, ExecutionResult, ResultAndState};
-use revm::context::{BlockEnv, Cfg, CfgEnv, ContextTr, JournalTr};
+use revm::context::{BlockEnv, CfgEnv, ContextTr, JournalTr};
 use revm::handler::EvmTr;
 use revm::state::EvmState;
 use revm::{self, Context, Database, DatabaseCommit, ExecuteEvm, Journal};
@@ -31,11 +31,12 @@ where
     /// Creates a new Citrea EVM with the given parameters.
     pub fn new(db: DB, block_env: BlockEnv, config_env: CfgEnv, ext: &'a mut CitreaChain) -> Self {
         let mut journal = Journal::<DB>::new(db);
-        journal.set_spec_id(config_env.spec());
+        journal.set_spec_id(*config_env.spec());
         let evm = Context {
             block: block_env,
             cfg: config_env,
             chain: ext,
+            local: Default::default(),
             tx: Default::default(),
             error: Ok(()),
             journaled_state: journal,
@@ -50,7 +51,7 @@ where
         &mut self,
         tx: &Recovered<TransactionSigned>,
     ) -> Result<ResultAndState, EVMError<DB::Error>> {
-        self.evm.ctx().chain().set_current_tx_hash(tx.hash());
+        self.evm.ctx().chain_mut().set_current_tx_hash(tx.hash());
         self.evm.transact(create_tx_env(tx))
     }
 
@@ -59,7 +60,7 @@ where
     where
         DB: DatabaseCommit,
     {
-        self.evm.ctx().db().commit(state)
+        self.evm.ctx().db_mut().commit(state)
     }
 }
 
@@ -100,7 +101,7 @@ pub(crate) fn execute_multiple_tx<C: sov_modules_api::Context>(
                 return Err(L2BlockModuleCallError::EvmSystemTransactionPlacedAfterUserTx);
             }
 
-            verify_system_tx(evm.evm.ctx().db(), tx, l2_height)?;
+            verify_system_tx(evm.evm.ctx().db_mut(), tx, l2_height)?;
         } else {
             // Set to true as soon as a user tx is found
             // If a sys tx is encountered after a user tx it is an error
@@ -165,11 +166,8 @@ fn verify_system_tx<C: sov_modules_api::Context>(
         .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
 
     if function_selector == BitcoinLightClientContract::setBlockInfoCall::SELECTOR {
-        let call = BitcoinLightClientContract::setBlockInfoCall::abi_decode(
-            tx.input(),
-            /*validate*/ true,
-        )
-        .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
+        let call = BitcoinLightClientContract::setBlockInfoCall::abi_decode_validate(tx.input())
+            .map_err(|_| L2BlockModuleCallError::EvmSystemTxParseError)?;
 
         let l1_block_hash = call._blockHash;
         let txs_commitment = call._witnessRoot;

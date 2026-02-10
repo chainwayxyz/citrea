@@ -80,6 +80,10 @@ where
         }
     }
 
+    /// Runs the commitment service event loop until shutdown.
+    ///
+    /// On startup, it restores commitments that may already exist in DA and then periodically
+    /// checks whether a new sequencer commitment should be produced.
     #[instrument(name = "CommitmentService", skip_all)]
     pub async fn run(
         mut self,
@@ -257,6 +261,9 @@ where
         Ok(())
     }
 
+    /// Scans DA for sequencer commitments that are not yet persisted and stores them locally.
+    ///
+    /// This keeps local commitment state in sync with both mined and mempool commitments seen in DA.
     #[instrument(level = "trace", skip(self, working_set), err, ret)]
     pub async fn store_commitments_from_da(
         &mut self,
@@ -342,6 +349,9 @@ where
         Ok(())
     }
 
+    /// Builds a `SequencerCommitment` for the given commitment index and L2 block range.
+    ///
+    /// The method verifies that the provided hash count matches the block range size.
     #[instrument(level = "debug", skip_all, err)]
     pub fn get_commitment(
         &self,

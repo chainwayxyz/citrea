@@ -68,7 +68,7 @@ impl TestClient {
             .with_chain_id(chain_id)
             // .with_recommended_fillers()
             .wallet(EthereumWallet::from(key))
-            .on_hyper_http(http_host.parse().unwrap());
+            .connect_hyper_http(http_host.parse().unwrap());
 
         let client: Box<dyn AlloyProvider<Ethereum>> = Box::new(provider);
 

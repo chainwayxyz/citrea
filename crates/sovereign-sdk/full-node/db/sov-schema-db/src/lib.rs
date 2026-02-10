@@ -385,12 +385,9 @@ impl DB {
 
     /// Returns the handle for a rocksdb column family.
     pub fn get_cf_handle(&self, cf_name: &str) -> anyhow::Result<&rocksdb::ColumnFamily> {
-        self.inner.cf_handle(cf_name).ok_or_else(|| {
-            format_err!(
-                "DB::cf_handle not found for column family name: {}",
-                cf_name
-            )
-        })
+        self.inner
+            .cf_handle(cf_name)
+            .ok_or_else(|| format_err!("DB::cf_handle not found for column family name: {cf_name}"))
     }
 
     /// Flushes [MemTable](https://github.com/facebook/rocksdb/wiki/MemTable) data.
@@ -411,9 +408,7 @@ impl DB {
             .property_int_value_cf(self.get_cf_handle(cf_name)?, property_name)?
             .ok_or_else(|| {
                 format_err!(
-                    "Unable to get property \"{}\" of  column family \"{}\".",
-                    property_name,
-                    cf_name,
+                    "Unable to get property \"{property_name}\" of  column family \"{cf_name}\".",
                 )
             })
     }

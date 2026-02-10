@@ -33,6 +33,7 @@ use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
     ValidPoolTransaction,
 };
+use reth_trie::LazyTrieData;
 use revm::database::{AccountStatus, BundleAccount, BundleState};
 use revm::state::AccountInfo as ReVmAccountInfo;
 use sov_accounts::Accounts;
@@ -234,7 +235,7 @@ where
                     "DryRun: Failed to apply l2 block hook: {:?} \n reverting batch workspace",
                     err
                 );
-                bail!("DryRun: Failed to apply begin l2 block hook: {:?}", err)
+                bail!("DryRun: Failed to apply begin l2 block hook: {err:?}")
             }
 
             let evm = citrea_evm::Evm::<DefaultContext>::default();
@@ -311,7 +312,7 @@ where
                                 } else {
                                     transactions.mark_invalid(
                                         &evm_tx,
-                                        InvalidPoolTransactionError::ExceedsGasLimit(
+                                        &InvalidPoolTransactionError::ExceedsGasLimit(
                                             tx_gas_used,
                                             block_gas_limit - cumulative_gas,
                                         ),
@@ -329,7 +330,7 @@ where
                                     // don't really have a way to know the underlying EVM error due to
                                     // our APIs so passing a generic overdraft error
                                     // as it doesn't matter (the kind field is never used)
-                                    InvalidPoolTransactionError::Overdraft {
+                                    &InvalidPoolTransactionError::Overdraft {
                                         cost: U256::from(1),
                                         balance: U256::ZERO,
                                     },
@@ -346,7 +347,7 @@ where
                                     &evm_tx,
                                     // don't really have a way to know the cost right now
                                     // passing 1 & 0 as it doesn't matter (the kind field is never used)
-                                    InvalidPoolTransactionError::Overdraft {
+                                    &InvalidPoolTransactionError::Overdraft {
                                         cost: U256::from(1),
                                         balance: U256::ZERO,
                                     },
@@ -702,7 +703,7 @@ where
                 "Failed to apply l2 block hook: {:?} \n reverting batch workspace",
                 err
             );
-            bail!("Failed to apply begin l2 block hook: {:?}", err)
+            bail!("Failed to apply begin l2 block hook: {err:?}")
         }
         SM.begin_l2_block_time.set(
             Instant::now()
@@ -939,6 +940,7 @@ where
                 let revm_info = ReVmAccountInfo {
                     balance: account_info.balance,
                     nonce: account_info.nonce,
+                    account_id: None,
                     code_hash: account_info.code_hash.unwrap_or_else(|| keccak256([])),
                     code: None,
                 };
@@ -1025,7 +1027,11 @@ where
         let execution_outcome =
             ExecutionOutcome::new(bundle_state, vec![receipts], l2_height, vec![]);
 
-        Chain::from_block(recovered_block, execution_outcome, None)
+        Chain::from_block(
+            recovered_block,
+            execution_outcome,
+            LazyTrieData::from_sorted(Default::default()),
+        )
     }
 
     /// Handles cleanup for L1 fee failed transactions and persistent storage
@@ -1312,7 +1318,7 @@ where
         let latest_header = self
             .db_provider
             .latest_header()
-            .map_err(|e| anyhow!("Failed to get latest header: {}", e))?
+            .map_err(|e| anyhow!("Failed to get latest header: {e}"))?
             .ok_or(anyhow!("Latest header must always exist"))?
             .unseal();
 
@@ -1393,7 +1399,7 @@ where
 
         match accounts
             .get_account(pub_key, working_set)
-            .map_err(|e| anyhow!("Sequencer: Failed to get sov-account: {}", e))?
+            .map_err(|e| anyhow!("Sequencer: Failed to get sov-account: {e}"))?
         {
             AccountExists { addr: _, nonce } => Ok(nonce),
             AccountEmpty => Ok(0),
@@ -1660,7 +1666,7 @@ where
                     working_set_to_discard = working_set.revert().to_revertable();
                     continue;
                 }
-                return Err(anyhow!("Failed to apply system transaction: {:?}", e));
+                return Err(anyhow!("Failed to apply system transaction: {e:?}"));
             }
             working_set_to_discard = working_set.checkpoint().to_revertable();
             all_txs.push(sys_tx_rlp);

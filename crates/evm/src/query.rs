@@ -28,12 +28,7 @@ use jsonrpsee::core::RpcResult;
 use reth_primitives::{Recovered, SealedHeader, TransactionSigned};
 use reth_provider::ProviderError;
 use reth_rpc::eth::filter::EthFilterError;
-use reth_rpc::eth::EthTxBuilder;
-use reth_rpc_eth_api::TransactionCompat;
-use reth_rpc_eth_types::error::{
-    ensure_success, EthApiError, EthResult, RevertError, RpcInvalidTransactionError,
-};
-use reth_rpc_eth_types::logs_utils::log_matches_filter;
+use reth_rpc_eth_types::error::{EthApiError, EthResult, RevertError, RpcInvalidTransactionError};
 use revm::context::result::{EVMError, ExecutionResult, HaltReason, InvalidTransaction};
 use revm::context::{BlockEnv, Cfg, CfgEnv, TransactTo};
 use revm::context_interface::block::BlobExcessGasAndPrice;
@@ -177,12 +172,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
             let pending_env = get_pending_block_env(self, working_set);
 
-            let citrea_spec_id = fork_from_block_number(pending_env.number).spec_id;
+            let citrea_spec_id = fork_from_block_number(pending_env.number.to::<u64>()).spec_id;
             let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
 
             let pending_consensus_header = AlloyConsensusHeader {
-                number: pending_env.number,
-                timestamp: pending_env.timestamp,
+                number: pending_env.number.to::<u64>(),
+                timestamp: pending_env.timestamp.to::<u64>(),
                 base_fee_per_gas: Some(pending_env.basefee),
                 gas_limit: latest_block.header.gas_limit,
                 parent_hash: latest_block.header.hash(),
@@ -273,9 +268,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                             base_fee: sealed_block.header.base_fee_per_gas,
                             index: Some(idx as u64),
                         };
-                        EthTxBuilder::default()
-                            .fill(tx.clone().into(), tx_info)
-                            .expect("EthTxBuilder fill can't fail")
+                        to_rpc_transaction(tx.clone().into(), tx_info)
                     })
                     .collect::<Vec<_>>(),
             ),
@@ -489,9 +482,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             index: Some(tx_number - block.transactions.start),
         };
 
-        let transaction = EthTxBuilder::default()
-            .fill(tx.clone().into(), tx_info)
-            .expect("EthTxBuilder fill can't fail");
+        let transaction = to_rpc_transaction(tx.clone().into(), tx_info);
 
         Ok(Some(transaction))
     }
@@ -537,9 +528,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             index: Some(tx_number - block.transactions.start),
         };
 
-        let transaction = EthTxBuilder::default()
-            .fill(tx.into(), tx_info)
-            .expect("EthTxBuilder fill can't fail");
+        let transaction = to_rpc_transaction(tx.into(), tx_info);
 
         Ok(Some(transaction))
     }
@@ -635,7 +624,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        let block_num: u64 = block_env.number;
+        let block_num: u64 = block_env.number.to::<u64>();
 
         // Set evm state to block if needed
         match block_number {
@@ -693,7 +682,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        Ok(ensure_success::<_, EthApiError>(result)?)
+        Ok(ensure_call_success(result)?)
     }
 
     /// Handler for: `eth_blockNumber`
@@ -758,7 +747,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 (block.l1_fee_rate, sealed_block_to_block_env(&block.header))
             }
         };
-        let block_num: u64 = block_env.number;
+        let block_num: u64 = block_env.number.to::<u64>();
 
         match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
@@ -891,7 +880,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(working_set)
             .expect("EVM chain config should be set");
 
-        let citrea_spec_id = fork_fn(block_env.number).spec_id;
+        let citrea_spec_id = fork_fn(block_env.number.to::<u64>()).spec_id;
         let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
 
         let cfg_env = get_cfg_env(cfg, evm_spec_id);
@@ -1397,9 +1386,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     };
 
 
-            EthTxBuilder::default()
-                .fill(tx.into(), tx_info)
-                .expect("EthTxBuilder fill can't fail")
+            to_rpc_transaction(tx.into(), tx_info)
         });
 
         Ok(transaction)
@@ -1517,7 +1504,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         };
 
-        let block_num = block_env.number;
+        let block_num = block_env.number.to::<u64>();
 
         // Set evm state to block if needed
         match block_number {
@@ -1551,6 +1538,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             tracing_options,
             state_overrides,
             block_overrides,
+            ..
         } = opts.unwrap_or_default();
 
         // Apply state overrides before create_txn_env so that balance overrides
@@ -1677,9 +1665,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // all of the logs we have in the block
         let mut all_logs: Vec<Log> = Vec::new();
 
-        let address_filter: BloomFilter = filter.address.to_bloom_filter();
-        let topics_filter: Vec<BloomFilter> =
-            filter.topics.iter().map(|t| t.to_bloom_filter()).collect();
+        let address_filter: BloomFilter = filter.address.bloom_filter().into_owned();
+        let topics_filter: Vec<BloomFilter> = filter
+            .topics
+            .iter()
+            .map(|t| t.bloom_filter().into_owned())
+            .collect();
 
         let max_headers_range = get_max_headers_range();
 
@@ -1759,7 +1750,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
             for log in receipt.receipt.logs() {
                 let num_hash = BlockNumHash::new(block.header.number, block.header.hash());
 
-                if log_matches_filter(num_hash, log, &filter) {
+                if filter.filter_block_hash(num_hash.hash)
+                    && filter.filter_block_range(num_hash.number)
+                    && filter.filter_address(&log.address)
+                    && filter.filter_topics(log.topics())
+                {
                     all_logs.push(Log {
                         inner: log.clone(),
                         block_hash: Some(block.header.hash()),
@@ -2108,6 +2103,24 @@ fn check_tx_range(transactions_range: &Range<u64>, index: Uint<64, 1>) -> Option
     }
 }
 
+#[inline]
+fn to_rpc_transaction(tx: Recovered<TransactionSigned>, tx_info: TransactionInfo) -> Transaction {
+    Transaction::from_transaction(tx.map(Into::into), tx_info)
+}
+
+#[inline]
+fn ensure_call_success(result: ExecutionResult) -> EthResult<Bytes> {
+    match result {
+        ExecutionResult::Success { output, .. } => Ok(output.into_data()),
+        ExecutionResult::Revert { output, .. } => {
+            Err(RpcInvalidTransactionError::Revert(RevertError::new(output)).into())
+        }
+        ExecutionResult::Halt { reason, gas_used } => {
+            Err(RpcInvalidTransactionError::halt(reason, gas_used).into())
+        }
+    }
+}
+
 fn map_out_of_gas_err<C: sov_modules_api::Context>(
     block_env: BlockEnv,
     mut tx_env: revm::context::TxEnv,
@@ -2270,9 +2283,9 @@ fn get_pending_block_env<C: sov_modules_api::Context>(
     // set the lowest block id because we'll need to calculate the active spec id again
     // where this function is called
     let mut block_env = sealed_block_to_block_env(&latest_block.header);
-    block_env.number += 1;
+    block_env.number += U256::from(1u64);
 
-    let citrea_spec_id = fork_from_block_number(block_env.number).spec_id;
+    let citrea_spec_id = fork_from_block_number(block_env.number.to::<u64>()).spec_id;
 
     block_env.basefee = calculate_next_block_base_fee(
         latest_block.header.gas_used,
@@ -2282,13 +2295,11 @@ fn get_pending_block_env<C: sov_modules_api::Context>(
         citrea_spec_id,
     );
     // assume timestamp will increment the same between last block and the one before that
-    block_env.timestamp += time_diff;
+    block_env.timestamp += U256::from(time_diff);
 
     let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
-    block_env.blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new(
-        0,
-        evm_spec_id.is_enabled_in(SpecId::PRAGUE),
-    ));
+    block_env.blob_excess_gas_and_price =
+        Some(BlobExcessGasAndPrice::new_with_spec(0, evm_spec_id));
 
     block_env
 }

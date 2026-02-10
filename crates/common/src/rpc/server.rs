@@ -1,7 +1,8 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
+use jsonrpsee::server::middleware::rpc::RpcServiceBuilder;
+use jsonrpsee::server::{BatchRequestConfig, ServerBuilder, ServerConfig};
 use jsonrpsee::RpcModule;
 use reth_tasks::TaskExecutor;
 use tokio::sync::oneshot;
@@ -46,12 +47,16 @@ pub fn start_rpc_server(
 
     task_executor.spawn_with_signal(move |cancellation_token| {
         async move {
-            let server = ServerBuilder::default()
+            let server_config = ServerConfig::builder()
                 .max_connections(max_connections)
                 .max_subscriptions_per_connection(max_subscriptions_per_connection)
                 .max_request_body_size(max_request_body_size)
                 .max_response_body_size(max_response_body_size)
                 .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
+                .build();
+
+            let server = ServerBuilder::default()
+                .set_config(server_config)
                 .set_http_middleware(middleware)
                 .set_rpc_middleware(rpc_middleware)
                 .build([listen_address].as_ref())

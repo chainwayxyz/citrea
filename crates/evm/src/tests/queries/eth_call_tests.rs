@@ -297,11 +297,7 @@ fn test_eip1559_fields_call() {
     );
     assert_eq!(
         high_fee_result,
-        Err(RpcInvalidTransactionError::InsufficientFunds {
-            cost: U256::from_str("34028236692093846346337460743176821145500000").unwrap(),
-            balance: U256::from(99999574234737852931u128)
-        }
-        .into())
+        Err(RpcInvalidTransactionError::GasUintOverflow.into())
     );
 
     let low_max_fee_result = eth_call_eip1559(
@@ -824,6 +820,7 @@ fn test_call_with_block_overrides() {
                 coinbase: None,
                 random: None,
                 base_fee: None,
+                blob_base_fee: None,
                 block_hash: Some(block_hashes.clone()),
             }),
             &mut working_set,
@@ -854,6 +851,7 @@ fn test_call_with_block_overrides() {
                 coinbase: None,
                 random: None,
                 base_fee: None,
+                blob_base_fee: None,
                 block_hash: Some(block_hashes),
             }),
             &mut working_set,

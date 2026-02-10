@@ -5,7 +5,6 @@ use alloy_rpc_types::{Block, BlockNumHash, BlockNumberOrTag, Filter, FilteredPar
 use alloy_serde::WithOtherFields;
 use citrea_evm::Evm;
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
-use reth_rpc_eth_types::logs_utils::log_matches_filter;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::WorkingSet;
 use tokio::sync::broadcast::error::RecvError;
@@ -150,7 +149,12 @@ pub async fn logs_notifier(
                 let num_hash =
                     BlockNumHash::new(log.block_number.unwrap(), log.block_hash.unwrap());
 
-                if log_matches_filter(num_hash, &log.inner, &FilteredParams::new(filter)) {
+                let filtered = FilteredParams::new(filter);
+                if filtered.filter_block_hash(num_hash.hash)
+                    && filtered.filter_block_range(num_hash.number)
+                    && filtered.filter_address(&log.inner.address)
+                    && filtered.filter_topics(log.inner.topics())
+                {
                     let msg = SubscriptionMessage::new(
                         subscription.method_name(),
                         subscription.subscription_id(),

@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
 use alloy_consensus::SignableTransaction;
-use alloy_eips::eip7702::SignedAuthorization;
-use alloy_primitives::{Address, B256};
-use alloy_rpc_types::Authorization;
+use alloy_eips::eip7702::{Authorization, SignedAuthorization};
+use alloy_primitives::{keccak256, Address, B256};
 use reth_primitives::{sign_message, Transaction, TransactionSigned};
 use reth_rpc_eth_types::SignError;
 use secp256k1::{PublicKey, SecretKey};
@@ -21,7 +20,9 @@ impl DevSigner {
 
         for sk in secret_keys {
             let public_key = PublicKey::from_secret_key(secp256k1::SECP256K1, &sk);
-            let address = reth_primitives::public_key_to_address(public_key);
+            let pubkey = public_key.serialize_uncompressed();
+            let hash = keccak256(&pubkey[1..]);
+            let address = Address::from_slice(&hash[12..]);
 
             signers.insert(address, sk);
         }

@@ -7,6 +7,7 @@ use alloy_primitives::U256;
 use reth_primitives::{Recovered, TransactionSigned};
 use reth_primitives_traits::SignedTransaction;
 use revm::context::{TransactTo, TxEnv};
+use revm::context_interface::either::Either;
 use revm::state::AccountInfo as ReVmAccountInfo;
 
 use super::primitive_types::{
@@ -23,6 +24,7 @@ impl From<AccountInfo> for ReVmAccountInfo {
             balance: info.balance,
             code: None,
             code_hash: info.code_hash.unwrap_or(KECCAK_EMPTY),
+            account_id: None,
         }
     }
 }
@@ -73,7 +75,13 @@ pub(crate) fn create_tx_env(tx: &Recovered<TransactionSigned>) -> TxEnv {
         // EIP-4844 related fields
         blob_hashes: tx.blob_versioned_hashes().unwrap_or_default().to_vec(),
         max_fee_per_blob_gas: tx.max_fee_per_blob_gas().unwrap_or_default(),
-        authorization_list: tx.authorization_list().unwrap_or_default().to_vec(),
+        authorization_list: tx
+            .authorization_list()
+            .unwrap_or_default()
+            .iter()
+            .cloned()
+            .map(Either::Left)
+            .collect(),
     };
 
     tx_env
@@ -127,15 +135,14 @@ pub(crate) fn sealed_block_to_block_env(
 ) -> revm::context::BlockEnv {
     use citrea_primitives::forks::fork_from_block_number;
     use revm::context_interface::block::BlobExcessGasAndPrice;
-    use revm::primitives::hardfork::SpecId::PRAGUE;
 
     use crate::citrea_spec_id_to_evm_spec_id;
     let evm_spec_id =
         citrea_spec_id_to_evm_spec_id(fork_from_block_number(sealed_header.number).spec_id);
     revm::context::BlockEnv {
-        number: sealed_header.number,
+        number: U256::from(sealed_header.number),
         beneficiary: sealed_header.beneficiary,
-        timestamp: sealed_header.timestamp,
+        timestamp: U256::from(sealed_header.timestamp),
         prevrandao: Some(sealed_header.mix_hash),
         basefee: sealed_header.base_fee_per_gas.unwrap_or_default(),
         gas_limit: sealed_header.gas_limit,
@@ -143,7 +150,7 @@ pub(crate) fn sealed_block_to_block_env(
         blob_excess_gas_and_price: sealed_header
             .excess_blob_gas
             .or(Some(0))
-            .map(|gas| BlobExcessGasAndPrice::new(gas, evm_spec_id.is_enabled_in(PRAGUE))),
+            .map(|gas| BlobExcessGasAndPrice::new_with_spec(gas, evm_spec_id)),
     }
 }
 

@@ -47,13 +47,13 @@ impl LogsContract {
     pub fn decode_log_event(
         log: &alloy_primitives::Log,
     ) -> Result<alloy_primitives::Log<Logs::Log>, alloy_sol_types::Error> {
-        Logs::Log::decode_log(log, true)
+        Logs::Log::decode_log_validate(log)
     }
 
     /// Decode AnotherLog event of the Logs smart contract.
     pub fn decode_another_log_event(
         log: &alloy_primitives::Log,
     ) -> Result<alloy_primitives::Log<Logs::AnotherLog>, alloy_sol_types::Error> {
-        Logs::AnotherLog::decode_log(log, true)
+        Logs::AnotherLog::decode_log_validate(log)
     }
 }

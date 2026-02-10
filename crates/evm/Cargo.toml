@@ -56,7 +56,6 @@ reth-tasks = { workspace = true, optional = true }
 reth-transaction-pool = { workspace = true, optional = true }
 revm = { workspace = true, default-features = false }
 revm-inspectors = { workspace = true, optional = true, features = ["js-tracer"] }
-revm-precompile = { workspace = true }
 
 [dev-dependencies]
 alloy = { workspace = true, features = ["consensus", "providers", "signers", "signer-local"] }

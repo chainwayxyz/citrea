@@ -128,7 +128,7 @@ impl LocalProver {
         let prover = ExternalProver::new("ipc", self.r0vm_path.as_path());
         let ProveInfo { receipt, stats, .. } = prover
             .prove_with_opts(env, &elf, &prover_opts)
-            .map_err(|e| anyhow!("Local risc0 proving failed: {}", e))?;
+            .map_err(|e| anyhow!("Local risc0 proving failed: {e}"))?;
 
         tracing::info!("Execution Stats for job_id={}: {:?}", job_id, stats);
         gauge!("proving_session_cycle_count").set(stats.total_cycles as f64);
@@ -173,7 +173,7 @@ fn compare_risc0_versions(r0vm_path: &PathBuf) -> anyhow::Result<()> {
     let output = std::process::Command::new(r0vm_path)
         .arg("--version")
         .output()
-        .map_err(|e| anyhow!("Failed to execute r0vm: {}", e))?;
+        .map_err(|e| anyhow!("Failed to execute r0vm: {e}"))?;
 
     if !output.status.success() {
         return Err(anyhow!(
@@ -183,7 +183,7 @@ fn compare_risc0_versions(r0vm_path: &PathBuf) -> anyhow::Result<()> {
     }
 
     let output = String::from_utf8(output.stdout)
-        .map_err(|e| anyhow!("Failed to parse r0vm version output: {}", e))?;
+        .map_err(|e| anyhow!("Failed to parse r0vm version output: {e}"))?;
 
     let r0vm_version = output
         .trim()
@@ -192,9 +192,7 @@ fn compare_risc0_versions(r0vm_path: &PathBuf) -> anyhow::Result<()> {
 
     if version != r0vm_version {
         return Err(anyhow!(
-            "RISC0 version {} does not match r0vm version {}",
-            version,
-            r0vm_version
+            "RISC0 version {version} does not match r0vm version {r0vm_version}"
         ));
     }
 

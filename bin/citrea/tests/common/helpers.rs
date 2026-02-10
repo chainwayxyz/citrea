@@ -567,7 +567,7 @@ pub async fn wait_for_prover_job(
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            bail!("Timeout. Failed to get prover job {}", job_id);
+            bail!("Timeout. Failed to get prover job {job_id}");
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -593,7 +593,7 @@ pub async fn wait_for_prover_l1_height_proofs(
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            bail!("Timeout. Failed to get batch proofs on L1 height {}", num);
+            bail!("Timeout. Failed to get batch proofs on L1 height {num}");
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -619,10 +619,7 @@ pub async fn wait_for_prover_l1_height(
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            bail!(
-                "Timeout. Failed to wait for batch prover to scan L1 height {}",
-                num
-            );
+            bail!("Timeout. Failed to wait for batch prover to scan L1 height {num}");
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -640,10 +637,7 @@ pub async fn wait_for_prover_job_count(
 
     loop {
         if start.elapsed() >= timeout {
-            bail!(
-                "BatchProver failed to reach proving job count {} on time",
-                count
-            );
+            bail!("BatchProver failed to reach proving job count {count} on time");
         }
 
         let jobs = prover_client.get_proving_jobs(count, None).await;

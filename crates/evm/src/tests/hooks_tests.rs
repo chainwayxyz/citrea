@@ -40,14 +40,14 @@ fn begin_l2_block_hook_creates_pending_block() {
     assert_eq!(
         pending_block,
         BlockEnv {
-            number: 2,
+            number: U256::from(2),
             beneficiary: *BENEFICIARY,
-            timestamp: 54,
+            timestamp: U256::from(54),
             prevrandao: Some(B256::ZERO),
             basefee: 765625000,
             gas_limit: config.block_gas_limit,
             difficulty: U256::ZERO,
-            blob_excess_gas_and_price: Some(BlobExcessGasAndPrice::new(0, true))
+            blob_excess_gas_and_price: Some(BlobExcessGasAndPrice::new(0, 1))
         }
     );
 }

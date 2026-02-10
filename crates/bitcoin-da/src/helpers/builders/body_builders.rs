@@ -83,7 +83,7 @@ pub enum DaTxs {
 /// wtxid start from the `reveal_tx_prefix`.
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
-pub fn create_inscription_transactions(
+pub(crate) fn create_inscription_transactions(
     data: RawTxData,
     da_private_key: SecretKey,
     utxo_context: UtxoContext,

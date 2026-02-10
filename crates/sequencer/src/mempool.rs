@@ -100,7 +100,10 @@ impl CitreaMempool {
             ));
         }
 
-        self.0.add_external_transaction(transaction).await
+        self.0
+            .add_external_transaction(transaction)
+            .await
+            .map(|outcome| outcome.hash)
     }
 
     /// Find and return a transaction by hash

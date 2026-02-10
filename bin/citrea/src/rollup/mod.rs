@@ -184,9 +184,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             );
         } else {
             anyhow::bail!(
-                "Storage is corrupted, LedgerDB version: {}, StateDB version: {}",
-                ledger_version,
-                state_version
+                "Storage is corrupted, LedgerDB version: {ledger_version}, StateDB version: {state_version}"
             );
         }
         return Ok(());
@@ -210,7 +208,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     ) -> Result<(CitreaSequencer<Self::DaService>, RpcModule<()>)> {
         let current_l2_height = ledger_db
             .get_head_l2_block()
-            .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
+            .map_err(|e| anyhow!("Failed to get head l2 block: {e}"))?
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(L2BlockNumber(0));
 
@@ -268,7 +266,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let current_l2_height = ledger_db
             .get_head_l2_block_height()
-            .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
+            .map_err(|e| anyhow!("Failed to get head l2 block: {e}"))?
             .unwrap_or(0);
 
         let mut fork_manager = ForkManager::new(get_forks(), current_l2_height);
@@ -326,7 +324,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let current_l2_height = ledger_db
             .get_head_l2_block_height()
-            .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
+            .map_err(|e| anyhow!("Failed to get head l2 block: {e}"))?
             .unwrap_or(0);
 
         let mut fork_manager = ForkManager::new(get_forks(), current_l2_height);
