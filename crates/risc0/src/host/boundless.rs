@@ -53,6 +53,9 @@ const MIN_PRICE_INCREASE_DIVISOR: u32 = 10;
 /// If a proof was picked up by a prover but not delivered within lock timeout, we increase the timeout by 2x
 const LOCKTIME_INCREASE_RATIO: u32 = 2; // 2x
 
+/// Average gas price is less than 0.1 gwei
+const FALLBACK_BASE_GAS_PRICE: u128 = 1_000_000_000; // 1 gwei
+
 enum ResubmitResult {
     Retry,
     Success,
@@ -352,14 +355,12 @@ impl BoundlessProver {
         })
         .await
         .unwrap_or_else(|e| {
-            // BASE avg gas price is less than 0.1 gwei
-            let default_gas_price = 1_000_000_000u128; // 1 gwei
             tracing::error!(
-                "Failed to get gas price from provider, using default gas price {}. err={}",
-                default_gas_price,
+                "Failed to get gas price from provider, using fallback gas price: {} wei. err={}",
+                FALLBACK_BASE_GAS_PRICE,
                 e
             );
-            default_gas_price
+            FALLBACK_BASE_GAS_PRICE
         });
 
         let offer_layer = OfferLayer::new(provider, offer_layer_config);
