@@ -54,6 +54,13 @@ pub(crate) static BATCH_PROOF_REGTEST_BITCOIN_GUESTS: LazyLock<HashMap<SpecId, (
                 ),
             ),
             (
+                SpecId::Tangelo,
+                (
+                    Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
+                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec(),
+                ),
+            ),
+            (
                 SpecId::latest(),
                 (
                     Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),

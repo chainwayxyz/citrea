@@ -147,4 +147,8 @@ pub struct BoundlessSession {
     pub receipt_type: ReceiptType,
     /// Number of cycles used for the proof generation
     pub total_cycles_approx: u64,
+    /// Journal extracted from execution of the proof
+    pub journal_bytes: Vec<u8>,
+    /// Receipt claim provided by the execution of the proof
+    pub receipt_claim_bytes: Vec<u8>,
 }
