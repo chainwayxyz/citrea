@@ -262,6 +262,11 @@ const fn default_max_l1_fee_rate_sat_vb() -> u64 {
     15 // sat/vbyte
 }
 
+#[inline]
+const fn default_l1_fee_rate_update_interval_ms() -> u64 {
+    30_000 // 30 seconds
+}
+
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SequencerConfig {
@@ -288,6 +293,9 @@ pub struct SequencerConfig {
     /// Maximum L1 fee rate in sat/vbyte
     #[serde(default = "default_max_l1_fee_rate_sat_vb")]
     pub max_l1_fee_rate_sat_vb: u64,
+    /// L1 fee rate update interval in ms
+    #[serde(default = "default_l1_fee_rate_update_interval_ms")]
+    pub l1_fee_rate_update_interval_ms: u64,
 }
 
 impl Default for SequencerConfig {
@@ -304,6 +312,7 @@ impl Default for SequencerConfig {
             mempool_conf: Default::default(),
             l1_fee_rate_multiplier: 1.0,
             max_l1_fee_rate_sat_vb: 1, // doesn't matter since mock da returns 10 wei/byte
+            l1_fee_rate_update_interval_ms: default_l1_fee_rate_update_interval_ms(),
         }
     }
 }
@@ -327,6 +336,10 @@ impl FromEnv for SequencerConfig {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or_else(default_max_l1_fee_rate_sat_vb),
+            l1_fee_rate_update_interval_ms: read_env("L1_FEE_RATE_UPDATE_INTERVAL_MS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_l1_fee_rate_update_interval_ms),
         })
     }
 }
@@ -678,6 +691,7 @@ mod tests {
             bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
             l1_fee_rate_multiplier: 0.75,
             max_l1_fee_rate_sat_vb: 15,
+            l1_fee_rate_update_interval_ms: 30_000,
         };
         assert_eq!(config, expected);
     }
@@ -743,6 +757,7 @@ mod tests {
             bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
             l1_fee_rate_multiplier: 1.0,
             max_l1_fee_rate_sat_vb: 40,
+            l1_fee_rate_update_interval_ms: 30_000,
         };
         assert_eq!(sequencer_config, expected);
     }
@@ -869,7 +884,7 @@ mod tests {
 
             [risc0_host]
             tx_backup_dir = "/tmp/backup"
-            
+
             [risc0_host.prover.Local]
             r0vm_path = "path/to/vm"
             dev_mode = false
