@@ -1,4 +1,14 @@
 # Changelog
+## [unreleased]
+### Added
+- Add `linux/arm64` release binary and support for multi-arch (arm64/amd64) docker image.
+
+## [Unreleased]
+### Changed
+- feat: Separate l1 fee rate from block update
+**New env var:**\
+  `L1_FEE_RATE_UPDATE_INTERVAL_MS`: L1 fee rate update interval in milliseconds (default: 30seconds)\
+
 
 ## [v1.2.2] (2026-01-28)
 ### Changed
