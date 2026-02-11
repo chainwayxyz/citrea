@@ -210,8 +210,6 @@ jobs:
           wget -O docker/full-node/citrea-amd64 "https://github.com/chainwayxyz/citrea/releases/download/${RELEASE}/citrea-${RELEASE}-linux-amd64"
           wget -O docker/full-node/citrea-arm64 "https://github.com/chainwayxyz/citrea/releases/download/${RELEASE}/citrea-${RELEASE}-linux-arm64"
 
-          chmod +x docker/full-node/citrea-amd64 docker/full-node/citrea-arm64
-
           mkdir -p docker/full-node/genesis
           cp -r resources/genesis/mainnet docker/full-node/genesis/
           cp -r resources/genesis/testnet docker/full-node/genesis/
