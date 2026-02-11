@@ -1,5 +1,9 @@
 # Changelog
 
+## [v2.0.0] (2026-02-05)
+- fix: selfdestruct behaviour ([Commit `73aa141`](https://github.com/chainwayxyz/citrea/commit/73aa14186d3e033963b6f396da11900ff33ac9ea))
+  See security advisory here: https://github.com/chainwayxyz/citrea/security/advisories/GHSA-356c-q573-6pcq
+
 ## [v1.2.2] (2026-01-28)
 ### Changed
 - feat: boundless uses claim digest match ([#3121](https://github.com/chainwayxyz/citrea/pull/3121))
@@ -188,7 +192,8 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
 
-[unreleased]: https://github.com/chainwayxyz/citrea/compare/v1.2.2...HEAD
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.0.0...HEAD
+[v2.0.0]: https://github.com/chainwayxyz/citrea/compare/v1.2.2...v2.0.0
 [v1.2.2]: https://github.com/chainwayxyz/citrea/compare/v1.2.1...v1.2.2
 [v1.2.1]: https://github.com/chainwayxyz/citrea/compare/v1.2.0...v1.2.1
 [v1.2.0]: https://github.com/chainwayxyz/citrea/compare/v1.1.0...v1.2.0
