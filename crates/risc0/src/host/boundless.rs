@@ -397,7 +397,6 @@ impl BoundlessProver {
             .with_input_url(input_url)
             .unwrap()
             .with_requirements(TryInto::<RequirementParams>::try_into(requirements).unwrap())
-            .with_groth16_proof()
             .with_offer(
                 Offer::default()
                     .with_min_price(min_price)
