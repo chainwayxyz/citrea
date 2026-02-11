@@ -12,13 +12,13 @@ use alloy_primitives::B256;
 use jsonrpsee::types::ErrorObjectOwned;
 
 /// EIP-7966 error code 4: Transaction was added to mempool but not processed within timeout.
-pub const TIMEOUT_ERROR_CODE: i32 = 4;
+const TIMEOUT_ERROR_CODE: i32 = 4;
 
 /// EIP-7966 error code 5: Node is not ready to process the transaction or the transaction is erroneous.
-pub const UNREADY_ERROR_CODE: i32 = 5;
+const UNREADY_ERROR_CODE: i32 = 5;
 
 /// Default timeout in milliseconds. (2secs)
-pub const DEFAULT_TIMEOUT_MS: u64 = 2_000;
+const DEFAULT_TIMEOUT_MS: u64 = 2_000;
 
 /// Creates an EIP-7966 timeout error (code 4).
 ///
