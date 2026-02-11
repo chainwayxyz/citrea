@@ -24,7 +24,7 @@ Citrea completed a private audit with [Sigma Prime](https://sigmaprime.io/), fin
 
 Citrea also held a public bug bounty competition on [Cantina](https://cantina.xyz/), find the report here: [Cantina Competition Report](./audits/cantina_competition_citrea_jul2025.pdf)
 
-To see all past audits visit: [Audits & Security](https://docs.citrea.xyz/security/audits-inquiries)
+To see all past audits, visit: [Audits & Security](https://docs.citrea.xyz/security/audits-inquiries)
 
 ## Bug Bounty
 Citrea maintains active bug bounty programs. Before diving into the codebase, researchers should review the [Auditor's Guide](docs/auditors-guide.md), then head to the [Citrea Active Bug Bounties](https://docs.citrea.xyz/security/audits-inquiries#active-bug-bounties) to see the currently available bug bounties.
