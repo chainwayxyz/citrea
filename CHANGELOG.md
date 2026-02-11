@@ -1,4 +1,7 @@
 # Changelog
+## [unreleased]
+### Added
+- Add `linux/arm64` release binary and support for multi-arch (arm64/amd64) docker image.
 
 ## [Unreleased]
 ### Changed
