@@ -1545,11 +1545,20 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .ok_or_else(|| EthApiError::HeaderNotFound(block_id.unwrap()))?;
         let l1_fee_rate = l1_fee_block.l1_fee_rate;
 
-        let account = self
-            .account_info(&request.from.unwrap_or_default(), working_set)
-            .unwrap_or_default();
-
         let mut evm_db = self.get_db(working_set, citrea_spec_id);
+
+        // Apply state overrides before create_txn_env so that balance overrides
+        // are reflected in gas allowance calculation (issue #3135).
+        let mut opts = opts.unwrap_or_default();
+        if let Some(state_overrides) = opts.state_overrides.take() {
+            apply_state_overrides(state_overrides, &mut evm_db)?;
+        }
+
+        let from = request.from.unwrap_or_default();
+        let account = evm_db
+            .basic(from)
+            .map_err(EthApiError::from)?
+            .unwrap_or_default();
 
         let nonce = request.nonce.unwrap_or(account.nonce);
         let chain_id = cfg_env.chain_id();
@@ -1563,7 +1572,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             chain_id,
         )?;
         let trace = trace_call(
-            opts.unwrap_or_default(),
+            opts,
             cfg_env,
             block_env,
             tx_env,
