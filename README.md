@@ -35,7 +35,7 @@ Citrea maintains active bug bounty programs. Before diving into the codebase, re
 | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
 | How do I set up the development environment?     | [dev-setup.md](./docs/dev-setup.md)                                                                                         |
 | How do I run Citrea for testing and development? | [run-dev.md](./docs/run-dev.md)                                                                                                     |
-| Where can I read more about the architecture?    | Go to [SUMMARY.md](./docs/SUMMARY.md) and navigate from there to the subject you want to read about, also refer to [our official documentation.](https://docs.citrea.xyz) for the non-technical side |
+| Where can I read more about the architecture?    | Go to [SUMMARY.md](./docs/SUMMARY.md) and navigate from there to the subject you want to read about, or refer to [our official documentation](https://docs.citrea.xyz). |
 | How do I run a Citrea mainnet node?              | [run-mainnet.md](./docs/run-mainnet.md) |
 | How do I bridge to Citrea?                       | Follow our guide on [bridging to Citrea](https://docs.citrea.xyz/welcome/bridge-to-citrea) |
 
