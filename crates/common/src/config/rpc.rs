@@ -58,7 +58,7 @@ const fn default_enable_filters() -> bool {
 
 #[inline]
 const fn default_max_sync_send_timeout_ms() -> u64 {
-    60_000
+    default_timeout() * 1_000
 }
 
 /// RPC configuration.

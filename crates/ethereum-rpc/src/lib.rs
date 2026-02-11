@@ -522,7 +522,7 @@ where
     /// - Subscribes to new block subscription
     /// - Waits for transaction to be included in a block
     /// - Returns the transaction receipt
-    /// - Timeout in milliseconds (default: 2_000ms, max: configurable via RpcConfig, default max: 60_000ms)
+    /// - Timeout in milliseconds (default: 2_000ms, max: configurable via RpcConfig, default max: 30_000ms)
     ///
     /// Error codes:
     /// - Code 4: Transaction not included within timeout period
