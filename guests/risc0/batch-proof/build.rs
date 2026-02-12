@@ -17,7 +17,10 @@ fn get_cache_path() -> PathBuf {
 }
 
 fn testing_enabled() -> bool {
-    matches!(env::var("CARGO_FEATURE_TESTING").as_deref(), Ok("1" | "true"))
+    matches!(
+        env::var("CARGO_FEATURE_TESTING").as_deref(),
+        Ok("1" | "true")
+    )
 }
 
 fn cache_method_ids() {
