@@ -105,6 +105,12 @@ pub(crate) static BATCH_PROOF_MAINNET_GUESTS: LazyLock<HashMap<SpecId, (Digest, 
             SpecId::Tangelo,
             guest!("../../../resources/guests/risc0/mainnet/batch-proof-0.bin"),
         );
+
+        m.insert(
+            SpecId::TangeloSelfdestructFix,
+            guest!("../../../resources/guests/risc0/mainnet/batch-proof-1.bin"),
+        );
+
         m
     });
 
@@ -130,6 +136,10 @@ pub(crate) static BATCH_PROOF_TESTNET_GUESTS: LazyLock<HashMap<SpecId, (Digest, 
             SpecId::Tangelo,
             guest!("../../../resources/guests/risc0/testnet/batch-proof-1.bin"),
         );
+        m.insert(
+            SpecId::TangeloSelfdestructFix,
+            guest!("../../../resources/guests/risc0/testnet/batch-proof-2.bin"),
+        );
 
         m
     });
@@ -146,6 +156,10 @@ pub(crate) static BATCH_PROOF_DEVNET_GUESTS: LazyLock<HashMap<SpecId, (Digest, V
             SpecId::Tangelo,
             guest!("../../../resources/guests/risc0/devnet/batch-proof-1.bin"),
         );
+        m.insert(
+            SpecId::TangeloSelfdestructFix,
+            guest!("../../../resources/guests/risc0/devnet/batch-proof-2.bin"),
+        );
 
         m
     });
@@ -158,6 +172,12 @@ pub(crate) static LIGHT_CLIENT_MAINNET_GUESTS: LazyLock<HashMap<SpecId, (Digest,
             SpecId::Tangelo,
             guest!("../../../resources/guests/risc0/mainnet/light-client-proof-0.bin"),
         );
+
+        m.insert(
+            SpecId::TangeloSelfdestructFix,
+            guest!("../../../resources/guests/risc0/mainnet/light-client-proof-0.bin"),
+        );
+
         m
     });
 
@@ -181,6 +201,10 @@ pub(crate) static LIGHT_CLIENT_TESTNET_GUESTS: LazyLock<HashMap<SpecId, (Digest,
             SpecId::Tangelo,
             guest!("../../../resources/guests/risc0/testnet/light-client-proof-1.bin"),
         );
+        m.insert(
+            SpecId::TangeloSelfdestructFix,
+            guest!("../../../resources/guests/risc0/testnet/light-client-proof-1.bin"),
+        );
 
         m
     });
@@ -195,6 +219,10 @@ pub(crate) static LIGHT_CLIENT_DEVNET_GUESTS: LazyLock<HashMap<SpecId, (Digest, 
         );
         m.insert(
             SpecId::Tangelo,
+            guest!("../../../resources/guests/risc0/devnet/light-client-proof-1.bin"),
+        );
+        m.insert(
+            SpecId::TangeloSelfdestructFix,
             guest!("../../../resources/guests/risc0/devnet/light-client-proof-1.bin"),
         );
         m
