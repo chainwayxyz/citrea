@@ -16,6 +16,10 @@
 - fix: selfdestruct behaviour ([Commit `73aa141`](https://github.com/chainwayxyz/citrea/commit/73aa14186d3e033963b6f396da11900ff33ac9ea))
   See security advisory here: https://github.com/chainwayxyz/citrea/security/advisories/GHSA-356c-q573-6pcq
 
+## Unreleased
+### Changed
+- fix: apply state overrides before `create_txn_env` in `debug_traceCall` ([#3135](https://github.com/chainwayxyz/citrea/issues/3135))
+
 ## [v1.2.2] (2026-01-28)
 ### Changed
 - feat: boundless uses claim digest match ([#3121](https://github.com/chainwayxyz/citrea/pull/3121))
