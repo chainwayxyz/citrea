@@ -137,6 +137,10 @@ impl TestCase for BackupSequencerTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
+        sequencer
+            .wait_for_l2_height(block_to_generate, None)
+            .await?;
+
         let start_height = sequencer.client.ledger_get_head_l2_block_height().await?;
 
         let backup_path = sequencer.config.base.dir.join("backup");
@@ -182,6 +186,10 @@ impl TestCase for BackupSequencerTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
+        sequencer
+            .wait_for_l2_height(block_to_generate * 2, None)
+            .await?;
+
         let current_height = sequencer.client.ledger_get_head_l2_block_height().await?;
 
         // Update incremental backup after height increase
@@ -202,6 +210,10 @@ impl TestCase for BackupSequencerTest {
         for _ in 0..block_to_generate {
             sequencer.client.send_publish_batch_request().await?;
         }
+        sequencer
+            .wait_for_l2_height(block_to_generate * 3, None)
+            .await?;
+
         let current_height = sequencer.client.ledger_get_head_l2_block_height().await?;
 
         sequencer.wait_until_stopped().await?;
@@ -236,6 +248,10 @@ impl TestCase for BackupSequencerTest {
         for _ in 0..block_to_generate {
             sequencer.client.send_publish_batch_request().await?;
         }
+
+        sequencer
+            .wait_for_l2_height(restored_l2_height + block_to_generate, None)
+            .await?;
 
         let current_height = sequencer.client.ledger_get_head_l2_block_height().await?;
 
@@ -286,6 +302,10 @@ impl TestCase for BackupSequencerTest {
         for _ in 0..block_to_generate {
             sequencer.client.send_publish_batch_request().await?;
         }
+
+        sequencer
+            .wait_for_l2_height(rolled_back_height + block_to_generate, None)
+            .await?;
 
         sequencer.wait_until_stopped().await?;
 
