@@ -47,7 +47,7 @@ use sov_db::schema::types::L2HeightStatus;
 use sov_modules_api::fork::Fork;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{SpecId as CitreaSpecId, WorkingSet};
 
 use crate::call::get_cfg_env;
 use crate::conversions::{create_tx_env, sealed_block_to_block_env};
@@ -653,7 +653,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let mut cfg_env = get_cfg_env(cfg, evm_spec_id);
 
-        let mut evm_db = self.get_db(working_set);
+        let mut evm_db = self.get_db(working_set, citrea_spec_id);
 
         if let Some(mut block_overrides) = block_overrides {
             apply_block_overrides(&mut block_env, &mut block_overrides, &mut evm_db);
@@ -784,7 +784,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // <https://github.com/ethereum/go-ethereum/blob/8990c92aea01ca07801597b00c0d83d4e2d9b811/internal/ethapi/api.go#L1476-L1476>
         cfg_env.disable_base_fee = true;
 
-        let mut evm_db = self.get_db(working_set);
+        let mut evm_db = self.get_db(working_set, citrea_spec_id);
 
         if let Some(ref state_overrides) = state_overrides {
             apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
@@ -842,6 +842,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             l1_fee_rate,
             block_env.clone(),
             cfg_env,
+            citrea_spec_id,
             state_overrides.clone(),
             working_set,
         )?;
@@ -900,6 +901,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             l1_fee_rate,
             block_env,
             cfg_env,
+            citrea_spec_id,
             state_overrides,
             working_set,
         )
@@ -1030,6 +1032,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         l1_fee_rate: u128,
         block_env: BlockEnv,
         mut cfg_env: CfgEnv,
+        citrea_spec_id: CitreaSpecId,
         state_overrides: Option<StateOverride>,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<EstimatedTxExpenses> {
@@ -1037,7 +1040,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .account_info(&request.from.unwrap_or_default(), working_set)
             .unwrap_or_default();
 
-        let mut evm_db = self.get_db(working_set);
+        let mut evm_db = self.get_db(working_set, citrea_spec_id);
 
         if let Some(ref state_overrides) = state_overrides {
             apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
@@ -1130,7 +1133,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }
 
         // Recreate evm_db with overrides if it was consumed by the early return optimization
-        let mut evm_db = self.get_db(working_set);
+        let mut evm_db = self.get_db(working_set, citrea_spec_id);
         if let Some(ref state_overrides) = state_overrides {
             apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
         }
@@ -1161,7 +1164,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // if price or limit was included in the request then we can execute the request
             // again with the block's gas limit to check if revert is gas related or not
             if request_gas_limit.is_some() || request_gas_price.is_some() {
-                let mut evm_db = self.get_db(working_set);
+                let mut evm_db = self.get_db(working_set, citrea_spec_id);
                 if let Some(ref state_overrides) = state_overrides {
                     apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
                 }
@@ -1200,7 +1203,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     // if price or limit was included in the request then we can execute the request
                     // again with the block's gas limit to check if revert is gas related or not
                     return if request_gas_limit.is_some() || request_gas_price.is_some() {
-                        let mut evm_db = self.get_db(working_set);
+                        let mut evm_db = self.get_db(working_set, citrea_spec_id);
                         if let Some(ref state_overrides) = state_overrides {
                             apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
                         }
@@ -1243,7 +1246,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         if optimistic_gas_limit < highest_gas_limit {
             tx_env.gas_limit = optimistic_gas_limit;
             // (result, env) = executor::transact(&mut db, env)?;
-            let mut evm_db = self.get_db(working_set);
+            let mut evm_db = self.get_db(working_set, citrea_spec_id);
             if let Some(ref state_overrides) = state_overrides {
                 apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
             }
@@ -1289,7 +1292,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let mut tx_env = tx_env.clone();
             tx_env.gas_limit = mid_gas_limit;
 
-            let mut evm_db = self.get_db(working_set);
+            let mut evm_db = self.get_db(working_set, citrea_spec_id);
             if let Some(ref state_overrides) = state_overrides {
                 apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
             }
@@ -1449,7 +1452,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let cfg_env = get_cfg_env(cfg, evm_spec_id);
         let l1_fee_rate = sealed_block.l1_fee_rate;
 
-        let mut evm_db = self.get_db(working_set);
+        let mut evm_db = self.get_db(working_set, citrea_spec_id);
 
         // TODO: Convert below steps to blocking task like in reth after implementing the semaphores
         let mut traces = Vec::new();
@@ -1546,7 +1549,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .account_info(&request.from.unwrap_or_default(), working_set)
             .unwrap_or_default();
 
-        let mut evm_db = self.get_db(working_set);
+        let mut evm_db = self.get_db(working_set, citrea_spec_id);
 
         let nonce = request.nonce.unwrap_or(account.nonce);
         let chain_id = cfg_env.chain_id();
