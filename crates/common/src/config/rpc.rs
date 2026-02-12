@@ -58,7 +58,7 @@ const fn default_enable_filters() -> bool {
 
 #[inline]
 const fn default_max_sync_send_timeout_ms() -> u64 {
-    default_timeout() * 1_000
+    20_000
 }
 
 /// RPC configuration.
@@ -103,7 +103,8 @@ pub struct RpcConfig {
     /// Enable filter RPCs
     #[serde(default = "default_enable_filters")]
     pub enable_filters: bool,
-    /// Maximum timeout in milliseconds for eth_sendRawTransactionSync (EIP-7966)
+    /// Maximum timeout in milliseconds for eth_sendRawTransactionSync (EIP-7966) (defaults to 20 seconds)
+    /// This should be kept below timeout in order not to hit default timeout error.
     #[serde(default = "default_max_sync_send_timeout_ms")]
     pub max_sync_send_timeout_ms: u64,
     /// API key for protected JSON-RPC methods

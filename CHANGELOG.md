@@ -4,7 +4,7 @@
 - Add `linux/arm64` release binary and support for multi-arch (arm64/amd64) docker image.
 - feat: implement `eth_sendRawTransactionSync` RPC as per EIP-7966. ([#3095](https://github.com/chainwayxyz/citrea/pull/3095))
 **New env var:**\
-  `RPC_MAX_SYNC_SEND_TIMEOUT_MS`: Maximum timeout in milliseconds for `eth_sendRawTransactionSync` (EIP-7966) (default: 30 seconds)\
+  `RPC_MAX_SYNC_SEND_TIMEOUT_MS`: Maximum timeout in milliseconds for `eth_sendRawTransactionSync` (EIP-7966) (default: 20 seconds).\
 
 ### Changed
 - feat: Separate l1 fee rate from block update
