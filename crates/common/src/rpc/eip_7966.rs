@@ -17,8 +17,8 @@ const TIMEOUT_ERROR_CODE: i32 = 4;
 /// EIP-7966 error code 5: Node is not ready to process the transaction or the transaction is erroneous.
 const UNREADY_ERROR_CODE: i32 = 5;
 
-/// Default timeout in milliseconds. (2secs)
-const DEFAULT_TIMEOUT_MS: u64 = 2_000;
+/// Default timeout in milliseconds. (5secs)
+const DEFAULT_TIMEOUT_MS: u64 = 5_000;
 
 /// Creates an EIP-7966 timeout error (code 4).
 ///
