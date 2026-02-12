@@ -262,6 +262,11 @@ const fn default_max_l1_fee_rate_sat_vb() -> u64 {
     15 // sat/vbyte
 }
 
+#[inline]
+const fn default_l1_fee_rate_update_interval_ms() -> u64 {
+    30_000 // 30 seconds
+}
+
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SequencerConfig {
@@ -280,13 +285,17 @@ pub struct SequencerConfig {
     /// Block production interval in ms
     pub block_production_interval_ms: u64,
     /// Bridge system contract initialize function parameters
-    pub bridge_initialize_params: String,
+    #[serde(with = "hex")]
+    pub bridge_initialize_params: Vec<u8>,
     /// L1 fee rate multiplier
     #[serde(default = "default_l1_fee_rate_multiplier")]
     pub l1_fee_rate_multiplier: f64,
     /// Maximum L1 fee rate in sat/vbyte
     #[serde(default = "default_max_l1_fee_rate_sat_vb")]
     pub max_l1_fee_rate_sat_vb: u64,
+    /// L1 fee rate update interval in ms
+    #[serde(default = "default_l1_fee_rate_update_interval_ms")]
+    pub l1_fee_rate_update_interval_ms: u64,
 }
 
 impl Default for SequencerConfig {
@@ -299,10 +308,11 @@ impl Default for SequencerConfig {
             deposit_mempool_fetch_limit: 10,
             block_production_interval_ms: 100,
             da_update_interval_ms: 100,
-            bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
             mempool_conf: Default::default(),
             l1_fee_rate_multiplier: 1.0,
             max_l1_fee_rate_sat_vb: 1, // doesn't matter since mock da returns 10 wei/byte
+            l1_fee_rate_update_interval_ms: default_l1_fee_rate_update_interval_ms(),
         }
     }
 }
@@ -317,7 +327,7 @@ impl FromEnv for SequencerConfig {
             mempool_conf: SequencerMempoolConfig::from_env()?,
             da_update_interval_ms: read_env("DA_UPDATE_INTERVAL_MS")?.parse()?,
             block_production_interval_ms: read_env("BLOCK_PRODUCTION_INTERVAL_MS")?.parse()?,
-            bridge_initialize_params: read_env("BRIDGE_INITIALIZE_PARAMS")?,
+            bridge_initialize_params: hex::decode(read_env("BRIDGE_INITIALIZE_PARAMS")?)?,
             l1_fee_rate_multiplier: read_env("L1_FEE_RATE_MULTIPLIER")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -326,6 +336,10 @@ impl FromEnv for SequencerConfig {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or_else(default_max_l1_fee_rate_sat_vb),
+            l1_fee_rate_update_interval_ms: read_env("L1_FEE_RATE_UPDATE_INTERVAL_MS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_l1_fee_rate_update_interval_ms),
         })
     }
 }
@@ -673,9 +687,10 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
-            bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
             l1_fee_rate_multiplier: 0.75,
             max_l1_fee_rate_sat_vb: 15,
+            l1_fee_rate_update_interval_ms: 30_000,
         };
         assert_eq!(config, expected);
     }
@@ -738,9 +753,10 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
-            bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
             l1_fee_rate_multiplier: 1.0,
             max_l1_fee_rate_sat_vb: 40,
+            l1_fee_rate_update_interval_ms: 30_000,
         };
         assert_eq!(sequencer_config, expected);
     }
@@ -866,7 +882,7 @@ mod tests {
 
             [risc0_host]
             tx_backup_dir = "/tmp/backup"
-            
+
             [risc0_host.prover.Local]
             r0vm_path = "path/to/vm"
             dev_mode = false

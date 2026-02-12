@@ -6,7 +6,7 @@ use alloy_primitives::{keccak256, Address, B256, U256};
 use revm::context::DBErrorMarker;
 use revm::state::{AccountInfo as ReVmAccountInfo, Bytecode};
 use revm::Database;
-use sov_modules_api::{StateMapAccessor, WorkingSet};
+use sov_modules_api::{SpecId, StateMapAccessor, WorkingSet};
 
 #[cfg(feature = "native")]
 use super::AccountInfo;
@@ -38,11 +38,20 @@ impl std::fmt::Display for DBError {
 pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
     pub(crate) evm: &'a Evm<C>,
     pub(crate) working_set: &'a mut WorkingSet<C::Storage>,
+    pub(crate) citrea_spec: SpecId,
 }
 
 impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
-    pub(crate) fn new(evm: &'a Evm<C>, working_set: &'a mut WorkingSet<C::Storage>) -> Self {
-        Self { evm, working_set }
+    pub(crate) fn new(
+        evm: &'a Evm<C>,
+        working_set: &'a mut WorkingSet<C::Storage>,
+        citrea_spec: SpecId,
+    ) -> Self {
+        Self {
+            evm,
+            working_set,
+            citrea_spec,
+        }
     }
 
     #[cfg(feature = "native")]

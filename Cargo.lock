@@ -2842,7 +2842,7 @@ dependencies = [
 
 [[package]]
 name = "bitcoin-da"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3565,7 +3565,7 @@ dependencies = [
 
 [[package]]
 name = "citrea"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "alloy 0.13.0",
  "alloy-primitives 0.8.26",
@@ -3648,7 +3648,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-batch-prover"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -3696,7 +3696,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-cli"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "citrea-batch-prover",
@@ -3715,7 +3715,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-common"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "alloy-consensus 0.13.0",
  "alloy-primitives 0.8.26",
@@ -3784,7 +3784,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-evm"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "alloy 0.13.0",
  "alloy-consensus 0.13.0",
@@ -3847,7 +3847,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-fullnode"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -3881,7 +3881,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-light-client-prover"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "alloy-signer 0.13.0",
@@ -3918,7 +3918,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "alloy-eips 0.13.0",
  "brotli",
@@ -3929,7 +3929,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-adapter"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -3958,21 +3958,21 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-batch-proof"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "risc0-build",
 ]
 
 [[package]]
 name = "citrea-risc0-light-client"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "risc0-build",
 ]
 
 [[package]]
 name = "citrea-sequencer"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "alloy-eips 0.13.0",
  "alloy-genesis 0.13.0",
@@ -4031,7 +4031,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-stf"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "borsh",
@@ -4061,7 +4061,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-storage-ops"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "citrea-common",
@@ -4159,7 +4159,7 @@ version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fde0e0ec90c9dfb3b4b1a0891a7dcd0e2bffde2f7efed5fe7c9bb00e5bfb915e"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5134,12 +5134,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33d852cb9b869c2a9b3df2f71a3074817f01e1844f839a144f5fcef059a4eb5d"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
 name = "ethereum-rpc"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "alloy-consensus 0.13.0",
  "alloy-network 0.13.0",
@@ -6649,7 +6649,7 @@ dependencies = [
 
 [[package]]
 name = "integration-tests"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "borsh",
@@ -6708,7 +6708,7 @@ checksum = "e19b23d53f35ce9f56aebc7d1bb4e6ac1e9c0db7ac85c8d1760c04379edced37"
 dependencies = [
  "hermit-abi 0.4.0",
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -7086,7 +7086,7 @@ dependencies = [
 
 [[package]]
 name = "l2-block-rule-enforcer"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "borsh",
  "chrono",
@@ -7205,7 +7205,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -7565,9 +7565,9 @@ dependencies = [
 
 [[package]]
 name = "metrics"
-version = "0.24.1"
+version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a7deb012b3b2767169ff203fadb4c6b0b82b947512e5eb9e0b78c2e186ad9e3"
+checksum = "5d5312e9ba3771cfa961b585728215e3d972c950a3eed9252aa093d6301277e8"
 dependencies = [
  "ahash",
  "portable-atomic",
@@ -8681,7 +8681,7 @@ dependencies = [
 
 [[package]]
 name = "prover-services"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8774,7 +8774,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -11260,7 +11260,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.4.15",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -11273,7 +11273,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.9.4",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -11370,7 +11370,7 @@ dependencies = [
  "security-framework 3.2.0",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -11891,7 +11891,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "short-header-proof-provider"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "borsh",
  "futures",
@@ -12032,7 +12032,7 @@ dependencies = [
 
 [[package]]
 name = "sov-accounts"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "borsh",
  "hex",
@@ -12052,7 +12052,7 @@ dependencies = [
 
 [[package]]
 name = "sov-db"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -12075,7 +12075,7 @@ dependencies = [
 
 [[package]]
 name = "sov-keys"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "borsh",
  "derive_more 1.0.0",
@@ -12092,7 +12092,7 @@ dependencies = [
 
 [[package]]
 name = "sov-ledger-rpc"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -12108,7 +12108,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-da"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12127,7 +12127,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-zkvm"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12140,7 +12140,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -12171,7 +12171,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -12197,7 +12197,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-macros"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "borsh",
  "jsonrpsee",
@@ -12215,7 +12215,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-rollup-blueprint"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12237,7 +12237,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "borsh",
@@ -12257,7 +12257,7 @@ dependencies = [
 
 [[package]]
 name = "sov-prover-storage-manager"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -12271,7 +12271,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -12295,7 +12295,7 @@ dependencies = [
 
 [[package]]
 name = "sov-schema-db"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -12311,7 +12311,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "1.0.2"
+version = "2.0.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "alloy-rlp",
@@ -12605,7 +12605,7 @@ dependencies = [
  "getrandom 0.3.2",
  "once_cell",
  "rustix 1.0.7",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -13648,7 +13648,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

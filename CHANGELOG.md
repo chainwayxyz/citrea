@@ -1,10 +1,41 @@
 # Changelog
+## [unreleased]
+### Added
+- Add `linux/arm64` release binary and support for multi-arch (arm64/amd64) docker image.
 
 ## [Unreleased]
+### Changed
+- feat: Separate l1 fee rate from block update
+**New env var:**\
+  `L1_FEE_RATE_UPDATE_INTERVAL_MS`: L1 fee rate update interval in milliseconds (default: 30seconds)\
+
+
+## [v2.0.0] (2026-02-05)
+- fix: selfdestruct behaviour ([Commit `73aa141`](https://github.com/chainwayxyz/citrea/commit/73aa14186d3e033963b6f396da11900ff33ac9ea))
+  See security advisory here: https://github.com/chainwayxyz/citrea/security/advisories/GHSA-356c-q573-6pcq
+
+## [v1.2.2] (2026-01-28)
+### Changed
+- feat: boundless uses claim digest match ([#3121](https://github.com/chainwayxyz/citrea/pull/3121))
+
+## [v1.2.1] (2026-01-27)
 ### Added
+- docs: Add mainnet run guide at `docs/run-mainnet.md`.
 
-- feat: add with_proof option to batchProver_getProvingJob ([#3071](https://github.com/chainwayxyz/citrea/pull/3071)) 
+### Changed
+- feat: unify fullnode docker image to be usable on mainnet.
 
+## [v1.2.0] (2026-01-07)
+### Added
+- feat: Initialize metrics at startup. ([#2954](https://github.com/chainwayxyz/citrea/pull/2954))
+
+### Changed
+- fix: `bitcoin::network::Testnet` vs `bitcoin::network::Testnet4` confusion in mempool.space fee retrieval ([#3087](https://github.com/chainwayxyz/citrea/pull/3087))
+- fix: Limit available RPC methods per node type ([#3088](https://github.com/chainwayxyz/citrea/pull/3088))
+
+## [v1.1.0] (2025-12-17)
+### Added
+- feat: add with_proof option to `batchProver_getProvingJob` ([#3071](https://github.com/chainwayxyz/citrea/pull/3071))
 - feat: Add `batchProver_getLatestProvingSessionInfos` rpc ([#3070](https://github.com/chainwayxyz/citrea/pull/3070))
 - feat: Use floating point precision in calculating bitcoin fee rate. ([#3066](https://github.com/chainwayxyz/citrea/pull/3066))
 
@@ -171,7 +202,12 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
 
-[unreleased]: https://github.com/chainwayxyz/citrea/compare/v1.0.2...HEAD
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.0.0...HEAD
+[v2.0.0]: https://github.com/chainwayxyz/citrea/compare/v1.2.2...v2.0.0
+[v1.2.2]: https://github.com/chainwayxyz/citrea/compare/v1.2.1...v1.2.2
+[v1.2.1]: https://github.com/chainwayxyz/citrea/compare/v1.2.0...v1.2.1
+[v1.2.0]: https://github.com/chainwayxyz/citrea/compare/v1.1.0...v1.2.0
+[v1.1.0]: https://github.com/chainwayxyz/citrea/compare/v1.0.2...v1.1.0
 [v1.0.2]: https://github.com/chainwayxyz/citrea/compare/v1.0.1...v1.0.2
 [v1.0.1]: https://github.com/chainwayxyz/citrea/compare/v1.0.0...v1.0.1
 [v1.0.0]: https://github.com/chainwayxyz/citrea/compare/v0.9.0...v1.0.0
