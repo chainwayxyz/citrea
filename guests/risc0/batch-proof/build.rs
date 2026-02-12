@@ -16,8 +16,12 @@ fn get_cache_path() -> PathBuf {
     target_dir.join(".method_ids_cache.txt")
 }
 
+fn testing_enabled() -> bool {
+    matches!(env::var("CARGO_FEATURE_TESTING").as_deref(), Ok("1" | "true"))
+}
+
 fn cache_method_ids() {
-    if env::var("CARGO_FEATURE_TESTING").is_err() {
+    if !testing_enabled() {
         return;
     }
 
@@ -34,7 +38,7 @@ fn cache_method_ids() {
 }
 
 fn use_cached_method_ids() -> bool {
-    if env::var("CARGO_FEATURE_TESTING").is_err() {
+    if !testing_enabled() {
         return false;
     }
 
@@ -127,7 +131,7 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
 
     let mut features = Vec::new();
 
-    if env::var("CARGO_FEATURE_TESTING").is_ok() {
+    if testing_enabled() {
         println!("cargo:warning=Building with testing feature");
         features.push("testing".to_string());
     }
