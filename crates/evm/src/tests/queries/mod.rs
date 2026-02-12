@@ -4,6 +4,7 @@ mod estimate_gas_tests;
 mod eth_call_tests;
 mod log_tests;
 mod pending_block_tests;
+mod trace_call_tests;
 
 use std::str::FromStr;
 
