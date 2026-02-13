@@ -6,7 +6,7 @@ use reth_primitives::{Recovered, TransactionSigned};
 use revm::context::result::{ExecutionResult, Output};
 use revm::context::{BlockEnv, CfgEnv};
 use revm::primitives::hardfork::SpecId;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{SpecId as CitreaSpecId, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 use self::executor::CitreaEvm;
@@ -29,7 +29,7 @@ fn simple_contract_execution_sov_state() {
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     let evm = Evm::<C>::default();
-    let evm_db: EvmDb<'_, C> = evm.get_db(&mut working_set);
+    let evm_db: EvmDb<'_, C> = evm.get_db(&mut working_set, CitreaSpecId::latest());
 
     simple_contract_execution(evm_db);
 }

@@ -220,6 +220,7 @@ pub async fn start_rollup(
     let rpc_storage = storage_manager.create_final_view_storage();
     let mut rpc_module = mock_demo_rollup
         .create_rpc_methods(
+            NodeType::FullNode, // Allow all RPC in tests
             rpc_storage.clone(),
             &ledger_db,
             &da_service,
@@ -483,6 +484,7 @@ pub fn create_default_rollup_config(
             enable_js_tracer: true,
             api_key: None,
             enable_filters: false,
+            max_sync_send_timeout_ms: 30_000,
         },
         runner: match node_mode {
             NodeMode::FullNode(socket_addr)
