@@ -1504,7 +1504,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             None => BlockNumberOrTag::Latest,
         };
 
-        let block_env = match block_number {
+        let mut block_env = match block_number {
             BlockNumberOrTag::Pending => get_pending_block_env(self, working_set),
             _ => {
                 let block = self
@@ -1545,11 +1545,29 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .ok_or_else(|| EthApiError::HeaderNotFound(block_id.unwrap()))?;
         let l1_fee_rate = l1_fee_block.l1_fee_rate;
 
-        let account = self
-            .account_info(&request.from.unwrap_or_default(), working_set)
-            .unwrap_or_default();
-
         let mut evm_db = self.get_db(working_set, citrea_spec_id);
+
+        let GethDebugTracingCallOptions {
+            tracing_options,
+            state_overrides,
+            block_overrides,
+        } = opts.unwrap_or_default();
+
+        // Apply state overrides before create_txn_env so that balance overrides
+        // are reflected in gas allowance calculation (issue #3135).
+        if let Some(state_overrides) = state_overrides {
+            apply_state_overrides(state_overrides, &mut evm_db)?;
+        }
+
+        if let Some(mut block_overrides) = block_overrides {
+            apply_block_overrides(&mut block_env, &mut block_overrides, &mut evm_db);
+        }
+
+        let from = request.from.unwrap_or_default();
+        let account = evm_db
+            .basic(from)
+            .map_err(EthApiError::from)?
+            .unwrap_or_default();
 
         let nonce = request.nonce.unwrap_or(account.nonce);
         let chain_id = cfg_env.chain_id();
@@ -1563,7 +1581,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             chain_id,
         )?;
         let trace = trace_call(
-            opts.unwrap_or_default(),
+            tracing_options,
             cfg_env,
             block_env,
             tx_env,
