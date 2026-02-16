@@ -54,4 +54,5 @@ ignore = [
   "RUSTSEC-2025-0134", # Ignore unmaintained rustls-pemfile
   "RUSTSEC-2025-0141", # Ignore unmaintained bincode crate
   "RUSTSEC-2026-0009", # Ignore as no user input time present in project
+  "RUSTSEC-2025-0137", # Ignore until it's fixed in upstream `alloy-primitives`. Though we shouldn't be affected.
 ]
