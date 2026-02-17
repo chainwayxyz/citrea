@@ -3,7 +3,7 @@
 use core::result::Result::Ok;
 use std::time::Instant;
 
-use bitcoin::absolute::{Time, LOCK_TIME_THRESHOLD};
+use bitcoin::absolute::{LockTime, Time, LOCK_TIME_THRESHOLD};
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
 use bitcoin::blockdata::script;
@@ -299,8 +299,7 @@ pub fn create_inscription_type_0(
                 },
             });
         } else {
-            reveal_tx.lock_time =
-                bitcoin::absolute::LockTime::Seconds(Time::from_consensus(lock_time).unwrap());
+            reveal_tx.lock_time = LockTime::Seconds(Time::from_consensus(lock_time).unwrap());
             update_witness(
                 &unsigned_commit_tx,
                 &mut reveal_tx,
@@ -492,8 +491,7 @@ pub fn create_inscription_type_1(
 
                 break;
             } else {
-                reveal_tx.lock_time =
-                    bitcoin::absolute::LockTime::Seconds(Time::from_consensus(lock_time).unwrap());
+                reveal_tx.lock_time = LockTime::Seconds(Time::from_consensus(lock_time).unwrap());
                 update_witness(
                     &unsigned_commit_tx,
                     &mut reveal_tx,
@@ -660,8 +658,7 @@ pub fn create_inscription_type_1(
                 },
             });
         } else {
-            reveal_tx.lock_time =
-                bitcoin::absolute::LockTime::Seconds(Time::from_consensus(lock_time).unwrap());
+            reveal_tx.lock_time = LockTime::Seconds(Time::from_consensus(lock_time).unwrap());
             update_witness(
                 &unsigned_commit_tx,
                 &mut reveal_tx,
@@ -836,8 +833,7 @@ pub fn create_inscription_type_3(
                 },
             });
         } else {
-            reveal_tx.lock_time =
-                bitcoin::absolute::LockTime::Seconds(Time::from_consensus(lock_time).unwrap());
+            reveal_tx.lock_time = LockTime::Seconds(Time::from_consensus(lock_time).unwrap());
             update_witness(
                 &unsigned_commit_tx,
                 &mut reveal_tx,
@@ -1014,8 +1010,7 @@ pub fn create_inscription_type_4(
                 },
             });
         } else {
-            reveal_tx.lock_time =
-                bitcoin::absolute::LockTime::Seconds(Time::from_consensus(lock_time).unwrap());
+            reveal_tx.lock_time = LockTime::Seconds(Time::from_consensus(lock_time).unwrap());
             update_witness(
                 &unsigned_commit_tx,
                 &mut reveal_tx,
