@@ -7,6 +7,7 @@
   `RPC_MAX_SYNC_SEND_TIMEOUT_MS`: Maximum timeout in milliseconds for `eth_sendRawTransactionSync` (EIP-7966) (default: 20 seconds).\
 
 ### Changed
+- perf: Skip re-execution of proof request in boundless
 - feat: Separate l1 fee rate from block update
 **New env var:**\
   `L1_FEE_RATE_UPDATE_INTERVAL_MS`: L1 fee rate update interval in milliseconds (default: 30 seconds)\
