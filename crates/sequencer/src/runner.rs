@@ -1163,7 +1163,12 @@ where
             .spawn_critical_with_graceful_shutdown_signal(
                 "sequencer-da-block-monitor",
                 |shutdown| {
-                    da_block_monitor(da_service, da_block_update_tx, da_update_interval_ms, shutdown)
+                    da_block_monitor(
+                        da_service,
+                        da_block_update_tx,
+                        da_update_interval_ms,
+                        shutdown,
+                    )
                 },
             );
 
