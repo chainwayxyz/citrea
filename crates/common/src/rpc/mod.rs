@@ -19,6 +19,7 @@ use sov_rollup_interface::services::da::DaService;
 use tower_http::cors::{Any, CorsLayer};
 
 mod auth;
+pub mod eip_7966;
 mod metrics;
 pub(crate) use metrics::RpcMetrics;
 pub mod server;
@@ -152,7 +153,7 @@ where
                 tracing::trace!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_success");
             } else {
                 match req_method.as_str() {
-                    "eth_sendRawTransaction" => tracing::debug!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_error"),
+                    "eth_sendRawTransaction" | "eth_sendRawTransactionSync"=> tracing::debug!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_error"),
                     _ => tracing::warn!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_error")
                 }
 

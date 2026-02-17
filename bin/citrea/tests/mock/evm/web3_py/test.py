@@ -20,7 +20,7 @@ class TestWeb3(unittest.TestCase):
 
     def test_connection(self):
         self.assertEqual(self.web3.is_connected(), True)
-    
+
     def test_max_priority_fee(self):
         max_priority_fee = self.web3.eth.max_priority_fee
         self.assertGreater(max_priority_fee, 0)
@@ -59,7 +59,7 @@ class TestWeb3(unittest.TestCase):
                     return
 
         self.fail("Code for address 0x32000000000000000000000000000000000000001 not found in genesis data.")
-        
+
 
     def test_get_block(self):
         block = self.web3.eth.get_block('latest')
@@ -86,7 +86,7 @@ class TestWeb3(unittest.TestCase):
         self.assertEqual(tx['hash'], self.first_tx_hash)
         self.assertEqual(tx['from'], "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
         self.assertEqual(tx['to'], "0x0000000000000000000000000000000000000000")
-    
+
     def test_get_transaction_by_block(self):
         tx = self.web3.eth.get_transaction(self.first_tx_hash)
         block = self.web3.eth.get_block(tx['blockHash'])
@@ -112,11 +112,11 @@ class TestWeb3(unittest.TestCase):
         return_val = self.web3.eth.call({'value': 0, 'to': '0x3100000000000000000000000000000000000001', 'data': selector})
         self.assertEqual(return_val, HexBytes('0x000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead'))
 
-    def test_create_access_list(self):        
+    def test_create_access_list(self):
         tx = {
             'from': "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
             'to': "0x3100000000000000000000000000000000000002",
-            'value': self.web3.to_wei(10, 'ether'),  
+            'value': self.web3.to_wei(10, 'ether'),
             'gas': 200000,
             'gasPrice': self.web3.to_wei(1, 'gwei'),
             'data': "0x8786dba712340000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000", # withdraw(bytes32, bytes4), param is 0x1234, 0x01
@@ -195,7 +195,7 @@ class TestWeb3(unittest.TestCase):
         tx = {
             'from': "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
             'to': "0x3100000000000000000000000000000000000002",
-            'value': self.web3.to_wei(0.9, 'ether'),  
+            'value': self.web3.to_wei(0.9, 'ether'),
             'gas': 200000,
             'gasPrice': self.web3.to_wei(1, 'gwei'),
             'data': "0x8786dba712340000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000", # withdraw(bytes32, bytes4), param is 0x1234, 0x01
@@ -211,7 +211,7 @@ class TestWeb3(unittest.TestCase):
         tx = {
             'from': "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
             'to': "0x3100000000000000000000000000000000000002",
-            'value': self.web3.to_wei(0.9, 'ether'),  
+            'value': self.web3.to_wei(0.9, 'ether'),
             'gas': 200000,
             'gasPrice': self.web3.to_wei(1, 'gwei'),
             'data': "0x8786dba712340000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000", # withdraw(bytes32, bytes4), param is 0x1234, 0x01
@@ -249,6 +249,77 @@ class TestWeb3(unittest.TestCase):
     def test_get_logs_false_hash(self):
         logs = self.web3.eth.get_logs({'fromBlock': 1, 'toBlock': 1, 'topics': ["0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"]})
         self.assertEqual(logs, [])
+
+    def test_send_raw_transaction_sync(self):
+        transaction = {
+            'from': "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            'to': "0x0000000000000000000000000000000000000000",
+            'value': 1000000000,
+            'nonce': self.web3.eth.get_transaction_count("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
+            'gas': 200000,
+            'gasPrice': self.web3.eth.gas_price,
+        }
+        signed_tx = self.web3.eth.account.sign_transaction(transaction, "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+
+        receipt = self.web3.provider.make_request(
+            'eth_sendRawTransactionSync',
+            [signed_tx.raw_transaction.hex(), 5000]
+        )['result']
+
+        self.assertIsNotNone(receipt['transactionHash'])
+        self.assertEqual(receipt['from'], "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266")
+        self.assertEqual(receipt['to'], "0x0000000000000000000000000000000000000000")
+        self.assertEqual(int(receipt['status'], 16), 1)
+        self.assertEqual(int(receipt['transactionIndex'], 16), 0)
+        self.assertGreater(int(receipt['l1DiffSize'], 16), 0)
+        self.assertGreater(int(receipt['l1FeeRate'], 16), 0)
+
+    def test_send_raw_transaction_sync_default_timeout(self):
+        """Test eth_sendRawTransactionSync without timeout parameter (uses default 2s)"""
+        transaction = {
+            'from': "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            'to': "0x0000000000000000000000000000000000000000",
+            'value': 1000000000,
+            'nonce': self.web3.eth.get_transaction_count("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
+            'gas': 200000,
+            'gasPrice': self.web3.eth.gas_price,
+        }
+        signed_tx = self.web3.eth.account.sign_transaction(transaction, "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+
+        # Call without timeout parameter - should use default timeout of 2s
+        receipt = self.web3.provider.make_request(
+            'eth_sendRawTransactionSync',
+            [signed_tx.raw_transaction.hex()]
+        )['result']
+
+        self.assertIsNotNone(receipt['transactionHash'])
+        self.assertEqual(receipt['from'], "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266")
+        self.assertEqual(receipt['to'], "0x0000000000000000000000000000000000000000")
+        self.assertEqual(int(receipt['status'], 16), 1)
+
+    def test_send_raw_transaction_sync_timeout_error(self):
+        """Test eth_sendRawTransactionSync returns error code 4 on timeout (EIP-7966)"""
+        transaction = {
+            'from': "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            'to': "0x0000000000000000000000000000000000000000",
+            'value': 1000000000,
+            'nonce': self.web3.eth.get_transaction_count("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
+            'gas': 200000,
+            'gasPrice': self.web3.eth.gas_price,
+        }
+        signed_tx = self.web3.eth.account.sign_transaction(transaction, "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+
+        response = self.web3.provider.make_request(
+            'eth_sendRawTransactionSync',
+            [signed_tx.raw_transaction.hex(), 1]
+        )
+
+        # Should have error response with EIP-7966 error code 4
+        self.assertIn('error', response)
+        self.assertEqual(response['error']['code'], 4)
+        self.assertIn("wasn't processed", response['error']['message'])
+        # Error data should contain the transaction hash
+        self.assertIn('data', response['error'])
 
 if __name__ == '__main__':
     unittest.main()

@@ -484,6 +484,7 @@ pub fn create_default_rollup_config(
             enable_js_tracer: true,
             api_key: None,
             enable_filters: false,
+            max_sync_send_timeout_ms: 30_000,
         },
         runner: match node_mode {
             NodeMode::FullNode(socket_addr)
