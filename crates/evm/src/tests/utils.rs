@@ -247,7 +247,7 @@ pub(crate) fn get_evm_config(
     signer_balance: U256,
     block_gas_limit: Option<u64>,
 ) -> (EvmConfig, TestSigner, Address) {
-    let dev_signer: TestSigner = TestSigner::new_random();
+    let dev_signer: TestSigner = TestSigner::new_default();
 
     let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
     let config = EvmConfig {
@@ -270,7 +270,7 @@ pub(crate) fn get_evm_config_starting_base_fee(
     block_gas_limit: Option<u64>,
     starting_base_fee: u64,
 ) -> (EvmConfig, TestSigner, Address, LedgerDB) {
-    let dev_signer: TestSigner = TestSigner::new_random();
+    let dev_signer: TestSigner = TestSigner::new_default();
 
     let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
     let config = EvmConfig {

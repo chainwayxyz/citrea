@@ -47,7 +47,7 @@ fn init_evm(
     u64, // l2_height
     LedgerDB,
 ) {
-    let dev_signer: TestSigner = TestSigner::new_random();
+    let dev_signer: TestSigner = TestSigner::new_default();
 
     let config = EvmConfig {
         data: vec![AccountData {
@@ -209,7 +209,7 @@ pub fn init_evm_single_block(
     TestSigner,
     LedgerDB,
 ) {
-    let dev_signer: TestSigner = TestSigner::new_random();
+    let dev_signer: TestSigner = TestSigner::new_default();
 
     let config = EvmConfig {
         data: vec![
@@ -286,7 +286,7 @@ pub fn init_evm_with_caller_contract() -> (
     u64,
     LedgerDB,
 ) {
-    let dev_signer: TestSigner = TestSigner::new_random();
+    let dev_signer: TestSigner = TestSigner::new_default();
 
     let config = EvmConfig {
         data: vec![AccountData {

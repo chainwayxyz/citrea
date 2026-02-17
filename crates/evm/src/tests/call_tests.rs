@@ -43,7 +43,7 @@ type C = DefaultContext;
 
 #[test]
 fn call_multiple_test() {
-    let dev_signer1: TestSigner = TestSigner::new_random();
+    let dev_signer1: TestSigner = TestSigner::new_default();
 
     let config = EvmConfig {
         data: vec![AccountData {
@@ -267,7 +267,7 @@ fn call_test() {
 
 #[test]
 fn failed_transaction_test() {
-    let dev_signer: TestSigner = TestSigner::new_random();
+    let dev_signer: TestSigner = TestSigner::new_default();
     let config = EvmConfig::default();
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
@@ -1297,7 +1297,7 @@ fn test_eip7702_tx() {
     // signer 2 sends transaction to signer1's address
     // we check for storage of signer1 and see it has changed now
 
-    let signer1 = TestSigner::new_random(); // use set seed so we can test deterministically
+    let signer1 = TestSigner::new_default();
     let signer2 = TestSigner::new(SecretKey::new(&mut thread_rng()));
 
     let config = EvmConfig {
