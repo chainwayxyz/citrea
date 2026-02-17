@@ -1,6 +1,6 @@
 use citrea_common::NodeType;
-use sov_db::schema::tables::{L2BlockByNumber, L2StatusHeights, ProverStateDiffs};
-use sov_db::schema::types::{L2BlockNumber, L2HeightStatus};
+use sov_db::schema::tables::{L2BlockByNumber, ProverStateDiffs};
+use sov_db::schema::types::L2BlockNumber;
 use sov_schema_db::{ScanDirection, DB};
 
 /// Prunes L2 blocks by removing transaction bodies while keeping block headers.
