@@ -36,10 +36,6 @@ pub(crate) fn prune_l2_blocks(
             ledger_db.delete::<ProverStateDiffs>(&l2_block_number)?;
         }
 
-        if matches!(node_type, NodeType::FullNode) {
-            ledger_db.delete::<L2StatusHeights>(&(L2HeightStatus::Committed, l2_block_number.0))?;
-        }
-
         pruned += 1;
     }
 
