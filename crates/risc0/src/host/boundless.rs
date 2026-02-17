@@ -56,6 +56,9 @@ const LOCKTIME_INCREASE_RATIO: u32 = 2; // 2x
 /// Average gas price is less than 0.1 gwei
 const FALLBACK_BASE_GAS_PRICE: u128 = 1_000_000_000; // 1 gwei
 
+/// Duration to sleep before retrying a failed proof request in seconds
+const RETRY_RESUBMISSION_DELAY_SECS: u32 = 10;
+
 enum ResubmitResult {
     Retry,
     Success,
@@ -544,15 +547,15 @@ impl BoundlessProver {
                             Ok(res) => {
                                 match res {
                                     ResubmitResult::Retry => {
-                                        // Retry resubmission after a delay
-                                        let delay_duration = Duration::from_secs(10);
+                                        
                                         tracing::info!(
                                             "Retrying resubmission of boundless proving session job: {} | Boundless request id: {} after {:?}",
                                             job_id,
                                             request_id,
                                             delay_duration
                                         );
-                                        tokio::time::sleep(delay_duration).await;
+                                        // Retry resubmission after a delay
+                                        tokio::time::sleep(RETRY_RESUBMISSION_DELAY_SECS).await;
                                     }
                                     ResubmitResult::Success => {
                                         // Successfully resubmitted, continue to next iteration to monitor new request
