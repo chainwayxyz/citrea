@@ -542,19 +542,27 @@ impl BoundlessProver {
                         .await
                         {
                             Ok(res) => {
-                                if matches!(res, ResubmitResult::Success) {
-                                    tracing::info!(
-                                    "Resubmitted boundless proving session job: {} | Boundless request id: {}",
-                                    job_id,
-                                    request_id
-                                );
-                            }
-                                tracing::info!(
-                                    "Resubmit boundless proving session Failed with job id: {}, and boundless request id: {} retrying...",
-                                    job_id,
-                                    request_id
-                                );
-                                continue;
+                                match res {
+                                    ResubmitResult::Retry => {
+                                        // Retry resubmission after a delay
+                                        let delay_duration = Duration::from_secs(10);
+                                        tracing::info!(
+                                            "Retrying resubmission of boundless proving session job: {} | Boundless request id: {} after {:?}",
+                                            job_id,
+                                            request_id,
+                                            delay_duration
+                                        );
+                                        tokio::time::sleep(delay_duration).await;
+                                    }
+                                    ResubmitResult::Success => {
+                                        // Successfully resubmitted, continue to next iteration to monitor new request
+                                        tracing::info!(
+                                            "Resubmitted boundless proving session job: {} | Boundless request id: {}",
+                                            job_id,
+                                            request_id
+                                        );
+                                    }
+                                }
                             }
                             Err(e) => {
                                 tracing::error!(
