@@ -80,9 +80,8 @@ fn logs_for_filter_test() {
 
 #[test]
 fn log_filter_test_at_block_hash() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
-
     let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
 
     let l1_fee_rate = 1;
@@ -96,6 +95,9 @@ fn log_filter_test_at_block_hash() {
         l1_fee_rate,
         timestamp: 0,
     };
+
+    let contract_addr = dev_signer.address().create(0);
+
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
@@ -291,8 +293,10 @@ fn log_filter_test_at_block_hash() {
 
 #[test]
 fn log_filter_test_with_range() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let contract_addr = dev_signer.address().create(0);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
 
@@ -407,10 +411,12 @@ fn test_log_limits() {
     // citrea::initialize_logging(tracing::Level::INFO);
 
     // bigger block is needed to be able to include all the transactions
-    let (config, dev_signer, contract_addr) = get_evm_config(
+    let (config, dev_signer) = get_evm_config(
         U256::from_str("100000000000000000000").unwrap(),
         Some(20 * ETHEREUM_BLOCK_GAS_LIMIT_30M),
     );
+
+    let contract_addr = dev_signer.address().create(0);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
 

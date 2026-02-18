@@ -742,8 +742,10 @@ fn test_call_with_state_overrides() {
 
 #[test]
 fn test_call_with_block_overrides() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let contract_addr = dev_signer.address().create(0);
 
     let (mut evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
     let l1_fee_rate = 0;

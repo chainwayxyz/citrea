@@ -190,7 +190,7 @@ fn call_multiple_test() {
 
 #[test]
 fn call_test() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
@@ -205,6 +205,8 @@ fn call_test() {
         l1_fee_rate,
         timestamp: 0,
     };
+
+    let contract_addr = dev_signer.address().create(0);
 
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
 
@@ -335,8 +337,10 @@ fn self_destruct_test() {
     // address used in selfdestruct
     let die_to_address = address!("11115497b157177315e1204f52e588b393111111");
 
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let contract_addr = dev_signer.address().create(0);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) =
         get_evm_with_spec(&config, SovSpecId::latest());
@@ -491,13 +495,14 @@ fn self_destruct_test() {
 
 #[test]
 fn test_block_hash_in_evm() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (mut evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
+    let contract_addr = dev_signer.address().create(0);
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
@@ -640,10 +645,12 @@ fn test_block_hash_in_evm() {
 
 #[test]
 fn test_block_gas_limit() {
-    let (config, dev_signer, contract_addr) = get_evm_config(
+    let (config, dev_signer) = get_evm_config(
         U256::from_str("100000000000000000000").unwrap(),
         Some(ETHEREUM_BLOCK_GAS_LIMIT_30M),
     );
+
+    let contract_addr = dev_signer.address().create(0);
 
     let (mut evm, working_set, _spec_id, ledger_db) = get_evm(&config);
 
@@ -864,7 +871,7 @@ fn test_l1_fee_success() {
         expected_base_fee_vault_balance: U256,
         expected_l1_fee_vault_balance: U256,
     ) {
-        let (mut config, dev_signer, _, _ledger_db) =
+        let (mut config, dev_signer, _ledger_db) =
             get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
 
         // this will push contracts to the config
@@ -965,7 +972,7 @@ fn test_l1_fee_success() {
 
 #[test]
 fn test_l1_fee_not_enough_funds() {
-    let (mut config, dev_signer, _, _ledger_db) = get_evm_config_starting_base_fee(
+    let (mut config, dev_signer, _ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("114235000000").unwrap(), // only covers base fee
         None,
         min_base_fee_per_gas(SovSpecId::latest()),
@@ -1041,7 +1048,7 @@ fn test_l1_fee_not_enough_funds() {
 
 #[test]
 fn test_l1_fee_halt() {
-    let (mut config, dev_signer, _, _ledger_db) =
+    let (mut config, dev_signer, _ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("20000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
@@ -1059,8 +1066,6 @@ fn test_l1_fee_halt() {
         timestamp: 0,
     };
 
-    let contract_address = dev_signer.address().create(0);
-
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
@@ -1076,7 +1081,7 @@ fn test_l1_fee_halt() {
 
         let call_message = dev_signer
             .sign_default_transaction_with_fee(
-                TxKind::Call(contract_address),
+                TxKind::Call(dev_signer.address().create(0)),
                 InfiniteLoopContract::default()
                     .call_infinite_loop()
                     .into_iter()
@@ -1157,7 +1162,7 @@ fn test_l1_fee_halt() {
 
 #[test]
 fn test_l1_fee_compression_discount() {
-    let (mut config, dev_signer, _, _ledger_db) =
+    let (mut config, dev_signer, _ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
@@ -1248,7 +1253,7 @@ fn test_l1_fee_compression_discount() {
 // and invoke point eval precompile
 #[test]
 fn test_blob_tx() {
-    let (config, dev_signer, _contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
     let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
 
@@ -1667,7 +1672,7 @@ fn test_eip7702_tx() {
 
 #[test]
 fn test_min_base_fee_tangelo() {
-    let (config, _dev_signer, _contract_addr) =
+    let (config, _dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (mut evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
@@ -1737,12 +1742,13 @@ fn test_min_base_fee_tangelo() {
 fn test_create2_selfdestruct_recreate_same_tx() {
     use crate::smart_contracts::{Create2Factory1aContract, SpecialContractContract};
 
-    let (config, dev_signer, factory_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) =
         get_evm_with_spec(&config, SovSpecId::latest());
 
+    let factory_addr = dev_signer.address().create(0);
     let l1_fee_rate = 0;
     let l2_height = 2;
 
@@ -1885,7 +1891,7 @@ fn test_create2_selfdestruct_recreate_same_tx() {
 fn test_create2_selfdestruct_same_tx_then_recreate() {
     use crate::smart_contracts::{Create2Factory1bContract, SpecialContractContract};
 
-    let (config, dev_signer, factory_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) =
@@ -1893,6 +1899,8 @@ fn test_create2_selfdestruct_same_tx_then_recreate() {
 
     let l1_fee_rate = 0;
     let l2_height = 2;
+
+    let factory_addr = dev_signer.address().create(0);
 
     // Calculate target address upfront so we can prefund it
     let factory_contract = Create2Factory1bContract::default();
@@ -2099,7 +2107,7 @@ fn test_create2_then_selfdestruct_and_recreate_same_tx() {
         Create2Factory1bContract, SelfdestructAndRecreateContract, SpecialContractContract,
     };
 
-    let (config, dev_signer, factory_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) =
@@ -2118,8 +2126,7 @@ fn test_create2_then_selfdestruct_and_recreate_same_tx() {
         timestamp: 0,
     };
 
-    // ContractA is deployed with nonce 1, compute its address
-    let contract_a_addr = dev_signer.address().create(1);
+    let factory_addr = dev_signer.address().create(0);
 
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
@@ -2236,7 +2243,13 @@ fn test_create2_then_selfdestruct_and_recreate_same_tx() {
             Bytes::from(init_code.clone()),
         );
         let destroy_recreate_tx = dev_signer
-            .sign_default_transaction(TxKind::Call(contract_a_addr), call_data, 4, 0)
+            // ContractA is deployed with nonce 1, compute its address
+            .sign_default_transaction(
+                TxKind::Call(dev_signer.address().create(1)),
+                call_data,
+                4,
+                0,
+            )
             .unwrap();
 
         evm.call(
@@ -2315,7 +2328,7 @@ fn test_create2_then_selfdestruct_and_recreate_same_tx() {
 fn test_create2_then_selfdestruct_then_recreate() {
     use crate::smart_contracts::{Create2Factory1bContract, SpecialContractContract};
 
-    let (config, dev_signer, factory_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) =
@@ -2333,6 +2346,8 @@ fn test_create2_then_selfdestruct_then_recreate() {
         l1_fee_rate,
         timestamp: 0,
     };
+
+    let factory_addr = dev_signer.address().create(0);
 
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
@@ -2558,7 +2573,7 @@ fn test_eip7702_selfdestruct_delegation() {
     let signer1 = TestSigner::new(SecretKey::new(&mut thread_rng())); // EOA that will delegate (no txs from this account)
     let signer1_initial_balance = 1000000000000000000u128; // 1 ETH
 
-    let (config, dev_signer, _) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) =

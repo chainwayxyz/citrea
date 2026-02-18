@@ -246,10 +246,9 @@ pub(crate) fn publish_event_message(
 pub(crate) fn get_evm_config(
     signer_balance: U256,
     block_gas_limit: Option<u64>,
-) -> (EvmConfig, TestSigner, Address) {
+) -> (EvmConfig, TestSigner) {
     let dev_signer: TestSigner = TestSigner::new_default();
 
-    let contract_addr = dev_signer.address().create(0);
     let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer.address(),
@@ -262,17 +261,16 @@ pub(crate) fn get_evm_config(
         block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT_30M),
         ..Default::default()
     };
-    (config, dev_signer, contract_addr)
+    (config, dev_signer)
 }
 
 pub(crate) fn get_evm_config_starting_base_fee(
     signer_balance: U256,
     block_gas_limit: Option<u64>,
     starting_base_fee: u64,
-) -> (EvmConfig, TestSigner, Address, LedgerDB) {
+) -> (EvmConfig, TestSigner, LedgerDB) {
     let dev_signer: TestSigner = TestSigner::new_default();
 
-    let contract_addr = dev_signer.address().create(0);
     let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer.address(),
@@ -290,7 +288,7 @@ pub(crate) fn get_evm_config_starting_base_fee(
     let tmpdir = tempfile::tempdir().unwrap();
     let ledger_db =
         LedgerDB::with_config(&RocksdbConfig::new(tmpdir.as_ref(), None, None)).unwrap();
-    (config, dev_signer, contract_addr, ledger_db)
+    (config, dev_signer, ledger_db)
 }
 pub(crate) fn get_evm_test_config() -> EvmConfig {
     EvmConfig {
