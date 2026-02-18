@@ -183,14 +183,7 @@ where
                                     if let Some(duration) = backoff.next_backoff() {
                                         last_backoff_duration = duration;
                                     }
-                                    select! {
-                                        biased;
-                                        _ = &mut shutdown_signal => {
-                                            info!("Shutting down L2Syncer");
-                                            return;
-                                        }
-                                        _ = tokio::time::sleep(last_backoff_duration) => {}
-                                    }
+                                    tokio::time::sleep(last_backoff_duration).await;
                                 }
                             }
                         }

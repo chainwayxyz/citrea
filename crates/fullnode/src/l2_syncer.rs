@@ -180,15 +180,7 @@ where
                                 Err(e) => {
                                     error!("Failed to process L2 block {}: {e}", l2_block.header.height);
                                     let backoff_duration = backoff.next_backoff().expect("Failed to process L2 block multiple times. Killing L2Syncer...");
-                                    select! {
-                                        biased;
-                                        _ = &mut shutdown_signal => {
-                                            info!("Shutting down L2Syncer");
-                                            l2_rx.close();
-                                            return;
-                                        }
-                                        _ = tokio::time::sleep(backoff_duration) => {}
-                                    }
+                                    tokio::time::sleep(backoff_duration).await;
                                 }
                             }
                         }
