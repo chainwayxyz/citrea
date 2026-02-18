@@ -1,15 +1,16 @@
 # Changelog
 ## [Unreleased]
 ### Added
-- Add `linux/arm64` release binary and support for multi-arch (arm64/amd64) docker image.
-- feat: implement `eth_sendRawTransactionSync` RPC as per EIP-7966. ([#3095](https://github.com/chainwayxyz/citrea/pull/3095))
+- Add `linux/arm64` release binary and support for multi-arch (arm64/amd64) docker image. ([#3130](https://github.com/chainwayxyz/citrea/pull/3130))
+- feat: implement `eth_sendRawTransactionSync` RPC as per EIP-7966. ([#3095](https://github.com/chainwayxyz/citrea/pull/3095))\
 **New env var:**\
-  `RPC_MAX_SYNC_SEND_TIMEOUT_MS`: Maximum timeout in milliseconds for `eth_sendRawTransactionSync` (EIP-7966) (default: 20 seconds).\
+  `RPC_MAX_SYNC_SEND_TIMEOUT_MS`: Maximum timeout in milliseconds for `eth_sendRawTransactionSync` (EIP-7966) (default: 20 seconds).
 
 ### Changed
-- feat: Separate l1 fee rate from block update
+- perf: Skip re-execution of proof request in boundless([#3144](https://github.com/chainwayxyz/citrea/pull/3144))
+- feat: Separate l1 fee rate from block update ([#3131](https://github.com/chainwayxyz/citrea/pull/3131))\
 **New env var:**\
-  `L1_FEE_RATE_UPDATE_INTERVAL_MS`: L1 fee rate update interval in milliseconds (default: 30 seconds)\
+  `L1_FEE_RATE_UPDATE_INTERVAL_MS`: L1 fee rate update interval in milliseconds (default: 30 seconds)
 
 
 ## [v2.0.0] (2026-02-05)
@@ -26,10 +27,10 @@
 
 ## [v1.2.1] (2026-01-27)
 ### Added
-- docs: Add mainnet run guide at `docs/run-mainnet.md`.
+- docs: Add mainnet run guide at `docs/run-mainnet.md` ([#3119](https://github.com/chainwayxyz/citrea/pull/3119)).
 
 ### Changed
-- feat: unify fullnode docker image to be usable on mainnet.
+- feat: unify fullnode docker image to be usable on mainnet ([#3119](https://github.com/chainwayxyz/citrea/pull/3119)).
 
 ## [v1.2.0] (2026-01-07)
 ### Added
