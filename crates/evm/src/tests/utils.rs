@@ -5,7 +5,7 @@ use std::sync::LazyLock;
 use alloy_consensus::constants::KECCAK_EMPTY;
 use alloy_eips::eip1559::{BaseFeeParams, ETHEREUM_BLOCK_GAS_LIMIT_30M};
 use alloy_primitives::hex_literal::hex;
-use alloy_primitives::{address, Address, Bytes, TxKind, B256, U256};
+use alloy_primitives::{Address, Bytes, TxKind, B256, U256};
 use short_header_proof_provider::ShortHeaderProofProvider;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;

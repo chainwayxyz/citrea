@@ -8,7 +8,7 @@ mod trace_call_tests;
 
 use std::str::FromStr;
 
-use alloy_primitives::{address, Address, Bytes};
+use alloy_primitives::{address, Bytes};
 use revm::primitives::{KECCAK_EMPTY, U256};
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;

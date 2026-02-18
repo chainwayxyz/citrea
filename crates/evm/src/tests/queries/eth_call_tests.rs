@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::map::AddressMap;
-use alloy_primitives::{address, Address, Bytes, TxKind, B256};
+use alloy_primitives::{Address, Bytes, TxKind, B256};
 use alloy_rpc_types::state::AccountOverride;
 use alloy_rpc_types::{BlockId, BlockOverrides, TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;

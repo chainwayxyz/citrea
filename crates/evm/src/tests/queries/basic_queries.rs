@@ -1,9 +1,7 @@
-use std::str::FromStr;
-
 use alloy_eips::eip2930::{AccessList, AccessListItem, AccessListWithGasUsed};
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::{AnyTransactionReceipt, TransactionResponse};
-use alloy_primitives::{address, b256, Address, TxKind, B256, U256, U64};
+use alloy_primitives::{address, b256, TxKind, B256, U256, U64};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use alloy_rpc_types_eth::Block as AlloyRpcBlock;
 use alloy_serde::WithOtherFields;
@@ -800,10 +798,7 @@ fn test_queries_with_forks() {
     let fork_fn = |_: u64| Fork::new(SovSpecId::latest(), 3);
 
     let caller = CallerContract::default();
-    let input_data = caller.call_set_call_data(
-        signer.address().create(0),
-        42,
-    );
+    let input_data = caller.call_set_call_data(signer.address().create(0), 42);
 
     let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),

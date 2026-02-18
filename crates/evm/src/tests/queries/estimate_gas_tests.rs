@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use alloy_eips::eip2930::{AccessList, AccessListItem, AccessListWithGasUsed};
 use alloy_eips::BlockNumberOrTag;
-use alloy_primitives::{address, b256, Address, TxKind, U256};
+use alloy_primitives::{address, b256, TxKind, U256};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
@@ -340,10 +340,7 @@ fn test_access_list() {
     let (evm, mut working_set, signer, _, ledger_db) = init_evm_with_caller_contract();
 
     let caller = CallerContract::default();
-    let input_data = caller.call_set_call_data(
-        signer.address().create(0),
-        42,
-    );
+    let input_data = caller.call_set_call_data(signer.address().create(0), 42);
 
     let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),
