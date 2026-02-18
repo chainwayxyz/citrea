@@ -2128,6 +2128,9 @@ fn test_create2_then_selfdestruct_and_recreate_same_tx() {
 
     let factory_addr = dev_signer.address().create(0);
 
+    // ContractA is deployed with nonce 1, compute its address
+    let contract_a_addr = dev_signer.address().create(1);
+
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
@@ -2242,14 +2245,12 @@ fn test_create2_then_selfdestruct_and_recreate_same_tx() {
             salt,
             Bytes::from(init_code.clone()),
         );
+        let nonce = evm
+            .account_info(&dev_signer.address(), &mut working_set)
+            .unwrap()
+            .nonce;
         let destroy_recreate_tx = dev_signer
-            // ContractA is deployed with nonce 1, compute its address
-            .sign_default_transaction(
-                TxKind::Call(dev_signer.address().create(1)),
-                call_data,
-                4,
-                0,
-            )
+            .sign_default_transaction(TxKind::Call(contract_a_addr), call_data, nonce, 0)
             .unwrap();
 
         evm.call(
