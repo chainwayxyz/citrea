@@ -1151,26 +1151,22 @@ where
         let storage_manager = self.storage_manager.clone();
         let l2_block_hash = self.l2_block_hash;
         self.task_executor
-            .spawn_critical_with_graceful_shutdown_signal(
-                "sequencer-commitment-service",
-                |shutdown| commitment_service.run(storage_manager, l2_block_hash, shutdown),
-            );
+            .spawn_with_graceful_shutdown_signal(|shutdown| {
+                commitment_service.run(storage_manager, l2_block_hash, shutdown)
+            });
 
         // Spawn DA block monitor task
         let da_service = self.da_service.clone();
         let da_update_interval_ms = self.config.da_update_interval_ms;
         self.task_executor
-            .spawn_critical_with_graceful_shutdown_signal(
-                "sequencer-da-block-monitor",
-                |shutdown| {
-                    da_block_monitor(
-                        da_service,
-                        da_block_update_tx,
-                        da_update_interval_ms,
-                        shutdown,
-                    )
-                },
-            );
+            .spawn_with_graceful_shutdown_signal(|shutdown| {
+                da_block_monitor(
+                    da_service,
+                    da_block_update_tx,
+                    da_update_interval_ms,
+                    shutdown,
+                )
+            });
 
         // Spawn fee rate monitor task
         let da_service = self.da_service.clone();
