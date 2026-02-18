@@ -928,7 +928,7 @@ fn test_offchain_contract_storage_evm() {
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    let new_contract_address = address!("d26ff5586e488e65d86bcc3f0fe31551e381a596");
+    let new_contract_address = dev_signer.address().create(1);
 
     let contract_info = evm.account_info(&new_contract_address, &mut working_set);
     let code_hash = contract_info.unwrap().code_hash.unwrap();

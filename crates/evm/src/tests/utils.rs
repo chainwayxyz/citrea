@@ -249,7 +249,7 @@ pub(crate) fn get_evm_config(
 ) -> (EvmConfig, TestSigner, Address) {
     let dev_signer: TestSigner = TestSigner::new_default();
 
-    let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
+    let contract_addr = dev_signer.address().create(0);
     let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer.address(),
@@ -272,7 +272,7 @@ pub(crate) fn get_evm_config_starting_base_fee(
 ) -> (EvmConfig, TestSigner, Address, LedgerDB) {
     let dev_signer: TestSigner = TestSigner::new_default();
 
-    let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
+    let contract_addr = dev_signer.address().create(0);
     let config = EvmConfig {
         data: vec![AccountData {
             address: dev_signer.address(),

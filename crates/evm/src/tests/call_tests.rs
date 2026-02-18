@@ -58,7 +58,7 @@ fn call_multiple_test() {
     };
     let (mut evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
 
-    let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
+    let contract_addr = dev_signer1.address().create(0);
 
     let l1_fee_rate = 0;
     let l2_height = 2;
@@ -1059,6 +1059,8 @@ fn test_l1_fee_halt() {
         timestamp: 0,
     };
 
+    let contract_address = dev_signer.address().create(0);
+
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
@@ -1074,7 +1076,7 @@ fn test_l1_fee_halt() {
 
         let call_message = dev_signer
             .sign_default_transaction_with_fee(
-                TxKind::Call(address!("819c5497b157177315e1204f52e588b393771719")),
+                TxKind::Call(contract_address),
                 InfiniteLoopContract::default()
                     .call_infinite_loop()
                     .into_iter()
@@ -1323,8 +1325,9 @@ fn test_eip7702_tx() {
     };
     let (mut evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
 
-    let log_contract_address = address!("819c5497b157177315e1204f52e588b393771719");
-    let set_arg_contract_address = address!("d26ff5586e488e65d86bcc3f0fe31551e381a596");
+    let log_contract_address = signer1.address().create(0);
+
+    let set_arg_contract_address = signer1.address().create(1);
 
     let l1_fee_rate = 0;
     let mut l2_height = 2;

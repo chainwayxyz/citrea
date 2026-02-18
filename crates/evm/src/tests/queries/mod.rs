@@ -66,17 +66,9 @@ fn init_evm(
     let l1_fee_rate = 1;
     let mut l2_height = 1;
 
-    let contract_addr: Address = Address::from_slice(
-        hex::decode("819c5497b157177315e1204f52e588b393771719")
-            .unwrap()
-            .as_slice(),
-    );
+    let contract_addr = dev_signer.address().create(0);
 
-    let contract_addr2: Address = Address::from_slice(
-        hex::decode("eeb03d20dae810f52111b853b31c8be6f30f4cd3")
-            .unwrap()
-            .as_slice(),
-    );
+    let contract_addr2 = dev_signer.address().create(7);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
@@ -302,11 +294,7 @@ pub fn init_evm_with_caller_contract() -> (
 
     let (mut evm, mut working_set, prover_storage, ledger_db) = get_evm_with_storage(&config);
 
-    let contract_addr: Address = Address::from_slice(
-        hex::decode("819c5497b157177315e1204f52e588b393771719")
-            .unwrap()
-            .as_slice(),
-    );
+    let contract_addr = dev_signer.address().create(0);
 
     // Address of the caller contract
     // let contract_addr2: Address = Address::from_slice(

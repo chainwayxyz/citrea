@@ -73,7 +73,7 @@ fn test_eth_estimate_gas_with_state_override() {
         .unwrap();
     }
 
-    let contract_address = Address::from_str("819c5497b157177315e1204f52e588b393771719").unwrap();
+    let contract_address = signer.address().create(0);
 
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[2u8; 32], &mut working_set.accessory_state());
@@ -253,7 +253,7 @@ fn test_create_access_list_with_override() {
         .unwrap();
     }
 
-    let contract_address = Address::from_str("819c5497b157177315e1204f52e588b393771719").unwrap();
+    let contract_address = signer.address().create(0);
 
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[2u8; 32], &mut working_set.accessory_state());
