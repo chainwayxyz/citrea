@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 use alloy_primitives::U64;
@@ -21,6 +22,8 @@ use sov_ledger_rpc::LedgerRpcClient;
 
 use super::{get_citrea_cli_path, get_citrea_path};
 use crate::bitcoin::utils::{wait_for_prover_job, wait_for_prover_job_count, wait_for_zkproofs};
+use crate::common::helpers::wait_for_l2_block;
+use crate::common::make_test_client;
 
 const API_KEY: &str = "12345";
 
@@ -137,6 +140,11 @@ impl TestCase for BackupSequencerTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
+        sequencer
+            .client
+            .wait_for_l2_block(block_to_generate, None)
+            .await?;
+
         let start_height = sequencer.client.ledger_get_head_l2_block_height().await?;
 
         let backup_path = sequencer.config.base.dir.join("backup");
@@ -182,6 +190,11 @@ impl TestCase for BackupSequencerTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
+        sequencer
+            .client
+            .wait_for_l2_block(2 * block_to_generate, None)
+            .await?;
+
         let current_height = sequencer.client.ledger_get_head_l2_block_height().await?;
 
         // Update incremental backup after height increase
@@ -202,6 +215,12 @@ impl TestCase for BackupSequencerTest {
         for _ in 0..block_to_generate {
             sequencer.client.send_publish_batch_request().await?;
         }
+
+        sequencer
+            .client
+            .wait_for_l2_block(3 * block_to_generate, None)
+            .await?;
+
         let current_height = sequencer.client.ledger_get_head_l2_block_height().await?;
 
         sequencer.wait_until_stopped().await?;
@@ -236,6 +255,12 @@ impl TestCase for BackupSequencerTest {
         for _ in 0..block_to_generate {
             sequencer.client.send_publish_batch_request().await?;
         }
+
+        // Should go up to 3 * block_to_generate as we generated block_to_generate before restore and then another block_to_generate after restore
+        sequencer
+            .client
+            .wait_for_l2_block(3 * block_to_generate, None)
+            .await?;
 
         let current_height = sequencer.client.ledger_get_head_l2_block_height().await?;
 
@@ -286,6 +311,11 @@ impl TestCase for BackupSequencerTest {
         for _ in 0..block_to_generate {
             sequencer.client.send_publish_batch_request().await?;
         }
+
+        sequencer
+            .client
+            .wait_for_l2_block(2 * block_to_generate, None)
+            .await?;
 
         sequencer.wait_until_stopped().await?;
 
