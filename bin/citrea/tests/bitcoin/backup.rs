@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 use alloy_primitives::U64;
@@ -22,8 +21,6 @@ use sov_ledger_rpc::LedgerRpcClient;
 
 use super::{get_citrea_cli_path, get_citrea_path};
 use crate::bitcoin::utils::{wait_for_prover_job, wait_for_prover_job_count, wait_for_zkproofs};
-use crate::common::helpers::wait_for_l2_block;
-use crate::common::make_test_client;
 
 const API_KEY: &str = "12345";
 
