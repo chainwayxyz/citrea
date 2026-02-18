@@ -279,6 +279,7 @@ impl BoundlessProver {
                 lock_stake,
                 bidding_start_delay,
                 total_cycles_approx,
+                journal.clone(),
             )
             .await;
 
@@ -323,6 +324,7 @@ impl BoundlessProver {
         lock_stake: u64,
         bidding_start_delay: u64,
         total_cycles_approx: u64,
+        journal: Journal,
     ) -> RequestParams {
         // Note that offer ramp up period must be less than or equal to the lock timeout)
 
@@ -411,6 +413,7 @@ impl BoundlessProver {
                     .with_ramp_up_start(bidding_start),
             )
             .with_cycles(total_cycles_approx)
+            .with_journal(journal)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -723,6 +726,7 @@ impl BoundlessProver {
                 price_response.bidding_start_delay,
                 // TODO: https://github.com/chainwayxyz/citrea/issues/2820
                 total_cycles_approx,
+                journal.clone(),
             )
             .await;
 
