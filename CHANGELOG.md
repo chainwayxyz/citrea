@@ -1,6 +1,9 @@
 # Changelog
 ## [Unreleased]
+### Added
 
+### Changed
+- perf: Skip re-execution of proof request in boundless([#3144](https://github.com/chainwayxyz/citrea/pull/3144))
 
 ## [v2.1.0](2026-02-17)
 ### Added
@@ -10,7 +13,6 @@
   `RPC_MAX_SYNC_SEND_TIMEOUT_MS`: Maximum timeout in milliseconds for `eth_sendRawTransactionSync` (EIP-7966) (default: 20 seconds).
 
 ### Changed
-- perf: Skip re-execution of proof request in boundless([#3144](https://github.com/chainwayxyz/citrea/pull/3144))
 - feat: Separate l1 fee rate from block update ([#3131](https://github.com/chainwayxyz/citrea/pull/3131))\
 **New env var:**\
   `L1_FEE_RATE_UPDATE_INTERVAL_MS`: L1 fee rate update interval in milliseconds (default: 30 seconds)\
