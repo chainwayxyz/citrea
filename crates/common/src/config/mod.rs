@@ -609,6 +609,7 @@ mod tests {
                 api_key: None,
                 stale_filter_ttl: Some(300),
                 enable_filters: true,
+                max_sync_send_timeout_ms: 20_000,
             },
             public_keys: RollupPublicKeys {
                 sequencer_public_key: vec![0; 33],
@@ -818,6 +819,7 @@ mod tests {
                 api_key: None,
                 stale_filter_ttl: None,
                 enable_filters: true,
+                max_sync_send_timeout_ms: 20_000,
             },
             storage: StorageConfig {
                 path: "/tmp/rollup".into(),

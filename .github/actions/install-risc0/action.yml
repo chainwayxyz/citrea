@@ -32,3 +32,10 @@ runs:
     - name: Add risc0 to PATH
       shell: bash
       run: echo "$HOME/.risc0/bin" >> $GITHUB_PATH
+
+    - name: Set defaults
+      shell: bash
+      run: |
+        rzup default cargo-risczero 3.0.3
+        rzup default r0vm 3.0.3
+        rzup default rust 1.88.0

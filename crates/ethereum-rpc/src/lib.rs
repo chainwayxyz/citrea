@@ -5,6 +5,7 @@ mod trace;
 
 use std::sync::Arc;
 
+use alloy_network::AnyTransactionReceipt;
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{
@@ -15,6 +16,8 @@ use alloy_rpc_types_trace::geth::{
     GethDebugTracerType, GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace,
     TraceResult,
 };
+use citrea_common::rpc::eip_7966;
+use citrea_common::rpc::utils::internal_rpc_error;
 use citrea_common::RpcConfig;
 use citrea_evm::{generate_eth_proof, Evm, FilterKind};
 use citrea_sequencer::SequencerRpcClient;
@@ -159,6 +162,14 @@ pub trait EthereumRpc {
     #[method(name = "eth_sendRawTransaction")]
     async fn eth_send_raw_transaction(&self, data: Bytes) -> RpcResult<B256>;
 
+    /// Submits a raw transaction, wait until the transaction has been included in a block and return its receipt (full node only).
+    #[method(name = "eth_sendRawTransactionSync")]
+    async fn eth_send_raw_transaction_sync(
+        &self,
+        data: Bytes,
+        timeout_ms: Option<u64>,
+    ) -> RpcResult<AnyTransactionReceipt>;
+
     /// Gets transaction by hash (full node only).
     #[method(name = "eth_getTransactionByHash")]
     async fn eth_get_transaction_by_hash(
@@ -225,6 +236,8 @@ where
     starting_l2_height: U64,
     trace_chain_block_limit: Option<u64>,
     enable_js_tracer: bool,
+    l2_block_rx: Option<broadcast::Receiver<u64>>,
+    max_sync_send_timeout_ms: u64,
 }
 
 impl<C, Da> EthereumRpcServerImpl<C, Da>
@@ -237,12 +250,16 @@ where
         starting_l2_height: U64,
         trace_chain_block_limit: Option<u64>,
         enable_js_tracer: bool,
+        l2_block_rx: Option<broadcast::Receiver<u64>>,
+        max_sync_send_timeout_ms: u64,
     ) -> Self {
         Self {
             ethereum,
             starting_l2_height,
             trace_chain_block_limit,
             enable_js_tracer,
+            l2_block_rx,
+            max_sync_send_timeout_ms,
         }
     }
 }
@@ -498,6 +515,95 @@ where
                 jsonrpsee::core::client::Error::Call(e_owned) => e_owned,
                 _ => to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e),
             })
+    }
+
+    /// eth_sendRawTransactionSync RPC call implementation (EIP-7966)
+    /// - Send raw transaction to sequencer
+    /// - Subscribes to new block subscription
+    /// - Waits for transaction to be included in a block
+    /// - Returns the transaction receipt
+    /// - Timeout in milliseconds (default: 5_000ms, max: configurable via RpcConfig, default max: 30_000ms)
+    ///
+    /// Error codes:
+    /// - Code 4: Transaction not included within timeout period
+    /// - Code 32603: Node is running without subscriptions enabled or block channel closed while waiting on transaction inclusion
+    async fn eth_send_raw_transaction_sync(
+        &self,
+        data: Bytes,
+        timeout_ms: Option<u64>,
+    ) -> RpcResult<AnyTransactionReceipt> {
+        // eth_sendRawTransactionSync is not available if fullnode is running without `enable_subscriptions`
+        let mut block_rx = self
+            .l2_block_rx
+            .as_ref()
+            .ok_or_else(|| {
+                EthApiError::Unsupported(
+                    "Block subscriptions must be enabled for eth_sendRawTransactionSync",
+                )
+            })?
+            .resubscribe();
+
+        let hash: B256 = self
+            .ethereum
+            .sequencer_client
+            .as_ref()
+            .unwrap()
+            .eth_send_raw_transaction(data)
+            .await
+            .map_err(|e| match e {
+                jsonrpsee::core::client::Error::Call(e_owned) => e_owned,
+                _ => to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e),
+            })?;
+
+        let evm = Evm::<C>::default();
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+
+        // Fast path
+        if let Ok(Some(receipt)) = evm.get_transaction_receipt(hash, &mut working_set) {
+            return Ok(receipt);
+        }
+
+        let timeout = eip_7966::calculate_timeout_ms(timeout_ms, self.max_sync_send_timeout_ms);
+        let timeout_duration = tokio::time::Duration::from_millis(timeout);
+
+        tracing::info!(
+            transaction_hash = ?hash,
+            timeout_ms = timeout,
+            "Waiting for transaction inclusion"
+        );
+
+        let wait_for_receipt = async {
+            loop {
+                match block_rx.recv().await {
+                    Ok(_) => {
+                        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+                        if let Ok(Some(receipt)) =
+                            evm.get_transaction_receipt(hash, &mut working_set)
+                        {
+                            return Ok(receipt);
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                        tracing::warn!("Block subscription lagged by {skipped} blocks");
+                        // Receiver lagged but try looking up the receipt anyway
+                        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+                        if let Ok(Some(receipt)) =
+                            evm.get_transaction_receipt(hash, &mut working_set)
+                        {
+                            return Ok(receipt);
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        return Err(internal_rpc_error("Block subscription channel closed"));
+                    }
+                }
+            }
+        };
+
+        match tokio::time::timeout(timeout_duration, wait_for_receipt).await {
+            Ok(result) => result,
+            Err(_) => Err(eip_7966::timeout_error(hash, timeout)),
+        }
     }
 
     async fn eth_get_transaction_by_hash(
@@ -780,7 +886,7 @@ where
         storage,
         ledger_db,
         sequencer_client_url.map(|url| HttpClientBuilder::default().build(url).unwrap()),
-        l2_block_rx,
+        &l2_block_rx,
         task_executor,
     ));
     let server = EthereumRpcServerImpl::new(
@@ -788,12 +894,15 @@ where
         U64::from(head_l2_block),
         rpc_config.trace_chain_block_limit,
         rpc_config.enable_js_tracer,
+        l2_block_rx,
+        rpc_config.max_sync_send_timeout_ms,
     );
 
     let mut module = EthereumRpcServer::into_rpc(server);
 
     if is_sequencer {
         module.remove_method("eth_sendRawTransaction");
+        module.remove_method("eth_sendRawTransactionSync");
         module.remove_method("eth_getTransactionByHash");
         module.remove_method("eth_syncing");
         module.remove_method("citrea_syncStatus");
