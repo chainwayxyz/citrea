@@ -921,7 +921,7 @@ where
                     let account_id =
                         borsh::from_slice::<u64>(encoded_id).expect("Failed to parse account ID");
                     let account_info = borsh::from_slice::<AccountInfo>(&value.value)
-                        .expect("Failed to borsh deserialize account inf");
+                        .expect("Failed to borsh deserialize account info");
                     account_id_to_info.insert(account_id, account_info);
                     // Account was written to, so it's Changed (overrides Loaded if it was read)
                     account_id_to_status.insert(account_id, AccountStatus::Changed);
