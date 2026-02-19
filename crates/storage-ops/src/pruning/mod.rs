@@ -6,6 +6,7 @@ use futures::future;
 use ledger::prune_ledger;
 use native::prune_native_db;
 use sov_db::schema::tables::{LastPrunedBlock, LastPrunedL2Height};
+use state::prune_state_db;
 
 use self::criteria::{Criteria, DistanceCriteria};
 pub use self::service::*;
@@ -88,7 +89,7 @@ impl Pruner {
             tokio::task::spawn_blocking(move || prune_ledger(node_type, ledger_db, up_to_block));
 
         let state_db_pruning_handle =
-            tokio::task::spawn_blocking(move || state::prune_state_db(state_db, up_to_block));
+            tokio::task::spawn_blocking(move || prune_state_db(state_db, up_to_block));
 
         let native_db_pruning_handle =
             tokio::task::spawn_blocking(move || prune_native_db(native_db, up_to_block));
