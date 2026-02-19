@@ -115,8 +115,10 @@ fn call_schnorr_verify_transaction(
 
 #[test]
 fn test_cancun_transient_storage_works() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let contract_addr = dev_signer.address().create(0);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) =
         get_evm_with_spec(&config, SovSpecId::latest());
@@ -201,8 +203,10 @@ fn test_cancun_transient_storage_works() {
 
 #[test]
 fn test_cancun_mcopy_works() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let contract_addr = dev_signer.address().create(0);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) =
         get_evm_with_spec(&config, SovSpecId::latest());
@@ -275,8 +279,10 @@ fn test_self_destructing_constructor() {
     // address used in selfdestruct
     let die_to_address = address!("11115497b157177315e1204f52e588b393111111");
 
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let contract_addr = dev_signer.address().create(0);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
     let l1_fee_rate = 0;
@@ -366,7 +372,7 @@ fn test_prefunded_self_destructing_constructor() {
 
     // address used in selfdestruct
     let die_to_address = address!("11115497b157177315e1204f52e588b393111111");
-    let (config, dev_signer, _) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
     let contract_addr = dev_signer.address().create(1);
     let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
@@ -426,8 +432,10 @@ fn test_prefunded_self_destructing_constructor() {
 
 #[test]
 fn test_blob_base_fee_should_return_1() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let contract_addr = dev_signer.address().create(0);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) =
         get_evm_with_spec(&config, SovSpecId::latest());
@@ -504,8 +512,10 @@ fn test_blob_base_fee_should_return_1() {
 
 #[test]
 fn test_kzg_point_eval_should_revert() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let contract_addr = dev_signer.address().create(0);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
     let l1_fee_rate = 0;
@@ -614,8 +624,10 @@ fn test_kzg_point_eval_should_revert() {
 // this test also shows schnorr verify precompile works only after tangerine, see prague() in handler.rs
 #[test]
 fn test_p256_verify() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let contract_addr = dev_signer.address().create(0);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) =
         get_evm_with_spec(&config, SovSpecId::Kumquat);
@@ -709,8 +721,10 @@ fn test_p256_verify() {
 
 #[test]
 fn test_schnorr_verify() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let contract_addr = dev_signer.address().create(0);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
     let l1_fee_rate = 0;
@@ -842,8 +856,10 @@ fn test_schnorr_verify() {
 // this test was useful when offchain code was first implemented
 // now it shouldn't even be in this file
 fn test_offchain_contract_storage_evm() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let contract_addr = dev_signer.address().create(0);
 
     let (mut evm, mut working_set, _spec_id, ledger_db) =
         get_evm_with_spec(&config, SovSpecId::latest());
@@ -928,9 +944,7 @@ fn test_offchain_contract_storage_evm() {
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    let new_contract_address = address!("d26ff5586e488e65d86bcc3f0fe31551e381a596");
-
-    let contract_info = evm.account_info(&new_contract_address, &mut working_set);
+    let contract_info = evm.account_info(&dev_signer.address().create(1), &mut working_set);
     let code_hash = contract_info.unwrap().code_hash.unwrap();
 
     let offchain_code = evm
