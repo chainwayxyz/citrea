@@ -29,19 +29,17 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
         None,
     );
     let sequencer_config = SequencerConfig::default();
-    let seq_task =
-        // Don't provide a prover since the EVM is not currently provable
-        start_rollup(
-            port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-            None,
-            false,
-        )
-        .await;
+    let seq_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
 
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();

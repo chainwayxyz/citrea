@@ -39,7 +39,7 @@ async fn test_eth_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
         max_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
         ..Default::default()
     };
-    // Don't provide a prover since the EVM is not currently provable
+
     let seq_task = start_rollup(
         port_tx,
         GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -280,11 +280,20 @@ fn parse_log_contract_logs(
 ) {
     assert_eq!(logs.len(), 2);
 
-    let log1: alloy_primitives::Log = logs[0].clone().into();
-    let log2: alloy_primitives::Log = logs[1].clone().into();
+    // Logs may arrive in any order via WebSocket subscription, so match by event
+    // signature rather than assuming a fixed position.
+    let mut log_payload = None;
+    let mut another_log_payload = None;
+    for log in logs {
+        let raw: alloy_primitives::Log = log.clone().into();
+        if let Ok(decoded) = LogsContract::decode_log_event(&raw) {
+            log_payload = Some(decoded);
+        } else if let Ok(decoded) = LogsContract::decode_another_log_event(&raw) {
+            another_log_payload = Some(decoded);
+        } else {
+            panic!("unexpected log event");
+        }
+    }
 
-    let log_payload = LogsContract::decode_log_event(&log1).unwrap();
-    let another_log_payload = LogsContract::decode_another_log_event(&log2).unwrap();
-
-    (log_payload, another_log_payload)
+    (log_payload.unwrap(), another_log_payload.unwrap())
 }

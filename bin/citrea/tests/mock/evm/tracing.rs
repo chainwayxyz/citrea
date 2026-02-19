@@ -50,7 +50,6 @@ async fn init_sequencer(
     );
     let sequencer_config = SequencerConfig::default();
 
-    // Don't provide a prover since the EVM is not currently provable
     let rollup_task = start_rollup(
         port_tx,
         GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
