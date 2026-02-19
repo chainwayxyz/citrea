@@ -56,6 +56,9 @@ const LOCKTIME_INCREASE_RATIO: u32 = 2; // 2x
 /// Average gas price is less than 0.1 gwei
 const FALLBACK_BASE_GAS_PRICE: u128 = 1_000_000_000; // 1 gwei
 
+/// Duration to sleep before retrying a failed proof request in seconds
+const RETRY_RESUBMISSION_DELAY_SECS: Duration = Duration::from_secs(10);
+
 enum ResubmitResult {
     Retry,
     Success,
@@ -276,6 +279,7 @@ impl BoundlessProver {
                 lock_stake,
                 bidding_start_delay,
                 total_cycles_approx,
+                journal.clone(),
             )
             .await;
 
@@ -320,6 +324,7 @@ impl BoundlessProver {
         lock_stake: u64,
         bidding_start_delay: u64,
         total_cycles_approx: u64,
+        journal: Journal,
     ) -> RequestParams {
         // Note that offer ramp up period must be less than or equal to the lock timeout)
 
@@ -408,6 +413,7 @@ impl BoundlessProver {
                     .with_ramp_up_start(bidding_start),
             )
             .with_cycles(total_cycles_approx)
+            .with_journal(journal)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -542,19 +548,26 @@ impl BoundlessProver {
                         .await
                         {
                             Ok(res) => {
-                                if matches!(res, ResubmitResult::Success) {
-                                    tracing::info!(
-                                    "Resubmitted boundless proving session job: {} | Boundless request id: {}",
-                                    job_id,
-                                    request_id
-                                );
-                            }
-                                tracing::info!(
-                                    "Resubmit boundless proving session Failed with job id: {}, and boundless request id: {} retrying...",
-                                    job_id,
-                                    request_id
-                                );
-                                continue;
+                                match res {
+                                    ResubmitResult::Retry => {
+                                        tracing::info!(
+                                            "Retrying resubmission of boundless proving session job: {} | Boundless request id: {} after {:?}",
+                                            job_id,
+                                            request_id,
+                                            RETRY_RESUBMISSION_DELAY_SECS
+                                        );
+                                        // Retry resubmission after a delay
+                                        tokio::time::sleep(RETRY_RESUBMISSION_DELAY_SECS).await;
+                                    }
+                                    ResubmitResult::Success => {
+                                        // Successfully resubmitted, continue to next iteration to monitor new request
+                                        tracing::info!(
+                                            "Resubmitted boundless proving session job: {} | Boundless request id: {}",
+                                            job_id,
+                                            request_id
+                                        );
+                                    }
+                                }
                             }
                             Err(e) => {
                                 tracing::error!(
@@ -713,6 +726,7 @@ impl BoundlessProver {
                 price_response.bidding_start_delay,
                 // TODO: https://github.com/chainwayxyz/citrea/issues/2820
                 total_cycles_approx,
+                journal.clone(),
             )
             .await;
 

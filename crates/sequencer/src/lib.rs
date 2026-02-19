@@ -189,6 +189,7 @@ where
         backup_manager,
         rpc_message_rx,
         canon_state_tx,
+        task_executor,
     )
     .unwrap();
 
