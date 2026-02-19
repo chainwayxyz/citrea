@@ -3,6 +3,7 @@
 ### Added
 
 ### Changed
+- refactor: Use reth task manager instead of tokio spawn in sequencer services ([#3145](https://github.com/chainwayxyz/citrea/pull/3145))
 - perf: Skip re-execution of proof request in boundless([#3144](https://github.com/chainwayxyz/citrea/pull/3144))
 
 ## [v2.1.0](2026-02-17)
