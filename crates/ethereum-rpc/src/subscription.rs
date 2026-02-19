@@ -50,7 +50,11 @@ impl SubscriptionManager {
         tokio::spawn(head_subscriber_task(rx, Arc::new(subscription)));
     }
 
-    pub fn register_new_logs_subscription(&self, filter: Filter, subscription: SubscriptionSink) {
+    pub fn register_new_logs_subscription(
+        &self,
+        filter: Option<Filter>,
+        subscription: SubscriptionSink,
+    ) {
         let rx = self.logs_tx.subscribe();
         tokio::spawn(log_subscriber_task(rx, filter, Arc::new(subscription)));
     }
@@ -100,10 +104,10 @@ async fn head_subscriber_task(
 
 async fn log_subscriber_task(
     mut rx: broadcast::Receiver<Arc<Vec<Log>>>,
-    filter: Filter,
+    filter: Option<Filter>,
     sink: Arc<SubscriptionSink>,
 ) {
-    let filtered_params = FilteredParams::new(Some(filter));
+    let filtered_params = FilteredParams::new(filter);
     loop {
         tokio::select! {
             biased;

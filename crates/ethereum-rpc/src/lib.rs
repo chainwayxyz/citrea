@@ -794,7 +794,7 @@ where
                     .subscription_manager
                     .as_ref()
                     .unwrap()
-                    .register_new_logs_subscription(filter.unwrap_or_default(), subscription);
+                    .register_new_logs_subscription(filter, subscription);
             }
             _ => {
                 pending
