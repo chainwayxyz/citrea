@@ -27,6 +27,7 @@ use reth_execution_types::{Chain, ExecutionOutcome};
 use reth_primitives::{Receipt, RecoveredBlock, SealedBlock};
 use reth_provider::{BlockReaderIdExt, CanonStateNotification};
 use reth_tasks::shutdown::GracefulShutdown;
+use reth_tasks::TaskExecutor;
 use reth_transaction_pool::error::InvalidPoolTransactionError;
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
@@ -119,6 +120,8 @@ where
     backup_manager: Arc<BackupManager>,
     /// Channel for sending canonical state notifications to mempool maintenance
     canon_state_tx: mpsc::UnboundedSender<CanonStateNotification>,
+    /// Executor for spawning async tasks
+    task_executor: TaskExecutor,
 }
 
 impl<Da> CitreaSequencer<Da>
@@ -159,6 +162,7 @@ where
         backup_manager: Arc<BackupManager>,
         rpc_message_rx: UnboundedReceiver<SequencerRpcMessage>,
         canon_state_tx: mpsc::UnboundedSender<CanonStateNotification>,
+        task_executor: TaskExecutor,
     ) -> anyhow::Result<Self> {
         let sov_tx_signer_priv_key =
             K256PrivateKey::try_from(hex::decode(&config.private_key)?.as_slice())?;
@@ -181,6 +185,7 @@ where
             l2_block_tx,
             backup_manager,
             canon_state_tx,
+            task_executor,
         })
     }
 
@@ -1143,27 +1148,38 @@ where
         );
 
         // Spawn commitment service task
-        tokio::spawn(commitment_service.run(
-            self.storage_manager.clone(),
-            self.l2_block_hash,
-            shutdown_signal.clone(),
-        ));
+        let storage_manager = self.storage_manager.clone();
+        let l2_block_hash = self.l2_block_hash;
+        self.task_executor
+            .spawn_with_graceful_shutdown_signal(|shutdown| {
+                commitment_service.run(storage_manager, l2_block_hash, shutdown)
+            });
 
         // Spawn DA block monitor task
-        tokio::spawn(da_block_monitor(
-            self.da_service.clone(),
-            da_block_update_tx,
-            self.config.da_update_interval_ms,
-            shutdown_signal.clone(),
-        ));
+        let da_service = self.da_service.clone();
+        let da_update_interval_ms = self.config.da_update_interval_ms;
+        self.task_executor
+            .spawn_with_graceful_shutdown_signal(|shutdown| {
+                da_block_monitor(
+                    da_service,
+                    da_block_update_tx,
+                    da_update_interval_ms,
+                    shutdown,
+                )
+            });
 
         // Spawn fee rate monitor task
-        tokio::spawn(fee_rate_monitor(
-            self.da_service.clone(),
-            fee_rate_update_tx,
-            self.config.l1_fee_rate_update_interval_ms,
-            shutdown_signal.clone(),
-        ));
+        let da_service = self.da_service.clone();
+        let l1_fee_rate_update_interval_ms = self.config.l1_fee_rate_update_interval_ms;
+        self.task_executor
+            .spawn_with_graceful_shutdown_signal(|shutdown| {
+                fee_rate_monitor(
+                    da_service,
+                    fee_rate_update_tx,
+                    l1_fee_rate_update_interval_ms,
+                    shutdown,
+                )
+            });
 
         let target_block_time = Duration::from_millis(self.config.block_production_interval_ms);
 
