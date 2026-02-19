@@ -10,6 +10,7 @@ use std::time::Instant;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, sync_l1};
+use citrea_common::utils::shutdown_requested;
 use citrea_common::RollupPublicKeys;
 use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::BatchProverLedgerOps;
@@ -128,7 +129,7 @@ where
                 }
                 _ = notifier.notified() => {
                     let _l1_guard = backup_manager.start_l1_processing().await;
-                    if let Err(e) = self.process_l1_blocks().await {
+                    if let Err(e) = self.process_l1_blocks(&shutdown_signal).await {
                         error!("Could not process L1 blocks: {:?}", e);
                     }
                 },
@@ -145,13 +146,21 @@ where
     /// 3. Extracts sequencer commitments and stores them by index
     /// 4. Updates the last scanned L1 height in the database after each successfully processed block
     /// 5. If queue is not empty, After processing each block in the queue , pings the L1 signal channel.
-    async fn process_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
+    async fn process_l1_blocks(
+        &mut self,
+        shutdown_signal: &GracefulShutdown,
+    ) -> Result<(), anyhow::Error> {
         let mut pending_l1_blocks = self.pending_l1_blocks.lock().await;
         // don't ping if no new l1 blocks
         let should_ping = !pending_l1_blocks.is_empty();
 
         // process all the pending l1 blocks
         while !pending_l1_blocks.is_empty() {
+            if shutdown_requested(shutdown_signal) {
+                info!("Shutting down L1 syncer");
+                return Ok(());
+            }
+
             let l1_block = pending_l1_blocks
                 .front()
                 .expect("Pending l1 blocks cannot be empty");
