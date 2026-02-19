@@ -11,7 +11,7 @@ use sov_modules_api::WorkingSet;
 use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::task::JoinHandle;
-use tracing::{debug, warn};
+use tracing::warn;
 
 const SUBSCRIPTION_TIMEOUT: Duration = Duration::from_secs(1);
 
@@ -50,11 +50,7 @@ impl SubscriptionManager {
         tokio::spawn(head_subscriber_task(rx, Arc::new(subscription)));
     }
 
-    pub fn register_new_logs_subscription(
-        &self,
-        filter: Filter,
-        subscription: SubscriptionSink,
-    ) {
+    pub fn register_new_logs_subscription(&self, filter: Filter, subscription: SubscriptionSink) {
         let rx = self.logs_tx.subscribe();
         tokio::spawn(log_subscriber_task(rx, filter, Arc::new(subscription)));
     }
