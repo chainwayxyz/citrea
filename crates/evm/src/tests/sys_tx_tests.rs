@@ -163,7 +163,7 @@ fn deposit_system_tx(
 fn test_sys_bitcoin_light_client() {
     let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingShortHeaderProofProviderService));
 
-    let (mut config, dev_signer, _, ledger_db) =
+    let (mut config, dev_signer, ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("10000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
@@ -480,11 +480,13 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 
     // This test also tests evm checking gas usage and not just the tx gas limit when including txs in block after checking available block limit
     // For example txs below have 1_000_000 gas limit, the block used to stuck at 29_030_000 gas usage but now can utilize the whole block gas limit
-    let (mut config, dev_signer, contract_addr, ledger_db) = get_evm_config_starting_base_fee(
+    let (mut config, dev_signer, ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("100000000000000000000").unwrap(),
         Some(ETHEREUM_BLOCK_GAS_LIMIT_30M),
         1,
     );
+
+    let contract_addr = dev_signer.address().create(0);
 
     config_push_contracts(&mut config, None);
 
@@ -698,7 +700,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 fn test_bridge() {
     let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingShortHeaderProofProviderService));
 
-    let (mut config, _, _, _ledger_db) =
+    let (mut config, _, _ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
@@ -874,7 +876,7 @@ fn test_bridge() {
 #[test]
 fn test_upgrade_light_client() {
     // initialize_logging(tracing::Level::INFO);
-    let (mut config, _, _, ledger_db) = get_evm_config_starting_base_fee(
+    let (mut config, _, ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("1000000000000000000000").unwrap(),
         None,
         1,
@@ -967,7 +969,7 @@ fn test_upgrade_light_client() {
 
 #[test]
 fn test_change_upgrade_owner() {
-    let (mut config, _, _, ledger_db) = get_evm_config_starting_base_fee(
+    let (mut config, _, ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("1000000000000000000000").unwrap(),
         None,
         1,
@@ -1135,7 +1137,7 @@ fn test_change_upgrade_owner() {
 
 #[test]
 fn test_wcbtc() {
-    let (mut config, signer, _, ledger_db) = get_evm_config_starting_base_fee(
+    let (mut config, signer, ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("1000000000000000000000").unwrap(),
         None,
         1,
@@ -1296,11 +1298,12 @@ fn test_system_tx_after_user_tx_should_error_out() {
 
     // This test also tests evm checking gas usage and not just the tx gas limit when including txs in block after checking available block limit
     // For example txs below have 1_000_000 gas limit, the block used to stuck at 29_030_000 gas usage but now can utilize the whole block gas limit
-    let (mut config, dev_signer, contract_addr, _ledger_db) = get_evm_config_starting_base_fee(
+    let (mut config, dev_signer, _ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("100000000000000000000").unwrap(),
         Some(ETHEREUM_BLOCK_GAS_LIMIT_30M),
         1,
     );
+    let contract_addr = dev_signer.address().create(0);
 
     config_push_contracts(&mut config, None);
 
@@ -1415,7 +1418,7 @@ fn test_set_block_info_shp_not_found() {
 
     let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingSHPNotFound));
 
-    let (mut config, _dev_signer, _, ledger_db) =
+    let (mut config, _dev_signer, ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("10000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
@@ -1527,7 +1530,7 @@ fn test_set_block_info_shp_verification_failed() {
 
     let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingSHPVerificationFailed));
 
-    let (mut config, _dev_signer, _, ledger_db) =
+    let (mut config, _dev_signer, ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("10000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);

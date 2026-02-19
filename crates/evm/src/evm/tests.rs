@@ -35,7 +35,7 @@ fn simple_contract_execution_sov_state() {
 }
 
 fn simple_contract_execution<C: sov_modules_api::Context>(mut evm_db: EvmDb<C>) {
-    let dev_signer = TestSigner::new_random();
+    let dev_signer = TestSigner::new_default();
     let caller = dev_signer.address();
     evm_db.insert_account_info(
         caller,

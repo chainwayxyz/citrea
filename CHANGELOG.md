@@ -1,25 +1,28 @@
 # Changelog
 ## [Unreleased]
 ### Added
+
+### Changed
+- refactor: Use reth task manager instead of tokio spawn in sequencer services ([#3145](https://github.com/chainwayxyz/citrea/pull/3145))
+- perf: Skip re-execution of proof request in boundless([#3144](https://github.com/chainwayxyz/citrea/pull/3144))
+
+## [v2.1.0](2026-02-17)
+### Added
 - Add `linux/arm64` release binary and support for multi-arch (arm64/amd64) docker image. ([#3130](https://github.com/chainwayxyz/citrea/pull/3130))
 - feat: implement `eth_sendRawTransactionSync` RPC as per EIP-7966. ([#3095](https://github.com/chainwayxyz/citrea/pull/3095))\
 **New env var:**\
   `RPC_MAX_SYNC_SEND_TIMEOUT_MS`: Maximum timeout in milliseconds for `eth_sendRawTransactionSync` (EIP-7966) (default: 20 seconds).
 
 ### Changed
-- perf: Skip re-execution of proof request in boundless([#3144](https://github.com/chainwayxyz/citrea/pull/3144))
 - feat: Separate l1 fee rate from block update ([#3131](https://github.com/chainwayxyz/citrea/pull/3131))\
 **New env var:**\
-  `L1_FEE_RATE_UPDATE_INTERVAL_MS`: L1 fee rate update interval in milliseconds (default: 30 seconds)
-
+  `L1_FEE_RATE_UPDATE_INTERVAL_MS`: L1 fee rate update interval in milliseconds (default: 30 seconds)\
+- fix: apply state overrides before `create_txn_env` in `debug_traceCall` ([#3135](https://github.com/chainwayxyz/citrea/issues/3135))
 
 ## [v2.0.0] (2026-02-05)
+### Changed
 - fix: selfdestruct behaviour ([Commit `73aa141`](https://github.com/chainwayxyz/citrea/commit/73aa14186d3e033963b6f396da11900ff33ac9ea))
   See security advisory here: https://github.com/chainwayxyz/citrea/security/advisories/GHSA-356c-q573-6pcq
-
-## Unreleased
-### Changed
-- fix: apply state overrides before `create_txn_env` in `debug_traceCall` ([#3135](https://github.com/chainwayxyz/citrea/issues/3135))
 
 ## [v1.2.2] (2026-01-28)
 ### Changed
@@ -209,7 +212,8 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
 
-[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.0.0...HEAD
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.1.0...HEAD
+[v2.1.0]: https://github.com/chainwayxyz/citrea/compare/v2.0.0...v2.1.0
 [v2.0.0]: https://github.com/chainwayxyz/citrea/compare/v1.2.2...v2.0.0
 [v1.2.2]: https://github.com/chainwayxyz/citrea/compare/v1.2.1...v1.2.2
 [v1.2.1]: https://github.com/chainwayxyz/citrea/compare/v1.2.0...v1.2.1

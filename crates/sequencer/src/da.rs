@@ -8,7 +8,7 @@ use sov_modules_api::SlotData;
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
-use tracing::{debug, error, instrument};
+use tracing::{debug, error, info, instrument};
 
 /// Represents latest finalized block.
 pub(crate) type DaBlockData<Da> = <Da as DaService>::FilteredBlock;
@@ -29,6 +29,7 @@ pub(crate) async fn da_block_monitor<Da>(
         tokio::select! {
             biased;
             _ = &mut shutdown_signal => {
+                info!("L1BlockMonitor shutting down");
                 return;
             }
             block = get_finalized_block(da_service.clone()) => {
