@@ -786,8 +786,7 @@ where
                     .subscription_manager
                     .as_ref()
                     .unwrap()
-                    .register_new_heads_subscription(subscription)
-                    .await;
+                    .register_new_heads_subscription(subscription);
             }
             "logs" => {
                 let subscription = pending.accept().await?;
@@ -795,8 +794,7 @@ where
                     .subscription_manager
                     .as_ref()
                     .unwrap()
-                    .register_new_logs_subscription(filter.unwrap_or_default(), subscription)
-                    .await;
+                    .register_new_logs_subscription(filter.unwrap_or_default(), subscription);
             }
             _ => {
                 pending
