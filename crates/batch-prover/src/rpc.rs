@@ -30,12 +30,12 @@ use sov_db::schema::types::job_status::JobStatus;
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_modules_api::{BatchProofCircuitOutputV3, SpecId, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
+use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::rpc::{
     BatchProofOutputRpcResponse, BatchProofResponse, JobRpcResponse, SequencerCommitmentResponse,
     SequencerCommitmentRpcParam,
 };
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::services::da::{DaService, DaTxRequest};
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 use sov_rollup_interface::zk::ProvingSessionInfo;
 use tokio::sync::{mpsc, oneshot};
@@ -241,6 +241,16 @@ pub trait BatchProverRpc {
         with_proof: Option<bool>,
     ) -> RpcResult<Option<JobRpcResponse>>;
 
+    /// Get da job id by job id.
+    ///
+    /// # Arguments
+    /// * `job_id` - The unique identifier of the proving job to retrieve.
+    ///
+    /// # Returns
+    /// An optional `Uuid` for the associated da job.
+    #[method(name = "getDaJobIdByJobId")]
+    async fn get_da_job_id_by_job_id(&self, job_id: Uuid) -> RpcResult<Option<Uuid>>;
+
     /// Gets last `count` number of job ids. Returns ids in descending order, so latest job is the first index.
     ///
     /// # Arguments
@@ -305,6 +315,17 @@ pub trait BatchProverRpc {
     /// A new `Uuid` representing the retried proving job.
     #[method(name = "retryProvingJob")]
     async fn retry_proving_job(&self, job_id: Uuid) -> RpcResult<Uuid>;
+
+    /// Submit a proof with output. Only available with `testing` feature.
+    ///
+    /// # Arguments
+    /// * `proof` - Serialized proof
+    /// * `output` - Serialized `BatchProofCircuitOutput`
+    ///
+    /// # Returns
+    /// The bitcoin-da job id
+    #[method(name = "submitProofFromFile")]
+    async fn submit_proof_with_output(&self, proof: Vec<u8>, output: Vec<u8>) -> RpcResult<Uuid>;
 }
 
 /// Server implementation of the Batch Prover RPC interface
@@ -517,15 +538,20 @@ where
         let receipt = InnerReceipt::Fake(fake_receipt);
         let proof = bincode::serialize(&receipt).expect("Receipt serialization cannot fail");
 
-        let tx_id = self
+        let (_, rx) = self
             .context
             .da_service
             .send_transaction(DaTxRequest::ZKProof(proof.clone()))
             .await
             .map_err(internal_rpc_error)?;
 
+        let txid = rx
+            .await
+            .map_err(internal_rpc_error)?
+            .map_err(internal_rpc_error)?;
+
         Ok(BatchProofResponse {
-            l1_tx_id: Some(tx_id.into()),
+            l1_tx_id: Some(txid.into()),
             proof,
             proof_output: StoredBatchProofOutput::from(output).into(),
             info: None,
@@ -741,15 +767,70 @@ where
         info!("Retried proving job {}, new job id: {}", job_id, new_id);
         Ok(new_id)
     }
+
+    async fn get_da_job_id_by_job_id(&self, job_id: Uuid) -> RpcResult<Option<Uuid>> {
+        self.context
+            .ledger_db
+            .get_da_job_id_by_prover_job_id(job_id)
+            .map_err(internal_rpc_error)
+    }
+
+    #[cfg(not(feature = "testing"))]
+    async fn submit_proof_with_output(&self, _proof: Vec<u8>, _output: Vec<u8>) -> RpcResult<Uuid> {
+        Err(internal_rpc_error("Unsupported test method"))
+    }
+
+    #[cfg(feature = "testing")]
+    async fn submit_proof_with_output(&self, proof: Vec<u8>, output: Vec<u8>) -> RpcResult<Uuid> {
+        use sov_rollup_interface::services::da::DaTxRequest;
+
+        let ledger_db = &self.context.ledger_db;
+        let proving_job_id = Uuid::now_v7();
+        info!("Submitting proof with id {proving_job_id}");
+
+        let output: BatchProofCircuitOutput = borsh::from_slice(&output).unwrap();
+
+        let commitment_indices = (output.sequencer_commitment_index_range().0
+            ..output.sequencer_commitment_index_range().1)
+            .collect();
+
+        ledger_db
+            .insert_new_proving_job(proving_job_id, &commitment_indices)
+            .expect("Should insert new proving job");
+
+        ledger_db
+            .put_proof_by_job_id(
+                proving_job_id,
+                proof.clone(),
+                output.into(),
+                ProvingSessionInfo::Local(Default::default()),
+            )
+            .expect("Should put proof to db");
+
+        let (da_job_id, _) = self
+            .context
+            .da_service
+            .send_transaction(DaTxRequest::ZKProof(proof.clone()))
+            .await
+            .map_err(internal_rpc_error)?;
+
+        ledger_db
+            .set_da_job_id_by_prover_job_id(proving_job_id, da_job_id)
+            .expect("Failed to save da job by id");
+
+        info!("Submitted proof from file, da job id: {da_job_id}");
+
+        Ok(da_job_id)
+    }
 }
 
-/// Creates an RPC module with fullnode methods
+/// Creates an RPC module with batch-prover methods
 ///
 /// # Arguments
 /// * `rpc_context` - Context containing shared data for RPC methods
 ///
 /// # Type Parameters
-/// * `DB` - Database type implementing NodeLedgerOps
+/// * `DB` - Database type implementing BatchProverLedgerOps
 /// * `Da` - Data availability service type implementing DaService
 /// * `Vm` - Virtual machine type implementing Zkvm
 pub fn create_rpc_module<Da, DB, Vm>(

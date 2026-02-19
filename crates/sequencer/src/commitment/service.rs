@@ -14,11 +14,11 @@ use sov_db::ledger_db::SequencerLedgerOps;
 use sov_db::schema::types::L2BlockNumber;
 use sov_modules_api::WorkingSet;
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaTxRequest, SequencerCommitment};
-use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
+use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
+use sov_rollup_interface::services::da::{DaService, DaTxRequest};
 use sov_state::ProverStorage;
 use tokio::select;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 use tracing::{debug, error, info, instrument, warn};
 
 use super::controller::CommitmentController;
@@ -220,12 +220,12 @@ where
         debug!("Sequencer: submitting commitment: {:?}", commitment);
 
         let tx_request = DaTxRequest::SequencerCommitment(commitment.clone());
-        let (notify, rx) = oneshot::channel();
-        let request = TxRequestWithNotifier { tx_request, notify };
-        self.da_service
-            .get_send_transaction_queue()
-            .send(request)
-            .map_err(|_| anyhow!("Bitcoin service already stopped!"))?;
+
+        let (da_job_id, rx) = self
+            .da_service
+            .send_transaction(tx_request)
+            .await
+            .map_err(|e| anyhow!("Failed to submit job to DA {e}"))?;
 
         info!(
             "Sent commitment to DA queue. L2 range: #{}-{}, index: {}",
@@ -235,10 +235,9 @@ where
         let start = Instant::now();
         let ledger_db = self.ledger_db.clone();
 
-        let _tx_id = rx
+        let _txid = rx
             .await
-            .map_err(|_| anyhow!("DA service is dead!"))?
-            .map_err(|_| anyhow!("Send transaction cannot fail"))?;
+            .map_err(|_| anyhow!("DA notification channel closed"))?;
 
         SM.send_commitment_execution.record(
             Instant::now()
@@ -252,7 +251,10 @@ where
 
         ledger_db.delete_state_diff_by_range(commitment_range)?;
 
-        info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
+        info!(
+            "New commitment. L2 range: #{}-{}, index: {}, da job id {da_job_id}",
+            l2_start.0, l2_end.0, commitment.index
+        );
 
         Ok(())
     }

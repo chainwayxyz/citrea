@@ -162,7 +162,7 @@ impl TestCase for BitcoinServiceTest {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_bitcoin_service() -> Result<()> {
     TestCaseRunner::new(BitcoinServiceTest {
         task_manager: TaskManager::current(),

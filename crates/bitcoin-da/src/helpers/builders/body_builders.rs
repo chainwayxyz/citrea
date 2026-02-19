@@ -14,7 +14,7 @@ use bitcoin::secp256k1::{SecretKey, XOnlyPublicKey};
 use bitcoin::{Address, Amount, Network, Transaction};
 use metrics::histogram;
 use secp256k1::SECP256K1;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DataOnDa;
 use tracing::{info, instrument, trace, warn};
 
@@ -26,8 +26,9 @@ use crate::spec::utxo::UTXO;
 use crate::utxo_manager::UtxoContext;
 use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
+#[derive(Debug, Clone, Serialize, Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]
 /// These are real blobs we put on DA.
-pub(crate) enum RawTxData {
+pub enum RawTxData {
     /// borsh(DataOnDa::Complete(compress(Proof)))
     Complete(Vec<u8>),
     /// let compressed = compress(borsh(Proof))
@@ -77,6 +78,19 @@ pub enum DaTxs {
     },
 }
 
+impl DaTxs {
+    /// Number of commit/reveal pair
+    pub fn count(&self) -> usize {
+        match self {
+            // Number of required chunks + 1 for aggregate
+            DaTxs::Chunked { commit_chunks, .. } => commit_chunks.len() + 1,
+            DaTxs::Complete { .. }
+            | DaTxs::BatchProofMethodId { .. }
+            | DaTxs::SequencerCommitment { .. } => 1,
+        }
+    }
+}
+
 /// Creates the light client transactions (commit and reveal).
 /// Based on data type, the number of transactions may vary.
 /// In the end, reveal txs will be mined with a nonce to have
@@ -85,6 +99,8 @@ pub enum DaTxs {
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_transactions(
     data: RawTxData,
+    sent_commits: Vec<Transaction>,
+    sent_reveals: Vec<Transaction>,
     da_private_key: SecretKey,
     utxo_context: UtxoContext,
     change_address: Address,
@@ -104,8 +120,8 @@ pub fn create_inscription_transactions(
             network,
             &reveal_tx_prefix,
         ),
-        RawTxData::Chunks(body) => create_inscription_type_1(
-            body,
+        RawTxData::Chunks(data) => create_inscription_type_1(
+            data,
             &da_private_key,
             utxo_context,
             change_address,
@@ -113,6 +129,8 @@ pub fn create_inscription_transactions(
             reveal_fee_rate,
             network,
             &reveal_tx_prefix,
+            sent_commits,
+            sent_reveals,
         ),
         RawTxData::BatchProofMethodId(body) => create_inscription_type_3(
             body,
@@ -326,6 +344,8 @@ pub fn create_inscription_type_1(
     reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: &[u8],
+    sent_commits: Vec<Transaction>,
+    sent_reveals: Vec<Transaction>,
 ) -> Result<DaTxs, anyhow::Error> {
     let UtxoContext {
         available_utxos: mut utxos,
@@ -336,12 +356,26 @@ pub fn create_inscription_type_1(
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
-    let mut commit_chunks: Vec<Transaction> = vec![];
-    let mut reveal_chunks: Vec<Transaction> = vec![];
+    let current_idx = sent_commits.len();
+    let mut commit_chunks = sent_commits;
+    let mut reveal_chunks = sent_reveals;
+
+    if let Some(reveal_tx) = reveal_chunks.last() {
+        prev_utxo = Some(UTXO {
+            tx_id: reveal_tx.compute_txid(),
+            vout: 0,
+            script_pubkey: reveal_tx.output[0].script_pubkey.to_hex_string(),
+            address: None,
+            amount: reveal_tx.output[0].value.to_sat(),
+            confirmations: 0,
+            spendable: true,
+            solvable: true,
+        });
+    }
 
     let start = Instant::now();
 
-    for body in chunks {
+    for body in chunks.into_iter().skip(current_idx) {
         let kind = TransactionKind::Chunks;
         let kind_bytes = kind.to_bytes();
 
@@ -654,6 +688,7 @@ pub fn create_inscription_type_1(
                 if let Some(root) = merkle_root {
                     info!("Taproot merkle root for inscription - Aggregate: {}", root);
                 }
+
                 return Ok(DaTxs::Chunked {
                     commit_chunks,
                     reveal_chunks,

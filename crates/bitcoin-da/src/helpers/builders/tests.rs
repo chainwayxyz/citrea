@@ -510,6 +510,8 @@ fn create_inscription_transactions() {
     let tx_prefix = &[0u8];
     let DaTxs::Complete { commit, reveal } = super::body_builders::create_inscription_transactions(
         RawTxData::Complete(body.clone()),
+        vec![],
+        vec![],
         da_private_key,
         UtxoContext {
             prev_utxo: None,

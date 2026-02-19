@@ -1,0 +1,837 @@
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
+
+use alloy_primitives::{U32, U64};
+use async_trait::async_trait;
+use bitcoin::hashes::Hash;
+use bitcoin_da::job::rpc::{DaJobRpcClient, JobInfoResponse, JobStatusFilter, RetryJobResponse};
+use bitcoin_da::service::BitcoinService;
+use bitcoincore_rpc::RpcApi;
+use citrea_batch_prover::rpc::BatchProverRpcClient;
+use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
+use citrea_e2e::config::{BatchProverConfig, BitcoinConfig, TestCaseConfig};
+use citrea_e2e::framework::TestFramework;
+use citrea_e2e::node::BatchProver;
+use citrea_e2e::test_case::{TestCase, TestCaseRunner};
+use citrea_e2e::traits::Restart;
+use citrea_e2e::Result;
+use jsonrpsee::http_client::HttpClient;
+use reth_tasks::TaskManager;
+use sov_db::schema::types::da_jobs::DaJobStatus;
+use sov_ledger_rpc::LedgerRpcClient;
+use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::services::da::{DaService, DaTxRequest};
+
+use super::get_citrea_path;
+use crate::bitcoin::full_node::create_serialized_fake_receipt_batch_proof_with_state_roots;
+use crate::bitcoin::light_client_test::create_random_state_diff;
+use crate::bitcoin::utils::{
+    create_serialized_fake_receipt_batch_proof_and_serialized_output,
+    spawn_bitcoin_da_prover_service_with_rpc_server, wait_for_prover_job_count,
+};
+
+struct JobServiceTest {
+    task_manager: Option<TaskManager>,
+}
+
+impl JobServiceTest {
+    #[allow(clippy::too_many_arguments)]
+    async fn test_job_lifecycle(
+        &self,
+        da: &BitcoinNode,
+        da_service: &BitcoinService,
+        da_service_client: &HttpClient,
+        genesis_state_root: [u8; 32],
+        finalized_height: u64,
+        commitment: &SequencerCommitment,
+        commitment_state_root: [u8; 32],
+    ) -> Result<()> {
+        let state_diff = create_random_state_diff(10);
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+
+        let proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            genesis_state_root,
+            20,
+            Some(state_diff),
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment.clone()],
+            vec![commitment_state_root],
+            None,
+        );
+
+        // Make sure we start with no jobs
+        let all_jobs = da_service_client
+            .da_job_list(Some(JobStatusFilter::All), None, None)
+            .await?;
+        assert!(all_jobs.is_empty());
+
+        let job_id = da_service
+            .send_transaction_and_wait(DaTxRequest::ZKProof(proof))
+            .await?;
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(1).await?;
+
+        // Check that job is not active anymore and has been processed
+        let active_jobs = da_service_client
+            .da_job_list(Some(JobStatusFilter::Active), None, None)
+            .await?;
+        assert!(active_jobs.is_empty());
+
+        // Check Completed status
+        let completed_jobs = da_service_client
+            .da_job_list(Some(JobStatusFilter::Completed), None, None)
+            .await?;
+        assert_eq!(completed_jobs.len(), 1);
+
+        let completed_jobs = da_service_client
+            .da_job_list(Some(JobStatusFilter::Terminal), None, None)
+            .await?;
+        assert_eq!(completed_jobs.len(), 1);
+
+        let job_by_id: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
+
+        assert_eq!(job_by_id.status, DaJobStatus::Completed);
+        assert_eq!(job_by_id.sent_count, 1);
+        assert_eq!(job_by_id.error, None);
+
+        Ok(())
+    }
+
+    /// Test job cancellation for in-progress jobs
+    /// Test job retry for cancelled jobs
+    #[allow(clippy::too_many_arguments)]
+    async fn test_job_cancellation_and_retry(
+        &self,
+        da: &BitcoinNode,
+        da_service: &BitcoinService,
+        da_service_client: &HttpClient,
+        genesis_state_root: [u8; 32],
+        finalized_height: u64,
+        commitment: &SequencerCommitment,
+        commitment_state_root: [u8; 32],
+    ) -> Result<()> {
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+
+        // Create a 400kb proof that will hit mempool limits and get stuck in progress
+        let state_diff_100kb = create_random_state_diff(400);
+        let proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            genesis_state_root,
+            20,
+            Some(state_diff_100kb),
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment.clone()],
+            vec![commitment_state_root],
+            None,
+        );
+
+        let (job_id, rx) = da_service
+            .send_transaction(DaTxRequest::ZKProof(proof.clone()))
+            .await?;
+
+        // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
+        // The three first proofs should hit the mempool + 1 chunk
+        da.wait_mempool_len(18, None).await?;
+
+        assert_eq!(da.get_raw_mempool().await?.len(), 18);
+
+        let job_by_id: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
+        assert_eq!(job_by_id.status, DaJobStatus::InProgress);
+        assert_eq!(job_by_id.sent_count, 9); // 9 commit/reveal pair
+
+        // Cancel job
+        let cancel_job_response = da_service_client.da_job_cancel(job_id).await?;
+        assert!(cancel_job_response.success);
+
+        let job_by_id: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
+        assert_eq!(job_by_id.status, DaJobStatus::Cancelled);
+
+        // Mine sent txs
+        da.generate(1).await?;
+
+        // Make sure job doesn't get processed after freeing space in mempool
+        let res = rx.await.unwrap();
+        assert!(res.is_err());
+
+        let retry_job_response: RetryJobResponse = da_service_client.da_job_retry(job_id).await?;
+
+        let old_job_by_id: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
+        assert_eq!(old_job_by_id.status, DaJobStatus::Cancelled);
+
+        let new_job_by_id: JobInfoResponse = da_service_client
+            .da_job_get_info(retry_job_response.new_job_id)
+            .await?;
+        assert_eq!(new_job_by_id.status, DaJobStatus::Pending);
+        da.generate(1).await?;
+
+        // Last tx chunk should hit mempool policy `DEFAULT_DESCENDANT_SIZE_LIMIT_KVB` limit
+        // The three first proofs should hit the mempool + 1 chunk
+        da.wait_mempool_len(18, None).await?;
+
+        assert_eq!(da.get_raw_mempool().await?.len(), 18);
+
+        let new_job_by_id: JobInfoResponse = da_service_client
+            .da_job_get_info(retry_job_response.new_job_id)
+            .await?;
+        assert_eq!(new_job_by_id.status, DaJobStatus::InProgress);
+        da.generate(1).await?;
+
+        // TODO find a way to deterministically wait for retry completion
+        tokio::time::sleep(Duration::from_secs(3)).await;
+
+        let new_job_by_id: JobInfoResponse = da_service_client
+            .da_job_get_info(retry_job_response.new_job_id)
+            .await?;
+        assert_eq!(new_job_by_id.status, DaJobStatus::Completed);
+
+        Ok(())
+    }
+
+    /// Test job listing with various filters and pagination
+    #[allow(clippy::too_many_arguments)]
+    async fn test_job_listing(
+        &self,
+        da: &BitcoinNode,
+        da_service: &BitcoinService,
+        da_service_client: &HttpClient,
+        genesis_state_root: [u8; 32],
+        finalized_height: u64,
+        commitment: &SequencerCommitment,
+        commitment_state_root: [u8; 32],
+    ) -> Result<()> {
+        let state_diff = create_random_state_diff(400);
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+
+        let proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            genesis_state_root,
+            20,
+            Some(state_diff),
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment.clone()],
+            vec![commitment_state_root],
+            None,
+        );
+
+        // Create multiple jobs to check list handling
+        let (_, rx) = da_service
+            .send_transaction(DaTxRequest::ZKProof(proof.clone()))
+            .await?;
+
+        da.wait_mempool_len(18, None).await?;
+
+        // List all jobs
+        let all_jobs = da_service_client
+            .da_job_list(Some(JobStatusFilter::All), None, None)
+            .await?;
+        assert!(all_jobs.len() >= 3);
+
+        // List active jobs
+        let active_jobs = da_service_client
+            .da_job_list(Some(JobStatusFilter::Active), None, None)
+            .await?;
+        assert_eq!(active_jobs.len(), 1);
+
+        // List cancelled jobs
+        let cancelled_jobs = da_service_client
+            .da_job_list(Some(JobStatusFilter::Cancelled), None, None)
+            .await?;
+        assert_eq!(cancelled_jobs.len(), 1);
+
+        // List failed jobs
+        let failed_jobs = da_service_client
+            .da_job_list(Some(JobStatusFilter::Failed), None, None)
+            .await?;
+        assert_eq!(failed_jobs.len(), 0);
+
+        // Test pagination
+        let first_page = da_service_client
+            .da_job_list(Some(JobStatusFilter::All), Some(1), Some(0))
+            .await?;
+        assert_eq!(first_page.len(), 1);
+
+        // Test pagination
+        let second_page = da_service_client
+            .da_job_list(Some(JobStatusFilter::All), Some(1), Some(1))
+            .await?;
+        assert_eq!(second_page.len(), 1);
+
+        // Make sure we don't get the same job_id
+        assert_ne!(first_page[0].job_id, second_page[0].job_id);
+
+        // Verify uuidv7 chronological ordering
+        assert!(first_page[0].created_at <= second_page[0].created_at,);
+
+        // Test limit
+        let limited_jobs = da_service_client
+            .da_job_list(Some(JobStatusFilter::All), Some(2), None)
+            .await?;
+        assert_eq!(limited_jobs.len(), 2);
+
+        // Mine all sent txs
+        da.generate(1).await?;
+
+        let res = rx.await.unwrap();
+        assert!(res.is_ok());
+
+        // Verify completed jobs
+        let completed_jobs = da_service_client
+            .da_job_list(Some(JobStatusFilter::Completed), None, None)
+            .await?;
+        assert_eq!(completed_jobs.len(), 3);
+
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn test_job_persistence(
+        &mut self,
+        da: &BitcoinNode,
+        da_service: Arc<BitcoinService>,
+        da_service_client: HttpClient,
+        genesis_state_root: [u8; 32],
+        finalized_height: u64,
+        commitment: &SequencerCommitment,
+        commitment_state_root: [u8; 32],
+    ) -> Result<()> {
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+        let state_diff_400kb = create_random_state_diff(400);
+        let proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            genesis_state_root,
+            20,
+            Some(state_diff_400kb),
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment.clone()],
+            vec![commitment_state_root],
+            None,
+        );
+
+        let (job_id, _) = da_service
+            .send_transaction(DaTxRequest::ZKProof(proof))
+            .await?;
+
+        da.wait_mempool_len(18, None).await?;
+        assert_eq!(da.get_raw_mempool().await?.len(), 18);
+
+        let job_before: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
+        assert_eq!(job_before.job_id, job_id);
+        assert_eq!(job_before.status, DaJobStatus::InProgress);
+        assert_eq!(job_before.sent_count, 9);
+
+        let active_jobs_before = da_service_client
+            .da_job_list(Some(JobStatusFilter::Active), None, None)
+            .await?;
+        assert_eq!(active_jobs_before.len(), 1);
+        assert_eq!(active_jobs_before[0].job_id, job_id);
+
+        // Send graceful shutdown to da_service and drop da_service
+        drop(da_service);
+        drop(da_service_client);
+        self.task_manager.take().unwrap().graceful_shutdown();
+        tokio::time::sleep(Duration::from_secs(5)).await;
+
+        // Create a new task_manager as previous was consumed
+        self.task_manager = Some(TaskManager::current());
+        let task_executor = self.task_manager.as_ref().unwrap().executor();
+
+        let (_, da_service_client) = spawn_bitcoin_da_prover_service_with_rpc_server(
+            &task_executor,
+            &da.config,
+            Self::test_config().dir,
+        )
+        .await;
+
+        let job_after: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
+
+        assert_eq!(job_after.job_id, job_before.job_id);
+        assert_eq!(job_after.status, job_before.status);
+        assert_eq!(job_after.created_at, job_before.created_at);
+        assert_eq!(job_after.sent_count, job_before.sent_count);
+
+        let active_jobs_after = da_service_client
+            .da_job_list(Some(JobStatusFilter::Active), None, None)
+            .await?;
+        assert_eq!(active_jobs_after.len(), 1);
+        assert_eq!(active_jobs_after[0].job_id, job_id);
+        assert_eq!(active_jobs_after[0].status, DaJobStatus::InProgress);
+
+        da.generate(1).await?;
+
+        da.wait_mempool_len(6, None).await?;
+
+        let completed_job: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
+        assert_eq!(completed_job.status, DaJobStatus::Completed);
+        assert_eq!(completed_job.created_at, job_before.created_at);
+        assert_eq!(completed_job.error, None);
+
+        let active_jobs_final = da_service_client
+            .da_job_list(Some(JobStatusFilter::Active), None, None)
+            .await?;
+        assert_eq!(active_jobs_final.len(), 0);
+
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn test_job_error_recovery(
+        &mut self,
+        da: &mut BitcoinNode,
+        tx_backup_dir: PathBuf,
+        da_service: &Arc<BitcoinService>,
+        da_service_client: &HttpClient,
+        genesis_state_root: [u8; 32],
+        finalized_height: u64,
+        commitment: &SequencerCommitment,
+        commitment_state_root: [u8; 32],
+    ) -> Result<()> {
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+        let state_diff_400kb = create_random_state_diff(400);
+        let proof = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            genesis_state_root,
+            20,
+            Some(state_diff_400kb),
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment.clone()],
+            vec![commitment_state_root],
+            None,
+        );
+
+        let (job_id, _) = da_service
+            .send_transaction(DaTxRequest::ZKProof(proof))
+            .await?;
+
+        da.wait_mempool_len(18, None).await?;
+        assert_eq!(da.get_raw_mempool().await?.len(), 18);
+
+        let job_before: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
+        assert_eq!(job_before.job_id, job_id);
+        assert_eq!(job_before.status, DaJobStatus::InProgress);
+        assert_eq!(job_before.sent_count, 9);
+
+        // Make `tx_backup_dir` read-only to trigger a failure.
+        // Should make the next job processing fail with `There are no UTXOs`
+        let metadata = tokio::fs::metadata(&tx_backup_dir).await?;
+        let mut permissions = metadata.permissions();
+
+        // Keep original perms for resetting
+        let original_perms = permissions.clone();
+
+        permissions.set_readonly(true);
+        tokio::fs::set_permissions(&tx_backup_dir, permissions.clone()).await?;
+
+        // Mine chunks
+        da.generate(1).await?;
+
+        // Wait for job processing
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+
+        let in_progress_jobs = da_service_client
+            .da_job_list(Some(JobStatusFilter::InProgress), None, None)
+            .await?;
+        assert_eq!(in_progress_jobs.len(), 1);
+        assert_eq!(in_progress_jobs[0].job_id, job_id);
+
+        let failed_job: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
+        assert!(matches!(failed_job.status, DaJobStatus::InProgress));
+        assert_eq!(failed_job.created_at, job_before.created_at);
+        assert_eq!(
+            failed_job.error,
+            Some(
+                "Failed to backup transactions to file: Permission denied (os error 13)"
+                    .to_string()
+            )
+        );
+
+        // Reset permissions
+        tokio::fs::set_permissions(&tx_backup_dir, original_perms).await?;
+
+        // Trigger job processing
+        da.generate(1).await?;
+
+        da.wait_mempool_len(6, None).await?;
+
+        let completed_job: JobInfoResponse = da_service_client.da_job_get_info(job_id).await?;
+        assert_eq!(completed_job.status, DaJobStatus::Completed);
+        assert_eq!(completed_job.created_at, job_before.created_at);
+        assert_eq!(completed_job.sent_count, 12);
+        assert_eq!(completed_job.error, None);
+
+        let active_jobs_final = da_service_client
+            .da_job_list(Some(JobStatusFilter::Active), None, None)
+            .await?;
+        assert_eq!(active_jobs_final.len(), 0);
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl TestCase for JobServiceTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_sequencer: true,
+            with_light_client_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec![
+                "-limitancestorcount=100",
+                "-limitdescendantcount=100",
+                "-fallbackfee=0.00001",
+            ],
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(150)
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            proof_sampling_number: 999_999_999,
+            ..Default::default()
+        }
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .unwrap()
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let task_executor = self.task_manager.as_ref().unwrap().executor();
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
+
+        let test_dir = Self::test_config().dir;
+        let tx_backup_dir = test_dir.join("tx_backup_dir");
+
+        // Common setup
+        let (da_service, da_service_client) =
+            spawn_bitcoin_da_prover_service_with_rpc_server(&task_executor, &da.config, test_dir)
+                .await;
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        let genesis_state_root = full_node
+            .client
+            .http_client()
+            .get_l2_genesis_state_root()
+            .await?
+            .unwrap()
+            .0
+            .try_into()
+            .unwrap();
+
+        // Generate sequencer commitment
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        full_node
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
+            .await?;
+        full_node.wait_for_l1_height(finalized_height, None).await?;
+
+        let commitment = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(1))
+            .await?
+            .map(|c| SequencerCommitment {
+                merkle_root: c.merkle_root,
+                l2_end_block_number: c.l2_end_block_number.to::<u64>(),
+                index: c.index.to::<u32>(),
+            })
+            .unwrap();
+
+        let commitment_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+
+        self.test_job_lifecycle(
+            da,
+            &da_service,
+            &da_service_client,
+            genesis_state_root,
+            finalized_height,
+            &commitment,
+            commitment_state_root,
+        )
+        .await?;
+
+        // Clean mempool between each step
+        da.generate(1).await?;
+
+        self.test_job_cancellation_and_retry(
+            da,
+            &da_service,
+            &da_service_client,
+            genesis_state_root,
+            finalized_height,
+            &commitment,
+            commitment_state_root,
+        )
+        .await?;
+
+        // Clean mempool between each step
+        da.generate(1).await?;
+
+        self.test_job_listing(
+            da,
+            &da_service,
+            &da_service_client,
+            genesis_state_root,
+            finalized_height,
+            &commitment,
+            commitment_state_root,
+        )
+        .await?;
+
+        // Clean mempool between each step
+        da.generate(1).await?;
+
+        self.test_job_error_recovery(
+            da,
+            tx_backup_dir,
+            &da_service,
+            &da_service_client,
+            genesis_state_root,
+            finalized_height,
+            &commitment,
+            commitment_state_root,
+        )
+        .await?;
+
+        // Clean mempool between each step
+        da.generate(1).await?;
+
+        self.test_job_persistence(
+            da,
+            da_service,
+            da_service_client,
+            genesis_state_root,
+            finalized_height,
+            &commitment,
+            commitment_state_root,
+        )
+        .await?;
+
+        Ok(())
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_bitcoin_job_service() -> Result<()> {
+    TestCaseRunner::new(JobServiceTest {
+        task_manager: Some(TaskManager::current()),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
+}
+
+struct BatchProverRecoveryJobServiceTest;
+
+impl BatchProverRecoveryJobServiceTest {
+    #[allow(clippy::too_many_arguments)]
+    async fn test_batch_prover_da_job_recovery(
+        &mut self,
+        da: &BitcoinNode,
+        batch_prover: &mut BatchProver,
+        genesis_state_root: [u8; 32],
+        finalized_height: u64,
+        commitment: &SequencerCommitment,
+        commitment_state_root: [u8; 32],
+    ) -> Result<()> {
+        let batch_prover_client = batch_prover.client.http_client().clone();
+
+        let l1_hash = da.get_block_hash(finalized_height).await?;
+        // Create 400kb proof that should be chunked and sent over multiple bitcoin blocks
+        let state_diff_400kb = create_random_state_diff(400);
+        let (proof, output) = create_serialized_fake_receipt_batch_proof_and_serialized_output(
+            genesis_state_root,
+            20,
+            Some(state_diff_400kb),
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment.clone()],
+            vec![commitment_state_root],
+            None,
+        );
+
+        let job_id = batch_prover_client
+            .submit_proof_with_output(proof, output)
+            .await?;
+
+        wait_for_prover_job_count(batch_prover, 1, None).await?;
+
+        da.wait_mempool_len(18, None).await?;
+        assert_eq!(da.get_raw_mempool().await?.len(), 18);
+
+        let job_in_progress: JobInfoResponse = batch_prover_client.da_job_get_info(job_id).await?;
+        assert_eq!(job_in_progress.job_id, job_id);
+        assert_eq!(job_in_progress.status, DaJobStatus::InProgress);
+        assert_eq!(job_in_progress.sent_count, 9);
+
+        let active_jobs_before = batch_prover_client
+            .da_job_list(Some(JobStatusFilter::Active), None, None)
+            .await?;
+        assert_eq!(active_jobs_before.len(), 1);
+        assert_eq!(active_jobs_before[0].job_id, job_id);
+
+        batch_prover.restart(None, None).await?;
+
+        // Assert that restart doesn't create any new job
+        let active_jobs_after_restart = batch_prover_client
+            .da_job_list(Some(JobStatusFilter::Active), None, None)
+            .await?;
+        assert_eq!(active_jobs_after_restart.len(), 1);
+        assert_eq!(active_jobs_after_restart[0].job_id, job_id);
+
+        da.generate(1).await?;
+
+        da.wait_mempool_len(6, None).await?;
+
+        let completed_job: JobInfoResponse = batch_prover_client.da_job_get_info(job_id).await?;
+        assert_eq!(completed_job.status, DaJobStatus::Completed);
+        assert_eq!(completed_job.error, None);
+
+        let active_jobs_final = batch_prover_client
+            .da_job_list(Some(JobStatusFilter::Active), None, None)
+            .await?;
+        assert_eq!(active_jobs_final.len(), 0);
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl TestCase for BatchProverRecoveryJobServiceTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_sequencer: true,
+            with_light_client_prover: true,
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec![
+                "-limitancestorcount=100",
+                "-limitdescendantcount=100",
+                "-fallbackfee=0.00001",
+            ],
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            proof_sampling_number: 99999999, // Prevent prover from proving on its own
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(150)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
+        let batch_prover = f.batch_prover.as_mut().unwrap();
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        let genesis_state_root = full_node
+            .client
+            .http_client()
+            .get_l2_genesis_state_root()
+            .await?
+            .unwrap()
+            .0
+            .try_into()
+            .unwrap();
+
+        // Generate sequencer commitment
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        full_node
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
+            .await?;
+        full_node.wait_for_l1_height(finalized_height, None).await?;
+
+        let commitment = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(1))
+            .await?
+            .map(|c| SequencerCommitment {
+                merkle_root: c.merkle_root,
+                l2_end_block_number: c.l2_end_block_number.to::<u64>(),
+                index: c.index.to::<u32>(),
+            })
+            .unwrap();
+
+        let commitment_state_root = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(commitment.l2_end_block_number))
+            .await?
+            .unwrap()
+            .header
+            .state_root;
+
+        self.test_batch_prover_da_job_recovery(
+            da,
+            batch_prover,
+            genesis_state_root,
+            finalized_height,
+            &commitment,
+            commitment_state_root,
+        )
+        .await?;
+
+        Ok(())
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_batch_prover_job_service_recovery() -> Result<()> {
+    TestCaseRunner::new(BatchProverRecoveryJobServiceTest {})
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}

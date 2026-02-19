@@ -4,12 +4,11 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bitcoin_da::fee::FeeService;
+use bitcoin_da::job::rpc::create_rpc_module as create_da_job_rpc_module;
 use bitcoin_da::monitoring::MonitoringService;
 use bitcoin_da::network_constants::get_network_constants;
 use bitcoin_da::rpc::create_rpc_module as create_da_rpc_module;
-use bitcoin_da::service::{
-    network_to_bitcoin_network, BitcoinService, BitcoinServiceConfig, TxidWrapper,
-};
+use bitcoin_da::service::{network_to_bitcoin_network, BitcoinService, BitcoinServiceConfig};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use bitcoincore_rpc::{Auth, Client};
@@ -32,9 +31,7 @@ use sov_modules_api::{SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::Runtime;
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::services::da::TxRequestWithNotifier;
 use sov_state::ProverStorage;
-use tokio::sync::mpsc::unbounded_channel;
 use tracing::instrument;
 
 use crate::guests::{
@@ -99,6 +96,9 @@ impl RollupBlueprint for BitcoinRollup {
             rpc_methods.merge(da_methods)?;
         }
 
+        let da_methods = create_da_job_rpc_module(da_service.clone());
+        rpc_methods.merge(da_methods)?;
+
         Ok(rpc_methods)
     }
 
@@ -121,9 +121,8 @@ impl RollupBlueprint for BitcoinRollup {
         require_wallet_check: bool,
         task_executor: TaskExecutor,
         network: Network,
+        ledger_db: LedgerDB,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
-        let (tx, rx) = unbounded_channel::<TxRequestWithNotifier<TxidWrapper>>();
-
         let chain_params = RollupParams {
             reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
             network,
@@ -169,7 +168,7 @@ impl RollupBlueprint for BitcoinRollup {
                 monitoring_service,
                 fee_service,
                 require_wallet_check,
-                tx,
+                ledger_db,
             )
             .await?,
         );
@@ -181,7 +180,7 @@ impl RollupBlueprint for BitcoinRollup {
             service.monitoring.restore().await?;
 
             task_executor.spawn_with_graceful_shutdown_signal(|tk| {
-                Arc::clone(&service).run_da_queue(rx, block_rx, tk)
+                Arc::clone(&service).run_da_queue(block_rx, tk)
             });
             task_executor
                 .spawn_with_graceful_shutdown_signal(|tk| Arc::clone(&service.monitoring).run(tk));

@@ -5,6 +5,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::services::da::DaTxRequest;
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, ProvingSessionInfo, StorageRootHash};
 use sov_schema_db::SchemaIterator;
@@ -12,6 +13,7 @@ use uuid::Uuid;
 
 use crate::schema::tables::{PendingProofs, PendingSequencerCommitments};
 use crate::schema::types::batch_proof::{StoredBatchProof, StoredBatchProofOutput};
+use crate::schema::types::da_jobs::JobProgress;
 use crate::schema::types::job_status::JobStatus;
 use crate::schema::types::l2_block::StoredL2Block;
 use crate::schema::types::light_client_proof::{
@@ -285,6 +287,12 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
 
     /// Get job status (non-existent job IS RUNNING)
     fn job_status(&self, id: Uuid) -> JobStatus;
+
+    /// Set a da job_id by prover job_id
+    fn set_da_job_id_by_prover_job_id(&self, proving_job_id: Uuid, da_job_id: Uuid) -> Result<()>;
+
+    /// Get da job_id by prover job_id
+    fn get_da_job_id_by_prover_job_id(&self, proving_job_id: Uuid) -> Result<Option<Uuid>>;
 }
 
 /// Light client prover ledger operations
@@ -361,6 +369,36 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
 
     /// Fetch mempool transactions
     fn get_mempool_txs(&self) -> anyhow::Result<Vec<(Vec<u8>, Vec<u8>)>>;
+}
+
+/// Bitcoin da ledger operations
+pub trait DaLedgerOps {
+    /// Store a job to db
+    fn submit_job(
+        &self,
+        job_id: Uuid,
+        job: &DaTxRequest,
+        progress: &JobProgress,
+    ) -> anyhow::Result<()>;
+
+    /// Get a DA job request by id
+    fn get_job_request(&self, job_id: &Uuid) -> Result<Option<DaTxRequest>>;
+
+    /// Upsert a DA job progress
+    fn upsert_progress(&self, progress: &JobProgress) -> Result<()>;
+
+    /// Upsert a DA job progress with a status change
+    fn upsert_progress_new_status(&self, progress: &JobProgress, previous_status: u8)
+        -> Result<()>;
+
+    /// Get a DA job progress by id
+    fn get_progress(&self, job_id: &Uuid) -> Result<Option<JobProgress>>;
+
+    /// Get all job ids for a specific status
+    fn get_job_ids_by_status(&self, status: u8) -> Result<Vec<Uuid>>;
+
+    /// Get stored proof by proof_id
+    fn get_proof_by_proof_id(&self, proof_id: Uuid) -> Result<Vec<u8>>;
 }
 
 /// Test ledger operations

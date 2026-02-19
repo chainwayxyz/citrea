@@ -22,8 +22,9 @@ use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_db::schema::types::L2HeightAndIndex;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::BatchProofCircuitOutputV3;
-use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
+use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
+use sov_rollup_interface::services::da::DaTxRequest;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 use tokio::time::sleep;
 
@@ -130,7 +131,7 @@ impl TestCase for PreStateRootMismatchTest {
 
         // Send the first proof
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof), 1.0)
+            .send_transaction_and_wait(DaTxRequest::ZKProof(proof))
             .await
             .unwrap();
 
@@ -190,7 +191,7 @@ impl TestCase for PreStateRootMismatchTest {
 
         // Send the invalid proof
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(invalid_proof), 1.0)
+            .send_transaction_and_wait(DaTxRequest::ZKProof(invalid_proof))
             .await
             .unwrap();
 
@@ -240,7 +241,7 @@ impl TestCase for PreStateRootMismatchTest {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_pre_state_root_mismatch() -> Result<()> {
     TestCaseRunner::new(PreStateRootMismatchTest {
         task_manager: TaskManager::current(),
@@ -327,10 +328,7 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
 
         // Send the `correct_commitment` so it's stored and will trigger the pre-hash mismatch against `wrong_commitment`
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(correct_commitment.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(correct_commitment.clone()))
             .await
             .unwrap();
 
@@ -384,7 +382,7 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
             None,
         );
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(fake_proof), 1.0)
+            .send_transaction_and_wait(DaTxRequest::ZKProof(fake_proof))
             .await
             .unwrap();
 
@@ -418,7 +416,7 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_commitment_hash_mismatch() -> Result<()> {
     TestCaseRunner::new(SequencerCommitmentHashMismatchTest {
         task_manager: TaskManager::current(),
@@ -473,10 +471,9 @@ impl TestCase for PendingCommitmentHaltingErrorTest {
         };
 
         bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(wrong_merkle_root_commitment.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(
+                wrong_merkle_root_commitment.clone(),
+            ))
             .await
             .unwrap();
 
@@ -545,7 +542,7 @@ impl TestCase for PendingCommitmentHaltingErrorTest {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_halting_pending_commitment_merkle_root_mismatch() -> Result<()> {
     TestCaseRunner::new(PendingCommitmentHaltingErrorTest {
         task_manager: TaskManager::current(),
@@ -937,10 +934,9 @@ impl TestCase for OutOfOrderCommitmentsTest {
 
         // Send the zero index commitment first, should be ignored
         bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(zero_index_commitment.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(
+                zero_index_commitment.clone(),
+            ))
             .await
             .unwrap();
 
@@ -963,10 +959,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
 
         // Send the second commitment first
         bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(second_commitment.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(second_commitment.clone()))
             .await
             .unwrap();
 
@@ -990,10 +983,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
 
         // Send the first commitment
         bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(first_commitment.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(first_commitment.clone()))
             .await
             .unwrap();
 
@@ -1026,7 +1016,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_out_of_order_commitments() -> Result<()> {
     TestCaseRunner::new(OutOfOrderCommitmentsTest {
         task_manager: TaskManager::current(),
@@ -1123,10 +1113,7 @@ impl TestCase for ConflictingCommitmentsTest {
 
         // Send commitment A
         bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment_a.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment_a.clone()))
             .await
             .unwrap();
 
@@ -1148,10 +1135,9 @@ impl TestCase for ConflictingCommitmentsTest {
 
         // Send conflicting commitment with different merkle root, should be ignored
         bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(conflicting_commitment_different_root.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(
+                conflicting_commitment_different_root.clone(),
+            ))
             .await
             .unwrap();
 
@@ -1174,10 +1160,7 @@ impl TestCase for ConflictingCommitmentsTest {
 
         // Send conflicting commitment B
         bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment_b.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment_b.clone()))
             .await
             .unwrap();
 
@@ -1222,10 +1205,7 @@ impl TestCase for ConflictingCommitmentsTest {
 
         // Send commitment C that follows A
         bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment_c.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment_c.clone()))
             .await
             .unwrap();
 
@@ -1252,7 +1232,7 @@ impl TestCase for ConflictingCommitmentsTest {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_conflicting_commitments() -> Result<()> {
     TestCaseRunner::new(ConflictingCommitmentsTest {
         task_manager: TaskManager::current(),
@@ -1502,7 +1482,7 @@ impl TestCase for OutOfRangeProofTest {
 
         // Send the proof first. It should be discard as none of its commitments exist
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof1.clone()), 1.0)
+            .send_transaction_and_wait(DaTxRequest::ZKProof(proof1.clone()))
             .await
             .unwrap();
 
@@ -1523,10 +1503,7 @@ impl TestCase for OutOfRangeProofTest {
         );
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment1.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment1.clone()))
             .await
             .unwrap();
 
@@ -1555,10 +1532,7 @@ impl TestCase for OutOfRangeProofTest {
         assert!(proven_height.is_none(), "Proof should have been discarded");
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment2.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment2.clone()))
             .await
             .unwrap();
 
@@ -1631,18 +1605,12 @@ impl TestCase for OutOfRangeProofTest {
         full_node.start(None, None).await?;
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment1.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment1.clone()))
             .await
             .unwrap();
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment2.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment2.clone()))
             .await
             .unwrap();
 
@@ -1665,7 +1633,7 @@ impl TestCase for OutOfRangeProofTest {
 
         // Send the proof first. It should be processed as its commitments exist
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof1), 1.0)
+            .send_transaction_and_wait(DaTxRequest::ZKProof(proof1))
             .await
             .unwrap();
 
@@ -1687,18 +1655,12 @@ impl TestCase for OutOfRangeProofTest {
 
         // Send commitments for proof 2 and proof 3
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment3.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment3.clone()))
             .await
             .unwrap();
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment4.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment4.clone()))
             .await
             .unwrap();
 
@@ -1750,7 +1712,7 @@ impl TestCase for OutOfRangeProofTest {
         );
         // Send the third proof first. It should be set as pending as its commitments exist but it's starting commitment index is not proven proof last commitment index + 1
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof3), 1.0)
+            .send_transaction_and_wait(DaTxRequest::ZKProof(proof3))
             .await
             .unwrap();
 
@@ -1808,7 +1770,7 @@ impl TestCase for OutOfRangeProofTest {
 
         // Now send the second proof. It should be processed and trigger a processing of pending proof3
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof2), 1.0)
+            .send_transaction_and_wait(DaTxRequest::ZKProof(proof2))
             .await
             .unwrap();
 
@@ -1851,7 +1813,7 @@ impl TestCase for OutOfRangeProofTest {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_out_of_range_proof() -> Result<()> {
     TestCaseRunner::new(OutOfRangeProofTest {
         task_manager: TaskManager::current(),
@@ -2035,10 +1997,7 @@ impl TestCase for OverlappingProofRangesTest {
         full_node.start(None, None).await?;
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment1.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment1.clone()))
             .await
             .unwrap();
 
@@ -2069,18 +2028,12 @@ impl TestCase for OverlappingProofRangesTest {
             .state_root;
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment2.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment2.clone()))
             .await
             .unwrap();
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment3.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment3.clone()))
             .await
             .unwrap();
 
@@ -2183,34 +2136,22 @@ impl TestCase for OverlappingProofRangesTest {
 
         // Send all 4 commitments in order
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment1.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment1.clone()))
             .await
             .unwrap();
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment2.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment2.clone()))
             .await
             .unwrap();
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment3.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment3.clone()))
             .await
             .unwrap();
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment4.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment4.clone()))
             .await
             .unwrap();
 
@@ -2255,7 +2196,7 @@ impl TestCase for OverlappingProofRangesTest {
 
         // Send proof_a over commitments [1,2,3]
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_a.clone()), 1.0)
+            .send_transaction_and_wait(DaTxRequest::ZKProof(proof_a.clone()))
             .await
             .unwrap();
 
@@ -2341,7 +2282,7 @@ impl TestCase for OverlappingProofRangesTest {
 
         // Send proof_b with overlapping range of [2,3,4]
         prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_b.clone()), 1.0)
+            .send_transaction_and_wait(DaTxRequest::ZKProof(proof_b.clone()))
             .await
             .unwrap();
 
@@ -2405,7 +2346,7 @@ impl TestCase for OverlappingProofRangesTest {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_overlapping_proof_ranges() -> Result<()> {
     TestCaseRunner::new(OverlappingProofRangesTest {
         task_manager: TaskManager::current(),
@@ -2546,10 +2487,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         };
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment_1.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment_1.clone()))
             .await
             .unwrap();
 
@@ -2592,10 +2530,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         /*------- */
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment_2.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment_2.clone()))
             .await
             .unwrap();
 
@@ -2637,10 +2572,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         /*------- */
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment_3.clone()),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment_3.clone()))
             .await
             .unwrap();
 
@@ -2825,7 +2757,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_unsynced_commitment_l2_range_test() -> Result<()> {
     TestCaseRunner::new(UnsyncedCommitmentL2RangeTest {
         task_manager: TaskManager::current(),
@@ -3542,7 +3474,8 @@ impl TestCase for FullNodeLcpChunkProofTest {
         Ok(())
     }
 }
-#[tokio::test]
+
+#[tokio::test(flavor = "multi_thread")]
 async fn test_full_node_lcp_chunk_proof() -> Result<()> {
     TestCaseRunner::new(FullNodeLcpChunkProofTest {
         task_manager: TaskManager::current(),
@@ -3625,10 +3558,7 @@ impl TestCase for FullNodeL1SyncHaltOnMerkleRootMismatch {
                 .await;
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(correct_commitment),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(correct_commitment))
             .await
             .unwrap();
 
@@ -3653,10 +3583,9 @@ impl TestCase for FullNodeL1SyncHaltOnMerkleRootMismatch {
         };
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(wrong_merkle_root_commitment),
-                1.0,
-            )
+            .send_transaction_and_wait(DaTxRequest::SequencerCommitment(
+                wrong_merkle_root_commitment,
+            ))
             .await
             .unwrap();
         da.wait_mempool_len(2, None).await?;
@@ -3724,7 +3653,7 @@ impl TestCase for FullNodeL1SyncHaltOnMerkleRootMismatch {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_full_node_l1_sync_halt_on_merkle_root_mismatch() -> Result<()> {
     TestCaseRunner::new(FullNodeL1SyncHaltOnMerkleRootMismatch {
         task_manager: TaskManager::current(),

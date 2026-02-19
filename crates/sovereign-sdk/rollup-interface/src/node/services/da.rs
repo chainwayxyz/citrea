@@ -1,17 +1,34 @@
 //! The da module defines traits used by the full node to interact with the DA layer.
 
+#[cfg(feature = "native")]
+use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 #[cfg(feature = "native")]
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::oneshot::{self, Sender as OneshotSender};
 #[cfg(feature = "native")]
-use tokio::sync::oneshot::Sender as OneshotSender;
+use uuid::Uuid;
 
 use crate::da::BlockHeaderTrait;
 #[cfg(feature = "native")]
-use crate::da::{DaSpec, DaTxRequest, DaVerifier, SequencerCommitment};
+use crate::da::{BatchProofMethodId, DaSpec, DaVerifier, SequencerCommitment};
 #[cfg(feature = "native")]
 use crate::zk::Proof;
+
+/// Transaction request to send to the DA queue.
+#[cfg(feature = "native")]
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub enum DaTxRequest {
+    /// A commitment from the sequencer
+    SequencerCommitment(SequencerCommitment),
+    /// Or a zk proof and state diff
+    ZKProof(Proof),
+    /// Or a job id for a stored proof
+    StoredProof(Uuid),
+    /// Batch proof method id update for light client
+    BatchProofMethodId(BatchProofMethodId),
+}
 
 /// This type represents a queued request to send_transaction
 #[cfg(feature = "native")]
@@ -107,14 +124,20 @@ pub trait DaService: Send + Sync + 'static {
     async fn send_transaction(
         &self,
         tx_request: DaTxRequest,
-    ) -> Result<Self::TransactionId, Self::Error>;
+    ) -> Result<
+        (
+            Uuid,
+            oneshot::Receiver<Result<Self::TransactionId, Self::Error>>,
+        ),
+        Self::Error,
+    >;
 
-    /// A tx part of the queue to send transactions in order
-    fn get_send_transaction_queue(
+    /// Recover an ongoing da job sending session
+    /// Returns the receiver if available
+    async fn recover_existing_job_waiter(
         &self,
-    ) -> UnboundedSender<TxRequestWithNotifier<Self::TransactionId>> {
-        unimplemented!()
-    }
+        job_id: Uuid,
+    ) -> Result<oneshot::Receiver<Result<Self::TransactionId, Self::Error>>, Self::Error>;
 
     /// Returns fee rate per byte on DA layer.
     async fn get_fee_rate(&self) -> Result<u128, Self::Error>;

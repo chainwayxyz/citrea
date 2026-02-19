@@ -5,15 +5,16 @@ use std::time::Duration;
 use async_trait::async_trait;
 use borsh::BorshDeserialize;
 use sha2::Digest;
+use sov_db::ledger_db::{DaLedgerOps, LedgerDB};
 use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaSpec, DaTxRequest, DataOnDa, SequencerCommitment, Time,
+    BlobReaderTrait, BlockHeaderTrait, DaSpec, DataOnDa, SequencerCommitment, Time,
 };
-use sov_rollup_interface::services::da::{DaService, SlotData, TxRequestWithNotifier};
+use sov_rollup_interface::services::da::{DaService, DaTxRequest, SlotData};
 use sov_rollup_interface::zk::Proof;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
-use tokio::sync::{broadcast, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
+use tokio::sync::{broadcast, oneshot, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use tokio::time;
 use tracing::instrument::Instrument;
+use uuid::Uuid;
 
 use crate::db_connector::DbConnector;
 use crate::types::{MockAddress, MockBlob, MockBlock, MockDaVerifier};
@@ -76,12 +77,25 @@ pub struct MockDaService {
     finalized_header_sender: broadcast::Sender<MockBlockHeader>,
     wait_attempts: usize,
     planned_fork: Arc<Mutex<Option<PlannedFork>>>,
+    ledger_db: Option<LedgerDB>,
 }
 
 impl MockDaService {
     /// Creates a new [`MockDaService`] with instant finality.
     pub fn new(sequencer_da_address: MockAddress, db_path: &Path) -> Self {
         Self::with_finality(sequencer_da_address, 0, db_path)
+    }
+
+    /// Creates a new [`MockDaService`] with instant finality and access to LedgerDB for stored proof related functionalities.
+    pub fn new_with_ledger_db(
+        sequencer_da_address: MockAddress,
+        db_path: &Path,
+        ledger_db: LedgerDB,
+    ) -> Self {
+        let mut service = Self::with_finality(sequencer_da_address, 0, db_path);
+
+        service.ledger_db = Some(ledger_db);
+        service
     }
 
     /// Create a new [`MockDaService`] with given finality.
@@ -106,6 +120,7 @@ impl MockDaService {
             finalized_header_sender: tx,
             wait_attempts: 100_0000,
             planned_fork: Arc::new(Mutex::new(None)),
+            ledger_db: None,
         }
     }
 
@@ -430,10 +445,25 @@ impl DaService for MockDaService {
     async fn send_transaction(
         &self,
         tx_request: DaTxRequest,
-    ) -> Result<Self::TransactionId, Self::Error> {
+    ) -> Result<
+        (
+            Uuid,
+            oneshot::Receiver<Result<Self::TransactionId, Self::Error>>,
+        ),
+        Self::Error,
+    > {
         let blob = match tx_request {
             DaTxRequest::ZKProof(proof) => {
                 tracing::debug!("Adding a zkproof");
+                let req = DataOnDa::Complete(proof);
+                borsh::to_vec(&req).unwrap()
+            }
+            DaTxRequest::StoredProof(proof_id) => {
+                let proof = self
+                    .ledger_db
+                    .as_ref()
+                    .unwrap()
+                    .get_proof_by_proof_id(proof_id)?;
                 let req = DataOnDa::Complete(proof);
                 borsh::to_vec(&req).unwrap()
             }
@@ -450,21 +480,10 @@ impl DaService for MockDaService {
         };
         let blocks = self.blocks.lock().await;
         let _ = self.add_blob(&blocks, blob, Default::default())?;
-        Ok(MockHash([0; 32]))
-    }
+        let (tx, rx) = oneshot::channel();
 
-    fn get_send_transaction_queue(
-        &self,
-    ) -> UnboundedSender<TxRequestWithNotifier<Self::TransactionId>> {
-        let (tx, mut rx) = unbounded_channel::<TxRequestWithNotifier<Self::TransactionId>>();
-        let this = self.clone();
-        tokio::spawn(async move {
-            while let Some(req) = rx.recv().await {
-                let res = this.send_transaction(req.tx_request).await;
-                let _ = req.notify.send(res);
-            }
-        });
-        tx
+        let _ = tx.send(Ok(MockHash([0; 32])));
+        Ok((Uuid::nil(), rx))
     }
 
     async fn get_fee_rate(&self) -> Result<u128, Self::Error> {
@@ -499,6 +518,13 @@ impl DaService for MockDaService {
             txs_commitment: block.header.txs_commitment.0,
             height: block.header.height,
         }
+    }
+
+    async fn recover_existing_job_waiter(
+        &self,
+        _job_id: Uuid,
+    ) -> Result<oneshot::Receiver<Result<Self::TransactionId, Self::Error>>, Self::Error> {
+        unimplemented!()
     }
 }
 
@@ -583,8 +609,8 @@ mod tests {
             let block_3_before = da.get_block_at(3).await.unwrap();
 
             // Disabling this check because our modified mock da creates blocks when a transaction is sent
-            // let result = da.get_block_at(4).await;
-            // assert!(result.is_err());
+            let result = da.get_block_at(4).await;
+            assert!(result.is_err());
 
             let block_1_after = da.get_block_at(1).await.unwrap();
             let block_2_after = da.get_block_at(2).await.unwrap();
@@ -613,6 +639,8 @@ mod tests {
     }
 
     mod reo4g_control {
+        use sov_rollup_interface::services::da::DaTxRequest;
+
         use super::*;
         use crate::{MockAddress, MockDaService};
 

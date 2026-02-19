@@ -2,10 +2,12 @@ use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::Arc;
 
+use anyhow::Context;
 use rocksdb::{ReadOptions, WriteBatch};
 use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::fork::{Fork, ForkMigration};
+use sov_rollup_interface::services::da::DaTxRequest;
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, ProvingSessionInfo, StorageRootHash};
 use sov_schema_db::{ScanDirection, Schema, SchemaBatch, SchemaIterator, SeekKeyEncoder, DB};
@@ -17,6 +19,7 @@ use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
     CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber,
+    DaJobIdByProvingJobId, DaJobProgressById, DaJobStatusIndex, DaTxRequestByJobId,
     ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot,
     L2RangeByL1Height, L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs,
     PendingBonsaiSessionByJobId, PendingBoundlessSessionByJobId, PendingL1SubmissionJobs,
@@ -28,6 +31,7 @@ use crate::schema::tables::{
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
 };
+use crate::schema::types::da_jobs::JobProgress;
 use crate::schema::types::job_status::JobStatus;
 use crate::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use crate::schema::types::light_client_proof::{
@@ -740,6 +744,22 @@ impl BatchProverLedgerOps for LedgerDB {
             JobStatus::Proving
         }
     }
+
+    fn set_da_job_id_by_prover_job_id(
+        &self,
+        proving_job_id: Uuid,
+        da_job_id: Uuid,
+    ) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+
+        schema_batch.put::<DaJobIdByProvingJobId>(&proving_job_id, &da_job_id)?;
+
+        self.db.write_schemas(schema_batch)
+    }
+
+    fn get_da_job_id_by_prover_job_id(&self, proving_job_id: Uuid) -> anyhow::Result<Option<Uuid>> {
+        self.db.get::<DaJobIdByProvingJobId>(&proving_job_id)
+    }
 }
 
 impl BonsaiLedgerOps for LedgerDB {
@@ -1043,5 +1063,86 @@ impl ForkMigration for LedgerDB {
     fn fork_activated(&self, _fork: &Fork) -> anyhow::Result<()> {
         // TODO: Implement later
         Ok(())
+    }
+}
+
+impl DaLedgerOps for LedgerDB {
+    fn submit_job(
+        &self,
+        job_id: Uuid,
+        da_tx_request: &DaTxRequest,
+        progress: &JobProgress,
+    ) -> anyhow::Result<()> {
+        let mut batch = SchemaBatch::new();
+        let status = progress.status.as_u8();
+
+        batch.put::<DaTxRequestByJobId>(&job_id, da_tx_request)?;
+        batch.put::<DaJobProgressById>(&job_id, progress)?;
+        batch.put::<DaJobStatusIndex>(&(status, job_id), &())?;
+
+        self.db.write_schemas(batch)?;
+        Ok(())
+    }
+
+    fn get_job_request(&self, job_id: &Uuid) -> anyhow::Result<Option<DaTxRequest>> {
+        self.db.get::<DaTxRequestByJobId>(job_id)
+    }
+
+    fn upsert_progress(&self, progress: &JobProgress) -> anyhow::Result<()> {
+        let mut batch = SchemaBatch::new();
+
+        batch.put::<DaJobProgressById>(&progress.job_id, progress)?;
+
+        self.db.write_schemas(batch)?;
+        Ok(())
+    }
+
+    fn upsert_progress_new_status(
+        &self,
+        progress: &JobProgress,
+        previous_status: u8,
+    ) -> anyhow::Result<()> {
+        let mut batch = SchemaBatch::new();
+
+        let job_id = progress.job_id;
+        let new_status = progress.status.as_u8();
+
+        batch.put::<DaJobProgressById>(&job_id, progress)?;
+        if previous_status != new_status {
+            batch.delete::<DaJobStatusIndex>(&(previous_status, job_id))?;
+            batch.put::<DaJobStatusIndex>(&(new_status, job_id), &())?;
+        }
+
+        self.db.write_schemas(batch)?;
+        Ok(())
+    }
+
+    fn get_progress(&self, job_id: &Uuid) -> anyhow::Result<Option<JobProgress>> {
+        self.db.get::<DaJobProgressById>(job_id)
+    }
+
+    fn get_job_ids_by_status(&self, status: u8) -> anyhow::Result<Vec<Uuid>> {
+        let mut iter = self.db.iter::<DaJobStatusIndex>()?;
+
+        iter.seek(&(status, Uuid::nil()))?;
+
+        let mut job_ids = Vec::new();
+        for item in iter {
+            let ((item_status, job_id), _) = item?.into_tuple();
+
+            if item_status != status {
+                break;
+            }
+
+            job_ids.push(job_id);
+        }
+        Ok(job_ids)
+    }
+
+    fn get_proof_by_proof_id(&self, proof_id: Uuid) -> anyhow::Result<Vec<u8>> {
+        self.db
+            .get::<ProofByJobId>(&proof_id)?
+            .map(|stored_batch_proof| stored_batch_proof.proof)
+            .context("Failed to retrieve proof by id")
     }
 }

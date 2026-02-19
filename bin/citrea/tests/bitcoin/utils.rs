@@ -8,31 +8,43 @@ use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::bail;
 use bitcoin_da::fee::FeeService;
+use bitcoin_da::job::rpc::create_rpc_module as create_da_job_rpc_module;
 use bitcoin_da::monitoring::{MonitoringConfig, MonitoringService};
 use bitcoin_da::network_constants::get_network_constants;
+use bitcoin_da::rpc::create_rpc_module as create_da_rpc_module;
 use bitcoin_da::service::{network_to_bitcoin_network, BitcoinService, BitcoinServiceConfig};
 use bitcoin_da::spec::block::BitcoinBlock;
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::utxo_manager::UtxoSelectionMode;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use citrea_batch_prover::rpc::BatchProverRpcClient;
+use citrea_common::rpc::server::start_rpc_server;
+use citrea_common::RpcConfig;
 use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_e2e::traits::NodeT;
+use citrea_light_client_prover::circuit::initial_values::bitcoinda::NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS;
 use citrea_light_client_prover::circuit::{
     citrea_network_to_chain_id, SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE,
     SECURITY_COUNCIL_MEMBER_COUNT,
 };
 use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
+use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+use jsonrpsee::RpcModule;
 use reth_tasks::TaskExecutor;
+use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
+use sov_db::ledger_db::LedgerDB;
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::LedgerRpcClient;
+use sov_modules_api::BatchProofCircuitOutputV3;
 use sov_rollup_interface::da::{
-    BatchProofMethodId, BatchProofMethodIdBody, DaTxRequest, SequencerCommitment,
+    BatchProofMethodId, BatchProofMethodIdBody, SequencerCommitment,
     SECURITY_COUNCIL_SIGNATURE_SIZE, SECURITY_COUNCIL_SIGNATURE_THRESHOLD,
 };
 use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::services::da::{DaService, DaTxRequest};
+use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 use sov_rollup_interface::Network;
 use tokio::time::sleep;
 use uuid::Uuid;
@@ -111,9 +123,12 @@ pub async fn spawn_bitcoin_da_sequencer_service(
     config: &BitcoinConfig,
     dir: PathBuf,
 ) -> Arc<BitcoinService> {
+    let mut sequencer_config = config.clone();
+    sequencer_config.data_dir = sequencer_config.data_dir.join("sequencer");
+
     spawn_bitcoin_da_service(
         task_executor,
-        config,
+        &sequencer_config,
         dir,
         DaServiceKeyKind::Sequencer,
         REVEAL_TX_PREFIX.to_vec(),
@@ -128,7 +143,27 @@ pub async fn spawn_bitcoin_da_prover_service(
     config: &BitcoinConfig,
     dir: PathBuf,
 ) -> Arc<BitcoinService> {
+    let mut prover_config = config.clone();
+    prover_config.data_dir = prover_config.data_dir.join("prover");
+
     spawn_bitcoin_da_service(
+        task_executor,
+        &prover_config,
+        dir,
+        DaServiceKeyKind::BatchProver,
+        REVEAL_TX_PREFIX.to_vec(),
+        None,
+        None,
+    )
+    .await
+}
+
+pub async fn spawn_bitcoin_da_prover_service_with_rpc_server(
+    task_executor: &TaskExecutor,
+    config: &BitcoinConfig,
+    dir: PathBuf,
+) -> (Arc<BitcoinService>, HttpClient) {
+    let service = spawn_bitcoin_da_service(
         task_executor,
         config,
         dir,
@@ -137,7 +172,44 @@ pub async fn spawn_bitcoin_da_prover_service(
         None,
         None,
     )
-    .await
+    .await;
+
+    let rpc_config = RpcConfig {
+        bind_host: "127.0.0.1".into(),
+        bind_port: 0,
+        max_connections: 100,
+        max_request_body_size: 10 * 1024 * 1024,
+        max_response_body_size: 10 * 1024 * 1024,
+        batch_requests_limit: 50,
+        enable_subscriptions: true,
+        max_subscriptions_per_connection: 100,
+        trace_chain_block_limit: None,
+        proving_jobs_limit: 100,
+        timeout: 30,
+        enable_js_tracer: true,
+        api_key: None,
+        ..Default::default()
+    };
+
+    // Add da rpc and da job rpc methods
+    let mut rpc_methods = RpcModule::new(());
+    let da_methods = create_da_rpc_module(service.clone());
+    rpc_methods.merge(da_methods).unwrap();
+
+    let da_methods = create_da_job_rpc_module(service.clone());
+    rpc_methods.merge(da_methods).unwrap();
+
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+    start_rpc_server(rpc_config, task_executor, rpc_methods, Some(port_tx));
+
+    let addr = port_rx.await.unwrap();
+    let http_host = format!("http://localhost:{}", addr.port());
+    let http_client = HttpClientBuilder::default()
+        .request_timeout(Duration::from_secs(120))
+        .build(http_host)
+        .unwrap();
+
+    (service, http_client)
 }
 
 #[cfg(feature = "testing")]
@@ -161,7 +233,7 @@ pub async fn spawn_bitcoin_da_prover_service_with_utxo_selection_mode(
 
 pub async fn spawn_bitcoin_da_service(
     task_executor: &TaskExecutor,
-    da_config: &BitcoinConfig,
+    bitcoin_config: &BitcoinConfig,
     test_dir: PathBuf,
     kind: DaServiceKeyKind,
     reveal_tx_prefix: Vec<u8>,
@@ -175,25 +247,28 @@ pub async fn spawn_bitcoin_da_service(
     };
     let wallet = wallet.unwrap_or(NodeKind::Bitcoin.to_string());
     let da_config = BitcoinServiceConfig {
-        node_url: format!("http://127.0.0.1:{}/wallet/{}", da_config.rpc_port, wallet),
-        node_username: da_config.rpc_user.clone(),
-        node_password: da_config.rpc_password.clone(),
+        node_url: format!(
+            "http://127.0.0.1:{}/wallet/{}",
+            bitcoin_config.rpc_port, wallet
+        ),
+        node_username: bitcoin_config.rpc_user.clone(),
+        node_password: bitcoin_config.rpc_password.clone(),
         da_private_key: Some(da_private_key),
         tx_backup_dir: test_dir.join("tx_backup_dir").display().to_string(),
         monitoring: Some(MonitoringConfig {
             check_interval: 1,
             history_limit: 1_000,
             max_history_size: 200_000_000,
-            max_rebroadcast_attempts: 5,
+            max_rebroadcast_attempts: 50,
             rebroadcast_delay: 1,
         }),
         mempool_space_url: None,
         utxo_selection_mode,
         rpc_timeout_secs: None,
         rpc_connect_timeout_secs: None,
+        max_fee_rate_sat_to_pay: None,
+        fee_rate_cap_duration_secs: None,
     };
-
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
     let network = Network::Nightly;
     let chain_params = RollupParams {
@@ -230,6 +305,10 @@ pub async fn spawn_bitcoin_da_service(
 
     let fee_service = FeeService::new(client.clone(), network, da_config.mempool_space_url.clone());
 
+    let ledger_db_path = bitcoin_config.data_dir.join("da_ledger_db");
+    let rocksdb_config = RocksdbConfig::new(&ledger_db_path, None, None);
+    let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
+
     let service = Arc::new(
         BitcoinService::from_config(
             &da_config,
@@ -240,14 +319,14 @@ pub async fn spawn_bitcoin_da_service(
             monitoring_service,
             fee_service,
             true,
-            tx,
+            ledger_db,
         )
         .await
         .unwrap(),
     );
 
     task_executor
-        .spawn_with_graceful_shutdown_signal(|tk| service.clone().run_da_queue(rx, block_rx, tk));
+        .spawn_with_graceful_shutdown_signal(|tk| service.clone().run_da_queue(block_rx, tk));
 
     service.monitoring.restore().await.unwrap();
     task_executor.spawn_with_graceful_shutdown_signal(|tk| Arc::clone(&service.monitoring).run(tk));
@@ -441,9 +520,13 @@ pub async fn generate_mock_txs(
     let prefix_str = "wrong_prefix";
     let wrong_prefix_wallet = PathBuf::from_str(prefix_str).unwrap();
     create_and_fund_wallet(prefix_str.to_string(), da_node).await;
+
+    let mut first_config = da_node.config.clone();
+    first_config.data_dir = first_config.data_dir.join("1");
+
     let wrong_prefix_da_service = spawn_bitcoin_da_service(
         task_executor,
-        &da_node.config,
+        &first_config,
         wrong_prefix_wallet,
         DaServiceKeyKind::Sequencer,
         vec![6],
@@ -455,9 +538,13 @@ pub async fn generate_mock_txs(
     let wrong_key_str = "wrong_key";
     let wrong_key_wallet = PathBuf::from_str(wrong_key_str).unwrap();
     create_and_fund_wallet(wrong_key_str.to_string(), da_node).await;
+
+    let mut second_config = da_node.config.clone();
+    second_config.data_dir = second_config.data_dir.join("2");
+
     let wrong_key_da_service = spawn_bitcoin_da_service(
         task_executor,
-        &da_node.config,
+        &second_config,
         wrong_key_wallet,
         DaServiceKeyKind::Other(
             "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(),
@@ -498,8 +585,9 @@ pub async fn generate_mock_txs(
         signatures_with_index,
     };
     valid_method_ids.push(method_id.clone());
+
     da_service
-        .send_transaction(DaTxRequest::BatchProofMethodId(method_id))
+        .send_transaction_and_wait(DaTxRequest::BatchProofMethodId(method_id))
         .await
         .expect("Failed to send transaction");
 
@@ -511,7 +599,7 @@ pub async fn generate_mock_txs(
     seq_index += 1;
     valid_commitments.push(commitment.clone());
     da_service
-        .send_transaction(DaTxRequest::SequencerCommitment(commitment))
+        .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment))
         .await
         .expect("Failed to send transaction");
 
@@ -523,7 +611,7 @@ pub async fn generate_mock_txs(
     seq_index += 1;
     valid_commitments.push(commitment.clone());
     da_service
-        .send_transaction(DaTxRequest::SequencerCommitment(commitment))
+        .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment))
         .await
         .expect("Failed to send transaction");
 
@@ -532,7 +620,7 @@ pub async fn generate_mock_txs(
 
     valid_proofs.push(blob.clone());
     da_service
-        .send_transaction(DaTxRequest::ZKProof(blob))
+        .send_transaction_and_wait(DaTxRequest::ZKProof(blob))
         .await
         .expect("Failed to send transaction");
 
@@ -542,13 +630,13 @@ pub async fn generate_mock_txs(
 
     valid_proofs.push(blob.clone());
     da_service
-        .send_transaction(DaTxRequest::ZKProof(blob))
+        .send_transaction_and_wait(DaTxRequest::ZKProof(blob))
         .await
         .expect("Failed to send transaction");
 
     // Sequencer commitment with wrong tx prefix
     wrong_prefix_da_service
-        .send_transaction(DaTxRequest::SequencerCommitment(SequencerCommitment {
+        .send_transaction_and_wait(DaTxRequest::SequencerCommitment(SequencerCommitment {
             merkle_root: [15; 32],
             index: seq_index,
             l2_end_block_number: 1268,
@@ -561,13 +649,13 @@ pub async fn generate_mock_txs(
 
     valid_proofs.push(blob.clone());
     da_service
-        .send_transaction(DaTxRequest::ZKProof(blob))
+        .send_transaction_and_wait(DaTxRequest::ZKProof(blob))
         .await
         .expect("Failed to send transaction");
 
     // Sequencer commitment with wrong key and signature
     wrong_key_da_service
-        .send_transaction(DaTxRequest::SequencerCommitment(SequencerCommitment {
+        .send_transaction_and_wait(DaTxRequest::SequencerCommitment(SequencerCommitment {
             merkle_root: [15; 32],
             index: seq_index,
             l2_end_block_number: 1268,
@@ -582,7 +670,7 @@ pub async fn generate_mock_txs(
     };
     valid_commitments.push(commitment.clone());
     da_service
-        .send_transaction(DaTxRequest::SequencerCommitment(commitment))
+        .send_transaction_and_wait(DaTxRequest::SequencerCommitment(commitment))
         .await
         .expect("Failed to send transaction");
 
@@ -592,7 +680,7 @@ pub async fn generate_mock_txs(
 
     valid_proofs.push(blob.clone());
     da_service
-        .send_transaction(DaTxRequest::ZKProof(blob))
+        .send_transaction_and_wait(DaTxRequest::ZKProof(blob))
         .await
         .expect("Failed to send transaction");
 
@@ -619,7 +707,7 @@ pub async fn generate_mock_txs(
     };
     valid_method_ids.push(method_id.clone());
     da_service
-        .send_transaction(DaTxRequest::BatchProofMethodId(method_id))
+        .send_transaction_and_wait(DaTxRequest::BatchProofMethodId(method_id))
         .await
         .expect("Failed to send transaction");
 
@@ -678,4 +766,59 @@ pub mod macros {
     }
 
     pub(crate) use assert_panic;
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn create_serialized_fake_receipt_batch_proof_and_serialized_output(
+    initial_state_root: [u8; 32],
+    last_l2_height: u64,
+    state_diff: Option<CumulativeStateDiff>,
+    malformed_journal: bool,
+    last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
+    sequencer_commitments: Vec<SequencerCommitment>,
+    state_roots_of_seq_comms: Vec<[u8; 32]>,
+    prev_sequencer_commitment_hash: Option<[u8; 32]>,
+) -> (Vec<u8>, Vec<u8>) {
+    let method_id = NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS.inner()[0].1;
+    let sequencer_commitment_hashes = sequencer_commitments
+        .iter()
+        .map(|c| c.serialize_and_calculate_sha_256())
+        .collect::<Vec<_>>();
+    let previous_commitment_index = if sequencer_commitments[0].index == 1 {
+        None
+    } else {
+        Some(sequencer_commitments[0].index - 1)
+    };
+    let mut state_roots = vec![initial_state_root];
+
+    // For the sake of easiness of impl tests, we can use merkle root as state root
+    state_roots.extend(state_roots_of_seq_comms);
+
+    let output_v3 = BatchProofCircuitOutputV3 {
+        state_roots,
+        last_l2_height,
+        final_l2_block_hash: [0u8; 32],
+        state_diff: state_diff.unwrap_or_default(),
+        sequencer_commitment_hashes,
+        last_l1_hash_on_bitcoin_light_client_contract,
+        sequencer_commitment_index_range: (
+            sequencer_commitments[0].index,
+            sequencer_commitments[sequencer_commitments.len() - 1].index,
+        ),
+        previous_commitment_index,
+        previous_commitment_hash: prev_sequencer_commitment_hash,
+    };
+    let batch_proof_output = BatchProofCircuitOutput::V3(output_v3);
+    let mut output_serialized = borsh::to_vec(&batch_proof_output).unwrap();
+
+    // Distorts the output and make it unparsable
+    if malformed_journal {
+        output_serialized.push(1u8);
+    }
+
+    let claim = MaybePruned::Value(ReceiptClaim::ok(method_id, output_serialized.clone()));
+    let fake_receipt = FakeReceipt::new(claim);
+    // Receipt with verifiable claim
+    let receipt = InnerReceipt::Fake(fake_receipt);
+    (bincode::serialize(&receipt).unwrap(), output_serialized)
 }

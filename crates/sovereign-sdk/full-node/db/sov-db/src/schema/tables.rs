@@ -13,6 +13,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey, StaleNodeIndex};
 use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::services::da::DaTxRequest;
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, ProvingSessionInfo};
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
@@ -20,6 +21,7 @@ use sov_schema_db::{CodecError, SeekKeyEncoder};
 use uuid::Uuid;
 
 use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
+use super::types::da_jobs::JobProgress;
 use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
@@ -43,6 +45,9 @@ pub const STATE_TABLES: &[&str] = &[
 /// Note: Please keep the list sorted alphabetically
 pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     CommitmentsByNumber::table_name(),
+    DaTxRequestByJobId::table_name(),
+    DaJobProgressById::table_name(),
+    DaJobStatusIndex::table_name(),
     ExecutedMigrations::table_name(),
     L2BlockByHash::table_name(),
     L2BlockByNumber::table_name(),
@@ -93,6 +98,10 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
 pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     CommitmentIndicesByJobId::table_name(),
     CommitmentIndicesByL1::table_name(),
+    DaTxRequestByJobId::table_name(),
+    DaJobIdByProvingJobId::table_name(),
+    DaJobProgressById::table_name(),
+    DaJobStatusIndex::table_name(),
     ExecutedMigrations::table_name(),
     JobIdOfCommitment::table_name(),
     L2BlockByHash::table_name(),
@@ -146,6 +155,10 @@ pub const LEDGER_TABLES: &[&str] = &[
     CommitmentIndicesByL1::table_name(),
     CommitmentMerkleRoots::table_name(),
     CommitmentsByNumber::table_name(),
+    DaTxRequestByJobId::table_name(),
+    DaJobIdByProvingJobId::table_name(),
+    DaJobProgressById::table_name(),
+    DaJobStatusIndex::table_name(),
     ExecutedMigrations::table_name(),
     JobIdOfCommitment::table_name(),
     L2BlockByHash::table_name(),
@@ -513,6 +526,26 @@ define_table_with_seek_key_codec!(
 define_table_with_seek_key_codec!(
     /// Out of order proofs
     (PendingProofs) (u32, u32) => (Proof, L1Height)
+);
+
+define_table_with_seek_key_codec!(
+    /// DaTxRequest by uuid
+    (DaTxRequestByJobId) Uuid => DaTxRequest
+);
+
+define_table_with_seek_key_codec!(
+    /// Da job progress by uuid
+    (DaJobProgressById) Uuid => JobProgress
+);
+
+define_table_with_seek_key_codec!(
+    /// Index by (status, jobid)
+    (DaJobStatusIndex) (u8, Uuid) => ()
+);
+
+define_table_with_seek_key_codec!(
+    /// DA job id by proving job id
+    (DaJobIdByProvingJobId) Uuid => Uuid
 );
 
 #[cfg(test)]

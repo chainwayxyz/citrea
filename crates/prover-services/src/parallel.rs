@@ -3,8 +3,7 @@ use std::time::Instant;
 
 use anyhow::anyhow;
 use rand::Rng;
-use sov_rollup_interface::da::DaTxRequest;
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::services::da::{DaService, DaTxRequest};
 use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
 use tokio::sync::{oneshot, OwnedSemaphorePermit, Semaphore};
 use tracing::{debug, error, info, instrument, warn};
@@ -12,6 +11,9 @@ use uuid::Uuid;
 
 use crate::metrics::PARALLEL_PROVER_METRICS;
 use crate::{ProofData, ProofGenMode, ProofWithDuration};
+
+type DaJobWaiter<Da> =
+    oneshot::Receiver<Result<<Da as DaService>::TransactionId, <Da as DaService>::Error>>;
 
 /// Prover service capable of invoking the zkVM proving sessions in parallel.
 pub struct ParallelProverService<Da, Vm>
@@ -207,12 +209,8 @@ where
     }
 
     /// Submits the zk proof to the DA service, returning transaction id.
-    #[instrument(name = "ParallelProverService", skip_all, fields(job_id = _job_id.to_string()))]
-    pub async fn submit_proof(
-        &self,
-        proof: Proof,
-        _job_id: Uuid,
-    ) -> anyhow::Result<<Da as DaService>::TransactionId> {
+    #[instrument(name = "ParallelProverService", skip_all)]
+    pub async fn submit_proof(&self, proof: Proof) -> anyhow::Result<(Uuid, DaJobWaiter<Da>)> {
         let tx_request = DaTxRequest::ZKProof(proof);
         info!("Submitting proof to DA service");
         self.da_service
@@ -221,16 +219,26 @@ where
             .map_err(|e| anyhow::anyhow!(e))
     }
 
-    // Only used in tests
-    pub async fn submit_proofs(
+    /// Submits the zk proof by id to the DA service, returning transaction id.
+    #[instrument(name = "ParallelProverService", skip_all)]
+    pub async fn submit_proof_by_id(
         &self,
-        proofs: Vec<Proof>,
-    ) -> anyhow::Result<Vec<(<Da as DaService>::TransactionId, Proof)>> {
+        proof_id: Uuid,
+    ) -> anyhow::Result<(Uuid, DaJobWaiter<Da>)> {
+        let tx_request = DaTxRequest::StoredProof(proof_id);
+        info!("Submitting proof to DA service");
+        self.da_service
+            .send_transaction(tx_request)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+
+    // Only used in tests
+    pub async fn submit_proofs(&self, proofs: Vec<Proof>) -> anyhow::Result<Vec<Proof>> {
         let mut tx_and_proof = Vec::with_capacity(proofs.len());
-        let job_id = Uuid::nil();
         for proof in proofs {
-            let tx_id = self.submit_proof(proof.clone(), job_id).await?;
-            tx_and_proof.push((tx_id, proof));
+            self.submit_proof(proof.clone()).await?;
+            tx_and_proof.push(proof);
         }
         Ok(tx_and_proof)
     }
@@ -239,6 +247,14 @@ where
     pub fn start_session_recovery(&self) -> anyhow::Result<Vec<oneshot::Receiver<ProofWithJob>>> {
         let vm = self.vm.clone();
         vm.start_session_recovery()
+    }
+
+    /// Used for recovery
+    pub async fn get_existing_da_job_waiter(
+        &self,
+        da_job_id: Uuid,
+    ) -> Result<DaJobWaiter<Da>, <Da as DaService>::Error> {
+        self.da_service.recover_existing_job_waiter(da_job_id).await
     }
 }
 

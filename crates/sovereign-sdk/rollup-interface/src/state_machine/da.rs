@@ -101,18 +101,6 @@ impl core::cmp::Ord for SequencerCommitment {
     }
 }
 
-/// Transaction request to send to the DA queue.
-#[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
-pub enum DaTxRequest {
-    /// A commitment from the sequencer
-    SequencerCommitment(SequencerCommitment),
-    /// Or a zk proof and state diff
-    ZKProof(Proof),
-    /// Batch proof method id update for light client
-    BatchProofMethodId(BatchProofMethodId),
-}
-
 /// Data written to DA and read from DA must be the borsh serialization of this enum
 #[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 #[allow(clippy::large_enum_variant)]

@@ -6,11 +6,10 @@
 use core::result::Result::Ok;
 use core::str::FromStr;
 use core::time::Duration;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -27,24 +26,29 @@ use citrea_primitives::{MAX_COMPRESSED_BLOB_SIZE, MAX_TX_BODY_SIZE};
 use lru::LruCache;
 use reth_tasks::shutdown::GracefulShutdown;
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{DaSpec, DaTxRequest, DataOnDa, SequencerCommitment};
-use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
+use sov_db::ledger_db::LedgerDB;
+use sov_db::schema::types::da_jobs::{DaJobStatus, JobId, JobProgress, SentTxs};
+use sov_rollup_interface::da::{DaSpec, DataOnDa, SequencerCommitment};
+use sov_rollup_interface::services::da::{DaService, DaTxRequest};
 use sov_rollup_interface::zk::Proof;
 use sov_rollup_interface::Network;
 use tokio::select;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tokio::sync::oneshot::channel as oneshot_channel;
-use tokio::sync::Mutex;
+use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::{oneshot, Mutex, Notify};
 use tracing::{debug, error, info, instrument, trace, warn};
+use uuid::Uuid;
 
 use crate::error::{BitcoinServiceError, MempoolRejection};
-use crate::fee::{validate_txs_fee_rate, BumpFeeMethod, FeeService};
+use crate::fee::{BumpFeeMethod, FeeService};
 use crate::helpers::backup::backup_txs_to_file;
 use crate::helpers::builders::body_builders::{create_inscription_transactions, DaTxs, RawTxData};
 use crate::helpers::builders::TxWithId;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
 use crate::helpers::{merkle_tree, TransactionKind};
+use crate::job::error::JobServiceError;
+use crate::job::service::DaJobService;
+use crate::job::utils::get_job_elapsed_time;
 use crate::metrics::BITCOIN_DA_METRICS as BM;
 use crate::monitoring::{MonitoredTxKind, MonitoringConfig, MonitoringService, TxStatus};
 use crate::network_constants::NetworkConstants;
@@ -63,7 +67,10 @@ use crate::verifier::{
 
 pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
 
-const POLLING_INTERVAL: u64 = 10; // seconds
+const POLLING_INTERVAL: u64 = 10; // 10 seconds
+
+const DEFAULT_FEE_RATE_CAP_DURATION_SECS: u64 = 3600; // 1 hour default cap duration
+const DEFAULT_MAX_FEE_RATE_SAT_VB: f64 = 15.0; // 15sat/vb default max fee rate
 
 /// Map sov Network to Bitcoin Network.
 pub fn network_to_bitcoin_network(network: &Network) -> bitcoin::Network {
@@ -108,6 +115,12 @@ pub struct BitcoinServiceConfig {
 
     /// Connection timeout for RPC in seconds
     pub rpc_connect_timeout_secs: Option<u64>,
+
+    /// Max fee rate in sat/vb
+    pub max_fee_rate_sat_to_pay: Option<f64>,
+
+    /// Fee rate cap duration in seconds
+    pub fee_rate_cap_duration_secs: Option<u64>,
 }
 
 impl citrea_common::FromEnv for BitcoinServiceConfig {
@@ -133,26 +146,34 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
             rpc_connect_timeout_secs: read_env("BITCOIN_RPC_CONNECT_TIMEOUT_SECS")
                 .ok()
                 .and_then(|v| v.parse::<u64>().ok()),
+            max_fee_rate_sat_to_pay: read_env("BITCOIN_MAX_FEE_RATE_SAT_TO_PAY")
+                .ok()
+                .and_then(|v| v.parse::<f64>().ok()),
+            fee_rate_cap_duration_secs: read_env("BITCOIN_FEE_RATE_CAP_DURATION_SECS")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok()),
         })
     }
 }
 
 /// A service that provides data and data availability proofs for Bitcoin
-#[derive(Debug)]
 pub struct BitcoinService {
     client: Arc<Client>,
     pub(crate) network: bitcoin::Network,
     network_constants: NetworkConstants,
     pub(crate) da_private_key: Option<SecretKey>,
     pub(crate) reveal_tx_prefix: Vec<u8>,
-    inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
     pub(crate) tx_backup_dir: PathBuf,
     /// Monitoring service for tracking transaction status.
     pub monitoring: Arc<MonitoringService>,
     fee: FeeService,
     l1_block_hash_to_height: Arc<Mutex<LruCache<BlockHash, usize>>>,
-    tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
     pub(crate) tx_signer: TxSigner,
+    // Persistent job queue
+    pub(crate) job_service: Mutex<DaJobService<LedgerDB>>,
+    max_fee_rate_sat_to_pay: f64,
+    fee_rate_cap_duration_secs: u64,
+    job_notifier: Arc<Notify>,
     pub(crate) utxo_manager: UtxoManager,
 }
 
@@ -164,11 +185,12 @@ impl BitcoinService {
         network_constants: NetworkConstants,
         monitoring: Arc<MonitoringService>,
         fee: FeeService,
-        inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
         da_private_key: Option<SecretKey>,
         reveal_tx_prefix: Vec<u8>,
         tx_backup_dir: PathBuf,
-        tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
+        job_service: Mutex<DaJobService<LedgerDB>>,
+        max_fee_rate_sat_to_pay: f64,
+        fee_rate_cap_duration_secs: u64,
         utxo_manager: UtxoManager,
     ) -> Self {
         Self {
@@ -178,14 +200,16 @@ impl BitcoinService {
             network,
             da_private_key,
             reveal_tx_prefix,
-            inscribes_queue,
             tx_backup_dir,
             monitoring,
             fee,
             l1_block_hash_to_height: Arc::new(Mutex::new(LruCache::new(
                 NonZeroUsize::new(100).unwrap(),
             ))),
-            tx_queue,
+            job_service,
+            max_fee_rate_sat_to_pay,
+            fee_rate_cap_duration_secs,
+            job_notifier: Arc::new(Notify::new()),
             utxo_manager,
         }
     }
@@ -201,7 +225,7 @@ impl BitcoinService {
         monitoring: Arc<MonitoringService>,
         fee_service: FeeService,
         require_wallet_check: bool,
-        inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
+        ledger_db: LedgerDB,
     ) -> Result<Self> {
         if require_wallet_check
             && client
@@ -226,11 +250,17 @@ impl BitcoinService {
             .transpose()
             .map_err(|_| BitcoinServiceError::InvalidPrivateKey)?;
 
-        let tx_queue = Arc::new(Mutex::new(VecDeque::new()));
+        let job_service = Mutex::new(DaJobService::new(ledger_db, None));
+        let max_fee_rate_sat_to_pay = config
+            .max_fee_rate_sat_to_pay
+            .unwrap_or(DEFAULT_MAX_FEE_RATE_SAT_VB);
+        let fee_rate_cap_duration_secs = config
+            .fee_rate_cap_duration_secs
+            .unwrap_or(DEFAULT_FEE_RATE_CAP_DURATION_SECS);
+
         let utxo_manager = UtxoManager::new(
             client.clone(),
             monitoring.clone(),
-            tx_queue.clone(),
             network_constants,
             config.utxo_selection_mode.clone().unwrap_or_default(),
         );
@@ -241,11 +271,12 @@ impl BitcoinService {
             network_constants,
             monitoring,
             fee_service,
-            inscribes_queue,
             da_private_key,
             chain_params.reveal_tx_prefix,
             tx_backup_dir.to_path_buf(),
-            tx_queue,
+            job_service,
+            max_fee_rate_sat_to_pay,
+            fee_rate_cap_duration_secs,
             utxo_manager,
         ))
     }
@@ -254,13 +285,10 @@ impl BitcoinService {
     #[instrument(name = "BitcoinDA", skip_all)]
     pub async fn run_da_queue(
         self: Arc<Self>,
-        mut rx: UnboundedReceiver<TxRequestWithNotifier<TxidWrapper>>,
         mut new_block_rx: UnboundedReceiver<u64>,
         mut shutdown: GracefulShutdown,
     ) {
         trace!("BitcoinDA queue is initialized. Waiting for the first request...");
-        let mut fee_rate_multiplier = self.fee.base_fee_rate_multiplier();
-
         loop {
             select! {
                 biased;
@@ -271,112 +299,187 @@ impl BitcoinService {
                 new_height_opt = new_block_rx.recv() => {
                     if let Some(new_height) = new_height_opt {
                         trace!("New da block height {new_height}. Processing transaction queue.");
-                        if let Err(e) = self.process_transaction_queue().await {
+
+                        if let Err(e) = self.process_job_service().await {
                             error!(?e, "Error processing queue on new block");
                         }
                     }
                 }
-                request_opt = rx.recv() => {
-                    if let Some(request) = request_opt {
-                        trace!("A new request is received");
 
-                        loop {
-                            // Build and queue tx with retries:
-                            let fee_sat_per_vbyte = match self.fee.get_fee_rate().await {
-                                Ok(rate) => rate * fee_rate_multiplier,
-                                Err(e) => {
-                                    error!(?e, "Failed to call get_fee_rate. Retrying...");
-                                    tokio::time::sleep(Duration::from_secs(1)).await;
-                                    continue;
-                                }
-                            };
-                            match self
-                                .send_transaction_with_fee_rate(
-                                    request.tx_request.clone(),
-                                    fee_sat_per_vbyte,
-                                )
-                                .await
-                            {
-                                Ok(txs) => {
-                                    let txid = txs.last().unwrap()[1].id;
-                                    let tx_id = TxidWrapper(txid);
-                                    info!(%txid, "Sent tx to BitcoinDA");
-                                    let _ = request.notify.send(Ok(tx_id));
-
-                                    fee_rate_multiplier = self.fee.base_fee_rate_multiplier();
-                                }
-                                Err(e) => {
-                                    error!(?e, "Failed to send transaction to DA layer");
-                                    tokio::time::sleep(Duration::from_secs(1)).await;
-
-                                    match e {
-                                        BitcoinServiceError::MempoolRejection(MempoolRejection::MinRelayFeeNotMet) | BitcoinServiceError::FeeCalculation(_) => {
-                                            fee_rate_multiplier = self.fee.get_next_fee_rate_multiplier(fee_rate_multiplier);
-                                        },
-                                        BitcoinServiceError::QueueNotEmpty => {
-                                            let _ = self.process_transaction_queue().await;
-                                        },
-                                        _ => {}
-                                    }
-
-                                    continue;
-                                }
-                            }
-                            break;
-                        }
+                _ = self.job_notifier.notified() => {
+                    trace!("Job submitted, processing queue");
+                    if let Err(e) = self.process_job_service().await {
+                        error!(?e, "Error processing queue on job trigger");
                     }
                 }
             }
         }
     }
 
-    /// Queue and try sending transaction to DA
-    pub async fn send_transaction_with_fee_rate(
-        &self,
-        tx_request: DaTxRequest,
-        fee_sat_per_vbyte: f64,
-    ) -> Result<Vec<[TxWithId; 2]>> {
-        let now = Instant::now();
+    // Process job queue
+    async fn process_job_service(&self) -> Result<()> {
+        let job_service = self.job_service.lock().await;
 
-        let utxo_context = self.utxo_manager.prepare_context().await?;
+        // Optimization for utxo selection.
+        // If previous job ends in progress, we need to select a new utxo in Oldest mode.
+        // If the subsequent job completes, we can continue chaining from its outputs.
+        let mut previous_job_in_progress = false;
+
+        // Get all pending/in-progress jobs
+        let active_job_ids = job_service.get_all_active_job_ids()?;
+        for job_id in active_job_ids {
+            info!("Processing job {job_id}");
+
+            let job_request = job_service
+                .get_job_request(&job_id)?
+                .ok_or(JobServiceError::JobNotFound(job_id))?;
+            let progress = &mut job_service
+                .get_progress(&job_id)?
+                .ok_or(JobServiceError::JobNotFound(job_id))?;
+
+            let job_data = job_service.get_job_data(job_id, job_request)?;
+
+            let sent_txids = job_service.get_pending_chunks()?;
+
+            match self
+                .process_job(job_data, progress, &sent_txids, previous_job_in_progress)
+                .await
+            {
+                Ok(completed) => {
+                    progress.last_error = None;
+
+                    if completed {
+                        job_service.update_job_status(progress, DaJobStatus::Completed)?;
+                        info!("Job {job_id} completed successfully");
+
+                        previous_job_in_progress = false;
+                    } else {
+                        job_service.update_job_status(progress, DaJobStatus::InProgress)?;
+                        info!("Job {job_id} partially sent");
+
+                        previous_job_in_progress = true;
+                    }
+                }
+                Err(e @ BitcoinServiceError::FeeCapExceeded { .. }) => {
+                    warn!("Job {job_id} hit fee cap: {e:?}");
+
+                    // Save updated progress with last sent attempt value and continue
+                    // Fee cap errors should be retried on next `process_job_service` call
+                    job_service.upsert_job_progress(progress)?;
+                    continue;
+                }
+                Err(e) => {
+                    // TODO make the distinction between recoverable and unrecoverable error.
+                    // The latter should be updated to Failed status
+                    error!("Error processing job {job_id}: {e:?}");
+                    progress.last_error = Some(e.to_string());
+                    job_service.upsert_job_progress(progress)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn process_job(
+        &self,
+        job_data: RawTxData,
+        progress: &mut JobProgress,
+        sent_txids: &HashSet<Txid>,
+        previous_job_in_progress: bool,
+    ) -> Result<bool> {
+        info!(
+            "Processing job {} with status {:?}",
+            progress.job_id, progress.status
+        );
+
+        // Get current fee rate as sat/vb
+        let fee_sat_per_vbyte = self.fee.get_fee_rate().await?;
+
+        // Validate fee rate against cap
+        self.validate_fee_rate(progress.job_id, fee_sat_per_vbyte)?;
+
+        // Recover sent commits and sent reveals from their txids
+        let (sent_commits, sent_reveals) =
+            self.recover_sent_transactions(&progress.sent_txs).await?;
+
+        let utxo_context = self
+            .utxo_manager
+            .prepare_context(&progress.status, previous_job_in_progress, sent_txids)
+            .await?;
 
         let da_txs = self
             .create_da_transactions_with_fee_rate(
-                tx_request,
                 fee_sat_per_vbyte,
                 utxo_context.clone(),
+                job_data,
+                sent_commits.clone(),
+                sent_reveals.clone(),
             )
             .await?;
-        let signed_txs = self.tx_signer.sign_da_txs(da_txs).await?;
+
+        let current_idx = progress.sent_txs.count();
+        let signed_txs = self
+            .tx_signer
+            .sign_da_txs(da_txs.clone(), current_idx)
+            .await?;
 
         // Test whether signed_txs should be accepted in queue
         if !self.test_mempool_accept_queue_tx(&signed_txs).await? {
             // If it failed on mempool policy limit, it can also fail on meeting min relay fee
-            // Stateless validation of signed txs fee
-            validate_txs_fee_rate(&signed_txs, fee_sat_per_vbyte, utxo_context)?;
+            self.fee
+                .validate_txs_fee_rate(
+                    &signed_txs,
+                    &sent_commits,
+                    &sent_reveals,
+                    fee_sat_per_vbyte,
+                    utxo_context,
+                )
+                .await?;
         }
 
         // backup to file after mempool acceptance
         backup_txs_to_file(&self.tx_backup_dir, &signed_txs)?;
 
-        let txs = signed_txs
-            .iter()
-            .map(|tx| tx.clone().into_txs_with_id())
-            .collect::<Vec<_>>();
-        self.monitoring
-            .monitor_transaction_chain(txs.clone())
-            .await?;
+        let mut txids = Vec::new();
+        let mut sent_count = 0;
 
-        // Queue transactions
-        self.queue_transactions(signed_txs).await;
+        for signed_tx in &signed_txs {
+            // Test mempool acceptance for this specific transaction
+            if let Err(e) = self.test_mempool_accept(&signed_tx.as_raw_txs()).await {
+                debug!(?e, "Transaction rejected by mempool, stopping batch");
+                break;
+            }
 
-        // Process transaction queue.
-        self.process_transaction_queue().await?;
+            match self.send_signed_transaction(signed_tx).await {
+                Ok(ids) => {
+                    sent_count += 1;
+                    txids.extend(&ids);
 
-        BM.transaction_queue_processing_time
-            .record(Instant::now().saturating_duration_since(now).as_secs_f64());
+                    progress.sent_txs.extend(
+                        vec![signed_tx.commit.tx.compute_txid().to_byte_array()],
+                        vec![signed_tx.reveal.tx.compute_txid().to_byte_array()],
+                    );
 
-        Ok(txs)
+                    let txs = signed_tx.clone().into_txs_with_id();
+                    self.monitoring.monitor_transaction_chain(vec![txs]).await?;
+                }
+                Err(e) => {
+                    error!(?e, "Error sending signed transaction");
+                    break;
+                }
+            }
+        }
+
+        if let Err(e) = self.monitoring.update_txs_status(&txids).await {
+            error!(?e, "Failed to update queued tx status");
+        }
+
+        let total_needed = da_txs.count();
+        let total_sent = current_idx + sent_count;
+        let completed = total_sent >= total_needed;
+
+        Ok(completed)
     }
 
     #[instrument(level = "trace", skip_all, ret)]
@@ -390,28 +493,48 @@ impl BitcoinService {
             .collect()
     }
 
+    /// Validates fee rate against `max_fee_rate_sat_to_pay`
+    #[instrument(level = "trace", skip(self))]
+    fn validate_fee_rate(&self, job_id: JobId, fee_sat_per_vbyte: f64) -> Result<()> {
+        if fee_sat_per_vbyte <= self.max_fee_rate_sat_to_pay {
+            return Ok(());
+        }
+
+        let elapsed_secs = get_job_elapsed_time(job_id);
+
+        if elapsed_secs < self.fee_rate_cap_duration_secs {
+            warn!(
+                "Job {job_id} fee rate {fee_sat_per_vbyte} sat/vb exceeds cap of {} sat/vb. \
+             Waiting (elapsed: {elapsed_secs}s / max: {}s)",
+                self.max_fee_rate_sat_to_pay, self.fee_rate_cap_duration_secs
+            );
+
+            return Err(BitcoinServiceError::FeeCapExceeded {
+                current_rate: fee_sat_per_vbyte,
+                max_rate: self.max_fee_rate_sat_to_pay,
+                elapsed_secs,
+                max_duration_secs: self.fee_rate_cap_duration_secs,
+            });
+        }
+
+        warn!(
+        "Job {job_id} fee rate {fee_sat_per_vbyte} sat/vb exceeds cap but cap duration of {}s exceeded. Sending anyway",
+        self.fee_rate_cap_duration_secs
+        );
+
+        Ok(())
+    }
+
     /// Sends a transaction to the Bitcoin network with a specified fee rate.
     #[instrument(level = "trace", fields(prev_utxo), ret, err, skip(self))]
     async fn create_da_transactions_with_fee_rate(
         &self,
-        tx_request: DaTxRequest,
         fee_sat_per_vbyte: f64,
         utxo_context: UtxoContext,
+        data: RawTxData,
+        sent_commits: Vec<Transaction>,
+        sent_reveals: Vec<Transaction>,
     ) -> Result<DaTxs> {
-        let data = match tx_request {
-            DaTxRequest::ZKProof(zkproof) => split_proof(zkproof)?,
-            DaTxRequest::SequencerCommitment(comm) => {
-                let data = DataOnDa::SequencerCommitment(comm);
-                let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
-                RawTxData::SequencerCommitment(blob)
-            }
-            DaTxRequest::BatchProofMethodId(method_id) => {
-                let data = DataOnDa::BatchProofMethodId(method_id);
-                let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
-                RawTxData::BatchProofMethodId(blob)
-            }
-        };
-
         let network = self.network;
         let da_private_key = self.da_private_key.expect("No private key set");
         // get address from a utxo
@@ -422,11 +545,14 @@ impl BitcoinService {
             .require_network(network)?;
 
         let prefix = self.reveal_tx_prefix.clone();
+
         tokio::task::spawn_blocking(move || {
             // Since this is CPU bound work, we use spawn_blocking
             // to release the tokio runtime execution
             create_inscription_transactions(
                 data,
+                sent_commits,
+                sent_reveals,
                 da_private_key,
                 utxo_context,
                 address,
@@ -438,97 +564,6 @@ impl BitcoinService {
         })
         .await?
         .map_err(|e| BitcoinServiceError::TransactionBuilderError(e.to_string()))
-    }
-
-    async fn queue_transactions(&self, txs: Vec<SignedTxPair>) {
-        let txs_len = txs.len();
-        self.tx_queue.lock().await.extend(txs);
-        BM.transaction_queue_size.increment(txs_len as f64);
-    }
-
-    pub(crate) async fn process_transaction_queue(&self) -> Result<Vec<Txid>> {
-        match self.utxo_manager.mode {
-            UtxoSelectionMode::Chained => self.process_transaction_queue_chained().await,
-            UtxoSelectionMode::Oldest => self.process_transaction_queue_oldest_mode().await,
-        }
-    }
-
-    pub(crate) async fn process_transaction_queue_oldest_mode(&self) -> Result<Vec<Txid>> {
-        let mut queue = self.tx_queue.lock().await;
-
-        let mut txids = Vec::new();
-        let mut failed_txs = VecDeque::new();
-        while let Some(tx) = queue.pop_front() {
-            info!(
-                "Processing transaction from queue. Commit: {} Reveal: {}",
-                tx.commit_txid(),
-                tx.reveal_txid()
-            );
-            if let Err(e) = self.test_mempool_accept(&tx.as_raw_txs()).await {
-                debug!(?e, "Rejected by mempool");
-                failed_txs.push_back(tx);
-                continue;
-            }
-
-            match self.send_signed_transaction(&tx).await {
-                Ok(ids) => {
-                    BM.transaction_queue_size.decrement(1);
-                    txids.extend(ids)
-                }
-                Err(e) => {
-                    error!(?e, "Error sending signed transaction");
-                    failed_txs.push_back(tx);
-                }
-            }
-        }
-
-        *queue = failed_txs;
-
-        // Update monitored tx status
-        if let Err(e) = self.monitoring.update_txs_status(&txids).await {
-            error!(?e, "Failed to update queued tx status");
-        }
-
-        Ok(txids)
-    }
-
-    /// Send transaction out of the queue to DA until the first error.
-    /// Returns the successfully sent txs.
-    pub(crate) async fn process_transaction_queue_chained(&self) -> Result<Vec<Txid>> {
-        let mut queue = self.tx_queue.lock().await;
-
-        let mut txids = Vec::new();
-        while let Some(tx) = queue.front() {
-            info!(
-                "Processing transaction from queue. Commit: {} Reveal: {}",
-                tx.commit_txid(),
-                tx.reveal_txid()
-            );
-            if let Err(e) = self.test_mempool_accept(&tx.as_raw_txs()).await {
-                warn!(?e, "Rejected by mempool");
-                break;
-            }
-
-            match self.send_signed_transaction(tx).await {
-                Ok(ids) => {
-                    queue.pop_front();
-                    BM.transaction_queue_size.decrement(1);
-                    txids.extend(ids)
-                }
-                Err(e) => {
-                    error!(?e, "Error sending signed transaction");
-                    // Break on first error and return successfully sent txids
-                    break;
-                }
-            }
-        }
-
-        // Update monitored tx status
-        if let Err(e) = self.monitoring.update_txs_status(&txids).await {
-            error!(?e, "Failed to update queued tx status");
-        }
-
-        Ok(txids)
     }
 
     pub(crate) async fn send_signed_transaction(&self, tx: &SignedTxPair) -> Result<Vec<Txid>> {
@@ -761,6 +796,43 @@ impl BitcoinService {
                 source: e,
             }),
         }
+    }
+
+    /// Recover transaction from `SentTxs` txids
+    /// 1. Try first through monitoring service.
+    /// 2. If not found via monitoring service - following a restart - falls back to `get_transaction` RPC.
+    async fn recover_sent_transactions(
+        &self,
+        sent_txs: &SentTxs,
+    ) -> Result<(Vec<Transaction>, Vec<Transaction>)> {
+        let monitored_txs = self.monitoring.get_monitored_txs().await;
+        let recover_transaction = async |txid: &Txid| {
+            let tx = if let Some(monitored) = monitored_txs.get(txid).cloned() {
+                monitored.tx
+            } else {
+                self.client
+                    .get_transaction(txid, None)
+                    .await?
+                    .transaction()?
+            };
+            Ok::<Transaction, BitcoinServiceError>(tx)
+        };
+
+        let mut commits = Vec::new();
+        for txid in &sent_txs.commit {
+            let txid = Txid::from_byte_array(*txid);
+            let transaction = recover_transaction(&txid).await?;
+            commits.push(transaction)
+        }
+
+        let mut reveals = Vec::new();
+        for txid in &sent_txs.reveal {
+            let txid = Txid::from_byte_array(*txid);
+            let transaction = recover_transaction(&txid).await?;
+            reveals.push(transaction)
+        }
+
+        Ok((commits, reveals))
     }
 }
 
@@ -1199,26 +1271,40 @@ impl DaService for BitcoinService {
         (relevant_txs, inclusion_proof, completeness_proof)
     }
 
-    #[instrument(level = "trace", skip_all)]
+    /// Submit a new job to the queue
     async fn send_transaction(
         &self,
         tx_request: DaTxRequest,
-    ) -> Result<<Self as DaService>::TransactionId> {
-        let queue = self.get_send_transaction_queue();
-        let (tx, rx) = oneshot_channel();
-        queue
-            .send(TxRequestWithNotifier {
-                tx_request,
-                notify: tx,
-            })
-            .map_err(|_| BitcoinServiceError::ChannelSendError)?;
-        Ok(rx.await?.expect("Queue never sends error"))
+    ) -> Result<(Uuid, oneshot::Receiver<Result<TxidWrapper>>)> {
+        let (tx, rx) = oneshot::channel();
+        let job_id = {
+            let job_service = self.job_service.lock().await;
+
+            // TODO handle chaining job request
+            if self.utxo_manager.mode == UtxoSelectionMode::Chained {
+                let active_jobs = job_service.get_all_active_job_ids()?;
+                if !active_jobs.is_empty() {
+                    return Err(BitcoinServiceError::PreviousJobInProgress);
+                }
+            }
+            job_service.submit_job(tx_request, tx)?
+        };
+
+        // For now, notify on new job and process all of them in order as this is needed for utxo handling
+        self.job_notifier.notify_one();
+
+        Ok((job_id, rx))
     }
 
-    fn get_send_transaction_queue(
+    async fn recover_existing_job_waiter(
         &self,
-    ) -> UnboundedSender<TxRequestWithNotifier<Self::TransactionId>> {
-        self.inscribes_queue.clone()
+        job_id: Uuid,
+    ) -> Result<oneshot::Receiver<Result<TxidWrapper>>> {
+        self.job_service
+            .lock()
+            .await
+            .recover_job_waiter(job_id)
+            .map_err(Into::into)
     }
 
     #[instrument(level = "trace", skip(self))]
@@ -1353,7 +1439,7 @@ impl DaService for BitcoinService {
 
 /// Wrapper around Txid to be used in DaSpec.
 #[derive(PartialEq, Eq, PartialOrd, Ord, core::hash::Hash)]
-pub struct TxidWrapper(Txid);
+pub struct TxidWrapper(pub(crate) Txid);
 impl From<TxidWrapper> for [u8; 32] {
     fn from(val: TxidWrapper) -> Self {
         val.0.to_byte_array()

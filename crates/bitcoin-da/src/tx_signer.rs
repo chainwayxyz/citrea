@@ -7,6 +7,7 @@ use bitcoin::consensus::encode;
 use bitcoin::{Transaction, Txid};
 use bitcoincore_rpc::json::SignRawTransactionInput;
 use bitcoincore_rpc::{Client, RpcApi};
+use serde::{Deserialize, Serialize};
 use tracing::trace;
 
 use crate::error::BitcoinServiceError;
@@ -16,7 +17,7 @@ use crate::helpers::TransactionKind;
 
 pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct SignedTxWithId {
     hex: Vec<u8>,
     pub tx: Transaction,
@@ -24,7 +25,7 @@ pub(crate) struct SignedTxWithId {
 }
 
 /// Pair of commit/reveal signed transactions
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct SignedTxPair {
     pub commit: SignedTxWithId,
     pub reveal: SignedTxWithId,
@@ -70,7 +71,11 @@ impl TxSigner {
         Self { client }
     }
 
-    pub(crate) async fn sign_da_txs(&self, da_txs: DaTxs) -> Result<Vec<SignedTxPair>> {
+    pub(crate) async fn sign_da_txs(
+        &self,
+        da_txs: DaTxs,
+        current_idx: usize,
+    ) -> Result<Vec<SignedTxPair>> {
         let queued_txs = match da_txs {
             DaTxs::Complete { commit, reveal } => {
                 vec![
@@ -104,8 +109,14 @@ impl TxSigner {
                 commit,
                 reveal,
             } => {
-                self.sign_chunked_transaction(commit_chunks, reveal_chunks, commit, reveal)
-                    .await?
+                self.sign_chunked_transaction(
+                    commit_chunks,
+                    reveal_chunks,
+                    commit,
+                    reveal,
+                    current_idx,
+                )
+                .await?
             }
         };
 
@@ -153,6 +164,7 @@ impl TxSigner {
         reveal_chunks: Vec<Transaction>,
         commit: Transaction,
         reveal: TxWithId,
+        current_idx: usize,
     ) -> Result<Vec<SignedTxPair>> {
         assert!(!commit_chunks.is_empty(), "Received empty chunks");
         assert_eq!(
@@ -180,7 +192,11 @@ impl TxSigner {
 
         let mut raw_txs = Vec::with_capacity(all_tx_map.len());
 
-        for (commit, reveal) in commit_chunks.into_iter().zip(reveal_chunks) {
+        for (commit, reveal) in commit_chunks
+            .into_iter()
+            .zip(reveal_chunks)
+            .skip(current_idx)
+        {
             let mut inputs = vec![];
 
             for input in commit.input.iter() {

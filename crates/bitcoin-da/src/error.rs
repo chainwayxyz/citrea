@@ -6,6 +6,7 @@ use thiserror::Error;
 use tokio::task::JoinError;
 
 use crate::fee::FeeServiceError;
+use crate::job::error::JobServiceError;
 use crate::monitoring::{MonitorError, TxStatus};
 
 /// The top level error type that can be returned by the `BitcoinService`.
@@ -44,9 +45,9 @@ pub enum BitcoinServiceError {
     /// Cannot bump fee for TX.
     #[error("Cannot bump fee for TX with status: {0:?}. Transaction must be pending")]
     WrongStatusForBumping(TxStatus),
-    /// Tx requested when queue is not empty.
-    #[error("Cannot create DA transaction while da queue is not empty")]
-    QueueNotEmpty,
+    /// Tx request when previous job is not fully sent.
+    #[error("Cannot create DA transaction while other job is in progress")]
+    PreviousJobInProgress,
     /// Transaction rejected by mempool.
     #[error(transparent)]
     MempoolRejection(#[from] MempoolRejection),
@@ -107,9 +108,26 @@ pub enum BitcoinServiceError {
     /// Body builders error.
     #[error("Body builders error: {0}")]
     TransactionBuilderError(String),
+    /// Fee cap exceeded
+    #[error("Fee cap exceeded: current rate {current_rate} sat/vb > max {max_rate} sat/vb (elapsed: {elapsed_secs}s / max: {max_duration_secs}s)")]
+    FeeCapExceeded {
+        /// Current fee rate as sat/vb
+        current_rate: f64,
+        /// Max fee rate in sat/vb
+        max_rate: f64,
+        /// Duration since the transaction has been blocked by max fee rate cap
+        elapsed_secs: u64,
+        /// Max duration before sending transaction above max fee rate
+        max_duration_secs: u64,
+    },
     /// Fee service operation failure.
     #[error("Fee service error: {0}")]
     FeeServiceError(#[from] FeeServiceError),
+    // #[error(transparent)]
+    // Other(#[from] anyhow::Error),
+    /// Job service error
+    #[error("Job service error: {0}")]
+    JobService(#[from] JobServiceError),
 }
 
 /// Error type for mempool rejections via testmempoolaccept method.

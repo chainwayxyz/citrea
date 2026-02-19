@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use sov_db::schema::tables::{
-    CommitmentIndicesByJobId, CommitmentIndicesByL1, JobIdOfCommitment, L2BlockByHash,
-    L2BlockByNumber, PendingL1SubmissionJobs, ProofByJobId, ProverLastScannedSlot,
-    ProverPendingCommitments, ProverStateDiffs, SequencerCommitmentByIndex,
-    ShortHeaderProofBySlotHash, SlotByHash,
+    CommitmentIndicesByJobId, CommitmentIndicesByL1, DaJobIdByProvingJobId, DaJobProgressById,
+    DaJobStatusIndex, DaTxRequestByJobId, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber,
+    PendingL1SubmissionJobs, ProofByJobId, ProverLastScannedSlot, ProverPendingCommitments,
+    ProverStateDiffs, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash,
 };
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_schema_db::{ScanDirection, SchemaBatch, DB};
@@ -190,6 +190,54 @@ impl BatchProverLedgerRollback {
 
         Ok(cache)
     }
+
+    fn rollback_da_jobs(&self, mut rollback_result: RollbackResult) -> Result {
+        let mut batch = SchemaBatch::new();
+
+        // Iterate through all jobs and delete them during rollback
+        let mut jobs_iter = self.ledger_db.iter_with_direction::<DaJobProgressById>(
+            Default::default(),
+            ScanDirection::Backward,
+        )?;
+        jobs_iter.seek_to_last();
+
+        for record in jobs_iter {
+            let record = record?;
+            let job_id = record.key;
+            let progress = record.value;
+            let status_u8 = progress.status.as_u8();
+
+            // Delete from all DA job tables
+            batch.delete::<DaTxRequestByJobId>(&job_id)?;
+            increment_table_counter!("DaTxRequestByJobId", rollback_result);
+
+            batch.delete::<DaJobProgressById>(&job_id)?;
+            increment_table_counter!("DaJobProgressById", rollback_result);
+
+            batch.delete::<DaJobStatusIndex>(&(status_u8, job_id))?;
+            increment_table_counter!("DaJobStatusIndex", rollback_result);
+        }
+
+        // Delete all entries from DaJobIdByProvingJobId (secondary index table)
+        let mut proving_job_iter = self
+            .ledger_db
+            .iter_with_direction::<DaJobIdByProvingJobId>(
+                Default::default(),
+                ScanDirection::Backward,
+            )?;
+        proving_job_iter.seek_to_last();
+
+        for record in proving_job_iter {
+            let record = record?;
+            let proving_job_id = record.key;
+
+            batch.delete::<DaJobIdByProvingJobId>(&proving_job_id)?;
+            increment_table_counter!("DaJobIdByProvingJobId", rollback_result);
+        }
+
+        self.ledger_db.write_schemas(batch)?;
+        Ok(rollback_result)
+    }
 }
 
 impl LedgerNodeRollback for BatchProverLedgerRollback {
@@ -212,6 +260,9 @@ impl LedgerNodeRollback for BatchProverLedgerRollback {
                 .ledger_db
                 .put::<ProverLastScannedSlot>(&(), &SlotNumber(l1_target));
         }
+
+        // Rollback DA jobs
+        rollback_result = self.rollback_da_jobs(rollback_result)?;
 
         let _ = self.ledger_db.flush();
         Ok(rollback_result)

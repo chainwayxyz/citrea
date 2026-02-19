@@ -4,21 +4,20 @@
 //! - Chained: Sequential transaction chains
 //! - Oldest: Parallel chains using most-confirmed UTXOs
 
-use std::collections::VecDeque;
+use std::collections::HashSet;
 use std::sync::Arc;
 
-use bitcoin::Amount;
+use bitcoin::{Amount, Txid};
 use bitcoincore_rpc::json::ListUnspentResultEntry;
 use bitcoincore_rpc::{Client, RpcApi};
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
+use sov_db::schema::types::da_jobs::DaJobStatus;
 
 use crate::error::BitcoinServiceError;
 use crate::monitoring::MonitoringService;
 use crate::network_constants::NetworkConstants;
 use crate::service::Result;
 use crate::spec::utxo::UTXO;
-use crate::tx_signer::SignedTxPair;
 use crate::REVEAL_OUTPUT_AMOUNT;
 
 /// UTXO selection strategy when queue has pending transactions.
@@ -55,7 +54,6 @@ pub struct UtxoContext {
 pub(crate) struct UtxoManager {
     client: Arc<Client>,
     monitoring: Arc<MonitoringService>,
-    tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
     network_constants: NetworkConstants,
     pub mode: UtxoSelectionMode,
 }
@@ -64,7 +62,6 @@ impl UtxoManager {
     pub fn new(
         client: Arc<Client>,
         monitoring: Arc<MonitoringService>,
-        tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
         network_constants: NetworkConstants,
         mode: UtxoSelectionMode,
     ) -> Self {
@@ -73,14 +70,25 @@ impl UtxoManager {
             monitoring,
             network_constants,
             mode,
-            tx_queue,
         }
     }
 
     /// Returns filtered UTXOs and `prev_utxo`.
-    pub async fn prepare_context(&self) -> Result<UtxoContext> {
-        let available_utxos = self.get_available_utxos().await?;
-        let prev_utxo = self.select_prev_utxo(&available_utxos).await?;
+    pub async fn prepare_context(
+        &self,
+        job_status: &DaJobStatus,
+        previous_job_in_progress: bool,
+        sent_txids: &HashSet<Txid>,
+    ) -> Result<UtxoContext> {
+        let available_utxos = self.get_available_utxos(sent_txids).await?;
+
+        let prev_utxo = match job_status {
+            DaJobStatus::InProgress => None, // Will use previous reveal utxo in create_inscription_type_1
+            _ => {
+                self.select_prev_utxo(&available_utxos, previous_job_in_progress)
+                    .await?
+            }
+        };
 
         Ok(UtxoContext {
             available_utxos,
@@ -94,28 +102,28 @@ impl UtxoManager {
     /// If queue has pending txs:
     /// - Chained mode: returns Err(BitcoinServiceError::QueueNotEmpty)
     /// - Oldest mode: uses UTXO with highest number of confirmation to start new chain
-    pub(crate) async fn select_prev_utxo(&self, available_utxos: &[UTXO]) -> Result<Option<UTXO>> {
+    pub(crate) async fn select_prev_utxo(
+        &self,
+        available_utxos: &[UTXO],
+        previous_job_in_progress: bool,
+    ) -> Result<Option<UTXO>> {
         let prev_utxo = self.get_prev_utxo().await;
-        if self.tx_queue.lock().await.is_empty() {
+        if !previous_job_in_progress {
             return Ok(prev_utxo);
         }
 
         match self.mode {
             UtxoSelectionMode::Chained => {
                 // Prevent UTXO conflicts when queue is not empty and running UtxoSelectionMode::Chained mode
-                Err(BitcoinServiceError::QueueNotEmpty)
+                Err(BitcoinServiceError::PreviousJobInProgress)
             }
-            UtxoSelectionMode::Oldest => Ok(if prev_utxo.is_some() {
-                // Latest monitored TX has been successfully accepted to mempool and can be used as starting point for another utxo chain
-                prev_utxo
-            } else {
-                // Latest monitored TX has `Queued` status and internal `get_tx_out` errors.
+            UtxoSelectionMode::Oldest => Ok(
                 // Get UTXO with most confirmations to start new chain
                 available_utxos
                     .iter()
                     .max_by_key(|utxo| utxo.confirmations)
-                    .cloned()
-            }),
+                    .cloned(),
+            ),
         }
     }
 
@@ -134,7 +142,10 @@ impl UtxoManager {
     }
 
     /// Gets available UTXOs from `list_unspent` RPC, and filter by mode.
-    pub(crate) async fn get_available_utxos(&self) -> Result<Vec<UTXO>> {
+    pub(crate) async fn get_available_utxos(
+        &self,
+        sent_txids: &HashSet<Txid>,
+    ) -> Result<Vec<UTXO>> {
         let utxos = self
             .client
             .list_unspent(Some(0), None, None, None, None)
@@ -145,7 +156,7 @@ impl UtxoManager {
 
         let filtered_utxos = match self.mode {
             UtxoSelectionMode::Chained => self.chained_mode_filter(utxos).await,
-            UtxoSelectionMode::Oldest => self.oldest_mode_filter(utxos).await,
+            UtxoSelectionMode::Oldest => self.oldest_mode_filter(utxos, sent_txids).await,
         };
 
         if filtered_utxos.is_empty() {
@@ -176,21 +187,11 @@ impl UtxoManager {
     }
 
     /// Filters UTXOs for Oldest mode.
-    async fn oldest_mode_filter(&self, utxos: Vec<ListUnspentResultEntry>) -> Vec<UTXO> {
-        let txids = self
-            .tx_queue
-            .lock()
-            .await
-            .iter()
-            .flat_map(|tx| {
-                tx.commit
-                    .tx
-                    .input
-                    .iter()
-                    .map(|input| input.previous_output.txid)
-            })
-            .collect::<Vec<_>>();
-
+    async fn oldest_mode_filter(
+        &self,
+        utxos: Vec<ListUnspentResultEntry>,
+        sent_txids: &HashSet<Txid>,
+    ) -> Vec<UTXO> {
         // When running in UtxoSelectionMode::Oldest, we're creating multiple utxos chain in parallel
         // to be able to send multiple proofs in the same block without hitting mempool policy limits.
         // To make sure there are no conflicts between parallel utxos chain,
@@ -203,7 +204,7 @@ impl UtxoManager {
                     && utxo.safe
                     && utxo.amount > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
                     // Remove utxo already in use by queued txs
-                    && !txids.contains(&utxo.txid)
+                    && !sent_txids.contains(&utxo.txid)
                     // Only keep finalized change output
                     && (utxo.vout == 0
                         || utxo.confirmations as u64 >= self.network_constants.finality_depth)

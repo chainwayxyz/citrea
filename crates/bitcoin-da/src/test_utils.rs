@@ -1,7 +1,9 @@
 //! This module provides the implementation for sending separate chunk transactions with a specified fee rate.
 
 use bitcoin::hashes::Hash;
-use sov_rollup_interface::da::{DaTxRequest, DataOnDa};
+use sov_rollup_interface::da::DataOnDa;
+use sov_rollup_interface::services::da::{DaService, DaTxRequest};
+use uuid::Uuid;
 
 use crate::error::BitcoinServiceError;
 use crate::helpers::builders::body_builders::{DaTxs, RawTxData};
@@ -11,6 +13,13 @@ use crate::helpers::builders::test_utils::{
 use crate::service::{split_proof, BitcoinService, Result};
 
 impl BitcoinService {
+    /// Send a transaction to da and wait until its completion
+    pub async fn send_transaction_and_wait(&self, tx_request: DaTxRequest) -> Result<Uuid> {
+        let (job_id, rx) = self.send_transaction(tx_request).await?;
+        rx.await??;
+        Ok(job_id)
+    }
+
     /// Sends chunks and aggregate as if they are of a Complete kind.
     pub async fn test_send_separate_chunk_transaction_with_fee_rate(
         &self,
@@ -21,6 +30,7 @@ impl BitcoinService {
 
         let da_private_key = self.da_private_key.expect("No private key set");
 
+        let sent_txids = Default::default();
         match tx_request {
             DaTxRequest::ZKProof(zkproof) => {
                 let mut txids = vec![];
@@ -33,7 +43,7 @@ impl BitcoinService {
                     RawTxData::Chunks(chunks) => {
                         for body in chunks {
                             // get all available utxos that are not already spent
-                            let utxos = self.utxo_manager.get_available_utxos().await?;
+                            let utxos = self.utxo_manager.get_available_utxos(&sent_txids).await?;
                             let utxos = utxos
                                 .into_iter()
                                 .filter(|utxo| {
@@ -76,7 +86,7 @@ impl BitcoinService {
                                 }
                                 .unwrap();
 
-                            let signed_txs = self.tx_signer.sign_da_txs(da_txs).await?;
+                            let signed_txs = self.tx_signer.sign_da_txs(da_txs, 0).await?;
 
                             reveal_chunks.push((txid, wtxid));
 
@@ -92,7 +102,7 @@ impl BitcoinService {
                             borsh::to_vec(&aggregate).expect("Aggregate serialize must not fail");
 
                         // get all available utxos that are not already spent
-                        let utxos = self.utxo_manager.get_available_utxos().await?;
+                        let utxos = self.utxo_manager.get_available_utxos(&sent_txids).await?;
                         let utxos = utxos
                             .into_iter()
                             .filter(|utxo| utxo.amount >= 50 * 10_u64.pow(8))
@@ -119,7 +129,7 @@ impl BitcoinService {
                         )
                         .unwrap();
 
-                        let signed_txs = self.tx_signer.sign_da_txs(da_txs).await?;
+                        let signed_txs = self.tx_signer.sign_da_txs(da_txs, 0).await?;
 
                         txids.extend(self.send_signed_transaction(&signed_txs[0]).await?);
                     }

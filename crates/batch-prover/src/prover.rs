@@ -706,7 +706,7 @@ where
 
         // start watching the proving jobs to finish in the background
         tokio::spawn(async move {
-            while let Some((job_id, rx)) = proving_jobs.recv().await {
+            while let Some((proving_job_id, rx)) = proving_jobs.recv().await {
                 let ProofWithDuration {
                     proof,
                     duration,
@@ -714,15 +714,19 @@ where
                 } = rx.await.expect("Proof channel should never close");
                 info!(
                     "Proving job finished {}, took {:?} seconds",
-                    job_id, duration
+                    proving_job_id, duration
                 );
 
-                let output =
-                    extract_proof_output::<Vm>(&job_id, &proof, &code_commitments_by_spec, network);
+                let output = extract_proof_output::<Vm>(
+                    &proving_job_id,
+                    &proof,
+                    &code_commitments_by_spec,
+                    network,
+                );
 
                 // stores proof and marks job as waiting for da
                 ledger_db
-                    .put_proof_by_job_id(job_id, proof.clone(), output.into(), info)
+                    .put_proof_by_job_id(proving_job_id, proof.clone(), output.into(), info)
                     .expect("Should put proof to db");
 
                 // Record the proving time metric
@@ -733,16 +737,26 @@ where
 
                 // submit the proof to the DA service in the background
                 tokio::spawn(async move {
-                    let tx_id = prover_service
-                        .submit_proof(proof, job_id)
+                    let (da_job_id, rx) = prover_service
+                        .submit_proof_by_id(proving_job_id)
                         .await
                         .expect("Failed to submit proof");
 
-                    info!("Job {} proof sent to DA", job_id);
+                    info!("Job {proving_job_id} proof submitted to DA. Da job id {da_job_id}");
+
+                    ledger_db
+                        .set_da_job_id_by_prover_job_id(proving_job_id, da_job_id)
+                        .expect("Failed to save da job by id");
+
+                    // Todo handle da job sending failure
+                    let txid = rx
+                        .await
+                        .expect("Da job channel should never close")
+                        .unwrap();
 
                     // stores tx id and removes job from pending da submission
                     ledger_db
-                        .finalize_proving_job(job_id, tx_id.into())
+                        .finalize_proving_job(proving_job_id, txid.into())
                         .expect("Should update proving job tx id");
                 });
             }
@@ -808,6 +822,7 @@ where
             .ledger_db
             .get_pending_l1_submission_jobs()
             .expect("Should get pending l1 jobs");
+
         for job_id in job_ids {
             if let hash_map::Entry::Vacant(entry) = proofs.entry(job_id) {
                 let stored_proof = self
@@ -824,23 +839,48 @@ where
         }
 
         // submit all proofs to da
-        for (job_id, proof) in proofs {
+        for (proving_job_id, _) in proofs {
             let prover_service = self.prover_service.clone();
             let ledger_db = self.ledger_db.clone();
-            info!("Submitting recovered proof for job {}", job_id);
+            info!("Submitting recovered proof for job {}", proving_job_id);
+
+            // Recovery on-going in progress proof on DA
+            let rx = if let Some(da_job_id) = ledger_db
+                .get_da_job_id_by_prover_job_id(proving_job_id)
+                .expect("DB call shouldn't fail")
+            {
+                info!(
+                    "DA job {} already exists for proving job {}",
+                    da_job_id, proving_job_id
+                );
+                prover_service
+                    .get_existing_da_job_waiter(da_job_id)
+                    .await
+                    .expect("Should recover da job receiver")
+            } else {
+                // No on going da job, submit a new one
+                let (da_job_id, rx) = prover_service
+                    .submit_proof_by_id(proving_job_id)
+                    .await
+                    .expect("Failed to submit proof");
+
+                ledger_db
+                    .set_da_job_id_by_prover_job_id(proving_job_id, da_job_id)
+                    .expect("Failed to set da job_id");
+                info!("Recovered Job {} proof sent to DA", proving_job_id);
+                rx
+            };
+
             // submit in the background
             tokio::spawn(async move {
-                let tx_id = prover_service
-                    .submit_proof(proof, job_id)
-                    .await
-                    .expect("Failed to submit transaction");
-                info!("Recovered Job {} proof sent to DA", job_id);
+                // TODO handle failure
+                let txid = rx.await.unwrap().expect("Failed to submit transaction");
 
                 // stores tx id and removes job from pending da submission
                 ledger_db
-                    .finalize_proving_job(job_id, tx_id.into())
+                    .finalize_proving_job(proving_job_id, txid.into())
                     .expect("Should update proving job tx id");
-                info!("Finalized recovered proving job: {}", job_id);
+                info!("Finalized recovered proving job: {}", proving_job_id);
             });
         }
     }
@@ -1237,7 +1277,7 @@ fn get_prev_hash_proof<DB: BatchProverLedgerOps>(
 ///
 /// # Returns
 /// A `BatchProofCircuitOutput` that contains the extracted output from the proof.
-fn extract_proof_output<Vm: ZkvmHost>(
+pub(crate) fn extract_proof_output<Vm: ZkvmHost>(
     job_id: &Uuid,
     proof: &Proof,
     code_commitments_by_spec: &HashMap<SpecId, Vm::CodeCommitment>,

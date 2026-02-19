@@ -28,7 +28,7 @@ pub mod light_client_proof;
 pub type Proof = Vec<u8>;
 
 #[cfg(feature = "native")]
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 /// Information about a local prover's execution.
 pub struct LocalProvingSessionInfo {
     /// Segments count

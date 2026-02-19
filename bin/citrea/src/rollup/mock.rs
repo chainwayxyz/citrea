@@ -76,10 +76,12 @@ impl RollupBlueprint for MockDemoRollup {
         _require_wallet_check: bool,
         _task_manager: TaskExecutor,
         _network: Network,
+        ledger_db: LedgerDB,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
-        Ok(Arc::new(MockDaService::new(
+        Ok(Arc::new(MockDaService::new_with_ledger_db(
             rollup_config.da.sender_address.clone(),
             &rollup_config.da.db_path,
+            ledger_db,
         )))
     }
 

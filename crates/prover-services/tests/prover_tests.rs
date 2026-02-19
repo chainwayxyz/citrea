@@ -25,7 +25,7 @@ async fn test_successful_prover_execution() {
 
     let header_hash = MockHash::from([0; 32]);
     // Spawn mock proving in the background
-    let (id, rx) = start_proof(&prover_service, header_hash).await;
+    let (_, rx) = start_proof(&prover_service, header_hash).await;
 
     // Signal finish to 1st proof
     assert!(vm.finish_next_proof());
@@ -36,7 +36,7 @@ async fn test_successful_prover_execution() {
     let hash_from_proof = extract_output_header(&proof.proof);
     assert_eq!(hash_from_proof, header_hash);
 
-    prover_service.submit_proof(proof.proof, id).await.unwrap();
+    prover_service.submit_proof(proof.proof).await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]

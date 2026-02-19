@@ -2847,6 +2847,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "backoff",
+ "bincode",
  "bitcoin",
  "bitcoincore-rpc",
  "borsh",
@@ -2861,6 +2862,7 @@ dependencies = [
  "lru 0.13.0",
  "metrics",
  "metrics-derive",
+ "parking_lot",
  "rand 0.8.5",
  "reqwest",
  "reth-tasks",
@@ -2868,10 +2870,12 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.8",
+ "sov-db",
  "sov-rollup-interface",
  "thiserror 2.0.12",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -12120,10 +12124,12 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.8",
+ "sov-db",
  "sov-rollup-interface",
  "tempfile",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
