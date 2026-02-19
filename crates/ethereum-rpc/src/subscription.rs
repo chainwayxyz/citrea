@@ -67,25 +67,33 @@ async fn head_subscriber_task(
     sink: Arc<SubscriptionSink>,
 ) {
     loop {
-        match rx.recv().await {
-            Ok(block) => {
-                let msg = SubscriptionMessage::new(
-                    sink.method_name(),
-                    sink.subscription_id(),
-                    block.as_ref(),
-                )
-                .unwrap();
-                if sink.send_timeout(msg, SUBSCRIPTION_TIMEOUT).await.is_err() {
-                    break;
+        tokio::select! {
+            biased;
+            _ = sink.closed() => {
+                break;
+            }
+            maybe_block = rx.recv() => {
+                match maybe_block {
+                    Ok(block) => {
+                        let msg = SubscriptionMessage::new(
+                            sink.method_name(),
+                            sink.subscription_id(),
+                            block.as_ref(),
+                        )
+                        .unwrap();
+                        if sink.send_timeout(msg, SUBSCRIPTION_TIMEOUT).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(RecvError::Lagged(n)) => {
+                        warn!(target: "subscriptions", "head subscriber lagged by {} messages", n);
+                        if sink.is_closed() {
+                            break;
+                        }
+                    }
+                    Err(RecvError::Closed) => break,
                 }
             }
-            Err(RecvError::Lagged(n)) => {
-                warn!(target: "subscriptions", "head subscriber lagged by {} messages", n);
-                if sink.is_closed() {
-                    break;
-                }
-            }
-            Err(RecvError::Closed) => break,
         }
     }
 }
@@ -97,32 +105,40 @@ async fn log_subscriber_task(
 ) {
     let filtered_params = FilteredParams::new(Some(filter));
     loop {
-        match rx.recv().await {
-            Ok(logs) => {
-                for log in logs.iter() {
-                    let num_hash =
-                        BlockNumHash::new(log.block_number.unwrap(), log.block_hash.unwrap());
+        tokio::select! {
+            biased;
+            _ = sink.closed() => {
+                break;
+            }
+            maybe_logs = rx.recv() => {
+                match maybe_logs {
+                    Ok(logs) => {
+                        for log in logs.iter() {
+                            let num_hash =
+                                BlockNumHash::new(log.block_number.unwrap(), log.block_hash.unwrap());
 
-                    if log_matches_filter(num_hash, &log.inner, &filtered_params) {
-                        let msg = SubscriptionMessage::new(
-                            sink.method_name(),
-                            sink.subscription_id(),
-                            log,
-                        )
-                        .unwrap();
-                        if sink.send_timeout(msg, SUBSCRIPTION_TIMEOUT).await.is_err() {
-                            return;
+                            if log_matches_filter(num_hash, &log.inner, &filtered_params) {
+                                let msg = SubscriptionMessage::new(
+                                    sink.method_name(),
+                                    sink.subscription_id(),
+                                    log,
+                                )
+                                .unwrap();
+                                if sink.send_timeout(msg, SUBSCRIPTION_TIMEOUT).await.is_err() {
+                                    break;
+                                }
+                            }
                         }
                     }
+                    Err(RecvError::Lagged(n)) => {
+                        warn!(target: "subscriptions", "log subscriber lagged by {} messages", n);
+                        if sink.is_closed() {
+                            break;
+                        }
+                    }
+                    Err(RecvError::Closed) => break,
                 }
             }
-            Err(RecvError::Lagged(n)) => {
-                warn!(target: "subscriptions", "log subscriber lagged by {} messages", n);
-                if sink.is_closed() {
-                    return;
-                }
-            }
-            Err(RecvError::Closed) => return,
         }
     }
 }
