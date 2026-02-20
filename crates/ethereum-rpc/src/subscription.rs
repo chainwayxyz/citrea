@@ -27,8 +27,8 @@ impl SubscriptionManager {
         ledger_db: LedgerDB,
         l2_block_rx: broadcast::Receiver<u64>,
     ) -> Self {
-        let (heads_tx, _) = broadcast::channel(16);
-        let (logs_tx, _) = broadcast::channel(16);
+        let (heads_tx, _) = broadcast::channel(256);
+        let (logs_tx, _) = broadcast::channel(256);
 
         let l2_block_handle = tokio::spawn(l2_block_event_handler::<C>(
             storage,
