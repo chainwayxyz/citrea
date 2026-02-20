@@ -2,6 +2,8 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Instant;
 
+use citrea_common::utils::shutdown_requested;
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::schema::tables::ModuleAccessoryState;
 use sov_schema_db::ScanDirection;
 use tracing::info;
@@ -10,6 +12,7 @@ use tracing::info;
 pub(crate) fn prune_native_db(
     native_db: Arc<sov_schema_db::DB>,
     up_to_block: u64,
+    shutdown_signal: Option<&GracefulShutdown>,
 ) -> anyhow::Result<()> {
     info!("Pruning native DB, up to L2 block {}", up_to_block);
     let start = Instant::now();
@@ -27,6 +30,10 @@ pub(crate) fn prune_native_db(
     let mut keys_to_delete = vec![];
 
     while let Some(Ok(entry)) = iter.next() {
+        if shutdown_signal.is_some_and(shutdown_requested) {
+            anyhow::bail!("Shutting down pruner");
+        }
+
         let key = &entry.key.0;
         let version = entry.key.1;
 

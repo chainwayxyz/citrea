@@ -43,7 +43,11 @@ impl PrunerService {
                     if let Ok(current_l2_block) = current_l2_block {
                         debug!("Pruner received L2 {}, checking criteria", current_l2_block);
                         if let Some(up_to_block) = self.pruner.should_prune(self.last_pruned_block, current_l2_block) {
-                            match self.pruner.prune(node_type, up_to_block).await {
+                            match self
+                                .pruner
+                                .prune(node_type, up_to_block, Some(shutdown_signal.clone()))
+                                .await
+                            {
                                 Ok(()) => {
                                     self.last_pruned_block = up_to_block;
                                 }

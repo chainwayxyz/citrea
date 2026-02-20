@@ -3,13 +3,14 @@ use std::sync::Arc;
 use citrea_common::config::PruningConfig;
 use citrea_common::NodeType;
 use futures::future;
-use ledger::prune_ledger;
 use native::prune_native_db;
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::schema::tables::{LastPrunedBlock, LastPrunedL2Height};
 use state::prune_state_db;
 
 use self::criteria::{Criteria, DistanceCriteria};
 pub use self::service::*;
+use crate::pruning::ledger::prune_ledger_db;
 
 pub(crate) mod criteria;
 pub(crate) mod ledger;
@@ -80,19 +81,35 @@ impl Pruner {
     }
 
     /// Prune everything
-    pub async fn prune(&self, node_type: NodeType, up_to_block: u64) -> anyhow::Result<()> {
+    pub async fn prune(
+        &self,
+        node_type: NodeType,
+        up_to_block: u64,
+        shutdown_signal: Option<GracefulShutdown>,
+    ) -> anyhow::Result<()> {
         let ledger_db = self.ledger_db.clone();
         let native_db = self.native_db.clone();
         let state_db = self.state_db.clone();
 
-        let ledger_pruning_handle =
-            tokio::task::spawn_blocking(move || prune_ledger(node_type, ledger_db, up_to_block));
+        let ledger_shutdown_signal = shutdown_signal.clone();
+        let ledger_pruning_handle = tokio::task::spawn_blocking(move || {
+            prune_ledger_db(
+                node_type,
+                ledger_db,
+                up_to_block,
+                ledger_shutdown_signal.as_ref(),
+            )
+        });
 
-        let state_db_pruning_handle =
-            tokio::task::spawn_blocking(move || prune_state_db(state_db, up_to_block));
+        let state_shutdown_signal = shutdown_signal.clone();
+        let state_db_pruning_handle = tokio::task::spawn_blocking(move || {
+            prune_state_db(state_db, up_to_block, state_shutdown_signal.as_ref())
+        });
 
-        let native_db_pruning_handle =
-            tokio::task::spawn_blocking(move || prune_native_db(native_db, up_to_block));
+        let native_shutdown_signal = shutdown_signal.clone();
+        let native_db_pruning_handle = tokio::task::spawn_blocking(move || {
+            prune_native_db(native_db, up_to_block, native_shutdown_signal.as_ref())
+        });
 
         let [ledger_result, state_result, native_result] = future::join_all([
             ledger_pruning_handle,

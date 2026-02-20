@@ -1,4 +1,6 @@
+use citrea_common::utils::shutdown_requested;
 use citrea_common::NodeType;
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::schema::tables::{L2BlockByNumber, ProverStateDiffs};
 use sov_db::schema::types::L2BlockNumber;
 use sov_schema_db::{ScanDirection, SchemaBatch, DB};
@@ -8,6 +10,7 @@ pub(crate) fn prune_l2_blocks(
     node_type: NodeType,
     ledger_db: &DB,
     up_to_block: u64,
+    shutdown_signal: Option<&GracefulShutdown>,
 ) -> anyhow::Result<u64> {
     let mut l2_blocks = ledger_db
         .iter_with_direction::<L2BlockByNumber>(Default::default(), ScanDirection::Forward)?;
@@ -16,6 +19,10 @@ pub(crate) fn prune_l2_blocks(
     let mut batch = SchemaBatch::new();
     let mut pruned = 0;
     for record in l2_blocks {
+        if shutdown_signal.is_some_and(shutdown_requested) {
+            anyhow::bail!("Shutting down pruner");
+        }
+
         let Ok(record) = record else {
             continue;
         };
