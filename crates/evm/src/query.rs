@@ -1533,7 +1533,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(working_set)
             .expect("EVM chain config should be set");
 
-        let cfg_env = get_cfg_env(cfg, evm_spec_id);
+        let mut cfg_env = get_cfg_env(cfg, evm_spec_id);
+        // See:
+        // <https://github.com/paradigmxyz/reth/blob/ed7da87da4de340a437bf46f39a7e1397ac82065/crates/rpc/rpc-eth-api/src/helpers/call.rs#L734>
+        cfg_env.disable_base_fee = true;
 
         let l1_fee_block_num = match block_number {
             // use l1 fee rate of latest block for pending block
