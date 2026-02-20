@@ -173,9 +173,9 @@ alloy-signer-local = { version = "0.13.0", default-features = false }
 
 citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "10ff3e2" }
 
-clementine-tx-sender = { git = "https://github.com/chainwayxyz/clementine", package = "clementine-tx-sender", rev = "a66dda597f7684d775857c8633a11d7259c156e5", features = ["citrea", "standalone", "testing"] }
+clementine-tx-sender = { git = "https://github.com/chainwayxyz/clementine", package = "clementine-tx-sender", rev = "3d7c59f81b6e27fcd7ae468d1f759f9138f72e92", features = ["citrea", "standalone", "testing"] }
 
-tx-sender-jsonrpc-client = { git = "https://github.com/chainwayxyz/clementine", package = "tx-sender-jsonrpc-client", rev = "a66dda597f7684d775857c8633a11d7259c156e5", features = ["citrea"] }
+tx-sender-jsonrpc-client = { git = "https://github.com/chainwayxyz/clementine", package = "tx-sender-jsonrpc-client", rev = "3d7c59f81b6e27fcd7ae468d1f759f9138f72e92", features = ["citrea"] }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "13fb11651212868bb1581146305770654b909637" }

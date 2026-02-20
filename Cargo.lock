@@ -4315,7 +4315,7 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 [[package]]
 name = "clementine-config"
 version = "0.6.4"
-source = "git+https://github.com/chainwayxyz/clementine?rev=a66dda597f7684d775857c8633a11d7259c156e5#a66dda597f7684d775857c8633a11d7259c156e5"
+source = "git+https://github.com/chainwayxyz/clementine?rev=3d7c59f81b6e27fcd7ae468d1f759f9138f72e92#3d7c59f81b6e27fcd7ae468d1f759f9138f72e92"
 dependencies = [
  "bitcoin",
  "clementine-errors",
@@ -4327,7 +4327,7 @@ dependencies = [
 [[package]]
 name = "clementine-errors"
 version = "0.6.4"
-source = "git+https://github.com/chainwayxyz/clementine?rev=a66dda597f7684d775857c8633a11d7259c156e5#a66dda597f7684d775857c8633a11d7259c156e5"
+source = "git+https://github.com/chainwayxyz/clementine?rev=3d7c59f81b6e27fcd7ae468d1f759f9138f72e92#3d7c59f81b6e27fcd7ae468d1f759f9138f72e92"
 dependencies = [
  "alloy 0.13.0",
  "bitcoin",
@@ -4344,7 +4344,7 @@ dependencies = [
 [[package]]
 name = "clementine-extended-rpc"
 version = "0.6.4"
-source = "git+https://github.com/chainwayxyz/clementine?rev=a66dda597f7684d775857c8633a11d7259c156e5#a66dda597f7684d775857c8633a11d7259c156e5"
+source = "git+https://github.com/chainwayxyz/clementine?rev=3d7c59f81b6e27fcd7ae468d1f759f9138f72e92#3d7c59f81b6e27fcd7ae468d1f759f9138f72e92"
 dependencies = [
  "async-trait",
  "bitcoin",
@@ -4365,7 +4365,7 @@ dependencies = [
 [[package]]
 name = "clementine-primitives"
 version = "0.6.4"
-source = "git+https://github.com/chainwayxyz/clementine?rev=a66dda597f7684d775857c8633a11d7259c156e5#a66dda597f7684d775857c8633a11d7259c156e5"
+source = "git+https://github.com/chainwayxyz/clementine?rev=3d7c59f81b6e27fcd7ae468d1f759f9138f72e92#3d7c59f81b6e27fcd7ae468d1f759f9138f72e92"
 dependencies = [
  "bitcoin",
  "eyre",
@@ -4379,7 +4379,7 @@ dependencies = [
 [[package]]
 name = "clementine-tx-sender"
 version = "0.6.4"
-source = "git+https://github.com/chainwayxyz/clementine?rev=a66dda597f7684d775857c8633a11d7259c156e5#a66dda597f7684d775857c8633a11d7259c156e5"
+source = "git+https://github.com/chainwayxyz/clementine?rev=3d7c59f81b6e27fcd7ae468d1f759f9138f72e92#3d7c59f81b6e27fcd7ae468d1f759f9138f72e92"
 dependencies = [
  "async-trait",
  "bitcoin",
@@ -4402,6 +4402,7 @@ dependencies = [
  "sqlx",
  "tempfile",
  "tokio",
+ "tokio-retry",
  "tracing",
  "tracing-subscriber 0.3.20",
  "tx-sender-jsonrpc-client",
@@ -4411,7 +4412,7 @@ dependencies = [
 [[package]]
 name = "clementine-utils"
 version = "0.6.4"
-source = "git+https://github.com/chainwayxyz/clementine?rev=a66dda597f7684d775857c8633a11d7259c156e5#a66dda597f7684d775857c8633a11d7259c156e5"
+source = "git+https://github.com/chainwayxyz/clementine?rev=3d7c59f81b6e27fcd7ae468d1f759f9138f72e92#3d7c59f81b6e27fcd7ae468d1f759f9138f72e92"
 dependencies = [
  "bitcoin",
  "clementine-errors",
@@ -13938,7 +13939,7 @@ dependencies = [
 [[package]]
 name = "tx-sender-jsonrpc-client"
 version = "0.6.4"
-source = "git+https://github.com/chainwayxyz/clementine?rev=a66dda597f7684d775857c8633a11d7259c156e5#a66dda597f7684d775857c8633a11d7259c156e5"
+source = "git+https://github.com/chainwayxyz/clementine?rev=3d7c59f81b6e27fcd7ae468d1f759f9138f72e92#3d7c59f81b6e27fcd7ae468d1f759f9138f72e92"
 dependencies = [
  "bitcoin",
  "jsonrpsee",
@@ -13948,7 +13949,7 @@ dependencies = [
 [[package]]
 name = "tx-sender-types"
 version = "0.6.4"
-source = "git+https://github.com/chainwayxyz/clementine?rev=a66dda597f7684d775857c8633a11d7259c156e5#a66dda597f7684d775857c8633a11d7259c156e5"
+source = "git+https://github.com/chainwayxyz/clementine?rev=3d7c59f81b6e27fcd7ae468d1f759f9138f72e92#3d7c59f81b6e27fcd7ae468d1f759f9138f72e92"
 dependencies = [
  "bitcoin",
  "clementine-primitives",
