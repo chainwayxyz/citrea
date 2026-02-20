@@ -4,7 +4,7 @@ use sov_db::schema::tables::{
     ProofsBySlotNumberV2, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber,
 };
 use sov_db::schema::types::{L2BlockNumber, SlotNumber};
-use sov_schema_db::{ScanDirection, DB};
+use sov_schema_db::{ScanDirection, SchemaBatch, DB};
 
 pub(crate) fn prune_slots(
     node_type: NodeType,
@@ -15,6 +15,7 @@ pub(crate) fn prune_slots(
         .iter_with_direction::<L2RangeByL1Height>(Default::default(), ScanDirection::Forward)?;
     slots_to_l2_range.seek_to_first();
 
+    let mut batch = SchemaBatch::new();
     let mut deleted = 0;
     for record in slots_to_l2_range {
         let Ok(record) = record else {
@@ -28,28 +29,30 @@ pub(crate) fn prune_slots(
             break;
         }
 
-        ledger_db.delete::<L2RangeByL1Height>(&slot_height)?;
-        ledger_db.delete::<CommitmentsByNumber>(&slot_height)?;
+        batch.delete::<L2RangeByL1Height>(&slot_height)?;
+        batch.delete::<CommitmentsByNumber>(&slot_height)?;
 
         if matches!(node_type, NodeType::BatchProver) {
-            ledger_db.delete::<ProofsBySlotNumber>(&slot_height)?;
-            ledger_db.delete::<ProofsBySlotNumberV2>(&slot_height)?;
+            batch.delete::<ProofsBySlotNumber>(&slot_height)?;
+            batch.delete::<ProofsBySlotNumberV2>(&slot_height)?;
         }
 
         if matches!(node_type, NodeType::LightClientProver) {
-            ledger_db.delete::<LightClientProofBySlotNumber>(&slot_height)?;
+            batch.delete::<LightClientProofBySlotNumber>(&slot_height)?;
         }
 
         if !matches!(node_type, NodeType::Sequencer) {
-            prune_slot_by_hash(node_type, ledger_db, slot_height)?;
+            prune_slot_by_hash(node_type, ledger_db, slot_height, &mut batch)?;
         }
 
         if matches!(node_type, NodeType::FullNode) {
-            prune_verified_proofs_by_slot_number(ledger_db, slot_height)?;
+            prune_verified_proofs_by_slot_number(ledger_db, slot_height, &mut batch)?;
         }
 
         deleted += 1;
     }
+
+    ledger_db.write_schemas(batch)?;
 
     Ok(deleted)
 }
@@ -58,6 +61,7 @@ fn prune_slot_by_hash(
     node_type: NodeType,
     ledger_db: &DB,
     slot_number: SlotNumber,
+    batch: &mut SchemaBatch,
 ) -> anyhow::Result<()> {
     let mut slots =
         ledger_db.iter_with_direction::<SlotByHash>(Default::default(), ScanDirection::Forward)?;
@@ -73,10 +77,10 @@ fn prune_slot_by_hash(
         }
 
         if !matches!(node_type, NodeType::LightClientProver) {
-            ledger_db.delete::<ShortHeaderProofBySlotHash>(&record.key)?;
+            batch.delete::<ShortHeaderProofBySlotHash>(&record.key)?;
         }
 
-        ledger_db.delete::<SlotByHash>(&record.key)?;
+        batch.delete::<SlotByHash>(&record.key)?;
     }
 
     Ok(())
@@ -85,6 +89,7 @@ fn prune_slot_by_hash(
 fn prune_verified_proofs_by_slot_number(
     ledger_db: &DB,
     slot_number: SlotNumber,
+    batch: &mut SchemaBatch,
 ) -> anyhow::Result<()> {
     let mut verified_proofs_by_number = ledger_db
         .iter_with_direction::<VerifiedBatchProofsBySlotNumber>(
@@ -102,7 +107,7 @@ fn prune_verified_proofs_by_slot_number(
             break;
         }
 
-        ledger_db.delete::<VerifiedBatchProofsBySlotNumber>(&record.key)?;
+        batch.delete::<VerifiedBatchProofsBySlotNumber>(&record.key)?;
     }
 
     Ok(())

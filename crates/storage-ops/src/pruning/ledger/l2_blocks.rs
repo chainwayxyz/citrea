@@ -1,7 +1,7 @@
 use citrea_common::NodeType;
 use sov_db::schema::tables::{L2BlockByNumber, ProverStateDiffs};
 use sov_db::schema::types::L2BlockNumber;
-use sov_schema_db::{ScanDirection, DB};
+use sov_schema_db::{ScanDirection, SchemaBatch, DB};
 
 /// Prunes L2 blocks by removing transaction bodies while keeping block headers.
 pub(crate) fn prune_l2_blocks(
@@ -13,6 +13,7 @@ pub(crate) fn prune_l2_blocks(
         .iter_with_direction::<L2BlockByNumber>(Default::default(), ScanDirection::Forward)?;
     l2_blocks.seek_to_first();
 
+    let mut batch = SchemaBatch::new();
     let mut pruned = 0;
     for record in l2_blocks {
         let Ok(record) = record else {
@@ -30,14 +31,16 @@ pub(crate) fn prune_l2_blocks(
             tx.body = None; // Clear tx body
         }
 
-        ledger_db.put::<L2BlockByNumber>(&l2_block_number, &pruned_block)?;
+        batch.put::<L2BlockByNumber>(&l2_block_number, &pruned_block)?;
 
         if matches!(node_type, NodeType::BatchProver) {
-            ledger_db.delete::<ProverStateDiffs>(&l2_block_number)?;
+            batch.delete::<ProverStateDiffs>(&l2_block_number)?;
         }
 
         pruned += 1;
     }
+
+    ledger_db.write_schemas(batch)?;
 
     Ok(pruned)
 }
