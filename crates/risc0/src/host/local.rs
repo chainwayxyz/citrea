@@ -60,6 +60,8 @@ impl LocalProver {
                 !with_prove,
                 "Prove should not be called with prove in dev mode"
             );
+            // Set risc0 dev mode so in prover opts dev mode is enabled
+            env::set_var("RISC0_DEV_MODE", "1");
         } else if with_prove {
             env::remove_var("RISC0_DEV_MODE");
         } else {
