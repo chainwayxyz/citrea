@@ -24,6 +24,10 @@ resources/bitcoin/inscription_txs/
 !/docker/credentials/bridge-0.addr
 !/docker/credentials/bridge-0.key
 
+# Docker build artifacts (copied during build)
+/docker/full-node/citrea
+/docker/full-node/genesis/
+
 adapters/solana/libyellowstone_grpc_geyser.dylib
 
 reveal_*.tx

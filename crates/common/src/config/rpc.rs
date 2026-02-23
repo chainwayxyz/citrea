@@ -56,6 +56,11 @@ const fn default_enable_filters() -> bool {
     true
 }
 
+#[inline]
+const fn default_max_sync_send_timeout_ms() -> u64 {
+    20_000
+}
+
 /// RPC configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize, Default, Serialize)]
 pub struct RpcConfig {
@@ -98,6 +103,10 @@ pub struct RpcConfig {
     /// Enable filter RPCs
     #[serde(default = "default_enable_filters")]
     pub enable_filters: bool,
+    /// Maximum timeout in milliseconds for eth_sendRawTransactionSync (EIP-7966) (defaults to 20 seconds)
+    /// This should be kept below timeout in order not to hit default timeout error.
+    #[serde(default = "default_max_sync_send_timeout_ms")]
+    pub max_sync_send_timeout_ms: u64,
     /// API key for protected JSON-RPC methods
     pub api_key: Option<String>,
 }
@@ -162,6 +171,10 @@ impl FromEnv for RpcConfig {
                 .ok()
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_enable_filters),
+            max_sync_send_timeout_ms: read_env("RPC_MAX_SYNC_SEND_TIMEOUT_MS")
+                .ok()
+                .and_then(|val| val.parse().ok())
+                .unwrap_or_else(default_max_sync_send_timeout_ms),
             api_key: read_env("RPC_API_KEY").ok(),
         })
     }
@@ -187,6 +200,7 @@ impl fmt::Display for RpcConfig {
             .field("proving_jobs_limit", &self.proving_jobs_limit)
             .field("timeout", &self.timeout)
             .field("enable_filters", &self.enable_filters)
+            .field("max_sync_send_timeout_ms", &self.max_sync_send_timeout_ms)
             .finish()
     }
 }

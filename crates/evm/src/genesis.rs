@@ -166,7 +166,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         config: &<Self as sov_modules_api::Module>::Config,
         working_set: &mut WorkingSet<C::Storage>,
     ) {
-        let mut evm_db = self.get_db(working_set);
+        let citrea_spec = fork_from_block_number(0);
+
+        // the spec id param doesn't matter here at all
+        let mut evm_db = self.get_db(working_set, citrea_spec.spec_id);
 
         for acc in &config.data {
             let code = Bytecode::new_raw(acc.code.clone());
@@ -203,8 +206,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         self.cfg.set(&chain_cfg, working_set);
-
-        let citrea_spec = fork_from_block_number(0);
 
         let evm_spec = citrea_spec_id_to_evm_spec_id(citrea_spec.spec_id);
 

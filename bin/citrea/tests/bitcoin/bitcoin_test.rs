@@ -103,8 +103,7 @@ impl TestCase for BitcoinReorgTest {
             .await?;
         assert!(matches!(tx_status, Some(TxStatus::InMempool { .. })));
 
-        // Wait for re-org monitoring
-        tokio::time::sleep(Duration::from_secs(5)).await;
+        da1.wait_mempool_len(2, None).await?;
 
         // Seq TXs should be rebroadcasted after re-org
         let mempool1 = da1.get_raw_mempool().await?;

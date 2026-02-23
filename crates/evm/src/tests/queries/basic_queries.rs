@@ -1,9 +1,7 @@
-use std::str::FromStr;
-
 use alloy_eips::eip2930::{AccessList, AccessListItem, AccessListWithGasUsed};
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::{AnyTransactionReceipt, TransactionResponse};
-use alloy_primitives::{address, b256, Address, TxKind, B256, U256, U64};
+use alloy_primitives::{address, b256, TxKind, B256, U256, U64};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use alloy_rpc_types_eth::Block as AlloyRpcBlock;
 use alloy_serde::WithOtherFields;
@@ -307,9 +305,7 @@ fn call_test() {
     let fail_result = evm.get_call_inner(
         TransactionRequest {
             from: Some(signer.address()),
-            to: Some(TxKind::Call(address!(
-                "eeb03d20dae810f52111b853b31c8be6f30f4cd3"
-            ))),
+            to: Some(TxKind::Call(signer.address().create(7))),
             gas: Some(100000),
             gas_price: Some(100000000),
             max_fee_per_gas: None,
@@ -357,9 +353,7 @@ fn call_test() {
     let call_with_hash_nonce_too_low_result = evm.get_call_inner(
         TransactionRequest {
             from: Some(signer.address()),
-            to: Some(TxKind::Call(address!(
-                "eeb03d20dae810f52111b853b31c8be6f30f4cd3"
-            ))),
+            to: Some(TxKind::Call(signer.address().create(7))),
             gas: Some(100000),
             gas_price: Some(100000000),
             max_fee_per_gas: None,
@@ -386,9 +380,7 @@ fn call_test() {
     let nonce_too_low_result = evm.get_call_inner(
         TransactionRequest {
             from: Some(signer.address()),
-            to: Some(TxKind::Call(address!(
-                "eeb03d20dae810f52111b853b31c8be6f30f4cd3"
-            ))),
+            to: Some(TxKind::Call(signer.address().create(7))),
             gas: Some(100000),
             gas_price: Some(100000000),
             max_fee_per_gas: None,
@@ -806,16 +798,11 @@ fn test_queries_with_forks() {
     let fork_fn = |_: u64| Fork::new(SovSpecId::latest(), 3);
 
     let caller = CallerContract::default();
-    let input_data = caller.call_set_call_data(
-        Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
-        42,
-    );
+    let input_data = caller.call_set_call_data(signer.address().create(0), 42);
 
     let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(TxKind::Call(address!(
-            "5ccda3e6d071a059f00d4f3f25a1adc244eb5c93"
-        ))),
+        to: Some(TxKind::Call(signer.address().create(2))),
         gas: Some(10000000),
         gas_price: Some(100),
         max_fee_per_gas: None,
@@ -874,7 +861,7 @@ fn test_queries_with_forks() {
         form_access_list,
         AccessListWithGasUsed {
             access_list: AccessList(vec![AccessListItem {
-                address: address!("819c5497b157177315e1204f52e588b393771719"),
+                address: signer.address().create(0),
                 storage_keys: vec![B256::ZERO],
             }]),
             gas_used: U256::from(30558),
