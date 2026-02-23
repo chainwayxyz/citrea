@@ -20,6 +20,7 @@ const SUBSCRIPTION_TIMEOUT: Duration = Duration::from_secs(1);
 //  because they remove uniq_sub on drop, so a simple clone would not work
 //  to keep the subscription alive.
 type SubSinkRc = Arc<SubscriptionSink>;
+type LogSubscription = (Option<Filter>, SubSinkRc);
 
 pub(crate) struct SubscriptionManager {
     l2_block_handle: JoinHandle<()>,
@@ -27,7 +28,7 @@ pub(crate) struct SubscriptionManager {
     heads_notifier_handle: JoinHandle<()>,
     gc_handle: JoinHandle<()>,
     head_subscriptions: Arc<RwLock<Vec<SubSinkRc>>>,
-    logs_subscriptions: Arc<RwLock<Vec<(Filter, SubSinkRc)>>>,
+    logs_subscriptions: Arc<RwLock<Vec<LogSubscription>>>,
 }
 
 impl SubscriptionManager {
@@ -78,7 +79,7 @@ impl SubscriptionManager {
 
     pub async fn register_new_logs_subscription(
         &self,
-        filter: Filter,
+        filter: Option<Filter>,
         subscription: SubscriptionSink,
     ) {
         let mut logs_subscriptions = self.logs_subscriptions.write().await;
@@ -97,7 +98,7 @@ impl Drop for SubscriptionManager {
 
 async fn collect_gc(
     head_subscriptions: Arc<RwLock<Vec<SubSinkRc>>>,
-    logs_subscriptions: Arc<RwLock<Vec<(Filter, SubSinkRc)>>>,
+    logs_subscriptions: Arc<RwLock<Vec<LogSubscription>>>,
 ) {
     loop {
         tokio::time::sleep(GC_TICK).await;
@@ -139,7 +140,7 @@ pub async fn new_heads_notifier(
 
 pub async fn logs_notifier(
     mut rx: mpsc::Receiver<Vec<Log>>,
-    logs_subscriptions: Arc<RwLock<Vec<(Filter, SubSinkRc)>>>,
+    logs_subscriptions: Arc<RwLock<Vec<LogSubscription>>>,
 ) {
     while let Some(logs) = rx.recv().await {
         // Acquire the read lock here to prevent starving the writes.
@@ -149,7 +150,7 @@ pub async fn logs_notifier(
                 let num_hash =
                     BlockNumHash::new(log.block_number.unwrap(), log.block_hash.unwrap());
 
-                if log_matches_filter(num_hash, &log.inner, &FilteredParams::new(Some(filter))) {
+                if log_matches_filter(num_hash, &log.inner, &FilteredParams::new(filter)) {
                     let msg = SubscriptionMessage::new(
                         subscription.method_name(),
                         subscription.subscription_id(),
