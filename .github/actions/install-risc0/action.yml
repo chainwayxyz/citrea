@@ -14,7 +14,7 @@ runs:
       uses: ubicloud/cache@v4
       with:
         path: ~/.risc0
-        key: risc0-${{ runner.os }}-cargo-risczero-3.0.3-r0vm-3.0.3-rust-1.88.0
+        key: risc0-${{ runner.os }}-cargo-risczero-3.0.3-r0vm-3.0.3-rust-1.91.1
 
     - name: Install risc0
       if: steps.cache-risc0.outputs.cache-hit != 'true'
@@ -27,7 +27,7 @@ runs:
         rzup install cargo-risczero 3.0.3
         rzup install cpp
         rzup install r0vm 3.0.3
-        rzup install rust 1.88.0
+        rzup install rust 1.91.1
 
     - name: Add risc0 to PATH
       shell: bash
@@ -38,4 +38,4 @@ runs:
       run: |
         rzup default cargo-risczero 3.0.3
         rzup default r0vm 3.0.3
-        rzup default rust 1.88.0
+        rzup default rust 1.91.1
