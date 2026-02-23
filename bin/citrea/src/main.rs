@@ -19,7 +19,7 @@ use citrea_stf::genesis_config::GenesisPaths;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use clap::Parser;
 use metrics_exporter_prometheus::PrometheusBuilder;
-use reth_tasks::TaskManager;
+use reth_tasks::TaskExecutor;
 use short_header_proof_provider::{
     NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
 };
@@ -239,7 +239,7 @@ where
         rollup_config.rpc.clone(),
     )?;
 
-    let task_executor = task_manager.executor();
+    let task_executor = task_manager.clone();
 
     if matches!(node_type, NodeWithConfig::LightClientProver(_)) {
         register_healthcheck_rpc_light_client_prover(&mut rpc_module, da_service.clone())
@@ -412,19 +412,34 @@ where
 }
 
 /// Wait for a termination signal and cancel all running tasks
-pub async fn wait_shutdown(mut task_manager: TaskManager) {
+pub async fn wait_shutdown(task_manager: TaskExecutor) {
     let mut term_signal =
         signal(SignalKind::terminate()).expect("Failed to create termination signal");
     let mut interrupt_signal =
         signal(SignalKind::interrupt()).expect("Failed to create interrupt signal");
 
     let wait_duration = Duration::from_secs(5);
+    let mut task_manager_handle = task_manager.take_task_manager_handle();
 
-    tokio::select! {
-        _ = signal::ctrl_c() => {}
-        _ = term_signal.recv() => {},
-        _ = interrupt_signal.recv() => {}
-        _= &mut task_manager => {}
+    if let Some(handle) = &mut task_manager_handle {
+        tokio::select! {
+            _ = signal::ctrl_c() => {}
+            _ = term_signal.recv() => {},
+            _ = interrupt_signal.recv() => {}
+            task_result = handle => {
+                match task_result {
+                    Ok(Ok(())) => {}
+                    Ok(Err(err)) => error!("Critical task panic detected: {err}"),
+                    Err(err) => error!("Task manager join error: {err}"),
+                }
+            }
+        }
+    } else {
+        tokio::select! {
+            _ = signal::ctrl_c() => {}
+            _ = term_signal.recv() => {},
+            _ = interrupt_signal.recv() => {}
+        }
     }
 
     info!("Graceful shutdown initiated...");

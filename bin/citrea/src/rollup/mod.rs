@@ -20,7 +20,7 @@ use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use citrea_storage_ops::pruning::PrunerService;
 use citrea_storage_ops::rollback::Rollback;
 use jsonrpsee::RpcModule;
-use reth_tasks::{TaskExecutor, TaskManager};
+use reth_tasks::TaskExecutor;
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
@@ -61,7 +61,7 @@ pub struct Storage {
 /// Group for initialization dependencies
 pub struct Dependencies<T: RollupBlueprint> {
     /// The task manager
-    pub task_manager: TaskManager,
+    pub task_manager: TaskExecutor,
     /// The DA service
     pub da_service: Arc<<T as RollupBlueprint>::DaService>,
     /// The channel on which L2 block number is broadcasted.
@@ -78,12 +78,12 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         require_da_wallet: bool,
         network: Network,
     ) -> Result<Dependencies<Self>> {
-        let task_manager = TaskManager::current();
+        let task_manager = TaskExecutor::with_existing_handle(tokio::runtime::Handle::current())?;
         let da_service = self
             .create_da_service(
                 rollup_config,
                 require_da_wallet,
-                task_manager.executor(),
+                task_manager.clone(),
                 network,
             )
             .await?;

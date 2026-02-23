@@ -16,7 +16,7 @@ use citrea_common::{
 use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_tasks::TaskManager;
+use reth_tasks::TaskExecutor as TaskManager;
 use short_header_proof_provider::{
     NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
 };
@@ -182,7 +182,7 @@ pub async fn start_rollup(
         Err(_) => tracing::error!("Short header proof provider already set"),
     }
 
-    let task_executor = task_manager.executor();
+    let task_executor = task_manager.clone();
 
     // I am sorry
     if let_hell_loose {

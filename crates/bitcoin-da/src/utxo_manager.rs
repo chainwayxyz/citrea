@@ -24,18 +24,14 @@ use crate::REVEAL_OUTPUT_AMOUNT;
 /// UTXO selection strategy when queue has pending transactions.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum UtxoSelectionMode {
     /// Default behaviour, always use latest UTXO and keep transactions chained
     /// Maintain a single sequential transaction chain.
+    #[default]
     Chained,
     /// Choose the UTXO with the highest amount of confirmations and run parallel UTXO chains
     Oldest,
-}
-
-impl Default for UtxoSelectionMode {
-    fn default() -> Self {
-        Self::Chained
-    }
 }
 
 #[derive(Debug, Clone)]

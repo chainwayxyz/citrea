@@ -76,10 +76,10 @@ install-risc0:
 	rzup install cargo-risczero 3.0.3 && \
 	rzup install cpp && \
 	rzup install r0vm 3.0.3 && \
-	rzup install rust 1.88.0 && \
+	rzup install rust 1.91.1 && \
 	rzup default cargo-risczero 3.0.3 && \
 	rzup default r0vm 3.0.3 && \
-	rzup default rust 1.88.0
+	rzup default rust 1.91.1
 
 install-sp1: ## Install necessary SP1 toolchain
 	curl -L https://sp1.succinct.xyz | bash

@@ -13,7 +13,7 @@ use citrea_common::{BatchProverConfig, FromEnv, NodeType, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_storage_ops::rollback::Rollback;
 use futures::FutureExt;
-use reth_tasks::TaskManager;
+use reth_tasks::TaskExecutor as TaskManager;
 use sov_db::ledger_db::migrations::copy_db_dir_recursive;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;

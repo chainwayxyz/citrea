@@ -155,7 +155,7 @@ where
             task_executor.clone(),
             maintain_config,
         );
-        task_executor.spawn_critical("mempool-maintenance", maintenance_future);
+        task_executor.spawn_task(maintenance_future);
     }
 
     let rpc_storage = storage_manager.create_final_view_storage();

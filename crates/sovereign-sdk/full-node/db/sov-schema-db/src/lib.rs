@@ -266,7 +266,7 @@ impl DB {
         &self,
         opts: ReadOptions,
         direction: ScanDirection,
-    ) -> anyhow::Result<SchemaIterator<S>> {
+    ) -> anyhow::Result<SchemaIterator<'_, S>> {
         let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
         Ok(SchemaIterator::new(
             self.inner.raw_iterator_cf_opt(cf_handle, opts),
@@ -275,7 +275,7 @@ impl DB {
     }
 
     /// Returns a forward [`SchemaIterator`] on a certain schema with the default read options.
-    pub fn iter<S: Schema>(&self) -> anyhow::Result<SchemaIterator<S>> {
+    pub fn iter<S: Schema>(&self) -> anyhow::Result<SchemaIterator<'_, S>> {
         let mut read_options = ReadOptions::default();
         read_options.set_async_io(true);
         self.iter_with_direction::<S>(read_options, ScanDirection::Forward)
@@ -314,7 +314,7 @@ impl DB {
     }
 
     /// Returns a [`RawDbReverseIterator`] which allows to iterate over raw values, backwards
-    pub fn raw_iter<S: Schema>(&self) -> anyhow::Result<RawDbReverseIterator> {
+    pub fn raw_iter<S: Schema>(&self) -> anyhow::Result<RawDbReverseIterator<'_>> {
         let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
         Ok(RawDbReverseIterator::new(
             self.inner
@@ -326,7 +326,7 @@ impl DB {
     pub fn iter_with_opts<S: Schema>(
         &self,
         opts: ReadOptions,
-    ) -> anyhow::Result<SchemaIterator<S>> {
+    ) -> anyhow::Result<SchemaIterator<'_, S>> {
         self.iter_with_direction::<S>(opts, ScanDirection::Forward)
     }
 

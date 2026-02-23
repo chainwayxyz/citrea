@@ -5,6 +5,8 @@ use alloy_primitives::{Address, TxHash};
 use citrea_common::SequencerMempoolConfig;
 use citrea_evm::SYSTEM_SIGNER;
 use citrea_primitives::min_base_fee_per_gas;
+use reth_chainspec::ChainSpecProvider;
+use reth_evm_ethereum::EthEvmConfig;
 use reth_tasks::TaskExecutor;
 use reth_transaction_pool::blobstore::NoopBlobStore;
 use reth_transaction_pool::error::{PoolError, PoolErrorKind};
@@ -19,7 +21,9 @@ use crate::db_provider::DbProvider;
 
 /// The concrete implementation type for the Citrea mempool, using Reth's Pool with custom configuration
 type CitreaMempoolImpl = Pool<
-    TransactionValidationTaskExecutor<EthTransactionValidator<DbProvider, EthPooledTransaction>>,
+    TransactionValidationTaskExecutor<
+        EthTransactionValidator<DbProvider, EthPooledTransaction, EthEvmConfig>,
+    >,
     CoinbaseTipOrdering<EthPooledTransaction>,
     NoopBlobStore,
 >;
@@ -39,7 +43,8 @@ impl CitreaMempool {
     ) -> anyhow::Result<Self> {
         let blob_store = NoopBlobStore::default();
 
-        let evm_config = client.cfg();
+        let chain_config = client.cfg();
+        let evm_config = EthEvmConfig::new(client.chain_spec());
 
         // Default 10x'ed from standard limits
         let pool_config = PoolConfig {
@@ -64,14 +69,14 @@ impl CitreaMempool {
             ..Default::default()
         };
 
-        let validator = TransactionValidationTaskExecutor::eth_builder(client)
+        let validator = TransactionValidationTaskExecutor::eth_builder(client, evm_config)
             .no_eip4844()
             .set_shanghai(true)
             .set_cancun(true)
             .set_prague(true)
             // TODO: if we ever increase block gas limits, we need to pull this from
             // somewhere else
-            .set_block_gas_limit(evm_config.block_gas_limit)
+            .set_block_gas_limit(chain_config.block_gas_limit)
             .build_with_tasks::<EthPooledTransaction, _, _>(task_executor, blob_store);
 
         Ok(Self(Pool::eth_pool(validator, blob_store, pool_config)))

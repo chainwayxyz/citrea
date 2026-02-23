@@ -140,6 +140,14 @@ impl StateProvider for DbProvider {
 
         Ok(value)
     }
+
+    fn storage_by_hashed_key(
+        &self,
+        address: Address,
+        hashed_storage_key: StorageKey,
+    ) -> ProviderResult<Option<StorageValue>> {
+        self.storage(address, hashed_storage_key)
+    }
 }
 
 impl BytecodeReader for DbProvider {

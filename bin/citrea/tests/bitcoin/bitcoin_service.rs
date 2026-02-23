@@ -13,7 +13,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_primitives::REVEAL_TX_PREFIX;
-use reth_tasks::TaskManager;
+use reth_tasks::TaskExecutor as TaskManager;
 use sov_rollup_interface::da::{BlobReaderTrait, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::Network;
@@ -49,7 +49,7 @@ impl TestCase for BitcoinServiceTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_executor = self.task_manager.executor();
+        let task_executor = self.task_manager.clone();
 
         let da_node = f.bitcoin_nodes.get(0).unwrap();
 
@@ -165,7 +165,8 @@ impl TestCase for BitcoinServiceTest {
 #[tokio::test]
 async fn test_bitcoin_service() -> Result<()> {
     TestCaseRunner::new(BitcoinServiceTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()
