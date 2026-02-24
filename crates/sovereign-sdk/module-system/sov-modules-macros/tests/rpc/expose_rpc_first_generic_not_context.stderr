@@ -38,80 +38,6 @@ help: consider further restricting type parameter `S` with trait `Spec`
 99 | struct Runtime<S: TestSpec + sov_modules_api::Spec, C: Context> {
    |                            +++++++++++++++++++++++
 
-error[E0277]: `<S as TestSpec>::Data` cannot be shared between threads safely
-  --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:8
-   |
-99 | struct Runtime<S: TestSpec, C: Context> {
-   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `<S as TestSpec>::Data` cannot be shared between threads safely
-   |
-   = help: within `Runtime<S, C>`, the trait `std::marker::Sync` is not implemented for `<S as TestSpec>::Data`
-note: required because it appears within the type `PhantomData<<S as TestSpec>::Data>`
-  --> $RUST/core/src/marker.rs
-   |
-   | pub struct PhantomData<T: ?Sized>;
-   |            ^^^^^^^^^^^
-note: required because it appears within the type `sov_modules_api::StateValue<<S as TestSpec>::Data>`
-  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/containers/value.rs
-   |
-   | pub struct StateValue<V, Codec = BorshCodec> {
-   |            ^^^^^^^^^^
-note: required because it appears within the type `QueryModule<C, <S as TestSpec>::Data>`
-  --> tests/rpc/expose_rpc_first_generic_not_context.rs:36:16
-   |
-36 |     pub struct QueryModule<C: Context, D: Data> {
-   |                ^^^^^^^^^^^
-note: required because it appears within the type `Runtime<S, C>`
-  --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:8
-   |
-99 | struct Runtime<S: TestSpec, C: Context> {
-   |        ^^^^^^^
-note: required by a bound in `sov_modules_api::DispatchCall`
-  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/module/dispatch.rs
-   |
-   | pub trait DispatchCall: Send + Sync {
-   |                                ^^^^ required by this bound in `DispatchCall`
-help: consider further restricting the associated type
-   |
-99 | struct Runtime<S: TestSpec, C: Context> where <S as TestSpec>::Data: std::marker::Sync {
-   |                                         ++++++++++++++++++++++++++++++++++++++++++++++
-
-error[E0277]: `<S as TestSpec>::Data` cannot be sent between threads safely
-  --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:8
-   |
-99 | struct Runtime<S: TestSpec, C: Context> {
-   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `<S as TestSpec>::Data` cannot be sent between threads safely
-   |
-   = help: within `Runtime<S, C>`, the trait `Send` is not implemented for `<S as TestSpec>::Data`
-note: required because it appears within the type `PhantomData<<S as TestSpec>::Data>`
-  --> $RUST/core/src/marker.rs
-   |
-   | pub struct PhantomData<T: ?Sized>;
-   |            ^^^^^^^^^^^
-note: required because it appears within the type `sov_modules_api::StateValue<<S as TestSpec>::Data>`
-  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/containers/value.rs
-   |
-   | pub struct StateValue<V, Codec = BorshCodec> {
-   |            ^^^^^^^^^^
-note: required because it appears within the type `QueryModule<C, <S as TestSpec>::Data>`
-  --> tests/rpc/expose_rpc_first_generic_not_context.rs:36:16
-   |
-36 |     pub struct QueryModule<C: Context, D: Data> {
-   |                ^^^^^^^^^^^
-note: required because it appears within the type `Runtime<S, C>`
-  --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:8
-   |
-99 | struct Runtime<S: TestSpec, C: Context> {
-   |        ^^^^^^^
-note: required by a bound in `sov_modules_api::DispatchCall`
-  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/module/dispatch.rs
-   |
-   | pub trait DispatchCall: Send + Sync {
-   |                         ^^^^ required by this bound in `DispatchCall`
-help: consider further restricting the associated type
-   |
-99 | struct Runtime<S: TestSpec, C: Context> where <S as TestSpec>::Data: Send {
-   |                                         +++++++++++++++++++++++++++++++++
-
 error[E0277]: the trait bound `S: sov_modules_api::Context` is not satisfied
   --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:16
    |
@@ -174,6 +100,74 @@ help: consider further restricting the associated type
 99 | struct Runtime<S: TestSpec, C: Context> where <S as TestSpec>::Data: Send {
    |                                         +++++++++++++++++++++++++++++++++
 
+error[E0277]: `<S as TestSpec>::Data` cannot be sent between threads safely
+ --> tests/rpc/expose_rpc_first_generic_not_context.rs:97:19
+  |
+ 97 | #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
+    |                   ^^^^^^^^^^^^ `<S as TestSpec>::Data` cannot be sent between threads safely
+    |
+    = help: within `Runtime<S, C>`, the trait `Send` is not implemented for `<S as TestSpec>::Data`
+note: required because it appears within the type `PhantomData<<S as TestSpec>::Data>`
+   --> $RUST/core/src/marker.rs
+    |
+    | pub struct PhantomData<T: PointeeSized>;
+    |            ^^^^^^^^^^^
+note: required because it appears within the type `sov_modules_api::StateValue<<S as TestSpec>::Data>`
+   --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/containers/value.rs
+    |
+ 19 | pub struct StateValue<V, Codec = BorshCodec> {
+    |            ^^^^^^^^^^
+note: required because it appears within the type `QueryModule<C, <S as TestSpec>::Data>`
+   --> tests/rpc/expose_rpc_first_generic_not_context.rs:36:16
+    |
+ 36 |     pub struct QueryModule<C: Context, D: Data> {
+    |                ^^^^^^^^^^^
+note: required because it appears within the type `Runtime<S, C>`
+   --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:8
+    |
+ 99 | struct Runtime<S: TestSpec, C: Context> {
+    |        ^^^^^^^
+note: required by a bound in `sov_modules_api::DispatchCall`
+   --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/module/dispatch.rs
+    |
+ 10 | pub trait DispatchCall: Send + Sync {
+    |                         ^^^^ required by this bound in `DispatchCall`
+    = note: this error originates in the derive macro `DispatchCall` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `<S as TestSpec>::Data` cannot be shared between threads safely
+ --> tests/rpc/expose_rpc_first_generic_not_context.rs:97:19
+  |
+ 97 | #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
+    |                   ^^^^^^^^^^^^ `<S as TestSpec>::Data` cannot be shared between threads safely
+    |
+    = help: within `Runtime<S, C>`, the trait `std::marker::Sync` is not implemented for `<S as TestSpec>::Data`
+note: required because it appears within the type `PhantomData<<S as TestSpec>::Data>`
+   --> $RUST/core/src/marker.rs
+    |
+    | pub struct PhantomData<T: PointeeSized>;
+    |            ^^^^^^^^^^^
+note: required because it appears within the type `sov_modules_api::StateValue<<S as TestSpec>::Data>`
+   --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/containers/value.rs
+    |
+ 19 | pub struct StateValue<V, Codec = BorshCodec> {
+    |            ^^^^^^^^^^
+note: required because it appears within the type `QueryModule<C, <S as TestSpec>::Data>`
+   --> tests/rpc/expose_rpc_first_generic_not_context.rs:36:16
+    |
+ 36 |     pub struct QueryModule<C: Context, D: Data> {
+    |                ^^^^^^^^^^^
+note: required because it appears within the type `Runtime<S, C>`
+   --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:8
+    |
+ 99 | struct Runtime<S: TestSpec, C: Context> {
+    |        ^^^^^^^
+note: required by a bound in `sov_modules_api::DispatchCall`
+   --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/module/dispatch.rs
+    |
+ 10 | pub trait DispatchCall: Send + Sync {
+    |                                ^^^^ required by this bound in `DispatchCall`
+    = note: this error originates in the derive macro `DispatchCall` (in Nightly builds, run with -Z macro-backtrace for more info)
+
 error[E0277]: the trait bound `S: Spec` is not satisfied
   --> tests/rpc/expose_rpc_first_generic_not_context.rs:97:19
    |
@@ -185,6 +179,80 @@ help: consider further restricting type parameter `S` with trait `Spec`
    |
 99 | struct Runtime<S: TestSpec + sov_modules_api::Spec, C: Context> {
    |                            +++++++++++++++++++++++
+
+error[E0277]: `<S as TestSpec>::Data` cannot be shared between threads safely
+ --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:8
+  |
+ 99 | struct Runtime<S: TestSpec, C: Context> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `<S as TestSpec>::Data` cannot be shared between threads safely
+    |
+    = help: within `Runtime<S, C>`, the trait `std::marker::Sync` is not implemented for `<S as TestSpec>::Data`
+note: required because it appears within the type `PhantomData<<S as TestSpec>::Data>`
+   --> $RUST/core/src/marker.rs
+    |
+    | pub struct PhantomData<T: PointeeSized>;
+    |            ^^^^^^^^^^^
+note: required because it appears within the type `sov_modules_api::StateValue<<S as TestSpec>::Data>`
+   --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/containers/value.rs
+    |
+ 19 | pub struct StateValue<V, Codec = BorshCodec> {
+    |            ^^^^^^^^^^
+note: required because it appears within the type `QueryModule<C, <S as TestSpec>::Data>`
+   --> tests/rpc/expose_rpc_first_generic_not_context.rs:36:16
+    |
+ 36 |     pub struct QueryModule<C: Context, D: Data> {
+    |                ^^^^^^^^^^^
+note: required because it appears within the type `Runtime<S, C>`
+   --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:8
+    |
+ 99 | struct Runtime<S: TestSpec, C: Context> {
+    |        ^^^^^^^
+note: required by a bound in `sov_modules_api::DispatchCall`
+   --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/module/dispatch.rs
+    |
+ 10 | pub trait DispatchCall: Send + Sync {
+    |                                ^^^^ required by this bound in `DispatchCall`
+help: consider further restricting the associated type
+    |
+ 99 | struct Runtime<S: TestSpec, C: Context> where <S as TestSpec>::Data: std::marker::Sync {
+    |                                         ++++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0277]: `<S as TestSpec>::Data` cannot be sent between threads safely
+ --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:8
+  |
+ 99 | struct Runtime<S: TestSpec, C: Context> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `<S as TestSpec>::Data` cannot be sent between threads safely
+    |
+    = help: within `Runtime<S, C>`, the trait `Send` is not implemented for `<S as TestSpec>::Data`
+note: required because it appears within the type `PhantomData<<S as TestSpec>::Data>`
+   --> $RUST/core/src/marker.rs
+    |
+    | pub struct PhantomData<T: PointeeSized>;
+    |            ^^^^^^^^^^^
+note: required because it appears within the type `sov_modules_api::StateValue<<S as TestSpec>::Data>`
+   --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/containers/value.rs
+    |
+ 19 | pub struct StateValue<V, Codec = BorshCodec> {
+    |            ^^^^^^^^^^
+note: required because it appears within the type `QueryModule<C, <S as TestSpec>::Data>`
+   --> tests/rpc/expose_rpc_first_generic_not_context.rs:36:16
+    |
+ 36 |     pub struct QueryModule<C: Context, D: Data> {
+    |                ^^^^^^^^^^^
+note: required because it appears within the type `Runtime<S, C>`
+   --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:8
+    |
+ 99 | struct Runtime<S: TestSpec, C: Context> {
+    |        ^^^^^^^
+note: required by a bound in `sov_modules_api::DispatchCall`
+   --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/module/dispatch.rs
+    |
+ 10 | pub trait DispatchCall: Send + Sync {
+    |                         ^^^^ required by this bound in `DispatchCall`
+help: consider further restricting the associated type
+    |
+ 99 | struct Runtime<S: TestSpec, C: Context> where <S as TestSpec>::Data: Send {
+    |                                         +++++++++++++++++++++++++++++++++
 
 error[E0277]: the trait bound `S: Spec` is not satisfied
   --> tests/rpc/expose_rpc_first_generic_not_context.rs:96:1
@@ -198,23 +266,23 @@ help: consider further restricting type parameter `S` with trait `Spec`
 99 | struct Runtime<S: TestSpec + sov_modules_api::Spec, C: Context> {
    |                            +++++++++++++++++++++++
 
-error[E0599]: no method named `set` found for struct `sov_modules_api::StateValue` in the current scope
+error[E0599]: no method named `set` found for struct `sov_modules_api::StateValue<V, Codec>` in the current scope
   --> tests/rpc/expose_rpc_first_generic_not_context.rs:53:23
    |
 53 |             self.data.set(config, working_set);
-   |                       ^^^ method not found in `StateValue<D>`
+   |                       ^^^ method not found in `sov_modules_api::StateValue<D>`
 
-error[E0599]: no method named `set` found for struct `sov_modules_api::StateValue` in the current scope
+error[E0599]: no method named `set` found for struct `sov_modules_api::StateValue<V, Codec>` in the current scope
   --> tests/rpc/expose_rpc_first_generic_not_context.rs:62:23
    |
 62 |             self.data.set(&msg, working_set);
-   |                       ^^^ method not found in `StateValue<D>`
+   |                       ^^^ method not found in `sov_modules_api::StateValue<D>`
 
-error[E0599]: no method named `get` found for struct `sov_modules_api::StateValue` in the current scope
+error[E0599]: no method named `get` found for struct `sov_modules_api::StateValue<V, Codec>` in the current scope
   --> tests/rpc/expose_rpc_first_generic_not_context.rs:87:39
    |
 87 |                 let value = self.data.get(working_set).map(|d| format!("{:?}", d));
-   |                                       ^^^ method not found in `StateValue<D>`
+   |                                       ^^^ method not found in `sov_modules_api::StateValue<D>`
 
 error[E0271]: type mismatch resolving `<QueryModule<C, <S as TestSpec>::Data> as ModuleInfo>::Context == S`
   --> tests/rpc/expose_rpc_first_generic_not_context.rs:97:10
@@ -240,21 +308,21 @@ note: expected this to be `S`
    = note: this error originates in the derive macro `Genesis` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `S: sov_modules_api::Context` is not satisfied
-  --> tests/rpc/expose_rpc_first_generic_not_context.rs:97:10
-   |
-97 | #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
-   |          ^^^^^^^ the trait `sov_modules_api::Context` is not implemented for `S`
-   |
+ --> tests/rpc/expose_rpc_first_generic_not_context.rs:97:10
+  |
+ 97 | #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
+    |          ^^^^^^^ the trait `sov_modules_api::Context` is not implemented for `S`
+    |
 note: required by a bound in `sort_values_by_modules_dependencies`
-  --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/lib.rs
-   |
-   | pub fn sort_values_by_modules_dependencies<C: Context, TValue>(
-   |                                               ^^^^^^^ required by this bound in `sort_values_by_modules_dependencies`
-   = note: this error originates in the derive macro `Genesis` (in Nightly builds, run with -Z macro-backtrace for more info)
+   --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/lib.rs
+    |
+    | pub fn sort_values_by_modules_dependencies<C: Context, TValue>(
+    |                                               ^^^^^^^ required by this bound in `sort_values_by_modules_dependencies`
+    = note: this error originates in the derive macro `Genesis` (in Nightly builds, run with -Z macro-backtrace for more info)
 help: consider further restricting type parameter `S` with trait `Context`
-   |
-99 | struct Runtime<S: TestSpec + sov_modules_api::Context, C: Context> {
-   |                            ++++++++++++++++++++++++++
+    |
+ 99 | struct Runtime<S: TestSpec + sov_modules_api::Context, C: Context> {
+    |                            ++++++++++++++++++++++++++
 
 error[E0308]: mismatched types
   --> tests/rpc/expose_rpc_first_generic_not_context.rs:97:19
@@ -291,28 +359,33 @@ error[E0277]: the trait bound `ZkDefaultContext: TestSpec` is not satisfied
 note: required by a bound in `Runtime`
    --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:19
     |
-99  | struct Runtime<S: TestSpec, C: Context> {
+ 99 | struct Runtime<S: TestSpec, C: Context> {
     |                   ^^^^^^^^ required by this bound in `Runtime`
 
 error[E0277]: the trait bound `ActualSpec: sov_modules_api::Context` is not satisfied
    --> tests/rpc/expose_rpc_first_generic_not_context.rs:114:24
     |
 114 |     let runtime = &mut Runtime::<C, ActualSpec>::default();
-    |                        ^^^^^^^^^^^^^^^^^^^^^^^^ the trait `sov_modules_api::Context` is not implemented for `ActualSpec`
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
     |
+help: the trait `sov_modules_api::Context` is not implemented for `ActualSpec`
+   --> tests/rpc/expose_rpc_first_generic_not_context.rs:103:1
+    |
+103 | struct ActualSpec;
+    | ^^^^^^^^^^^^^^^^^
     = help: the following other types implement trait `sov_modules_api::Context`:
               DefaultContext
               ZkDefaultContext
 note: required by a bound in `Runtime`
    --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:32
     |
-99  | struct Runtime<S: TestSpec, C: Context> {
+ 99 | struct Runtime<S: TestSpec, C: Context> {
     |                                ^^^^^^^ required by this bound in `Runtime`
 
 error[E0599]: the function or associated item `default` exists for struct `Runtime<ZkDefaultContext, ActualSpec>`, but its trait bounds were not satisfied
-   --> tests/rpc/expose_rpc_first_generic_not_context.rs:114:50
-    |
-99  | struct Runtime<S: TestSpec, C: Context> {
+ --> tests/rpc/expose_rpc_first_generic_not_context.rs:114:50
+  |
+ 99 | struct Runtime<S: TestSpec, C: Context> {
     | --------------------------------------- function or associated item `default` not found for this struct because it doesn't satisfy `_: Default`
 ...
 103 | struct ActualSpec;
@@ -323,7 +396,7 @@ error[E0599]: the function or associated item `default` exists for struct `Runti
     |
    ::: $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/default_context.rs
     |
-    | pub struct ZkDefaultContext {
+ 64 | pub struct ZkDefaultContext {
     | --------------------------- doesn't satisfy `ZkDefaultContext: TestSpec`
     |
     = note: the following trait bounds were not satisfied:
@@ -332,7 +405,7 @@ error[E0599]: the function or associated item `default` exists for struct `Runti
 note: the trait `sov_modules_api::Context` must be implemented
    --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/module/spec.rs
     |
-    | pub trait Context: Spec + Clone + Debug + PartialEq + 'static {
+ 93 | pub trait Context: Spec + Clone + Debug + PartialEq + 'static {
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     = help: items from traits can only be used if the trait is implemented and in scope
     = note: the following traits define an item `default`, perhaps you need to implement one of them:
@@ -343,8 +416,13 @@ error[E0277]: the trait bound `Runtime<ZkDefaultContext, ActualSpec>: EncodeCall
    --> tests/rpc/expose_rpc_first_generic_not_context.rs:120:10
     |
 120 |         <RT as EncodeCall<my_module::QueryModule<C, u32>>>::encode_call(message);
-    |          ^^ the trait `EncodeCall<QueryModule<ZkDefaultContext, u32>>` is not implemented for `Runtime<ZkDefaultContext, ActualSpec>`
+    |          ^^ unsatisfied trait bound
     |
+help: the trait `EncodeCall<QueryModule<ZkDefaultContext, u32>>` is not implemented for `Runtime<ZkDefaultContext, ActualSpec>`
+   --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:1
+    |
+ 99 | struct Runtime<S: TestSpec, C: Context> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     = help: the trait `EncodeCall<QueryModule<C, <S as TestSpec>::Data>>` is implemented for `Runtime<S, C>`
 
 error[E0277]: the trait bound `ZkDefaultContext: TestSpec` is not satisfied
@@ -357,22 +435,27 @@ error[E0277]: the trait bound `ZkDefaultContext: TestSpec` is not satisfied
 note: required by a bound in `Runtime`
    --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:19
     |
-99  | struct Runtime<S: TestSpec, C: Context> {
+ 99 | struct Runtime<S: TestSpec, C: Context> {
     |                   ^^^^^^^^ required by this bound in `Runtime`
 
 error[E0277]: the trait bound `ActualSpec: sov_modules_api::Context` is not satisfied
    --> tests/rpc/expose_rpc_first_generic_not_context.rs:120:10
     |
 120 |         <RT as EncodeCall<my_module::QueryModule<C, u32>>>::encode_call(message);
-    |          ^^ the trait `sov_modules_api::Context` is not implemented for `ActualSpec`
+    |          ^^ unsatisfied trait bound
     |
+help: the trait `sov_modules_api::Context` is not implemented for `ActualSpec`
+   --> tests/rpc/expose_rpc_first_generic_not_context.rs:103:1
+    |
+103 | struct ActualSpec;
+    | ^^^^^^^^^^^^^^^^^
     = help: the following other types implement trait `sov_modules_api::Context`:
               DefaultContext
               ZkDefaultContext
 note: required by a bound in `Runtime`
    --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:32
     |
-99  | struct Runtime<S: TestSpec, C: Context> {
+ 99 | struct Runtime<S: TestSpec, C: Context> {
     |                                ^^^^^^^ required by this bound in `Runtime`
 
 error[E0277]: the trait bound `ZkDefaultContext: TestSpec` is not satisfied
@@ -385,28 +468,33 @@ error[E0277]: the trait bound `ZkDefaultContext: TestSpec` is not satisfied
 note: required by a bound in `Runtime`
    --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:19
     |
-99  | struct Runtime<S: TestSpec, C: Context> {
+ 99 | struct Runtime<S: TestSpec, C: Context> {
     |                   ^^^^^^^^ required by this bound in `Runtime`
 
 error[E0277]: the trait bound `ActualSpec: sov_modules_api::Context` is not satisfied
    --> tests/rpc/expose_rpc_first_generic_not_context.rs:121:18
     |
 121 |     let module = RT::decode_call(&serialized_message).unwrap();
-    |                  ^^ the trait `sov_modules_api::Context` is not implemented for `ActualSpec`
+    |                  ^^ unsatisfied trait bound
     |
+help: the trait `sov_modules_api::Context` is not implemented for `ActualSpec`
+   --> tests/rpc/expose_rpc_first_generic_not_context.rs:103:1
+    |
+103 | struct ActualSpec;
+    | ^^^^^^^^^^^^^^^^^
     = help: the following other types implement trait `sov_modules_api::Context`:
               DefaultContext
               ZkDefaultContext
 note: required by a bound in `Runtime`
    --> tests/rpc/expose_rpc_first_generic_not_context.rs:99:32
     |
-99  | struct Runtime<S: TestSpec, C: Context> {
+ 99 | struct Runtime<S: TestSpec, C: Context> {
     |                                ^^^^^^^ required by this bound in `Runtime`
 
 error[E0599]: the function or associated item `decode_call` exists for struct `Runtime<ZkDefaultContext, ActualSpec>`, but its trait bounds were not satisfied
-   --> tests/rpc/expose_rpc_first_generic_not_context.rs:121:22
-    |
-99  | struct Runtime<S: TestSpec, C: Context> {
+ --> tests/rpc/expose_rpc_first_generic_not_context.rs:121:22
+  |
+ 99 | struct Runtime<S: TestSpec, C: Context> {
     | --------------------------------------- function or associated item `decode_call` not found for this struct because it doesn't satisfy `_: DispatchCall`
 ...
 103 | struct ActualSpec;
@@ -417,7 +505,7 @@ error[E0599]: the function or associated item `decode_call` exists for struct `R
     |
    ::: $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-api/src/default_context.rs
     |
-    | pub struct ZkDefaultContext {
+ 64 | pub struct ZkDefaultContext {
     | --------------------------- doesn't satisfy `ZkDefaultContext: TestSpec`
     |
     = note: the following trait bounds were not satisfied:
@@ -426,7 +514,7 @@ error[E0599]: the function or associated item `decode_call` exists for struct `R
 note: the trait `sov_modules_api::Context` must be implemented
    --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/module/spec.rs
     |
-    | pub trait Context: Spec + Clone + Debug + PartialEq + 'static {
+ 93 | pub trait Context: Spec + Clone + Debug + PartialEq + 'static {
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     = help: items from traits can only be used if the trait is implemented and in scope
     = note: the following trait defines an item `decode_call`, perhaps you need to implement it:
