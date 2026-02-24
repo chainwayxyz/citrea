@@ -196,7 +196,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 parent_beacon_block_root: None,
                 blob_gas_used: None,
                 excess_blob_gas: None,
-                requests_hash: if let SpecId::PRAGUE = evm_spec_id {
+                requests_hash: if evm_spec_id.is_enabled_in(SpecId::PRAGUE) {
                     Some(EMPTY_REQUESTS_HASH)
                 } else {
                     None

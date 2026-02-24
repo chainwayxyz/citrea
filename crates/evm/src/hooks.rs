@@ -165,7 +165,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // EIP-4788 related field
             // unrelated for rollups
             parent_beacon_block_root: Some(B256::ZERO),
-            requests_hash: if let SpecId::PRAGUE = evm_spec {
+            requests_hash: if evm_spec.is_enabled_in(SpecId::PRAGUE) {
                 Some(EMPTY_REQUESTS_HASH)
             } else {
                 None
