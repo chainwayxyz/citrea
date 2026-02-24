@@ -18,7 +18,6 @@ use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct LocalProver {
-    dev_mode: bool,
     r0vm_path: PathBuf,
     #[cfg_attr(not(feature = "testing"), allow(unused))]
     network: Network,
@@ -26,7 +25,6 @@ pub struct LocalProver {
 
 impl LocalProver {
     pub fn new(network: Network, config: LocalProverConfig) -> Self {
-        let dev_mode = config.dev_mode;
         let r0vm_path = config
             .r0vm_path
             .unwrap_or_else(|| get_r0vm_path().expect("Could not get r0vm path"));
@@ -39,11 +37,7 @@ impl LocalProver {
         // so we need to check if the version is correct
         compare_risc0_versions(&r0vm_path).expect("Something is wrong with system r0vm");
 
-        Self {
-            dev_mode,
-            r0vm_path,
-            network,
-        }
+        Self { r0vm_path, network }
     }
 
     pub fn prove(
@@ -55,25 +49,14 @@ impl LocalProver {
         receipt_type: ReceiptType,
         with_prove: bool,
     ) -> anyhow::Result<oneshot::Receiver<ProofWithJob>> {
-        if self.dev_mode {
-            assert!(
-                !with_prove,
-                "Prove should not be called with prove in dev mode"
-            );
-            // Set risc0 dev mode so in prover opts dev mode is enabled
-            env::set_var("RISC0_DEV_MODE", "1");
-        } else if with_prove {
-            env::remove_var("RISC0_DEV_MODE");
-        } else {
-            env::set_var("RISC0_DEV_MODE", "1");
-        }
-
         // std::fs::write("kumquat-input.bin", &input).unwrap();
 
         let prover_opts = match receipt_type {
             ReceiptType::Groth16 => ProverOpts::groth16(),
             ReceiptType::Succinct => ProverOpts::succinct(),
         };
+
+        let prover_opts = prover_opts.with_dev_mode(!with_prove); // pass dev mode here
 
         tracing::info!("Starting local risc0 proving, job_id={}", job_id);
 
