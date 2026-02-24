@@ -280,7 +280,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "alloy-sol-types",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "serde",
  "serde_json",
  "thiserror 2.0.12",
@@ -1056,11 +1056,12 @@ dependencies = [
 [[package]]
 name = "blst"
 version = "0.3.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcdb4c7013139a150f9fc55d123186dbfaba0d912817466282c73ac49e71fb45"
+source = "git+https://github.com/risc0/blst?tag=v0.3.16-risczero.0#7d1fc3e6d8cf0d52a291f52455233bf8d6432ed2"
 dependencies = [
  "cc",
+ "getrandom 0.2.15",
  "glob",
+ "risc0-bigint2",
  "threadpool",
  "zeroize",
 ]
@@ -2808,7 +2809,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.98",
@@ -3286,9 +3287,9 @@ dependencies = [
 
 [[package]]
 name = "risc0-bigint2"
-version = "1.4.10"
+version = "1.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e916aa385e61e31935d7964aaeaec1fae9da617af6415d6363864147f430ebff"
+checksum = "af3997ed5c8a35afd2fa39055f1b841e19571379e55ee634a06c41d7b924052d"
 dependencies = [
  "include_bytes_aligned",
  "stability",
@@ -4707,11 +4708,6 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
-
-[[patch.unused]]
-name = "blst"
-version = "0.3.14"
-source = "git+https://github.com/risc0/blst?tag=v0.3.14-risczero.2#ca5d6042fffe3cf599e4f10a7d9a6a63693b6d15"
 
 [[patch.unused]]
 name = "secp256k1"
