@@ -201,7 +201,7 @@ impl CitreaFilter {
         tracing::trace!("Starting stale filter clearing task ");
         citrea_filter
             .task_executor
-            .spawn_task_critical(Box::pin(async move {
+            .spawn_critical_task(Box::pin(async move {
                 this.watch_and_clear_stale_filters().await;
             }));
         citrea_filter
