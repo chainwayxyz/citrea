@@ -1225,6 +1225,7 @@ dependencies = [
  "reth-primitives",
  "reth-primitives-traits",
  "revm",
+ "revm-precompile",
  "serde",
  "sha2",
  "short-header-proof-provider",
@@ -3234,12 +3235,14 @@ dependencies = [
  "ark-serialize 0.5.0",
  "arrayref",
  "aurora-engine-modexp",
+ "blst",
  "cfg-if",
  "k256",
  "p256",
  "revm-primitives",
  "ripemd",
  "sha2",
+ "substrate-bn",
 ]
 
 [[package]]
