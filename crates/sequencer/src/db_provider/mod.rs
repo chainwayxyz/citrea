@@ -199,8 +199,22 @@ impl BlockReaderIdExt for DbProvider {
         unimplemented!("finalized_header")
     }
 
-    fn header_by_id(&self, _id: BlockId) -> ProviderResult<Option<reth_primitives::Header>> {
-        unimplemented!("header_by_id")
+    fn header_by_id(&self, id: BlockId) -> ProviderResult<Option<reth_primitives::Header>> {
+        let mut working_set = WorkingSet::new(self.storage.clone());
+
+        let block_num = match id {
+            BlockId::Number(num) => num,
+            BlockId::Hash(hash) => {
+                let block_num = self
+                    .evm
+                    .get_block_number_by_block_hash(hash.block_hash, &mut working_set)
+                    .ok_or(ProviderError::BlockHashNotFound(hash.block_hash))?;
+
+                BlockNumberOrTag::Number(block_num)
+            }
+        };
+
+        self.header_by_number_or_tag(block_num)
     }
 
     fn header_by_number_or_tag(
