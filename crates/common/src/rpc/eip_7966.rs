@@ -20,6 +20,9 @@ const UNREADY_ERROR_CODE: i32 = 5;
 /// Default timeout in milliseconds. (5secs)
 const DEFAULT_TIMEOUT_MS: u64 = 5_000;
 
+/// Polling interval in milliseconds when subscriptions are not enabled. (1sec)
+pub const POLL_INTERVAL_NO_SUBSCRIPTION_MS: u64 = 1_000;
+
 /// Creates an EIP-7966 timeout error (code 4).
 ///
 /// Returned when the transaction was added to the mempool but wasn't
