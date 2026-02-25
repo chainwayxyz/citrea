@@ -519,8 +519,8 @@ where
 
     /// eth_sendRawTransactionSync RPC call implementation (EIP-7966)
     /// - Send raw transaction to sequencer
-    /// - Subscribes to new block subscription
-    /// - Waits for transaction to be included in a block
+    /// - If subscriptions are enabled, subscribes to new block subscription and waits for transaction to be included in a block
+    /// - Otherwise, falls back to polling for transaction receipt until transaction is included in a block
     /// - Returns the transaction receipt
     /// - Timeout in milliseconds (default: 5_000ms, max: configurable via RpcConfig, default max: 30_000ms)
     ///
