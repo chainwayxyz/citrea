@@ -3,6 +3,7 @@
 use core::result::Result::Ok;
 use std::time::Instant;
 
+use bitcoin::absolute::{LockTime, Time, LOCK_TIME_THRESHOLD};
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
 use bitcoin::blockdata::script;
@@ -11,7 +12,7 @@ use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
 use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_NIP};
 use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::{SecretKey, XOnlyPublicKey};
-use bitcoin::{Address, Amount, Network, Transaction};
+use bitcoin::{Address, Network, Transaction};
 use metrics::histogram;
 use secp256k1::SECP256K1;
 use serde::Serialize;
@@ -186,131 +187,128 @@ pub fn create_inscription_type_0(
     // push end if
     reveal_script_builder = reveal_script_builder.push_opcode(OP_ENDIF);
 
-    // This envelope is not finished yet. The random number will be added later
+    // Nonce is kept for legacy reasons but is now fixed at 16.
+    // Prefix mining is now done by iterating over lock_time instead.
+    let nonce: i64 = 16; // >= 16 to avoid OP_PUSHNUM_X interpretation
 
-    // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
-    let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
+    // push nonce
+    reveal_script_builder = reveal_script_builder
+        .push_slice(nonce.to_le_bytes())
+        // drop the second item, bc there is a big chance it's 0 (tx kind) and nonce is >= 16
+        .push_opcode(OP_NIP);
+
+    // finalize reveal script
+    let reveal_script = reveal_script_builder.into_script();
+
+    let (control_block, merkle_root, tapscript_hash) =
+        build_control_block(&reveal_script, public_key, SECP256K1);
+
+    // create commit tx address
+    let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
+
+    let reveal_value = REVEAL_OUTPUT_AMOUNT;
+    let fee = (get_size_reveal(
+        change_address.script_pubkey(),
+        reveal_value,
+        &reveal_script,
+        &control_block,
+    ) as f64
+        * reveal_fee_rate)
+        .ceil() as u64;
+    let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
+
+    // build commit tx
+    // we don't need leftover_utxos because they will be requested from bitcoind next call
+    let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
+        prev_utxo,
+        utxos,
+        commit_tx_address.clone(),
+        change_address.clone(),
+        reveal_input_value,
+        commit_fee_rate,
+    )?;
+
+    let input_to_reveal = unsigned_commit_tx.output[0].clone();
+    let commit_txid = unsigned_commit_tx.compute_txid();
+
+    let mut reveal_tx = build_reveal_transaction(
+        input_to_reveal,
+        commit_txid,
+        0,
+        change_address,
+        reveal_value + REVEAL_OUTPUT_THRESHOLD,
+        reveal_fee_rate,
+        &reveal_script,
+        &control_block,
+    )?;
+
+    build_witness(
+        &unsigned_commit_tx,
+        &mut reveal_tx,
+        tapscript_hash,
+        reveal_script,
+        control_block,
+        &key_pair,
+        SECP256K1,
+    );
+
+    // Mine for the reveal tx prefix by iterating over lock_time values.
+    // Starting from LOCK_TIME_THRESHOLD (500_000_000) is safe because it represents
+    // a Unix timestamp from 1985, and with a two-byte prefix requiring on average 2^16
+    // iterations, the resulting timestamp (~500_065_536) is still in 1985, making the
+    // transaction spendable immediately (equivalent to nLockTime == 0).
+    let mut lock_time = LOCK_TIME_THRESHOLD;
     loop {
-        if nonce % 1000 == 0 {
-            trace!(nonce, "Trying to find commit & reveal nonce");
-            if nonce > 16384 {
-                warn!("Too many iterations finding nonce");
+        let iterations = lock_time - LOCK_TIME_THRESHOLD;
+        if iterations > 0 && iterations % 1000 == 0 {
+            trace!(iterations, "Mining for complete reveal tx prefix");
+            if iterations > 16384 {
+                warn!("Too many iterations mining for complete reveal tx prefix");
             }
         }
 
-        let mut reveal_script_builder = reveal_script_builder.clone();
+        let reveal_wtxid = reveal_tx.compute_wtxid();
+        let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
+        // check if first N bytes equal to the given prefix
+        if reveal_hash.starts_with(reveal_tx_prefix) {
+            // check if inscription locked to the correct address
+            let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
+            let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
+            assert_eq!(
+                Address::p2tr_tweaked(
+                    TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
+                    network,
+                ),
+                commit_tx_address
+            );
 
-        // push nonce
-        reveal_script_builder = reveal_script_builder
-            .push_slice(nonce.to_le_bytes())
-            // drop the second item, bc there is a big chance it's 0 (tx kind) and nonce is >= 16
-            .push_opcode(OP_NIP);
+            histogram!("complete_mine_da_transaction").record(
+                Instant::now()
+                    .saturating_duration_since(start)
+                    .as_secs_f64(),
+            );
 
-        // finalize reveal script
-        let reveal_script = reveal_script_builder.into_script();
-
-        let (control_block, merkle_root, tapscript_hash) =
-            build_control_block(&reveal_script, public_key, SECP256K1);
-
-        // create commit tx address
-        let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
-
-        let reveal_value = REVEAL_OUTPUT_AMOUNT;
-        let fee = (get_size_reveal(
-            change_address.script_pubkey(),
-            reveal_value,
-            &reveal_script,
-            &control_block,
-        ) as f64
-            * reveal_fee_rate)
-            .ceil() as u64;
-        let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
-
-        // build commit tx
-        // we don't need leftover_utxos because they will be requested from bitcoind next call
-        let (mut unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
-            prev_utxo.clone(),
-            utxos.clone(),
-            commit_tx_address.clone(),
-            change_address.clone(),
-            reveal_input_value,
-            commit_fee_rate,
-        )?;
-
-        let input_to_reveal = unsigned_commit_tx.output[0].clone();
-
-        let mut reveal_tx = build_reveal_transaction(
-            input_to_reveal.clone(),
-            unsigned_commit_tx.compute_txid(),
-            0,
-            change_address.clone(),
-            reveal_value + REVEAL_OUTPUT_THRESHOLD,
-            reveal_fee_rate,
-            &reveal_script,
-            &control_block,
-        )?;
-
-        build_witness(
-            &unsigned_commit_tx,
-            &mut reveal_tx,
-            tapscript_hash,
-            reveal_script,
-            control_block,
-            &key_pair,
-            SECP256K1,
-        );
-
-        let min_commit_value = Amount::from_sat(fee + reveal_value);
-        while unsigned_commit_tx.output[0].value >= min_commit_value
-            && reveal_tx.output[0].value > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
-        {
-            let reveal_wtxid = reveal_tx.compute_wtxid();
-            let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
-            // check if first N bytes equal to the given prefix
-            if reveal_hash.starts_with(reveal_tx_prefix) {
-                // check if inscription locked to the correct address
-                let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
-                let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
-                assert_eq!(
-                    Address::p2tr_tweaked(
-                        TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
-                        network,
-                    ),
-                    commit_tx_address
-                );
-
-                histogram!("complete_mine_da_transaction").record(
-                    Instant::now()
-                        .saturating_duration_since(start)
-                        .as_secs_f64(),
-                );
-
-                if let Some(root) = merkle_root {
-                    info!("Taproot merkle root for inscription - Complete: {}", root);
-                }
-                return Ok(DaTxs::Complete {
-                    commit: unsigned_commit_tx,
-                    reveal: TxWithId {
-                        id: reveal_tx.compute_txid(),
-                        tx: reveal_tx,
-                    },
-                });
-            } else {
-                unsigned_commit_tx.output[0].value -= Amount::ONE_SAT;
-                unsigned_commit_tx.output[1].value += Amount::ONE_SAT;
-                reveal_tx.output[0].value -= Amount::ONE_SAT;
-                reveal_tx.input[0].previous_output.txid = unsigned_commit_tx.compute_txid();
-                update_witness(
-                    &unsigned_commit_tx,
-                    &mut reveal_tx,
-                    tapscript_hash,
-                    &key_pair,
-                    SECP256K1,
-                );
+            if let Some(root) = merkle_root {
+                info!("Taproot merkle root for inscription - Complete: {}", root);
             }
+            return Ok(DaTxs::Complete {
+                commit: unsigned_commit_tx,
+                reveal: TxWithId {
+                    id: reveal_tx.compute_txid(),
+                    tx: reveal_tx,
+                },
+            });
+        } else {
+            reveal_tx.lock_time = LockTime::Seconds(Time::from_consensus(lock_time).unwrap());
+            update_witness(
+                &unsigned_commit_tx,
+                &mut reveal_tx,
+                tapscript_hash,
+                &key_pair,
+                SECP256K1,
+            );
+            lock_time += 1;
         }
-
-        nonce += 1;
     }
 }
 
@@ -359,152 +357,149 @@ pub fn create_inscription_type_1(
             );
         }
         // push end if
-        let reveal_script_builder = reveal_script_builder.push_opcode(OP_ENDIF);
+        reveal_script_builder = reveal_script_builder.push_opcode(OP_ENDIF);
 
-        // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
-        let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
-        'mine_chunk: loop {
-            if nonce % 1000 == 0 {
-                trace!(nonce, "Trying to find commit & reveal nonce for chunk");
-                if nonce > 16384 {
-                    warn!("Too many iterations finding nonce for chunk");
+        // Nonce is kept for legacy reasons but is now fixed at 16.
+        // Prefix mining is now done by iterating over lock_time instead.
+        let nonce: i64 = 16; // >= 16 to avoid OP_PUSHNUM_X interpretation
+
+        // push nonce
+        reveal_script_builder = reveal_script_builder
+            .push_slice(nonce.to_le_bytes())
+            // drop the second item, bc there is a big chance it's 0 (tx kind) and nonce is >= 16
+            .push_opcode(OP_NIP);
+
+        // finalize reveal script
+        let reveal_script = reveal_script_builder.into_script();
+
+        let (control_block, merkle_root, tapscript_hash) =
+            build_control_block(&reveal_script, public_key, SECP256K1);
+
+        // create commit tx address
+        let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
+
+        let reveal_value = REVEAL_OUTPUT_AMOUNT;
+        let fee = (get_size_reveal(
+            change_address.script_pubkey(),
+            reveal_value,
+            &reveal_script,
+            &control_block,
+        ) as f64
+            * reveal_fee_rate)
+            .ceil() as u64;
+        let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
+
+        // build commit tx
+        let (unsigned_commit_tx, leftover_utxos) = build_commit_transaction(
+            prev_utxo.clone(),
+            utxos.clone(),
+            commit_tx_address.clone(),
+            change_address.clone(),
+            reveal_input_value,
+            commit_fee_rate,
+        )?;
+
+        let input_to_reveal = unsigned_commit_tx.output[0].clone();
+        let commit_txid = unsigned_commit_tx.compute_txid();
+
+        let mut reveal_tx = build_reveal_transaction(
+            input_to_reveal,
+            commit_txid,
+            0,
+            change_address.clone(),
+            reveal_value + REVEAL_OUTPUT_THRESHOLD,
+            reveal_fee_rate,
+            &reveal_script,
+            &control_block,
+        )?;
+
+        build_witness(
+            &unsigned_commit_tx,
+            &mut reveal_tx,
+            tapscript_hash,
+            reveal_script,
+            control_block,
+            &key_pair,
+            SECP256K1,
+        );
+
+        // Mine for the reveal tx prefix by iterating over lock_time values.
+        // Starting from LOCK_TIME_THRESHOLD (500_000_000) is safe because it represents
+        // a Unix timestamp from 1985, and with a two-byte prefix requiring on average 2^16
+        // iterations, the resulting timestamp (~500_065_536) is still in 1985, making the
+        // transaction spendable immediately (equivalent to nLockTime == 0).
+        let mut lock_time = LOCK_TIME_THRESHOLD;
+        loop {
+            let iterations = lock_time - LOCK_TIME_THRESHOLD;
+            if iterations > 0 && iterations % 1000 == 0 {
+                trace!(iterations, "Mining for chunk reveal tx prefix");
+                if iterations > 16384 {
+                    warn!("Too many iterations mining for chunk reveal tx prefix");
                 }
             }
-            // ownerships are moved to the loop
-            let mut reveal_script_builder = reveal_script_builder.clone();
 
-            // push nonce
-            reveal_script_builder = reveal_script_builder
-                .push_slice(nonce.to_le_bytes())
-                // drop the second item, bc there is a big chance it's 0 (tx kind) and nonce is >= 16
-                .push_opcode(OP_NIP);
-            nonce += 1;
+            let reveal_wtxid = reveal_tx.compute_wtxid();
+            let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
 
-            // finalize reveal script
-            let reveal_script = reveal_script_builder.into_script();
+            // check if first N bytes equal to the given prefix
+            if reveal_hash.starts_with(reveal_tx_prefix) {
+                // check if inscription locked to the correct address
+                let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
+                let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
+                assert_eq!(
+                    Address::p2tr_tweaked(
+                        TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
+                        network,
+                    ),
+                    commit_tx_address
+                );
 
-            let (control_block, merkle_root, tapscript_hash) =
-                build_control_block(&reveal_script, public_key, SECP256K1);
+                // set prev utxo to last reveal tx[0] to chain txs in order
+                prev_utxo = Some(UTXO {
+                    tx_id: reveal_tx.compute_txid(),
+                    vout: 0,
+                    script_pubkey: reveal_tx.output[0].script_pubkey.to_hex_string(),
+                    address: None,
+                    amount: reveal_tx.output[0].value.to_sat(),
+                    confirmations: 0,
+                    spendable: true,
+                    solvable: true,
+                });
 
-            // create commit tx address
-            let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
+                // Replace utxos with leftovers so we don't use prev utxos in next chunks
+                utxos = leftover_utxos;
 
-            let reveal_value = REVEAL_OUTPUT_AMOUNT;
-            let fee = (get_size_reveal(
-                change_address.script_pubkey(),
-                reveal_value,
-                &reveal_script,
-                &control_block,
-            ) as f64
-                * reveal_fee_rate)
-                .ceil() as u64;
-            let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
-
-            // build commit tx
-            let (mut unsigned_commit_tx, leftover_utxos) = build_commit_transaction(
-                prev_utxo.clone(),
-                utxos.clone(),
-                commit_tx_address.clone(),
-                change_address.clone(),
-                reveal_input_value,
-                commit_fee_rate,
-            )?;
-
-            let output_to_reveal = unsigned_commit_tx.output[0].clone();
-
-            let mut reveal_tx = build_reveal_transaction(
-                output_to_reveal.clone(),
-                unsigned_commit_tx.compute_txid(),
-                0,
-                change_address.clone(),
-                reveal_value + REVEAL_OUTPUT_THRESHOLD,
-                reveal_fee_rate,
-                &reveal_script,
-                &control_block,
-            )?;
-
-            build_witness(
-                &unsigned_commit_tx,
-                &mut reveal_tx,
-                tapscript_hash,
-                reveal_script,
-                control_block,
-                &key_pair,
-                SECP256K1,
-            );
-
-            let min_commit_value = Amount::from_sat(fee + reveal_value);
-            while unsigned_commit_tx.output[0].value >= min_commit_value
-                && reveal_tx.output[0].value > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
-            {
-                let reveal_wtxid = reveal_tx.compute_wtxid();
-                let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
-
-                // check if first N bytes equal to the given prefix
-                if reveal_hash.starts_with(reveal_tx_prefix) {
-                    // check if inscription locked to the correct address
-                    let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
-                    let (x_only_pub_key, _parity) =
-                        recovery_key_pair.to_inner().x_only_public_key();
-                    assert_eq!(
-                        Address::p2tr_tweaked(
-                            TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
-                            network,
-                        ),
-                        commit_tx_address
-                    );
-
-                    // set prev utxo to last reveal tx[0] to chain txs in order
-                    prev_utxo = Some(UTXO {
-                        tx_id: reveal_tx.compute_txid(),
-                        vout: 0,
-                        script_pubkey: reveal_tx.output[0].script_pubkey.to_hex_string(),
+                if unsigned_commit_tx.output.len() > 1 {
+                    utxos.push(UTXO {
+                        tx_id: unsigned_commit_tx.compute_txid(),
+                        vout: 1,
                         address: None,
-                        amount: reveal_tx.output[0].value.to_sat(),
+                        script_pubkey: unsigned_commit_tx.output[1].script_pubkey.to_hex_string(),
+                        amount: unsigned_commit_tx.output[1].value.to_sat(),
                         confirmations: 0,
                         spendable: true,
                         solvable: true,
-                    });
-
-                    // Replace utxos with leftovers so we don't use prev utxos in next chunks
-                    utxos = leftover_utxos;
-
-                    if unsigned_commit_tx.output.len() > 1 {
-                        utxos.push(UTXO {
-                            tx_id: unsigned_commit_tx.compute_txid(),
-                            vout: 1,
-                            address: None,
-                            script_pubkey: unsigned_commit_tx.output[1]
-                                .script_pubkey
-                                .to_hex_string(),
-                            amount: unsigned_commit_tx.output[1].value.to_sat(),
-                            confirmations: 0,
-                            spendable: true,
-                            solvable: true,
-                        })
-                    }
-
-                    commit_chunks.push(unsigned_commit_tx);
-                    reveal_chunks.push(reveal_tx);
-
-                    if let Some(root) = merkle_root {
-                        info!("Taproot merkle root for inscription - Chunked: {}", root);
-                    }
-
-                    break 'mine_chunk;
-                } else {
-                    unsigned_commit_tx.output[0].value -= Amount::ONE_SAT;
-                    unsigned_commit_tx.output[1].value += Amount::ONE_SAT;
-                    reveal_tx.output[0].value -= Amount::ONE_SAT;
-                    reveal_tx.input[0].previous_output.txid = unsigned_commit_tx.compute_txid();
-                    update_witness(
-                        &unsigned_commit_tx,
-                        &mut reveal_tx,
-                        tapscript_hash,
-                        &key_pair,
-                        SECP256K1,
-                    );
+                    })
                 }
+
+                commit_chunks.push(unsigned_commit_tx);
+                reveal_chunks.push(reveal_tx);
+
+                if let Some(root) = merkle_root {
+                    info!("Taproot merkle root for inscription - Chunked: {}", root);
+                }
+
+                break;
+            } else {
+                reveal_tx.lock_time = LockTime::Seconds(Time::from_consensus(lock_time).unwrap());
+                update_witness(
+                    &unsigned_commit_tx,
+                    &mut reveal_tx,
+                    tapscript_hash,
+                    &key_pair,
+                    SECP256K1,
+                );
+                lock_time += 1;
             }
         }
     }
@@ -549,133 +544,129 @@ pub fn create_inscription_type_1(
     // push end if
     reveal_script_builder = reveal_script_builder.push_opcode(OP_ENDIF);
 
-    // This envelope is not finished yet. The random number will be added later
+    // Nonce is kept for legacy reasons but is now fixed at 16.
+    // Prefix mining is now done by iterating over lock_time instead.
+    let nonce: i64 = 16; // >= 16 to avoid OP_PUSHNUM_X interpretation
 
-    // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
-    let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
+    // push nonce
+    reveal_script_builder = reveal_script_builder
+        .push_slice(nonce.to_le_bytes())
+        // drop the second item, bc there is a big chance it's 0 (tx kind) and nonce is >= 16
+        .push_opcode(OP_NIP);
+
+    // finalize reveal script
+    let reveal_script = reveal_script_builder.into_script();
+
+    let (control_block, merkle_root, tapscript_hash) =
+        build_control_block(&reveal_script, public_key, SECP256K1);
+
+    // create commit tx address
+    let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
+
+    let reveal_value = REVEAL_OUTPUT_AMOUNT;
+    let fee = (get_size_reveal(
+        change_address.script_pubkey(),
+        reveal_value,
+        &reveal_script,
+        &control_block,
+    ) as f64
+        * reveal_fee_rate)
+        .ceil() as u64;
+    let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
+
+    // build commit tx
+    let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
+        prev_utxo,
+        utxos,
+        commit_tx_address.clone(),
+        change_address.clone(),
+        reveal_input_value,
+        commit_fee_rate,
+    )?;
+
+    let input_to_reveal = unsigned_commit_tx.output[0].clone();
+    let commit_txid = unsigned_commit_tx.compute_txid();
+
+    let mut reveal_tx = build_reveal_transaction(
+        input_to_reveal,
+        commit_txid,
+        0,
+        change_address,
+        reveal_value + REVEAL_OUTPUT_THRESHOLD,
+        reveal_fee_rate,
+        &reveal_script,
+        &control_block,
+    )?;
+
+    build_witness(
+        &unsigned_commit_tx,
+        &mut reveal_tx,
+        tapscript_hash,
+        reveal_script,
+        control_block,
+        &key_pair,
+        SECP256K1,
+    );
+
+    // Mine for the reveal tx prefix by iterating over lock_time values.
+    // Starting from LOCK_TIME_THRESHOLD (500_000_000) is safe because it represents
+    // a Unix timestamp from 1985, and with a two-byte prefix requiring on average 2^16
+    // iterations, the resulting timestamp (~500_065_536) is still in 1985, making the
+    // transaction spendable immediately (equivalent to nLockTime == 0).
+    let mut lock_time = LOCK_TIME_THRESHOLD;
     loop {
-        if nonce % 1000 == 0 {
-            trace!(nonce, "Trying to find commit & reveal nonce for aggr");
-            if nonce > 16384 {
-                warn!("Too many iterations finding nonce for aggr");
+        let iterations = lock_time - LOCK_TIME_THRESHOLD;
+        if iterations > 0 && iterations % 1000 == 0 {
+            trace!(iterations, "Mining for aggregate reveal tx prefix");
+            if iterations > 16384 {
+                warn!("Too many iterations mining for aggregate reveal tx prefix");
             }
         }
-        let utxos = utxos.clone();
-        let change_address = change_address.clone();
-        // ownerships are moved to the loop
-        let mut reveal_script_builder = reveal_script_builder.clone();
 
-        // push nonce
-        reveal_script_builder = reveal_script_builder
-            .push_slice(nonce.to_le_bytes())
-            // drop the second item, bc there is a big chance it's 0 (tx kind) and nonce is >= 16
-            .push_opcode(OP_NIP);
-        nonce += 1;
+        let reveal_wtxid = reveal_tx.compute_wtxid();
+        let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
 
-        // finalize reveal script
-        let reveal_script = reveal_script_builder.into_script();
+        // check if first N bytes equal to the given prefix
+        if reveal_hash.starts_with(reveal_tx_prefix) {
+            // check if inscription locked to the correct address
+            let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
+            let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
+            assert_eq!(
+                Address::p2tr_tweaked(
+                    TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
+                    network,
+                ),
+                commit_tx_address
+            );
 
-        let (control_block, merkle_root, tapscript_hash) =
-            build_control_block(&reveal_script, public_key, SECP256K1);
+            histogram!("chunked_mine_da_transaction").record(
+                Instant::now()
+                    .saturating_duration_since(start)
+                    .as_secs_f64(),
+            );
 
-        // create commit tx address
-        let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
-
-        let reveal_value = REVEAL_OUTPUT_AMOUNT;
-        let fee = (get_size_reveal(
-            change_address.script_pubkey(),
-            reveal_value,
-            &reveal_script,
-            &control_block,
-        ) as f64
-            * reveal_fee_rate)
-            .ceil() as u64;
-        let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
-
-        // build commit tx
-        let (mut unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
-            prev_utxo.clone(),
-            utxos,
-            commit_tx_address.clone(),
-            change_address.clone(),
-            reveal_input_value,
-            commit_fee_rate,
-        )?;
-
-        let input_to_reveal = unsigned_commit_tx.output[0].clone();
-
-        let mut reveal_tx = build_reveal_transaction(
-            input_to_reveal.clone(),
-            unsigned_commit_tx.compute_txid(),
-            0,
-            change_address,
-            reveal_value + REVEAL_OUTPUT_THRESHOLD,
-            reveal_fee_rate,
-            &reveal_script,
-            &control_block,
-        )?;
-
-        build_witness(
-            &unsigned_commit_tx,
-            &mut reveal_tx,
-            tapscript_hash,
-            reveal_script,
-            control_block,
-            &key_pair,
-            SECP256K1,
-        );
-
-        let min_commit_value = Amount::from_sat(fee + reveal_value);
-        while unsigned_commit_tx.output[0].value >= min_commit_value
-            && reveal_tx.output[0].value > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
-        {
-            let reveal_wtxid = reveal_tx.compute_wtxid();
-            let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
-
-            // check if first N bytes equal to the given prefix
-            if reveal_hash.starts_with(reveal_tx_prefix) {
-                // check if inscription locked to the correct address
-                let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
-                let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
-                assert_eq!(
-                    Address::p2tr_tweaked(
-                        TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
-                        network,
-                    ),
-                    commit_tx_address
-                );
-
-                histogram!("chunked_mine_da_transaction").record(
-                    Instant::now()
-                        .saturating_duration_since(start)
-                        .as_secs_f64(),
-                );
-
-                if let Some(root) = merkle_root {
-                    info!("Taproot merkle root for inscription - Aggregate: {}", root);
-                }
-                return Ok(DaTxs::Chunked {
-                    commit_chunks,
-                    reveal_chunks,
-                    commit: unsigned_commit_tx,
-                    reveal: TxWithId {
-                        id: reveal_tx.compute_txid(),
-                        tx: reveal_tx,
-                    },
-                });
-            } else {
-                unsigned_commit_tx.output[0].value -= Amount::ONE_SAT;
-                unsigned_commit_tx.output[1].value += Amount::ONE_SAT;
-                reveal_tx.output[0].value -= Amount::ONE_SAT;
-                reveal_tx.input[0].previous_output.txid = unsigned_commit_tx.compute_txid();
-                update_witness(
-                    &unsigned_commit_tx,
-                    &mut reveal_tx,
-                    tapscript_hash,
-                    &key_pair,
-                    SECP256K1,
-                );
+            if let Some(root) = merkle_root {
+                info!("Taproot merkle root for inscription - Aggregate: {}", root);
             }
+            return Ok(DaTxs::Chunked {
+                commit_chunks,
+                reveal_chunks,
+                commit: unsigned_commit_tx,
+                reveal: TxWithId {
+                    id: reveal_tx.compute_txid(),
+                    tx: reveal_tx,
+                },
+            });
+        } else {
+            reveal_tx.lock_time = LockTime::Seconds(Time::from_consensus(lock_time).unwrap());
+            update_witness(
+                &unsigned_commit_tx,
+                &mut reveal_tx,
+                tapscript_hash,
+                &key_pair,
+                SECP256K1,
+            );
+            lock_time += 1;
         }
     }
 }
@@ -724,136 +715,134 @@ pub fn create_inscription_type_3(
     // push end if
     reveal_script_builder = reveal_script_builder.push_opcode(OP_ENDIF);
 
-    // This envelope is not finished yet. The random number will be added later
+    // Nonce is kept for legacy reasons but is now fixed at 16.
+    // Prefix mining is now done by iterating over lock_time instead.
+    let nonce: i64 = 16; // >= 16 to avoid OP_PUSHNUM_X interpretation
 
-    // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
-    let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
+    // push nonce
+    reveal_script_builder = reveal_script_builder
+        .push_slice(nonce.to_le_bytes())
+        // drop the second item, bc there is a big chance it's 0 (tx kind) and nonce is >= 16
+        .push_opcode(OP_NIP);
+
+    // finalize reveal script
+    let reveal_script = reveal_script_builder.into_script();
+
+    let (control_block, merkle_root, tapscript_hash) =
+        build_control_block(&reveal_script, public_key, SECP256K1);
+
+    // create commit tx address
+    let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
+
+    let reveal_value = REVEAL_OUTPUT_AMOUNT;
+    let fee = (get_size_reveal(
+        change_address.script_pubkey(),
+        reveal_value,
+        &reveal_script,
+        &control_block,
+    ) as f64
+        * reveal_fee_rate)
+        .ceil() as u64;
+    let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
+
+    // build commit tx
+    // we don't need leftover_utxos because they will be requested from bitcoind next call
+    let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
+        prev_utxo,
+        utxos,
+        commit_tx_address.clone(),
+        change_address.clone(),
+        reveal_input_value,
+        commit_fee_rate,
+    )?;
+
+    let input_to_reveal = unsigned_commit_tx.output[0].clone();
+    let commit_txid = unsigned_commit_tx.compute_txid();
+
+    let mut reveal_tx = build_reveal_transaction(
+        input_to_reveal,
+        commit_txid,
+        0,
+        change_address,
+        reveal_value + REVEAL_OUTPUT_THRESHOLD,
+        reveal_fee_rate,
+        &reveal_script,
+        &control_block,
+    )?;
+
+    build_witness(
+        &unsigned_commit_tx,
+        &mut reveal_tx,
+        tapscript_hash,
+        reveal_script,
+        control_block,
+        &key_pair,
+        SECP256K1,
+    );
+
+    // Mine for the reveal tx prefix by iterating over lock_time values.
+    // Starting from LOCK_TIME_THRESHOLD (500_000_000) is safe because it represents
+    // a Unix timestamp from 1985, and with a two-byte prefix requiring on average 2^16
+    // iterations, the resulting timestamp (~500_065_536) is still in 1985, making the
+    // transaction spendable immediately (equivalent to nLockTime == 0).
+    let mut lock_time = LOCK_TIME_THRESHOLD;
     loop {
-        if nonce % 1000 == 0 {
-            trace!(nonce, "Trying to find commit & reveal nonce");
-            if nonce > 16384 {
-                warn!("Too many iterations finding nonce");
-            }
-        }
-        let utxos = utxos.clone();
-        let change_address = change_address.clone();
-        // ownerships are moved to the loop
-        let mut reveal_script_builder = reveal_script_builder.clone();
-
-        // push nonce
-        reveal_script_builder = reveal_script_builder
-            .push_slice(nonce.to_le_bytes())
-            // drop the second item, bc there is a big chance it's 0 (tx kind) and nonce is >= 16
-            .push_opcode(OP_NIP);
-
-        // finalize reveal script
-        let reveal_script = reveal_script_builder.into_script();
-
-        let (control_block, merkle_root, tapscript_hash) =
-            build_control_block(&reveal_script, public_key, SECP256K1);
-
-        // create commit tx address
-        let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
-
-        let reveal_value = REVEAL_OUTPUT_AMOUNT;
-        let fee = (get_size_reveal(
-            change_address.script_pubkey(),
-            reveal_value,
-            &reveal_script,
-            &control_block,
-        ) as f64
-            * reveal_fee_rate)
-            .ceil() as u64;
-        let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
-
-        // build commit tx
-        // we don't need leftover_utxos because they will be requested from bitcoind next call
-        let (mut unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
-            prev_utxo.clone(),
-            utxos,
-            commit_tx_address.clone(),
-            change_address.clone(),
-            reveal_input_value,
-            commit_fee_rate,
-        )?;
-
-        let output_to_reveal = unsigned_commit_tx.output[0].clone();
-
-        let mut reveal_tx = build_reveal_transaction(
-            output_to_reveal.clone(),
-            unsigned_commit_tx.compute_txid(),
-            0,
-            change_address,
-            reveal_value + REVEAL_OUTPUT_THRESHOLD,
-            reveal_fee_rate,
-            &reveal_script,
-            &control_block,
-        )?;
-
-        build_witness(
-            &unsigned_commit_tx,
-            &mut reveal_tx,
-            tapscript_hash,
-            reveal_script,
-            control_block,
-            &key_pair,
-            SECP256K1,
-        );
-
-        let min_commit_value = Amount::from_sat(fee + reveal_value);
-        while unsigned_commit_tx.output[0].value >= min_commit_value
-            && reveal_tx.output[0].value > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
-        {
-            let reveal_wtxid = reveal_tx.compute_wtxid();
-            let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
-            // check if first N bytes equal to the given prefix
-            if reveal_hash.starts_with(reveal_tx_prefix) {
-                // check if inscription locked to the correct address
-                let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
-                let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
-                assert_eq!(
-                    Address::p2tr_tweaked(
-                        TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
-                        network,
-                    ),
-                    commit_tx_address
-                );
-
-                histogram!("batch_proof_method_id_mine_da_transaction").record(
-                    Instant::now()
-                        .saturating_duration_since(start)
-                        .as_secs_f64(),
-                );
-
-                if let Some(root) = merkle_root {
-                    info!(
-                        "Taproot merkle root for inscription - BatchProofMethodId: {}",
-                        root
-                    );
-                }
-                return Ok(DaTxs::BatchProofMethodId {
-                    commit: unsigned_commit_tx,
-                    reveal: TxWithId {
-                        id: reveal_tx.compute_txid(),
-                        tx: reveal_tx,
-                    },
-                });
-            } else {
-                unsigned_commit_tx.output[0].value -= Amount::ONE_SAT;
-                unsigned_commit_tx.output[1].value += Amount::ONE_SAT;
-                reveal_tx.output[0].value -= Amount::ONE_SAT;
-                reveal_tx.input[0].previous_output.txid = unsigned_commit_tx.compute_txid();
-                update_witness(
-                    &unsigned_commit_tx,
-                    &mut reveal_tx,
-                    tapscript_hash,
-                    &key_pair,
-                    SECP256K1,
-                );
+        let iterations = lock_time - LOCK_TIME_THRESHOLD;
+        if iterations > 0 && iterations % 1000 == 0 {
+            trace!(
+                iterations,
+                "Mining for batch proof method id reveal tx prefix"
+            );
+            if iterations > 16384 {
+                warn!("Too many iterations mining for batch proof method id reveal tx prefix");
             }
         }
 
-        nonce += 1;
+        let reveal_wtxid = reveal_tx.compute_wtxid();
+        let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
+        // check if first N bytes equal to the given prefix
+        if reveal_hash.starts_with(reveal_tx_prefix) {
+            // check if inscription locked to the correct address
+            let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
+            let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
+            assert_eq!(
+                Address::p2tr_tweaked(
+                    TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
+                    network,
+                ),
+                commit_tx_address
+            );
+
+            histogram!("batch_proof_method_id_mine_da_transaction").record(
+                Instant::now()
+                    .saturating_duration_since(start)
+                    .as_secs_f64(),
+            );
+
+            if let Some(root) = merkle_root {
+                info!(
+                    "Taproot merkle root for inscription - BatchProofMethodId: {}",
+                    root
+                );
+            }
+            return Ok(DaTxs::BatchProofMethodId {
+                commit: unsigned_commit_tx,
+                reveal: TxWithId {
+                    id: reveal_tx.compute_txid(),
+                    tx: reveal_tx,
+                },
+            });
+        } else {
+            reveal_tx.lock_time = LockTime::Seconds(Time::from_consensus(lock_time).unwrap());
+            update_witness(
+                &unsigned_commit_tx,
+                &mut reveal_tx,
+                tapscript_hash,
+                &key_pair,
+                SECP256K1,
+            );
+            lock_time += 1;
+        }
     }
 }
 
@@ -893,7 +882,7 @@ pub fn create_inscription_type_4(
     let start = Instant::now();
 
     // start creating inscription content
-    let reveal_script_builder = script::Builder::new()
+    let mut reveal_script_builder = script::Builder::new()
         .push_x_only_key(&public_key)
         .push_opcode(OP_CHECKSIGVERIFY)
         .push_slice(PushBytesBuf::from(kind_bytes))
@@ -906,131 +895,130 @@ pub fn create_inscription_type_4(
         .push_slice(PushBytesBuf::try_from(body).expect("Cannot push sequencer commitment"))
         .push_opcode(OP_ENDIF);
 
-    // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
-    let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
+    // Nonce is kept for legacy reasons but is now fixed at 16.
+    // Prefix mining is now done by iterating over lock_time instead.
+    let nonce: i64 = 16; // >= 16 to avoid OP_PUSHNUM_X interpretation
+
+    // push nonce
+    reveal_script_builder = reveal_script_builder
+        .push_slice(nonce.to_le_bytes())
+        // drop the second item, bc there is a big chance it's 0 (tx kind) and nonce is >= 16
+        .push_opcode(OP_NIP);
+
+    // finalize reveal script
+    let reveal_script = reveal_script_builder.into_script();
+
+    let (control_block, merkle_root, tapscript_hash) =
+        build_control_block(&reveal_script, public_key, SECP256K1);
+
+    // create commit tx address
+    let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
+
+    let reveal_value = REVEAL_OUTPUT_AMOUNT;
+    let fee = (get_size_reveal(
+        change_address.script_pubkey(),
+        reveal_value,
+        &reveal_script,
+        &control_block,
+    ) as f64
+        * reveal_fee_rate)
+        .ceil() as u64;
+    let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
+
+    // build commit tx
+    // we don't need leftover_utxos because they will be requested from bitcoind next call
+    let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
+        prev_utxo,
+        utxos,
+        commit_tx_address.clone(),
+        change_address.clone(),
+        reveal_input_value,
+        commit_fee_rate,
+    )?;
+
+    let input_to_reveal = unsigned_commit_tx.output[0].clone();
+    let commit_txid = unsigned_commit_tx.compute_txid();
+
+    let mut reveal_tx = build_reveal_transaction(
+        input_to_reveal,
+        commit_txid,
+        0,
+        change_address,
+        reveal_value + REVEAL_OUTPUT_THRESHOLD,
+        reveal_fee_rate,
+        &reveal_script,
+        &control_block,
+    )?;
+
+    build_witness(
+        &unsigned_commit_tx,
+        &mut reveal_tx,
+        tapscript_hash,
+        reveal_script,
+        control_block,
+        &key_pair,
+        SECP256K1,
+    );
+
+    // Mine for the reveal tx prefix by iterating over lock_time values.
+    // Starting from LOCK_TIME_THRESHOLD (500_000_000) is safe because it represents
+    // a Unix timestamp from 1985, and with a two-byte prefix requiring on average 2^16
+    // iterations, the resulting timestamp (~500_065_536) is still in 1985, making the
+    // transaction spendable immediately (equivalent to nLockTime == 0).
+    let mut lock_time = LOCK_TIME_THRESHOLD;
     loop {
-        if nonce % 1000 == 0 {
-            trace!(nonce, "Trying to find commit & reveal nonce");
-            if nonce > 16384 {
-                warn!("Too many iterations finding nonce");
-            }
-        }
-        let utxos = utxos.clone();
-        let change_address = change_address.clone();
-        // ownerships are moved to the loop
-        let mut reveal_script_builder = reveal_script_builder.clone();
-
-        // push nonce
-        reveal_script_builder = reveal_script_builder
-            .push_slice(nonce.to_le_bytes())
-            // drop the second item, bc there is a big chance it's 0 (tx kind) and nonce is >= 16
-            .push_opcode(OP_NIP);
-
-        // finalize reveal script
-        let reveal_script = reveal_script_builder.into_script();
-
-        let (control_block, merkle_root, tapscript_hash) =
-            build_control_block(&reveal_script, public_key, SECP256K1);
-
-        // create commit tx address
-        let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
-
-        let reveal_value = REVEAL_OUTPUT_AMOUNT;
-        let fee = (get_size_reveal(
-            change_address.script_pubkey(),
-            reveal_value,
-            &reveal_script,
-            &control_block,
-        ) as f64
-            * reveal_fee_rate)
-            .ceil() as u64;
-        let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
-
-        // build commit tx
-        // we don't need leftover_utxos because they will be requested from bitcoind next call
-        let (mut unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
-            prev_utxo.clone(),
-            utxos,
-            commit_tx_address.clone(),
-            change_address.clone(),
-            reveal_input_value,
-            commit_fee_rate,
-        )?;
-
-        let output_to_reveal = unsigned_commit_tx.output[0].clone();
-
-        let mut reveal_tx = build_reveal_transaction(
-            output_to_reveal.clone(),
-            unsigned_commit_tx.compute_txid(),
-            0,
-            change_address,
-            reveal_value + REVEAL_OUTPUT_THRESHOLD,
-            reveal_fee_rate,
-            &reveal_script,
-            &control_block,
-        )?;
-
-        build_witness(
-            &unsigned_commit_tx,
-            &mut reveal_tx,
-            tapscript_hash,
-            reveal_script,
-            control_block,
-            &key_pair,
-            SECP256K1,
-        );
-
-        let min_commit_value = Amount::from_sat(fee + reveal_value);
-        while unsigned_commit_tx.output[0].value >= min_commit_value
-            && reveal_tx.output[0].value > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
-        {
-            // tracing::info!("reveal output: {}", reveal_tx.output[0].value);
-            let reveal_wtxid = reveal_tx.compute_wtxid();
-            let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
-            // check if first N bytes equal to the given prefix
-            if reveal_hash.starts_with(reveal_tx_prefix) {
-                // check if inscription locked to the correct address
-                let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
-                let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
-                assert_eq!(
-                    Address::p2tr_tweaked(
-                        TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
-                        network,
-                    ),
-                    commit_tx_address
-                );
-
-                histogram!("sequencer_commitment_mine_da_transaction").record(
-                    Instant::now()
-                        .saturating_duration_since(start)
-                        .as_secs_f64(),
-                );
-
-                if let Some(root) = merkle_root {
-                    info!("Taproot merkle root for inscription - Commitment: {}", root);
-                }
-                return Ok(DaTxs::SequencerCommitment {
-                    commit: unsigned_commit_tx,
-                    reveal: TxWithId {
-                        id: reveal_tx.compute_txid(),
-                        tx: reveal_tx,
-                    },
-                });
-            } else {
-                unsigned_commit_tx.output[0].value -= Amount::ONE_SAT;
-                unsigned_commit_tx.output[1].value += Amount::ONE_SAT;
-                reveal_tx.output[0].value -= Amount::ONE_SAT;
-                reveal_tx.input[0].previous_output.txid = unsigned_commit_tx.compute_txid();
-                update_witness(
-                    &unsigned_commit_tx,
-                    &mut reveal_tx,
-                    tapscript_hash,
-                    &key_pair,
-                    SECP256K1,
-                );
+        let iterations = lock_time - LOCK_TIME_THRESHOLD;
+        if iterations > 0 && iterations % 1000 == 0 {
+            trace!(
+                iterations,
+                "Mining for sequencer commitment reveal tx prefix"
+            );
+            if iterations > 16384 {
+                warn!("Too many iterations mining for sequencer commitment reveal tx prefix");
             }
         }
 
-        nonce += 1;
+        let reveal_wtxid = reveal_tx.compute_wtxid();
+        let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
+        // check if first N bytes equal to the given prefix
+        if reveal_hash.starts_with(reveal_tx_prefix) {
+            // check if inscription locked to the correct address
+            let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
+            let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
+            assert_eq!(
+                Address::p2tr_tweaked(
+                    TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
+                    network,
+                ),
+                commit_tx_address
+            );
+
+            histogram!("sequencer_commitment_mine_da_transaction").record(
+                Instant::now()
+                    .saturating_duration_since(start)
+                    .as_secs_f64(),
+            );
+
+            if let Some(root) = merkle_root {
+                info!("Taproot merkle root for inscription - Commitment: {}", root);
+            }
+            return Ok(DaTxs::SequencerCommitment {
+                commit: unsigned_commit_tx,
+                reveal: TxWithId {
+                    id: reveal_tx.compute_txid(),
+                    tx: reveal_tx,
+                },
+            });
+        } else {
+            reveal_tx.lock_time = LockTime::Seconds(Time::from_consensus(lock_time).unwrap());
+            update_witness(
+                &unsigned_commit_tx,
+                &mut reveal_tx,
+                tapscript_hash,
+                &key_pair,
+                SECP256K1,
+            );
+            lock_time += 1;
+        }
     }
 }
