@@ -519,8 +519,8 @@ where
 
     /// eth_sendRawTransactionSync RPC call implementation (EIP-7966)
     /// - Send raw transaction to sequencer
-    /// - Subscribes to new block subscription
-    /// - Waits for transaction to be included in a block
+    /// - If subscriptions are enabled, subscribes to new block subscription and waits for transaction to be included in a block
+    /// - Otherwise, falls back to polling for transaction receipt until transaction is included in a block
     /// - Returns the transaction receipt
     /// - Timeout in milliseconds (default: 5_000ms, max: configurable via RpcConfig, default max: 30_000ms)
     ///
@@ -532,16 +532,7 @@ where
         data: Bytes,
         timeout_ms: Option<u64>,
     ) -> RpcResult<AnyTransactionReceipt> {
-        // eth_sendRawTransactionSync is not available if fullnode is running without `enable_subscriptions`
-        let mut block_rx = self
-            .l2_block_rx
-            .as_ref()
-            .ok_or_else(|| {
-                EthApiError::Unsupported(
-                    "Block subscriptions must be enabled for eth_sendRawTransactionSync",
-                )
-            })?
-            .resubscribe();
+        let block_rx = self.l2_block_rx.as_ref().map(|rx| rx.resubscribe());
 
         let hash: B256 = self
             .ethereum
@@ -572,7 +563,7 @@ where
             "Waiting for transaction inclusion"
         );
 
-        let wait_for_receipt = async {
+        let wait_for_receipt = async |mut block_rx: broadcast::Receiver<u64>| {
             loop {
                 match block_rx.recv().await {
                     Ok(_) => {
@@ -600,7 +591,26 @@ where
             }
         };
 
-        match tokio::time::timeout(timeout_duration, wait_for_receipt).await {
+        let wait_for_receipt_without_subscription = async {
+            loop {
+                let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+                if let Ok(Some(receipt)) = evm.get_transaction_receipt(hash, &mut working_set) {
+                    return Ok(receipt);
+                }
+                let duration_ms = eip_7966::POLL_INTERVAL_NO_SUBSCRIPTION_MS;
+                tokio::time::sleep(tokio::time::Duration::from_millis(duration_ms)).await;
+            }
+        };
+
+        let result = tokio::time::timeout(timeout_duration, async {
+            match block_rx {
+                Some(block_rx) => wait_for_receipt(block_rx).await,
+                None => wait_for_receipt_without_subscription.await,
+            }
+        })
+        .await;
+
+        match result {
             Ok(result) => result,
             Err(_) => Err(eip_7966::timeout_error(hash, timeout)),
         }
