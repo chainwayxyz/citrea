@@ -117,12 +117,12 @@ To manage disk space, you can enable pruning by adding this to `rollup_config.to
 
 ```toml
 [runner.pruning_config]
-distance = 259200  # Keep last 3 days of blocks
+distance = 129600  # Keep last 3 days of blocks
 ```
 
 Or set via environment variable:
 ```bash
-export PRUNING_DISTANCE=259200
+export PRUNING_DISTANCE=129600
 ```
 
 Without pruning, the database grows continuously. With pruning enabled, old blocks are automatically removed while keeping recent history. See [Pruning documentation](./pruning.md) for details.
