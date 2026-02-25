@@ -1,10 +1,14 @@
 # Changelog
 ## [Unreleased]
 ### Added
+- feat: Support `eth_sendRawTransactionSync` on websocket disabled nodes. ([#3164](https://github.com/chainwayxyz/citrea/pull/3164))
 
 ### Changed
+- refactor: Remove `dev_mode` field from local prover config to fix prover config confusion.(This change does not require no env var change because it was set with `RISC0_DEV_MODE` env var, right now dev mode is determined with `PROVING_MODE` in batch prover config) ([#3160](https://github.com/chainwayxyz/citrea/pull/3160))
+- fix: Subscription server unordered log delivery ([#3156](https://github.com/chainwayxyz/citrea/pull/3156))
 - refactor: Use reth task manager instead of tokio spawn in sequencer services ([#3145](https://github.com/chainwayxyz/citrea/pull/3145))
 - perf: Skip re-execution of proof request in boundless([#3144](https://github.com/chainwayxyz/citrea/pull/3144))
+- perf: Mine DA transaction prefix using transaction locktime([#3111](https://github.com/chainwayxyz/citrea/pull/3111))
 - fix: Check for shutdown signal when processing blocks in L1/L2 syncers loops ([#3152](https://github.com/chainwayxyz/citrea/pull/3152))
 
 ## [v2.1.0](2026-02-17)
