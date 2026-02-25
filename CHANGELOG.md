@@ -3,6 +3,7 @@
 ### Added
 
 ### Changed
+- fix: Subscription server unordered log delivery ([#3156](https://github.com/chainwayxyz/citrea/pull/3156))
 - refactor: Use reth task manager instead of tokio spawn in sequencer services ([#3145](https://github.com/chainwayxyz/citrea/pull/3145))
 - perf: Skip re-execution of proof request in boundless([#3144](https://github.com/chainwayxyz/citrea/pull/3144))
 - perf: Mine DA transaction prefix using transaction locktime([#3111](https://github.com/chainwayxyz/citrea/pull/3111))
