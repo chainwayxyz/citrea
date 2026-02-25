@@ -532,10 +532,7 @@ where
         data: Bytes,
         timeout_ms: Option<u64>,
     ) -> RpcResult<AnyTransactionReceipt> {
-        let block_rx = self
-            .l2_block_rx
-            .as_ref()
-            .map(|rx| rx.resubscribe());
+        let block_rx = self.l2_block_rx.as_ref().map(|rx| rx.resubscribe());
 
         let hash: B256 = self
             .ethereum
@@ -610,7 +607,8 @@ where
                 Some(block_rx) => wait_for_receipt(block_rx).await,
                 None => wait_for_receipt_without_subscription.await,
             }
-        }).await;
+        })
+        .await;
 
         match result {
             Ok(result) => result,
