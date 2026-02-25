@@ -120,7 +120,7 @@ url = { version = "2.5.4" }
 
 # Risc0 dependencies
 bonsai-sdk = { version = "1.4.1" }
-boundless-market = { version = "1.0.0", default-features = false }
+boundless-market = { version = "1.3.3", default-features = false, features = ["s3"] }
 risc0-ethereum-contracts = { version = "3.0.1" }
 risc0-binfmt = "3.0.2"
 risc0-zkvm = { version = "3.0.3", default-features = false }
