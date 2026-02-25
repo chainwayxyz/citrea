@@ -508,12 +508,6 @@ pub struct PruningConfig {
     pub distance: u64,
 }
 
-impl Default for PruningConfig {
-    fn default() -> Self {
-        Self { distance: 256 }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::io::Write;
