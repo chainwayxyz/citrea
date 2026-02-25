@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::utils::{is_dev_mode_enabled_via_environment, read_env};
+use crate::utils::read_env;
 use crate::FromEnv;
 
 /// Boundless storage configuration for S3
@@ -170,20 +170,13 @@ impl FromEnv for PricingServiceConfig {
 pub struct LocalProverConfig {
     /// Optional path to the r0vm binary
     pub r0vm_path: Option<PathBuf>,
-    /// Enable dev mode
-    #[serde(default)]
-    pub dev_mode: bool,
 }
 
 impl FromEnv for LocalProverConfig {
     fn from_env() -> anyhow::Result<Self> {
         let r0vm_path = read_env("RISC0_SERVER_PATH").ok().map(PathBuf::from);
-        let dev_mode = is_dev_mode_enabled_via_environment();
 
-        Ok(Self {
-            r0vm_path,
-            dev_mode,
-        })
+        Ok(Self { r0vm_path })
     }
 }
 
