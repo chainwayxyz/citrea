@@ -3,14 +3,16 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use citrea_common::{NodeType, PruningConfig};
+use jmt::storage::TreeWriter;
+use jmt::KeyHash;
 use reth_tasks::TaskManager;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::tables::{
-    CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2RangeByL1Height, L2Witness,
-    LightClientProofBySlotNumber, ProofsBySlotNumber, ProofsBySlotNumberV2, ProverStateDiffs,
-    SlotByHash, VerifiedBatchProofsBySlotNumber,
+    CommitmentsByNumber, JmtValues, L2BlockByHash, L2BlockByNumber, L2RangeByL1Height, L2Witness,
+    LightClientProofBySlotNumber, ModuleAccessoryState, ProofsBySlotNumber, ProofsBySlotNumberV2,
+    ProverStateDiffs, SlotByHash, VerifiedBatchProofsBySlotNumber,
 };
 use sov_db::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use sov_db::schema::types::light_client_proof::{
@@ -24,6 +26,8 @@ use tokio::sync::broadcast;
 
 use crate::pruning::criteria::{Criteria, DistanceCriteria};
 use crate::pruning::ledger::prune_ledger_db;
+use crate::pruning::native::prune_native_db;
+use crate::pruning::state::prune_state_db;
 use crate::pruning::{Pruner, PrunerService};
 
 #[tokio::test(flavor = "multi_thread")]
@@ -767,6 +771,235 @@ pub fn test_pruning_ledger_db_batch_prover_slots() {
         .is_none());
     assert!(ledger_db
         .get::<ProofsBySlotNumberV2>(&SlotNumber(20))
+        .unwrap()
+        .is_some());
+}
+
+fn prepare_state_data(state_db: &StateDB) {
+    let tree = jmt::Sha256Jmt::new(state_db);
+    let key_hash = KeyHash([9u8; 32]);
+    let key_preimage = b"state-key".to_vec();
+
+    state_db
+        .put_preimages(vec![(key_hash, key_preimage.as_slice())])
+        .unwrap();
+
+    for version in 0u64..=20 {
+        let (_, tree_update) = tree
+            .put_value_set([(key_hash, Some(vec![version as u8; 4]))], version)
+            .unwrap();
+
+        state_db.write_node_batch(&tree_update.node_batch).unwrap();
+        state_db
+            .set_stale_nodes(&tree_update.stale_node_index_batch)
+            .unwrap();
+    }
+}
+
+#[test]
+pub fn test_pruning_state_db() {
+    let tmpdir = tempfile::tempdir().unwrap();
+    let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
+
+    let state_db = Arc::new(StateDB::setup_schema_db(&rocksdb_config).unwrap());
+    let state_writer = StateDB::new(state_db.clone());
+    let key_preimage = b"state-key".to_vec();
+
+    prepare_state_data(&state_writer);
+    state_db
+        .write_schemas(state_writer.freeze().unwrap())
+        .unwrap();
+
+    assert!(state_db
+        .get::<JmtValues>(&(key_preimage.clone(), 1))
+        .unwrap()
+        .is_some());
+    assert!(state_db
+        .get::<JmtValues>(&(key_preimage.clone(), 10))
+        .unwrap()
+        .is_some());
+    assert!(state_db
+        .get::<JmtValues>(&(key_preimage.clone(), 11))
+        .unwrap()
+        .is_some());
+    assert!(state_db
+        .get::<JmtValues>(&(key_preimage.clone(), 20))
+        .unwrap()
+        .is_some());
+
+    prune_state_db(state_db.clone(), 10, None).unwrap();
+
+    assert!(state_db
+        .get::<JmtValues>(&(key_preimage.clone(), 1))
+        .unwrap()
+        .is_some());
+    assert!(state_db
+        .get::<JmtValues>(&(key_preimage.clone(), 10))
+        .unwrap()
+        .is_none());
+    assert!(state_db
+        .get::<JmtValues>(&(key_preimage.clone(), 11))
+        .unwrap()
+        .is_some());
+    assert!(state_db
+        .get::<JmtValues>(&(key_preimage.clone(), 20))
+        .unwrap()
+        .is_some());
+}
+
+fn prepare_native_data(native_db: &NativeDB) {
+    for version in 1u64..=20 {
+        native_db
+            .set_values(
+                [(
+                    b"E/accounts/0000000000000000000000000000000000000001".to_vec(),
+                    Some(vec![version as u8]),
+                )],
+                version,
+            )
+            .unwrap();
+
+        native_db
+            .set_values(
+                [(b"E/c/some-bytecode".to_vec(), Some(vec![version as u8]))],
+                version,
+            )
+            .unwrap();
+    }
+
+    for block in 1u64..=20 {
+        let version = block + 1;
+        native_db
+            .set_values(
+                [(format!("E/blocks/e{block}").into_bytes(), Some(vec![1u8]))],
+                version,
+            )
+            .unwrap();
+        native_db
+            .set_values(
+                [(format!("E/receipts/e{block}").into_bytes(), Some(vec![1u8]))],
+                version,
+            )
+            .unwrap();
+        native_db
+            .set_values(
+                [(
+                    format!("E/transactions/e{block}").into_bytes(),
+                    Some(vec![1u8]),
+                )],
+                version,
+            )
+            .unwrap();
+    }
+}
+
+#[test]
+pub fn test_pruning_native_db() {
+    let tmpdir = tempfile::tempdir().unwrap();
+    let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
+
+    let native_db = Arc::new(NativeDB::setup_schema_db(&rocksdb_config).unwrap());
+    let native_writer = NativeDB::new(native_db.clone());
+
+    let account_key = b"E/accounts/0000000000000000000000000000000000000001".to_vec();
+    let code_key = b"E/c/some-bytecode".to_vec();
+    let block_key_1 = b"E/blocks/e1".to_vec();
+    let block_key_10 = b"E/blocks/e10".to_vec();
+    let block_key_11 = b"E/blocks/e11".to_vec();
+    let receipt_key_10 = b"E/receipts/e10".to_vec();
+    let tx_key_10 = b"E/transactions/e10".to_vec();
+
+    prepare_native_data(&native_writer);
+    native_db
+        .write_schemas(native_writer.freeze().unwrap())
+        .unwrap();
+
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(account_key.clone(), 1))
+        .unwrap()
+        .is_some());
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(account_key.clone(), 11))
+        .unwrap()
+        .is_some());
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(account_key.clone(), 20))
+        .unwrap()
+        .is_some());
+
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(block_key_1.clone(), 2))
+        .unwrap()
+        .is_some());
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(block_key_10.clone(), 11))
+        .unwrap()
+        .is_some());
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(block_key_11.clone(), 12))
+        .unwrap()
+        .is_some());
+
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(receipt_key_10.clone(), 11))
+        .unwrap()
+        .is_some());
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(tx_key_10.clone(), 11))
+        .unwrap()
+        .is_some());
+
+    prune_native_db(native_db.clone(), 10, None).unwrap();
+
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(account_key.clone(), 1))
+        .unwrap()
+        .is_none());
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(account_key.clone(), 11))
+        .unwrap()
+        .is_none());
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(account_key.clone(), 12))
+        .unwrap()
+        .is_some());
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(account_key.clone(), 20))
+        .unwrap()
+        .is_some());
+
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(block_key_1.clone(), 2))
+        .unwrap()
+        .is_none());
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(block_key_10.clone(), 11))
+        .unwrap()
+        .is_none());
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(block_key_11.clone(), 12))
+        .unwrap()
+        .is_some());
+
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(receipt_key_10.clone(), 11))
+        .unwrap()
+        .is_none());
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(tx_key_10.clone(), 11))
+        .unwrap()
+        .is_none());
+
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(code_key.clone(), 1))
+        .unwrap()
+        .is_some());
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(code_key.clone(), 10))
+        .unwrap()
+        .is_some());
+    assert!(native_db
+        .get::<ModuleAccessoryState>(&(code_key.clone(), 20))
         .unwrap()
         .is_some());
 }
