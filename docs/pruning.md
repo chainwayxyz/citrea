@@ -93,7 +93,7 @@ You can manually prune an existing database using the CLI:
 ```bash
 # Stop your node first
 
-./citrea prune \
+./citrea-cli prune \
   --node-type fullnode \
   --db-path resources/dbs \
   --distance 259200
