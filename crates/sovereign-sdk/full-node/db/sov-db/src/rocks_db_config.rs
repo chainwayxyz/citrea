@@ -91,7 +91,7 @@ impl<'a> RocksdbConfig<'a> {
         // deletions are encountered. This helpers optimize seek calls and make them faster after batch deletions
         // caused by rollbacks.
         db_options.set_compaction_style(rocksdb::DBCompactionStyle::Level);
-        // db_options.add_compact_on_deletion_collector_factory(5000, 1000, 0.2);
+        db_options.add_compact_on_deletion_collector_factory(5000, 1000, 0.2);
         if !readonly {
             db_options.create_if_missing(true);
             db_options.create_missing_column_families(true);
