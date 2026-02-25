@@ -37,6 +37,11 @@ pub(crate) fn prune_native_db(
         let key = &entry.key.0;
         let version = entry.key.1;
 
+        // Skip the offchain state records for evm.code
+        if key.starts_with(b"E/c/".as_slice()) {
+            continue;
+        }
+
         // AccessoryStateVec entries (blocks, transactions, receipts) need special handling:
         // - Each entry has a UNIQUE key (example: E/blocks/e\x14 for block 20, E/blocks/e\x15 for block 21)
         // - Since keys never repeat, seen_keys logic won't work,
