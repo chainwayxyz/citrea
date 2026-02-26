@@ -11,7 +11,7 @@ use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::l2::{apply_l2_block, commit_l2_block, sync_l2};
-use citrea_common::utils::shutdown_requested;
+use citrea_common::utils::{reached_stop_height, shutdown_requested};
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -74,6 +74,8 @@ where
     l2_block_tx: broadcast::Sender<u64>,
     /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
+    /// Optional L2 height at which to stop syncing (debug/testing)
+    stop_at_l2_height: Option<u64>,
 }
 
 impl<DA, DB> L2Syncer<DA, DB>
@@ -95,6 +97,7 @@ where
     /// * `l2_block_tx` - Channel for L2 block notifications
     /// * `backup_manager` - Manager for backup operations
     /// * `include_tx_body` - Whether to include transaction bodies in block processing
+    /// * `stop_at_l2_height` - Optional L2 height at which to stop syncing (debug/testing)
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         runner_config: RunnerConfig,
@@ -108,6 +111,7 @@ where
         l2_block_tx: broadcast::Sender<u64>,
         backup_manager: Arc<BackupManager>,
         include_tx_body: bool,
+        stop_at_l2_height: Option<u64>,
     ) -> Result<Self, anyhow::Error> {
         let start_l2_height = ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
 
@@ -130,6 +134,7 @@ where
             fork_manager,
             l2_block_tx,
             backup_manager,
+            stop_at_l2_height,
         })
     }
 
@@ -156,7 +161,6 @@ where
             select! {
                 _ = &mut shutdown_signal => {
                     info!("Shutting down L2Syncer");
-                    l2_rx.close();
                     return;
                 },
                 _ = &mut l2_sync_worker => {
@@ -170,7 +174,6 @@ where
                         loop {
                             if shutdown_requested(&shutdown_signal) {
                                 info!("Shutting down L2Syncer");
-                                l2_rx.close();
                                 return;
                             }
 
@@ -184,6 +187,13 @@ where
                                 }
                             }
                         }
+
+                        if let Some(stop_height) =
+                            reached_stop_height(l2_block.header.height.to(), self.stop_at_l2_height)
+                        {
+                            return info!("Reached target L2 height {stop_height}");
+                        }
+
                     }
                 },
             }

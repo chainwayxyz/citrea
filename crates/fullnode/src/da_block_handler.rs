@@ -8,11 +8,13 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_zk_proofs_and_sequencer_commitments, sync_l1, ProofOrCommitment};
-use citrea_common::utils::{get_tangerine_activation_height_non_zero, shutdown_requested};
+use citrea_common::utils::{
+    get_tangerine_activation_height_non_zero, reached_stop_height, shutdown_requested,
+};
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::network_to_dev_mode;
 use reth_tasks::shutdown::GracefulShutdown;
@@ -77,6 +79,8 @@ where
     backup_manager: Arc<BackupManager>,
     /// Citrea network the node is operating on
     network: Network,
+    /// Optional L1 height at which to stop syncing (debug/testing)
+    stop_at_l1_height: Option<u64>,
 }
 
 impl<Vm, Da, DB> L1BlockHandler<Vm, Da, DB>
@@ -95,6 +99,7 @@ where
     /// * `code_commitments_by_spec` - Map of ZKVM code commitments
     /// * `l1_block_cache` - Cache for L1 block data
     /// * `backup_manager` - Manager for backup operations
+    /// * `stop_at_l1_height` - Optional L1 height at which to stop syncing (debug/testing)
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         network: Network,
@@ -105,6 +110,7 @@ where
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
         backup_manager: Arc<BackupManager>,
+        stop_at_l1_height: Option<u64>,
     ) -> Self {
         Self {
             ledger_db,
@@ -116,6 +122,7 @@ where
             queued_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             backup_manager,
             network,
+            stop_at_l1_height,
         }
     }
 
@@ -176,8 +183,14 @@ where
             let Some(l1_block) = self.queued_l1_blocks.lock().await.front().cloned() else {
                 break;
             };
+
+            let l1_height = l1_block.header().height();
             self.process_l1_block(l1_block).await?;
             self.queued_l1_blocks.lock().await.pop_front();
+
+            if let Some(stop_height) = reached_stop_height(l1_height, self.stop_at_l1_height) {
+                bail!("Reached target L1 height {stop_height}");
+            }
         }
 
         Ok(())
