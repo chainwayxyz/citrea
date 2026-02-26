@@ -1534,10 +1534,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .expect("EVM chain config should be set");
 
         let mut cfg_env = get_cfg_env(cfg, evm_spec_id);
-
-        // Ignore the base fee check for trace calls
-        // This allows requests with a gas price lower than block base fee to succeed,
-        // Reference: <https://github.com/paradigmxyz/reth/blob/ed7da87da4de340a437bf46f39a7e1397ac82065/crates/rpc/rpc-eth-api/src/helpers/call.rs#L734>
+        // Match the CfgEnv of eth_call here
+        // Also see: <https://github.com/paradigmxyz/reth/blob/564ffa586845fa4a8bb066f0c7b015ff36b26c08/crates/rpc/rpc-eth-api/src/helpers/call.rs#L855>
+        cfg_env.disable_block_gas_limit = true;
+        cfg_env.disable_eip3607 = true;
         cfg_env.disable_base_fee = true;
 
         let l1_fee_block_num = match block_number {
