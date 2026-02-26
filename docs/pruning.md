@@ -47,10 +47,6 @@ distance = 259200  # 3 days worth of blocks
 PRUNING_DISTANCE=259200
 ```
 
-### Default Value
-
-If you don't configure pruning, it's **disabled by default**. The default distance when enabled is 256 blocks.
-
 ## What Gets Pruned
 
 Once a block is pruned, you cannot query its state anymore. This means:
