@@ -24,27 +24,7 @@ pub(crate) fn prune_ledger_db(
     let start = Instant::now();
 
     match node_type {
-        NodeType::Sequencer => {
-            log_result_or_error!(
-                "l2_blocks",
-                prune_l2_blocks(node_type, &ledger_db, up_to_block, shutdown_signal)
-            );
-            log_result_or_error!(
-                "slots",
-                prune_slots(node_type, &ledger_db, up_to_block, shutdown_signal)
-            );
-        }
-        NodeType::FullNode => {
-            log_result_or_error!(
-                "l2_blocks",
-                prune_l2_blocks(node_type, &ledger_db, up_to_block, shutdown_signal)
-            );
-            log_result_or_error!(
-                "slots",
-                prune_slots(node_type, &ledger_db, up_to_block, shutdown_signal)
-            );
-        }
-        NodeType::BatchProver => {
+        NodeType::Sequencer | NodeType::FullNode | NodeType::BatchProver => {
             log_result_or_error!(
                 "l2_blocks",
                 prune_l2_blocks(node_type, &ledger_db, up_to_block, shutdown_signal)
