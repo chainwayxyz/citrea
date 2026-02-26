@@ -61,11 +61,13 @@ pub(crate) fn prune_native_db(
             continue;
         }
 
-        // Handle other versioned entries
+        // Handle other versioned entries.
         if version <= up_to_block + 1 {
-            // Only delete if we've seen a newer version of this key
+            // Delete only after preserving a newer (or first-seen) version for this key.
             if seen_keys.contains(key) {
                 keys_to_delete.push(entry.key.clone());
+            } else {
+                seen_keys.insert(key.clone());
             }
         } else {
             // Track that we've seen a recent version of this key
