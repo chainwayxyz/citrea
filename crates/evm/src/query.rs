@@ -1098,7 +1098,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         cfg_env.clone(),
                         block_env.clone(),
                         inspect_tx_env.clone(),
-                        l1_fee_rate,
+                        0, // run with l1 fee rate = 0, so that we don't get "Not enough funds for L1 fee"
                         TracingInspector::new(TracingInspectorConfig::none()),
                     );
 
@@ -1109,16 +1109,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
                             // One with 0 value and the other with the remaining balance that extract from the current balance after the gas fee is deducted
                             // This causes the diff size to be lower than the actual diff size, and the tx to fail due to not enough l1 fee
                             let mut diff_size = tx_info.l1_diff_size;
-                            let mut l1_fee = tx_info.l1_fee;
                             if tx_env.value.is_zero() {
                                 // Calculation taken from diff size calculation in handler.rs
                                 let balance_diff_size = diff_size_send_eth_eoa() as u64;
 
                                 diff_size += balance_diff_size;
-                                l1_fee = l1_fee.saturating_add(
-                                    U256::from(l1_fee_rate) * (U256::from(balance_diff_size)),
-                                );
                             }
+                            let l1_fee = U256::from(l1_fee_rate) * (U256::from(diff_size));
                             return Ok(EstimatedTxExpenses {
                                 gas_used: U64::from(MIN_TRANSACTION_GAS),
                                 block_gas_limit,
@@ -1153,7 +1150,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             cfg_env.clone(),
             block_env.clone(),
             tx_env.clone(),
-            l1_fee_rate,
+            0, // run with l1 fee rate = 0, so that we don't get "Not enough funds for L1 fee"
             TracingInspector::new(TracingInspectorConfig::none()),
         );
 
@@ -1173,7 +1170,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     tx_env.clone(),
                     cfg_env,
                     evm_db,
-                    l1_fee_rate,
                 )
                 .into());
             }
@@ -1194,7 +1190,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let (result, mut l1_fee, mut diff_size) = match result {
             Ok((result, tx_info)) => match result.result {
                 ExecutionResult::Success { .. } => {
-                    (result.result, tx_info.l1_fee, tx_info.l1_diff_size)
+                    let TxInfo { l1_diff_size, .. } = tx_info;
+                    let l1_fee = U256::from(l1_fee_rate) * (U256::from(l1_diff_size));
+                    (result.result, l1_fee, l1_diff_size)
                 }
                 ExecutionResult::Halt { reason, gas_used } => {
                     return Err(RpcInvalidTransactionError::halt(reason, gas_used).into())
@@ -1212,7 +1210,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                             tx_env.clone(),
                             cfg_env,
                             evm_db,
-                            l1_fee_rate,
                         )
                         .into())
                     } else {
@@ -1255,7 +1252,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 cfg_env.clone(),
                 block_env.clone(),
                 tx_env.clone(),
-                l1_fee_rate,
+                0, // run with l1 fee rate = 0, so that we don't get "Not enough funds for L1 fee"
                 TracingInspector::new(TracingInspectorConfig::none()),
             );
             let (curr_result, tx_info) = match curr_result {
@@ -1270,6 +1267,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 &mut l1_fee,
                 &mut diff_size,
                 tx_info,
+                l1_fee_rate,
             )?;
         };
 
@@ -1332,6 +1330,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     &mut l1_fee,
                     &mut diff_size,
                     tx_info,
+                    l1_fee_rate,
                 )?;
             }
 
@@ -2113,7 +2112,6 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
     mut tx_env: revm::context::TxEnv,
     cfg_env: CfgEnv,
     db: EvmDb<'_, C>,
-    l1_fee_rate: u128,
 ) -> EthApiError {
     let req_gas_limit = tx_env.gas_limit;
     tx_env.gas_limit = block_env.gas_limit;
@@ -2123,7 +2121,7 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
         cfg_env,
         block_env,
         tx_env,
-        l1_fee_rate,
+        /* l1_fee_rate */ 0,
         TracingInspector::new(TracingInspectorConfig::none()),
     ) {
         Ok((res, _tx_info)) => match res.result {
@@ -2155,19 +2153,20 @@ fn update_estimated_gas_range(
     l1_fee: &mut U256,
     diff_size: &mut u64,
     tx_info: TxInfo,
+    l1_fee_rate: u128,
 ) -> EthResult<()> {
     match result {
         ExecutionResult::Success { .. } => {
             // cap the highest gas limit with succeeding gas limit
             *highest_gas_limit = tx_gas_limit;
-            *l1_fee = tx_info.l1_fee;
+            *l1_fee = U256::from(tx_info.l1_diff_size) * U256::from(l1_fee_rate);
             *diff_size = tx_info.l1_diff_size;
         }
         ExecutionResult::Revert { .. } => {
             // increase the lowest gas limit
             *lowest_gas_limit = tx_gas_limit;
 
-            *l1_fee = tx_info.l1_fee;
+            *l1_fee = U256::from(tx_info.l1_diff_size) * U256::from(l1_fee_rate);
             *diff_size = tx_info.l1_diff_size;
         }
         ExecutionResult::Halt { reason, .. } => {
