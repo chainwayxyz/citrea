@@ -91,7 +91,7 @@ fn test_debug_trace_call_disables_base_fee() {
             Address::from_str("0x1111111111111111111111111111111111111111").unwrap(),
         )),
         value: Some(U256::from(1000)),
-        gas_price: Some(1), // 1 wei, much lower than the 1 gwei base fee
+        gas_price: Some(1), // 1 wei, much lower than the block's base fee
         ..Default::default()
     };
     let result = evm.debug_trace_call(
