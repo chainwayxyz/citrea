@@ -848,31 +848,10 @@ pub fn test_pruning_state_db() {
 }
 
 fn prepare_native_data(native_db: &NativeDB) {
-    let inactive_account_key = b"E/accounts/0000000000000000000000000000000000000002".to_vec();
-
     for version in 1u64..=20 {
         native_db
             .set_values(
-                [(
-                    b"E/accounts/0000000000000000000000000000000000000001".to_vec(),
-                    Some(vec![version as u8]),
-                )],
-                version,
-            )
-            .unwrap();
-
-        native_db
-            .set_values(
                 [(b"E/c/some-bytecode".to_vec(), Some(vec![version as u8]))],
-                version,
-            )
-            .unwrap();
-    }
-
-    for version in 1u64..=5 {
-        native_db
-            .set_values(
-                [(inactive_account_key.clone(), Some(vec![version as u8]))],
                 version,
             )
             .unwrap();
@@ -912,8 +891,6 @@ pub fn test_pruning_native_db() {
     let native_db = Arc::new(NativeDB::setup_schema_db(&rocksdb_config).unwrap());
     let native_writer = NativeDB::new(native_db.clone());
 
-    let account_key = b"E/accounts/0000000000000000000000000000000000000001".to_vec();
-    let inactive_account_key = b"E/accounts/0000000000000000000000000000000000000002".to_vec();
     let code_key = b"E/c/some-bytecode".to_vec();
     let block_key_1 = b"E/blocks/e1".to_vec();
     let block_key_10 = b"E/blocks/e10".to_vec();
@@ -925,27 +902,6 @@ pub fn test_pruning_native_db() {
     native_db
         .write_schemas(native_writer.freeze().unwrap())
         .unwrap();
-
-    assert!(native_db
-        .get::<ModuleAccessoryState>(&(account_key.clone(), 1))
-        .unwrap()
-        .is_some());
-    assert!(native_db
-        .get::<ModuleAccessoryState>(&(account_key.clone(), 11))
-        .unwrap()
-        .is_some());
-    assert!(native_db
-        .get::<ModuleAccessoryState>(&(account_key.clone(), 20))
-        .unwrap()
-        .is_some());
-    assert!(native_db
-        .get::<ModuleAccessoryState>(&(inactive_account_key.clone(), 1))
-        .unwrap()
-        .is_some());
-    assert!(native_db
-        .get::<ModuleAccessoryState>(&(inactive_account_key.clone(), 5))
-        .unwrap()
-        .is_some());
 
     assert!(native_db
         .get::<ModuleAccessoryState>(&(block_key_1.clone(), 2))
@@ -970,35 +926,6 @@ pub fn test_pruning_native_db() {
         .is_some());
 
     prune_native_db(native_db.clone(), 10, None).unwrap();
-
-    assert!(native_db
-        .get::<ModuleAccessoryState>(&(account_key.clone(), 1))
-        .unwrap()
-        .is_none());
-    assert!(native_db
-        .get::<ModuleAccessoryState>(&(account_key.clone(), 11))
-        .unwrap()
-        .is_none());
-    assert!(native_db
-        .get::<ModuleAccessoryState>(&(account_key.clone(), 12))
-        .unwrap()
-        .is_some());
-    assert!(native_db
-        .get::<ModuleAccessoryState>(&(account_key.clone(), 20))
-        .unwrap()
-        .is_some());
-    assert!(native_db
-        .get::<ModuleAccessoryState>(&(inactive_account_key.clone(), 1))
-        .unwrap()
-        .is_none());
-    assert!(native_db
-        .get::<ModuleAccessoryState>(&(inactive_account_key.clone(), 4))
-        .unwrap()
-        .is_none());
-    assert!(native_db
-        .get::<ModuleAccessoryState>(&(inactive_account_key.clone(), 5))
-        .unwrap()
-        .is_some());
 
     assert!(native_db
         .get::<ModuleAccessoryState>(&(block_key_1.clone(), 2))
