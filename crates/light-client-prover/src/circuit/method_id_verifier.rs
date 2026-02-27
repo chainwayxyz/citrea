@@ -327,6 +327,7 @@ mod tests {
 #[test]
 // Compares signature created with cast and our implementation
 fn test_eip191_signature_verification() {
+    use alloy_primitives::eip191_hash_message;
     use alloy_signer::SignerSync;
     use alloy_signer_local::PrivateKeySigner;
     use k256::ecdsa::signature::hazmat::PrehashVerifier;

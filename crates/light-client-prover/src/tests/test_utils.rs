@@ -27,7 +27,7 @@ use crate::circuit::accessors::ChunkAccessor;
 use crate::circuit::initial_values::{bitcoinda, InitialValueProvider};
 use crate::circuit::{
     citrea_network_to_chain_id, BatchProofMethodIdUpdate, LightClientProofCircuit,
-    SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT,
+    SECURITY_COUNCIL_MEMBER_COUNT,
 };
 
 /// Test private keys used for generating signatures in tests
@@ -221,26 +221,26 @@ pub(crate) fn from_vec_to_sigs(
 }
 
 /// Generates 5 valid keypairs and returns the public keys and signers from the given private keys
-pub(crate) fn generate_initial_pub_keys_with_signers_from_pks(
+pub(crate) fn generate_initial_addresses_with_signers_from_pks(
     private_keys: [[u8; 32]; 5],
 ) -> (
-    [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT],
+    [Address; SECURITY_COUNCIL_MEMBER_COUNT],
     Vec<PrivateKeySigner>,
 ) {
-    let mut initial_da_pubkeys =
-        [[0u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT];
+    let mut initial_da_addresses = [Address::random(); SECURITY_COUNCIL_MEMBER_COUNT];
     let mut signers = Vec::new();
 
     // Generate 5 valid keypairs and signatures
-    for (i, secret_key) in private_keys.iter().enumerate() {
-        let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+    for (i, address) in initial_da_addresses.iter_mut().enumerate() {
+        let signer = PrivateKeySigner::from_bytes(&private_keys[i].into()).unwrap();
         let verifying_key = signer.credential().verifying_key();
-        let pubkey = verifying_key.to_sec1_bytes();
-        initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+        let ep = verifying_key.to_encoded_point(false); // uncompressed: 0x04 + X(32) + Y(32)
+        let bytes = ep.as_bytes();
+        *address = Address::from_slice(&keccak256(&bytes[1..])[12..]);
         signers.push(signer);
     }
 
-    (initial_da_pubkeys, signers)
+    (initial_da_addresses, signers)
 }
 
 /// Generates 5 valid keypairs and returns the public keys and signers
@@ -302,20 +302,12 @@ pub(crate) fn create_new_method_id_tx(
         chain_id: citrea_network_to_chain_id(network),
     };
 
-    let batch_proof_method_id_update = BatchProofMethodIdUpdate::from(method_id_body);
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(pk_bytes_arr);
 
-    let domain_name = bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME;
-    let chain_id = citrea_network_to_chain_id(Network::Nightly);
+    let payload = BatchProofMethodIdUpdate::from(method_id_body.clone());
 
-    let domain = eip712_domain! {
-        name: domain_name,
-        version: "1",
-        chain_id: chain_id,
-    };
-
-    let (_initial_pubkeys, signers) = generate_initial_pub_keys_with_signers_from_pks(pk_bytes_arr);
-
-    let signatures_with_index = create_valid_signatures(&signers, &batch_proof_method_id_update);
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
 
     let da_data = DataOnDa::BatchProofMethodId(BatchProofMethodId {
         body: BatchProofMethodIdBody {
