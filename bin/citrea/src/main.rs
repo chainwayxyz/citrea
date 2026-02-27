@@ -377,8 +377,8 @@ where
                     rollup_config
                         .runner
                         .ok_or(anyhow!(
-                    "Failed to start batch prover L1 block handler: Runner config not present"
-                ))?
+                            "Failed to start full node L1 block handler: Runner config not present"
+                        ))?
                         .scan_l1_start_height
                 }
             };
