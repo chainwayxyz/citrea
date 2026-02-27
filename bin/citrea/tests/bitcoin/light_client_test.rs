@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
 
-use alloy_primitives::{eip191_hash_message, U32, U64};
+use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
@@ -23,7 +23,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
-use citrea_light_client_prover::circuit::citrea_network_to_chain_id;
+use citrea_light_client_prover::circuit::{citrea_network_to_chain_id, BatchProofMethodIdUpdate};
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::REVEAL_TX_PREFIX;
@@ -45,7 +45,7 @@ use sov_rollup_interface::Network;
 use super::get_citrea_path;
 use super::utils::PROVER_DA_PRIVATE_KEY;
 use crate::bitcoin::utils::{
-    create_valid_signatures, generate_initial_pub_keys_with_signers_from_pks,
+    create_valid_signatures, generate_initial_addresses_with_signers_from_pks,
     spawn_bitcoin_da_prover_service, spawn_bitcoin_da_sequencer_service, spawn_bitcoin_da_service,
     wait_for_prover_job, wait_for_zkproofs, DaServiceKeyKind,
     BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS,
@@ -676,13 +676,12 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
             .map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
-        let (_initial_pubkeys, signers) =
-            generate_initial_pub_keys_with_signers_from_pks(pk_bytes_arr);
+        let (_initial_addresses, signers) =
+            generate_initial_addresses_with_signers_from_pks(pk_bytes_arr);
 
-        let msg = method_id_body.serialize();
-        let prehash = eip191_hash_message(msg.as_slice());
+        let payload = BatchProofMethodIdUpdate::from(method_id_body.clone());
 
-        let signatures_with_index = create_valid_signatures(&signers, &prehash);
+        let signatures_with_index = create_valid_signatures(&signers, &payload);
 
         bitcoin_da_service
             .send_transaction_with_fee_rate(
@@ -905,13 +904,12 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
             .map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
-        let (_initial_pubkeys, signers) =
-            generate_initial_pub_keys_with_signers_from_pks(pk_bytes_arr);
+        let (_initial_addresses, signers) =
+            generate_initial_addresses_with_signers_from_pks(pk_bytes_arr);
 
-        let msg = method_id_body.serialize();
-        let prehash = eip191_hash_message(msg.as_slice());
+        let payload = BatchProofMethodIdUpdate::from(method_id_body.clone());
 
-        let signatures_with_index = create_valid_signatures(&signers, &prehash);
+        let signatures_with_index = create_valid_signatures(&signers, &payload);
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
@@ -945,10 +943,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             activation_l2_height: 230,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
-        let msg2 = method_id_body2.serialize();
-        let prehash2 = eip191_hash_message(msg2.as_slice());
 
-        let mut signatures_with_index = create_valid_signatures(&signers, &prehash2);
+        let payload2 = BatchProofMethodIdUpdate::from(method_id_body2.clone());
+
+        let mut signatures_with_index = create_valid_signatures(&signers, &payload2);
 
         // Corrupt one signature
         signatures_with_index[0].0[0] ^= 0xFF;
@@ -987,10 +985,9 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             activation_l2_height: 240,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
-        let msg3 = method_id_body3.serialize();
-        let prehash3 = eip191_hash_message(msg3.as_slice());
+        let payload3 = BatchProofMethodIdUpdate::from(method_id_body3.clone());
 
-        let mut signatures_with_index = create_valid_signatures(&signers, &prehash3);
+        let mut signatures_with_index = create_valid_signatures(&signers, &payload3);
 
         // Corrupt one signature
         signatures_with_index[0].1 = signatures_with_index[2].1;
@@ -1027,10 +1024,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             activation_l2_height: 240,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
-        let msg3 = method_id_body3.serialize();
-        let prehash3 = eip191_hash_message(msg3.as_slice());
 
-        let mut signatures_with_index = create_valid_signatures(&signers, &prehash3);
+        let payload3 = BatchProofMethodIdUpdate::from(method_id_body3.clone());
+
+        let mut signatures_with_index = create_valid_signatures(&signers, &payload3);
 
         // Corrupt one signature
         signatures_with_index[2].1 = 5; // out of bounds
@@ -1067,10 +1064,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             activation_l2_height: 240,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
-        let msg3 = method_id_body3.serialize();
-        let prehash3 = eip191_hash_message(msg3.as_slice());
 
-        let mut signatures_with_index = create_valid_signatures(&signers, &prehash3);
+        let payload3 = BatchProofMethodIdUpdate::from(method_id_body3.clone());
+
+        let mut signatures_with_index = create_valid_signatures(&signers, &payload3);
 
         // Swap pubkey indices of the first and last signature
         // This should be rejected as now signatures will point to wrong pubkeys
@@ -1111,9 +1108,9 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             activation_l2_height: 250,
             chain_id: citrea_network_to_chain_id(Network::Mainnet),
         };
-        let msg4 = method_id_body4.serialize();
-        let prehash4 = eip191_hash_message(msg4.as_slice());
-        let signatures_with_index = create_valid_signatures(&signers, &prehash4);
+
+        let payload4 = BatchProofMethodIdUpdate::from(method_id_body4.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload4);
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
@@ -1148,9 +1145,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
 
             chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
-        let msg5 = method_id_body5.serialize();
-        let prehash5 = eip191_hash_message(msg5.as_slice());
-        let mut signatures_with_index = create_valid_signatures(&signers, &prehash5);
+        let payload5 = BatchProofMethodIdUpdate::from(method_id_body5.clone());
+        let mut signatures_with_index = create_valid_signatures(&signers, &payload5);
         // Make indexes not in ascending order
         signatures_with_index.swap(0, 2);
 

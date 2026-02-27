@@ -3,9 +3,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use alloy_primitives::{eip191_hash_message, B256, U64};
+use alloy_primitives::{keccak256, Address, U64};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
+use alloy_sol_types::{eip712_domain, SolStruct};
 use anyhow::bail;
 use bitcoin_da::fee::FeeService;
 use bitcoin_da::monitoring::{MonitoringConfig, MonitoringService};
@@ -20,9 +21,9 @@ use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_e2e::traits::NodeT;
+use citrea_light_client_prover::circuit::initial_values::bitcoinda;
 use citrea_light_client_prover::circuit::{
-    citrea_network_to_chain_id, SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE,
-    SECURITY_COUNCIL_MEMBER_COUNT,
+    citrea_network_to_chain_id, BatchProofMethodIdUpdate, SECURITY_COUNCIL_MEMBER_COUNT,
 };
 use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
 use reth_tasks::TaskExecutor;
@@ -370,37 +371,43 @@ fn from_vec_to_sigs(
 }
 
 /// Generates 5 valid keypairs and returns the public keys and signers from the given private keys
-pub(crate) fn generate_initial_pub_keys_with_signers_from_pks(
+pub(crate) fn generate_initial_addresses_with_signers_from_pks(
     private_keys: [[u8; 32]; 5],
 ) -> (
-    [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT],
+    [Address; SECURITY_COUNCIL_MEMBER_COUNT],
     Vec<PrivateKeySigner>,
 ) {
-    let mut initial_da_pubkeys =
-        [[0u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT];
+    let mut initial_da_addresses = [Address::random(); SECURITY_COUNCIL_MEMBER_COUNT];
     let mut signers = Vec::new();
 
     // Generate 5 valid keypairs and signatures
-    for (i, secret_key) in private_keys.iter().enumerate() {
-        let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+    for (i, address) in initial_da_addresses.iter_mut().enumerate() {
+        let signer = PrivateKeySigner::from_bytes(&private_keys[i].into()).unwrap();
         let verifying_key = signer.credential().verifying_key();
-        let pubkey = verifying_key.to_sec1_bytes();
-        initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+        let ep = verifying_key.to_encoded_point(false); // uncompressed: 0x04 + X(32) + Y(32)
+        let bytes = ep.as_bytes();
+        *address = Address::from_slice(&keccak256(&bytes[1..])[12..]);
         signers.push(signer);
     }
 
-    (initial_da_pubkeys, signers)
+    (initial_da_addresses, signers)
 }
 
 /// Creates 3 valid signatures from the first 3 signers for the given prehash
-pub(crate) fn create_valid_signatures(
+pub(crate) fn create_valid_signatures<T: SolStruct>(
     signers: &[PrivateKeySigner],
-    prehash: &B256,
+    payload: &T,
 ) -> [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
     let mut signatures_in_inscription = Vec::new();
 
+    let domain = eip712_domain! {
+        name: bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        version: "1",
+        chain_id: citrea_network_to_chain_id(Network::Nightly),
+    };
+
     for (i, signer) in signers.iter().enumerate().take(3) {
-        let sig = signer.sign_hash_sync(prehash).unwrap();
+        let sig = signer.sign_typed_data_sync(payload, &domain).unwrap();
         let signature = sig.as_bytes()[0..SECURITY_COUNCIL_SIGNATURE_SIZE].to_vec();
         signatures_in_inscription.push((signature, i as u8));
     }
@@ -485,12 +492,11 @@ pub async fn generate_mock_txs(
     let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
         .map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
-    let (_initial_pubkeys, signers) = generate_initial_pub_keys_with_signers_from_pks(pk_bytes_arr);
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(pk_bytes_arr);
+    let payload = BatchProofMethodIdUpdate::from(method_id_body.clone());
 
-    let msg = method_id_body.serialize();
-    let prehash = eip191_hash_message(msg.as_slice());
-
-    let signatures_with_index = create_valid_signatures(&signers, &prehash);
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
 
     // Send method id update tx
     let method_id = BatchProofMethodId {
@@ -605,12 +611,12 @@ pub async fn generate_mock_txs(
     let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
         .map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
-    let (_initial_pubkeys, signers) = generate_initial_pub_keys_with_signers_from_pks(pk_bytes_arr);
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(pk_bytes_arr);
 
-    let msg = method_id_body.serialize();
-    let prehash = eip191_hash_message(msg.as_slice());
+    let payload = BatchProofMethodIdUpdate::from(method_id_body.clone());
 
-    let signatures_with_index = create_valid_signatures(&signers, &prehash);
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
 
     // Send method id update tx
     let method_id = BatchProofMethodId {
