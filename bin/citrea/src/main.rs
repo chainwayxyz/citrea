@@ -371,17 +371,16 @@ where
 
             start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
-            let l1_start_height = match ledger_db.get_last_scanned_l1_height()? {
-                Some(l1_height) => l1_height.0 + 1,
-                None => {
-                    rollup_config
+            let l1_start_height =
+                match ledger_db.get_last_scanned_l1_height()? {
+                    Some(l1_height) => l1_height.0 + 1,
+                    None => rollup_config
                         .runner
-                        .ok_or(anyhow!(
-                            "Failed to start full node L1 block handler: Runner config not present"
-                        ))?
-                        .scan_l1_start_height
-                }
-            };
+                        .context(
+                            "Failed to start full node L1 block handler: Runner config not present",
+                        )?
+                        .scan_l1_start_height,
+                };
 
             task_executor.spawn_critical_with_graceful_shutdown_signal(
                 "FullNodeL1BlockHandler",
