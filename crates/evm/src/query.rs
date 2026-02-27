@@ -1534,11 +1534,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .expect("EVM chain config should be set");
 
         let mut cfg_env = get_cfg_env(cfg, evm_spec_id);
-        // Match the CfgEnv of eth_call here
-        // Also see: <https://github.com/paradigmxyz/reth/blob/564ffa586845fa4a8bb066f0c7b015ff36b26c08/crates/rpc/rpc-eth-api/src/helpers/call.rs#L855>
-        cfg_env.disable_block_gas_limit = true;
-        cfg_env.disable_eip3607 = true;
-        cfg_env.disable_base_fee = true;
 
         let l1_fee_block_num = match block_number {
             // use l1 fee rate of latest block for pending block
@@ -1578,10 +1573,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let chain_id = cfg_env.chain_id();
 
         // create tx env
-        let tx_env = create_txn_env(
+        let tx_env = prepare_call_env(
             &block_env,
-            request.clone(),
-            Some(account.balance),
+            &mut cfg_env,
+            request,
+            account.balance,
             nonce,
             chain_id,
         )?;
