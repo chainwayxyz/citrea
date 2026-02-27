@@ -13,7 +13,7 @@ use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_zk_proofs_and_sequencer_commitments, sync_l1, ProofOrCommitment};
 use citrea_common::utils::{
-    get_tangerine_activation_height_non_zero, reached_stop_height, shutdown_requested,
+    exceeded_stop_height, get_tangerine_activation_height_non_zero, shutdown_requested,
 };
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::network_to_dev_mode;
@@ -184,13 +184,14 @@ where
                 break;
             };
 
-            let l1_height = l1_block.header().height();
-            self.process_l1_block(l1_block).await?;
-            self.queued_l1_blocks.lock().await.pop_front();
-
-            if let Some(stop_height) = reached_stop_height(l1_height, self.stop_at_l1_height) {
+            if let Some(stop_height) =
+                exceeded_stop_height(l1_block.header().height(), self.stop_at_l1_height)
+            {
                 bail!("Reached target L1 height {stop_height}");
             }
+
+            self.process_l1_block(l1_block).await?;
+            self.queued_l1_blocks.lock().await.pop_front();
         }
 
         Ok(())

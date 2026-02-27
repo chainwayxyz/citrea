@@ -11,7 +11,7 @@ use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::l2::{apply_l2_block, commit_l2_block, sync_l2};
-use citrea_common::utils::{reached_stop_height, shutdown_requested};
+use citrea_common::utils::{exceeded_stop_height, shutdown_requested};
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -170,6 +170,12 @@ where
                 Some(l2_blocks) = l2_rx.recv() => {
                     // While syncing, we'd like to process L2 blocks as they come without any delays.
                     for l2_block in l2_blocks {
+                        if let Some(stop_height) =
+                            exceeded_stop_height(l2_block.header.height.to(), self.stop_at_l2_height)
+                        {
+                            return info!("Reached target L2 height {stop_height}");
+                        }
+
                         let mut backoff = ExponentialBackoff::default();
                         loop {
                             if shutdown_requested(&shutdown_signal) {
@@ -186,12 +192,6 @@ where
                                     tokio::time::sleep(backoff_duration).await;
                                 }
                             }
-                        }
-
-                        if let Some(stop_height) =
-                            reached_stop_height(l2_block.header.height.to(), self.stop_at_l2_height)
-                        {
-                            return info!("Reached target L2 height {stop_height}");
                         }
 
                     }

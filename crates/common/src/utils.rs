@@ -151,9 +151,9 @@ pub fn shutdown_requested(shutdown_signal: &GracefulShutdown) -> bool {
         .is_some()
 }
 
-/// Returns the configured stop height if `current_height` has reached or exceeded it.
-pub fn reached_stop_height(current_height: u64, stop_height: Option<u64>) -> Option<u64> {
-    stop_height.filter(|target| current_height >= *target)
+/// Returns the configured stop height if `next_height` exceeds it.
+pub fn exceeded_stop_height(next_height: u64, stop_height: Option<u64>) -> Option<u64> {
+    stop_height.filter(|target| next_height > *target)
 }
 
 // If tangerine activation height is 0, return 1
