@@ -372,7 +372,7 @@ where
             start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
             let l1_start_height = match ledger_db.get_last_scanned_l1_height()? {
-                Some(l1_height) => l1_height.0,
+                Some(l1_height) => l1_height.0 + 1,
                 None => {
                     rollup_config
                         .runner
