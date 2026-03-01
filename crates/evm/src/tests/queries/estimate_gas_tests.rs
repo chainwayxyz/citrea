@@ -580,3 +580,92 @@ fn test_estimate_gas_with_value(
         get_fork_fn_latest(),
     )
 }
+
+#[test]
+fn test_estimate_gas_no_balance() {
+    let (evm, mut working_set, _, signer, _, ledger_db) =
+        init_evm(sov_modules_api::SpecId::latest());
+
+    let contract = SimpleStorageContract::default();
+    let contract_address = signer.address().create(7);
+
+    // Random address that has no balance
+    let no_balance_address = address!("0x1234567890123456789012345678901234567890");
+
+    // Assert that the address has no balance
+    let balance = evm.get_balance(no_balance_address, None, &mut working_set, &ledger_db);
+    assert_eq!(balance.unwrap(), U256::ZERO);
+
+    // Test 1: Simple transfer to an EOA (no data)
+    let result = evm
+        .eth_estimate_gas_inner(
+            TransactionRequest {
+                from: Some(no_balance_address),
+                to: Some(TxKind::Call(signer.address())),
+                input: TransactionInput::default(),
+                ..Default::default()
+            },
+            Some(BlockNumberOrTag::Latest),
+            None,
+            &mut working_set,
+            &ledger_db,
+            get_fork_fn_latest(),
+        )
+        .expect("simple transfer to EOA should succeed");
+    assert!(result >= U256::from(MIN_TRANSACTION_GAS));
+
+    // Test 2: Call to a contract with data field populated (getter function)
+    evm.eth_estimate_gas_inner(
+        TransactionRequest {
+            from: Some(no_balance_address),
+            to: Some(TxKind::Call(contract_address)),
+            input: TransactionInput::new(contract.get_call_data().into()),
+            ..Default::default()
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+    )
+    .expect("call to getter function should succeed");
+
+    // Test 3: Call to a contract with data field populated (setter function)
+    evm.eth_estimate_gas_inner(
+        TransactionRequest {
+            from: Some(no_balance_address),
+            to: Some(TxKind::Call(contract_address)),
+            input: TransactionInput::new(contract.set_call_data(42).into()),
+            ..Default::default()
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+    )
+    .expect("call to setter function should succeed");
+
+    // Test 4: Estimate gas with value transfer should still fail
+    let result = evm.eth_estimate_gas_inner(
+        TransactionRequest {
+            from: Some(no_balance_address),
+            to: Some(TxKind::Call(signer.address())),
+            value: Some(U256::from(1000)),
+            ..Default::default()
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+    );
+    assert_eq!(
+        result,
+        Err(RpcInvalidTransactionError::InsufficientFunds {
+            cost: U256::from(1000),
+            balance: U256::from(0)
+        }
+        .into())
+    );
+}
