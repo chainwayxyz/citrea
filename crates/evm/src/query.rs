@@ -1292,7 +1292,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 cfg_env.clone(),
                 block_env.clone(),
                 tx_env.clone(),
-                l1_fee_rate,
+                0, // run with l1 fee rate = 0, so that we don't get "Not enough funds for L1 fee"
                 TracingInspector::new(TracingInspectorConfig::none()),
             );
 
