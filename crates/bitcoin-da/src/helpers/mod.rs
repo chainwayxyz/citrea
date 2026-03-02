@@ -25,6 +25,7 @@ pub(crate) enum TransactionKind {
     Aggregate = 1,
     /// This type of transaction includes chunk parts of body (>= 400kb)
     Chunks = 2,
+    // TODO: Somehow Give more detail to tx kind in SecurityCouncilTx
     /// This type of transaction includes a security council transaction
     SecurityCouncilTx = 3,
     /// SequencerCommitment
