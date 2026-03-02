@@ -80,7 +80,7 @@ pub mod mockda {
     pub const INITIAL_SECURITY_COUNCIL_THRESHOLD: usize = 3;
 
     /// EIP-712 domain name for security council messages in the mock DA.
-    pub const EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME: &str = "Citrea Mock DA Security Council";
+    pub const EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME: &str = "CitreaMockDASecurityCouncil";
 }
 
 /// Module containing initial values for the Bitcoin DA (Data Availability) specification.
@@ -517,23 +517,23 @@ pub mod bitcoinda {
 
     /// Domain name for the security council eip712 typed messages for citrea mainnet.
     pub const MAINNET_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME: &str =
-        "Citrea Mainnet Bitcoin DA Security Council";
+        "CitreaMainnetBitcoinDASecurityCouncil";
 
     /// Domain name for the security council eip712 typed messages for citrea testnet.
     pub const TESTNET_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME: &str =
-        "Citrea Testnet Bitcoin DA Security Council";
+        "CitreaTestnetBitcoinDASecurityCouncil";
 
     /// Domain name for the security council eip712 typed messages for citrea devnet.
     pub const DEVNET_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME: &str =
-        "Citrea Devnet Bitcoin DA Security Council";
+        "CitreaDevnetBitcoinDASecurityCouncil";
 
     /// Domain name for the security council eip712 typed messages for citrea nightly.
     pub const NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME: &str =
-        "Citrea Nightly Bitcoin DA Security Council";
+        "CitreaNightlyBitcoinDASecurityCouncil";
 
     /// Domain name for the security council eip712 typed messages for citrea test network with forks.
     pub const TEST_NETWORK_WITH_FORKS_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME: &str =
-        "Citrea Test Network With Forks Bitcoin DA Security Council";
+        "CitreaTestNetworkWithForksBitcoinDASecurityCouncil";
 }
 
 /// Trait to provide initial values for the Light Client circuit based on the Data Availability specification.
