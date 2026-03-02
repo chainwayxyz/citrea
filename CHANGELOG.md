@@ -1,6 +1,7 @@
 # Changelog
 ## [Unreleased]
 ### Added
+- feat: Reactivate pruning. ([#3010](https://github.com/chainwayxyz/citrea/pull/3010))
 - feat: Support `eth_sendRawTransactionSync` on websocket disabled nodes. ([#3164](https://github.com/chainwayxyz/citrea/pull/3164))
 
 ### Changed

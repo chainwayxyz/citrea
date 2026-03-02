@@ -3923,7 +3923,6 @@ dependencies = [
  "citrea-common",
  "derive_more 1.0.0",
  "futures",
- "hex",
  "jmt",
  "reth-tasks",
  "serde",
