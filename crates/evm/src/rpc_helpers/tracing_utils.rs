@@ -2,8 +2,8 @@ use alloy_primitives::{TxHash, U256};
 use alloy_rpc_types::TransactionInfo;
 use alloy_rpc_types_trace::geth::call::FlatCallFrame;
 use alloy_rpc_types_trace::geth::{
-    FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingCallOptions,
-    GethDebugTracingOptions, GethTrace, NoopFrame,
+    FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
+    GethTrace, NoopFrame,
 };
 use reth_rpc_eth_api::FromEthApiError;
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
@@ -22,27 +22,13 @@ use crate::handler::{CitreaBuilder, CitreaChain, CitreaChainExt, CitreaContext, 
 use crate::rpc_helpers::*;
 
 pub(crate) fn trace_call<C: sov_modules_api::Context>(
-    opts: GethDebugTracingCallOptions,
+    tracing_options: GethDebugTracingOptions,
     config_env: CfgEnv,
-    mut block_env: BlockEnv,
+    block_env: BlockEnv,
     tx_env: TxEnv,
     db: &mut EvmDb<'_, C>,
     l1_fee_rate: u128,
 ) -> EthResult<GethTrace> {
-    let GethDebugTracingCallOptions {
-        tracing_options,
-        state_overrides,
-        block_overrides,
-    } = opts;
-
-    if let Some(state_overrides) = state_overrides {
-        apply_state_overrides(state_overrides, db)?;
-    }
-
-    if let Some(mut block_overrides) = block_overrides {
-        apply_block_overrides(&mut block_env, &mut block_overrides, db);
-    }
-
     let GethDebugTracingOptions {
         config,
         tracer,

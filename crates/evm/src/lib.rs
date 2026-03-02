@@ -201,8 +201,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub(crate) fn get_db<'a>(
         &'a self,
         working_set: &'a mut WorkingSet<C::Storage>,
+        citrea_spec: CitreaSpecId,
     ) -> EvmDb<'a, C> {
-        EvmDb::new(self, working_set)
+        EvmDb::new(self, working_set, citrea_spec)
     }
 
     /// Get receipts for a block by transaction index range

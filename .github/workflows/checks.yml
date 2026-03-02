@@ -170,6 +170,30 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
+      - name: Run cargo-deny (batch-proof-bitcoin)
+        if: ${{ !cancelled() }}
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check --config deny.toml
+          manifest-path: guests/risc0/batch-proof/bitcoin/Cargo.toml
+      - name: Run cargo-deny (batch-proof-mock)
+        if: ${{ !cancelled() }}
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check --config deny.toml
+          manifest-path: guests/risc0/batch-proof/mock/Cargo.toml
+      - name: Run cargo-deny (light-client-proof-bitcoin)
+        if: ${{ !cancelled() }}
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check --config deny.toml
+          manifest-path: guests/risc0/light-client-proof/bitcoin/Cargo.toml
+      - name: Run cargo-deny (light-client-proof-mock)
+        if: ${{ !cancelled() }}
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check --config deny.toml
+          manifest-path: guests/risc0/light-client-proof/mock/Cargo.toml
 
   coverage:
     needs:
@@ -187,6 +211,8 @@ jobs:
         run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
+        with:
+          tool: cargo-llvm-cov@0.6.16
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
