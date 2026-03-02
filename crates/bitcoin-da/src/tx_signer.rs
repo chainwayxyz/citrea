@@ -88,12 +88,12 @@ impl TxSigner {
                     .await?,
                 ]
             }
-            DaTxs::BatchProofMethodId { commit, reveal } => {
+            DaTxs::SecurityCouncilTx { commit, reveal } => {
                 vec![
                     self.sign_complete_transaction(
                         commit,
                         reveal,
-                        TransactionKind::BatchProofMethodId,
+                        TransactionKind::SecurityCouncilTx,
                     )
                     .await?,
                 ]

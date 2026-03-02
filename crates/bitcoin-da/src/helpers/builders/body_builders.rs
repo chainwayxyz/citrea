@@ -34,8 +34,8 @@ pub(crate) enum RawTxData {
     /// let chunks = compressed.chunks(MAX_TX_BODY_SIZE)
     /// [borsh(DataOnDa::Chunk(chunk)) for chunk in chunks]
     Chunks(Vec<Vec<u8>>),
-    /// borsh(DataOnDa::BatchProofMethodId(MethodId))
-    BatchProofMethodId(Vec<u8>),
+    /// borsh(DataOnDa::SecurityCouncilTx(SecurityCouncilTx))
+    SecurityCouncilTx(Vec<u8>),
     /// borsh(DataOnDa::SequencerCommitment(SequencerCommitment))
     SequencerCommitment(Vec<u8>),
 }
@@ -61,8 +61,8 @@ pub enum DaTxs {
         /// Signed
         reveal: TxWithId,
     },
-    /// BatchProof method id.
-    BatchProofMethodId {
+    /// Security council transaction.
+    SecurityCouncilTx {
         /// Unsigned
         commit: Transaction,
         /// Signed
@@ -114,7 +114,7 @@ pub fn create_inscription_transactions(
             network,
             &reveal_tx_prefix,
         ),
-        RawTxData::BatchProofMethodId(body) => create_inscription_type_3(
+        RawTxData::SecurityCouncilTx(body) => create_inscription_type_3(
             body,
             &da_private_key,
             utxo_context,
@@ -680,7 +680,7 @@ pub fn create_inscription_type_1(
     }
 }
 
-/// Creates the inscription transactions Type 3 - BatchProofMethodId
+/// Creates the inscription transactions Type 3 - SecurityCouncilTx
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_type_3(
@@ -702,7 +702,7 @@ pub fn create_inscription_type_3(
     let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
-    let kind = TransactionKind::BatchProofMethodId;
+    let kind = TransactionKind::SecurityCouncilTx;
     let kind_bytes = kind.to_bytes();
 
     let start = Instant::now();
@@ -827,11 +827,11 @@ pub fn create_inscription_type_3(
 
                 if let Some(root) = merkle_root {
                     info!(
-                        "Taproot merkle root for inscription - BatchProofMethodId: {}",
+                        "Taproot merkle root for inscription - SecurityCouncilTx: {}",
                         root
                     );
                 }
-                return Ok(DaTxs::BatchProofMethodId {
+                return Ok(DaTxs::SecurityCouncilTx {
                     commit: unsigned_commit_tx,
                     reveal: TxWithId {
                         id: reveal_tx.compute_txid(),

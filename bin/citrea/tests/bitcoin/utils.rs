@@ -27,8 +27,8 @@ use citrea_primitives::{MAX_TX_BODY_SIZE, REVEAL_TX_PREFIX};
 use reth_tasks::TaskExecutor;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{
-    BatchProofMethodId, BatchProofMethodIdBody, DaTxRequest, SequencerCommitment,
-    SECURITY_COUNCIL_SIGNATURE_SIZE, SECURITY_COUNCIL_SIGNATURE_THRESHOLD,
+    BatchProofMethodIdBody, DaTxRequest, SecurityCouncilTx, SecurityCouncilTxType,
+    SequencerCommitment, SECURITY_COUNCIL_SIGNATURE_SIZE,
 };
 use sov_rollup_interface::rpc::{JobRpcResponse, VerifiedBatchProofResponse};
 use sov_rollup_interface::services::da::DaService;
@@ -383,7 +383,7 @@ pub(crate) fn generate_initial_addresses_with_signers_from_pks(
     (initial_da_addresses, signers)
 }
 
-/// Creates valid signatures from the first `SECURITY_COUNCIL_SIGNATURE_THRESHOLD` signers for the given payload
+/// Creates valid signatures from the first 3 signers for the given payload
 pub(crate) fn create_valid_signatures<T: SolStruct>(
     signers: &[PrivateKeySigner],
     payload: &T,
@@ -396,11 +396,7 @@ pub(crate) fn create_valid_signatures<T: SolStruct>(
         chain_id: citrea_network_to_chain_id(Network::Nightly),
     };
 
-    for (i, signer) in signers
-        .iter()
-        .enumerate()
-        .take(SECURITY_COUNCIL_SIGNATURE_THRESHOLD)
-    {
+    for (i, signer) in signers.iter().enumerate().take(3) {
         let sig = signer.sign_typed_data_sync(payload, &domain).unwrap();
         let signature = sig.as_bytes()[0..SECURITY_COUNCIL_SIGNATURE_SIZE].to_vec();
         signatures_in_inscription.push((signature, i as u8));
@@ -435,7 +431,7 @@ pub async fn generate_mock_txs(
     BitcoinBlock,
     Vec<SequencerCommitment>,
     Vec<Vec<u8>>,
-    Vec<BatchProofMethodId>,
+    Vec<SecurityCouncilTx>,
 ) {
     // Funding wallet requires block generation, hence we do funding at the beginning
     // to be able to write all transactions into the same block.
@@ -493,13 +489,13 @@ pub async fn generate_mock_txs(
     let signatures_with_index = create_valid_signatures(&signers, &payload);
 
     // Send method id update tx
-    let method_id = BatchProofMethodId {
-        body: method_id_body.clone(),
+    let sc_tx = SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(method_id_body.clone()),
         signatures_with_index,
     };
-    valid_method_ids.push(method_id.clone());
+    valid_method_ids.push(sc_tx.clone());
     da_service
-        .send_transaction(DaTxRequest::BatchProofMethodId(method_id))
+        .send_transaction(DaTxRequest::SecurityCouncilTx(sc_tx))
         .await
         .expect("Failed to send transaction");
 
@@ -613,13 +609,13 @@ pub async fn generate_mock_txs(
     let signatures_with_index = create_valid_signatures(&signers, &payload);
 
     // Send method id update tx
-    let method_id = BatchProofMethodId {
-        body: method_id_body,
+    let sc_tx = SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(method_id_body),
         signatures_with_index,
     };
-    valid_method_ids.push(method_id.clone());
+    valid_method_ids.push(sc_tx.clone());
     da_service
-        .send_transaction(DaTxRequest::BatchProofMethodId(method_id))
+        .send_transaction(DaTxRequest::SecurityCouncilTx(sc_tx))
         .await
         .expect("Failed to send transaction");
 

@@ -407,10 +407,10 @@ impl BitcoinService {
                 let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
                 RawTxData::SequencerCommitment(blob)
             }
-            DaTxRequest::BatchProofMethodId(method_id) => {
-                let data = DataOnDa::BatchProofMethodId(method_id);
+            DaTxRequest::SecurityCouncilTx(sc_tx) => {
+                let data = DataOnDa::SecurityCouncilTx(sc_tx);
                 let blob = borsh::to_vec(&data).expect("DataOnDa serialize must not fail");
-                RawTxData::BatchProofMethodId(blob)
+                RawTxData::SecurityCouncilTx(blob)
             }
         };
 
@@ -540,7 +540,7 @@ impl BitcoinService {
 
         match &tx.kind {
             TransactionKind::Complete
-            | TransactionKind::BatchProofMethodId
+            | TransactionKind::SecurityCouncilTx
             | TransactionKind::SequencerCommitment => {
                 info!("Blob inscribe tx sent. Hash: {}", tx.reveal_txid())
             }
@@ -914,7 +914,7 @@ impl DaService for BitcoinService {
                         tracing::info!("Found chunk tx with tx id: {}", tx_id);
                         chunks.insert(tx_id, i);
                     }
-                    ParsedTransaction::BatchProofMethodId(_) => {
+                    ParsedTransaction::SecurityCouncilTx(_) => {
                         // ignore because these are not proofs
                     }
                     ParsedTransaction::SequencerCommitment(_) => {
@@ -1015,7 +1015,7 @@ impl DaService for BitcoinService {
                     }
                     ParsedTransaction::Complete(_)
                     | ParsedTransaction::Aggregate(_)
-                    | ParsedTransaction::BatchProofMethodId(_)
+                    | ParsedTransaction::SecurityCouncilTx(_)
                     | ParsedTransaction::SequencerCommitment(_) => {
                         error!("{}:{}: Expected chunk, got other tx kind", tx_id, chunk_id);
                         continue 'aggregate;
@@ -1166,16 +1166,16 @@ impl DaService for BitcoinService {
                             BlobWithSender::new(chunk.body, vec![], [0; 32], wtxid.to_byte_array());
                         relevant_txs.push(relevant_tx);
                     }
-                    ParsedTransaction::BatchProofMethodId(method_id) => {
+                    ParsedTransaction::SecurityCouncilTx(sc_tx) => {
                         // Pubkey here is given as 0 because the security council pub keys are inside the body
                         let public_key = [0u8; 32].to_vec();
-                        let hash = method_id.hash();
+                        let hash = sc_tx.hash();
 
                         let relevant_tx = BlobWithSender::new(
-                            // Body here is: borsh(DataOnDa::BatchProofMethodId(BatchProofMethodId { ... }))
+                            // Body here is: borsh(DataOnDa::SecurityCouncilTx(SecurityCouncilTx { ... }))
                             // The sender field here is not used because this transaction has a security council
-                            // consisting of 5 public keys, this data and signatures are embedded in the body
-                            method_id.body,
+                            // consisting of N public keys, this data and signatures are embedded in the body
+                            sc_tx.body,
                             public_key,
                             hash,
                             wtxid.to_byte_array(),

@@ -14,8 +14,10 @@ use sov_modules_api::{WorkingSet, Zkvm};
 use sov_modules_core::Storage;
 use sov_prover_storage_manager::{Config, ProverStorage, ProverStorageManager};
 use sov_rollup_interface::da::{
-    BatchProofMethodId, BatchProofMethodIdBody, BlobReaderTrait, DaVerifier, DataOnDa,
-    SequencerCommitment, SECURITY_COUNCIL_SIGNATURE_SIZE,
+    AddSecurityCouncilMemberV1Body, BatchProofMethodIdBody, BlobReaderTrait, DaVerifier, DataOnDa,
+    RemoveSecurityCouncilMemberV1Body, ReplaceSecurityCouncilMemberV1Body, SecurityCouncilTx,
+    SecurityCouncilTxType, SequencerCommitment, UpdateSecurityCouncilThresholdV1Body,
+    SECURITY_COUNCIL_SIGNATURE_SIZE,
 };
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
@@ -26,7 +28,9 @@ use sov_rollup_interface::Network;
 use crate::circuit::accessors::ChunkAccessor;
 use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::{
-    citrea_network_to_chain_id, BatchProofMethodIdUpdate, LightClientProofCircuit,
+    citrea_network_to_chain_id, AddSecurityCouncilMember, BatchProofMethodIdUpdate,
+    LightClientProofCircuit, RemoveSecurityCouncilMember, ReplaceSecurityCouncilMember,
+    UpdateSecurityCouncilThreshold,
 };
 
 /// Test private keys used for generating signatures in tests
@@ -309,12 +313,12 @@ pub(crate) fn create_new_method_id_tx(
 
     let signatures_with_index = create_valid_signatures(&signers, &payload);
 
-    let da_data = DataOnDa::BatchProofMethodId(BatchProofMethodId {
-        body: BatchProofMethodIdBody {
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(BatchProofMethodIdBody {
             method_id: new_method_id,
             activation_l2_height: activation_height,
             chain_id: citrea_network_to_chain_id(network),
-        },
+        }),
         signatures_with_index,
     });
 
@@ -323,6 +327,119 @@ pub(crate) fn create_new_method_id_tx(
     let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
     blob.full_data();
 
+    blob
+}
+
+pub(crate) fn create_add_member_tx(
+    new_member: [u8; 20],
+    new_threshold: u32,
+    pub_key: [u8; 32],
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = AddSecurityCouncilMemberV1Body {
+        new_member,
+        new_threshold,
+    };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = AddSecurityCouncilMember::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::AddSecurityCouncilMemberV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+pub(crate) fn create_remove_member_tx(
+    member_to_be_removed: [u8; 20],
+    new_threshold: u32,
+    pub_key: [u8; 32],
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = RemoveSecurityCouncilMemberV1Body {
+        member_to_be_removed,
+        new_threshold,
+    };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = RemoveSecurityCouncilMember::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::RemoveSecurityCouncilMemberV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+pub(crate) fn create_update_threshold_tx(new_threshold: u32, pub_key: [u8; 32]) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = UpdateSecurityCouncilThresholdV1Body { new_threshold };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = UpdateSecurityCouncilThreshold::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::UpdateSecurityCouncilThresholdV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+pub(crate) fn create_replace_member_tx(
+    to_be_replaced: [u8; 20],
+    new_member: [u8; 20],
+    pub_key: [u8; 32],
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = ReplaceSecurityCouncilMemberV1Body {
+        to_be_replaced,
+        new_member,
+    };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = ReplaceSecurityCouncilMember::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::ReplaceSecurityCouncilMemberV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
     blob
 }
 

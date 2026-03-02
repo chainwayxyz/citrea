@@ -412,8 +412,7 @@ impl<S: Storage> SecurityCouncilAddressAccessor<S> {
         working_set.set(&key, value);
     }
 
-    /// Removes a single address by value from the stored list (for future use)
-    #[allow(dead_code)]
+    /// Removes a single address by value from the stored list
     pub fn remove(address: Address, working_set: &mut WorkingSet<S>) {
         let current = Self::get(working_set).expect("Security council addresses must exist");
         let filtered: Vec<[u8; 20]> = current

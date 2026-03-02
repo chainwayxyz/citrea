@@ -10,8 +10,6 @@ use sha2::{Digest, Sha256};
 use crate::zk::Proof;
 use crate::{BasicAddress, Network};
 
-/// Minimum number of verified signatures required to approve a method id upgrade.
-pub const SECURITY_COUNCIL_SIGNATURE_THRESHOLD: usize = 3;
 /// Size of a signature in bytes.
 /// 65 bytes long (r(32) + s(32) + v(1))
 pub const SECURITY_COUNCIL_SIGNATURE_SIZE: usize = 65;
@@ -56,33 +54,66 @@ impl BatchProofMethodIdBody {
         borsh::to_vec(self).expect("BatchProofMethodIdBody serialization cannot fail")
     }
 }
-// TODO: For future message types, consider using enum_dispatch to avoid repeating code
-/// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
-#[derive(Debug, Clone, Eq, PartialEq, BorshSerialize, BorshDeserialize)]
-pub struct BatchProofMethodId {
-    /// Body of the method id update, the message to be signed
-    /// Includes method id and activation height
-    pub body: BatchProofMethodIdBody,
-    /// Signatures to be verified for the method id update used for a threshold-of-N security council
-    /// Consists of 65 byte (r(32) + s(32) + v(1)) EIP-712 typed data signatures
-    /// The public keys can be recovered from the signatures and the prehash
-    /// The indices point to the addresses in the light client circuit state
-    /// To verify the signature the address should be fetched from state corresponding to the signature
-    /// If one signature verification fails the whole method id update is invalid
-    /// Also assumes the indexes are in ascending order and there are no duplicates
-    pub signatures_with_index: Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)>,
+
+/// Body for adding a new security council member
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct AddSecurityCouncilMemberV1Body {
+    /// Ethereum address of the new member
+    pub new_member: [u8; 20],
+    /// New threshold after adding the member
+    pub new_threshold: u32,
 }
 
-impl BatchProofMethodId {
-    /// Returns the signatures in the transaction.
-    pub fn signatures_with_index(&self) -> &[([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)] {
-        &self.signatures_with_index
-    }
+/// Body for removing a security council member
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct RemoveSecurityCouncilMemberV1Body {
+    /// Ethereum address of the member to remove
+    pub member_to_be_removed: [u8; 20],
+    /// New threshold after removing the member
+    pub new_threshold: u32,
+}
 
-    /// Returns the body of the transaction.
-    pub fn body(&self) -> BatchProofMethodIdBody {
-        self.body.clone()
-    }
+/// Body for updating the security council signature threshold
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct UpdateSecurityCouncilThresholdV1Body {
+    /// New threshold value
+    pub new_threshold: u32,
+}
+
+/// Body for replacing a security council member (1-for-1 swap, threshold unchanged)
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct ReplaceSecurityCouncilMemberV1Body {
+    /// Ethereum address of the member to be replaced
+    pub to_be_replaced: [u8; 20],
+    /// Ethereum address of the new member
+    pub new_member: [u8; 20],
+}
+
+/// Versioned security council transaction type
+#[derive(Debug, Clone, Eq, PartialEq, BorshSerialize, BorshDeserialize)]
+pub enum SecurityCouncilTxType {
+    /// Update batch proof method ID (V1)
+    BatchProofMethodIdUpdateV1(BatchProofMethodIdBody),
+    /// Add a new security council member (V1)
+    AddSecurityCouncilMemberV1(AddSecurityCouncilMemberV1Body),
+    /// Remove a security council member (V1)
+    RemoveSecurityCouncilMemberV1(RemoveSecurityCouncilMemberV1Body),
+    /// Update security council signature threshold (V1)
+    UpdateSecurityCouncilThresholdV1(UpdateSecurityCouncilThresholdV1Body),
+    /// Replace a security council member (V1)
+    ReplaceSecurityCouncilMemberV1(ReplaceSecurityCouncilMemberV1Body),
+}
+
+/// A security council transaction with signatures
+#[derive(Debug, Clone, Eq, PartialEq, BorshSerialize, BorshDeserialize)]
+pub struct SecurityCouncilTx {
+    /// The type and body of the security council transaction
+    pub tx_type: SecurityCouncilTxType,
+    /// Signatures to be verified for the transaction, used for a threshold-of-N security council.
+    /// Consists of 65 byte (r(32) + s(32) + v(1)) EIP-712 typed data signatures.
+    /// The indices point to the addresses in the light client circuit state.
+    /// Indices must be in strict ascending order with no duplicates.
+    pub signatures_with_index: Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)>,
 }
 
 /// SequencerCommitment's are ordered by their index
@@ -107,8 +138,8 @@ pub enum DaTxRequest {
     SequencerCommitment(SequencerCommitment),
     /// Or a zk proof and state diff
     ZKProof(Proof),
-    /// Batch proof method id update for light client
-    BatchProofMethodId(BatchProofMethodId),
+    /// A security council transaction (method ID update, member management, etc.)
+    SecurityCouncilTx(SecurityCouncilTx),
 }
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum
@@ -121,8 +152,8 @@ pub enum DataOnDa {
     Aggregate(Vec<[u8; 32]>, Vec<[u8; 32]>),
     /// A chunk of an aggregate
     Chunk(Vec<u8>),
-    /// A new batch proof method_id
-    BatchProofMethodId(BatchProofMethodId),
+    /// A security council transaction (method ID update, member management, etc.)
+    SecurityCouncilTx(SecurityCouncilTx),
     /// Sequencer commitment
     SequencerCommitment(SequencerCommitment),
 }

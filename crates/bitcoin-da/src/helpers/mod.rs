@@ -25,8 +25,8 @@ pub(crate) enum TransactionKind {
     Aggregate = 1,
     /// This type of transaction includes chunk parts of body (>= 400kb)
     Chunks = 2,
-    /// This type of transaction includes a new batch proof method_id
-    BatchProofMethodId = 3,
+    /// This type of transaction includes a security council transaction
+    SecurityCouncilTx = 3,
     /// SequencerCommitment
     SequencerCommitment = 4,
     // /// ForcedTransaction
@@ -43,7 +43,7 @@ impl TransactionKind {
             TransactionKind::Complete => 0u16.to_le_bytes(),
             TransactionKind::Aggregate => 1u16.to_le_bytes(),
             TransactionKind::Chunks => 2u16.to_le_bytes(),
-            TransactionKind::BatchProofMethodId => 3u16.to_le_bytes(),
+            TransactionKind::SecurityCouncilTx => 3u16.to_le_bytes(),
             TransactionKind::SequencerCommitment => 4u16.to_le_bytes(),
             TransactionKind::Unknown(n) => n.get().to_le_bytes(),
         }
@@ -59,7 +59,7 @@ impl TransactionKind {
             0 => Some(TransactionKind::Complete),
             1 => Some(TransactionKind::Aggregate),
             2 => Some(TransactionKind::Chunks),
-            3 => Some(TransactionKind::BatchProofMethodId),
+            3 => Some(TransactionKind::SecurityCouncilTx),
             4 => Some(TransactionKind::SequencerCommitment),
             n => Some(TransactionKind::Unknown(
                 NonZero::new(n).expect("Is not zero"),

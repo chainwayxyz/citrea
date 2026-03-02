@@ -32,8 +32,8 @@ use reth_tasks::TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{
-    BatchProofMethodId, BatchProofMethodIdBody, DaTxRequest, DaVerifier, DataOnDa,
-    SequencerCommitment,
+    BatchProofMethodIdBody, DaTxRequest, DaVerifier, DataOnDa, SecurityCouncilTx,
+    SecurityCouncilTxType, SequencerCommitment,
 };
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::services::da::DaService;
@@ -685,8 +685,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
 
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body,
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(method_id_body),
                     signatures_with_index,
                 }),
                 1.0,
@@ -912,8 +912,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let signatures_with_index = create_valid_signatures(&signers, &payload);
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body.clone(),
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(
+                        method_id_body.clone(),
+                    ),
                     signatures_with_index,
                 }),
                 1.0,
@@ -953,8 +955,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
 
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body2.clone(),
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(
+                        method_id_body2.clone(),
+                    ),
                     signatures_with_index,
                 }),
                 1.0,
@@ -993,8 +997,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         signatures_with_index[0].1 = signatures_with_index[2].1;
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body3.clone(),
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(
+                        method_id_body3.clone(),
+                    ),
                     signatures_with_index,
                 }),
                 1.0,
@@ -1033,8 +1039,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         signatures_with_index[2].1 = 5; // out of bounds
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body3.clone(),
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(
+                        method_id_body3.clone(),
+                    ),
                     signatures_with_index,
                 }),
                 1.0,
@@ -1077,8 +1085,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
 
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body3.clone(),
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(
+                        method_id_body3.clone(),
+                    ),
                     signatures_with_index,
                 }),
                 1.0,
@@ -1113,8 +1123,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let signatures_with_index = create_valid_signatures(&signers, &payload4);
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body4.clone(),
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(
+                        method_id_body4.clone(),
+                    ),
                     signatures_with_index,
                 }),
                 1.0,
@@ -1152,8 +1164,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
 
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body5.clone(),
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(
+                        method_id_body5.clone(),
+                    ),
                     signatures_with_index,
                 }),
                 1.0,
