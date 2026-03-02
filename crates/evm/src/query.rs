@@ -2138,6 +2138,7 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
 /// Updates the highest and lowest gas limits for binary search
 /// based on the result of the execution
 #[inline]
+#[allow(clippy::too_many_arguments)]
 fn update_estimated_gas_range(
     result: ExecutionResult,
     tx_gas_limit: u64,
