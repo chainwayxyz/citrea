@@ -21,6 +21,8 @@ use sov_rollup_interface::da::{
     AddSecurityCouncilMemberV1Body, BatchProofMethodIdBody, DaVerifier, DataOnDa,
     RemoveSecurityCouncilMemberV1Body, ReplaceSecurityCouncilMemberV1Body, SecurityCouncilTx,
     SecurityCouncilTxType, UpdateSecurityCouncilThresholdV1Body,
+    MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL, MAX_THRESHOLD_PROXIMITY,
+    MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL, MIN_THRESHOLD,
 };
 use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
@@ -621,6 +623,16 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         }
     }
 
+    /// Checks if a threshold value is valid for a given member count.
+    ///
+    /// A threshold is valid if:
+    /// - It is at least `MIN_THRESHOLD`
+    /// - It is at most `member_count - MAX_THRESHOLD_PROXIMITY`
+    fn is_valid_threshold(threshold: u32, member_count: usize) -> bool {
+        let t = threshold as usize;
+        t >= MIN_THRESHOLD && t <= member_count.saturating_sub(MAX_THRESHOLD_PROXIMITY)
+    }
+
     /// Processes a security council transaction by dispatching on its type.
     ///
     /// Reads the current security council addresses and threshold from state,
@@ -632,12 +644,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         security_council_messages_domain: &str,
         working_set: &mut WorkingSet<S>,
     ) {
-        let upgrade_authority_addresses =
-            SecurityCouncilAddressAccessor::<S>::get(working_set)
-                .expect("Upgrade authority addresses must exist");
-        let upgrade_authority_threshold =
-            SecurityCouncilThresholdAccessor::<S>::get(working_set)
-                .expect("Security council threshold must exist");
+        let upgrade_authority_addresses = SecurityCouncilAddressAccessor::<S>::get(working_set)
+            .expect("Upgrade authority addresses must exist");
+        let upgrade_authority_threshold = SecurityCouncilThresholdAccessor::<S>::get(working_set)
+            .expect("Security council threshold must exist");
         let circuit_chain_id = citrea_network_to_chain_id(network);
 
         match sc_tx.tx_type {
@@ -652,7 +662,9 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     .0;
 
                 if body.activation_l2_height <= last_activation_height {
-                    log!("Batch proof method id activation height is not greater than the last one");
+                    log!(
+                        "Batch proof method id activation height is not greater than the last one"
+                    );
                     return;
                 }
 
@@ -700,10 +712,28 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     return;
                 }
 
+                let new_count = upgrade_authority_addresses.len() + 1;
+                if new_count > MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL {
+                    log!("Adding member would exceed max security council size: new_count={}, max={}", new_count, MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL);
+                    return;
+                }
+
+                if !Self::is_valid_threshold(body.new_threshold, new_count) {
+                    log!(
+                        "Invalid new threshold for add member: threshold={}, new_count={}",
+                        body.new_threshold,
+                        new_count
+                    );
+                    return;
+                }
+
                 let mut new_addresses = upgrade_authority_addresses.clone();
                 new_addresses.push(new_member_address);
                 SecurityCouncilAddressAccessor::<S>::set(&new_addresses, working_set);
-                SecurityCouncilThresholdAccessor::<S>::set(body.new_threshold as usize, working_set);
+                SecurityCouncilThresholdAccessor::<S>::set(
+                    body.new_threshold as usize,
+                    working_set,
+                );
             }
             SecurityCouncilTxType::RemoveSecurityCouncilMemberV1(body) => {
                 log!("Processing RemoveSecurityCouncilMemberV1");
@@ -727,13 +757,25 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 }
 
                 let remaining_count = upgrade_authority_addresses.len() - 1;
-                if body.new_threshold == 0 || body.new_threshold as usize > remaining_count {
-                    log!("Invalid new threshold for remove member: threshold={}, remaining_count={}", body.new_threshold, remaining_count);
+                if remaining_count < MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL {
+                    log!("Removing member would go below min security council size: remaining_count={}, min={}", remaining_count, MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL);
+                    return;
+                }
+
+                if !Self::is_valid_threshold(body.new_threshold, remaining_count) {
+                    log!(
+                        "Invalid new threshold for remove member: threshold={}, remaining_count={}",
+                        body.new_threshold,
+                        remaining_count
+                    );
                     return;
                 }
 
                 SecurityCouncilAddressAccessor::<S>::remove(member_address, working_set);
-                SecurityCouncilThresholdAccessor::<S>::set(body.new_threshold as usize, working_set);
+                SecurityCouncilThresholdAccessor::<S>::set(
+                    body.new_threshold as usize,
+                    working_set,
+                );
             }
             SecurityCouncilTxType::UpdateSecurityCouncilThresholdV1(body) => {
                 log!("Processing UpdateSecurityCouncilThresholdV1");
@@ -751,12 +793,19 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 }
 
                 let member_count = upgrade_authority_addresses.len();
-                if body.new_threshold == 0 || body.new_threshold as usize > member_count {
-                    log!("Invalid new threshold: threshold={}, member_count={}", body.new_threshold, member_count);
+                if !Self::is_valid_threshold(body.new_threshold, member_count) {
+                    log!(
+                        "Invalid new threshold: threshold={}, member_count={}",
+                        body.new_threshold,
+                        member_count
+                    );
                     return;
                 }
 
-                SecurityCouncilThresholdAccessor::<S>::set(body.new_threshold as usize, working_set);
+                SecurityCouncilThresholdAccessor::<S>::set(
+                    body.new_threshold as usize,
+                    working_set,
+                );
             }
             SecurityCouncilTxType::ReplaceSecurityCouncilMemberV1(body) => {
                 log!("Processing ReplaceSecurityCouncilMemberV1");

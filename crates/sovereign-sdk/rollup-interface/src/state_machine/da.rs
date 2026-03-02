@@ -14,6 +14,19 @@ use crate::{BasicAddress, Network};
 /// 65 bytes long (r(32) + s(32) + v(1))
 pub const SECURITY_COUNCIL_SIGNATURE_SIZE: usize = 65;
 
+/// Maximum number of members allowed in the security council.
+pub const MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL: usize = 10;
+
+/// Minimum number of members allowed in the security council.
+pub const MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL: usize = 4;
+
+/// Threshold must be at most `member_count - MAX_THRESHOLD_PROXIMITY`.
+/// E.g. with 5 members and proximity=2, max threshold is 3 (3-of-5).
+pub const MAX_THRESHOLD_PROXIMITY: usize = 2;
+
+/// Minimum threshold value for the security council.
+pub const MIN_THRESHOLD: usize = 2;
+
 /// Commitments made to the DA layer from the sequencer.
 /// Has merkle root of l2 block hashes from L1 start block to L1 end block (inclusive)
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
