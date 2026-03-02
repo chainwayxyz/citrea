@@ -821,11 +821,11 @@ pub fn create_inscription_type_3(
 
             if let Some(root) = merkle_root {
                 info!(
-                    "Taproot merkle root for inscription - BatchProofMethodId: {}",
+                    "Taproot merkle root for inscription - SecurityCouncilTx: {}",
                     root
                 );
             }
-            return Ok(DaTxs::BatchProofMethodId {
+            return Ok(DaTxs::SecurityCouncilTx {
                 commit: unsigned_commit_tx,
                 reveal: TxWithId {
                     id: reveal_tx.compute_txid(),
