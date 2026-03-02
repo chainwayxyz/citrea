@@ -6,7 +6,7 @@ use alloy_primitives::map::HashMap;
 use alloy_primitives::Address;
 use revm::state::{Account, AccountInfo};
 use revm::DatabaseCommit;
-use sov_modules_api::StateMapAccessor;
+use sov_modules_api::{SpecId, StateMapAccessor};
 
 use super::db::EvmDb;
 use super::AccountInfo as DbAccountInfo;
@@ -19,8 +19,17 @@ impl<C: sov_modules_api::Context> DatabaseCommit for EvmDb<'_, C> {
             if !account.is_touched() {
                 continue;
             }
-
             if account.is_selfdestructed() {
+                // for backwards compatibility (needed on devnet and testnet only fix the issue post TangeloSelfdestructFix)
+                if self.citrea_spec >= SpecId::TangeloSelfdestructFix {
+                    // EIP-6780: Account created and destroyed in same TX is fully deleted.
+                    // Any cBTC in the contract before selfdestruct is sent to some beneficiary.
+                    // Any cBTC sent after selfdestruct is lost (matches Ethereum behavior).
+                    let info = DbAccountInfo::default();
+                    self.evm.account_set(&address, &info, self.working_set);
+                }
+                // As we only deal with post-cancun spec, storage couldn't have been
+                // set before for a selfdestructed account (it was just created).
                 continue;
             }
 

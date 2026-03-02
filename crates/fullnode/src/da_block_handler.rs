@@ -12,7 +12,7 @@ use anyhow::anyhow;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_zk_proofs_and_sequencer_commitments, sync_l1, ProofOrCommitment};
-use citrea_common::utils::get_tangerine_activation_height_non_zero;
+use citrea_common::utils::{get_tangerine_activation_height_non_zero, shutdown_requested};
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::network_to_dev_mode;
 use reth_tasks::shutdown::GracefulShutdown;
@@ -153,7 +153,7 @@ where
                 }
                 _ = &mut l1_sync_worker => {},
                 _ = notifier.notified() => {
-                    if let Err(e) = self.process_queued_l1_blocks().await {
+                    if let Err(e) = self.process_queued_l1_blocks(&shutdown_signal).await {
                         error!("{e}");
                         return;
                     }
@@ -163,8 +163,16 @@ where
     }
 
     /// Processes L1 blocks waiting in the queue
-    async fn process_queued_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
+    async fn process_queued_l1_blocks(
+        &mut self,
+        shutdown_signal: &GracefulShutdown,
+    ) -> Result<(), anyhow::Error> {
         loop {
+            if shutdown_requested(shutdown_signal) {
+                info!("Shutting down L1BlockHandler");
+                return Ok(());
+            }
+
             let Some(l1_block) = self.queued_l1_blocks.lock().await.front().cloned() else {
                 break;
             };

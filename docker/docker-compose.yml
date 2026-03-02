@@ -25,17 +25,17 @@ services:
   citrea-full-node:
     depends_on:
       - citrea-bitcoin-testnet4
-    image: chainwayxyz/citrea-full-node:testnet
+    image: chainwayxyz/citrea-full-node:latest
     platform: linux/amd64
     container_name: full-node
     environment:
-      - SEQUENCER_PUBLIC_KEY=0201edff3b3ee593dbef54e2fbdd421070db55e2de2aebe75f398bd85ac97ed364
-      - SEQUENCER_DA_PUB_KEY=03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b
-      - PROVER_DA_PUB_KEY=0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42
+      # Required: Network selection (auto-configures SEQUENCER_PUBLIC_KEY, SEQUENCER_DA_PUB_KEY, etc.)
+      - NETWORK=testnet
+      # Required: Bitcoin node connection
       - NODE_URL=http://citrea-bitcoin-testnet4:18443/
       - NODE_USERNAME=citrea
       - NODE_PASSWORD=citrea
-      - NETWORK=testnet
+      # Optional: Override defaults if needed
       - TX_BACKUP_DIR=
       - STORAGE_PATH=/mnt/task/citrea-db
       - DB_MAX_OPEN_FILES=5000
@@ -47,9 +47,7 @@ services:
       - RPC_BATCH_REQUESTS_LIMIT=50
       - RPC_ENABLE_SUBSCRIPTIONS=true
       - RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION=10
-      - SEQUENCER_CLIENT_URL=https://rpc.testnet.citrea.xyz
       - INCLUDE_TX_BODY=false
-      - SCAN_L1_START_HEIGHT=45496
       - SYNC_BLOCKS_COUNT=10
       - RUST_LOG=info
       - JSON_LOGS=1
