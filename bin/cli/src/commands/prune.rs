@@ -48,7 +48,7 @@ pub(crate) async fn prune(
         Arc::new(native_db),
     );
     if let Some(up_to_block) = pruner.should_prune(last_pruned_block_number, l2_block_number) {
-        pruner.prune(node_type.into(), up_to_block).await;
+        pruner.prune(node_type.into(), up_to_block, None).await?;
     }
     Ok(())
 }
