@@ -63,22 +63,19 @@ pub struct BatchProofMethodId {
     /// Body of the method id update, the message to be signed
     /// Includes method id and activation height
     pub body: BatchProofMethodIdBody,
-    /// Signatures to be verified for the method id update used for a 3 of 5 security council
-    /// Consists of 64 byte keccak256(eip191 prefixed message) prehash signed signatures
+    /// Signatures to be verified for the method id update used for a threshold-of-N security council
+    /// Consists of 65 byte (r(32) + s(32) + v(1)) EIP-712 typed data signatures
     /// The public keys can be recovered from the signatures and the prehash
-    /// The indices point to the pubkeys in the light client circuit initial values
-    /// To verify the signature the pubkey should be fetched from the initial values corresponding to the signature
+    /// The indices point to the addresses in the light client circuit state
+    /// To verify the signature the address should be fetched from state corresponding to the signature
     /// If one signature verification fails the whole method id update is invalid
     /// Also assumes the indexes are in ascending order and there are no duplicates
-    pub signatures_with_index:
-        [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD],
+    pub signatures_with_index: Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)>,
 }
 
 impl BatchProofMethodId {
     /// Returns the signatures in the transaction.
-    pub fn signatures_with_index(
-        &self,
-    ) -> &[([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
+    pub fn signatures_with_index(&self) -> &[([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)] {
         &self.signatures_with_index
     }
 

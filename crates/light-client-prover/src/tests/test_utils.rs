@@ -15,7 +15,7 @@ use sov_modules_core::Storage;
 use sov_prover_storage_manager::{Config, ProverStorage, ProverStorageManager};
 use sov_rollup_interface::da::{
     BatchProofMethodId, BatchProofMethodIdBody, BlobReaderTrait, DaVerifier, DataOnDa,
-    SequencerCommitment, SECURITY_COUNCIL_SIGNATURE_SIZE, SECURITY_COUNCIL_SIGNATURE_THRESHOLD,
+    SequencerCommitment, SECURITY_COUNCIL_SIGNATURE_SIZE,
 };
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
@@ -27,7 +27,6 @@ use crate::circuit::accessors::ChunkAccessor;
 use crate::circuit::initial_values::{bitcoinda, InitialValueProvider};
 use crate::circuit::{
     citrea_network_to_chain_id, BatchProofMethodIdUpdate, LightClientProofCircuit,
-    SECURITY_COUNCIL_MEMBER_COUNT,
 };
 
 /// Test private keys used for generating signatures in tests
@@ -209,67 +208,66 @@ pub(crate) fn create_prev_lcp_serialized(
     mock_proof.encode_to_vec()
 }
 
-/// Converts a vector of signatures in Vec<u8> format to an array of signatures in [u8; 64] format
+/// Converts a vector of signatures in Vec<u8> format to a vector of signatures in [u8; 65] format
 pub(crate) fn from_vec_to_sigs(
     vec: Vec<(Vec<u8>, u8)>,
-) -> [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
-    let mut sigs = Vec::new();
-    for (v, i) in vec.into_iter() {
-        sigs.push((v.try_into().unwrap(), i));
-    }
-    sigs.try_into().unwrap()
+) -> Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)> {
+    vec.into_iter()
+        .map(|(v, i)| (v.try_into().unwrap(), i))
+        .collect()
 }
 
-/// Generates 5 valid keypairs and returns the public keys and signers from the given private keys
+/// Generates valid keypairs and returns the addresses and signers from the given private keys
 pub(crate) fn generate_initial_addresses_with_signers_from_pks(
-    private_keys: [[u8; 32]; 5],
-) -> (
-    [Address; SECURITY_COUNCIL_MEMBER_COUNT],
-    Vec<PrivateKeySigner>,
-) {
-    let mut initial_da_addresses = [Address::random(); SECURITY_COUNCIL_MEMBER_COUNT];
+    private_keys: &[[u8; 32]],
+) -> (Vec<Address>, Vec<PrivateKeySigner>) {
+    let mut initial_da_addresses = Vec::new();
     let mut signers = Vec::new();
 
-    // Generate 5 valid keypairs and signatures
-    for (i, address) in initial_da_addresses.iter_mut().enumerate() {
-        let signer = PrivateKeySigner::from_bytes(&private_keys[i].into()).unwrap();
+    for pk in private_keys {
+        let signer = PrivateKeySigner::from_bytes(&(*pk).into()).unwrap();
         let verifying_key = signer.credential().verifying_key();
         let ep = verifying_key.to_encoded_point(false); // uncompressed: 0x04 + X(32) + Y(32)
         let bytes = ep.as_bytes();
-        *address = Address::from_slice(&keccak256(&bytes[1..])[12..]);
+        initial_da_addresses.push(Address::from_slice(&keccak256(&bytes[1..])[12..]));
         signers.push(signer);
     }
 
     (initial_da_addresses, signers)
 }
 
-/// Generates 5 valid keypairs and returns the public keys and signers
-pub(crate) fn generate_initial_addresses_with_signers() -> (
-    [Address; SECURITY_COUNCIL_MEMBER_COUNT],
-    Vec<PrivateKeySigner>,
-) {
-    let mut initial_da_addresses = [Address::random(); SECURITY_COUNCIL_MEMBER_COUNT];
+/// Generates 5 valid keypairs and returns the addresses and signers
+pub(crate) fn generate_initial_addresses_with_signers() -> (Vec<Address>, Vec<PrivateKeySigner>) {
+    let mut initial_da_addresses = Vec::new();
     let mut signers = Vec::new();
 
-    // Generate 5 valid keypairs and signatures
-    for (i, address) in initial_da_addresses.iter_mut().enumerate() {
+    for i in 0..5 {
         let secret_key = [i as u8 + 1; 32];
         let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
         let verifying_key = signer.credential().verifying_key();
         let ep = verifying_key.to_encoded_point(false); // uncompressed: 0x04 + X(32) + Y(32)
         let bytes = ep.as_bytes();
-        *address = Address::from_slice(&keccak256(&bytes[1..])[12..]);
+        initial_da_addresses.push(Address::from_slice(&keccak256(&bytes[1..])[12..]));
         signers.push(signer);
     }
 
     (initial_da_addresses, signers)
 }
 
-/// Creates 3 valid signatures from the first 3 signers for the given prehash
+/// Creates valid signatures from the first `count` signers for the given payload
 pub(crate) fn create_valid_signatures<T: SolStruct>(
     signers: &[PrivateKeySigner],
     payload: &T,
-) -> [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
+) -> Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)> {
+    create_valid_signatures_with_count(signers, payload, 3)
+}
+
+/// Creates valid signatures from the first `count` signers for the given payload
+pub(crate) fn create_valid_signatures_with_count<T: SolStruct>(
+    signers: &[PrivateKeySigner],
+    payload: &T,
+    count: usize,
+) -> Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)> {
     let mut signatures_in_inscription = Vec::new();
 
     let domain = eip712_domain! {
@@ -278,7 +276,7 @@ pub(crate) fn create_valid_signatures<T: SolStruct>(
         chain_id: citrea_network_to_chain_id(Network::Nightly),
     };
 
-    for (i, signer) in signers.iter().enumerate().take(3) {
+    for (i, signer) in signers.iter().enumerate().take(count) {
         let sig = signer.sign_typed_data_sync(payload, &domain).unwrap();
         let signature = sig.as_bytes()[0..SECURITY_COUNCIL_SIGNATURE_SIZE].to_vec();
         signatures_in_inscription.push((signature, i as u8));
@@ -303,7 +301,7 @@ pub(crate) fn create_new_method_id_tx(
     };
 
     let (_initial_addresses, signers) =
-        generate_initial_addresses_with_signers_from_pks(pk_bytes_arr);
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
 
     let payload = BatchProofMethodIdUpdate::from(method_id_body.clone());
 
@@ -397,7 +395,8 @@ impl NativeCircuitRunner {
         initial_batch_proof_method_ids: Vec<(u64, [u32; 8])>,
         batch_prover_da_pub_key: &[u8],
         sequencer_da_pub_key: &[u8],
-        method_id_upgrade_authority: &[Address; SECURITY_COUNCIL_MEMBER_COUNT],
+        initial_method_id_upgrade_authority: &[Address],
+        initial_security_council_threshold: usize,
         network: Network,
     ) -> LightClientCircuitInput<MockDaSpec> {
         let prover_storage = self
@@ -433,7 +432,8 @@ impl NativeCircuitRunner {
             initial_batch_proof_method_ids,
             batch_prover_da_pub_key,
             sequencer_da_pub_key,
-            method_id_upgrade_authority,
+            initial_method_id_upgrade_authority,
+            initial_security_council_threshold,
             domain_name.to_string(),
         );
 

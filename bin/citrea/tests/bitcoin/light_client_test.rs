@@ -677,7 +677,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
         let (_initial_addresses, signers) =
-            generate_initial_addresses_with_signers_from_pks(pk_bytes_arr);
+            generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
 
         let payload = BatchProofMethodIdUpdate::from(method_id_body.clone());
 
@@ -905,7 +905,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
         let (_initial_addresses, signers) =
-            generate_initial_addresses_with_signers_from_pks(pk_bytes_arr);
+            generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
 
         let payload = BatchProofMethodIdUpdate::from(method_id_body.clone());
 

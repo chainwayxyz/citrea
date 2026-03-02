@@ -1,8 +1,8 @@
 #![no_main]
 use citrea_light_client_prover::circuit::initial_values::mockda::{
     BATCH_PROVER_DA_PUBLIC_KEY, EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME, GENESIS_ROOT,
-    INITIAL_BATCH_PROOF_METHOD_IDS, METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
-    SEQUENCER_DA_PUBLIC_KEY,
+    INITIAL_BATCH_PROOF_METHOD_IDS, INITIAL_SECURITY_COUNCIL_THRESHOLD,
+    METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES, SEQUENCER_DA_PUBLIC_KEY,
 };
 use citrea_light_client_prover::circuit::LightClientProofCircuit;
 use citrea_risc0_adapter::guest::Risc0Guest;
@@ -36,7 +36,8 @@ pub fn main() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &BATCH_PROVER_DA_PUBLIC_KEY,
             &SEQUENCER_DA_PUBLIC_KEY,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
         )
         .unwrap();

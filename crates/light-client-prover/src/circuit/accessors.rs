@@ -1,6 +1,7 @@
 /// In this module we define the accessors for the different type of data we'll be using in the circuit.
 /// We don't use the StateMap or Module system here, as our keys are all hashes of different things, we
 /// don't want the serialization overhead.
+use alloy_primitives::Address;
 use sov_modules_api::{StateReaderAndWriter, WorkingSet};
 use sov_modules_core::{Prefix, Storage, StorageKey, StorageValue};
 use sov_rollup_interface::da::SequencerCommitment;
@@ -352,8 +353,140 @@ impl<S: Storage> BatchProofMethodIdAccessor<S> {
     }
 }
 
+/// Accessor for managing security council (upgrade authority) addresses in the LCP state
+///
+/// This accessor handles storage and retrieval of security council addresses.
+/// Initialized from compile-time constants on first LCP run, updatable via DA messages in the future.
+/// The number of addresses is dynamic (not fixed at compile time).
+pub struct SecurityCouncilAddressAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> SecurityCouncilAddressAccessor<S> {
+    /// Security council address storage prefix
+    const PREFIX: u8 = b'a';
+
+    /// Creates a storage key containing just the prefix
+    fn key() -> StorageKey {
+        let mut key = [0u8; 1];
+        key[0] = Self::PREFIX;
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    /// Retrieves the security council addresses if they exist
+    ///
+    /// # Returns
+    /// The security council addresses as a Vec, or `None` if not initialized
+    pub fn get(working_set: &mut WorkingSet<S>) -> Option<Vec<Address>> {
+        let key = Self::key();
+
+        working_set.get(&key).map(|v| {
+            let bytes: RefCount<[u8]> = v.into();
+            let raw: Vec<[u8; 20]> = borsh::from_slice(&bytes)
+                .expect("Security council addresses deserialization should not fail");
+            raw.iter().map(|a| Address::from_slice(a)).collect()
+        })
+    }
+
+    /// Initializes the security council addresses. Must be called at most once.
+    ///
+    /// # Panics
+    /// Panics if the addresses are already initialized
+    pub fn initialize(addresses: &[Address], working_set: &mut WorkingSet<S>) {
+        assert!(
+            Self::get(working_set).is_none(),
+            "Security council addresses must not already be initialized!"
+        );
+        Self::set(addresses, working_set);
+    }
+
+    /// Overwrites the current security council addresses (for future updates)
+    pub fn set(addresses: &[Address], working_set: &mut WorkingSet<S>) {
+        let key = Self::key();
+        let raw: Vec<[u8; 20]> = addresses.iter().map(|a| a.0 .0).collect();
+        let value: StorageValue = borsh::to_vec(&raw)
+            .expect("Security council addresses serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+
+    /// Removes a single address by value from the stored list (for future use)
+    #[allow(dead_code)]
+    pub fn remove(address: Address, working_set: &mut WorkingSet<S>) {
+        let current = Self::get(working_set).expect("Security council addresses must exist");
+        let filtered: Vec<[u8; 20]> = current
+            .iter()
+            .filter(|a| **a != address)
+            .map(|a| a.0 .0)
+            .collect();
+        let key = Self::key();
+        let value: StorageValue = borsh::to_vec(&filtered)
+            .expect("Security council addresses serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
+/// Accessor for managing the security council signature threshold in the LCP state
+///
+/// This accessor handles storage and retrieval of the minimum number of valid signatures
+/// required to approve a method ID upgrade. Initialized on first LCP run, updatable via DA messages in the future.
+pub struct SecurityCouncilThresholdAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> SecurityCouncilThresholdAccessor<S> {
+    /// Security council threshold storage prefix
+    const PREFIX: u8 = b't';
+
+    /// Creates a storage key containing just the prefix
+    fn key() -> StorageKey {
+        let mut key = [0u8; 1];
+        key[0] = Self::PREFIX;
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    /// Retrieves the security council signature threshold if it exists
+    pub fn get(working_set: &mut WorkingSet<S>) -> Option<usize> {
+        let key = Self::key();
+
+        working_set.get(&key).map(|v| {
+            let bytes: RefCount<[u8]> = v.into();
+            let val: u64 = borsh::from_slice(&bytes)
+                .expect("Security council threshold deserialization should not fail");
+            val as usize
+        })
+    }
+
+    /// Initializes the security council threshold. Must be called at most once.
+    ///
+    /// # Panics
+    /// Panics if the threshold is already initialized
+    pub fn initialize(threshold: usize, working_set: &mut WorkingSet<S>) {
+        assert!(
+            Self::get(working_set).is_none(),
+            "Security council threshold must not already be initialized!"
+        );
+        Self::set(threshold, working_set);
+    }
+
+    /// Overwrites the current security council threshold (for future updates)
+    pub fn set(threshold: usize, working_set: &mut WorkingSet<S>) {
+        let key = Self::key();
+        let value: StorageValue = borsh::to_vec(&(threshold as u64))
+            .expect("Security council threshold serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use alloy_primitives::Address;
     use sov_modules_api::WorkingSet;
     use sov_modules_core::Storage;
     use sov_prover_storage_manager::{new_orphan_storage, ProverStorage};
@@ -363,7 +496,8 @@ mod tests {
 
     use super::{BlockHashAccessor, ChunkAccessor};
     use crate::circuit::accessors::{
-        BatchProofMethodIdAccessor, SequencerCommitmentAccessor,
+        BatchProofMethodIdAccessor, SecurityCouncilAddressAccessor,
+        SecurityCouncilThresholdAccessor, SequencerCommitmentAccessor,
         VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
     };
 
@@ -611,6 +745,101 @@ mod tests {
         assert_eq!(
             BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap(),
             vec![(3, [3; 8]), (4, [4; 8]), (1, [1; 8])]
+        );
+    }
+
+    #[test]
+    fn test_security_council_address_accessor() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let witness = Witness::default();
+        let mut working_set =
+            WorkingSet::with_witness(prover_storage.clone(), witness, Default::default());
+
+        assert!(SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).is_none());
+
+        let addresses = vec![
+            Address::new([1u8; 20]),
+            Address::new([2u8; 20]),
+            Address::new([3u8; 20]),
+            Address::new([4u8; 20]),
+            Address::new([5u8; 20]),
+        ];
+
+        SecurityCouncilAddressAccessor::<ProverStorage>::initialize(&addresses, &mut working_set);
+
+        assert_eq!(
+            SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap(),
+            addresses
+        );
+
+        // Test set (overwrite) with a different number of addresses
+        let new_addresses = vec![
+            Address::new([10u8; 20]),
+            Address::new([20u8; 20]),
+            Address::new([30u8; 20]),
+        ];
+        SecurityCouncilAddressAccessor::<ProverStorage>::set(&new_addresses, &mut working_set);
+        assert_eq!(
+            SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap(),
+            new_addresses
+        );
+
+        let (read_write_log, mut witness) = working_set.checkpoint().freeze();
+
+        let (_, state_update, _) = prover_storage
+            .compute_state_update(&read_write_log, &mut witness, false)
+            .expect("should not fail");
+
+        prover_storage.commit(&state_update, &vec![], &Default::default());
+
+        // reset working set to actually read from storage
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+
+        assert_eq!(
+            SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap(),
+            new_addresses
+        );
+    }
+
+    #[test]
+    fn test_security_council_threshold_accessor() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let witness = Witness::default();
+        let mut working_set =
+            WorkingSet::with_witness(prover_storage.clone(), witness, Default::default());
+
+        assert!(SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).is_none());
+
+        SecurityCouncilThresholdAccessor::<ProverStorage>::initialize(3, &mut working_set);
+
+        assert_eq!(
+            SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap(),
+            3
+        );
+
+        // Test set (overwrite)
+        SecurityCouncilThresholdAccessor::<ProverStorage>::set(4, &mut working_set);
+        assert_eq!(
+            SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap(),
+            4
+        );
+
+        let (read_write_log, mut witness) = working_set.checkpoint().freeze();
+
+        let (_, state_update, _) = prover_storage
+            .compute_state_update(&read_write_log, &mut witness, false)
+            .expect("should not fail");
+
+        prover_storage.commit(&state_update, &vec![], &Default::default());
+
+        // reset working set to actually read from storage
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+
+        assert_eq!(
+            SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap(),
+            4
         );
     }
 }

@@ -4,7 +4,8 @@
 //! The light client circuit processes DA blocks, validates batch proofs, and generates proofs
 //! that verify L2 state transitions and updates to the light client state.
 use accessors::{
-    BatchProofMethodIdAccessor, BlockHashAccessor, ChunkAccessor, SequencerCommitmentAccessor,
+    BatchProofMethodIdAccessor, BlockHashAccessor, ChunkAccessor, SecurityCouncilAddressAccessor,
+    SecurityCouncilThresholdAccessor, SequencerCommitmentAccessor,
     VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
 use alloy_primitives::{Address, B256};
@@ -27,12 +28,6 @@ use sov_rollup_interface::zk::ZkvmGuest;
 use sov_rollup_interface::Network;
 
 use crate::circuit::method_id_verifier::verify_method_id_security_council;
-
-/// Size of a compressed public key in bytes.
-pub const SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE: usize = 33;
-
-/// Total number of security council members.
-pub const SECURITY_COUNCIL_MEMBER_COUNT: usize = 5;
 
 /// Accessor (helpers) that are used inside the light client proof circuit.
 /// To access certain information that was saved to its state at one point.
@@ -369,7 +364,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// * `initial_batch_proof_method_ids` - The initial batch proof method IDs that are used to initialize the batch proof method IDs in the JMT state if this is the first light client proof output.
     /// * `batch_prover_da_public_key` - The public key of the batch prover to check the sender of the batch proof transactions.
     /// * `sequencer_da_public_key` - The public key of the sequencer to check the sender of the sequencer commitment transactions.
-    /// * `method_id_upgrade_authority_da_addresses` - The addresses of the method ID upgrade authority to be verified against the signatures by recovering pubkeys.
+    /// * `initial_security_council_da_addresses` - The initial addresses of the security council, used to initialize the LCP state on first run.
     ///
     /// # Logic
     /// - The block hash of the header is inserted into the JMT.
@@ -396,7 +391,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
-        method_id_upgrade_authority_da_addresses: &[Address; SECURITY_COUNCIL_MEMBER_COUNT],
+        initial_security_council_da_addresses: &[Address],
+        initial_security_council_threshold: usize,
         security_council_messages_domain: String,
     ) -> RunL1BlockResult<S> {
         let mut working_set =
@@ -420,10 +416,18 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 },
             );
 
-        // If this is the first lcp initialize the batch proof method ids
+        // If this is the first lcp initialize the batch proof method ids and security council addresses
         if previous_light_client_proof_output.is_none() {
             BatchProofMethodIdAccessor::<S>::initialize(
                 initial_batch_proof_method_ids,
+                &mut working_set,
+            );
+            SecurityCouncilAddressAccessor::<S>::initialize(
+                initial_security_council_da_addresses,
+                &mut working_set,
+            );
+            SecurityCouncilThresholdAccessor::<S>::initialize(
+                initial_security_council_threshold,
                 &mut working_set,
             );
         }
@@ -550,12 +554,21 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         continue;
                     }
 
+                    // Read upgrade authority addresses and threshold from LCP state
+                    let upgrade_authority_addresses =
+                        SecurityCouncilAddressAccessor::<S>::get(&mut working_set)
+                            .expect("Upgrade authority addresses must exist");
+                    let upgrade_authority_threshold =
+                        SecurityCouncilThresholdAccessor::<S>::get(&mut working_set)
+                            .expect("Security council threshold must exist");
+
                     // Verify the signatures only if the activation height is greater than the last one
                     // This prevents replay attacks of old method IDs
                     if !verify_method_id_security_council(
-                        *method_id_upgrade_authority_da_addresses,
+                        &upgrade_authority_addresses,
                         batch_proof_method_id.body.clone(),
                         batch_proof_method_id.signatures_with_index(),
+                        upgrade_authority_threshold,
                         security_council_messages_domain.clone(),
                         circuit_chain_id,
                     ) {
@@ -569,6 +582,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         &mut working_set,
                     );
                 }
+                // TODO: Handle DataOnDa::UpgradeAuthorityAddressUpdate to update security council addresses
+                // via SecurityCouncilAddressAccessor::set / SecurityCouncilAddressAccessor::remove
                 DataOnDa::SequencerCommitment(commitment) => {
                     log!("Found sequencer commitment with index {}", commitment.index);
                     if blob.sender().as_ref() != sequencer_da_public_key {
@@ -655,7 +670,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// * `initial_batch_proof_method_ids` - To initialize the batch proof method IDs in the JMT state if this is the first light client proof
     /// * `batch_prover_da_public_key` - The public key of the batch prover
     /// * `sequencer_da_public_key` - The public key of the sequencer
-    /// * `method_id_upgrade_authority_da_public_key` - The public key of the method ID upgrade authority
+    /// * `initial_security_council_da_addresses` - The initial addresses of the security council, used to initialize the LCP state on first run.
     ///
     /// # Logic
     /// 1. Verifies the previous light client proof and extracts its output.
@@ -681,7 +696,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
-        method_id_upgrade_authority_da_addresses: &[Address; SECURITY_COUNCIL_MEMBER_COUNT],
+        initial_security_council_da_addresses: &[Address],
+        initial_security_council_threshold: usize,
         security_council_messages_domain: String,
     ) -> Result<LightClientCircuitOutput, LightClientVerificationError<DaV>>
     where
@@ -740,7 +756,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             initial_batch_proof_method_ids,
             batch_prover_da_public_key,
             sequencer_da_public_key,
-            method_id_upgrade_authority_da_addresses,
+            initial_security_council_da_addresses,
+            initial_security_council_threshold,
             security_council_messages_domain,
         );
 
