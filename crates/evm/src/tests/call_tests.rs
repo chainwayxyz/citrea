@@ -43,7 +43,7 @@ type C = DefaultContext;
 
 #[test]
 fn call_multiple_test() {
-    let dev_signer1: TestSigner = TestSigner::new_random();
+    let dev_signer1: TestSigner = TestSigner::new_default();
 
     let config = EvmConfig {
         data: vec![AccountData {
@@ -58,7 +58,7 @@ fn call_multiple_test() {
     };
     let (mut evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
 
-    let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
+    let contract_addr = dev_signer1.address().create(0);
 
     let l1_fee_rate = 0;
     let l2_height = 2;
@@ -66,7 +66,7 @@ fn call_multiple_test() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -78,7 +78,7 @@ fn call_multiple_test() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer1, 0, SimpleStorageContract::default()),
@@ -190,7 +190,7 @@ fn call_multiple_test() {
 
 #[test]
 fn call_test() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
@@ -200,18 +200,20 @@ fn call_test() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
+
+    let contract_addr = dev_signer.address().create(0);
 
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
 
     let set_arg = 999;
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let rlp_transactions = vec![
             create_contract_message(&dev_signer, 0, SimpleStorageContract::default()),
@@ -267,7 +269,7 @@ fn call_test() {
 
 #[test]
 fn failed_transaction_test() {
-    let dev_signer: TestSigner = TestSigner::new_random();
+    let dev_signer: TestSigner = TestSigner::new_default();
     let config = EvmConfig::default();
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
@@ -278,7 +280,7 @@ fn failed_transaction_test() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -287,7 +289,7 @@ fn failed_transaction_test() {
     evm.begin_l2_block_hook(&l2_block_info, working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
         let rlp_transactions = vec![create_contract_message(
             &dev_signer,
             0,
@@ -335,18 +337,20 @@ fn self_destruct_test() {
     // address used in selfdestruct
     let die_to_address = address!("11115497b157177315e1204f52e588b393111111");
 
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
+    let contract_addr = dev_signer.address().create(0);
+
     let (mut evm, mut working_set, _spec_id, _ledger_db) =
-        get_evm_with_spec(&config, SovSpecId::Tangerine);
+        get_evm_with_spec(&config, SovSpecId::latest());
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -355,7 +359,7 @@ fn self_destruct_test() {
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         // deploy selfdestruct contract
         // send some money to the selfdestruct contract
@@ -413,18 +417,18 @@ fn self_destruct_test() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
 
     // Switch to another fork
-    let _spec_id = SovSpecId::Tangerine;
+    let _spec_id = SovSpecId::latest();
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
         // selfdestruct to die to address with someone other than the creator of the contract
         evm.call(
             CallMessage {
@@ -491,17 +495,18 @@ fn self_destruct_test() {
 
 #[test]
 fn test_block_hash_in_evm() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (mut evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
+    let contract_addr = dev_signer.address().create(0);
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -510,7 +515,7 @@ fn test_block_hash_in_evm() {
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
 
@@ -534,7 +539,7 @@ fn test_block_hash_in_evm() {
         let l2_block_info = HookL2BlockInfo {
             l2_height,
             pre_state_root: [99u8; 32],
-            current_spec: SovSpecId::Tangerine,
+            current_spec: SovSpecId::latest(),
             sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,
@@ -640,10 +645,12 @@ fn test_block_hash_in_evm() {
 
 #[test]
 fn test_block_gas_limit() {
-    let (config, dev_signer, contract_addr) = get_evm_config(
+    let (config, dev_signer) = get_evm_config(
         U256::from_str("100000000000000000000").unwrap(),
         Some(ETHEREUM_BLOCK_GAS_LIMIT_30M),
     );
+
+    let contract_addr = dev_signer.address().create(0);
 
     let (mut evm, working_set, _spec_id, ledger_db) = get_evm(&config);
 
@@ -654,7 +661,7 @@ fn test_block_gas_limit() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -663,7 +670,7 @@ fn test_block_gas_limit() {
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(
@@ -704,7 +711,7 @@ fn test_block_gas_limit() {
     let mut working_set = working_set.revert().to_revertable();
 
     assert_eq!(
-        evm.get_db(&mut working_set)
+        evm.get_db(&mut working_set, SovSpecId::latest())
             .basic(dev_signer.address())
             .unwrap()
             .unwrap()
@@ -715,7 +722,7 @@ fn test_block_gas_limit() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -724,7 +731,7 @@ fn test_block_gas_limit() {
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(
@@ -864,7 +871,7 @@ fn test_l1_fee_success() {
         expected_base_fee_vault_balance: U256,
         expected_l1_fee_vault_balance: U256,
     ) {
-        let (mut config, dev_signer, _, _ledger_db) =
+        let (mut config, dev_signer, _ledger_db) =
             get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
 
         // this will push contracts to the config
@@ -875,7 +882,7 @@ fn test_l1_fee_success() {
         let l2_block_info = HookL2BlockInfo {
             l2_height: 2,
             pre_state_root: [10u8; 32],
-            current_spec: SovSpecId::Tangerine,
+            current_spec: SovSpecId::latest(),
             sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,
@@ -885,7 +892,7 @@ fn test_l1_fee_success() {
         {
             let sender_address = generate_address::<C>("sender");
 
-            let context = C::new(sender_address, 2, SovSpecId::Tangerine, l1_fee_rate);
+            let context = C::new(sender_address, 2, SovSpecId::latest(), l1_fee_rate);
 
             let deploy_message = create_contract_message_with_priority_fee(
                 &dev_signer,
@@ -947,28 +954,28 @@ fn test_l1_fee_success() {
 
     run_tx(
         0,
-        U256::from(100000000000000u64 - gas_fee_paid * 10000001),
+        U256::from(100000000000000u64 - gas_fee_paid * 1000001),
         // priority fee goes to coinbase
         U256::from(gas_fee_paid),
-        U256::from(gas_fee_paid * 10000000),
+        U256::from(gas_fee_paid * 1000000),
         U256::from(0),
     );
     run_tx(
         1,
-        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 36 - L1_FEE_OVERHEAD as u64),
+        U256::from(100000000000000u64 - gas_fee_paid * 1000001 - 36 - L1_FEE_OVERHEAD as u64),
         // priority fee goes to coinbase
         U256::from(gas_fee_paid),
-        U256::from(gas_fee_paid * 10000000),
+        U256::from(gas_fee_paid * 1000000),
         U256::from(36 + L1_FEE_OVERHEAD as u64),
     );
 }
 
 #[test]
 fn test_l1_fee_not_enough_funds() {
-    let (mut config, dev_signer, _, _ledger_db) = get_evm_config_starting_base_fee(
-        U256::from_str("1142350000000").unwrap(), // only covers base fee
+    let (mut config, dev_signer, _ledger_db) = get_evm_config_starting_base_fee(
+        U256::from_str("114235000000").unwrap(), // only covers base fee
         None,
-        min_base_fee_per_gas(SovSpecId::Tangerine),
+        min_base_fee_per_gas(SovSpecId::latest()),
     );
     config_push_contracts(&mut config, None);
 
@@ -980,7 +987,7 @@ fn test_l1_fee_not_enough_funds() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -990,7 +997,7 @@ fn test_l1_fee_not_enough_funds() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let deploy_message = create_contract_message_with_fee_and_gas_limit(
             &dev_signer,
@@ -1029,7 +1036,7 @@ fn test_l1_fee_not_enough_funds() {
         .unwrap();
 
     // The account balance is unchanged
-    assert_eq!(db_account.balance, U256::from(1142350000000u64));
+    assert_eq!(db_account.balance, U256::from(114235000000u64));
     assert_eq!(db_account.nonce, 0);
 
     // The coinbase balance is zero
@@ -1041,7 +1048,7 @@ fn test_l1_fee_not_enough_funds() {
 
 #[test]
 fn test_l1_fee_halt() {
-    let (mut config, dev_signer, _, _ledger_db) =
+    let (mut config, dev_signer, _ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("20000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
@@ -1053,7 +1060,7 @@ fn test_l1_fee_halt() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1063,7 +1070,7 @@ fn test_l1_fee_halt() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let deploy_message = create_contract_message_with_fee(
             &dev_signer,
@@ -1074,7 +1081,7 @@ fn test_l1_fee_halt() {
 
         let call_message = dev_signer
             .sign_default_transaction_with_fee(
-                TxKind::Call(address!("819c5497b157177315e1204f52e588b393771719")),
+                TxKind::Call(dev_signer.address().create(0)),
                 InfiniteLoopContract::default()
                     .call_infinite_loop()
                     .into_iter()
@@ -1132,7 +1139,7 @@ fn test_l1_fee_halt() {
         .account_info(&dev_signer.address(), &mut working_set)
         .unwrap();
 
-    let expenses = 1106947_u64 * 10000000 + // evm gas
+    let expenses = 1106947_u64 * 1000000 + // evm gas
         36 + // l1 contract deploy fee
         7 + // l1 contract call fee
         2 * L1_FEE_OVERHEAD as u64; // l1 fee overhead *2
@@ -1146,7 +1153,7 @@ fn test_l1_fee_halt() {
     let base_fee_vault = evm.account_info(&BASE_FEE_VAULT, &mut working_set).unwrap();
     let l1_fee_vault = evm.account_info(&L1_FEE_VAULT, &mut working_set).unwrap();
 
-    assert_eq!(base_fee_vault.balance, U256::from(1106947_u64 * 10000000));
+    assert_eq!(base_fee_vault.balance, U256::from(1106947_u64 * 1000000));
     assert_eq!(
         l1_fee_vault.balance,
         U256::from(36 + 7 + 2 * L1_FEE_OVERHEAD as u64)
@@ -1155,19 +1162,19 @@ fn test_l1_fee_halt() {
 
 #[test]
 fn test_l1_fee_compression_discount() {
-    let (mut config, dev_signer, _, _ledger_db) =
+    let (mut config, dev_signer, _ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) =
-        get_evm_with_spec(&config, SovSpecId::Tangerine);
+        get_evm_with_spec(&config, SovSpecId::latest());
     let l1_fee_rate = 1;
 
     let l2_block_info = HookL2BlockInfo {
         l2_height: 2,
         pre_state_root: [99u8; 32],
-        current_spec: SovSpecId::Tangerine, // Compression discount is enabled
+        current_spec: SovSpecId::latest(), // Compression discount is enabled
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1176,7 +1183,7 @@ fn test_l1_fee_compression_discount() {
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 3, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, 3, SovSpecId::latest(), l1_fee_rate);
         let simple_tx = dev_signer
             .sign_default_transaction_with_priority_fee(
                 TxKind::Call(Address::random()),
@@ -1215,9 +1222,9 @@ fn test_l1_fee_compression_discount() {
     let tx_gas = 21000;
 
     let expected_db_balance = U256::from(
-        100000000000000u64 - 1000 - tx_gas * 10000001 - tx2_diff_size - L1_FEE_OVERHEAD as u64,
+        100000000000000u64 - 1000 - tx_gas * 1000001 - tx2_diff_size - L1_FEE_OVERHEAD as u64,
     );
-    let expected_base_fee_vault_balance = U256::from(tx_gas * 10000000);
+    let expected_base_fee_vault_balance = U256::from(tx_gas * 1000000);
     let expected_coinbase_balance = U256::from(tx_gas);
     let expected_l1_fee_vault_balance = U256::from(tx2_diff_size + L1_FEE_OVERHEAD as u64);
 
@@ -1246,7 +1253,7 @@ fn test_l1_fee_compression_discount() {
 // and invoke point eval precompile
 #[test]
 fn test_blob_tx() {
-    let (config, dev_signer, _contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
     let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
 
@@ -1256,7 +1263,7 @@ fn test_blob_tx() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine, // won't be Tangerine at height 2 currently but we can trick the spec id
+        current_spec: SovSpecId::latest(), // won't be Tangerine at height 2 currently but we can trick the spec id
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1265,7 +1272,7 @@ fn test_blob_tx() {
     let sender_address = generate_address::<C>("sender");
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let blob_message = dev_signer
             .sign_blob_transaction(Address::ZERO, vec![B256::random()], 0)
@@ -1297,7 +1304,7 @@ fn test_eip7702_tx() {
     // signer 2 sends transaction to signer1's address
     // we check for storage of signer1 and see it has changed now
 
-    let signer1 = TestSigner::new_random(); // use set seed so we can test deterministically
+    let signer1 = TestSigner::new_default();
     let signer2 = TestSigner::new(SecretKey::new(&mut thread_rng()));
 
     let config = EvmConfig {
@@ -1323,8 +1330,9 @@ fn test_eip7702_tx() {
     };
     let (mut evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
 
-    let log_contract_address = address!("819c5497b157177315e1204f52e588b393771719");
-    let set_arg_contract_address = address!("d26ff5586e488e65d86bcc3f0fe31551e381a596");
+    let log_contract_address = signer1.address().create(0);
+
+    let set_arg_contract_address = signer1.address().create(1);
 
     let l1_fee_rate = 0;
     let mut l2_height = 2;
@@ -1332,7 +1340,7 @@ fn test_eip7702_tx() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1343,7 +1351,7 @@ fn test_eip7702_tx() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&signer1, 0, LogsContract::default()),
@@ -1378,7 +1386,7 @@ fn test_eip7702_tx() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1389,7 +1397,7 @@ fn test_eip7702_tx() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![signer2
             .sign_eip7702_transaction(
@@ -1458,7 +1466,7 @@ fn test_eip7702_tx() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![signer2
             .sign_default_transaction(
@@ -1502,7 +1510,7 @@ fn test_eip7702_tx() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1513,7 +1521,7 @@ fn test_eip7702_tx() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             signer2
@@ -1608,7 +1616,7 @@ fn test_eip7702_tx() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1619,7 +1627,7 @@ fn test_eip7702_tx() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![signer2
             .sign_eip7702_transaction(
@@ -1663,8 +1671,8 @@ fn test_eip7702_tx() {
 }
 
 #[test]
-fn test_min_base_fee_fork3() {
-    let (config, _dev_signer, _contract_addr) =
+fn test_min_base_fee_tangelo() {
+    let (config, _dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
     let (mut evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
@@ -1696,12 +1704,12 @@ fn test_min_base_fee_fork3() {
         .unwrap();
     assert_eq!(block.header.base_fee_per_gas.unwrap(), 10_000_000);
 
-    // produce empty blocks to reduce base fee to the minimum for fork3 (1_000_000)
+    // produce empty blocks to reduce base fee to the minimum for Tangelo (1_000_000)
     for l2_height in 1600..3200 {
         let l2_block_info = HookL2BlockInfo {
             l2_height,
             pre_state_root: [10u8; 32],
-            current_spec: SovSpecId::Fork3,
+            current_spec: SovSpecId::Tangelo,
             sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,
@@ -1721,4 +1729,1017 @@ fn test_min_base_fee_fork3() {
         .unwrap()
         .unwrap();
     assert_eq!(block.header.base_fee_per_gas.unwrap(), 1_000_000);
+}
+
+/// Test 1-a: Factory creates, calls selfdestruct, then tries to recreate - ALL in ONE transaction.
+/// Per EIP-6780, SELFDESTRUCT marks the contract for destruction, but code/storage is only
+/// cleared at the END of the transaction. So recreation at same address in the same tx
+/// should FAIL because the account still has code at the time of the second CREATE2.
+/// The factory asserts the deployment, so the transaction should revert.
+/// Uses SpecialContract which sets x=42, y=100 in constructor.
+/// Also prefunds the target address to verify balance stays after tx revert.
+#[test]
+fn test_create2_selfdestruct_recreate_same_tx() {
+    use crate::smart_contracts::{Create2Factory1aContract, SpecialContractContract};
+
+    let (config, dev_signer) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let (mut evm, mut working_set, _spec_id, _ledger_db) =
+        get_evm_with_spec(&config, SovSpecId::latest());
+
+    let factory_addr = dev_signer.address().create(0);
+    let l1_fee_rate = 0;
+    let l2_height = 2;
+
+    // Calculate target address upfront so we can prefund it
+    let factory_contract = Create2Factory1aContract::default();
+    let special_contract = SpecialContractContract::default();
+    let init_code = special_contract.byte_code();
+    let salt = B256::from([1u8; 32]);
+    let beneficiary = address!("11115497b157177315e1204f52e588b393111111");
+    let target_addr = Create2Factory1aContract::compute_address(factory_addr, salt, &init_code);
+    let prefund_amount: u128 = 1_000_000_000_000_000; // 0.001 ETH
+
+    // Block 1: Deploy Factory1a and prefund target address
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
+
+        let deploy_factory =
+            create_contract_message(&dev_signer, 0, Create2Factory1aContract::default());
+        // Prefund the target address
+        let prefund_tx = dev_signer
+            .sign_default_transaction(TxKind::Call(target_addr), vec![], 1, prefund_amount)
+            .unwrap();
+
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_factory, prefund_tx],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // Verify factory deployed and target prefunded
+    let factory_info = evm
+        .account_info(&factory_addr, &mut working_set)
+        .expect("factory should exist");
+    assert_ne!(factory_info.code_hash, Some(KECCAK_EMPTY));
+
+    let target_info = evm
+        .account_info(&target_addr, &mut working_set)
+        .expect("target should exist after prefunding");
+    assert_eq!(
+        target_info.balance,
+        U256::from(prefund_amount),
+        "target should have prefunded balance"
+    );
+
+    // Block 2: Call deployDestroyRedeploy - creates, selfdestructs, tries to recreate in ONE tx
+    // This should FAIL because the account still has code at the time of the second CREATE2
+    let l2_height = 3;
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
+
+        let call_data = factory_contract.deploy_destroy_redeploy(
+            salt,
+            Bytes::from(init_code.clone()),
+            beneficiary,
+        );
+        let deploy_destroy_redeploy_tx = dev_signer
+            .sign_default_transaction(TxKind::Call(factory_addr), call_data, 2, 0)
+            .unwrap();
+
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_destroy_redeploy_tx],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // Check receipt - should FAIL because recreation in same tx is not possible
+    // (account still has code until end of tx, so CREATE2 fails with address collision)
+    let receipts = evm
+        .receipts
+        .iter(&mut working_set.accessory_state())
+        .collect::<Vec<_>>();
+    assert!(
+        !receipts.last().unwrap().receipt.status(),
+        "deployDestroyRedeploy should fail (can't recreate in same tx - account still has code)"
+    );
+
+    // The target address should still have the prefunded balance (tx reverted)
+    let target_info = evm
+        .account_info(&target_addr, &mut working_set)
+        .expect("target should still exist with prefunded balance");
+    assert_eq!(
+        target_info.balance,
+        U256::from(prefund_amount),
+        "target should still have prefunded balance after tx revert"
+    );
+    // Target should have no code (it was just an EOA with balance, tx reverted before deployment)
+    assert!(
+        target_info.code_hash.is_none(),
+        "target should have no code (tx reverted)"
+    );
+
+    // Beneficiary should NOT have received any funds (tx reverted)
+    let beneficiary_info = evm.account_info(&beneficiary, &mut working_set);
+    assert!(
+        beneficiary_info.is_none(),
+        "beneficiary should not have received any funds (tx reverted)"
+    );
+}
+
+/// Test 1-b: TX1: Factory creates + calls selfdestruct | TX2: Factory recreates.
+/// Since selfdestruct happened in same tx as creation, contract is fully destroyed.
+/// Recreation in a later tx should succeed.
+/// Uses SpecialContract which sets x=42, y=100 in constructor.
+/// Also prefunds the target address to verify balance is zeroed after selfdestruct.
+#[test]
+fn test_create2_selfdestruct_same_tx_then_recreate() {
+    use crate::smart_contracts::{Create2Factory1bContract, SpecialContractContract};
+
+    let (config, dev_signer) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let (mut evm, mut working_set, _spec_id, _ledger_db) =
+        get_evm_with_spec(&config, SovSpecId::latest());
+
+    let l1_fee_rate = 0;
+    let l2_height = 2;
+
+    let factory_addr = dev_signer.address().create(0);
+
+    // Calculate target address upfront so we can prefund it
+    let factory_contract = Create2Factory1bContract::default();
+    let special_contract = SpecialContractContract::default();
+    let init_code = special_contract.byte_code();
+    let salt = B256::from([1u8; 32]);
+    let beneficiary = address!("11115497b157177315e1204f52e588b393111111");
+    let target_addr = Create2Factory1bContract::compute_address(factory_addr, salt, &init_code);
+    let prefund_amount: u128 = 1_000_000_000_000_000; // 0.001 ETH
+
+    // Block 1: Deploy Factory1b and prefund target address
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
+
+        let deploy_factory =
+            create_contract_message(&dev_signer, 0, Create2Factory1bContract::default());
+        // Prefund the target address
+        let prefund_tx = dev_signer
+            .sign_default_transaction(TxKind::Call(target_addr), vec![], 1, prefund_amount)
+            .unwrap();
+
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_factory, prefund_tx],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // Verify target was prefunded
+    let target_info = evm.account_info(&target_addr, &mut working_set);
+    assert!(
+        target_info.is_some(),
+        "target should exist after prefunding"
+    );
+    assert_eq!(
+        target_info.unwrap().balance,
+        U256::from(prefund_amount),
+        "target should have prefunded balance"
+    );
+
+    // Block 2: TX1 - deployAndDestroy (create + selfdestruct in same tx)
+    let l2_height = 3;
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
+
+        let call_data =
+            factory_contract.deploy_and_destroy(salt, Bytes::from(init_code.clone()), beneficiary);
+        let deploy_and_destroy_tx = dev_signer
+            .sign_default_transaction(TxKind::Call(factory_addr), call_data, 2, 0)
+            .unwrap();
+
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_and_destroy_tx],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // Target should be fully destroyed (same tx as creation)
+    let target_info = evm.account_info(&target_addr, &mut working_set);
+    // After EIP-6780 selfdestruct in same tx as creation, account should be gone
+    assert!(
+        target_info.as_ref().unwrap().code_hash.is_none(),
+        "target should be destroyed when selfdestruct is in same tx as creation"
+    );
+
+    // Balance should be zero (sent to beneficiary)
+    assert_eq!(
+        target_info.as_ref().unwrap().balance,
+        U256::ZERO,
+        "target balance should be zero after selfdestruct"
+    );
+
+    // Beneficiary should have received the prefunded balance
+    let beneficiary_info = evm
+        .account_info(&beneficiary, &mut working_set)
+        .expect("beneficiary should exist");
+    assert_eq!(
+        beneficiary_info.balance,
+        U256::from(prefund_amount),
+        "beneficiary should have received the prefunded balance"
+    );
+
+    // Storage should be cleared (EIP-6780: full destruction when selfdestruct in same tx as creation)
+    let x_value = evm.storage_get(&target_addr, &U256::from(0), &mut working_set);
+    assert!(
+        x_value.is_none(),
+        "storage slot 0 (x) should be cleared after selfdestruct"
+    );
+    let y_value = evm.storage_get(&target_addr, &U256::from(1), &mut working_set);
+    assert!(
+        y_value.is_none(),
+        "storage slot 1 (y) should be cleared after selfdestruct"
+    );
+
+    // Block 3: TX2 - deployOnly (recreate at same address)
+    let l2_height = 4;
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
+
+        let call_data = factory_contract.deploy_only(salt, Bytes::from(init_code.clone()));
+        let deploy_only_tx = dev_signer
+            .sign_default_transaction(TxKind::Call(factory_addr), call_data, 3, 0)
+            .unwrap();
+
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_only_tx],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // Check receipt - recreation should succeed
+    let receipts = evm
+        .receipts
+        .iter(&mut working_set.accessory_state())
+        .collect::<Vec<_>>();
+    assert!(
+        receipts.last().unwrap().receipt.status(),
+        "recreation should succeed"
+    );
+
+    // Target should now exist with code and storage
+    let target_info = evm
+        .account_info(&target_addr, &mut working_set)
+        .expect("target should exist after recreate");
+    assert!(target_info.code_hash.is_some(), "target should have code");
+    assert_ne!(
+        target_info.code_hash.unwrap(),
+        KECCAK_EMPTY,
+        "target should have non-empty code"
+    );
+    assert_eq!(
+        target_info.nonce, 1,
+        "target nonce should be 1 after recreation"
+    );
+
+    // Storage should have x=42 and y=100 from the constructor (SpecialContract)
+    let x_value = evm
+        .storage_get(&target_addr, &U256::from(0), &mut working_set)
+        .unwrap();
+    assert_eq!(x_value, U256::from(42), "storage slot 0 (x) should be 42");
+    let y_value = evm
+        .storage_get(&target_addr, &U256::from(1), &mut working_set)
+        .unwrap();
+    assert_eq!(y_value, U256::from(100), "storage slot 1 (y) should be 100");
+}
+
+/// Test 2-a: TX1: Factory creates | TX2: ContractA calls selfdestruct + calls factory to recreate (in one tx).
+/// Since the target was created in a PREVIOUS tx, EIP-6780 does NOT allow full destruction.
+/// Recreation in same tx as selfdestruct should fail because account still exists (code/nonce).
+/// Uses SpecialContract which sets x=42, y=100 in constructor.
+#[test]
+fn test_create2_then_selfdestruct_and_recreate_same_tx() {
+    use crate::smart_contracts::{
+        Create2Factory1bContract, SelfdestructAndRecreateContract, SpecialContractContract,
+    };
+
+    let (config, dev_signer) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let (mut evm, mut working_set, _spec_id, _ledger_db) =
+        get_evm_with_spec(&config, SovSpecId::latest());
+
+    let l1_fee_rate = 0;
+    let l2_height = 2;
+
+    // Block 1: Deploy Factory1b and SelfdestructAndRecreate (Contract A)
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    let factory_addr = dev_signer.address().create(0);
+
+    // ContractA is deployed with nonce 1, compute its address
+    let contract_a_addr = dev_signer.address().create(1);
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
+
+        let deploy_factory =
+            create_contract_message(&dev_signer, 0, Create2Factory1bContract::default());
+        let deploy_contract_a =
+            create_contract_message(&dev_signer, 1, SelfdestructAndRecreateContract::default());
+
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_factory, deploy_contract_a],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // Block 2: TX1 - Create the target via deployOnly
+    let l2_height = 3;
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    let factory_contract = Create2Factory1bContract::default();
+    // SpecialContract sets x=42, y=100 in constructor
+    let special_contract = SpecialContractContract::default();
+    let init_code = special_contract.byte_code();
+    let salt = B256::from([1u8; 32]);
+    let beneficiary = address!("11115497b157177315e1204f52e588b393111111");
+    let prefund_amount: u128 = 1_000_000_000_000_000; // 0.001 ETH
+
+    let target_addr = Create2Factory1bContract::compute_address(factory_addr, salt, &init_code);
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
+
+        let call_data = factory_contract.deploy_only(salt, Bytes::from(init_code.clone()));
+        let deploy_tx = dev_signer
+            .sign_default_transaction(TxKind::Call(factory_addr), call_data, 2, 0)
+            .unwrap();
+        // Fund the target contract after deployment
+        let fund_tx = dev_signer
+            .sign_default_transaction(TxKind::Call(target_addr), vec![], 3, prefund_amount)
+            .unwrap();
+
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_tx, fund_tx],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // Verify target was created and funded with storage (x=42, y=100 from SpecialContract)
+    let target_info = evm
+        .account_info(&target_addr, &mut working_set)
+        .expect("target should exist");
+    assert_ne!(target_info.code_hash.unwrap(), KECCAK_EMPTY);
+    assert_eq!(target_info.nonce, 1, "target nonce should be 1");
+    assert_eq!(
+        target_info.balance,
+        U256::from(prefund_amount),
+        "target should have prefunded balance"
+    );
+    let x_value = evm
+        .storage_get(&target_addr, &U256::from(0), &mut working_set)
+        .unwrap();
+    assert_eq!(x_value, U256::from(42), "x should be 42 after creation");
+    let y_value = evm
+        .storage_get(&target_addr, &U256::from(1), &mut working_set)
+        .unwrap();
+    assert_eq!(y_value, U256::from(100), "y should be 100 after creation");
+
+    // Block 3: TX2 - ContractA calls selfdestruct on target, then tries to recreate (same tx)
+    let l2_height = 4;
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    let contract_a = SelfdestructAndRecreateContract::default();
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
+
+        let call_data = contract_a.destroy_and_recreate(
+            target_addr,
+            beneficiary,
+            factory_addr,
+            salt,
+            Bytes::from(init_code.clone()),
+        );
+        let nonce = evm
+            .account_info(&dev_signer.address(), &mut working_set)
+            .unwrap()
+            .nonce;
+        let destroy_recreate_tx = dev_signer
+            .sign_default_transaction(TxKind::Call(contract_a_addr), call_data, nonce, 0)
+            .unwrap();
+
+        evm.call(
+            CallMessage {
+                txs: vec![destroy_recreate_tx],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // The tx should FAIL because ContractA requires recreation to succeed,
+    // but recreation fails (EIP-6780: target was created in a previous tx)
+    let receipts = evm
+        .receipts
+        .iter(&mut working_set.accessory_state())
+        .collect::<Vec<_>>();
+    assert!(
+        !receipts.last().unwrap().receipt.status(),
+        "tx should fail (recreation fails, ContractA reverts)"
+    );
+
+    // Since the tx reverted, ALL state changes are rolled back including the selfdestruct.
+    // Target should still exist exactly as it was before TX2.
+    let target_info = evm
+        .account_info(&target_addr, &mut working_set)
+        .expect("target should still exist");
+    assert_ne!(
+        target_info.code_hash.unwrap(),
+        KECCAK_EMPTY,
+        "target should have non-empty code"
+    );
+    assert_eq!(target_info.nonce, 1, "target nonce should still be 1");
+
+    // Balance should still be the prefunded amount (tx reverted, so selfdestruct had no effect)
+    assert_eq!(
+        target_info.balance,
+        U256::from(prefund_amount),
+        "balance should still be prefunded amount (tx reverted)"
+    );
+
+    // Beneficiary should NOT have received any funds (tx reverted)
+    let beneficiary_info = evm.account_info(&beneficiary, &mut working_set);
+    assert!(
+        beneficiary_info.is_none() || beneficiary_info.as_ref().unwrap().balance == U256::ZERO,
+        "beneficiary should not have received any funds (tx reverted)"
+    );
+
+    // Storage should still exist (tx reverted, so selfdestruct had no effect)
+    let x_value = evm
+        .storage_get(&target_addr, &U256::from(0), &mut working_set)
+        .unwrap();
+    assert_eq!(
+        x_value,
+        U256::from(42),
+        "storage should still exist (tx reverted)"
+    );
+    let y_value = evm
+        .storage_get(&target_addr, &U256::from(1), &mut working_set)
+        .unwrap();
+    assert_eq!(
+        y_value,
+        U256::from(100),
+        "storage should still exist (tx reverted)"
+    );
+}
+
+/// Test 2-b: TX1: Factory creates | TX2: selfdestruct | TX3: Factory recreates.
+/// Since the target was created in a PREVIOUS tx, EIP-6780 does NOT allow full destruction.
+/// Recreation in a later tx should fail because account still exists (code/nonce).
+/// Uses SpecialContract which sets x=42, y=100 in constructor.
+#[test]
+fn test_create2_then_selfdestruct_then_recreate() {
+    use crate::smart_contracts::{Create2Factory1bContract, SpecialContractContract};
+
+    let (config, dev_signer) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let (mut evm, mut working_set, _spec_id, _ledger_db) =
+        get_evm_with_spec(&config, SovSpecId::latest());
+
+    let l1_fee_rate = 0;
+    let l2_height = 2;
+
+    // Block 1: Deploy Factory1b
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    let factory_addr = dev_signer.address().create(0);
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
+
+        let deploy_factory =
+            create_contract_message(&dev_signer, 0, Create2Factory1bContract::default());
+
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_factory],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // Block 2: TX1 - Create the target via deployOnly
+    let l2_height = 3;
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    let factory_contract = Create2Factory1bContract::default();
+    // SpecialContract sets x=42, y=100 in constructor
+    let special_contract = SpecialContractContract::default();
+    let init_code = special_contract.byte_code();
+    let salt = B256::from([1u8; 32]);
+    let beneficiary = address!("11115497b157177315e1204f52e588b393111111");
+    let prefund_amount: u128 = 1_000_000_000_000_000; // 0.001 ETH
+
+    let target_addr = Create2Factory1bContract::compute_address(factory_addr, salt, &init_code);
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
+
+        // Create target and then fund it (send ETH to the deployed contract)
+        let call_data = factory_contract.deploy_only(salt, Bytes::from(init_code.clone()));
+        let deploy_tx = dev_signer
+            .sign_default_transaction(TxKind::Call(factory_addr), call_data, 1, 0)
+            .unwrap();
+        // Fund the target contract after deployment
+        let fund_tx = dev_signer
+            .sign_default_transaction(TxKind::Call(target_addr), vec![], 2, prefund_amount)
+            .unwrap();
+
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_tx, fund_tx],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // Verify target was created and funded
+    let target_info = evm
+        .account_info(&target_addr, &mut working_set)
+        .expect("target should exist");
+    assert_ne!(target_info.code_hash.unwrap(), KECCAK_EMPTY);
+    assert_eq!(
+        target_info.balance,
+        U256::from(prefund_amount),
+        "target should have prefunded balance"
+    );
+
+    // Block 3: TX2 - Call selfdestruct on target
+    let l2_height = 4;
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
+
+        // Call die() on target using SpecialContract's die function
+        let call_data = special_contract.die(beneficiary);
+        let selfdestruct_tx = dev_signer
+            .sign_default_transaction(TxKind::Call(target_addr), call_data, 3, 0)
+            .unwrap();
+
+        evm.call(
+            CallMessage {
+                txs: vec![selfdestruct_tx],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // Target should still exist with code (EIP-6780: not destroyed if not same-tx creation)
+    let target_info = evm
+        .account_info(&target_addr, &mut working_set)
+        .expect("target should still exist");
+    assert_ne!(
+        target_info.code_hash.unwrap(),
+        KECCAK_EMPTY,
+        "target should still have code after selfdestruct"
+    );
+    assert_eq!(target_info.nonce, 1, "target nonce should still be 1");
+
+    // Balance should be zero (transferred to beneficiary per EIP-6780)
+    assert_eq!(
+        target_info.balance,
+        U256::ZERO,
+        "target balance should be zero after selfdestruct"
+    );
+
+    // Beneficiary should have received the balance
+    let beneficiary_info = evm
+        .account_info(&beneficiary, &mut working_set)
+        .expect("beneficiary should exist");
+    assert_eq!(
+        beneficiary_info.balance,
+        U256::from(prefund_amount),
+        "beneficiary should have received the target's balance"
+    );
+
+    // Storage should still exist (x=42, y=100 from SpecialContract)
+    let x_value = evm
+        .storage_get(&target_addr, &U256::from(0), &mut working_set)
+        .unwrap();
+    assert_eq!(x_value, U256::from(42), "storage should still exist");
+    let y_value = evm
+        .storage_get(&target_addr, &U256::from(1), &mut working_set)
+        .unwrap();
+    assert_eq!(y_value, U256::from(100), "storage should still exist");
+
+    // Block 4: TX3 - Try to recreate at same address (should fail)
+    let l2_height = 5;
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
+
+        let call_data = factory_contract.deploy_only(salt, Bytes::from(init_code.clone()));
+        let recreate_tx = dev_signer
+            .sign_default_transaction(TxKind::Call(factory_addr), call_data, 4, 0)
+            .unwrap();
+
+        evm.call(
+            CallMessage {
+                txs: vec![recreate_tx],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // Check receipt - recreation should fail (revert)
+    let receipts = evm
+        .receipts
+        .iter(&mut working_set.accessory_state())
+        .collect::<Vec<_>>();
+    assert!(
+        !receipts.last().unwrap().receipt.status(),
+        "recreation should fail (address collision)"
+    );
+
+    // Target should still have the same code and storage (unchanged)
+    let target_info = evm
+        .account_info(&target_addr, &mut working_set)
+        .expect("target should still exist");
+    assert_ne!(
+        target_info.code_hash.unwrap(),
+        KECCAK_EMPTY,
+        "target should still have code"
+    );
+    assert_eq!(target_info.nonce, 1, "target nonce should still be 1");
+    let x_value = evm
+        .storage_get(&target_addr, &U256::from(0), &mut working_set)
+        .unwrap();
+    assert_eq!(x_value, U256::from(42), "storage should be unchanged");
+    let y_value = evm
+        .storage_get(&target_addr, &U256::from(1), &mut working_set)
+        .unwrap();
+    assert_eq!(y_value, U256::from(100), "storage should be unchanged");
+}
+
+/// Test EIP-7702 delegation to SelfDestructorContract and calling die() in the same tx.
+/// This tests what happens when an EOA delegates to a contract with selfdestruct
+/// and die() is called in the same transaction where the authorization is applied.
+/// We expect revm NOT to mark the account as selfdestructed (since it's an EOA with delegation)
+/// and just perform a balance transfer.
+#[test]
+fn test_eip7702_selfdestruct_delegation() {
+    let signer1 = TestSigner::new(SecretKey::new(&mut thread_rng())); // EOA that will delegate (no txs from this account)
+    let signer1_initial_balance = 1000000000000000000u128; // 1 ETH
+
+    let (config, dev_signer) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let (mut evm, mut working_set, _spec_id, _ledger_db) =
+        get_evm_with_spec(&config, SovSpecId::latest());
+
+    let self_destructor_address = dev_signer.address().create(0);
+    let beneficiary = address!("1111111111111111111111111111111111111111");
+
+    let l1_fee_rate = 0;
+    let mut l2_height = 2;
+
+    // Block 1: signer2 deploys SelfDestructorContract & prefunds signer1
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
+
+        let transactions: Vec<RlpEvmTransaction> = vec![
+            create_contract_transaction(&dev_signer, 0, SelfDestructorContract::default()),
+            // prefund signer1 tx
+            dev_signer
+                .sign_default_transaction(
+                    TxKind::Call(signer1.address()),
+                    vec![],
+                    1,
+                    signer1_initial_balance,
+                )
+                .unwrap(),
+        ];
+
+        evm.call(
+            CallMessage { txs: transactions },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    l2_height += 1;
+
+    // Verify SelfDestructorContract deployed
+    let self_destructor_info = evm
+        .account_info(&self_destructor_address, &mut working_set)
+        .expect("SelfDestructorContract should exist");
+    assert_ne!(self_destructor_info.code_hash, Some(KECCAK_EMPTY));
+    assert_eq!(self_destructor_info.nonce, 1);
+
+    // Verify signer1 has not made any txs
+    let signer1_info_before = evm
+        .account_info(&signer1.address(), &mut working_set)
+        .unwrap();
+    assert_eq!(signer1_info_before.nonce, 0);
+    // Verify signer1's initial balance
+    assert_eq!(
+        signer1_info_before.balance,
+        U256::from(signer1_initial_balance)
+    );
+
+    // Block 2: signer1 delegates to SelfDestructorContract and signer2 calls die() in same tx
+    // signer1 authorizes delegation to the SelfDestructorContract (nonce 0 since no txs yet)
+    let auth = signer1
+        .get_signed_authorization(self_destructor_address, 0)
+        .unwrap();
+
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
+
+        // signer2 sends EIP-7702 tx with authorization that calls die() on signer1's address
+        // The die() function will call selfdestruct(beneficiary)
+        let die_calldata = SelfDestructorContract::default().selfdestruct(beneficiary);
+
+        let transactions: Vec<RlpEvmTransaction> = vec![dev_signer
+            .sign_eip7702_transaction(
+                signer1.address(), // call signer1's address (which delegates to SelfDestructor)
+                die_calldata,
+                2,
+                vec![auth],
+            )
+            .unwrap()];
+
+        evm.call(
+            CallMessage { txs: transactions },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    // Check receipt - tx should succeed
+    let receipts = evm
+        .receipts
+        .iter(&mut working_set.accessory_state())
+        .collect::<Vec<_>>();
+    let last_receipt = receipts.last().unwrap();
+    assert!(
+        last_receipt.receipt.status(),
+        "EIP-7702 tx with selfdestruct should succeed"
+    );
+
+    // Check signer1's account - it should NOT be selfdestructed
+    // The delegation should still be there and account should exist
+    let signer1_info_after = evm
+        .account_info(&signer1.address(), &mut working_set)
+        .expect("signer1 should still exist after selfdestruct on delegated account");
+
+    // Nonce should have increased (delegation consumes nonce) and selfdestruct doesn't reset to zero
+    assert_eq!(signer1_info_after.nonce, 1);
+
+    // The delegation should still be active
+    assert_eq!(
+        evm.offchain_code.get(
+            &signer1_info_after.code_hash.unwrap(),
+            &mut working_set.offchain_state()
+        ),
+        Some(Bytecode::Eip7702(Eip7702Bytecode {
+            delegated_address: self_destructor_address,
+            version: 0,
+            raw: [
+                Bytes::from_hex("0xef0100").unwrap(),
+                Bytes::from(self_destructor_address.to_vec())
+            ]
+            .concat()
+            .into()
+        }))
+    );
+
+    // Balance should have been transferred to beneficiary (selfdestruct sends balance)
+    let beneficiary_info = evm
+        .account_info(&beneficiary, &mut working_set)
+        .expect("beneficiary should exist after receiving funds");
+
+    // signer1's balance should be 0 (all transferred to beneficiary)
+    assert_eq!(
+        signer1_info_after.balance,
+        U256::ZERO,
+        "signer1 balance should be 0 after selfdestruct"
+    );
+
+    // beneficiary should have received signer1's full initial balance
+    assert_eq!(
+        beneficiary_info.balance, signer1_initial_balance,
+        "beneficiary should have received signer1's balance"
+    );
 }

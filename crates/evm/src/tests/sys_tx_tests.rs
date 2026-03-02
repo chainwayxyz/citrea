@@ -163,7 +163,7 @@ fn deposit_system_tx(
 fn test_sys_bitcoin_light_client() {
     let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingShortHeaderProofProviderService));
 
-    let (mut config, dev_signer, _, ledger_db) =
+    let (mut config, dev_signer, ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("10000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
@@ -175,7 +175,7 @@ fn test_sys_bitcoin_light_client() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 42,
@@ -186,7 +186,7 @@ fn test_sys_bitcoin_light_client() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
         let txs = initial_system_txs(1, [1; 32], [2; 32], 0, &evm, &mut working_set);
 
@@ -318,7 +318,7 @@ fn test_sys_bitcoin_light_client() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 42,
@@ -329,7 +329,7 @@ fn test_sys_bitcoin_light_client() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
         let set_block_info_tx =
             set_block_info_system_tx([2; 32], [3; 32], 0, &evm, &mut working_set);
@@ -402,7 +402,7 @@ fn test_sys_bitcoin_light_client() {
     let base_fee_vault = evm.account_info(&BASE_FEE_VAULT, &mut working_set).unwrap();
     let l1_fee_vault = evm.account_info(&L1_FEE_VAULT, &mut working_set).unwrap();
 
-    assert_eq!(base_fee_vault.balance, U256::from(114235u64 * 10000000));
+    assert_eq!(base_fee_vault.balance, U256::from(114235u64 * 1000000));
     assert_eq!(l1_fee_vault.balance, U256::from(36 + L1_FEE_OVERHEAD));
 
     let block_hash = get_block_hash(&evm, &mut working_set, &ledger_db, 2).unwrap();
@@ -431,7 +431,7 @@ fn test_sys_bitcoin_light_client() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 42,
@@ -443,7 +443,7 @@ fn test_sys_bitcoin_light_client() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
         let set_block_info_tx = set_block_info_system_tx(
             [3; 32],
@@ -480,11 +480,13 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 
     // This test also tests evm checking gas usage and not just the tx gas limit when including txs in block after checking available block limit
     // For example txs below have 1_000_000 gas limit, the block used to stuck at 29_030_000 gas usage but now can utilize the whole block gas limit
-    let (mut config, dev_signer, contract_addr, ledger_db) = get_evm_config_starting_base_fee(
+    let (mut config, dev_signer, ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("100000000000000000000").unwrap(),
         Some(ETHEREUM_BLOCK_GAS_LIMIT_30M),
         1,
     );
+
+    let contract_addr = dev_signer.address().create(0);
 
     config_push_contracts(&mut config, None);
 
@@ -493,12 +495,12 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     let mut l2_height = 1;
 
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate: 1,
         timestamp: 0,
@@ -525,7 +527,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -533,7 +535,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
         let sys_tx = set_block_info_system_tx([2; 32], [3; 32], 0, &evm, &mut working_set);
 
@@ -604,7 +606,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -612,7 +614,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
         let sys_tx = set_block_info_system_tx([2; 32], [3; 32], 0, &evm, &mut working_set);
 
@@ -698,7 +700,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 fn test_bridge() {
     let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingShortHeaderProofProviderService));
 
-    let (mut config, _, _, _ledger_db) =
+    let (mut config, _, _ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
@@ -708,12 +710,12 @@ fn test_bridge() {
     let l1_fee_rate = 1;
     let l2_height = 1;
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
     let mut l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate: 1,
         timestamp: 0,
@@ -874,7 +876,7 @@ fn test_bridge() {
 #[test]
 fn test_upgrade_light_client() {
     // initialize_logging(tracing::Level::INFO);
-    let (mut config, _, _, ledger_db) = get_evm_config_starting_base_fee(
+    let (mut config, _, ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("1000000000000000000000").unwrap(),
         None,
         1,
@@ -916,12 +918,12 @@ fn test_upgrade_light_client() {
     let l2_height = 2;
 
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -967,7 +969,7 @@ fn test_upgrade_light_client() {
 
 #[test]
 fn test_change_upgrade_owner() {
-    let (mut config, _, _, ledger_db) = get_evm_config_starting_base_fee(
+    let (mut config, _, ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("1000000000000000000000").unwrap(),
         None,
         1,
@@ -1026,12 +1028,12 @@ fn test_change_upgrade_owner() {
     let l1_fee_rate = 1;
     let mut l2_height = 2;
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1061,12 +1063,12 @@ fn test_change_upgrade_owner() {
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
     l2_height += 1;
-    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1135,7 +1137,7 @@ fn test_change_upgrade_owner() {
 
 #[test]
 fn test_wcbtc() {
-    let (mut config, signer, _, ledger_db) = get_evm_config_starting_base_fee(
+    let (mut config, signer, ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("1000000000000000000000").unwrap(),
         None,
         1,
@@ -1147,12 +1149,12 @@ fn test_wcbtc() {
     let l1_fee_rate = 1;
     let mut l2_height = 2;
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1219,11 +1221,11 @@ fn test_wcbtc() {
     assert!(signer_new_balance <= signer_old_balance - U256::from(deposit_amount));
 
     l2_height += 1;
-    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1296,11 +1298,12 @@ fn test_system_tx_after_user_tx_should_error_out() {
 
     // This test also tests evm checking gas usage and not just the tx gas limit when including txs in block after checking available block limit
     // For example txs below have 1_000_000 gas limit, the block used to stuck at 29_030_000 gas usage but now can utilize the whole block gas limit
-    let (mut config, dev_signer, contract_addr, _ledger_db) = get_evm_config_starting_base_fee(
+    let (mut config, dev_signer, _ledger_db) = get_evm_config_starting_base_fee(
         U256::from_str("100000000000000000000").unwrap(),
         Some(ETHEREUM_BLOCK_GAS_LIMIT_30M),
         1,
     );
+    let contract_addr = dev_signer.address().create(0);
 
     config_push_contracts(&mut config, None);
 
@@ -1309,12 +1312,12 @@ fn test_system_tx_after_user_tx_should_error_out() {
     let mut l2_height = 1;
 
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate: 1,
         timestamp: 0,
@@ -1341,7 +1344,7 @@ fn test_system_tx_after_user_tx_should_error_out() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -1351,7 +1354,7 @@ fn test_system_tx_after_user_tx_should_error_out() {
 
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
         let call_tx = dev_signer
             .sign_default_transaction(
                 TxKind::Call(contract_addr),
@@ -1415,7 +1418,7 @@ fn test_set_block_info_shp_not_found() {
 
     let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingSHPNotFound));
 
-    let (mut config, _dev_signer, _, ledger_db) =
+    let (mut config, _dev_signer, ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("10000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
@@ -1427,7 +1430,7 @@ fn test_set_block_info_shp_not_found() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 42,
@@ -1438,7 +1441,7 @@ fn test_set_block_info_shp_not_found() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
         let txs = initial_system_txs(1, [1; 32], [2; 32], 0, &evm, &mut working_set);
 
@@ -1463,7 +1466,7 @@ fn test_set_block_info_shp_not_found() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
         let set_block_info_tx =
             set_block_info_system_tx([2; 32], [3; 32], 0, &evm, &mut working_set);
@@ -1527,7 +1530,7 @@ fn test_set_block_info_shp_verification_failed() {
 
     let _ = SHORT_HEADER_PROOF_PROVIDER.set(Box::new(TestingSHPVerificationFailed));
 
-    let (mut config, _dev_signer, _, ledger_db) =
+    let (mut config, _dev_signer, ledger_db) =
         get_evm_config_starting_base_fee(U256::from_str("10000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config, None);
@@ -1539,7 +1542,7 @@ fn test_set_block_info_shp_verification_failed() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 42,
@@ -1550,7 +1553,7 @@ fn test_set_block_info_shp_verification_failed() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
         let txs = initial_system_txs(1, [1; 32], [2; 32], 0, &evm, &mut working_set);
 
@@ -1575,7 +1578,7 @@ fn test_set_block_info_shp_verification_failed() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
         let set_block_info_tx =
             set_block_info_system_tx([2; 32], [3; 32], 0, &evm, &mut working_set);

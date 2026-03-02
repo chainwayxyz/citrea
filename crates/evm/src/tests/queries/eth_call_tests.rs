@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::map::AddressMap;
-use alloy_primitives::{address, Address, Bytes, TxKind, B256};
+use alloy_primitives::{Address, Bytes, TxKind, B256};
 use alloy_rpc_types::state::AccountOverride;
 use alloy_rpc_types::{BlockId, BlockOverrides, TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;
@@ -27,10 +27,10 @@ type C = DefaultContext;
 
 #[test]
 fn call_contract_without_value() {
-    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::Tangerine);
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::latest());
 
     let contract = SimpleStorageContract::default();
-    let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
+    let contract_address = signer.address().create(7);
 
     let call_result = evm.get_call_inner(
         TransactionRequest {
@@ -79,7 +79,7 @@ fn call_contract_without_value() {
 
 #[test]
 fn test_state_change() {
-    let (mut evm, mut working_set, _, signer, l2_height, ledger_db) = init_evm(SpecId::Tangerine);
+    let (mut evm, mut working_set, _, signer, l2_height, ledger_db) = init_evm(SpecId::latest());
 
     let balance_1 = evm.get_balance(signer.address(), None, &mut working_set, &ledger_db);
 
@@ -88,7 +88,7 @@ fn test_state_change() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate: 1,
         timestamp: 0,
@@ -123,10 +123,10 @@ fn test_state_change() {
 
 #[test]
 fn call_contract_with_value_transfer() {
-    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::Tangerine);
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::latest());
 
     let contract = SimpleStorageContract::default();
-    let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
+    let contract_address = signer.address().create(7);
 
     let call_result = evm.get_call_inner(
         TransactionRequest {
@@ -151,10 +151,10 @@ fn call_contract_with_value_transfer() {
 
 #[test]
 fn call_contract_with_invalid_nonce() {
-    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::Tangerine);
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::latest());
 
     let contract = SimpleStorageContract::default();
-    let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
+    let contract_address = signer.address().create(7);
 
     let contract_call_data = contract.set_call_data(5);
 
@@ -205,7 +205,7 @@ fn call_contract_with_invalid_nonce() {
 
 #[test]
 fn call_to_nonexistent_contract() {
-    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::Tangerine);
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::latest());
 
     let nonexistent_contract_address =
         Address::from_str("0x000000000000000000000000000000000000dead").unwrap();
@@ -235,10 +235,10 @@ fn call_to_nonexistent_contract() {
 
 #[test]
 fn call_with_high_gas_price() {
-    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::Tangerine);
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::latest());
 
     let contract = SimpleStorageContract::default();
-    let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
+    let contract_address = signer.address().create(7);
 
     let high_gas_price = 1000u128 * 10_000_000_000_000_000_000_u128; // A very high gas price
 
@@ -271,7 +271,7 @@ fn call_with_high_gas_price() {
 
 #[test]
 fn test_eip1559_fields_call() {
-    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::Tangerine);
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::latest());
 
     let default_result = eth_call_eip1559(
         &evm,
@@ -368,9 +368,7 @@ fn eth_call_eip1559(
 
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(TxKind::Call(address!(
-            "eeb03d20dae810f52111b853b31c8be6f30f4cd3"
-        ))),
+        to: Some(TxKind::Call(signer.address().create(7))),
         gas: Some(100_000),
         gas_price: None,
         max_fee_per_gas,
@@ -395,14 +393,12 @@ fn eth_call_eip1559(
 
 #[test]
 fn gas_price_call_test() {
-    let (evm, mut working_set, signer, ledger_db) = init_evm_single_block(SpecId::Tangerine);
+    let (evm, mut working_set, signer, ledger_db) = init_evm_single_block(SpecId::latest());
 
     // Define a base transaction request for reuse
     let base_tx_req = || TransactionRequest {
         from: Some(signer.address()),
-        to: Some(TxKind::Call(address!(
-            "819c5497b157177315e1204f52e588b393771719"
-        ))),
+        to: Some(TxKind::Call(signer.address().create(0))),
         value: Some(U256::from(1000)),
         input: None.into(),
         nonce: Some(1u64),
@@ -580,10 +576,10 @@ fn gas_price_call_test() {
 
 #[test]
 fn test_call_with_state_overrides() {
-    let (evm, mut working_set, prover_storage, signer, _, ledger_db) = init_evm(SpecId::Tangerine);
+    let (evm, mut working_set, prover_storage, signer, _, ledger_db) = init_evm(SpecId::latest());
 
     let contract = SimpleStorageContract::default();
-    let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
+    let contract_address = signer.address().create(7);
 
     // Get value of contract before state override
     let call_result_without_state_override = evm
@@ -746,8 +742,10 @@ fn test_call_with_state_overrides() {
 
 #[test]
 fn test_call_with_block_overrides() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let contract_addr = dev_signer.address().create(0);
 
     let (mut evm, mut working_set, _spec_id, ledger_db) = get_evm(&config);
     let l1_fee_rate = 0;
@@ -756,7 +754,7 @@ fn test_call_with_block_overrides() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -766,8 +764,7 @@ fn test_call_with_block_overrides() {
     let sender_address = generate_address::<C>("sender");
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context =
-            DefaultContext::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+        let context = DefaultContext::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
         let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
 
@@ -790,7 +787,7 @@ fn test_call_with_block_overrides() {
         let l2_block_info = HookL2BlockInfo {
             l2_height,
             pre_state_root: [99u8; 32],
-            current_spec: SpecId::Tangerine,
+            current_spec: SpecId::latest(),
             sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,

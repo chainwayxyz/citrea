@@ -24,7 +24,7 @@ type C = DefaultContext;
 
 #[test]
 fn logs_for_filter_test() {
-    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SpecId::Tangerine);
+    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SpecId::latest());
 
     let result = evm.eth_get_logs(
         Filter {
@@ -80,9 +80,8 @@ fn logs_for_filter_test() {
 
 #[test]
 fn log_filter_test_at_block_hash() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
-
     let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
 
     let l1_fee_rate = 1;
@@ -91,16 +90,19 @@ fn log_filter_test_at_block_hash() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
     };
+
+    let contract_addr = dev_signer.address().create(0);
+
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
         // deploy logs contract
         // call the contract function
@@ -291,8 +293,10 @@ fn log_filter_test_at_block_hash() {
 
 #[test]
 fn log_filter_test_with_range() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let contract_addr = dev_signer.address().create(0);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
 
@@ -302,7 +306,7 @@ fn log_filter_test_with_range() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -311,7 +315,7 @@ fn log_filter_test_with_range() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
         // deploy selfdestruct contract
         // call the contract function
@@ -360,7 +364,7 @@ fn log_filter_test_with_range() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [99u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -369,7 +373,7 @@ fn log_filter_test_with_range() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
         // call the contract function
         evm.call(
             CallMessage {
@@ -407,10 +411,12 @@ fn test_log_limits() {
     // citrea::initialize_logging(tracing::Level::INFO);
 
     // bigger block is needed to be able to include all the transactions
-    let (config, dev_signer, contract_addr) = get_evm_config(
+    let (config, dev_signer) = get_evm_config(
         U256::from_str("100000000000000000000").unwrap(),
         Some(20 * ETHEREUM_BLOCK_GAS_LIMIT_30M),
     );
+
+    let contract_addr = dev_signer.address().create(0);
 
     let (mut evm, mut working_set, _spec_id, _ledger_db) = get_evm(&config);
 
@@ -420,7 +426,7 @@ fn test_log_limits() {
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [10u8; 32],
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -429,7 +435,7 @@ fn test_log_limits() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(
@@ -524,7 +530,7 @@ fn test_log_limits() {
         let l2_block_info = HookL2BlockInfo {
             l2_height,
             pre_state_root: [99u8; 32],
-            current_spec: SpecId::Tangerine,
+            current_spec: SpecId::latest(),
             sequencer_pub_key: get_test_seq_pub_key(),
             l1_fee_rate,
             timestamp: 0,

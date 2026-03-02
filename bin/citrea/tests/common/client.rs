@@ -12,14 +12,18 @@ use alloy::rpc::types::eth::{Block, Transaction, TransactionRequest};
 use alloy::serde::WithOtherFields;
 use alloy::signers::local::PrivateKeySigner;
 use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U32, U64};
+use alloy_rpc_types::{
+    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, Filter, FilterChanges, Log,
+};
 // use reth_rpc_types::TransactionReceipt;
-use alloy_rpc_types::SyncStatus as EthSyncStatus;
-use alloy_rpc_types::{BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, Filter, Log};
+use alloy_rpc_types::{FilterId, SyncStatus as EthSyncStatus};
 use alloy_rpc_types_trace::geth::{
     GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, TraceResult,
 };
 use alloy_rpc_types_txpool::TxpoolContent;
-use citrea_batch_prover::rpc::{BatchProverRpcClient, ProvingJobResponse};
+use citrea_batch_prover::rpc::{
+    BatchProverRpcClient, ProvingJobResponse, ProvingSessionInfoResponse,
+};
 use citrea_batch_prover::PartitionMode;
 use citrea_evm::EstimatedDiffSize;
 use ethereum_rpc::SyncStatus;
@@ -828,8 +832,15 @@ impl TestClient {
         self.http_client.pause_proving().await.unwrap()
     }
 
-    pub(crate) async fn get_proving_job(&self, id: Uuid) -> Option<JobRpcResponse> {
-        self.http_client.get_proving_job(id).await.unwrap()
+    pub(crate) async fn get_proving_job(
+        &self,
+        id: Uuid,
+        with_proof: Option<bool>,
+    ) -> Option<JobRpcResponse> {
+        self.http_client
+            .get_proving_job(id, with_proof)
+            .await
+            .unwrap()
     }
 
     pub(crate) async fn get_proving_jobs(
@@ -839,6 +850,17 @@ impl TestClient {
     ) -> Vec<ProvingJobResponse> {
         self.http_client
             .get_proving_jobs(U64::from(limit as u64), skip.map(|v| U64::from(v as u64)))
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn get_proving_sessions(
+        &self,
+        limit: usize,
+        skip: Option<usize>,
+    ) -> Vec<ProvingSessionInfoResponse> {
+        self.http_client
+            .get_proving_session_infos(U64::from(limit as u64), skip.map(|v| U64::from(v as u64)))
             .await
             .unwrap()
     }
@@ -940,6 +962,50 @@ impl TestClient {
         }
 
         Ok(false)
+    }
+
+    pub(crate) async fn install_filter(
+        &self,
+        filter: Filter,
+    ) -> Result<FilterId, jsonrpsee::core::client::Error> {
+        self.http_client
+            .request("eth_newFilter", rpc_params![filter])
+            .await
+    }
+
+    pub(crate) async fn uninstall_filter(
+        &self,
+        id: FilterId,
+    ) -> Result<bool, jsonrpsee::core::client::Error> {
+        self.http_client
+            .request("eth_uninstallFilter", rpc_params![id])
+            .await
+    }
+
+    pub(crate) async fn new_block_filter(
+        &self,
+    ) -> Result<FilterId, jsonrpsee::core::client::Error> {
+        self.http_client
+            .request("eth_newBlockFilter", rpc_params![])
+            .await
+    }
+
+    pub(crate) async fn get_filter_changes(
+        &self,
+        id: FilterId,
+    ) -> Result<FilterChanges<Transaction>, jsonrpsee::core::client::Error> {
+        self.http_client
+            .request("eth_getFilterChanges", rpc_params![id])
+            .await
+    }
+
+    pub(crate) async fn get_filter_logs(
+        &self,
+        id: FilterId,
+    ) -> Result<Vec<Log>, jsonrpsee::core::client::Error> {
+        self.http_client
+            .request("eth_getFilterLogs", rpc_params![id])
+            .await
     }
 }
 

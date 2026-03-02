@@ -1,20 +1,30 @@
 use std::sync::Arc;
+use std::time::Instant;
 
+use citrea_common::utils::shutdown_requested;
 use jmt::storage::Node;
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::schema::tables::{JmtNodes, JmtValues, KeyHashToKey, StaleNodes};
 use sov_schema_db::SchemaBatch;
 use tracing::{error, info};
 
 /// Prune state DB
-#[allow(dead_code)]
-pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
+pub(crate) fn prune_state_db(
+    state_db: Arc<sov_schema_db::DB>,
+    to_block: u64,
+    shutdown_signal: Option<&GracefulShutdown>,
+) -> anyhow::Result<()> {
     info!("Pruning state DB, up to L2 block {}", to_block);
+    let start = Instant::now();
 
     let to_version = to_block + 1;
 
-    let mut indices = state_db
-        .iter::<StaleNodes>()
-        .expect("Tried to prune state DB but could not obtain an iterator");
+    let mut indices = state_db.iter::<StaleNodes>().map_err(|e| {
+        anyhow::anyhow!(
+            "Tried to prune state DB but could not obtain an iterator: {:?}",
+            e
+        )
+    })?;
 
     indices.seek_to_first();
 
@@ -22,6 +32,10 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
 
     let mut batch = SchemaBatch::new();
     for index in indices {
+        if shutdown_signal.is_some_and(shutdown_requested) {
+            anyhow::bail!("Shutting down pruner");
+        }
+
         let Ok(index) = index else {
             continue;
         };
@@ -146,9 +160,16 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, to_block: u64) {
         deletions += 2;
     }
 
-    if let Err(e) = state_db.write_schemas(batch) {
-        error!("Could not delete state data: {:?}", e);
-    }
+    state_db
+        .write_schemas(batch)
+        .map_err(|e| anyhow::anyhow!("Could not delete state data: {:?}", e))?;
 
-    info!("Pruned {} records from state DB", deletions);
+    let duration = start.elapsed();
+    info!(
+        "State DB pruning completed, up_to_block={}, deletions={}, duration={}ms",
+        to_block,
+        deletions,
+        duration.as_millis()
+    );
+    Ok(())
 }

@@ -31,7 +31,7 @@ pub enum BitcoinServiceError {
     MissingPreviousUTXO,
     /// Fee calculation fails to meet min relay fee
     #[error("Fee calculation error. Doesn't meet min relay fee rate of {0}")]
-    FeeCalculation(u64),
+    FeeCalculation(f64),
     /// Monitoring error.
     #[error("Monitoring error: {0}")]
     MonitorError(#[from] MonitorError),

@@ -113,7 +113,7 @@ pub mod bitcoinda {
 
     /// Genesis L2 root for the Bitcoin DA on Mainnet.
     pub const MAINNET_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
-        b"0000000000000000000000000000000000000000000000000000000000000000",
+        b"261f004169ba6ece87e1c2f824cf16ac84420792fb5efe2270ad8046db445096",
     ) {
         Ok(root) => root,
         Err(_) => panic!("Can't happen"),
@@ -169,21 +169,44 @@ pub mod bitcoinda {
 
     /// Initial batch proof method IDs for the Bitcoin DA on Mainnet.
     pub const MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> =
-        NonEmptySlice::new(&[(0, [0; 8])]);
+        NonEmptySlice::new(&[(
+            0,
+            decode_to_u32_array("020291bea4d2ff9b5111f071cf29c0189831efe720c9247e2c916348d87db639"),
+        )]);
 
     /// Initial batch proof method IDs for the Bitcoin DA on Testnet.
     pub const TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> =
-        NonEmptySlice::new(&[(
-            0,
-            decode_to_u32_array("8d94f41179bbcd57066dadfdc4922a34fea4f32f1ec1ba7ca82c8c644f437013"),
-        )]);
+        NonEmptySlice::new(&[
+            (
+                0,
+                decode_to_u32_array(
+                    "8d94f41179bbcd57066dadfdc4922a34fea4f32f1ec1ba7ca82c8c644f437013",
+                ),
+            ),
+            (
+                17733000,
+                decode_to_u32_array(
+                    "9ce6c22261cc7612b9ecbd1436d822d87a0e10d9a585e97ace73c4f9162d6f8c",
+                ),
+            ),
+        ]);
 
     /// Initial batch proof method IDs for the Bitcoin DA on Devnet.
     pub const DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> =
-        NonEmptySlice::new(&[(
-            0,
-            decode_to_u32_array("1c13e18cd83c22eba3f620e8619af49363b240de764f37501fac5d65047146ca"),
-        )]);
+        NonEmptySlice::new(&[
+            (
+                0,
+                decode_to_u32_array(
+                    "1c13e18cd83c22eba3f620e8619af49363b240de764f37501fac5d65047146ca",
+                ),
+            ),
+            (
+                8063000,
+                decode_to_u32_array(
+                    "4fd55fa2b30e2886367a55800aa8b69341eb6d4e02dbfce945fe468f579522d7",
+                ),
+            ),
+        ]);
 
     /// Initial batch proof method IDs for the Bitcoin DA on Nightly.
     /// This method ID is set at compile time via the `BATCH_PROOF_METHOD_ID` environment variable.
@@ -227,7 +250,7 @@ pub mod bitcoinda {
 
     /// Public key of the batch prover in the Bitcoin DA on Mainnet.
     pub const MAINNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
-        b"030000000000000000000000000000000000000000000000000000000000000000",
+        b"038e501ede61097973e49e714d5f2ad740c82b798bb90fda427fd5138e51f2398e",
     ) {
         Ok(pub_key) => pub_key,
         Err(_) => panic!("PROVER_DA_PUB_KEY must be valid 33-byte hex string"),
@@ -281,7 +304,7 @@ pub mod bitcoinda {
 
     /// Public key of the sequencer in the Bitcoin DA on Mainnet.
     pub const MAINNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
-        b"030000000000000000000000000000000000000000000000000000000000000000",
+        b"032a31a1fa359abd2e6fc1136b4dea711e5f18618504e021084cc61099f72bb2bd",
     ) {
         Ok(pub_key) => pub_key,
         Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
@@ -333,14 +356,13 @@ pub mod bitcoinda {
         }
     };
 
-    // TODO: Update with real keys
     /// Public keys of the method ID upgrade authority in the Bitcoin DA on Mainnet.
     /// 3 out of 5 signatures are required to upgrade method IDs.
     pub const MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8;
         SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
         SECURITY_COUNCIL_MEMBER_COUNT] = [
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"031f44b16dfa50f33382568ae10391779f06c4a6ed5e9e3c83409d8b6ede26ed57",
         ) {
             Ok(k) => k,
             Err(_) => {
@@ -348,7 +370,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"0284aece094f0190da7d20660828cb13c9807e4ed5fa1f6eb92d21a3bfd8db6f95",
         ) {
             Ok(k) => k,
             Err(_) => {
@@ -356,7 +378,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"0280cbbafd6115883a7adeb2d40034348e2334ad79d197386ea6bdf60ac28525f6",
         ) {
             Ok(k) => k,
             Err(_) => {
@@ -364,7 +386,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"03fac103b0964d29d1787506e1ecf72d3d0714692ed09e31ada71fb646878b44d3",
         ) {
             Ok(k) => k,
             Err(_) => {
@@ -372,7 +394,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"022dc52b114ca23f4ea3d9bda6de89edd5622c6b6864c555f3b96c393bd1e20592",
         ) {
             Ok(k) => k,
             Err(_) => {
@@ -387,7 +409,7 @@ pub mod bitcoinda {
         SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
         SECURITY_COUNCIL_MEMBER_COUNT] = [
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"03f56e848d9864362f4925e0d53863902c5f86766ee59359f52647df43a0890ce7",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -395,7 +417,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"03e6028f183993c8fd7bb4082a27c3b44f716bba91dcd8c6f37f7c1e6a77233379",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -403,7 +425,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"02fe5c4d28e173998d148d0cd67f00faa87f2b19e30447bc92c5af431da5106357",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -411,7 +433,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"03840f3d82dcd4c60e86c63df785ed3df06ee3b81f20f179e02fb818cfd123de38",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -419,7 +441,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"000000000000000000000000000000000000000000000000000000000000000000",
+            b"02379cb28a72784ce7e13ce6beb4a04e8831db2a61887941e60d905ed59e7e6a22",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -434,7 +456,7 @@ pub mod bitcoinda {
         SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
         SECURITY_COUNCIL_MEMBER_COUNT] = [
         match const_hex::const_decode_to_array(
-            b"03fd24a8555cd34585b80c826f25f7df42862a4f97b6bdaf263a3d1bb368f09790",
+            b"038bd8c3227297d59b6b64dd41c38b9d3b72202d7ecb87f65de99d397d76872cbd",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -442,7 +464,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"02a23601cb326cc09f9de3f542b4d8f49216ddf273cfe7e40f50f531a32fc2e78d",
+            b"0266be33af7844b1d9b0732fe1ae4c1a1dd5fd21c8901e015cee87076cf6cafcc6",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -450,7 +472,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"033398b6e26dfa0af531bdab96ee926c10b934ea32b38910ba8d444f5f840efd2d",
+            b"02f3ee46b8e82c526a3c9b5db63a5220decdbd6289f7a31c1ce73bd8683abae272",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -458,7 +480,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"02666dba8e07a8bd4aeb4d2b3b6cda814f8b814e7052ac97a928b01a41a80adea4",
+            b"027b89f75fd042874b8ee9fa3d6429c3d7b71c2d5de953800df1c0169156f1cea7",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {
@@ -466,7 +488,7 @@ pub mod bitcoinda {
             }
         },
         match const_hex::const_decode_to_array(
-            b"03f42d911bb7d9910b026621d20c133b1b193004f043797e472bb2c821e5703716",
+            b"03a955c047a3fefdcd0548d91ed83e865436fbfa19138179af0cf1db83c694a0e1",
         ) {
             Ok(pub_key) => pub_key,
             Err(_) => {

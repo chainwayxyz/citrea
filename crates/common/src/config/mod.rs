@@ -7,8 +7,12 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 pub use crate::config::rpc::RpcConfig;
+use crate::risc0::Risc0HostConfig;
 use crate::utils::read_env;
 
+/// Configuration types for RISC0 provers
+pub mod risc0;
+pub use risc0::PricingServiceConfig;
 mod rpc;
 
 pub trait FromEnv: Sized {
@@ -162,6 +166,9 @@ pub struct BatchProverConfig {
     pub enable_recovery: bool,
     /// Maximum number of commitments per proof partition
     pub max_commitments_per_proof: Option<usize>,
+    /// Configuration for Risc0Host
+    #[serde(default)]
+    pub risc0_host: Risc0HostConfig,
 }
 
 /// Prover configuration
@@ -175,6 +182,9 @@ pub struct LightClientProverConfig {
     pub enable_recovery: bool,
     /// The starting DA block to sync from
     pub initial_da_height: u64,
+    /// Configuration for Risc0Host
+    #[serde(default)]
+    pub risc0_host: Risc0HostConfig,
 }
 
 impl Default for BatchProverConfig {
@@ -184,6 +194,7 @@ impl Default for BatchProverConfig {
             proof_sampling_number: 0,
             enable_recovery: true,
             max_commitments_per_proof: None,
+            risc0_host: Default::default(),
         }
     }
 }
@@ -195,6 +206,7 @@ impl Default for LightClientProverConfig {
             proof_sampling_number: 0,
             enable_recovery: true,
             initial_da_height: 1,
+            risc0_host: Default::default(),
         }
     }
 }
@@ -208,6 +220,7 @@ impl FromEnv for BatchProverConfig {
             max_commitments_per_proof: read_env("MAX_COMMITMENTS_PER_PROOF")
                 .ok()
                 .and_then(|val| val.parse().ok()),
+            risc0_host: Risc0HostConfig::from_env()?,
         })
     }
 }
@@ -219,6 +232,7 @@ impl FromEnv for LightClientProverConfig {
             proof_sampling_number: read_env("PROOF_SAMPLING_NUMBER")?.parse()?,
             enable_recovery: read_env("ENABLE_RECOVERY")?.parse()?,
             initial_da_height: read_env("INITIAL_DA_HEIGHT")?.parse()?,
+            risc0_host: Risc0HostConfig::from_env()?,
         })
     }
 }
@@ -248,6 +262,11 @@ const fn default_max_l1_fee_rate_sat_vb() -> u64 {
     15 // sat/vbyte
 }
 
+#[inline]
+const fn default_l1_fee_rate_update_interval_ms() -> u64 {
+    30_000 // 30 seconds
+}
+
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SequencerConfig {
@@ -266,13 +285,17 @@ pub struct SequencerConfig {
     /// Block production interval in ms
     pub block_production_interval_ms: u64,
     /// Bridge system contract initialize function parameters
-    pub bridge_initialize_params: String,
+    #[serde(with = "hex")]
+    pub bridge_initialize_params: Vec<u8>,
     /// L1 fee rate multiplier
     #[serde(default = "default_l1_fee_rate_multiplier")]
     pub l1_fee_rate_multiplier: f64,
     /// Maximum L1 fee rate in sat/vbyte
     #[serde(default = "default_max_l1_fee_rate_sat_vb")]
     pub max_l1_fee_rate_sat_vb: u64,
+    /// L1 fee rate update interval in ms
+    #[serde(default = "default_l1_fee_rate_update_interval_ms")]
+    pub l1_fee_rate_update_interval_ms: u64,
 }
 
 impl Default for SequencerConfig {
@@ -285,10 +308,11 @@ impl Default for SequencerConfig {
             deposit_mempool_fetch_limit: 10,
             block_production_interval_ms: 100,
             da_update_interval_ms: 100,
-            bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
             mempool_conf: Default::default(),
             l1_fee_rate_multiplier: 1.0,
             max_l1_fee_rate_sat_vb: 1, // doesn't matter since mock da returns 10 wei/byte
+            l1_fee_rate_update_interval_ms: default_l1_fee_rate_update_interval_ms(),
         }
     }
 }
@@ -303,7 +327,7 @@ impl FromEnv for SequencerConfig {
             mempool_conf: SequencerMempoolConfig::from_env()?,
             da_update_interval_ms: read_env("DA_UPDATE_INTERVAL_MS")?.parse()?,
             block_production_interval_ms: read_env("BLOCK_PRODUCTION_INTERVAL_MS")?.parse()?,
-            bridge_initialize_params: read_env("BRIDGE_INITIALIZE_PARAMS")?,
+            bridge_initialize_params: hex::decode(read_env("BRIDGE_INITIALIZE_PARAMS")?)?,
             l1_fee_rate_multiplier: read_env("L1_FEE_RATE_MULTIPLIER")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -312,6 +336,10 @@ impl FromEnv for SequencerConfig {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or_else(default_max_l1_fee_rate_sat_vb),
+            l1_fee_rate_update_interval_ms: read_env("L1_FEE_RATE_UPDATE_INTERVAL_MS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_l1_fee_rate_update_interval_ms),
         })
     }
 }
@@ -363,9 +391,9 @@ impl FromEnv for MempoolMaintenanceConfig {
 impl From<MempoolMaintenanceConfig> for reth_transaction_pool::maintain::MaintainPoolConfig {
     fn from(config: MempoolMaintenanceConfig) -> Self {
         Self {
-            max_update_depth: Default::default(),
             max_reload_accounts: config.max_reload_accounts,
             max_tx_lifetime: std::time::Duration::from_secs(config.max_tx_lifetime_secs),
+            ..Default::default()
         }
     }
 }
@@ -480,12 +508,6 @@ pub struct PruningConfig {
     pub distance: u64,
 }
 
-impl Default for PruningConfig {
-    fn default() -> Self {
-        Self { distance: 256 }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::io::Write;
@@ -494,6 +516,11 @@ mod tests {
 
     use super::*;
     use crate::config::rpc::*;
+    use crate::risc0::{
+        BonsaiProverConfig, BoundlessConfig, BoundlessPinataStorageConfig, BoundlessProverConfig,
+        BoundlessS3StorageConfig, BoundlessStorageConfig, LocalProverConfig, Risc0HostConfig,
+        Risc0ProverConfig,
+    };
 
     fn create_config_from(content: &str) -> NamedTempFile {
         let mut config_file = NamedTempFile::new().unwrap();
@@ -518,6 +545,7 @@ mod tests {
             max_subscriptions_per_connection = 200
             trace_chain_block_limit = 100
             proving_jobs_limit = 50
+            stale_filter_ttl = 300
 
             [da]
             sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
@@ -573,6 +601,9 @@ mod tests {
                 timeout: 30,
                 enable_js_tracer: true,
                 api_key: None,
+                stale_filter_ttl: Some(300),
+                enable_filters: true,
+                max_sync_send_timeout_ms: 20_000,
             },
             public_keys: RollupPublicKeys {
                 sequencer_public_key: vec![0; 33],
@@ -603,6 +634,7 @@ mod tests {
             proof_sampling_number: 500,
             enable_recovery: true,
             max_commitments_per_proof: None,
+            risc0_host: Default::default(),
         };
         assert_eq!(config, expected);
     }
@@ -650,9 +682,10 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
-            bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
             l1_fee_rate_multiplier: 0.75,
             max_l1_fee_rate_sat_vb: 15,
+            l1_fee_rate_update_interval_ms: 30_000,
         };
         assert_eq!(config, expected);
     }
@@ -670,6 +703,7 @@ mod tests {
             proof_sampling_number: 500,
             enable_recovery: true,
             max_commitments_per_proof: None,
+            risc0_host: Default::default(),
         };
         assert_eq!(prover_config, expected);
     }
@@ -714,9 +748,10 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
-            bridge_initialize_params: hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS),
+            bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
             l1_fee_rate_multiplier: 1.0,
             max_l1_fee_rate_sat_vb: 40,
+            l1_fee_rate_update_interval_ms: 30_000,
         };
         assert_eq!(sequencer_config, expected);
     }
@@ -776,6 +811,9 @@ mod tests {
                 timeout: 30,
                 enable_js_tracer: true,
                 api_key: None,
+                stale_filter_ttl: None,
+                enable_filters: true,
+                max_sync_send_timeout_ms: 20_000,
             },
             storage: StorageConfig {
                 path: "/tmp/rollup".into(),
@@ -808,6 +846,10 @@ mod tests {
 
     #[test]
     fn test_optional_telemetry_config_from_env() {
+        // Clear env vars that might be set by other tests
+        std::env::remove_var("TELEMETRY_BIND_HOST");
+        std::env::remove_var("TELEMETRY_BIND_PORT");
+
         let telemetry_config = TelemetryConfig::from_env().unwrap();
 
         let expected = TelemetryConfig {
@@ -825,5 +867,232 @@ mod tests {
             bind_port: Some(5000),
         };
         assert_eq!(telemetry_config, expected);
+    }
+
+    #[test]
+    fn test_correct_prover_config_local() {
+        let config = r#"
+            proving_mode = "execute"
+            proof_sampling_number = 42
+            enable_recovery = true
+
+            [risc0_host]
+            tx_backup_dir = "/tmp/backup"
+
+            [risc0_host.prover.Local]
+            r0vm_path = "path/to/vm"
+        "#;
+
+        let config_file = create_config_from(config);
+        let config: BatchProverConfig = from_toml_path(config_file.path()).unwrap();
+
+        let expected = BatchProverConfig {
+            proving_mode: ProverGuestRunConfig::Execute,
+            proof_sampling_number: 42,
+            enable_recovery: true,
+            max_commitments_per_proof: None,
+            risc0_host: Risc0HostConfig {
+                prover: Risc0ProverConfig::Local(LocalProverConfig {
+                    r0vm_path: Some("path/to/vm".into()),
+                }),
+                tx_backup_dir: Some("/tmp/backup".into()),
+            },
+        };
+        assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_correct_prover_config_bonsai() {
+        let config = r#"
+            proving_mode = "execute"
+            proof_sampling_number = 42
+            enable_recovery = true
+
+            [risc0_host.prover.Bonsai]
+            api_url = "http://127.0.0.1"
+            api_key = "testkey"
+        "#;
+
+        let config_file = create_config_from(config);
+        let config: BatchProverConfig = from_toml_path(config_file.path()).unwrap();
+
+        let risc0_host = Risc0HostConfig {
+            prover: Risc0ProverConfig::Bonsai(BonsaiProverConfig {
+                api_url: "http://127.0.0.1".to_string(),
+                api_key: "testkey".to_string(),
+            }),
+            tx_backup_dir: None,
+        };
+        let expected = BatchProverConfig {
+            proving_mode: ProverGuestRunConfig::Execute,
+            proof_sampling_number: 42,
+            enable_recovery: true,
+            max_commitments_per_proof: None,
+            risc0_host,
+        };
+        assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_correct_prover_config_boundless_s3() {
+        let config = r#"
+            proving_mode = "execute"
+            proof_sampling_number = 42
+            enable_recovery = true
+
+            [risc0_host.prover.Boundless.boundless]
+            wallet_private_key = "abcd"
+            rpc_url = "127.0.0.1"
+            is_offchain = true
+
+            [risc0_host.prover.Boundless.storage]
+            type = "s3"
+            s3_access_key = "access_key"
+            s3_secret_key = "secret_key"
+            s3_bucket = "bucket"
+            s3_url = "url"
+            aws_region = "region"
+            s3_use_presigned = true
+
+            [risc0_host.prover.Boundless.pricing_service]
+            base_url = "https://pricing.example.com"
+            timeout_secs = 30
+        "#;
+
+        let config_file = create_config_from(config);
+        let config: BatchProverConfig = from_toml_path(config_file.path()).unwrap();
+
+        let boundless_prover_config = BoundlessProverConfig {
+            boundless: BoundlessConfig {
+                wallet_private_key: "abcd".to_string(),
+                rpc_url: "127.0.0.1".to_string(),
+                is_offchain: true,
+            },
+            storage: BoundlessStorageConfig::S3(BoundlessS3StorageConfig {
+                s3_access_key: "access_key".to_string(),
+                s3_secret_key: "secret_key".to_string(),
+                s3_bucket: "bucket".to_string(),
+                s3_url: "url".to_string(),
+                aws_region: "region".to_string(),
+                s3_use_presigned: true,
+            }),
+            pricing_service: PricingServiceConfig {
+                base_url: "https://pricing.example.com".to_string(),
+                timeout_secs: 30,
+            },
+        };
+        let expected = BatchProverConfig {
+            proving_mode: ProverGuestRunConfig::Execute,
+            proof_sampling_number: 42,
+            enable_recovery: true,
+            max_commitments_per_proof: None,
+            risc0_host: Risc0HostConfig {
+                prover: Risc0ProverConfig::Boundless(Box::new(boundless_prover_config)),
+                tx_backup_dir: None,
+            },
+        };
+        assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_correct_prover_config_boundless_pinata() {
+        let config = r#"
+            proving_mode = "execute"
+            proof_sampling_number = 42
+            enable_recovery = true
+
+            [risc0_host.prover.Boundless.boundless]
+            wallet_private_key = "abcd"
+            rpc_url = "127.0.0.1"
+            is_offchain = true
+
+            [risc0_host.prover.Boundless.storage]
+            type = "pinata"
+            pinata_jwt = "jwt"
+            pinata_api_url = "http://0.0.0.1"
+            ipfs_gateway_url = "http://127.0.0.1"
+
+            [risc0_host.prover.Boundless.pricing_service]
+            base_url = "https://pricing.example.com"
+            timeout_secs = 30
+        "#;
+
+        let config_file = create_config_from(config);
+        let config: BatchProverConfig = from_toml_path(config_file.path()).unwrap();
+
+        let boundless_prover_config = BoundlessProverConfig {
+            boundless: BoundlessConfig {
+                wallet_private_key: "abcd".to_string(),
+                rpc_url: "127.0.0.1".to_string(),
+                is_offchain: true,
+            },
+            storage: BoundlessStorageConfig::Pinata(BoundlessPinataStorageConfig {
+                pinata_jwt: "jwt".to_string(),
+                pinata_api_url: "http://0.0.0.1".to_string(),
+                ipfs_gateway_url: "http://127.0.0.1".to_string(),
+            }),
+            pricing_service: PricingServiceConfig {
+                base_url: "https://pricing.example.com".to_string(),
+                timeout_secs: 30,
+            },
+        };
+        let expected = BatchProverConfig {
+            proving_mode: ProverGuestRunConfig::Execute,
+            proof_sampling_number: 42,
+            enable_recovery: true,
+            max_commitments_per_proof: None,
+            risc0_host: Risc0HostConfig {
+                prover: Risc0ProverConfig::Boundless(Box::new(boundless_prover_config)),
+                tx_backup_dir: None,
+            },
+        };
+        assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_pricing_service_config_from_env_success() {
+        std::env::set_var(
+            "BOUNDLESS_PRICING_SERVICE_URL",
+            "http://pricing.example.com",
+        );
+        std::env::set_var("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS", "60");
+
+        let config = risc0::PricingServiceConfig::from_env().unwrap();
+        assert_eq!(config.base_url, "http://pricing.example.com");
+        assert_eq!(config.timeout_secs, 60);
+
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_URL");
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS");
+    }
+
+    #[test]
+    fn test_pricing_service_config_from_env_with_default_timeout() {
+        std::env::set_var(
+            "BOUNDLESS_PRICING_SERVICE_URL",
+            "http://pricing.example.com",
+        );
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS");
+
+        let config = risc0::PricingServiceConfig::from_env().unwrap();
+        assert_eq!(config.base_url, "http://pricing.example.com");
+        assert_eq!(config.timeout_secs, 30); // default value
+
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_URL");
+    }
+
+    #[test]
+    fn test_pricing_service_config_from_env_invalid_timeout() {
+        std::env::set_var(
+            "BOUNDLESS_PRICING_SERVICE_URL",
+            "http://pricing.example.com",
+        );
+        std::env::set_var("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS", "invalid");
+
+        let config = risc0::PricingServiceConfig::from_env().unwrap();
+        assert_eq!(config.base_url, "http://pricing.example.com");
+        assert_eq!(config.timeout_secs, 30);
+
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_URL");
+        std::env::remove_var("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS");
     }
 }

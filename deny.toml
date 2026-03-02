@@ -6,7 +6,7 @@ allow = [
   "BSD-3-Clause",
   "BSL-1.0",
   "CC0-1.0",
-  "GPL-3.0",
+  "GPL-3.0-only",
   "ISC",
   # "LGPL-3.0",
   "MIT",
@@ -48,6 +48,11 @@ ignore = [
   "RUSTSEC-2025-0012", # Unmaintained backoff crate
   "RUSTSEC-2025-0055", # Ignore until risc0 update
   "RUSTSEC-2023-0071", # Ignore rsa 0.9.8 until a version that fixes the issue is available.
-  "RUSTSEC-2025-0052", # Ignore async-std being discontinued. httpmock uses it, which in turn is used by boundless market.
-  "RUSTSEC-2025-0073", # Ignore alloy-dyn-abi until we are able to update to 1.4.1
+  "RUSTSEC-2025-0052", # Ignore unmaintained async-std
+  "RUSTSEC-2025-0073", # Ignore alloy-dyn-abi
+  "RUSTSEC-2025-0119", # Ignore unmaintained number-prefix
+  "RUSTSEC-2025-0134", # Ignore unmaintained rustls-pemfile
+  "RUSTSEC-2025-0141", # Ignore unmaintained bincode crate
+  "RUSTSEC-2026-0009", # Ignore as no user input time present in project
+  "RUSTSEC-2025-0137", # Ignore until it's fixed in upstream `alloy-primitives`. Though we shouldn't be affected.
 ]

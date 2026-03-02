@@ -1,12 +1,14 @@
 mod basic_queries;
+mod estimate_gas_override_tests;
 mod estimate_gas_tests;
 mod eth_call_tests;
 mod log_tests;
 mod pending_block_tests;
+mod trace_call_tests;
 
 use std::str::FromStr;
 
-use alloy_primitives::{address, Address, Bytes};
+use alloy_primitives::{address, Bytes};
 use revm::primitives::{KECCAK_EMPTY, U256};
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
@@ -45,7 +47,7 @@ fn init_evm(
     u64, // l2_height
     LedgerDB,
 ) {
-    let dev_signer: TestSigner = TestSigner::new_random();
+    let dev_signer: TestSigner = TestSigner::new_default();
 
     let config = EvmConfig {
         data: vec![AccountData {
@@ -64,17 +66,9 @@ fn init_evm(
     let l1_fee_rate = 1;
     let mut l2_height = 1;
 
-    let contract_addr: Address = Address::from_slice(
-        hex::decode("819c5497b157177315e1204f52e588b393771719")
-            .unwrap()
-            .as_slice(),
-    );
+    let contract_addr = dev_signer.address().create(0);
 
-    let contract_addr2: Address = Address::from_slice(
-        hex::decode("eeb03d20dae810f52111b853b31c8be6f30f4cd3")
-            .unwrap()
-            .as_slice(),
-    );
+    let contract_addr2 = dev_signer.address().create(7);
 
     let l2_block_info = HookL2BlockInfo {
         l2_height,
@@ -207,7 +201,7 @@ pub fn init_evm_single_block(
     TestSigner,
     LedgerDB,
 ) {
-    let dev_signer: TestSigner = TestSigner::new_random();
+    let dev_signer: TestSigner = TestSigner::new_default();
 
     let config = EvmConfig {
         data: vec![
@@ -284,7 +278,7 @@ pub fn init_evm_with_caller_contract() -> (
     u64,
     LedgerDB,
 ) {
-    let dev_signer: TestSigner = TestSigner::new_random();
+    let dev_signer: TestSigner = TestSigner::new_default();
 
     let config = EvmConfig {
         data: vec![AccountData {
@@ -300,11 +294,7 @@ pub fn init_evm_with_caller_contract() -> (
 
     let (mut evm, mut working_set, prover_storage, ledger_db) = get_evm_with_storage(&config);
 
-    let contract_addr: Address = Address::from_slice(
-        hex::decode("819c5497b157177315e1204f52e588b393771719")
-            .unwrap()
-            .as_slice(),
-    );
+    let contract_addr = dev_signer.address().create(0);
 
     // Address of the caller contract
     // let contract_addr2: Address = Address::from_slice(
@@ -319,7 +309,7 @@ pub fn init_evm_with_caller_contract() -> (
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [0u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -329,7 +319,7 @@ pub fn init_evm_with_caller_contract() -> (
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer, 0, SimpleStorageContract::default()),
@@ -355,7 +345,7 @@ pub fn init_evm_with_caller_contract() -> (
     let l2_block_info = HookL2BlockInfo {
         l2_height,
         pre_state_root: [2u8; 32],
-        current_spec: SovSpecId::Tangerine,
+        current_spec: SovSpecId::latest(),
         sequencer_pub_key: get_test_seq_pub_key(),
         l1_fee_rate,
         timestamp: 0,
@@ -365,7 +355,7 @@ pub fn init_evm_with_caller_contract() -> (
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![create_contract_transaction(
             &dev_signer,

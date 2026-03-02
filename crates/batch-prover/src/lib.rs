@@ -3,9 +3,9 @@
 //!
 //! There are 3 main components:
 //!
-//! 1. L1 syncer: responsible from tracking the finalized L1 blocks and extracting the sequencer commitments from them.
-//! 2. L2 syncer: responsible from tracking the L2 blocks by syncing them from the sequencer.
-//! 3. Prover: responsible from handling the proving process. It tracks the pending commitments and
+//! 1. L1 syncer: responsible for tracking the finalized L1 blocks and extracting the sequencer commitments from them.
+//! 2. L2 syncer: responsible for tracking the L2 blocks by syncing them from the sequencer.
+//! 3. Prover: responsible for handling the proving process. It tracks the pending commitments and
 //!    tries to partition them into provable chunks.
 //!
 //! L1 syncer sends signals to the Prover when it finds new L1 blocks in the L1 chain.
@@ -142,6 +142,11 @@ where
         rpc_config.clone(),
     );
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
+
+    // Initialize metrics once at component startup
+    if let Err(e) = crate::metrics::initialize_metrics(&ledger_db) {
+        tracing::debug!("Failed to initialize batch prover metrics: {:?}", e);
+    }
 
     let l2_syncer = L2Syncer::new(
         runner_config.clone(),

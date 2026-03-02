@@ -54,6 +54,13 @@ pub(crate) static BATCH_PROOF_REGTEST_BITCOIN_GUESTS: LazyLock<HashMap<SpecId, (
                 ),
             ),
             (
+                SpecId::Tangelo,
+                (
+                    Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
+                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec(),
+                ),
+            ),
+            (
                 SpecId::latest(),
                 (
                     Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
@@ -95,9 +102,15 @@ pub(crate) static BATCH_PROOF_MAINNET_GUESTS: LazyLock<HashMap<SpecId, (Digest, 
         let mut m = HashMap::new();
 
         m.insert(
-            SpecId::Tangerine,
-            guest!("../../../resources/guests/risc0/mainnet/batch-0.elf"),
+            SpecId::Tangelo,
+            guest!("../../../resources/guests/risc0/mainnet/batch-proof-0.bin"),
         );
+
+        m.insert(
+            SpecId::TangeloSelfdestructFix,
+            guest!("../../../resources/guests/risc0/mainnet/batch-proof-1.bin"),
+        );
+
         m
     });
 
@@ -119,6 +132,14 @@ pub(crate) static BATCH_PROOF_TESTNET_GUESTS: LazyLock<HashMap<SpecId, (Digest, 
             SpecId::Tangerine,
             guest!("../../../resources/guests/risc0/testnet/batch-proof-0.bin"),
         );
+        m.insert(
+            SpecId::Tangelo,
+            guest!("../../../resources/guests/risc0/testnet/batch-proof-1.bin"),
+        );
+        m.insert(
+            SpecId::TangeloSelfdestructFix,
+            guest!("../../../resources/guests/risc0/testnet/batch-proof-2.bin"),
+        );
 
         m
     });
@@ -127,19 +148,17 @@ pub(crate) static BATCH_PROOF_DEVNET_GUESTS: LazyLock<HashMap<SpecId, (Digest, V
     LazyLock::new(|| {
         let mut m = HashMap::new();
 
-        // won't be used but putting here just in case
-        m.insert(
-            SpecId::Genesis,
-            guest!("../../../resources/guests/risc0/devnet/batch-proof-0.bin"),
-        );
-        // won't be used but putting here just in case
-        m.insert(
-            SpecId::Kumquat,
-            guest!("../../../resources/guests/risc0/devnet/batch-proof-0.bin"),
-        );
         m.insert(
             SpecId::Tangerine,
             guest!("../../../resources/guests/risc0/devnet/batch-proof-0.bin"),
+        );
+        m.insert(
+            SpecId::Tangelo,
+            guest!("../../../resources/guests/risc0/devnet/batch-proof-1.bin"),
+        );
+        m.insert(
+            SpecId::TangeloSelfdestructFix,
+            guest!("../../../resources/guests/risc0/devnet/batch-proof-2.bin"),
         );
 
         m
@@ -150,9 +169,15 @@ pub(crate) static LIGHT_CLIENT_MAINNET_GUESTS: LazyLock<HashMap<SpecId, (Digest,
         let mut m = HashMap::new();
 
         m.insert(
-            SpecId::Tangerine,
-            guest!("../../../resources/guests/risc0/mainnet/light-0.elf"),
+            SpecId::Tangelo,
+            guest!("../../../resources/guests/risc0/mainnet/light-client-proof-0.bin"),
         );
+
+        m.insert(
+            SpecId::TangeloSelfdestructFix,
+            guest!("../../../resources/guests/risc0/mainnet/light-client-proof-0.bin"),
+        );
+
         m
     });
 
@@ -160,19 +185,25 @@ pub(crate) static LIGHT_CLIENT_TESTNET_GUESTS: LazyLock<HashMap<SpecId, (Digest,
     LazyLock::new(|| {
         let mut m = HashMap::new();
 
-        // won't be used but putting here just in case
         m.insert(
             SpecId::Genesis,
-            guest!("../../../resources/guests/risc0/testnet/light-client-proof-0.bin"),
+            guest!("../../../resources/guests/risc0/testnet/light-client-proof-1.bin"),
         );
-        // won't be used but putting here just in case
         m.insert(
             SpecId::Kumquat,
-            guest!("../../../resources/guests/risc0/testnet/light-client-proof-0.bin"),
+            guest!("../../../resources/guests/risc0/testnet/light-client-proof-1.bin"),
         );
         m.insert(
             SpecId::Tangerine,
-            guest!("../../../resources/guests/risc0/testnet/light-client-proof-0.bin"),
+            guest!("../../../resources/guests/risc0/testnet/light-client-proof-1.bin"),
+        );
+        m.insert(
+            SpecId::Tangelo,
+            guest!("../../../resources/guests/risc0/testnet/light-client-proof-1.bin"),
+        );
+        m.insert(
+            SpecId::TangeloSelfdestructFix,
+            guest!("../../../resources/guests/risc0/testnet/light-client-proof-1.bin"),
         );
 
         m
@@ -182,19 +213,17 @@ pub(crate) static LIGHT_CLIENT_DEVNET_GUESTS: LazyLock<HashMap<SpecId, (Digest, 
     LazyLock::new(|| {
         let mut m = HashMap::new();
 
-        // won't be used but putting here just in case
-        m.insert(
-            SpecId::Genesis,
-            guest!("../../../resources/guests/risc0/devnet/light-client-proof-0.bin"),
-        );
-        // won't be used but putting here just in case
-        m.insert(
-            SpecId::Kumquat,
-            guest!("../../../resources/guests/risc0/devnet/light-client-proof-0.bin"),
-        );
         m.insert(
             SpecId::Tangerine,
-            guest!("../../../resources/guests/risc0/devnet/light-client-proof-0.bin"),
+            guest!("../../../resources/guests/risc0/devnet/light-client-proof-1.bin"),
+        );
+        m.insert(
+            SpecId::Tangelo,
+            guest!("../../../resources/guests/risc0/devnet/light-client-proof-1.bin"),
+        );
+        m.insert(
+            SpecId::TangeloSelfdestructFix,
+            guest!("../../../resources/guests/risc0/devnet/light-client-proof-1.bin"),
         );
         m
     });
