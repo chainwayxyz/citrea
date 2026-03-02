@@ -387,6 +387,8 @@ pub(crate) fn generate_initial_addresses_with_signers_from_pks(
 pub(crate) fn create_valid_signatures<T: SolStruct>(
     signers: &[PrivateKeySigner],
     payload: &T,
+    // Pass threshold here to determine the number of signatures needed
+    threshold: usize,
 ) -> Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)> {
     let mut signatures_in_inscription = Vec::new();
 
@@ -396,7 +398,7 @@ pub(crate) fn create_valid_signatures<T: SolStruct>(
         chain_id: citrea_network_to_chain_id(Network::Nightly),
     };
 
-    for (i, signer) in signers.iter().enumerate().take(3) {
+    for (i, signer) in signers.iter().enumerate().take(threshold) {
         let sig = signer.sign_typed_data_sync(payload, &domain).unwrap();
         let signature = sig.as_bytes()[0..SECURITY_COUNCIL_SIGNATURE_SIZE].to_vec();
         signatures_in_inscription.push((signature, i as u8));
@@ -486,7 +488,7 @@ pub async fn generate_mock_txs(
         generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
     let payload = BatchProofMethodIdUpdate::from(method_id_body.clone());
 
-    let signatures_with_index = create_valid_signatures(&signers, &payload);
+    let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
 
     // Send method id update tx
     let sc_tx = SecurityCouncilTx {
@@ -606,7 +608,7 @@ pub async fn generate_mock_txs(
 
     let payload = BatchProofMethodIdUpdate::from(method_id_body.clone());
 
-    let signatures_with_index = create_valid_signatures(&signers, &payload);
+    let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
 
     // Send method id update tx
     let sc_tx = SecurityCouncilTx {
