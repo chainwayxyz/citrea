@@ -182,7 +182,7 @@ mod tests {
 
     use super::*;
     use crate::circuit::citrea_network_to_chain_id;
-    use crate::circuit::initial_values::bitcoinda;
+    use crate::circuit::initial_values::mockda;
     use crate::{create_valid_signatures, generate_initial_addresses_with_signers};
 
     const TEST_THRESHOLD: usize = 3;
@@ -215,7 +215,7 @@ mod tests {
             batch_proof_method_id.body,
             &batch_proof_method_id.signatures_with_index,
             TEST_THRESHOLD,
-            bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            mockda::EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
             citrea_network_to_chain_id(Network::Nightly),
         ));
     }
@@ -245,7 +245,7 @@ mod tests {
             batch_proof_method_id.body,
             &batch_proof_method_id.signatures_with_index,
             TEST_THRESHOLD,
-            bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            mockda::EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
             citrea_network_to_chain_id(Network::Nightly),
         ));
     }
@@ -275,7 +275,7 @@ mod tests {
             batch_proof_method_id.body,
             &batch_proof_method_id.signatures_with_index,
             TEST_THRESHOLD,
-            bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            mockda::EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
             citrea_network_to_chain_id(Network::Nightly),
         ));
     }
@@ -301,7 +301,7 @@ mod tests {
             batch_proof_method_id.body,
             &batch_proof_method_id.signatures_with_index,
             TEST_THRESHOLD,
-            bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            mockda::EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
             citrea_network_to_chain_id(Network::Nightly),
         ));
     }
@@ -335,7 +335,7 @@ mod tests {
             batch_proof_method_id.body,
             &batch_proof_method_id.signatures_with_index,
             TEST_THRESHOLD,
-            bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            mockda::EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
             citrea_network_to_chain_id(Network::Nightly),
         ));
     }

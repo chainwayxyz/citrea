@@ -24,7 +24,7 @@ use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutp
 use sov_rollup_interface::Network;
 
 use crate::circuit::accessors::ChunkAccessor;
-use crate::circuit::initial_values::{bitcoinda, InitialValueProvider};
+use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::{
     citrea_network_to_chain_id, BatchProofMethodIdUpdate, LightClientProofCircuit,
 };
@@ -254,7 +254,7 @@ pub(crate) fn generate_initial_addresses_with_signers() -> (Vec<Address>, Vec<Pr
     (initial_da_addresses, signers)
 }
 
-/// Creates valid signatures from the first `count` signers for the given payload
+/// Creates valid signatures from the first 3 signers for the given payload
 pub(crate) fn create_valid_signatures<T: SolStruct>(
     signers: &[PrivateKeySigner],
     payload: &T,
@@ -268,10 +268,12 @@ pub(crate) fn create_valid_signatures_with_count<T: SolStruct>(
     payload: &T,
     count: usize,
 ) -> Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)> {
+    use crate::circuit::initial_values::mockda;
+
     let mut signatures_in_inscription = Vec::new();
 
     let domain = eip712_domain! {
-        name: bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        name: mockda::EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
         version: "1",
         chain_id: citrea_network_to_chain_id(Network::Nightly),
     };
