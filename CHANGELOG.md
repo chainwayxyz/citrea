@@ -11,6 +11,7 @@
 - perf: Skip re-execution of proof request in boundless([#3144](https://github.com/chainwayxyz/citrea/pull/3144))
 - perf: Mine DA transaction prefix using transaction locktime([#3111](https://github.com/chainwayxyz/citrea/pull/3111))
 - fix: Check for shutdown signal when processing blocks in L1/L2 syncers loops ([#3152](https://github.com/chainwayxyz/citrea/pull/3152))
+- fix: `eth_estimateGas` failing with not enough funds for L1 fee ([#3169](https://github.com/chainwayxyz/citrea/pull/3169))
 
 ## [v2.1.0](2026-02-17)
 ### Added
