@@ -9,8 +9,6 @@ use sov_rollup_interface::Network;
 
 #[cfg(feature = "native")]
 use self::non_empty_slice::NonEmptySlice;
-#[cfg(feature = "native")]
-use crate::circuit::SECURITY_COUNCIL_MEMBER_COUNT;
 
 /// Genesis root for the Light Client Prover's Jellyfish Merkle Tree.
 pub(crate) const LCP_JMT_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
@@ -34,7 +32,6 @@ pub mod mockda {
     use alloy_primitives::{address, Address};
 
     use super::non_empty_slice::NonEmptySlice;
-    use crate::circuit::SECURITY_COUNCIL_MEMBER_COUNT;
 
     /// Genesis L2 genesis root for the mock DA.
     pub const GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
@@ -64,20 +61,23 @@ pub mod mockda {
         Err(_) => panic!("Can't happen"),
     };
 
-    /// Public keys of the method ID upgrade authority in the mock DA.
-    /// 3 out of 5 signatures are required to upgrade method IDs.
-    pub const METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES: [Address; SECURITY_COUNCIL_MEMBER_COUNT] = [
-        // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077
-        address!("0xd51bd554b82aa486f56030bef90b70a27a4f6d20"),
-        // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9076
-        address!("0xfef24931c137d6c0df4f76116e0e58d281203360"),
-        // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9075
-        address!("0xbb3833932330eef589dd56e855f2ca1ac015d200"),
-        // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9074
-        address!("0xe976fdbc72670c34b7973ae3fa7d38478eade018"),
-        // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9073
-        address!("0x8632ebc44c4515c9b85fae29eae3fd3722fd35ea"),
-    ];
+    /// Initial addresses of the method ID upgrade authority in the mock DA.
+    pub const METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES: NonEmptySlice<Address> =
+        NonEmptySlice::new(&[
+            // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077
+            address!("0xd51bd554b82aa486f56030bef90b70a27a4f6d20"),
+            // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9076
+            address!("0xfef24931c137d6c0df4f76116e0e58d281203360"),
+            // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9075
+            address!("0xbb3833932330eef589dd56e855f2ca1ac015d200"),
+            // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9074
+            address!("0xe976fdbc72670c34b7973ae3fa7d38478eade018"),
+            // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9073
+            address!("0x8632ebc44c4515c9b85fae29eae3fd3722fd35ea"),
+        ]);
+
+    /// Initial signature threshold for the security council in the mock DA.
+    pub const INITIAL_SECURITY_COUNCIL_THRESHOLD: usize = 3;
 
     /// EIP-712 domain name for security council messages in the mock DA.
     pub const EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME: &str = "CitreaMockDASecurityCouncil";
@@ -89,7 +89,6 @@ pub mod bitcoinda {
 
     use super::decode_to_u32_array;
     use super::non_empty_slice::NonEmptySlice;
-    use crate::circuit::SECURITY_COUNCIL_MEMBER_COUNT;
 
     /// Genesis L2 root for the Bitcoin DA on Mainnet.
     pub const MAINNET_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
@@ -337,50 +336,45 @@ pub mod bitcoinda {
     };
 
     // TODO: Update with real addresses
-    /// Addresses of the method ID upgrade authority in the Bitcoin DA on Mainnet.
-    /// 3 out of 5 signatures are required to upgrade method IDs.
-    pub const MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES: [Address;
-        SECURITY_COUNCIL_MEMBER_COUNT] = [
-        // TODO: Remove place holder addresses
-        address!("0xffffffffffffffffffffffffffffffffffffffff"),
-        address!("0xffffffffffffffffffffffffffffffffffffffff"),
-        address!("0xffffffffffffffffffffffffffffffffffffffff"),
-        address!("0xffffffffffffffffffffffffffffffffffffffff"),
-        address!("0xffffffffffffffffffffffffffffffffffffffff"),
-    ];
+    /// Initial addresses of the method ID upgrade authority in the Bitcoin DA on Mainnet.
+    pub const MAINNET_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES: NonEmptySlice<Address> =
+        NonEmptySlice::new(&[
+            // TODO: Remove place holder addresses
+            address!("0xffffffffffffffffffffffffffffffffffffffff"),
+            address!("0xffffffffffffffffffffffffffffffffffffffff"),
+            address!("0xffffffffffffffffffffffffffffffffffffffff"),
+            address!("0xffffffffffffffffffffffffffffffffffffffff"),
+            address!("0xffffffffffffffffffffffffffffffffffffffff"),
+        ]);
 
     // TODO: Update with real addresses
-    /// Addresses of the method ID upgrade authority in the Bitcoin DA on Testnet.
-    /// 3 out of 5 signatures are required to upgrade method IDs.
-    pub const TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES: [Address;
-        SECURITY_COUNCIL_MEMBER_COUNT] = [
-        // TODO: Remove place holder addresses
-        address!("0xffffffffffffffffffffffffffffffffffffffff"),
-        address!("0xffffffffffffffffffffffffffffffffffffffff"),
-        address!("0xffffffffffffffffffffffffffffffffffffffff"),
-        address!("0xffffffffffffffffffffffffffffffffffffffff"),
-        address!("0xffffffffffffffffffffffffffffffffffffffff"),
-    ];
+    /// Initial addresses of the method ID upgrade authority in the Bitcoin DA on Testnet.
+    pub const TESTNET_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES: NonEmptySlice<Address> =
+        NonEmptySlice::new(&[
+            // TODO: Remove place holder addresses
+            address!("0xffffffffffffffffffffffffffffffffffffffff"),
+            address!("0xffffffffffffffffffffffffffffffffffffffff"),
+            address!("0xffffffffffffffffffffffffffffffffffffffff"),
+            address!("0xffffffffffffffffffffffffffffffffffffffff"),
+            address!("0xffffffffffffffffffffffffffffffffffffffff"),
+        ]);
 
     // TODO: Update with real addresses
-    /// Addresses of the method ID upgrade authority in the Bitcoin DA on Devnet.
-    /// 3 out of 5 signatures are required to upgrade method IDs.
-    pub const DEVNET_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES: [Address;
-        SECURITY_COUNCIL_MEMBER_COUNT] = [
-        // TODO: Remove place holder addresses
-        address!("0xffffffffffffffffffffffffffffffffffffffff"),
-        address!("0xffffffffffffffffffffffffffffffffffffffff"),
-        address!("0xffffffffffffffffffffffffffffffffffffffff"),
-        address!("0xffffffffffffffffffffffffffffffffffffffff"),
-        address!("0xffffffffffffffffffffffffffffffffffffffff"),
-    ];
+    /// Initial addresses of the method ID upgrade authority in the Bitcoin DA on Devnet.
+    pub const DEVNET_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES: NonEmptySlice<Address> =
+        NonEmptySlice::new(&[
+            // TODO: Remove place holder addresses
+            address!("0xffffffffffffffffffffffffffffffffffffffff"),
+            address!("0xffffffffffffffffffffffffffffffffffffffff"),
+            address!("0xffffffffffffffffffffffffffffffffffffffff"),
+            address!("0xffffffffffffffffffffffffffffffffffffffff"),
+            address!("0xffffffffffffffffffffffffffffffffffffffff"),
+        ]);
 
-    /// Addresses of the method ID upgrade authority in the Bitcoin DA on Nightly.
+    /// Initial addresses of the method ID upgrade authority in the Bitcoin DA on Nightly.
     /// These addresses are set at compile time via the `METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS` environment variable.
     /// If the variables are not set, they default to a predefined value.
-    /// 3 out of 5 signatures are required to upgrade method IDs.
-    pub const NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES: [Address;
-        SECURITY_COUNCIL_MEMBER_COUNT] = [
+    const NIGHTLY_ADDRESSES: [Address; 5] = [
         {
             let address_str = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_1") {
                 Some(k) => k,
@@ -447,17 +441,15 @@ pub mod bitcoinda {
             }
         },
     ];
+    /// Nightly addresses wrapped in NonEmptySlice.
+    pub const NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES: NonEmptySlice<Address> =
+        NonEmptySlice::new(&NIGHTLY_ADDRESSES);
 
-    /// Addresses of the method ID upgrade authority in the Bitcoin DA on Test Network with Forks.
-    /// These addresses are set at compile time via the `METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS` environment variable.
-    /// If the variables are not set, they default to a predefined value.
-    /// 3 out of 5 signatures are required to upgrade method IDs.
-    pub const TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES: [Address;
-        SECURITY_COUNCIL_MEMBER_COUNT] = [
+    /// Initial addresses of the method ID upgrade authority in the Bitcoin DA on Test Network with Forks.
+    const TEST_NETWORK_WITH_FORKS_ADDRESSES: [Address; 5] = [
         {
             let address_str = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_1") {
                 Some(k) => k,
-                // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077
                 None => "0xd51bd554b82aa486f56030bef90b70a27a4f6d20",
             };
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
@@ -470,7 +462,6 @@ pub mod bitcoinda {
         {
             let address_str = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_2") {
                 Some(k) => k,
-                // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9076
                 None => "0xfef24931c137d6c0df4f76116e0e58d281203360",
             };
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
@@ -483,7 +474,6 @@ pub mod bitcoinda {
         {
             let address_str = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_3") {
                 Some(k) => k,
-                // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9075
                 None => "0xbb3833932330eef589dd56e855f2ca1ac015d200",
             };
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
@@ -496,7 +486,6 @@ pub mod bitcoinda {
         {
             let address_str = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_4") {
                 Some(k) => k,
-                // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9074
                 None => "0xe976fdbc72670c34b7973ae3fa7d38478eade018",
             };
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
@@ -509,7 +498,6 @@ pub mod bitcoinda {
         {
             let address_str = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_5") {
                 Some(k) => k,
-                // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9073
                 None => "0x8632ebc44c4515c9b85fae29eae3fd3722fd35ea",
             };
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
@@ -520,6 +508,12 @@ pub mod bitcoinda {
             }
         },
     ];
+    /// Test network with forks addresses wrapped in NonEmptySlice.
+    pub const TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES:
+        NonEmptySlice<Address> = NonEmptySlice::new(&TEST_NETWORK_WITH_FORKS_ADDRESSES);
+
+    /// Initial security council threshold for all Bitcoin DA networks.
+    pub const INITIAL_SECURITY_COUNCIL_THRESHOLD: usize = 3;
 
     /// Domain name for the security council eip712 typed messages for citrea mainnet.
     pub const MAINNET_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME: &str =
@@ -557,10 +551,13 @@ pub trait InitialValueProvider<Das: DaSpec> {
     /// Returns the public key of the sequencer.
     fn sequencer_da_public_key(&self) -> [u8; 33];
 
-    /// Returns the public key of the method ID upgrade authority.
-    fn method_id_upgrade_authority_da_addresses(
+    /// Returns the initial addresses of the method ID upgrade authority.
+    fn initial_method_id_upgrade_authority_da_addresses(
         &self,
-    ) -> [alloy_primitives::Address; SECURITY_COUNCIL_MEMBER_COUNT];
+    ) -> NonEmptySlice<alloy_primitives::Address>;
+
+    /// Returns the initial security council signature threshold.
+    fn initial_security_council_threshold(&self) -> usize;
 
     /// Returns the EIP-712 domain name for security council messages.
     fn get_eip712_security_council_message_domain_name(&self) -> &str;
@@ -583,11 +580,16 @@ impl InitialValueProvider<MockDaSpec> for Network {
         mockda::BATCH_PROVER_DA_PUBLIC_KEY
     }
 
-    fn method_id_upgrade_authority_da_addresses(
+    fn initial_method_id_upgrade_authority_da_addresses(
         &self,
-    ) -> [alloy_primitives::Address; SECURITY_COUNCIL_MEMBER_COUNT] {
+    ) -> NonEmptySlice<alloy_primitives::Address> {
         assert_eq!(self, &Network::Nightly, "Only nightly allowed on mock da!");
-        mockda::METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES
+        mockda::METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES
+    }
+
+    fn initial_security_council_threshold(&self) -> usize {
+        assert_eq!(self, &Network::Nightly, "Only nightly allowed on mock da!");
+        mockda::INITIAL_SECURITY_COUNCIL_THRESHOLD
     }
 
     fn sequencer_da_public_key(&self) -> [u8; 33] {
@@ -637,18 +639,22 @@ impl InitialValueProvider<BitcoinSpec> for Network {
         }
     }
 
-    fn method_id_upgrade_authority_da_addresses(
+    fn initial_method_id_upgrade_authority_da_addresses(
         &self,
-    ) -> [alloy_primitives::Address; SECURITY_COUNCIL_MEMBER_COUNT] {
+    ) -> NonEmptySlice<alloy_primitives::Address> {
         match self {
-            Network::Mainnet => bitcoinda::MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
-            Network::Testnet => bitcoinda::TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
-            Network::Devnet => bitcoinda::DEVNET_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
-            Network::Nightly => bitcoinda::NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES,
+            Network::Mainnet => bitcoinda::MAINNET_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES,
+            Network::Testnet => bitcoinda::TESTNET_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES,
+            Network::Devnet => bitcoinda::DEVNET_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES,
+            Network::Nightly => bitcoinda::NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES,
             Network::TestNetworkWithForks => {
-                bitcoinda::TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES
+                bitcoinda::TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES
             }
         }
+    }
+
+    fn initial_security_council_threshold(&self) -> usize {
+        bitcoinda::INITIAL_SECURITY_COUNCIL_THRESHOLD
     }
 
     fn sequencer_da_public_key(&self) -> [u8; 33] {

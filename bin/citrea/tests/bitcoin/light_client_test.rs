@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, HashMap};
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use alloy_primitives::{U32, U64};
+use alloy_primitives::{Address, U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
@@ -23,7 +24,10 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
-use citrea_light_client_prover::circuit::{citrea_network_to_chain_id, BatchProofMethodIdUpdate};
+use citrea_light_client_prover::circuit::{
+    citrea_network_to_chain_id, AddSecurityCouncilMember, BatchProofMethodIdUpdate,
+    RemoveSecurityCouncilMember, UpdateSecurityCouncilThreshold,
+};
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::REVEAL_TX_PREFIX;
@@ -32,8 +36,9 @@ use reth_tasks::TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{
-    BatchProofMethodId, BatchProofMethodIdBody, DaTxRequest, DaVerifier, DataOnDa,
-    SequencerCommitment,
+    AddSecurityCouncilMemberV1Body, BatchProofMethodIdBody, DaTxRequest, DaVerifier, DataOnDa,
+    RemoveSecurityCouncilMemberV1Body, SecurityCouncilTx, SecurityCouncilTxType,
+    SequencerCommitment, UpdateSecurityCouncilThresholdV1Body,
 };
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::services::da::DaService;
@@ -677,16 +682,16 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
         let (_initial_addresses, signers) =
-            generate_initial_addresses_with_signers_from_pks(pk_bytes_arr);
+            generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
 
         let payload = BatchProofMethodIdUpdate::from(method_id_body.clone());
 
-        let signatures_with_index = create_valid_signatures(&signers, &payload);
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
 
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body,
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(method_id_body),
                     signatures_with_index,
                 }),
                 1.0,
@@ -905,15 +910,17 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
         let (_initial_addresses, signers) =
-            generate_initial_addresses_with_signers_from_pks(pk_bytes_arr);
+            generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
 
         let payload = BatchProofMethodIdUpdate::from(method_id_body.clone());
 
-        let signatures_with_index = create_valid_signatures(&signers, &payload);
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body.clone(),
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(
+                        method_id_body.clone(),
+                    ),
                     signatures_with_index,
                 }),
                 1.0,
@@ -946,15 +953,17 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
 
         let payload2 = BatchProofMethodIdUpdate::from(method_id_body2.clone());
 
-        let mut signatures_with_index = create_valid_signatures(&signers, &payload2);
+        let mut signatures_with_index = create_valid_signatures(&signers, &payload2, 3);
 
         // Corrupt one signature
         signatures_with_index[0].0[0] ^= 0xFF;
 
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body2.clone(),
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(
+                        method_id_body2.clone(),
+                    ),
                     signatures_with_index,
                 }),
                 1.0,
@@ -987,14 +996,16 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         };
         let payload3 = BatchProofMethodIdUpdate::from(method_id_body3.clone());
 
-        let mut signatures_with_index = create_valid_signatures(&signers, &payload3);
+        let mut signatures_with_index = create_valid_signatures(&signers, &payload3, 3);
 
         // Corrupt one signature
         signatures_with_index[0].1 = signatures_with_index[2].1;
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body3.clone(),
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(
+                        method_id_body3.clone(),
+                    ),
                     signatures_with_index,
                 }),
                 1.0,
@@ -1027,14 +1038,16 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
 
         let payload3 = BatchProofMethodIdUpdate::from(method_id_body3.clone());
 
-        let mut signatures_with_index = create_valid_signatures(&signers, &payload3);
+        let mut signatures_with_index = create_valid_signatures(&signers, &payload3, 3);
 
         // Corrupt one signature
         signatures_with_index[2].1 = 5; // out of bounds
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body3.clone(),
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(
+                        method_id_body3.clone(),
+                    ),
                     signatures_with_index,
                 }),
                 1.0,
@@ -1067,7 +1080,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
 
         let payload3 = BatchProofMethodIdUpdate::from(method_id_body3.clone());
 
-        let mut signatures_with_index = create_valid_signatures(&signers, &payload3);
+        let mut signatures_with_index = create_valid_signatures(&signers, &payload3, 3);
 
         // Swap pubkey indices of the first and last signature
         // This should be rejected as now signatures will point to wrong pubkeys
@@ -1077,8 +1090,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
 
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body3.clone(),
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(
+                        method_id_body3.clone(),
+                    ),
                     signatures_with_index,
                 }),
                 1.0,
@@ -1110,11 +1125,13 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         };
 
         let payload4 = BatchProofMethodIdUpdate::from(method_id_body4.clone());
-        let signatures_with_index = create_valid_signatures(&signers, &payload4);
+        let signatures_with_index = create_valid_signatures(&signers, &payload4, 3);
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body4.clone(),
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(
+                        method_id_body4.clone(),
+                    ),
                     signatures_with_index,
                 }),
                 1.0,
@@ -1146,14 +1163,16 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             chain_id: citrea_network_to_chain_id(Network::Nightly),
         };
         let payload5 = BatchProofMethodIdUpdate::from(method_id_body5.clone());
-        let mut signatures_with_index = create_valid_signatures(&signers, &payload5);
+        let mut signatures_with_index = create_valid_signatures(&signers, &payload5, 3);
         // Make indexes not in ascending order
         signatures_with_index.swap(0, 2);
 
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    body: method_id_body5.clone(),
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(
+                        method_id_body5.clone(),
+                    ),
                     signatures_with_index,
                 }),
                 1.0,
@@ -3711,4 +3730,497 @@ async fn proving_session_info_test() -> Result<()> {
         .set_citrea_path(get_citrea_path())
         .run()
         .await
+}
+
+struct SecurityCouncilMemberManagementTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for SecurityCouncilMemberManagementTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_sequencer: true,
+            with_batch_prover: true,
+            with_light_client_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 2,
+            da_update_interval_ms: 500,
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            enable_recovery: false,
+            ..Default::default()
+        }
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            enable_recovery: false,
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(195)
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+
+        let bitcoin_da_service = spawn_bitcoin_da_service(
+            &self.task_manager.executor(),
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::Other(
+                BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS[0].to_string(),
+            ),
+            REVEAL_TX_PREFIX.to_vec(),
+            None,
+            None,
+        )
+        .await;
+
+        // Bootstrap: create L2 blocks, sequencer commitments, and batch proofs
+        // so the light client prover starts processing L1 blocks.
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        sequencer
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let commitment_l1_height = da.get_finalized_height(None).await?;
+        batch_prover
+            .wait_for_l1_height(commitment_l1_height, Some(TEN_MINS))
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let batch_proof_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
+            .await?;
+
+        // Verify initial state: 5 members, threshold 3
+        let addresses = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_addresses()
+            .await?;
+        assert_eq!(addresses.len(), 5, "Initial council should have 5 members");
+
+        let threshold = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_threshold()
+            .await?;
+        assert_eq!(threshold, 3, "Initial threshold should be 3");
+
+        let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+            .map(|s| hex::decode(s).unwrap().try_into().unwrap());
+        let (_initial_addresses, signers) =
+            generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+        // --- CASE 0: Valid add member ---
+        // Add a new member with threshold 3. After adding: 6 members, max threshold = 6-2=4, so 3 is valid.
+        let new_member_1 = [0x11u8; 20];
+        let add_body_1 = AddSecurityCouncilMemberV1Body {
+            new_member: new_member_1,
+            new_threshold: 3,
+        };
+        let payload = AddSecurityCouncilMember::from(add_body_1.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::AddSecurityCouncilMemberV1(add_body_1),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(l1_height, Some(TEN_MINS))
+            .await?;
+
+        let addresses = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_addresses()
+            .await?;
+        assert_eq!(
+            addresses.len(),
+            6,
+            "CASE 1: Should have 6 members after valid add"
+        );
+
+        let threshold = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_threshold()
+            .await?;
+        assert_eq!(threshold, 3, "CASE 1: Threshold should be 3");
+
+        // --- CASE 1: Invalid add member (should be rejected) ---
+        // Add a new member with threshold 6. After adding: 7 members, max threshold = 7-2=5, so 6 is invalid.
+        let new_member_2 = [0x14u8; 20];
+        let add_body_1 = AddSecurityCouncilMemberV1Body {
+            new_member: new_member_2,
+            new_threshold: 6,
+        };
+        let payload = AddSecurityCouncilMember::from(add_body_1.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::AddSecurityCouncilMemberV1(add_body_1),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(l1_height, Some(TEN_MINS))
+            .await?;
+
+        let addresses = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_addresses()
+            .await?;
+        assert_eq!(
+            addresses.len(),
+            6,
+            "CASE 1: Should still have 6 members after invalid add"
+        );
+
+        let threshold = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_threshold()
+            .await?;
+        assert_eq!(threshold, 3, "CASE 1: Threshold should still be 3");
+
+        // --- CASE 2: Add member with threshold just okay with the new member ---
+        // Member count goes up to 7, threshold goes up to 5
+        // Currently 6 members + 1, max threshold = 7-2=5. Requesting threshold=5 is valid.
+        let new_member_2 = [0x22u8; 20];
+        let add_body_2 = AddSecurityCouncilMemberV1Body {
+            new_member: new_member_2,
+            new_threshold: 5,
+        };
+        let payload = AddSecurityCouncilMember::from(add_body_2.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::AddSecurityCouncilMemberV1(add_body_2),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(l1_height, Some(TEN_MINS))
+            .await?;
+
+        let threshold = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_threshold()
+            .await?;
+        assert_eq!(threshold, 5, "CASE2: should have 5 threshold");
+
+        let addresses = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_addresses()
+            .await?;
+        assert_eq!(addresses.len(), 7, "CASE 2: Should have 7 members");
+
+        // --- CASE 3: Update threshold below MIN_THRESHOLD=2 (rejected) ---
+        let update_body_1 = UpdateSecurityCouncilThresholdV1Body { new_threshold: 1 };
+        let payload = UpdateSecurityCouncilThreshold::from(update_body_1.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 5);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::UpdateSecurityCouncilThresholdV1(update_body_1),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(l1_height, Some(TEN_MINS))
+            .await?;
+
+        let threshold = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_threshold()
+            .await?;
+        assert_eq!(
+            threshold, 5,
+            "CASE 3: Threshold should still be 5 (below min rejected)"
+        );
+
+        // --- CASE 4: Update threshold exceeds proximity limit (rejected) ---
+        // 7 members, max threshold = 7-2=5. Requesting threshold=6 is invalid.
+        let update_body_2 = UpdateSecurityCouncilThresholdV1Body { new_threshold: 6 };
+        let payload = UpdateSecurityCouncilThreshold::from(update_body_2.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 5);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::UpdateSecurityCouncilThresholdV1(update_body_2),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(l1_height, Some(TEN_MINS))
+            .await?;
+
+        let threshold = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_threshold()
+            .await?;
+        assert_eq!(
+            threshold, 5,
+            "CASE 4: Threshold should still be 5 (exceeds proximity rejected)"
+        );
+
+        // --- CASE 5: Valid update threshold ---
+        // 7 members, max threshold = 7-2=5. Requesting threshold=4 is valid.
+        let update_body_3 = UpdateSecurityCouncilThresholdV1Body { new_threshold: 4 };
+        let payload = UpdateSecurityCouncilThreshold::from(update_body_3.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 5);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::UpdateSecurityCouncilThresholdV1(update_body_3),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(l1_height, Some(TEN_MINS))
+            .await?;
+
+        let threshold = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_threshold()
+            .await?;
+        assert_eq!(threshold, 4, "CASE 5: Threshold should be updated to 4");
+
+        // --- CASE 6: Remove member with valid new threshold ---
+        // Currently 7 members, threshold 4. Remove the newly added member.
+        // After removal: 6 members, max threshold = 6-2=4. New threshold must be <= 4.
+        let remove_body_1 = RemoveSecurityCouncilMemberV1Body {
+            member_to_be_removed: new_member_1,
+            new_threshold: 4,
+        };
+        let payload = RemoveSecurityCouncilMember::from(remove_body_1.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 4);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::RemoveSecurityCouncilMemberV1(remove_body_1),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(l1_height, Some(TEN_MINS))
+            .await?;
+
+        let addresses = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_addresses()
+            .await?;
+        assert_eq!(
+            addresses.len(),
+            6,
+            "CASE 6: Should have 6 members after valid remove"
+        );
+
+        let threshold = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_threshold()
+            .await?;
+        assert_eq!(threshold, 4, "CASE 6: Threshold should be 4 after remove");
+
+        // --- CASE 7: Remove member would go below MIN_NUMBER_OF_MEMBERS (rejected) ---
+        // Currently 6 members. Remove one to get to 5 first (valid, 4 is the min).
+        let member_to_remove = _initial_addresses[4];
+        let remove_body_2 = RemoveSecurityCouncilMemberV1Body {
+            member_to_be_removed: member_to_remove.0 .0,
+            new_threshold: 2,
+        };
+        let payload = RemoveSecurityCouncilMember::from(remove_body_2.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 4);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::RemoveSecurityCouncilMemberV1(remove_body_2),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(l1_height, Some(TEN_MINS))
+            .await?;
+
+        let addresses = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_addresses()
+            .await?;
+        assert_eq!(
+            addresses.len(),
+            5,
+            "CASE 7 setup: Should have 5 members after valid remove"
+        );
+
+        // Now remove another member (would leave 4, min=4). Should be valid.
+        let member_to_remove_2 = _initial_addresses[3];
+        let remove_body_3 = RemoveSecurityCouncilMemberV1Body {
+            member_to_be_removed: member_to_remove_2.0 .0,
+            new_threshold: 2,
+        };
+        let payload = RemoveSecurityCouncilMember::from(remove_body_3.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 2);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::RemoveSecurityCouncilMemberV1(remove_body_3),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(l1_height, Some(TEN_MINS))
+            .await?;
+
+        let addresses = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_addresses()
+            .await?;
+        assert_eq!(
+            addresses.len(),
+            4,
+            "CASE 7: Should still have 4 members (below min rejected)"
+        );
+
+        let addresses = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_addresses()
+            .await?;
+
+        // Now try to remove another member (would leave 3, below MIN=4). Should be rejected.
+        let member_to_remove_2 = Address::from_str(addresses[3].as_str()).unwrap();
+        let remove_body_3 = RemoveSecurityCouncilMemberV1Body {
+            member_to_be_removed: member_to_remove_2.0 .0,
+            new_threshold: 2,
+        };
+        let payload = RemoveSecurityCouncilMember::from(remove_body_3.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 2);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::RemoveSecurityCouncilMemberV1(remove_body_3),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(l1_height, Some(TEN_MINS))
+            .await?;
+
+        let addresses = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_addresses()
+            .await?;
+        assert_eq!(
+            addresses.len(),
+            4,
+            "CASE 7: Should still have 4 members (below min rejected)"
+        );
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_security_council_member_management_limits() -> Result<()> {
+    TestCaseRunner::new(SecurityCouncilMemberManagementTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
 }

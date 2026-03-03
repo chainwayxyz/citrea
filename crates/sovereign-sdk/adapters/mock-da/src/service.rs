@@ -442,9 +442,9 @@ impl DaService for MockDaService {
                 let req = DataOnDa::SequencerCommitment(seq_comm);
                 borsh::to_vec(&req).unwrap()
             }
-            DaTxRequest::BatchProofMethodId(method_id) => {
-                tracing::debug!("Adding a batch proof method id tx");
-                let req = DataOnDa::BatchProofMethodId(method_id);
+            DaTxRequest::SecurityCouncilTx(sc_tx) => {
+                tracing::debug!("Adding a security council tx");
+                let req = DataOnDa::SecurityCouncilTx(sc_tx);
                 borsh::to_vec(&req).unwrap()
             }
         };

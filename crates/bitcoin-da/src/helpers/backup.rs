@@ -14,7 +14,7 @@ fn transaction_kind_to_backup_name(kind: &TransactionKind) -> &str {
     match kind {
         TransactionKind::Complete => "complete_zk_proof",
         TransactionKind::SequencerCommitment => "sequencer_commitment",
-        TransactionKind::BatchProofMethodId => "method_id_update",
+        TransactionKind::SecurityCouncilTx => "method_id_update",
         TransactionKind::Chunks => "chunks",
         TransactionKind::Aggregate => "aggregate",
         TransactionKind::Unknown(_) => "unknown",
@@ -29,7 +29,7 @@ pub(crate) fn backup_txs_to_file(
     if let Some(tx) = txs.first() {
         match &tx.kind {
             TransactionKind::Complete
-            | TransactionKind::BatchProofMethodId
+            | TransactionKind::SecurityCouncilTx
             | TransactionKind::SequencerCommitment => {
                 if txs.len() != 1 {
                     return Err(BitcoinServiceError::TransactionBackupError(format!(

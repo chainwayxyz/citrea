@@ -4,7 +4,8 @@
 //! The light client circuit processes DA blocks, validates batch proofs, and generates proofs
 //! that verify L2 state transitions and updates to the light client state.
 use accessors::{
-    BatchProofMethodIdAccessor, BlockHashAccessor, ChunkAccessor, SequencerCommitmentAccessor,
+    BatchProofMethodIdAccessor, BlockHashAccessor, ChunkAccessor, SecurityCouncilAddressAccessor,
+    SecurityCouncilThresholdAccessor, SequencerCommitmentAccessor,
     VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
 use alloy_primitives::{Address, B256};
@@ -16,7 +17,13 @@ use serde::Serialize;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::{BlobReaderTrait, DaSpec, WorkingSet, Zkvm};
 use sov_modules_core::{ReadWriteLog, Storage};
-use sov_rollup_interface::da::{BatchProofMethodIdBody, DaVerifier, DataOnDa};
+use sov_rollup_interface::da::{
+    AddSecurityCouncilMemberV1Body, BatchProofMethodIdBody, DaVerifier, DataOnDa,
+    RemoveSecurityCouncilMemberV1Body, ReplaceSecurityCouncilMemberV1Body, SecurityCouncilTx,
+    SecurityCouncilTxType, UpdateSecurityCouncilThresholdV1Body,
+    MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL, MAX_THRESHOLD_PROXIMITY,
+    MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL, MIN_THRESHOLD,
+};
 use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
@@ -26,13 +33,7 @@ use sov_rollup_interface::zk::light_client_proof::output::{
 use sov_rollup_interface::zk::ZkvmGuest;
 use sov_rollup_interface::Network;
 
-use crate::circuit::method_id_verifier::verify_method_id_security_council;
-
-/// Size of a compressed public key in bytes.
-pub const SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE: usize = 33;
-
-/// Total number of security council members.
-pub const SECURITY_COUNCIL_MEMBER_COUNT: usize = 5;
+use crate::circuit::method_id_verifier::verify_security_council_signatures;
 
 /// Accessor (helpers) that are used inside the light client proof circuit.
 /// To access certain information that was saved to its state at one point.
@@ -369,7 +370,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// * `initial_batch_proof_method_ids` - The initial batch proof method IDs that are used to initialize the batch proof method IDs in the JMT state if this is the first light client proof output.
     /// * `batch_prover_da_public_key` - The public key of the batch prover to check the sender of the batch proof transactions.
     /// * `sequencer_da_public_key` - The public key of the sequencer to check the sender of the sequencer commitment transactions.
-    /// * `method_id_upgrade_authority_da_addresses` - The addresses of the method ID upgrade authority to be verified against the signatures by recovering pubkeys.
+    /// * `initial_security_council_da_addresses` - The initial addresses of the security council, used to initialize the LCP state on first run.
     ///
     /// # Logic
     /// - The block hash of the header is inserted into the JMT.
@@ -396,7 +397,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
-        method_id_upgrade_authority_da_addresses: &[Address; SECURITY_COUNCIL_MEMBER_COUNT],
+        initial_security_council_da_addresses: &[Address],
+        initial_security_council_threshold: usize,
         security_council_messages_domain: String,
     ) -> RunL1BlockResult<S> {
         let mut working_set =
@@ -420,10 +422,18 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 },
             );
 
-        // If this is the first lcp initialize the batch proof method ids
+        // If this is the first lcp initialize the batch proof method ids and security council addresses
         if previous_light_client_proof_output.is_none() {
             BatchProofMethodIdAccessor::<S>::initialize(
                 initial_batch_proof_method_ids,
+                &mut working_set,
+            );
+            SecurityCouncilAddressAccessor::<S>::initialize(
+                initial_security_council_da_addresses,
+                &mut working_set,
+            );
+            SecurityCouncilThresholdAccessor::<S>::initialize(
+                initial_security_council_threshold,
                 &mut working_set,
             );
         }
@@ -529,43 +539,12 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         }
                     }
                 }
-                DataOnDa::BatchProofMethodId(batch_proof_method_id) => {
-                    log!("Found batch proof method id");
-                    let batch_proof_method_ids =
-                        BatchProofMethodIdAccessor::<S>::get(&mut working_set).unwrap();
-
-                    let last_activation_height = batch_proof_method_ids
-                        .last()
-                        .expect("Should be at least one")
-                        .0;
-
-                    if batch_proof_method_id.body.activation_l2_height <= last_activation_height {
-                        log!("Batch proof method id activation height is not greater than the last one");
-                        continue;
-                    }
-
-                    let circuit_chain_id = citrea_network_to_chain_id(network);
-                    if circuit_chain_id != batch_proof_method_id.body.chain_id {
-                        log!("Method ID upgrade transactions chain ID does not match circuit chain ID");
-                        continue;
-                    }
-
-                    // Verify the signatures only if the activation height is greater than the last one
-                    // This prevents replay attacks of old method IDs
-                    if !verify_method_id_security_council(
-                        *method_id_upgrade_authority_da_addresses,
-                        batch_proof_method_id.body.clone(),
-                        batch_proof_method_id.signatures_with_index(),
-                        security_council_messages_domain.clone(),
-                        circuit_chain_id,
-                    ) {
-                        log!("Method ID security council verification failed");
-                        continue;
-                    }
-
-                    BatchProofMethodIdAccessor::<S>::insert(
-                        batch_proof_method_id.body.activation_l2_height,
-                        batch_proof_method_id.body.method_id,
+                DataOnDa::SecurityCouncilTx(sc_tx) => {
+                    log!("Found security council transaction");
+                    self.process_security_council_tx(
+                        sc_tx,
+                        network,
+                        &security_council_messages_domain,
                         &mut working_set,
                     );
                 }
@@ -644,6 +623,225 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         }
     }
 
+    /// Checks if a threshold value is valid for a given member count.
+    ///
+    /// A threshold is valid if:
+    /// - It is at least `MIN_THRESHOLD`
+    /// - It is at most `member_count - MAX_THRESHOLD_PROXIMITY`
+    fn is_valid_threshold(threshold: u32, member_count: usize) -> bool {
+        let t = threshold as usize;
+        t >= MIN_THRESHOLD && t <= member_count.saturating_sub(MAX_THRESHOLD_PROXIMITY)
+    }
+
+    /// Processes a security council transaction by dispatching on its type.
+    ///
+    /// Reads the current security council addresses and threshold from state,
+    /// verifies signatures, validates the operation, and applies state changes.
+    fn process_security_council_tx(
+        &self,
+        sc_tx: SecurityCouncilTx,
+        network: Network,
+        security_council_messages_domain: &str,
+        working_set: &mut WorkingSet<S>,
+    ) {
+        let upgrade_authority_addresses = SecurityCouncilAddressAccessor::<S>::get(working_set)
+            .expect("Upgrade authority addresses must exist");
+        let upgrade_authority_threshold = SecurityCouncilThresholdAccessor::<S>::get(working_set)
+            .expect("Security council threshold must exist");
+        let circuit_chain_id = citrea_network_to_chain_id(network);
+
+        match sc_tx.tx_type {
+            SecurityCouncilTxType::BatchProofMethodIdUpdateV1(body) => {
+                log!("Processing BatchProofMethodIdUpdateV1");
+                let batch_proof_method_ids =
+                    BatchProofMethodIdAccessor::<S>::get(working_set).unwrap();
+
+                let last_activation_height = batch_proof_method_ids
+                    .last()
+                    .expect("Should be at least one")
+                    .0;
+
+                if body.activation_l2_height <= last_activation_height {
+                    log!(
+                        "Batch proof method id activation height is not greater than the last one"
+                    );
+                    return;
+                }
+
+                if circuit_chain_id != body.chain_id {
+                    log!("Method ID upgrade transactions chain ID does not match circuit chain ID");
+                    return;
+                }
+
+                if !verify_security_council_signatures(
+                    &upgrade_authority_addresses,
+                    BatchProofMethodIdUpdate::from(body.clone()),
+                    &sc_tx.signatures_with_index,
+                    upgrade_authority_threshold,
+                    security_council_messages_domain.to_string(),
+                    circuit_chain_id,
+                ) {
+                    log!("Method ID security council verification failed");
+                    return;
+                }
+
+                BatchProofMethodIdAccessor::<S>::insert(
+                    body.activation_l2_height,
+                    body.method_id,
+                    working_set,
+                );
+            }
+            SecurityCouncilTxType::AddSecurityCouncilMemberV1(body) => {
+                log!("Processing AddSecurityCouncilMemberV1");
+                let new_member_address = Address::from_slice(&body.new_member);
+
+                if !verify_security_council_signatures(
+                    &upgrade_authority_addresses,
+                    AddSecurityCouncilMember::from(body.clone()),
+                    &sc_tx.signatures_with_index,
+                    upgrade_authority_threshold,
+                    security_council_messages_domain.to_string(),
+                    circuit_chain_id,
+                ) {
+                    log!("Add member security council verification failed");
+                    return;
+                }
+
+                if upgrade_authority_addresses.contains(&new_member_address) {
+                    log!("Member already exists in security council");
+                    return;
+                }
+
+                let new_count = upgrade_authority_addresses.len() + 1;
+                if new_count > MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL {
+                    log!("Adding member would exceed max security council size: new_count={}, max={}", new_count, MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL);
+                    return;
+                }
+
+                if !Self::is_valid_threshold(body.new_threshold, new_count) {
+                    log!(
+                        "Invalid new threshold for add member: threshold={}, new_count={}",
+                        body.new_threshold,
+                        new_count
+                    );
+                    return;
+                }
+
+                let mut new_addresses = upgrade_authority_addresses.clone();
+                new_addresses.push(new_member_address);
+                SecurityCouncilAddressAccessor::<S>::set(&new_addresses, working_set);
+                SecurityCouncilThresholdAccessor::<S>::set(
+                    body.new_threshold as usize,
+                    working_set,
+                );
+            }
+            SecurityCouncilTxType::RemoveSecurityCouncilMemberV1(body) => {
+                log!("Processing RemoveSecurityCouncilMemberV1");
+                let member_address = Address::from_slice(&body.member_to_be_removed);
+
+                if !verify_security_council_signatures(
+                    &upgrade_authority_addresses,
+                    RemoveSecurityCouncilMember::from(body.clone()),
+                    &sc_tx.signatures_with_index,
+                    upgrade_authority_threshold,
+                    security_council_messages_domain.to_string(),
+                    circuit_chain_id,
+                ) {
+                    log!("Remove member security council verification failed");
+                    return;
+                }
+
+                if !upgrade_authority_addresses.contains(&member_address) {
+                    log!("Member does not exist in security council");
+                    return;
+                }
+
+                let remaining_count = upgrade_authority_addresses.len() - 1;
+                if remaining_count < MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL {
+                    log!("Removing member would go below min security council size: remaining_count={}, min={}", remaining_count, MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL);
+                    return;
+                }
+
+                if !Self::is_valid_threshold(body.new_threshold, remaining_count) {
+                    log!(
+                        "Invalid new threshold for remove member: threshold={}, remaining_count={}",
+                        body.new_threshold,
+                        remaining_count
+                    );
+                    return;
+                }
+
+                SecurityCouncilAddressAccessor::<S>::remove(member_address, working_set);
+                SecurityCouncilThresholdAccessor::<S>::set(
+                    body.new_threshold as usize,
+                    working_set,
+                );
+            }
+            SecurityCouncilTxType::UpdateSecurityCouncilThresholdV1(body) => {
+                log!("Processing UpdateSecurityCouncilThresholdV1");
+
+                if !verify_security_council_signatures(
+                    &upgrade_authority_addresses,
+                    UpdateSecurityCouncilThreshold::from(body.clone()),
+                    &sc_tx.signatures_with_index,
+                    upgrade_authority_threshold,
+                    security_council_messages_domain.to_string(),
+                    circuit_chain_id,
+                ) {
+                    log!("Update threshold security council verification failed");
+                    return;
+                }
+
+                let member_count = upgrade_authority_addresses.len();
+                if !Self::is_valid_threshold(body.new_threshold, member_count) {
+                    log!(
+                        "Invalid new threshold: threshold={}, member_count={}",
+                        body.new_threshold,
+                        member_count
+                    );
+                    return;
+                }
+
+                SecurityCouncilThresholdAccessor::<S>::set(
+                    body.new_threshold as usize,
+                    working_set,
+                );
+            }
+            SecurityCouncilTxType::ReplaceSecurityCouncilMemberV1(body) => {
+                log!("Processing ReplaceSecurityCouncilMemberV1");
+                let old_address = Address::from_slice(&body.to_be_replaced);
+                let new_address = Address::from_slice(&body.new_member);
+
+                if !verify_security_council_signatures(
+                    &upgrade_authority_addresses,
+                    ReplaceSecurityCouncilMember::from(body.clone()),
+                    &sc_tx.signatures_with_index,
+                    upgrade_authority_threshold,
+                    security_council_messages_domain.to_string(),
+                    circuit_chain_id,
+                ) {
+                    log!("Replace member security council verification failed");
+                    return;
+                }
+
+                if !upgrade_authority_addresses.contains(&old_address) {
+                    log!("Member to be replaced does not exist in security council");
+                    return;
+                }
+                if upgrade_authority_addresses.contains(&new_address) {
+                    log!("New member already exists in security council");
+                    return;
+                }
+
+                let new_addresses: Vec<Address> = upgrade_authority_addresses
+                    .iter()
+                    .map(|a| if *a == old_address { new_address } else { *a })
+                    .collect();
+                SecurityCouncilAddressAccessor::<S>::set(&new_addresses, working_set);
+            }
+        }
+    }
+
     /// Called by the guest to run the light client circuit.
     ///
     /// # Arguments
@@ -655,7 +853,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// * `initial_batch_proof_method_ids` - To initialize the batch proof method IDs in the JMT state if this is the first light client proof
     /// * `batch_prover_da_public_key` - The public key of the batch prover
     /// * `sequencer_da_public_key` - The public key of the sequencer
-    /// * `method_id_upgrade_authority_da_public_key` - The public key of the method ID upgrade authority
+    /// * `initial_security_council_da_addresses` - The initial addresses of the security council, used to initialize the LCP state on first run.
     ///
     /// # Logic
     /// 1. Verifies the previous light client proof and extracts its output.
@@ -681,7 +879,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         batch_prover_da_public_key: &[u8],
         sequencer_da_public_key: &[u8],
-        method_id_upgrade_authority_da_addresses: &[Address; SECURITY_COUNCIL_MEMBER_COUNT],
+        initial_security_council_da_addresses: &[Address],
+        initial_security_council_threshold: usize,
         security_council_messages_domain: String,
     ) -> Result<LightClientCircuitOutput, LightClientVerificationError<DaV>>
     where
@@ -740,7 +939,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             initial_batch_proof_method_ids,
             batch_prover_da_public_key,
             sequencer_da_public_key,
-            method_id_upgrade_authority_da_addresses,
+            initial_security_council_da_addresses,
+            initial_security_council_threshold,
             security_council_messages_domain,
         );
 
@@ -801,6 +1001,72 @@ impl From<BatchProofMethodIdBody> for BatchProofMethodIdUpdate {
                 convert_u32_8_to_u8_32(batch_proof_method_id_body.method_id).as_slice(),
             ),
             chainId: batch_proof_method_id_body.chain_id,
+        }
+    }
+}
+
+sol! {
+    #[derive(Debug, Serialize)]
+    struct AddSecurityCouncilMember {
+        address newMember;
+        uint32 newThreshold;
+    }
+}
+
+impl From<AddSecurityCouncilMemberV1Body> for AddSecurityCouncilMember {
+    fn from(body: AddSecurityCouncilMemberV1Body) -> Self {
+        AddSecurityCouncilMember {
+            newMember: Address::from_slice(&body.new_member),
+            newThreshold: body.new_threshold,
+        }
+    }
+}
+
+sol! {
+    #[derive(Debug, Serialize)]
+    struct RemoveSecurityCouncilMember {
+        address memberToBeRemoved;
+        uint32 newThreshold;
+    }
+}
+
+impl From<RemoveSecurityCouncilMemberV1Body> for RemoveSecurityCouncilMember {
+    fn from(body: RemoveSecurityCouncilMemberV1Body) -> Self {
+        RemoveSecurityCouncilMember {
+            memberToBeRemoved: Address::from_slice(&body.member_to_be_removed),
+            newThreshold: body.new_threshold,
+        }
+    }
+}
+
+sol! {
+    #[derive(Debug, Serialize)]
+    struct UpdateSecurityCouncilThreshold {
+        uint32 newThreshold;
+    }
+}
+
+impl From<UpdateSecurityCouncilThresholdV1Body> for UpdateSecurityCouncilThreshold {
+    fn from(body: UpdateSecurityCouncilThresholdV1Body) -> Self {
+        UpdateSecurityCouncilThreshold {
+            newThreshold: body.new_threshold,
+        }
+    }
+}
+
+sol! {
+    #[derive(Debug, Serialize)]
+    struct ReplaceSecurityCouncilMember {
+        address toBeReplaced;
+        address newMember;
+    }
+}
+
+impl From<ReplaceSecurityCouncilMemberV1Body> for ReplaceSecurityCouncilMember {
+    fn from(body: ReplaceSecurityCouncilMemberV1Body) -> Self {
+        ReplaceSecurityCouncilMember {
+            toBeReplaced: Address::from_slice(&body.to_be_replaced),
+            newMember: Address::from_slice(&body.new_member),
         }
     }
 }

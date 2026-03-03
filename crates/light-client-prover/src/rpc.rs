@@ -14,7 +14,9 @@ use sov_modules_api::{Spec, WorkingSet};
 use sov_rollup_interface::rpc::{BatchProofMethodIdRpcResponse, LightClientProofResponse};
 use sov_state::ProverStorage;
 
-use crate::circuit::accessors::BatchProofMethodIdAccessor;
+use crate::circuit::accessors::{
+    BatchProofMethodIdAccessor, SecurityCouncilAddressAccessor, SecurityCouncilThresholdAccessor,
+};
 
 /// Context containing shared data needed for RPC method implementations
 pub struct RpcContext<DB>
@@ -85,6 +87,14 @@ pub trait LightClientProverRpc {
     /// Gets the current method ids saved light client provers jmt state
     #[method(name = "getBatchProofMethodIds")]
     async fn get_batch_proof_method_ids(&self) -> RpcResult<Vec<BatchProofMethodIdRpcResponse>>;
+
+    /// Gets the current security council member addresses
+    #[method(name = "getSecurityCouncilAddresses")]
+    async fn get_security_council_addresses(&self) -> RpcResult<Vec<String>>;
+
+    /// Gets the current security council signature threshold
+    #[method(name = "getSecurityCouncilThreshold")]
+    async fn get_security_council_threshold(&self) -> RpcResult<u64>;
 }
 
 /// Server implementation of the light client prover RPC interface
@@ -156,5 +166,26 @@ where
             .collect::<Vec<_>>();
 
         Ok(method_ids)
+    }
+
+    async fn get_security_council_addresses(&self) -> RpcResult<Vec<String>> {
+        let mut working_set = WorkingSet::new(self.context.storage.clone());
+
+        let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|a| format!("{a}"))
+            .collect::<Vec<_>>();
+
+        Ok(addresses)
+    }
+
+    async fn get_security_council_threshold(&self) -> RpcResult<u64> {
+        let mut working_set = WorkingSet::new(self.context.storage.clone());
+
+        let threshold = SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set)
+            .unwrap_or(0) as u64;
+
+        Ok(threshold)
     }
 }

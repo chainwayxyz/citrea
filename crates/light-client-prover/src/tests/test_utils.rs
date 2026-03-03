@@ -14,8 +14,10 @@ use sov_modules_api::{WorkingSet, Zkvm};
 use sov_modules_core::Storage;
 use sov_prover_storage_manager::{Config, ProverStorage, ProverStorageManager};
 use sov_rollup_interface::da::{
-    BatchProofMethodId, BatchProofMethodIdBody, BlobReaderTrait, DaVerifier, DataOnDa,
-    SequencerCommitment, SECURITY_COUNCIL_SIGNATURE_SIZE, SECURITY_COUNCIL_SIGNATURE_THRESHOLD,
+    AddSecurityCouncilMemberV1Body, BatchProofMethodIdBody, BlobReaderTrait, DaVerifier, DataOnDa,
+    RemoveSecurityCouncilMemberV1Body, ReplaceSecurityCouncilMemberV1Body, SecurityCouncilTx,
+    SecurityCouncilTxType, SequencerCommitment, UpdateSecurityCouncilThresholdV1Body,
+    SECURITY_COUNCIL_SIGNATURE_SIZE,
 };
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
@@ -24,10 +26,11 @@ use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutp
 use sov_rollup_interface::Network;
 
 use crate::circuit::accessors::ChunkAccessor;
-use crate::circuit::initial_values::{bitcoinda, InitialValueProvider};
+use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::{
-    citrea_network_to_chain_id, BatchProofMethodIdUpdate, LightClientProofCircuit,
-    SECURITY_COUNCIL_MEMBER_COUNT,
+    citrea_network_to_chain_id, AddSecurityCouncilMember, BatchProofMethodIdUpdate,
+    LightClientProofCircuit, RemoveSecurityCouncilMember, ReplaceSecurityCouncilMember,
+    UpdateSecurityCouncilThreshold,
 };
 
 /// Test private keys used for generating signatures in tests
@@ -209,76 +212,77 @@ pub(crate) fn create_prev_lcp_serialized(
     mock_proof.encode_to_vec()
 }
 
-/// Converts a vector of signatures in Vec<u8> format to an array of signatures in [u8; 64] format
+/// Converts a vector of signatures in Vec<u8> format to a vector of signatures in [u8; 65] format
 pub(crate) fn from_vec_to_sigs(
     vec: Vec<(Vec<u8>, u8)>,
-) -> [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
-    let mut sigs = Vec::new();
-    for (v, i) in vec.into_iter() {
-        sigs.push((v.try_into().unwrap(), i));
-    }
-    sigs.try_into().unwrap()
+) -> Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)> {
+    vec.into_iter()
+        .map(|(v, i)| (v.try_into().unwrap(), i))
+        .collect()
 }
 
-/// Generates 5 valid keypairs and returns the public keys and signers from the given private keys
+/// Generates valid keypairs and returns the addresses and signers from the given private keys
 pub(crate) fn generate_initial_addresses_with_signers_from_pks(
-    private_keys: [[u8; 32]; 5],
-) -> (
-    [Address; SECURITY_COUNCIL_MEMBER_COUNT],
-    Vec<PrivateKeySigner>,
-) {
-    let mut initial_da_addresses = [Address::random(); SECURITY_COUNCIL_MEMBER_COUNT];
+    private_keys: &[[u8; 32]],
+) -> (Vec<Address>, Vec<PrivateKeySigner>) {
+    let mut initial_da_addresses = Vec::new();
     let mut signers = Vec::new();
 
-    // Generate 5 valid keypairs and signatures
-    for (i, address) in initial_da_addresses.iter_mut().enumerate() {
-        let signer = PrivateKeySigner::from_bytes(&private_keys[i].into()).unwrap();
+    for pk in private_keys {
+        let signer = PrivateKeySigner::from_bytes(&(*pk).into()).unwrap();
         let verifying_key = signer.credential().verifying_key();
         let ep = verifying_key.to_encoded_point(false); // uncompressed: 0x04 + X(32) + Y(32)
         let bytes = ep.as_bytes();
-        *address = Address::from_slice(&keccak256(&bytes[1..])[12..]);
+        initial_da_addresses.push(Address::from_slice(&keccak256(&bytes[1..])[12..]));
         signers.push(signer);
     }
 
     (initial_da_addresses, signers)
 }
 
-/// Generates 5 valid keypairs and returns the public keys and signers
-pub(crate) fn generate_initial_addresses_with_signers() -> (
-    [Address; SECURITY_COUNCIL_MEMBER_COUNT],
-    Vec<PrivateKeySigner>,
-) {
-    let mut initial_da_addresses = [Address::random(); SECURITY_COUNCIL_MEMBER_COUNT];
+/// Generates 5 valid keypairs and returns the addresses and signers
+pub(crate) fn generate_initial_addresses_with_signers() -> (Vec<Address>, Vec<PrivateKeySigner>) {
+    let mut initial_da_addresses = Vec::new();
     let mut signers = Vec::new();
 
-    // Generate 5 valid keypairs and signatures
-    for (i, address) in initial_da_addresses.iter_mut().enumerate() {
+    for i in 0..5 {
         let secret_key = [i as u8 + 1; 32];
         let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
         let verifying_key = signer.credential().verifying_key();
         let ep = verifying_key.to_encoded_point(false); // uncompressed: 0x04 + X(32) + Y(32)
         let bytes = ep.as_bytes();
-        *address = Address::from_slice(&keccak256(&bytes[1..])[12..]);
+        initial_da_addresses.push(Address::from_slice(&keccak256(&bytes[1..])[12..]));
         signers.push(signer);
     }
 
     (initial_da_addresses, signers)
 }
 
-/// Creates 3 valid signatures from the first 3 signers for the given prehash
+/// Creates valid signatures from the first 3 signers for the given payload
 pub(crate) fn create_valid_signatures<T: SolStruct>(
     signers: &[PrivateKeySigner],
     payload: &T,
-) -> [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
+) -> Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)> {
+    create_valid_signatures_with_count(signers, payload, 3)
+}
+
+/// Creates valid signatures from the first `count` signers for the given payload
+pub(crate) fn create_valid_signatures_with_count<T: SolStruct>(
+    signers: &[PrivateKeySigner],
+    payload: &T,
+    count: usize,
+) -> Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)> {
+    use crate::circuit::initial_values::mockda;
+
     let mut signatures_in_inscription = Vec::new();
 
     let domain = eip712_domain! {
-        name: bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        name: mockda::EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
         version: "1",
         chain_id: citrea_network_to_chain_id(Network::Nightly),
     };
 
-    for (i, signer) in signers.iter().enumerate().take(3) {
+    for (i, signer) in signers.iter().enumerate().take(count) {
         let sig = signer.sign_typed_data_sync(payload, &domain).unwrap();
         let signature = sig.as_bytes()[0..SECURITY_COUNCIL_SIGNATURE_SIZE].to_vec();
         signatures_in_inscription.push((signature, i as u8));
@@ -303,18 +307,18 @@ pub(crate) fn create_new_method_id_tx(
     };
 
     let (_initial_addresses, signers) =
-        generate_initial_addresses_with_signers_from_pks(pk_bytes_arr);
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
 
     let payload = BatchProofMethodIdUpdate::from(method_id_body.clone());
 
     let signatures_with_index = create_valid_signatures(&signers, &payload);
 
-    let da_data = DataOnDa::BatchProofMethodId(BatchProofMethodId {
-        body: BatchProofMethodIdBody {
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(BatchProofMethodIdBody {
             method_id: new_method_id,
             activation_l2_height: activation_height,
             chain_id: citrea_network_to_chain_id(network),
-        },
+        }),
         signatures_with_index,
     });
 
@@ -323,6 +327,119 @@ pub(crate) fn create_new_method_id_tx(
     let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
     blob.full_data();
 
+    blob
+}
+
+pub(crate) fn create_add_member_tx(
+    new_member: [u8; 20],
+    new_threshold: u32,
+    pub_key: [u8; 32],
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = AddSecurityCouncilMemberV1Body {
+        new_member,
+        new_threshold,
+    };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = AddSecurityCouncilMember::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::AddSecurityCouncilMemberV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+pub(crate) fn create_remove_member_tx(
+    member_to_be_removed: [u8; 20],
+    new_threshold: u32,
+    pub_key: [u8; 32],
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = RemoveSecurityCouncilMemberV1Body {
+        member_to_be_removed,
+        new_threshold,
+    };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = RemoveSecurityCouncilMember::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::RemoveSecurityCouncilMemberV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+pub(crate) fn create_update_threshold_tx(new_threshold: u32, pub_key: [u8; 32]) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = UpdateSecurityCouncilThresholdV1Body { new_threshold };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = UpdateSecurityCouncilThreshold::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::UpdateSecurityCouncilThresholdV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+pub(crate) fn create_replace_member_tx(
+    to_be_replaced: [u8; 20],
+    new_member: [u8; 20],
+    pub_key: [u8; 32],
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = ReplaceSecurityCouncilMemberV1Body {
+        to_be_replaced,
+        new_member,
+    };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = ReplaceSecurityCouncilMember::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::ReplaceSecurityCouncilMemberV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
     blob
 }
 
@@ -397,7 +514,8 @@ impl NativeCircuitRunner {
         initial_batch_proof_method_ids: Vec<(u64, [u32; 8])>,
         batch_prover_da_pub_key: &[u8],
         sequencer_da_pub_key: &[u8],
-        method_id_upgrade_authority: &[Address; SECURITY_COUNCIL_MEMBER_COUNT],
+        initial_method_id_upgrade_authority: &[Address],
+        initial_security_council_threshold: usize,
         network: Network,
     ) -> LightClientCircuitInput<MockDaSpec> {
         let prover_storage = self
@@ -433,7 +551,8 @@ impl NativeCircuitRunner {
             initial_batch_proof_method_ids,
             batch_prover_da_pub_key,
             sequencer_da_pub_key,
-            method_id_upgrade_authority,
+            initial_method_id_upgrade_authority,
+            initial_security_council_threshold,
             domain_name.to_string(),
         );
 
