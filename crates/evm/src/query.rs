@@ -1533,7 +1533,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(working_set)
             .expect("EVM chain config should be set");
 
-        let cfg_env = get_cfg_env(cfg, evm_spec_id);
+        let mut cfg_env = get_cfg_env(cfg, evm_spec_id);
 
         let l1_fee_block_num = match block_number {
             // use l1 fee rate of latest block for pending block
@@ -1573,10 +1573,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let chain_id = cfg_env.chain_id();
 
         // create tx env
-        let tx_env = create_txn_env(
+        let tx_env = prepare_call_env(
             &block_env,
-            request.clone(),
-            Some(account.balance),
+            &mut cfg_env,
+            request,
+            account.balance,
             nonce,
             chain_id,
         )?;
