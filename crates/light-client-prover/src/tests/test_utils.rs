@@ -16,7 +16,8 @@ use sov_prover_storage_manager::{Config, ProverStorage, ProverStorageManager};
 use sov_rollup_interface::da::{
     AddSecurityCouncilMemberV1Body, BatchProofMethodIdBody, BlobReaderTrait, DaVerifier, DataOnDa,
     RemoveSecurityCouncilMemberV1Body, ReplaceSecurityCouncilMemberV1Body, SecurityCouncilTx,
-    SecurityCouncilTxType, SequencerCommitment, UpdateSecurityCouncilThresholdV1Body,
+    SecurityCouncilTxType, SequencerCommitment, UpdateBatchProverDaPubKeyV1Body,
+    UpdateSecurityCouncilThresholdV1Body, UpdateSequencerDaPubKeyV1Body,
     SECURITY_COUNCIL_SIGNATURE_SIZE,
 };
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
@@ -30,7 +31,7 @@ use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::{
     citrea_network_to_chain_id, AddSecurityCouncilMember, BatchProofMethodIdUpdate,
     LightClientProofCircuit, RemoveSecurityCouncilMember, ReplaceSecurityCouncilMember,
-    UpdateSecurityCouncilThreshold,
+    UpdateBatchProverDaPubKey, UpdateSecurityCouncilThreshold, UpdateSequencerDaPubKey,
 };
 
 /// Test private keys used for generating signatures in tests
@@ -589,4 +590,124 @@ impl NativeCircuitRunner {
         prover_storage.commit(&jmt_state_update, &Default::default(), &Default::default());
         self.prover_storage_manager.finalize_storage(prover_storage);
     }
+}
+
+pub(crate) fn create_update_sequencer_pub_key_tx(
+    new_pub_key: [u8; 33],
+    pub_key: [u8; 32],
+    network: Network,
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = UpdateSequencerDaPubKeyV1Body {
+        new_pub_key,
+        chain_id: citrea_network_to_chain_id(network),
+    };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = UpdateSequencerDaPubKey::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::UpdateSequencerDaPubKeyV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+pub(crate) fn create_update_batch_prover_pub_key_tx(
+    new_pub_key: [u8; 33],
+    pub_key: [u8; 32],
+    network: Network,
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = UpdateBatchProverDaPubKeyV1Body {
+        new_pub_key,
+        chain_id: citrea_network_to_chain_id(network),
+    };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = UpdateBatchProverDaPubKey::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::UpdateBatchProverDaPubKeyV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+pub(crate) fn create_update_sequencer_pub_key_tx_with_chain_id(
+    new_pub_key: [u8; 33],
+    chain_id: u64,
+    pub_key: [u8; 32],
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = UpdateSequencerDaPubKeyV1Body {
+        new_pub_key,
+        chain_id,
+    };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = UpdateSequencerDaPubKey::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::UpdateSequencerDaPubKeyV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+pub(crate) fn create_update_batch_prover_pub_key_tx_with_chain_id(
+    new_pub_key: [u8; 33],
+    chain_id: u64,
+    pub_key: [u8; 32],
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = UpdateBatchProverDaPubKeyV1Body {
+        new_pub_key,
+        chain_id,
+    };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = UpdateBatchProverDaPubKey::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::UpdateBatchProverDaPubKeyV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
 }

@@ -4,8 +4,9 @@
 //! The light client circuit processes DA blocks, validates batch proofs, and generates proofs
 //! that verify L2 state transitions and updates to the light client state.
 use accessors::{
-    BatchProofMethodIdAccessor, BlockHashAccessor, ChunkAccessor, SecurityCouncilAddressAccessor,
-    SecurityCouncilThresholdAccessor, SequencerCommitmentAccessor,
+    BatchProofMethodIdAccessor, BatchProverDaPubKeyAccessor, BlockHashAccessor, ChunkAccessor,
+    SecurityCouncilAddressAccessor, SecurityCouncilThresholdAccessor,
+    SequencerCommitmentAccessor, SequencerDaPubKeyAccessor,
     VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
 use alloy_primitives::{Address, B256};
@@ -20,9 +21,9 @@ use sov_modules_core::{ReadWriteLog, Storage};
 use sov_rollup_interface::da::{
     AddSecurityCouncilMemberV1Body, BatchProofMethodIdBody, DaVerifier, DataOnDa,
     RemoveSecurityCouncilMemberV1Body, ReplaceSecurityCouncilMemberV1Body, SecurityCouncilTx,
-    SecurityCouncilTxType, UpdateSecurityCouncilThresholdV1Body,
-    MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL, MAX_THRESHOLD_PROXIMITY,
-    MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL, MIN_THRESHOLD,
+    SecurityCouncilTxType, UpdateBatchProverDaPubKeyV1Body, UpdateSecurityCouncilThresholdV1Body,
+    UpdateSequencerDaPubKeyV1Body, MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL,
+    MAX_THRESHOLD_PROXIMITY, MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL, MIN_THRESHOLD,
 };
 use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
@@ -368,8 +369,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// * `previous_light_client_proof_output` - The previous light client proof output.
     /// * `l2_genesis_root` - The L2 genesis root, which is used to initialize the L2 state root if there is no previous light client proof output.
     /// * `initial_batch_proof_method_ids` - The initial batch proof method IDs that are used to initialize the batch proof method IDs in the JMT state if this is the first light client proof output.
-    /// * `batch_prover_da_public_key` - The public key of the batch prover to check the sender of the batch proof transactions.
-    /// * `sequencer_da_public_key` - The public key of the sequencer to check the sender of the sequencer commitment transactions.
+    /// * `initial_batch_prover_da_public_key` - The initial public key of the batch prover, used to initialize the LCP state on first run.
+    /// * `initial_sequencer_da_public_key` - The initial public key of the sequencer, used to initialize the LCP state on first run.
     /// * `initial_security_council_da_addresses` - The initial addresses of the security council, used to initialize the LCP state on first run.
     ///
     /// # Logic
@@ -395,8 +396,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         previous_light_client_proof_output: Option<LightClientCircuitOutput>,
         l2_genesis_root: [u8; 32],
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
-        batch_prover_da_public_key: &[u8],
-        sequencer_da_public_key: &[u8],
+        initial_batch_prover_da_public_key: &[u8],
+        initial_sequencer_da_public_key: &[u8],
         initial_security_council_da_addresses: &[Address],
         initial_security_council_threshold: usize,
         security_council_messages_domain: String,
@@ -422,7 +423,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 },
             );
 
-        // If this is the first lcp initialize the batch proof method ids and security council addresses
+        // If this is the first lcp initialize the batch proof method ids, security council addresses, and DA pub keys
         if previous_light_client_proof_output.is_none() {
             BatchProofMethodIdAccessor::<S>::initialize(
                 initial_batch_proof_method_ids,
@@ -436,7 +437,23 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 initial_security_council_threshold,
                 &mut working_set,
             );
+            SequencerDaPubKeyAccessor::<S>::initialize(
+                initial_sequencer_da_public_key,
+                &mut working_set,
+            );
+            BatchProverDaPubKeyAccessor::<S>::initialize(
+                initial_batch_prover_da_public_key,
+                &mut working_set,
+            );
         }
+
+        // Read the active pub keys from state (may have been updated by security council)
+        let active_batch_prover_da_public_key =
+            BatchProverDaPubKeyAccessor::<S>::get(&mut working_set)
+                .expect("Batch prover DA public key must exist");
+        let active_sequencer_da_public_key =
+            SequencerDaPubKeyAccessor::<S>::get(&mut working_set)
+                .expect("Sequencer DA public key must exist");
 
         'blob_loop: for blob in da_txs {
             let Ok(data) = DataOnDa::try_from_slice(blob.full_data()) else {
@@ -453,7 +470,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 }
                 DataOnDa::Complete(proof) => {
                     log!("Found complete proof");
-                    if blob.sender().as_ref() != batch_prover_da_public_key {
+                    if blob.sender().as_ref() != active_batch_prover_da_public_key.as_slice() {
                         log!(
                             "Complete proof sender is not batch prover, wtxid={:?}",
                             blob.wtxid()
@@ -479,7 +496,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 }
                 DataOnDa::Aggregate(_, wtxids) => {
                     log!("Found aggregate proof");
-                    if blob.sender().as_ref() != batch_prover_da_public_key {
+                    if blob.sender().as_ref() != active_batch_prover_da_public_key.as_slice() {
                         log!(
                             "Aggregate proof sender is not batch prover, wtxid={:?}",
                             blob.wtxid()
@@ -550,7 +567,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 }
                 DataOnDa::SequencerCommitment(commitment) => {
                     log!("Found sequencer commitment with index {}", commitment.index);
-                    if blob.sender().as_ref() != sequencer_da_public_key {
+                    if blob.sender().as_ref() != active_sequencer_da_public_key.as_slice() {
                         log!(
                             "Sequencer commitment sender is not sequencer, wtxid={:?}",
                             blob.wtxid()
@@ -839,6 +856,60 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     .collect();
                 SecurityCouncilAddressAccessor::<S>::set(&new_addresses, working_set);
             }
+            SecurityCouncilTxType::UpdateSequencerDaPubKeyV1(body) => {
+                log!("Processing UpdateSequencerDaPubKeyV1");
+
+                if circuit_chain_id != body.chain_id {
+                    log!("Update sequencer DA pub key chain ID does not match circuit chain ID");
+                    return;
+                }
+
+                if !verify_security_council_signatures(
+                    &upgrade_authority_addresses,
+                    UpdateSequencerDaPubKey::from(body.clone()),
+                    &sc_tx.signatures_with_index,
+                    upgrade_authority_threshold,
+                    security_council_messages_domain.to_string(),
+                    circuit_chain_id,
+                ) {
+                    log!("Update sequencer DA pub key security council verification failed");
+                    return;
+                }
+
+                if body.new_pub_key == [0u8; 33] {
+                    log!("New sequencer DA pub key cannot be all zeros");
+                    return;
+                }
+
+                SequencerDaPubKeyAccessor::<S>::set(&body.new_pub_key, working_set);
+            }
+            SecurityCouncilTxType::UpdateBatchProverDaPubKeyV1(body) => {
+                log!("Processing UpdateBatchProverDaPubKeyV1");
+
+                if circuit_chain_id != body.chain_id {
+                    log!("Update batch prover DA pub key chain ID does not match circuit chain ID");
+                    return;
+                }
+
+                if !verify_security_council_signatures(
+                    &upgrade_authority_addresses,
+                    UpdateBatchProverDaPubKey::from(body.clone()),
+                    &sc_tx.signatures_with_index,
+                    upgrade_authority_threshold,
+                    security_council_messages_domain.to_string(),
+                    circuit_chain_id,
+                ) {
+                    log!("Update batch prover DA pub key security council verification failed");
+                    return;
+                }
+
+                if body.new_pub_key == [0u8; 33] {
+                    log!("New batch prover DA pub key cannot be all zeros");
+                    return;
+                }
+
+                BatchProverDaPubKeyAccessor::<S>::set(&body.new_pub_key, working_set);
+            }
         }
     }
 
@@ -851,8 +922,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// * `network` - The Citrea network to use for verifying the DA block header
     /// * `l2_genesis_root` - The L2 genesis root to start the L2 state if there is no previous light client proof
     /// * `initial_batch_proof_method_ids` - To initialize the batch proof method IDs in the JMT state if this is the first light client proof
-    /// * `batch_prover_da_public_key` - The public key of the batch prover
-    /// * `sequencer_da_public_key` - The public key of the sequencer
+    /// * `initial_batch_prover_da_public_key` - The initial public key of the batch prover
+    /// * `initial_sequencer_da_public_key` - The initial public key of the sequencer
     /// * `initial_security_council_da_addresses` - The initial addresses of the security council, used to initialize the LCP state on first run.
     ///
     /// # Logic
@@ -877,8 +948,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         network: Network,
         l2_genesis_root: [u8; 32],
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
-        batch_prover_da_public_key: &[u8],
-        sequencer_da_public_key: &[u8],
+        initial_batch_prover_da_public_key: &[u8],
+        initial_sequencer_da_public_key: &[u8],
         initial_security_council_da_addresses: &[Address],
         initial_security_council_threshold: usize,
         security_council_messages_domain: String,
@@ -937,8 +1008,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             previous_light_client_proof_output,
             l2_genesis_root,
             initial_batch_proof_method_ids,
-            batch_prover_da_public_key,
-            sequencer_da_public_key,
+            initial_batch_prover_da_public_key,
+            initial_sequencer_da_public_key,
             initial_security_council_da_addresses,
             initial_security_council_threshold,
             security_council_messages_domain,
@@ -1067,6 +1138,40 @@ impl From<ReplaceSecurityCouncilMemberV1Body> for ReplaceSecurityCouncilMember {
         ReplaceSecurityCouncilMember {
             toBeReplaced: Address::from_slice(&body.to_be_replaced),
             newMember: Address::from_slice(&body.new_member),
+        }
+    }
+}
+
+sol! {
+    #[derive(Debug, Serialize)]
+    struct UpdateSequencerDaPubKey {
+        bytes newPubKey;
+        uint64 chainId;
+    }
+}
+
+impl From<UpdateSequencerDaPubKeyV1Body> for UpdateSequencerDaPubKey {
+    fn from(body: UpdateSequencerDaPubKeyV1Body) -> Self {
+        UpdateSequencerDaPubKey {
+            newPubKey: body.new_pub_key.to_vec().into(),
+            chainId: body.chain_id,
+        }
+    }
+}
+
+sol! {
+    #[derive(Debug, Serialize)]
+    struct UpdateBatchProverDaPubKey {
+        bytes newPubKey;
+        uint64 chainId;
+    }
+}
+
+impl From<UpdateBatchProverDaPubKeyV1Body> for UpdateBatchProverDaPubKey {
+    fn from(body: UpdateBatchProverDaPubKeyV1Body) -> Self {
+        UpdateBatchProverDaPubKey {
+            newPubKey: body.new_pub_key.to_vec().into(),
+            chainId: body.chain_id,
         }
     }
 }

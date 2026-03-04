@@ -46,7 +46,7 @@ pub mod mockda {
         NonEmptySlice::new(&[(0, citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID)]);
 
     /// Public key of the batch prover in the mock DA.
-    pub const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
+    pub const INITIAL_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"03eedab888e45f3bdc3ec9918c491c11e5cf7af0a91f38b97fbc1e135ae4056601",
     ) {
         Ok(pub_key) => pub_key,
@@ -54,7 +54,7 @@ pub mod mockda {
     };
 
     /// Public key of the sequencer in the mock DA.
-    pub const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
+    pub const INITIAL_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9",
     ) {
         Ok(pub_key) => pub_key,
@@ -228,7 +228,7 @@ pub mod bitcoinda {
     };
 
     /// Public key of the batch prover in the Bitcoin DA on Mainnet.
-    pub const MAINNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
+    pub const INITIAL_MAINNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"038e501ede61097973e49e714d5f2ad740c82b798bb90fda427fd5138e51f2398e",
     ) {
         Ok(pub_key) => pub_key,
@@ -236,7 +236,7 @@ pub mod bitcoinda {
     };
 
     /// Public key of the batch prover in the Bitcoin DA on Testnet.
-    pub const TESTNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
+    pub const INITIAL_TESTNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42",
     ) {
         Ok(pub_key) => pub_key,
@@ -244,7 +244,7 @@ pub mod bitcoinda {
     };
 
     /// Public key of the batch prover in the Bitcoin DA on Devnet.
-    pub const DEVNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
+    pub const INITIAL_DEVNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"03fc6fb2ef68368009c895d2d4351dcca4109ec2f5f327291a0553570ce769f5e5",
     ) {
         Ok(pub_key) => pub_key,
@@ -254,7 +254,7 @@ pub mod bitcoinda {
     /// Public key of the batch prover in the Bitcoin DA on Nightly.
     /// This public key is set at compile time via the `PROVER_DA_PUB_KEY` environment variable.
     /// If the variable is not set, it defaults to the public key from the config under resources/configs/bitcoin-regtest.
-    pub const NIGHTLY_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
+    pub const INITIAL_NIGHTLY_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
         let hex_pub_key = match option_env!("PROVER_DA_PUB_KEY") {
             Some(hex_pub_key) => hex_pub_key,
             None => "03eedab888e45f3bdc3ec9918c491c11e5cf7af0a91f38b97fbc1e135ae4056601",
@@ -269,7 +269,7 @@ pub mod bitcoinda {
     /// Public key of the batch prover in the Bitcoin DA on Test Network with Forks.
     /// This public key is set at compile time via the `PROVER_DA_PUB_KEY` environment variable.
     /// If the variable is not set, it defaults to the public key from the config under resources/configs/bitcoin-regtest.
-    pub const TEST_NETWORK_WITH_FORKS_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
+    pub const INITIAL_TEST_NETWORK_WITH_FORKS_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
         let hex_pub_key = match option_env!("PROVER_DA_PUB_KEY") {
             Some(hex_pub_key) => hex_pub_key,
             None => "03eedab888e45f3bdc3ec9918c491c11e5cf7af0a91f38b97fbc1e135ae4056601",
@@ -282,7 +282,7 @@ pub mod bitcoinda {
     };
 
     /// Public key of the sequencer in the Bitcoin DA on Mainnet.
-    pub const MAINNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
+    pub const INITIAL_MAINNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"032a31a1fa359abd2e6fc1136b4dea711e5f18618504e021084cc61099f72bb2bd",
     ) {
         Ok(pub_key) => pub_key,
@@ -290,7 +290,7 @@ pub mod bitcoinda {
     };
 
     /// Public key of the sequencer in the Bitcoin DA on Testnet.
-    pub const TESTNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
+    pub const INITIAL_TESTNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b",
     ) {
         Ok(pub_key) => pub_key,
@@ -298,7 +298,7 @@ pub mod bitcoinda {
     };
 
     /// Public key of the sequencer in the Bitcoin DA on Devnet.
-    pub const DEVNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
+    pub const INITIAL_DEVNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
         b"039cd55f9b3dcf306c4d54f66cd7c4b27cc788632cd6fb73d80c99d303c6536486",
     ) {
         Ok(pub_key) => pub_key,
@@ -308,7 +308,7 @@ pub mod bitcoinda {
     /// Public key of the sequencer in the Bitcoin DA on Nightly.
     /// This public key is set at compile time via the `SEQUENCER_DA_PUB_KEY` environment variable.
     /// If the variable is not set, it defaults to the public key from the config under resources/configs/bitcoin-regtest.
-    pub const NIGHTLY_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
+    pub const INITIAL_NIGHTLY_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
         let hex_pub_key = match option_env!("SEQUENCER_DA_PUB_KEY") {
             Some(hex_pub_key) => hex_pub_key,
             None => "02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9",
@@ -323,7 +323,7 @@ pub mod bitcoinda {
     /// Public key of the sequencer in the Bitcoin DA on Test Network with Forks.
     /// This public key is set at compile time via the `SEQUENCER_DA_PUB_KEY environment variable.
     /// If the variable is not set, it defaults to the public key from the config under resources/configs/bitcoin-regtest.
-    pub const TEST_NETWORK_WITH_FORKS_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
+    pub const INITIAL_TEST_NETWORK_WITH_FORKS_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
         let hex_pub_key = match option_env!("SEQUENCER_DA_PUB_KEY") {
             Some(hex_pub_key) => hex_pub_key,
             None => "02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9",
@@ -546,10 +546,10 @@ pub trait InitialValueProvider<Das: DaSpec> {
     fn initial_batch_proof_method_ids(&self) -> NonEmptySlice<(u64, [u32; 8])>;
 
     /// Returns the public key of the batch prover.
-    fn batch_prover_da_public_key(&self) -> [u8; 33];
+    fn initial_batch_prover_da_public_key(&self) -> [u8; 33];
 
     /// Returns the public key of the sequencer.
-    fn sequencer_da_public_key(&self) -> [u8; 33];
+    fn initial_sequencer_da_public_key(&self) -> [u8; 33];
 
     /// Returns the initial addresses of the method ID upgrade authority.
     fn initial_method_id_upgrade_authority_da_addresses(
@@ -575,9 +575,9 @@ impl InitialValueProvider<MockDaSpec> for Network {
         mockda::INITIAL_BATCH_PROOF_METHOD_IDS
     }
 
-    fn batch_prover_da_public_key(&self) -> [u8; 33] {
+    fn initial_batch_prover_da_public_key(&self) -> [u8; 33] {
         assert_eq!(self, &Network::Nightly, "Only nightly allowed on mock da!");
-        mockda::BATCH_PROVER_DA_PUBLIC_KEY
+        mockda::INITIAL_BATCH_PROVER_DA_PUBLIC_KEY
     }
 
     fn initial_method_id_upgrade_authority_da_addresses(
@@ -592,9 +592,9 @@ impl InitialValueProvider<MockDaSpec> for Network {
         mockda::INITIAL_SECURITY_COUNCIL_THRESHOLD
     }
 
-    fn sequencer_da_public_key(&self) -> [u8; 33] {
+    fn initial_sequencer_da_public_key(&self) -> [u8; 33] {
         assert_eq!(self, &Network::Nightly, "Only nightly allowed on mock da!");
-        mockda::SEQUENCER_DA_PUBLIC_KEY
+        mockda::INITIAL_SEQUENCER_DA_PUBLIC_KEY
     }
 
     fn get_eip712_security_council_message_domain_name(&self) -> &str {
@@ -627,14 +627,14 @@ impl InitialValueProvider<BitcoinSpec> for Network {
         }
     }
 
-    fn batch_prover_da_public_key(&self) -> [u8; 33] {
+    fn initial_batch_prover_da_public_key(&self) -> [u8; 33] {
         match self {
-            Network::Mainnet => bitcoinda::MAINNET_BATCH_PROVER_DA_PUBLIC_KEY,
-            Network::Testnet => bitcoinda::TESTNET_BATCH_PROVER_DA_PUBLIC_KEY,
-            Network::Devnet => bitcoinda::DEVNET_BATCH_PROVER_DA_PUBLIC_KEY,
-            Network::Nightly => bitcoinda::NIGHTLY_BATCH_PROVER_DA_PUBLIC_KEY,
+            Network::Mainnet => bitcoinda::INITIAL_MAINNET_BATCH_PROVER_DA_PUBLIC_KEY,
+            Network::Testnet => bitcoinda::INITIAL_TESTNET_BATCH_PROVER_DA_PUBLIC_KEY,
+            Network::Devnet => bitcoinda::INITIAL_DEVNET_BATCH_PROVER_DA_PUBLIC_KEY,
+            Network::Nightly => bitcoinda::INITIAL_NIGHTLY_BATCH_PROVER_DA_PUBLIC_KEY,
             Network::TestNetworkWithForks => {
-                bitcoinda::TEST_NETWORK_WITH_FORKS_BATCH_PROVER_DA_PUBLIC_KEY
+                bitcoinda::INITIAL_TEST_NETWORK_WITH_FORKS_BATCH_PROVER_DA_PUBLIC_KEY
             }
         }
     }
@@ -657,14 +657,14 @@ impl InitialValueProvider<BitcoinSpec> for Network {
         bitcoinda::INITIAL_SECURITY_COUNCIL_THRESHOLD
     }
 
-    fn sequencer_da_public_key(&self) -> [u8; 33] {
+    fn initial_sequencer_da_public_key(&self) -> [u8; 33] {
         match self {
-            Network::Mainnet => bitcoinda::MAINNET_SEQUENCER_DA_PUBLIC_KEY,
-            Network::Testnet => bitcoinda::TESTNET_SEQUENCER_DA_PUBLIC_KEY,
-            Network::Devnet => bitcoinda::DEVNET_SEQUENCER_DA_PUBLIC_KEY,
-            Network::Nightly => bitcoinda::NIGHTLY_SEQUENCER_DA_PUBLIC_KEY,
+            Network::Mainnet => bitcoinda::INITIAL_MAINNET_SEQUENCER_DA_PUBLIC_KEY,
+            Network::Testnet => bitcoinda::INITIAL_TESTNET_SEQUENCER_DA_PUBLIC_KEY,
+            Network::Devnet => bitcoinda::INITIAL_DEVNET_SEQUENCER_DA_PUBLIC_KEY,
+            Network::Nightly => bitcoinda::INITIAL_NIGHTLY_SEQUENCER_DA_PUBLIC_KEY,
             Network::TestNetworkWithForks => {
-                bitcoinda::TEST_NETWORK_WITH_FORKS_SEQUENCER_DA_PUBLIC_KEY
+                bitcoinda::INITIAL_TEST_NETWORK_WITH_FORKS_SEQUENCER_DA_PUBLIC_KEY
             }
         }
     }

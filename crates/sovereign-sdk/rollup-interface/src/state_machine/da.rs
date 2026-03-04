@@ -102,6 +102,24 @@ pub struct ReplaceSecurityCouncilMemberV1Body {
     pub new_member: [u8; 20],
 }
 
+/// Body for updating the sequencer DA public key
+#[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct UpdateSequencerDaPubKeyV1Body {
+    /// New compressed public key (33 bytes)
+    pub new_pub_key: [u8; 33],
+    /// Network identifier to prevent cross network replay attacks
+    pub chain_id: u64,
+}
+
+/// Body for updating the batch prover DA public key
+#[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct UpdateBatchProverDaPubKeyV1Body {
+    /// New compressed public key (33 bytes)
+    pub new_pub_key: [u8; 33],
+    /// Network identifier to prevent cross network replay attacks
+    pub chain_id: u64,
+}
+
 /// Versioned security council transaction type
 #[derive(Debug, Clone, Eq, PartialEq, BorshSerialize, BorshDeserialize)]
 pub enum SecurityCouncilTxType {
@@ -115,6 +133,10 @@ pub enum SecurityCouncilTxType {
     UpdateSecurityCouncilThresholdV1(UpdateSecurityCouncilThresholdV1Body),
     /// Replace a security council member (V1)
     ReplaceSecurityCouncilMemberV1(ReplaceSecurityCouncilMemberV1Body),
+    /// Update the sequencer DA public key (V1)
+    UpdateSequencerDaPubKeyV1(UpdateSequencerDaPubKeyV1Body),
+    /// Update the batch prover DA public key (V1)
+    UpdateBatchProverDaPubKeyV1(UpdateBatchProverDaPubKeyV1Body),
 }
 
 /// A security council transaction with signatures

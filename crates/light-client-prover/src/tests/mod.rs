@@ -14,12 +14,16 @@ use test_utils::{
     create_add_member_tx, create_mock_batch_proof, create_mock_sequencer_commitment,
     create_mock_sequencer_commitment_blob, create_new_method_id_tx, create_prev_lcp_serialized,
     create_random_state_diff, create_remove_member_tx, create_replace_member_tx,
-    create_serialized_mock_proof, create_update_threshold_tx, NativeCircuitRunner,
+    create_serialized_mock_proof, create_update_batch_prover_pub_key_tx,
+    create_update_batch_prover_pub_key_tx_with_chain_id, create_update_sequencer_pub_key_tx,
+    create_update_sequencer_pub_key_tx_with_chain_id, create_update_threshold_tx,
+    NativeCircuitRunner,
 };
 
 use crate::circuit::accessors::{
-    BatchProofMethodIdAccessor, SecurityCouncilAddressAccessor, SecurityCouncilThresholdAccessor,
-    SequencerCommitmentAccessor, VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
+    BatchProofMethodIdAccessor, BatchProverDaPubKeyAccessor, SecurityCouncilAddressAccessor,
+    SecurityCouncilThresholdAccessor, SequencerCommitmentAccessor, SequencerDaPubKeyAccessor,
+    VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
 use crate::circuit::initial_values::mockda::{
     EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME, INITIAL_SECURITY_COUNCIL_THRESHOLD,
@@ -3474,4 +3478,256 @@ fn test_update_threshold_exceeds_proximity_rejected() {
     let threshold =
         SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
     assert_eq!(threshold, INITIAL_SECURITY_COUNCIL_THRESHOLD); // Threshold unchanged (still 3)
+}
+
+#[test]
+fn test_update_sequencer_da_pub_key() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let new_pub_key = [77u8; 33];
+    let blob = create_update_sequencer_pub_key_tx(new_pub_key, [11u8; 32], Network::Nightly);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let stored_pub_key =
+        SequencerDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(stored_pub_key, new_pub_key.to_vec());
+}
+
+#[test]
+fn test_update_batch_prover_da_pub_key() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let new_pub_key = [88u8; 33];
+    let blob = create_update_batch_prover_pub_key_tx(new_pub_key, [11u8; 32], Network::Nightly);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let stored_pub_key =
+        BatchProverDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(stored_pub_key, new_pub_key.to_vec());
+}
+
+#[test]
+fn test_update_sequencer_da_pub_key_wrong_chain_id_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let new_pub_key = [77u8; 33];
+    // Use wrong chain_id (9999 instead of Nightly's 5665)
+    let blob = create_update_sequencer_pub_key_tx_with_chain_id(new_pub_key, 9999, [11u8; 32]);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+        )
+        .unwrap();
+
+    // Key should remain unchanged (the initial value)
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let stored_pub_key =
+        SequencerDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(stored_pub_key, sequencer_da_pub_key.to_vec());
+}
+
+#[test]
+fn test_update_batch_prover_da_pub_key_wrong_chain_id_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let new_pub_key = [88u8; 33];
+    // Use wrong chain_id (9999 instead of Nightly's 5665)
+    let blob = create_update_batch_prover_pub_key_tx_with_chain_id(new_pub_key, 9999, [11u8; 32]);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+        )
+        .unwrap();
+
+    // Key should remain unchanged (the initial value)
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let stored_pub_key =
+        BatchProverDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(stored_pub_key, batch_prover_da_pub_key.to_vec());
 }
