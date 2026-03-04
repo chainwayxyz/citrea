@@ -231,30 +231,27 @@ fn simulate_pending_proof_cycles(
 
     let mut rewrites = 0usize;
     for _ in 0..l1_cycles {
-        let pending_proofs = ledger_db.get_pending_proofs().unwrap();
-        let mut saw_pending_proof = false;
-        for item in pending_proofs {
-            let ((min_index, max_index), (pending_proof, found_in_l1_height)) =
-                item.unwrap().into_tuple();
-            saw_pending_proof = true;
-            // Mirrors current fullnode behavior: on Pending, the same proof is written again.
-            if rewrite_on_pending {
-                ledger_db
-                    .store_pending_proof(min_index, max_index, pending_proof, found_in_l1_height)
-                    .unwrap();
-                rewrites += 1;
-            }
-            // process_pending_proofs breaks on first pending proof.
-            break;
+        let mut pending_proofs = ledger_db.get_pending_proofs().unwrap();
+        let Some(item) = pending_proofs.next() else {
+            panic!("pending proof unexpectedly missing");
+        };
+        let ((min_index, max_index), (pending_proof, found_in_l1_height)) =
+            item.unwrap().into_tuple();
+        // Mirrors current fullnode behavior: on Pending, the same proof is written again.
+        if rewrite_on_pending {
+            ledger_db
+                .store_pending_proof(min_index, max_index, pending_proof, found_in_l1_height)
+                .unwrap();
+            rewrites += 1;
         }
-        assert!(saw_pending_proof, "pending proof unexpectedly missing");
+        // process_pending_proofs breaks on first pending proof.
     }
 
     let pending_rows = ledger_db
         .get_pending_proofs()
         .unwrap()
-        .map(|item| item.unwrap())
-        .count();
+        .try_fold(0usize, |count, item| item.map(|_| count + 1))
+        .unwrap();
 
     let pre_flush_db_bytes = dir_size_bytes(ledger_db.db.path());
     ledger_db.db.flush_cf(PENDING_PROOFS_CF).unwrap();
