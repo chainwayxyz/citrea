@@ -1,5 +1,6 @@
+use std::fs;
+use std::path::Path;
 use std::sync::OnceLock;
-use std::{fs, path::Path};
 
 use anyhow::anyhow;
 use sov_schema_db::SchemaBatch;
