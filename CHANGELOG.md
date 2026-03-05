@@ -11,6 +11,7 @@
 - perf: Skip re-execution of proof request in boundless([#3144](https://github.com/chainwayxyz/citrea/pull/3144))
 - perf: Mine DA transaction prefix using transaction locktime([#3111](https://github.com/chainwayxyz/citrea/pull/3111))
 - fix: Check for shutdown signal when processing blocks in L1/L2 syncers loops ([#3152](https://github.com/chainwayxyz/citrea/pull/3152))
+- perf: Set rocksdb bloom filter policy ([#3180](https://github.com/chainwayxyz/citrea/pull/3180))
 
 ## [v2.1.0](2026-02-17)
 ### Added
