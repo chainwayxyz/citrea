@@ -15,7 +15,8 @@ use sov_rollup_interface::rpc::{BatchProofMethodIdRpcResponse, LightClientProofR
 use sov_state::ProverStorage;
 
 use crate::circuit::accessors::{
-    BatchProofMethodIdAccessor, SecurityCouncilAddressAccessor, SecurityCouncilThresholdAccessor,
+    BatchProofMethodIdAccessor, BatchProverDaPubKeyAccessor, SecurityCouncilAddressAccessor,
+    SecurityCouncilThresholdAccessor, SequencerDaPubKeyAccessor,
 };
 
 /// Context containing shared data needed for RPC method implementations
@@ -95,6 +96,14 @@ pub trait LightClientProverRpc {
     /// Gets the current security council signature threshold
     #[method(name = "getSecurityCouncilThreshold")]
     async fn get_security_council_threshold(&self) -> RpcResult<u64>;
+
+    /// Gets the current sequencer DA public key
+    #[method(name = "getSequencerDaPubKey")]
+    async fn get_sequencer_da_pub_key(&self) -> RpcResult<String>;
+
+    /// Gets the current batch prover DA public key
+    #[method(name = "getBatchProverDaPubKey")]
+    async fn get_batch_prover_da_pub_key(&self) -> RpcResult<String>;
 }
 
 /// Server implementation of the light client prover RPC interface
@@ -187,5 +196,23 @@ where
             .unwrap_or(0) as u64;
 
         Ok(threshold)
+    }
+
+    async fn get_sequencer_da_pub_key(&self) -> RpcResult<String> {
+        let mut working_set = WorkingSet::new(self.context.storage.clone());
+
+        let pub_key =
+            SequencerDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap_or_default();
+
+        Ok(hex::encode(pub_key))
+    }
+
+    async fn get_batch_prover_da_pub_key(&self) -> RpcResult<String> {
+        let mut working_set = WorkingSet::new(self.context.storage.clone());
+
+        let pub_key =
+            BatchProverDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap_or_default();
+
+        Ok(hex::encode(pub_key))
     }
 }

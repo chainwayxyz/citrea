@@ -483,6 +483,103 @@ impl<S: Storage> SecurityCouncilThresholdAccessor<S> {
     }
 }
 
+/// Accessor for managing the sequencer DA public key in the LCP state
+///
+/// Initialized from compile-time constants on first LCP run, updatable via security council messages.
+pub struct SequencerDaPubKeyAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> SequencerDaPubKeyAccessor<S> {
+    /// Sequencer da pubkey prefix
+    const PREFIX: u8 = b'q';
+
+    /// Creates a storage key containing just the prefix
+    fn key() -> StorageKey {
+        let mut key = [0u8; 1];
+        key[0] = Self::PREFIX;
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    /// Retrieves the sequencer DA public key if it exists
+    pub fn get(working_set: &mut WorkingSet<S>) -> Option<Vec<u8>> {
+        let key = Self::key();
+        working_set.get(&key).map(|v| {
+            let bytes: RefCount<[u8]> = v.into();
+            borsh::from_slice(&bytes).expect("Sequencer DA pub key deserialization should not fail")
+        })
+    }
+
+    /// Initializes the sequencer DA public key. Must be called at most once.
+    pub fn initialize(pub_key: &[u8], working_set: &mut WorkingSet<S>) {
+        assert!(
+            Self::get(working_set).is_none(),
+            "Sequencer DA pub key must not already be initialized!"
+        );
+        Self::set(pub_key, working_set);
+    }
+
+    /// Overwrites the current sequencer DA public key
+    pub fn set(pub_key: &[u8], working_set: &mut WorkingSet<S>) {
+        let key = Self::key();
+        let value: StorageValue = borsh::to_vec(&pub_key.to_vec())
+            .expect("Sequencer DA pub key serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
+/// Accessor for managing the batch prover DA public key in the LCP state
+///
+/// Initialized from compile-time constants on first LCP run, updatable via security council messages.
+pub struct BatchProverDaPubKeyAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> BatchProverDaPubKeyAccessor<S> {
+    /// Batch prover da pubkey prefix
+    const PREFIX: u8 = b'p';
+
+    /// Creates a storage key containing just the prefix
+    fn key() -> StorageKey {
+        let mut key = [0u8; 1];
+        key[0] = Self::PREFIX;
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    /// Retrieves the batch prover DA public key if it exists
+    pub fn get(working_set: &mut WorkingSet<S>) -> Option<Vec<u8>> {
+        let key = Self::key();
+        working_set.get(&key).map(|v| {
+            let bytes: RefCount<[u8]> = v.into();
+            borsh::from_slice(&bytes)
+                .expect("Batch prover DA pub key deserialization should not fail")
+        })
+    }
+
+    /// Initializes the batch prover DA public key. Must be called at most once.
+    pub fn initialize(pub_key: &[u8], working_set: &mut WorkingSet<S>) {
+        assert!(
+            Self::get(working_set).is_none(),
+            "Batch prover DA pub key must not already be initialized!"
+        );
+        Self::set(pub_key, working_set);
+    }
+
+    /// Overwrites the current batch prover DA public key
+    pub fn set(pub_key: &[u8], working_set: &mut WorkingSet<S>) {
+        let key = Self::key();
+        let value: StorageValue = borsh::to_vec(&pub_key.to_vec())
+            .expect("Batch prover DA pub key serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use alloy_primitives::Address;

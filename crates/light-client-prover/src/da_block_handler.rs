@@ -259,8 +259,8 @@ where
             previous_lcp_output,
             self.network.get_l2_genesis_root(),
             self.network.initial_batch_proof_method_ids().to_vec(),
-            &self.network.batch_prover_da_public_key(),
-            &self.network.sequencer_da_public_key(),
+            &self.network.initial_batch_prover_da_public_key(),
+            &self.network.initial_sequencer_da_public_key(),
             self.network
                 .initial_method_id_upgrade_authority_da_addresses()
                 .inner(),

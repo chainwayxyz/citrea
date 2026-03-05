@@ -26,7 +26,8 @@ use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::circuit::{
     citrea_network_to_chain_id, AddSecurityCouncilMember, BatchProofMethodIdUpdate,
-    RemoveSecurityCouncilMember, UpdateSecurityCouncilThreshold,
+    RemoveSecurityCouncilMember, UpdateBatchProverDaPubKey, UpdateSecurityCouncilThreshold,
+    UpdateSequencerDaPubKey,
 };
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
@@ -38,7 +39,8 @@ use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{
     AddSecurityCouncilMemberV1Body, BatchProofMethodIdBody, DaTxRequest, DaVerifier, DataOnDa,
     RemoveSecurityCouncilMemberV1Body, SecurityCouncilTx, SecurityCouncilTxType,
-    SequencerCommitment, UpdateSecurityCouncilThresholdV1Body,
+    SequencerCommitment, UpdateBatchProverDaPubKeyV1Body, UpdateSecurityCouncilThresholdV1Body,
+    UpdateSequencerDaPubKeyV1Body,
 };
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::services::da::DaService;
@@ -4218,6 +4220,256 @@ impl TestCase for SecurityCouncilMemberManagementTest {
 #[tokio::test]
 async fn test_security_council_member_management_limits() -> Result<()> {
     TestCaseRunner::new(SecurityCouncilMemberManagementTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
+}
+
+struct DaPubKeyUpdateTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for DaPubKeyUpdateTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_sequencer: true,
+            with_batch_prover: true,
+            with_light_client_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 2,
+            da_update_interval_ms: 500,
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            enable_recovery: false,
+            ..Default::default()
+        }
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            enable_recovery: false,
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(195)
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+
+        let bitcoin_da_service = spawn_bitcoin_da_service(
+            &self.task_manager.executor(),
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::Other(
+                BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS[0].to_string(),
+            ),
+            REVEAL_TX_PREFIX.to_vec(),
+            None,
+            None,
+        )
+        .await;
+
+        // Bootstrap: create L2 blocks, sequencer commitments, and batch proofs
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        sequencer
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let commitment_l1_height = da.get_finalized_height(None).await?;
+        batch_prover
+            .wait_for_l1_height(commitment_l1_height, Some(TEN_MINS))
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let batch_proof_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
+            .await?;
+
+        // Verify initial pub keys
+        let initial_sequencer_pk = light_client_prover
+            .client
+            .http_client()
+            .get_sequencer_da_pub_key()
+            .await?;
+        assert!(
+            !initial_sequencer_pk.is_empty(),
+            "Initial sequencer DA pub key should be set"
+        );
+
+        let initial_batch_prover_pk = light_client_prover
+            .client
+            .http_client()
+            .get_batch_prover_da_pub_key()
+            .await?;
+        assert!(
+            !initial_batch_prover_pk.is_empty(),
+            "Initial batch prover DA pub key should be set"
+        );
+
+        // Get signers
+        let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+            .map(|s| hex::decode(s).unwrap().try_into().unwrap());
+        let (_initial_addresses, signers) =
+            generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+        // --- CASE 1: Valid sequencer DA pub key update ---
+        let new_sequencer_pub_key: [u8; 33] = {
+            let mut key = [0x02u8; 33]; // Start with valid compressed key prefix
+            key[1] = 0xAA;
+            key[2] = 0xBB;
+            key
+        };
+        let update_seq_body = UpdateSequencerDaPubKeyV1Body {
+            new_pub_key: new_sequencer_pub_key,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
+        };
+        let payload = UpdateSequencerDaPubKey::from(update_seq_body.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::UpdateSequencerDaPubKeyV1(update_seq_body),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(l1_height, Some(TEN_MINS))
+            .await?;
+
+        let sequencer_pk = light_client_prover
+            .client
+            .http_client()
+            .get_sequencer_da_pub_key()
+            .await?;
+        assert_eq!(
+            sequencer_pk,
+            hex::encode(new_sequencer_pub_key),
+            "CASE 1: Sequencer DA pub key should be updated"
+        );
+
+        // --- CASE 2: Valid batch prover DA pub key update ---
+        let new_batch_prover_pub_key: [u8; 33] = {
+            let mut key = [0x03u8; 33]; // Start with valid compressed key prefix
+            key[1] = 0xCC;
+            key[2] = 0xDD;
+            key
+        };
+        let update_bp_body = UpdateBatchProverDaPubKeyV1Body {
+            new_pub_key: new_batch_prover_pub_key,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
+        };
+        let payload = UpdateBatchProverDaPubKey::from(update_bp_body.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::UpdateBatchProverDaPubKeyV1(update_bp_body),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(l1_height, Some(TEN_MINS))
+            .await?;
+
+        let batch_prover_pk = light_client_prover
+            .client
+            .http_client()
+            .get_batch_prover_da_pub_key()
+            .await?;
+        assert_eq!(
+            batch_prover_pk,
+            hex::encode(new_batch_prover_pub_key),
+            "CASE 2: Batch prover DA pub key should be updated"
+        );
+
+        // --- CASE 3: Wrong chain_id should be rejected ---
+        let another_sequencer_pub_key: [u8; 33] = {
+            let mut key = [0x02u8; 33];
+            key[1] = 0xFF;
+            key[2] = 0xEE;
+            key
+        };
+        let bad_chain_id_body = UpdateSequencerDaPubKeyV1Body {
+            new_pub_key: another_sequencer_pub_key,
+            chain_id: 9999, // Wrong chain_id
+        };
+        let payload = UpdateSequencerDaPubKey::from(bad_chain_id_body.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::UpdateSequencerDaPubKeyV1(bad_chain_id_body),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(l1_height, Some(TEN_MINS))
+            .await?;
+
+        // Key should remain unchanged from CASE 1
+        let sequencer_pk = light_client_prover
+            .client
+            .http_client()
+            .get_sequencer_da_pub_key()
+            .await?;
+        assert_eq!(
+            sequencer_pk,
+            hex::encode(new_sequencer_pub_key),
+            "CASE 3: Sequencer DA pub key should remain unchanged after wrong chain_id"
+        );
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_da_pub_key_update() -> Result<()> {
+    TestCaseRunner::new(DaPubKeyUpdateTest {
         task_manager: TaskManager::current(),
     })
     .set_citrea_path(get_citrea_path())
