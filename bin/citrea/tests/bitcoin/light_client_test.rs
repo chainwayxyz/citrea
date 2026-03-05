@@ -4337,9 +4337,8 @@ impl TestCase for DaPubKeyUpdateTest {
         );
 
         // Get signers
-        let pk_bytes_arr: [[u8; 32]; 5] =
-            BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
-                .map(|s| hex::decode(s).unwrap().try_into().unwrap());
+        let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+            .map(|s| hex::decode(s).unwrap().try_into().unwrap());
         let (_initial_addresses, signers) =
             generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
 

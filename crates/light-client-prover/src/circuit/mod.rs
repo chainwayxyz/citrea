@@ -5,9 +5,8 @@
 //! that verify L2 state transitions and updates to the light client state.
 use accessors::{
     BatchProofMethodIdAccessor, BatchProverDaPubKeyAccessor, BlockHashAccessor, ChunkAccessor,
-    SecurityCouncilAddressAccessor, SecurityCouncilThresholdAccessor,
-    SequencerCommitmentAccessor, SequencerDaPubKeyAccessor,
-    VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
+    SecurityCouncilAddressAccessor, SecurityCouncilThresholdAccessor, SequencerCommitmentAccessor,
+    SequencerDaPubKeyAccessor, VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
 use alloy_primitives::{Address, B256};
 use alloy_sol_types::sol;
@@ -451,9 +450,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         let active_batch_prover_da_public_key =
             BatchProverDaPubKeyAccessor::<S>::get(&mut working_set)
                 .expect("Batch prover DA public key must exist");
-        let active_sequencer_da_public_key =
-            SequencerDaPubKeyAccessor::<S>::get(&mut working_set)
-                .expect("Sequencer DA public key must exist");
+        let active_sequencer_da_public_key = SequencerDaPubKeyAccessor::<S>::get(&mut working_set)
+            .expect("Sequencer DA public key must exist");
 
         'blob_loop: for blob in da_txs {
             let Ok(data) = DataOnDa::try_from_slice(blob.full_data()) else {

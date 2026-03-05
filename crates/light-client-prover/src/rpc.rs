@@ -201,8 +201,8 @@ where
     async fn get_sequencer_da_pub_key(&self) -> RpcResult<String> {
         let mut working_set = WorkingSet::new(self.context.storage.clone());
 
-        let pub_key = SequencerDaPubKeyAccessor::<ProverStorage>::get(&mut working_set)
-            .unwrap_or_default();
+        let pub_key =
+            SequencerDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap_or_default();
 
         Ok(hex::encode(pub_key))
     }
@@ -210,8 +210,8 @@ where
     async fn get_batch_prover_da_pub_key(&self) -> RpcResult<String> {
         let mut working_set = WorkingSet::new(self.context.storage.clone());
 
-        let pub_key = BatchProverDaPubKeyAccessor::<ProverStorage>::get(&mut working_set)
-            .unwrap_or_default();
+        let pub_key =
+            BatchProverDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap_or_default();
 
         Ok(hex::encode(pub_key))
     }

@@ -3537,8 +3537,7 @@ fn test_update_sequencer_da_pub_key() {
             .prover_storage_manager
             .create_final_view_storage(),
     );
-    let stored_pub_key =
-        SequencerDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    let stored_pub_key = SequencerDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap();
     assert_eq!(stored_pub_key, new_pub_key.to_vec());
 }
 
@@ -3663,8 +3662,7 @@ fn test_update_sequencer_da_pub_key_wrong_chain_id_rejected() {
             .prover_storage_manager
             .create_final_view_storage(),
     );
-    let stored_pub_key =
-        SequencerDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    let stored_pub_key = SequencerDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap();
     assert_eq!(stored_pub_key, sequencer_da_pub_key.to_vec());
 }
 

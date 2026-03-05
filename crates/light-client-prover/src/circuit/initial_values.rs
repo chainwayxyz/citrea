@@ -228,28 +228,31 @@ pub mod bitcoinda {
     };
 
     /// Public key of the batch prover in the Bitcoin DA on Mainnet.
-    pub const INITIAL_MAINNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
-        b"038e501ede61097973e49e714d5f2ad740c82b798bb90fda427fd5138e51f2398e",
-    ) {
-        Ok(pub_key) => pub_key,
-        Err(_) => panic!("PROVER_DA_PUB_KEY must be valid 33-byte hex string"),
-    };
+    pub const INITIAL_MAINNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] =
+        match const_hex::const_decode_to_array(
+            b"038e501ede61097973e49e714d5f2ad740c82b798bb90fda427fd5138e51f2398e",
+        ) {
+            Ok(pub_key) => pub_key,
+            Err(_) => panic!("PROVER_DA_PUB_KEY must be valid 33-byte hex string"),
+        };
 
     /// Public key of the batch prover in the Bitcoin DA on Testnet.
-    pub const INITIAL_TESTNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
-        b"0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42",
-    ) {
-        Ok(pub_key) => pub_key,
-        Err(_) => panic!("PROVER_DA_PUB_KEY must be valid 33-byte hex string"),
-    };
+    pub const INITIAL_TESTNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] =
+        match const_hex::const_decode_to_array(
+            b"0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42",
+        ) {
+            Ok(pub_key) => pub_key,
+            Err(_) => panic!("PROVER_DA_PUB_KEY must be valid 33-byte hex string"),
+        };
 
     /// Public key of the batch prover in the Bitcoin DA on Devnet.
-    pub const INITIAL_DEVNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
-        b"03fc6fb2ef68368009c895d2d4351dcca4109ec2f5f327291a0553570ce769f5e5",
-    ) {
-        Ok(pub_key) => pub_key,
-        Err(_) => panic!("PROVER_DA_PUB_KEY must be valid 33-byte hex string"),
-    };
+    pub const INITIAL_DEVNET_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] =
+        match const_hex::const_decode_to_array(
+            b"03fc6fb2ef68368009c895d2d4351dcca4109ec2f5f327291a0553570ce769f5e5",
+        ) {
+            Ok(pub_key) => pub_key,
+            Err(_) => panic!("PROVER_DA_PUB_KEY must be valid 33-byte hex string"),
+        };
 
     /// Public key of the batch prover in the Bitcoin DA on Nightly.
     /// This public key is set at compile time via the `PROVER_DA_PUB_KEY` environment variable.
@@ -282,28 +285,31 @@ pub mod bitcoinda {
     };
 
     /// Public key of the sequencer in the Bitcoin DA on Mainnet.
-    pub const INITIAL_MAINNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
-        b"032a31a1fa359abd2e6fc1136b4dea711e5f18618504e021084cc61099f72bb2bd",
-    ) {
-        Ok(pub_key) => pub_key,
-        Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
-    };
+    pub const INITIAL_MAINNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] =
+        match const_hex::const_decode_to_array(
+            b"032a31a1fa359abd2e6fc1136b4dea711e5f18618504e021084cc61099f72bb2bd",
+        ) {
+            Ok(pub_key) => pub_key,
+            Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
+        };
 
     /// Public key of the sequencer in the Bitcoin DA on Testnet.
-    pub const INITIAL_TESTNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
-        b"03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b",
-    ) {
-        Ok(pub_key) => pub_key,
-        Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
-    };
+    pub const INITIAL_TESTNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] =
+        match const_hex::const_decode_to_array(
+            b"03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b",
+        ) {
+            Ok(pub_key) => pub_key,
+            Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
+        };
 
     /// Public key of the sequencer in the Bitcoin DA on Devnet.
-    pub const INITIAL_DEVNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
-        b"039cd55f9b3dcf306c4d54f66cd7c4b27cc788632cd6fb73d80c99d303c6536486",
-    ) {
-        Ok(pub_key) => pub_key,
-        Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
-    };
+    pub const INITIAL_DEVNET_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] =
+        match const_hex::const_decode_to_array(
+            b"039cd55f9b3dcf306c4d54f66cd7c4b27cc788632cd6fb73d80c99d303c6536486",
+        ) {
+            Ok(pub_key) => pub_key,
+            Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
+        };
 
     /// Public key of the sequencer in the Bitcoin DA on Nightly.
     /// This public key is set at compile time via the `SEQUENCER_DA_PUB_KEY` environment variable.

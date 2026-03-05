@@ -487,12 +487,15 @@ impl<S: Storage> SecurityCouncilThresholdAccessor<S> {
 ///
 /// Initialized from compile-time constants on first LCP run, updatable via security council messages.
 pub struct SequencerDaPubKeyAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
     phantom: core::marker::PhantomData<S>,
 }
 
 impl<S: Storage> SequencerDaPubKeyAccessor<S> {
+    /// Sequencer da pubkey prefix
     const PREFIX: u8 = b'q';
 
+    /// Creates a storage key containing just the prefix
     fn key() -> StorageKey {
         let mut key = [0u8; 1];
         key[0] = Self::PREFIX;
@@ -505,8 +508,7 @@ impl<S: Storage> SequencerDaPubKeyAccessor<S> {
         let key = Self::key();
         working_set.get(&key).map(|v| {
             let bytes: RefCount<[u8]> = v.into();
-            borsh::from_slice(&bytes)
-                .expect("Sequencer DA pub key deserialization should not fail")
+            borsh::from_slice(&bytes).expect("Sequencer DA pub key deserialization should not fail")
         })
     }
 
@@ -533,12 +535,15 @@ impl<S: Storage> SequencerDaPubKeyAccessor<S> {
 ///
 /// Initialized from compile-time constants on first LCP run, updatable via security council messages.
 pub struct BatchProverDaPubKeyAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
     phantom: core::marker::PhantomData<S>,
 }
 
 impl<S: Storage> BatchProverDaPubKeyAccessor<S> {
+    /// Batch prover da pubkey prefix
     const PREFIX: u8 = b'p';
 
+    /// Creates a storage key containing just the prefix
     fn key() -> StorageKey {
         let mut key = [0u8; 1];
         key[0] = Self::PREFIX;
