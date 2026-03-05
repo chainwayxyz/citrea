@@ -2518,8 +2518,12 @@ fn test_lcp_input_values_cant_be_tampered() {
     );
 
     // at this point returned witness will look like this:
+    // <BatchProverDaPubKeyAccessor::get() val>
+    // <SequencerDaPubKeyAccessor::get() val>
     // <VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) val>
     // <prev root>
+    // <BatchProverDaPubKeyAccessor read proof>
+    // <SequencerDaPubKeyAccessor read proof>
     // <VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) read proof>
     // <jmt update proof> (includes inserting blockhash)
     // <final root>
@@ -2541,14 +2545,17 @@ fn test_lcp_input_values_cant_be_tampered() {
         .unwrap()
         .into();
 
-    witness[0] = borsh::to_vec(&Some(storage_value)).unwrap();
+    // Index 2 is the VerifiedStateTransitionForSequencerCommitmentIndex value
+    // (indices 0 and 1 are BatchProverDaPubKey and SequencerDaPubKey values)
+    witness[2] = borsh::to_vec(&Some(storage_value)).unwrap();
 
     // we'll also push a None so that incrementing of VerifiedStateTransitionForSequencerCommitmentIndexAccessor stops
-    witness.insert(1, vec![0]);
+    witness.insert(3, vec![0]);
 
     // reusing VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) read proof
     // for VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(3) as get(2) will panic already
-    witness.insert(4, witness[3].clone());
+    // (index 7 is the get(2) read proof, after indices 4-5 for BatchProverDaPubKey and SequencerDaPubKey proofs)
+    witness.insert(8, witness[7].clone());
 
     input.witness = witness.into();
 
