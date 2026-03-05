@@ -6,7 +6,9 @@ use sov_modules_api::WorkingSet;
 use sov_modules_core::StorageValue;
 use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
-use sov_rollup_interface::zk::light_client_proof::output::VerifiedStateTransitionForSequencerCommitmentIndex;
+use sov_rollup_interface::zk::light_client_proof::output::{
+    LightClientCircuitOutput, VerifiedStateTransitionForSequencerCommitmentIndex,
+};
 use sov_rollup_interface::Network;
 use sov_state::{ProverStorage, ZkStorage};
 use tempfile::tempdir;
@@ -111,6 +113,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -179,6 +182,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -275,6 +279,7 @@ fn test_light_client_circuit_commitment_chaining() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -356,6 +361,7 @@ fn test_previous_commitment_not_set_should_not_transition() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -423,6 +429,7 @@ fn test_batch_proof_with_missing_commitment_not_set_should_not_transition() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -503,6 +510,7 @@ fn test_wrong_order_da_blocks_should_still_work() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -591,6 +599,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -674,6 +683,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -755,6 +765,7 @@ fn test_header_chain_proof_height_and_hash() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -824,6 +835,7 @@ fn test_header_chain_proof_height_and_hash() {
         METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
         INITIAL_SECURITY_COUNCIL_THRESHOLD,
         EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+        &[],
     );
     assert!(matches!(
         res,
@@ -916,6 +928,7 @@ fn test_unverifiable_batch_proofs() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1011,6 +1024,7 @@ fn test_unverifiable_prev_light_client_proof() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1067,6 +1081,7 @@ fn test_unverifiable_prev_light_client_proof() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 }
@@ -1133,6 +1148,7 @@ fn test_new_method_id_txs() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
     let mut working_set = WorkingSet::new(
@@ -1184,6 +1200,7 @@ fn test_new_method_id_txs() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
     let batch_proof_method_ids =
@@ -1233,6 +1250,7 @@ fn test_new_method_id_txs() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1302,6 +1320,7 @@ fn test_wrong_network_method_id_update_should_fail() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
     let mut working_set = WorkingSet::new(
@@ -1388,6 +1407,7 @@ fn test_unverifiable_batch_proof_is_ignored() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1520,6 +1540,7 @@ fn test_light_client_circuit_verify_chunks() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1640,6 +1661,7 @@ fn test_missing_chunk() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1747,6 +1769,7 @@ fn test_light_client_circuit_aggregate_size_overflow() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1844,6 +1867,7 @@ fn test_malicious_aggregate_should_not_work() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1900,6 +1924,7 @@ fn test_malicious_aggregate_should_not_work() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1969,6 +1994,7 @@ fn test_malicious_aggregate_should_not_work() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2058,6 +2084,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2134,6 +2161,7 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2206,6 +2234,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2260,6 +2289,7 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2339,6 +2369,7 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2393,6 +2424,7 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2486,6 +2518,7 @@ fn test_lcp_input_values_cant_be_tampered() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2577,6 +2610,7 @@ fn test_lcp_input_values_cant_be_tampered() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 }
@@ -2654,6 +2688,7 @@ fn test_lcp_cant_be_passed_roots_from_a_different_tree() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2704,6 +2739,7 @@ fn test_lcp_cant_be_passed_roots_from_a_different_tree() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 }
@@ -2757,6 +2793,7 @@ fn test_add_security_council_member() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2825,6 +2862,7 @@ fn test_add_duplicate_member_rejected() {
             initial_addresses,
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2888,6 +2926,7 @@ fn test_remove_security_council_member() {
             initial_addresses,
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2954,6 +2993,7 @@ fn test_remove_nonexistent_member_rejected() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -3014,6 +3054,7 @@ fn test_update_security_council_threshold() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -3076,6 +3117,7 @@ fn test_invalid_threshold_update_rejected() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -3141,6 +3183,7 @@ fn test_replace_security_council_member() {
             initial_addresses,
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -3219,6 +3262,7 @@ fn test_add_member_exceeds_max_count_rejected() {
             &initial_addresses,
             3,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -3285,6 +3329,7 @@ fn test_remove_member_below_min_count_rejected() {
             initial_addresses,
             2,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -3347,6 +3392,7 @@ fn test_add_member_threshold_too_high_rejected() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -3412,6 +3458,7 @@ fn test_update_threshold_below_min_rejected() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -3474,6 +3521,7 @@ fn test_update_threshold_exceeds_proximity_rejected() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -3536,6 +3584,7 @@ fn test_update_sequencer_da_pub_key() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -3597,6 +3646,7 @@ fn test_update_batch_prover_da_pub_key() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -3660,6 +3710,7 @@ fn test_update_sequencer_da_pub_key_wrong_chain_id_rejected() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -3723,6 +3774,7 @@ fn test_update_batch_prover_da_pub_key_wrong_chain_id_rejected() {
             METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -3735,4 +3787,248 @@ fn test_update_batch_prover_da_pub_key_wrong_chain_id_rejected() {
     let stored_pub_key =
         BatchProverDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap();
     assert_eq!(stored_pub_key, batch_prover_da_pub_key.to_vec());
+}
+
+#[test]
+fn test_lcp_method_id_upgrade_reinitializes_state() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let old_method_id = [1u32; 8];
+    let new_method_id = [2u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let seq_comm_1 = create_mock_sequencer_commitment(1, 2, [2u8; 32]);
+    let seq_comm_1_blob = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
+
+    let batch_prover_da_pub_key = [9; 32];
+
+    let blob_1 = create_mock_batch_proof(
+        [1u8; 32],
+        2,
+        true,
+        block_header_1.hash.0,
+        vec![seq_comm_1.clone()],
+        None,
+        batch_prover_da_pub_key,
+    );
+
+    let l2_genesis_state_root = [1u8; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    // First proof with old method ID — initializes state
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id: old_method_id,
+            da_block_header: block_header_1.clone(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![seq_comm_1_blob, blob_1],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    assert_eq!(output_1.light_client_proof_method_id, old_method_id);
+    assert_eq!(output_1.l2_state_root, [2; 32]);
+    assert_eq!(output_1.last_l2_height, 2);
+    assert_eq!(output_1.last_sequencer_commitment_index, 1);
+
+    // Second proof with new method ID — LCP upgrade with re-initialization
+    let block_header_2 = MockBlockHeader::from_height(2);
+    let mock_output_1_serialized = create_prev_lcp_serialized(output_1.clone(), true);
+
+    // Use different initial values for the "new circuit" to verify re-initialization
+    let new_batch_proof_method_ids: Vec<(u64, [u32; 8])> = vec![(0, [99u32; 8])];
+    let new_batch_prover_da_pub_key = [77; 32];
+    let new_sequencer_da_pub_key = [88; 32];
+
+    let input_2 = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(mock_output_1_serialized),
+            light_client_proof_method_id: new_method_id,
+            da_block_header: block_header_2,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        new_batch_proof_method_ids.clone(),
+        &new_batch_prover_da_pub_key,
+        &new_sequencer_da_pub_key,
+        METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let output_2 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input_2,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            new_batch_proof_method_ids.clone(),
+            &new_batch_prover_da_pub_key,
+            &new_sequencer_da_pub_key,
+            METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[old_method_id], // allowed previous method IDs
+        )
+        .unwrap();
+
+    // Verify the output has the new method ID
+    assert_eq!(output_2.light_client_proof_method_id, new_method_id);
+
+    // Verify L2 state carries over from the previous proof
+    assert_eq!(output_2.l2_state_root, output_1.l2_state_root);
+    assert_eq!(output_2.last_l2_height, output_1.last_l2_height);
+    assert_eq!(
+        output_2.last_sequencer_commitment_index,
+        output_1.last_sequencer_commitment_index
+    );
+
+    // Verify JMT state was re-initialized with new initial constants
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+
+    let stored_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(stored_method_ids, new_batch_proof_method_ids);
+
+    let stored_batch_prover_pub_key =
+        BatchProverDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(stored_batch_prover_pub_key, new_batch_prover_da_pub_key);
+
+    let stored_sequencer_pub_key =
+        SequencerDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(stored_sequencer_pub_key, new_sequencer_da_pub_key);
+
+    let stored_threshold =
+        SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(stored_threshold, INITIAL_SECURITY_COUNCIL_THRESHOLD);
+}
+
+#[test]
+#[should_panic(expected = "Previous LCP method ID is not in the allowed list")]
+fn test_lcp_upgrade_with_disallowed_previous_method_id_panics() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let old_method_id = [1u32; 8];
+    let new_method_id = [2u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    // First proof with old method ID
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id: old_method_id,
+            da_block_header: block_header_1.clone(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    // Second proof with new method ID, but allowed list does NOT contain old_method_id
+    let block_header_2 = MockBlockHeader::from_height(2);
+    let mock_output_1_serialized = create_prev_lcp_serialized(output_1, true);
+
+    let input_2 = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(mock_output_1_serialized.clone()),
+            light_client_proof_method_id: new_method_id,
+            da_block_header: block_header_2.clone(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    // This should panic because [3u32; 8] does not contain old_method_id [1u32; 8]
+    let _output_2 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input_2,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[[3u32; 8]], // does NOT contain old_method_id [1u32; 8]
+        )
+        .unwrap();
 }

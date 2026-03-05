@@ -32,6 +32,7 @@ pub mod mockda {
     use alloy_primitives::{address, Address};
 
     use super::non_empty_slice::NonEmptySlice;
+    use crate::circuit::initial_values::decode_to_u32_array;
 
     /// Genesis L2 genesis root for the mock DA.
     pub const GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
@@ -81,6 +82,13 @@ pub mod mockda {
 
     /// EIP-712 domain name for security council messages in the mock DA.
     pub const EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME: &str = "CitreaMockDASecurityCouncil";
+
+    /// Allowed previous LCP method IDs for circuit upgrades on mock DA.
+    /// When the LCP circuit is upgraded, the old method ID is added here
+    /// so the new circuit can verify the last proof from the old circuit.
+    pub const ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] = &[decode_to_u32_array(
+        "81240a47c80c23350c03732bee08b9d749b54ddd1f4ddcc4af1c531310d13e97",
+    )];
 }
 
 /// Module containing initial values for the Bitcoin DA (Data Availability) specification.
@@ -518,6 +526,26 @@ pub mod bitcoinda {
     pub const TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES:
         NonEmptySlice<Address> = NonEmptySlice::new(&TEST_NETWORK_WITH_FORKS_ADDRESSES);
 
+    /// Allowed previous LCP method IDs for circuit upgrades on Mainnet.
+    pub const MAINNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] = &[];
+
+    /// Allowed previous LCP method IDs for circuit upgrades on Testnet.
+    pub const TESTNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] = &[];
+
+    /// Allowed previous LCP method IDs for circuit upgrades on Devnet.
+    pub const DEVNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] = &[];
+
+    /// Allowed previous LCP method IDs for circuit upgrades on Nightly.
+    pub const NIGHTLY_ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] = &[decode_to_u32_array(
+        "81240a47c80c23350c03732bee08b9d749b54ddd1f4ddcc4af1c531310d13e97",
+    )];
+
+    /// Allowed previous LCP method IDs for circuit upgrades on Test Network with Forks.
+    pub const TEST_NETWORK_WITH_FORKS_ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] =
+        &[decode_to_u32_array(
+            "81240a47c80c23350c03732bee08b9d749b54ddd1f4ddcc4af1c531310d13e97",
+        )];
+
     /// Initial security council threshold for all Bitcoin DA networks.
     pub const INITIAL_SECURITY_COUNCIL_THRESHOLD: usize = 3;
 
@@ -567,6 +595,9 @@ pub trait InitialValueProvider<Das: DaSpec> {
 
     /// Returns the EIP-712 domain name for security council messages.
     fn get_eip712_security_council_message_domain_name(&self) -> &str;
+
+    /// Returns the allowed previous LCP method IDs for circuit upgrades.
+    fn allowed_previous_lcp_method_ids(&self) -> &'static [[u32; 8]];
 }
 
 #[cfg(feature = "native")]
@@ -606,6 +637,11 @@ impl InitialValueProvider<MockDaSpec> for Network {
     fn get_eip712_security_council_message_domain_name(&self) -> &str {
         assert_eq!(self, &Network::Nightly, "Only nightly allowed on mock da!");
         mockda::EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME
+    }
+
+    fn allowed_previous_lcp_method_ids(&self) -> &'static [[u32; 8]] {
+        assert_eq!(self, &Network::Nightly, "Only nightly allowed on mock da!");
+        mockda::ALLOWED_PREVIOUS_LCP_METHOD_IDS
     }
 }
 
@@ -683,6 +719,18 @@ impl InitialValueProvider<BitcoinSpec> for Network {
             Network::Nightly => bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
             Network::TestNetworkWithForks => {
                 bitcoinda::TEST_NETWORK_WITH_FORKS_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME
+            }
+        }
+    }
+
+    fn allowed_previous_lcp_method_ids(&self) -> &'static [[u32; 8]] {
+        match self {
+            Network::Mainnet => bitcoinda::MAINNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS,
+            Network::Testnet => bitcoinda::TESTNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS,
+            Network::Devnet => bitcoinda::DEVNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS,
+            Network::Nightly => bitcoinda::NIGHTLY_ALLOWED_PREVIOUS_LCP_METHOD_IDS,
+            Network::TestNetworkWithForks => {
+                bitcoinda::TEST_NETWORK_WITH_FORKS_ALLOWED_PREVIOUS_LCP_METHOD_IDS
             }
         }
     }

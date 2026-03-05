@@ -555,6 +555,7 @@ impl NativeCircuitRunner {
             initial_method_id_upgrade_authority,
             initial_security_council_threshold,
             domain_name.to_string(),
+            input.light_client_proof_method_id,
         );
 
         self.prover_storage_manager.finalize_storage(res.change_set);
