@@ -6,9 +6,7 @@ use sov_modules_api::WorkingSet;
 use sov_modules_core::StorageValue;
 use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
-use sov_rollup_interface::zk::light_client_proof::output::{
-    LightClientCircuitOutput, VerifiedStateTransitionForSequencerCommitmentIndex,
-};
+use sov_rollup_interface::zk::light_client_proof::output::VerifiedStateTransitionForSequencerCommitmentIndex;
 use sov_rollup_interface::Network;
 use sov_state::{ProverStorage, ZkStorage};
 use tempfile::tempdir;
