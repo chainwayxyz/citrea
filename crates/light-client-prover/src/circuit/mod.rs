@@ -451,6 +451,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             );
         } else if is_lcp_upgrade {
             // LCP circuit upgrade — overwrite JMT state with new circuit's compile-time constants
+            BatchProofMethodIdAccessor::<S>::set(
+                initial_batch_proof_method_ids,
+                &mut working_set,
+            );
             SecurityCouncilAddressAccessor::<S>::set(
                 initial_security_council_da_addresses,
                 &mut working_set,
