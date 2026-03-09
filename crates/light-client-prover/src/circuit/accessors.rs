@@ -328,10 +328,7 @@ impl<S: Storage> BatchProofMethodIdAccessor<S> {
     }
 
     /// Overwrites the batch proof method ids with a new set of method ids.
-    pub fn set(
-        method_ids: InitialBatchProofMethodIds,
-        working_set: &mut WorkingSet<S>,
-    ) {
+    pub fn set(method_ids: InitialBatchProofMethodIds, working_set: &mut WorkingSet<S>) {
         let key = Self::key();
         let value: StorageValue = borsh::to_vec(&method_ids)
             .expect("Batch proof method ids serialization should not fail")
