@@ -537,13 +537,13 @@ pub mod bitcoinda {
 
     /// Allowed previous LCP method IDs for circuit upgrades on Nightly.
     pub const NIGHTLY_ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] = &[decode_to_u32_array(
-        "81240a47c80c23350c03732bee08b9d749b54ddd1f4ddcc4af1c531310d13e97",
+        "814500432afdf6670ce72541e887194688b9118ab1386cf94bc283bdcb174f37",
     )];
 
     /// Allowed previous LCP method IDs for circuit upgrades on Test Network with Forks.
     pub const TEST_NETWORK_WITH_FORKS_ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] =
         &[decode_to_u32_array(
-            "81240a47c80c23350c03732bee08b9d749b54ddd1f4ddcc4af1c531310d13e97",
+            "814500432afdf6670ce72541e887194688b9118ab1386cf94bc283bdcb174f37",
         )];
 
     /// Initial security council threshold for all Bitcoin DA networks.
