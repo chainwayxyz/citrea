@@ -59,6 +59,8 @@ pub struct BatchProofMethodIdBody {
     pub activation_l2_height: u64,
     /// Network identifier to prevent cross network replay attacks
     pub chain_id: u64,
+    /// Strictly increasing nonce to prevent replay attacks
+    pub nonce: u64,
 }
 
 impl BatchProofMethodIdBody {
@@ -75,6 +77,8 @@ pub struct AddSecurityCouncilMemberV1Body {
     pub new_member: [u8; 20],
     /// New threshold after adding the member
     pub new_threshold: u32,
+    /// Strictly increasing nonce to prevent replay attacks
+    pub nonce: u64,
 }
 
 /// Body for removing a security council member
@@ -84,6 +88,8 @@ pub struct RemoveSecurityCouncilMemberV1Body {
     pub member_to_be_removed: [u8; 20],
     /// New threshold after removing the member
     pub new_threshold: u32,
+    /// Strictly increasing nonce to prevent replay attacks
+    pub nonce: u64,
 }
 
 /// Body for updating the security council signature threshold
@@ -91,6 +97,8 @@ pub struct RemoveSecurityCouncilMemberV1Body {
 pub struct UpdateSecurityCouncilThresholdV1Body {
     /// New threshold value
     pub new_threshold: u32,
+    /// Strictly increasing nonce to prevent replay attacks
+    pub nonce: u64,
 }
 
 /// Body for replacing a security council member (1-for-1 swap, threshold unchanged)
@@ -100,6 +108,8 @@ pub struct ReplaceSecurityCouncilMemberV1Body {
     pub to_be_replaced: [u8; 20],
     /// Ethereum address of the new member
     pub new_member: [u8; 20],
+    /// Strictly increasing nonce to prevent replay attacks
+    pub nonce: u64,
 }
 
 /// Body for updating the sequencer DA public key
@@ -109,6 +119,8 @@ pub struct UpdateSequencerDaPubKeyV1Body {
     pub new_pub_key: [u8; 33],
     /// Network identifier to prevent cross network replay attacks
     pub chain_id: u64,
+    /// Strictly increasing nonce to prevent replay attacks
+    pub nonce: u64,
 }
 
 /// Body for updating the batch prover DA public key
@@ -118,6 +130,8 @@ pub struct UpdateBatchProverDaPubKeyV1Body {
     pub new_pub_key: [u8; 33],
     /// Network identifier to prevent cross network replay attacks
     pub chain_id: u64,
+    /// Strictly increasing nonce to prevent replay attacks
+    pub nonce: u64,
 }
 
 /// Versioned security council transaction type
@@ -137,6 +151,21 @@ pub enum SecurityCouncilTxType {
     UpdateSequencerDaPubKeyV1(UpdateSequencerDaPubKeyV1Body),
     /// Update the batch prover DA public key (V1)
     UpdateBatchProverDaPubKeyV1(UpdateBatchProverDaPubKeyV1Body),
+}
+
+impl SecurityCouncilTxType {
+    /// Returns the nonce from the inner body, regardless of variant.
+    pub fn nonce(&self) -> u64 {
+        match self {
+            Self::BatchProofMethodIdUpdateV1(body) => body.nonce,
+            Self::AddSecurityCouncilMemberV1(body) => body.nonce,
+            Self::RemoveSecurityCouncilMemberV1(body) => body.nonce,
+            Self::UpdateSecurityCouncilThresholdV1(body) => body.nonce,
+            Self::ReplaceSecurityCouncilMemberV1(body) => body.nonce,
+            Self::UpdateSequencerDaPubKeyV1(body) => body.nonce,
+            Self::UpdateBatchProverDaPubKeyV1(body) => body.nonce,
+        }
+    }
 }
 
 /// A security council transaction with signatures

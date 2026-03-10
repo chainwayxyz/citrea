@@ -5,8 +5,9 @@
 //! that verify L2 state transitions and updates to the light client state.
 use accessors::{
     BatchProofMethodIdAccessor, BatchProverDaPubKeyAccessor, BlockHashAccessor, ChunkAccessor,
-    SecurityCouncilAddressAccessor, SecurityCouncilThresholdAccessor, SequencerCommitmentAccessor,
-    SequencerDaPubKeyAccessor, VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
+    SecurityCouncilAddressAccessor, SecurityCouncilNonceAccessor, SecurityCouncilThresholdAccessor,
+    SequencerCommitmentAccessor, SequencerDaPubKeyAccessor,
+    VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
 use alloy_primitives::{Address, B256};
 use alloy_sol_types::sol;
@@ -449,6 +450,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 initial_batch_prover_da_public_key,
                 &mut working_set,
             );
+            SecurityCouncilNonceAccessor::<S>::initialize(0, &mut working_set);
         } else if is_lcp_upgrade {
             // LCP circuit upgrade — overwrite JMT state with new circuit's compile-time constants
             BatchProofMethodIdAccessor::<S>::set(initial_batch_proof_method_ids, &mut working_set);
@@ -465,6 +467,12 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 initial_batch_prover_da_public_key,
                 &mut working_set,
             );
+            // Initialize nonce only if it doesn't exist yet (upgrading from a version
+            // without nonce support). Do NOT reset it if it already exists — that would
+            // allow replay of pre-upgrade security council messages.
+            if SecurityCouncilNonceAccessor::<S>::get(&mut working_set).is_none() {
+                SecurityCouncilNonceAccessor::<S>::set(0, &mut working_set);
+            }
         }
 
         // Read the active pub keys from state (may have been updated by security council)
@@ -685,6 +693,19 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         let upgrade_authority_threshold = SecurityCouncilThresholdAccessor::<S>::get(working_set)
             .expect("Security council threshold must exist");
         let circuit_chain_id = citrea_network_to_chain_id(network);
+
+        // Replay protection: verify and increment nonce
+        let msg_nonce = sc_tx.tx_type.nonce();
+        let current_nonce = SecurityCouncilNonceAccessor::<S>::get(working_set)
+            .expect("Security council nonce must exist");
+        if msg_nonce != current_nonce + 1 {
+            log!(
+                "Security council nonce mismatch: expected {}, got {}",
+                current_nonce + 1,
+                msg_nonce
+            );
+            return;
+        }
 
         match sc_tx.tx_type {
             SecurityCouncilTxType::BatchProofMethodIdUpdateV1(body) => {
@@ -930,6 +951,9 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 BatchProverDaPubKeyAccessor::<S>::set(&body.new_pub_key, working_set);
             }
         }
+
+        // Nonce check passed and message was processed successfully — increment
+        SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
     }
 
     /// Called by the guest to run the light client circuit.
@@ -1086,6 +1110,7 @@ sol! {
         uint64 activationL2Height;
         bytes32 batchProofMethodId;
         uint64 chainId;
+        uint64 nonce;
     }
 }
 
@@ -1105,6 +1130,7 @@ impl From<BatchProofMethodIdBody> for BatchProofMethodIdUpdate {
                 convert_u32_8_to_u8_32(batch_proof_method_id_body.method_id).as_slice(),
             ),
             chainId: batch_proof_method_id_body.chain_id,
+            nonce: batch_proof_method_id_body.nonce,
         }
     }
 }
@@ -1114,6 +1140,7 @@ sol! {
     struct AddSecurityCouncilMember {
         address newMember;
         uint32 newThreshold;
+        uint64 nonce;
     }
 }
 
@@ -1122,6 +1149,7 @@ impl From<AddSecurityCouncilMemberV1Body> for AddSecurityCouncilMember {
         AddSecurityCouncilMember {
             newMember: Address::from_slice(&body.new_member),
             newThreshold: body.new_threshold,
+            nonce: body.nonce,
         }
     }
 }
@@ -1131,6 +1159,7 @@ sol! {
     struct RemoveSecurityCouncilMember {
         address memberToBeRemoved;
         uint32 newThreshold;
+        uint64 nonce;
     }
 }
 
@@ -1139,6 +1168,7 @@ impl From<RemoveSecurityCouncilMemberV1Body> for RemoveSecurityCouncilMember {
         RemoveSecurityCouncilMember {
             memberToBeRemoved: Address::from_slice(&body.member_to_be_removed),
             newThreshold: body.new_threshold,
+            nonce: body.nonce,
         }
     }
 }
@@ -1147,6 +1177,7 @@ sol! {
     #[derive(Debug, Serialize)]
     struct UpdateSecurityCouncilThreshold {
         uint32 newThreshold;
+        uint64 nonce;
     }
 }
 
@@ -1154,6 +1185,7 @@ impl From<UpdateSecurityCouncilThresholdV1Body> for UpdateSecurityCouncilThresho
     fn from(body: UpdateSecurityCouncilThresholdV1Body) -> Self {
         UpdateSecurityCouncilThreshold {
             newThreshold: body.new_threshold,
+            nonce: body.nonce,
         }
     }
 }
@@ -1163,6 +1195,7 @@ sol! {
     struct ReplaceSecurityCouncilMember {
         address toBeReplaced;
         address newMember;
+        uint64 nonce;
     }
 }
 
@@ -1171,6 +1204,7 @@ impl From<ReplaceSecurityCouncilMemberV1Body> for ReplaceSecurityCouncilMember {
         ReplaceSecurityCouncilMember {
             toBeReplaced: Address::from_slice(&body.to_be_replaced),
             newMember: Address::from_slice(&body.new_member),
+            nonce: body.nonce,
         }
     }
 }
@@ -1180,6 +1214,7 @@ sol! {
     struct UpdateSequencerDaPubKey {
         bytes newPubKey;
         uint64 chainId;
+        uint64 nonce;
     }
 }
 
@@ -1188,6 +1223,7 @@ impl From<UpdateSequencerDaPubKeyV1Body> for UpdateSequencerDaPubKey {
         UpdateSequencerDaPubKey {
             newPubKey: body.new_pub_key.to_vec().into(),
             chainId: body.chain_id,
+            nonce: body.nonce,
         }
     }
 }
@@ -1197,6 +1233,7 @@ sol! {
     struct UpdateBatchProverDaPubKey {
         bytes newPubKey;
         uint64 chainId;
+        uint64 nonce;
     }
 }
 
@@ -1205,6 +1242,7 @@ impl From<UpdateBatchProverDaPubKeyV1Body> for UpdateBatchProverDaPubKey {
         UpdateBatchProverDaPubKey {
             newPubKey: body.new_pub_key.to_vec().into(),
             chainId: body.chain_id,
+            nonce: body.nonce,
         }
     }
 }

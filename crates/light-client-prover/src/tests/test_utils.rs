@@ -297,6 +297,7 @@ pub(crate) fn create_new_method_id_tx(
     new_method_id: [u32; 8],
     pub_key: [u8; 32],
     network: Network,
+    nonce: u64,
 ) -> MockBlob {
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
@@ -305,6 +306,7 @@ pub(crate) fn create_new_method_id_tx(
         activation_l2_height: activation_height,
         method_id: new_method_id,
         chain_id: citrea_network_to_chain_id(network),
+        nonce,
     };
 
     let (_initial_addresses, signers) =
@@ -315,11 +317,7 @@ pub(crate) fn create_new_method_id_tx(
     let signatures_with_index = create_valid_signatures(&signers, &payload);
 
     let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
-        tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(BatchProofMethodIdBody {
-            method_id: new_method_id,
-            activation_l2_height: activation_height,
-            chain_id: citrea_network_to_chain_id(network),
-        }),
+        tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(method_id_body),
         signatures_with_index,
     });
 
@@ -335,6 +333,7 @@ pub(crate) fn create_add_member_tx(
     new_member: [u8; 20],
     new_threshold: u32,
     pub_key: [u8; 32],
+    nonce: u64,
 ) -> MockBlob {
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
@@ -342,6 +341,7 @@ pub(crate) fn create_add_member_tx(
     let body = AddSecurityCouncilMemberV1Body {
         new_member,
         new_threshold,
+        nonce,
     };
 
     let (_initial_addresses, signers) =
@@ -365,6 +365,7 @@ pub(crate) fn create_remove_member_tx(
     member_to_be_removed: [u8; 20],
     new_threshold: u32,
     pub_key: [u8; 32],
+    nonce: u64,
 ) -> MockBlob {
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
@@ -372,6 +373,7 @@ pub(crate) fn create_remove_member_tx(
     let body = RemoveSecurityCouncilMemberV1Body {
         member_to_be_removed,
         new_threshold,
+        nonce,
     };
 
     let (_initial_addresses, signers) =
@@ -391,11 +393,18 @@ pub(crate) fn create_remove_member_tx(
     blob
 }
 
-pub(crate) fn create_update_threshold_tx(new_threshold: u32, pub_key: [u8; 32]) -> MockBlob {
+pub(crate) fn create_update_threshold_tx(
+    new_threshold: u32,
+    pub_key: [u8; 32],
+    nonce: u64,
+) -> MockBlob {
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
-    let body = UpdateSecurityCouncilThresholdV1Body { new_threshold };
+    let body = UpdateSecurityCouncilThresholdV1Body {
+        new_threshold,
+        nonce,
+    };
 
     let (_initial_addresses, signers) =
         generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
@@ -418,6 +427,7 @@ pub(crate) fn create_replace_member_tx(
     to_be_replaced: [u8; 20],
     new_member: [u8; 20],
     pub_key: [u8; 32],
+    nonce: u64,
 ) -> MockBlob {
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
@@ -425,6 +435,7 @@ pub(crate) fn create_replace_member_tx(
     let body = ReplaceSecurityCouncilMemberV1Body {
         to_be_replaced,
         new_member,
+        nonce,
     };
 
     let (_initial_addresses, signers) =
@@ -597,6 +608,7 @@ pub(crate) fn create_update_sequencer_pub_key_tx(
     new_pub_key: [u8; 33],
     pub_key: [u8; 32],
     network: Network,
+    nonce: u64,
 ) -> MockBlob {
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
@@ -604,6 +616,7 @@ pub(crate) fn create_update_sequencer_pub_key_tx(
     let body = UpdateSequencerDaPubKeyV1Body {
         new_pub_key,
         chain_id: citrea_network_to_chain_id(network),
+        nonce,
     };
 
     let (_initial_addresses, signers) =
@@ -627,6 +640,7 @@ pub(crate) fn create_update_batch_prover_pub_key_tx(
     new_pub_key: [u8; 33],
     pub_key: [u8; 32],
     network: Network,
+    nonce: u64,
 ) -> MockBlob {
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
@@ -634,6 +648,7 @@ pub(crate) fn create_update_batch_prover_pub_key_tx(
     let body = UpdateBatchProverDaPubKeyV1Body {
         new_pub_key,
         chain_id: citrea_network_to_chain_id(network),
+        nonce,
     };
 
     let (_initial_addresses, signers) =
@@ -657,6 +672,7 @@ pub(crate) fn create_update_sequencer_pub_key_tx_with_chain_id(
     new_pub_key: [u8; 33],
     chain_id: u64,
     pub_key: [u8; 32],
+    nonce: u64,
 ) -> MockBlob {
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
@@ -664,6 +680,7 @@ pub(crate) fn create_update_sequencer_pub_key_tx_with_chain_id(
     let body = UpdateSequencerDaPubKeyV1Body {
         new_pub_key,
         chain_id,
+        nonce,
     };
 
     let (_initial_addresses, signers) =
@@ -687,6 +704,7 @@ pub(crate) fn create_update_batch_prover_pub_key_tx_with_chain_id(
     new_pub_key: [u8; 33],
     chain_id: u64,
     pub_key: [u8; 32],
+    nonce: u64,
 ) -> MockBlob {
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
@@ -694,6 +712,7 @@ pub(crate) fn create_update_batch_prover_pub_key_tx_with_chain_id(
     let body = UpdateBatchProverDaPubKeyV1Body {
         new_pub_key,
         chain_id,
+        nonce,
     };
 
     let (_initial_addresses, signers) =

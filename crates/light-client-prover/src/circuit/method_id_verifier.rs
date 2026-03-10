@@ -190,6 +190,7 @@ mod tests {
             method_id: [0u32; 8],
             activation_l2_height: 0,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
+            nonce: 0,
         };
 
         let payload = BatchProofMethodIdUpdate::from(body.clone());
@@ -214,6 +215,7 @@ mod tests {
             method_id: [0u32; 8],
             activation_l2_height: 0,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
+            nonce: 0,
         };
         let payload = BatchProofMethodIdUpdate::from(body.clone());
 
@@ -240,6 +242,7 @@ mod tests {
             method_id: [0u32; 8],
             activation_l2_height: 0,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
+            nonce: 0,
         };
         let payload = BatchProofMethodIdUpdate::from(body.clone());
 
@@ -266,6 +269,7 @@ mod tests {
             method_id: [0u32; 8],
             activation_l2_height: 0,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
+            nonce: 0,
         };
         let payload = BatchProofMethodIdUpdate::from(body.clone());
         let (initial_addresses, signers) = generate_initial_addresses_with_signers();
@@ -288,6 +292,7 @@ mod tests {
             method_id: [0u32; 8],
             activation_l2_height: 0,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
+            nonce: 0,
         };
         let payload = BatchProofMethodIdUpdate::from(body.clone());
 
