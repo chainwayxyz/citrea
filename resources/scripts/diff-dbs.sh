@@ -106,11 +106,17 @@ for db in "${DBS[@]}"; do
         only2=$(comm -13 <(printf '%s\n' "$cfs1") <(printf '%s\n' "$cfs2") | sed '/^$/d' || true)
         if [ -n "$only1" ]; then
             echo "    Only in DB1:"
-            echo "$only1" | sed 's/^/      - /'
+            while IFS= read -r cf; do
+                [ -z "$cf" ] && continue
+                printf '      - %s\n' "$cf"
+            done <<< "$only1"
         fi
         if [ -n "$only2" ]; then
             echo "    Only in DB2:"
-            echo "$only2" | sed 's/^/      - /'
+            while IFS= read -r cf; do
+                [ -z "$cf" ] && continue
+                printf '      - %s\n' "$cf"
+            done <<< "$only2"
         fi
         found_diff=1
         continue
