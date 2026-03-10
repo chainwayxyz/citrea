@@ -27,8 +27,8 @@ use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::circuit::{
     citrea_network_to_chain_id, AddSecurityCouncilMember, BatchProofMethodIdUpdate,
-    RemoveSecurityCouncilMember, UpdateBatchProverDaPubKey, UpdateSecurityCouncilThreshold,
-    UpdateSequencerDaPubKey,
+    RemoveBatchProofMethodId, RemoveSecurityCouncilMember, UpdateBatchProverDaPubKey,
+    UpdateSecurityCouncilThreshold, UpdateSequencerDaPubKey,
 };
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
@@ -39,9 +39,9 @@ use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{
     AddSecurityCouncilMemberV1Body, BatchProofMethodIdBody, DaTxRequest, DaVerifier, DataOnDa,
-    RemoveSecurityCouncilMemberV1Body, SecurityCouncilTx, SecurityCouncilTxType,
-    SequencerCommitment, UpdateBatchProverDaPubKeyV1Body, UpdateSecurityCouncilThresholdV1Body,
-    UpdateSequencerDaPubKeyV1Body,
+    RemoveBatchProofMethodIdV1Body, RemoveSecurityCouncilMemberV1Body, SecurityCouncilTx,
+    SecurityCouncilTxType, SequencerCommitment, UpdateBatchProverDaPubKeyV1Body,
+    UpdateSecurityCouncilThresholdV1Body, UpdateSequencerDaPubKeyV1Body,
 };
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::services::da::DaService;
@@ -1353,6 +1353,160 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .get_batch_proof_method_ids()
             .await?;
         assert!(correct_nonce_method_ids
+            .iter()
+            .any(|x| x.method_id == correct_nonce_method_id.into()));
+
+        // At this point we have 3 method IDs:
+        // index 0: (0, initial_method_id)
+        // index 1: (220, [2;8]) from CASE 1
+        // index 2: (300, [10;8]) from CASE 10
+        // Current nonce: 2
+
+        // --- CASE 11: Remove method id with wrong method_id field (should be rejected) ---
+        let remove_wrong_id_body = RemoveBatchProofMethodIdV1Body {
+            method_id_index: 1,
+            batch_proof_method_id: [99u32; 8], // Wrong — actual is [2;8]
+            l2_activation_height: 220,
+            nonce: 3,
+        };
+        let remove_wrong_id_payload = RemoveBatchProofMethodId::from(remove_wrong_id_body.clone());
+        let signatures_with_index =
+            create_valid_signatures(&signers, &remove_wrong_id_payload, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::RemoveBatchProofMethodIdV1(
+                        remove_wrong_id_body,
+                    ),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let remove_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(remove_l1_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let method_ids_after_wrong = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        // Still 3 — wrong method_id field rejected
+        assert_eq!(method_ids_after_wrong.len(), 3);
+
+        // --- CASE 12: Remove method id with wrong activation height (should be rejected) ---
+        // Nonce still 2 because CASE 11 was rejected
+        let remove_wrong_height_body = RemoveBatchProofMethodIdV1Body {
+            method_id_index: 1,
+            batch_proof_method_id: new_batch_proof_method_id, // Correct [2;8]
+            l2_activation_height: 999,                        // Wrong — actual is 220
+            nonce: 3,                                         // Still 3, CASE 11 rejected
+        };
+        let remove_wrong_height_payload =
+            RemoveBatchProofMethodId::from(remove_wrong_height_body.clone());
+        let signatures_with_index =
+            create_valid_signatures(&signers, &remove_wrong_height_payload, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::RemoveBatchProofMethodIdV1(
+                        remove_wrong_height_body,
+                    ),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let remove_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(remove_l1_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let method_ids_after_wrong_h = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert_eq!(method_ids_after_wrong_h.len(), 3);
+
+        // --- CASE 13: Remove method id with out-of-bounds index (should be rejected) ---
+        let remove_oob_body = RemoveBatchProofMethodIdV1Body {
+            method_id_index: 10, // Only 3 entries
+            batch_proof_method_id: [0u32; 8],
+            l2_activation_height: 0,
+            nonce: 3,
+        };
+        let remove_oob_payload = RemoveBatchProofMethodId::from(remove_oob_body.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &remove_oob_payload, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::RemoveBatchProofMethodIdV1(remove_oob_body),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let remove_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(remove_l1_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let method_ids_after_oob = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert_eq!(method_ids_after_oob.len(), 3);
+
+        // --- CASE 14: Valid remove of method id at index 1 (should be accepted) ---
+        let remove_valid_body = RemoveBatchProofMethodIdV1Body {
+            method_id_index: 1,
+            batch_proof_method_id: new_batch_proof_method_id, // [2;8]
+            l2_activation_height: 220,
+            nonce: 3, // Correct — all previous removes were rejected
+        };
+        let remove_valid_payload = RemoveBatchProofMethodId::from(remove_valid_body.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &remove_valid_payload, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::RemoveBatchProofMethodIdV1(remove_valid_body),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await
+            .unwrap();
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let remove_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(remove_l1_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let method_ids_after_valid_remove = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        // Down to 2 — the [2;8] method id was removed
+        assert_eq!(method_ids_after_valid_remove.len(), 2);
+        assert!(!method_ids_after_valid_remove
+            .iter()
+            .any(|x| x.method_id == new_batch_proof_method_id.into()));
+        assert!(method_ids_after_valid_remove
             .iter()
             .any(|x| x.method_id == correct_nonce_method_id.into()));
 
