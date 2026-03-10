@@ -250,6 +250,14 @@ where
 
         let storage = self.storage_manager.create_storage_for_next_l2_height();
 
+        // This is not exactly right, but works for now because we have a single elf for
+        // light client proof circuit.
+        let current_fork = fork_from_block_number(l2_last_height);
+        let light_client_proof_code_commitment = self
+            .light_client_proof_code_commitments
+            .get(&current_fork.spec_id)
+            .expect("Fork should have a guest code attached");
+
         let result = self.circuit.run_l1_block(
             self.network,
             storage,
@@ -268,15 +276,8 @@ where
             self.network
                 .get_eip712_security_council_message_domain_name()
                 .to_string(),
+            light_client_proof_code_commitment.clone().into(),
         );
-
-        // This is not exactly right, but works for now because we have a single elf for
-        // light client proof circuit.
-        let current_fork = fork_from_block_number(l2_last_height);
-        let light_client_proof_code_commitment = self
-            .light_client_proof_code_commitments
-            .get(&current_fork.spec_id)
-            .expect("Fork should have a guest code attached");
         let light_client_elf = self
             .light_client_proof_elfs
             .get(&current_fork.spec_id)

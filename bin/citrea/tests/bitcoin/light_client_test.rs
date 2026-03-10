@@ -18,10 +18,11 @@ use citrea_batch_prover::PartitionMode;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::{
     BatchProverConfig, BitcoinConfig, CitreaMode, LightClientProverConfig, SequencerConfig,
-    SequencerMempoolConfig, TestCaseConfig,
+    SequencerMempoolConfig, TestCaseConfig, TestCaseDockerConfig,
 };
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
+use citrea_e2e::traits::{Restart, RestartPolicy};
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::circuit::{
@@ -4470,6 +4471,462 @@ impl TestCase for DaPubKeyUpdateTest {
 #[tokio::test]
 async fn test_da_pub_key_update() -> Result<()> {
     TestCaseRunner::new(DaPubKeyUpdateTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
+}
+
+// Run lcp with pre-upgrade docker image
+// generate pre upgrade proofs
+// restart on any l1 height with upgraded binary
+// generate upgraded proofs and see the upgrade is successful
+struct TestLcpVersionUpgrade {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for TestLcpVersionUpgrade {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            docker: {
+                TestCaseDockerConfig {
+                    citrea: true, // Start in docker
+                    bitcoin: true,
+                }
+            },
+            with_light_client_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            enable_recovery: false,
+            initial_da_height: 170,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let light_client_prover = f.light_client_prover.as_mut().unwrap();
+        let da = f.bitcoin_nodes.get(0).unwrap();
+
+        // === Pre-upgrade phase: generate proofs with old binary ===
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+
+        let finalized_height = da.get_finalized_height(None).await.unwrap();
+
+        light_client_prover
+            .wait_for_l1_height(finalized_height, Some(TEN_MINS))
+            .await?;
+
+        // Get the pre-upgrade proof and record its state
+        let pre_upgrade_proof = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(U64::from(finalized_height))
+            .await?
+            .expect("Pre-upgrade proof must exist");
+
+        let old_method_id = pre_upgrade_proof
+            .light_client_proof_output
+            .light_client_proof_method_id;
+
+        let pre_upgrade_l2_state_root = pre_upgrade_proof.light_client_proof_output.l2_state_root;
+        let pre_upgrade_last_l2_height = pre_upgrade_proof.light_client_proof_output.last_l2_height;
+        let pre_upgrade_last_seq_comm_idx = pre_upgrade_proof
+            .light_client_proof_output
+            .last_sequencer_commitment_index;
+
+        // Record pre-upgrade JMT state
+        let old_batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+
+        let height_before = sequencer.client.ledger_get_head_l2_block_height().await?;
+
+        let n_blocks = 2;
+        for _ in 0..n_blocks {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        sequencer
+            .wait_for_l2_height(height_before + n_blocks, None)
+            .await?;
+
+        let height_pre_restart = sequencer.client.ledger_get_head_l2_block_height().await?;
+
+        // === Upgrade: restart with new binary ===
+        light_client_prover.config.restart_policy = RestartPolicy::Spawn;
+        light_client_prover.restart(None, None).await?;
+
+        sequencer.config.restart_policy = RestartPolicy::Spawn;
+        sequencer.restart(None, None).await?;
+
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+        let height_post_restart = sequencer.client.ledger_get_head_l2_block_height().await?;
+        assert_eq!(height_pre_restart, height_post_restart);
+
+        // === Post-upgrade phase: generate DA blocks for the new LCP to process ===
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer
+            .wait_for_l2_height(height_post_restart + 1, None)
+            .await?;
+
+        // Generate DA blocks to finalize new L1 blocks for LCP to scan
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+
+        let post_upgrade_finalized_height = da.get_finalized_height(None).await?;
+        assert!(
+            post_upgrade_finalized_height > finalized_height,
+            "New finalized height must be greater than pre-upgrade height"
+        );
+
+        // Wait for the upgraded LCP to process new L1 blocks
+        light_client_prover
+            .wait_for_l1_height(post_upgrade_finalized_height, Some(TEN_MINS))
+            .await?;
+
+        // === Verify upgrade: check the post-upgrade proof ===
+        let post_upgrade_proof = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(U64::from(post_upgrade_finalized_height))
+            .await?
+            .expect("Post-upgrade proof must exist");
+
+        let new_method_id = post_upgrade_proof
+            .light_client_proof_output
+            .light_client_proof_method_id;
+
+        // 1. Method ID must have changed (new binary = new circuit ELF = new method ID)
+        assert_ne!(
+            old_method_id, new_method_id,
+            "LCP method ID must change after upgrade"
+        );
+
+        // 2. L2 state must carry over from the pre-upgrade proof
+        assert_eq!(
+            post_upgrade_proof.light_client_proof_output.l2_state_root, pre_upgrade_l2_state_root,
+            "L2 state root must carry over after upgrade"
+        );
+        assert_eq!(
+            post_upgrade_proof.light_client_proof_output.last_l2_height, pre_upgrade_last_l2_height,
+            "Last L2 height must carry over after upgrade"
+        );
+        assert_eq!(
+            post_upgrade_proof
+                .light_client_proof_output
+                .last_sequencer_commitment_index,
+            pre_upgrade_last_seq_comm_idx,
+            "Last sequencer commitment index must carry over after upgrade"
+        );
+
+        // === Verify upgrade: check JMT state was re-initialized ===
+        let new_batch_proof_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        let new_batch_prover_da_pub_key = light_client_prover
+            .client
+            .http_client()
+            .get_batch_prover_da_pub_key()
+            .await?;
+        let new_sequencer_da_pub_key = light_client_prover
+            .client
+            .http_client()
+            .get_sequencer_da_pub_key()
+            .await?;
+        let new_security_council_addresses = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_addresses()
+            .await?;
+        let new_security_council_threshold = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_threshold()
+            .await?;
+
+        // 3. Batch proof method IDs must be re-initialized
+        //    (old binary had different batch proof ELF, so method IDs differ)
+        assert!(
+            !new_batch_proof_method_ids.is_empty(),
+            "Batch proof method IDs must not be empty after upgrade"
+        );
+        assert_ne!(
+            old_batch_proof_method_ids, new_batch_proof_method_ids,
+            "Batch proof method IDs must be re-initialized after upgrade"
+        );
+
+        // 4. Security council state must be re-initialized with current binary's values
+        assert!(
+            !new_security_council_addresses.is_empty(),
+            "Security council addresses must not be empty after upgrade"
+        );
+        assert!(
+            new_security_council_threshold > 0,
+            "Security council threshold must be positive after upgrade"
+        );
+
+        // 5. DA pub keys must be re-initialized with current binary's values
+        assert!(
+            !new_batch_prover_da_pub_key.is_empty(),
+            "Batch prover DA pub key must not be empty after upgrade"
+        );
+        assert!(
+            !new_sequencer_da_pub_key.is_empty(),
+            "Sequencer DA pub key must not be empty after upgrade"
+        );
+
+        // === Post-upgrade: verify security council messages work ===
+        let bitcoin_da_service = spawn_bitcoin_da_service(
+            &self.task_manager.executor(),
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::Other(
+                BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS[0].to_string(),
+            ),
+            REVEAL_TX_PREFIX.to_vec(),
+            None,
+            None,
+        )
+        .await;
+
+        let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+            .map(|s| hex::decode(s).unwrap().try_into().unwrap());
+        let (_initial_addresses, signers) =
+            generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+        // --- SC Message 1: Update sequencer DA pub key ---
+        let updated_seq_pub_key: [u8; 33] = {
+            let mut key = [0x02u8; 33];
+            key[1] = 0xAA;
+            key
+        };
+        let update_seq_body = UpdateSequencerDaPubKeyV1Body {
+            new_pub_key: updated_seq_pub_key,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
+        };
+        let payload = UpdateSequencerDaPubKey::from(update_seq_body.clone());
+        let sigs = create_valid_signatures(&signers, &payload, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::UpdateSequencerDaPubKeyV1(update_seq_body),
+                    signatures_with_index: sigs,
+                }),
+                1.0,
+            )
+            .await?;
+
+        // --- SC Message 2: Update batch prover DA pub key ---
+        let updated_bp_pub_key: [u8; 33] = {
+            let mut key = [0x03u8; 33];
+            key[1] = 0xCC;
+            key
+        };
+        let update_bp_body = UpdateBatchProverDaPubKeyV1Body {
+            new_pub_key: updated_bp_pub_key,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
+        };
+        let payload = UpdateBatchProverDaPubKey::from(update_bp_body.clone());
+        let sigs = create_valid_signatures(&signers, &payload, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::UpdateBatchProverDaPubKeyV1(update_bp_body),
+                    signatures_with_index: sigs,
+                }),
+                1.0,
+            )
+            .await?;
+
+        // --- SC Message 3: Batch proof method ID update ---
+        let new_method_id_body = BatchProofMethodIdBody {
+            method_id: [42u32; 8],
+            activation_l2_height: 9999,
+            chain_id: citrea_network_to_chain_id(Network::Nightly),
+        };
+        let payload = BatchProofMethodIdUpdate::from(new_method_id_body.clone());
+        let sigs = create_valid_signatures(&signers, &payload, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(new_method_id_body),
+                    signatures_with_index: sigs,
+                }),
+                1.0,
+            )
+            .await?;
+
+        // Mine and wait for LCP to process block with messages 1-3
+        da.wait_mempool_len(6, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let sc_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(sc_l1_height, Some(TEN_MINS))
+            .await?;
+
+        // Verify messages 1-3
+        let seq_pk = light_client_prover
+            .client
+            .http_client()
+            .get_sequencer_da_pub_key()
+            .await?;
+        assert_eq!(
+            seq_pk,
+            hex::encode(updated_seq_pub_key),
+            "Sequencer DA pub key should be updated by SC message"
+        );
+
+        let bp_pk = light_client_prover
+            .client
+            .http_client()
+            .get_batch_prover_da_pub_key()
+            .await?;
+        assert_eq!(
+            bp_pk,
+            hex::encode(updated_bp_pub_key),
+            "Batch prover DA pub key should be updated by SC message"
+        );
+
+        let method_ids_after_sc = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert!(
+            method_ids_after_sc.len() > new_batch_proof_method_ids.len(),
+            "Batch proof method IDs should have a new entry after SC message"
+        );
+
+        // --- SC Message 4: Add security council member ---
+        let new_member = [0x99u8; 20];
+        let add_body = AddSecurityCouncilMemberV1Body {
+            new_member,
+            new_threshold: 3,
+        };
+        let payload = AddSecurityCouncilMember::from(add_body.clone());
+        let sigs = create_valid_signatures(&signers, &payload, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::AddSecurityCouncilMemberV1(add_body),
+                    signatures_with_index: sigs,
+                }),
+                1.0,
+            )
+            .await?;
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let sc_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(sc_l1_height, Some(TEN_MINS))
+            .await?;
+
+        let addresses_after_add = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_addresses()
+            .await?;
+        assert_eq!(
+            addresses_after_add.len(),
+            new_security_council_addresses.len() + 1,
+            "Security council should have one more member after Add"
+        );
+
+        // --- SC Message 5: Remove security council member ---
+        let remove_body = RemoveSecurityCouncilMemberV1Body {
+            member_to_be_removed: new_member,
+            new_threshold: 3,
+        };
+        let payload = RemoveSecurityCouncilMember::from(remove_body.clone());
+        let sigs = create_valid_signatures(&signers, &payload, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::RemoveSecurityCouncilMemberV1(remove_body),
+                    signatures_with_index: sigs,
+                }),
+                1.0,
+            )
+            .await?;
+
+        // --- SC Message 6: Update security council threshold ---
+        let threshold_body = UpdateSecurityCouncilThresholdV1Body { new_threshold: 2 };
+        let payload = UpdateSecurityCouncilThreshold::from(threshold_body.clone());
+        let sigs = create_valid_signatures(&signers, &payload, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::UpdateSecurityCouncilThresholdV1(
+                        threshold_body,
+                    ),
+                    signatures_with_index: sigs,
+                }),
+                1.0,
+            )
+            .await?;
+
+        da.wait_mempool_len(4, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let sc_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(sc_l1_height, Some(TEN_MINS))
+            .await?;
+
+        let addresses_after_remove = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_addresses()
+            .await?;
+        assert_eq!(
+            addresses_after_remove.len(),
+            new_security_council_addresses.len(),
+            "Security council should be back to original size after Remove"
+        );
+
+        let threshold_after = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_threshold()
+            .await?;
+        assert_eq!(
+            threshold_after, 2,
+            "Security council threshold should be updated to 2"
+        );
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_lcp_version_upgrade() -> Result<()> {
+    std::env::set_var(
+        "CITREA_DOCKER_IMAGE",
+        // Image tag with the old lcp binary
+        "chainwayxyz/citrea-test:f3da96cea8d59f9b72df0f1b6b80144ad47901b9",
+    );
+    TestCaseRunner::new(TestLcpVersionUpgrade {
         task_manager: TaskManager::current(),
     })
     .set_citrea_path(get_citrea_path())

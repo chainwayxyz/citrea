@@ -103,6 +103,18 @@ pub const SECURITY_COUNCIL_DOMAIN_NAME: &str = {
     }
 };
 
+const ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] = {
+    match NETWORK {
+        Network::Mainnet => bitcoinda::MAINNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS,
+        Network::Testnet => bitcoinda::TESTNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS,
+        Network::Devnet => bitcoinda::DEVNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS,
+        Network::Nightly => bitcoinda::NIGHTLY_ALLOWED_PREVIOUS_LCP_METHOD_IDS,
+        Network::TestNetworkWithForks => {
+            bitcoinda::TEST_NETWORK_WITH_FORKS_ALLOWED_PREVIOUS_LCP_METHOD_IDS
+        }
+    }
+};
+
 pub fn main() {
     let storage = ZkStorage::new();
 
@@ -130,6 +142,7 @@ pub fn main() {
             INITIAL_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             SECURITY_COUNCIL_DOMAIN_NAME.to_string(),
+            ALLOWED_PREVIOUS_LCP_METHOD_IDS,
         )
         .unwrap();
 
