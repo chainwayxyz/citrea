@@ -94,9 +94,27 @@ for db in "${DBS[@]}"; do
     path1="$DB1/$db"
     path2="$DB2/$db"
 
-    cfs=$(list_cfs "$path1")
-    cf_count=$(echo "$cfs" | grep -c -v '^$' || true)
-    echo "=== $db ($cf_count column families) ==="
+    cfs1=$(list_cfs "$path1" | sort)
+    cfs2=$(list_cfs "$path2" | sort)
+    cf_count1=$(echo "$cfs1" | grep -c -v '^$' || true)
+    cf_count2=$(echo "$cfs2" | grep -c -v '^$' || true)
+    echo "=== $db (DB1: $cf_count1 cfs, DB2: $cf_count2 cfs) ==="
+
+    if [ "$cfs1" != "$cfs2" ]; then
+        echo "  COLUMN FAMILY MISMATCH"
+        only1=$(comm -23 <(printf '%s\n' "$cfs1") <(printf '%s\n' "$cfs2") | sed '/^$/d' || true)
+        only2=$(comm -13 <(printf '%s\n' "$cfs1") <(printf '%s\n' "$cfs2") | sed '/^$/d' || true)
+        if [ -n "$only1" ]; then
+            echo "    Only in DB1:"
+            echo "$only1" | sed 's/^/      - /'
+        fi
+        if [ -n "$only2" ]; then
+            echo "    Only in DB2:"
+            echo "$only2" | sed 's/^/      - /'
+        fi
+        found_diff=1
+        continue
+    fi
 
     while IFS= read -r cf; do
         [ -z "$cf" ] && continue
@@ -114,7 +132,7 @@ for db in "${DBS[@]}"; do
         else
             echo " OK"
         fi
-    done <<< "$cfs"
+    done <<< "$cfs1"
 done
 
 if [ $found_diff -eq 0 ]; then
