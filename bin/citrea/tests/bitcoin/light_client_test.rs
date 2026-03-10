@@ -1219,9 +1219,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
-                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(
-                        replay_body.clone(),
-                    ),
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(replay_body.clone()),
                     signatures_with_index,
                 }),
                 1.0,
@@ -4134,7 +4132,10 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         assert_eq!(addresses.len(), 7, "CASE 2: Should have 7 members");
 
         // --- CASE 3: Update threshold below MIN_THRESHOLD=2 (rejected) ---
-        let update_body_1 = UpdateSecurityCouncilThresholdV1Body { new_threshold: 1, nonce: 4 };
+        let update_body_1 = UpdateSecurityCouncilThresholdV1Body {
+            new_threshold: 1,
+            nonce: 4,
+        };
         let payload = UpdateSecurityCouncilThreshold::from(update_body_1.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 5);
         bitcoin_da_service
@@ -4165,7 +4166,10 @@ impl TestCase for SecurityCouncilMemberManagementTest {
 
         // --- CASE 4: Update threshold exceeds proximity limit (rejected) ---
         // 7 members, max threshold = 7-2=5. Requesting threshold=6 is invalid.
-        let update_body_2 = UpdateSecurityCouncilThresholdV1Body { new_threshold: 6, nonce: 5 };
+        let update_body_2 = UpdateSecurityCouncilThresholdV1Body {
+            new_threshold: 6,
+            nonce: 5,
+        };
         let payload = UpdateSecurityCouncilThreshold::from(update_body_2.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 5);
         bitcoin_da_service
@@ -4196,7 +4200,10 @@ impl TestCase for SecurityCouncilMemberManagementTest {
 
         // --- CASE 5: Valid update threshold ---
         // 7 members, max threshold = 7-2=5. Requesting threshold=4 is valid.
-        let update_body_3 = UpdateSecurityCouncilThresholdV1Body { new_threshold: 4, nonce: 6 };
+        let update_body_3 = UpdateSecurityCouncilThresholdV1Body {
+            new_threshold: 4,
+            nonce: 6,
+        };
         let payload = UpdateSecurityCouncilThreshold::from(update_body_3.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 5);
         bitcoin_da_service
@@ -5047,7 +5054,10 @@ impl TestCase for TestLcpVersionUpgrade {
             .await?;
 
         // --- SC Message 6: Update security council threshold ---
-        let threshold_body = UpdateSecurityCouncilThresholdV1Body { new_threshold: 2, nonce: 6 };
+        let threshold_body = UpdateSecurityCouncilThresholdV1Body {
+            new_threshold: 2,
+            nonce: 6,
+        };
         let payload = UpdateSecurityCouncilThreshold::from(threshold_body.clone());
         let sigs = create_valid_signatures(&signers, &payload, 3);
         bitcoin_da_service

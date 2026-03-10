@@ -1163,7 +1163,8 @@ fn test_new_method_id_txs() {
     );
 
     // now try wrong method id
-    let blob_2 = create_new_method_id_tx(10, [3u32; 8], batch_prover_da_pub_key, Network::Nightly, 2);
+    let blob_2 =
+        create_new_method_id_tx(10, [3u32; 8], batch_prover_da_pub_key, Network::Nightly, 2);
 
     let block_header_2 = MockBlockHeader::from_height(2);
 
@@ -3739,7 +3740,8 @@ fn test_update_batch_prover_da_pub_key_wrong_chain_id_rejected() {
 
     let new_pub_key = [88u8; 33];
     // Use wrong chain_id (9999 instead of Nightly's 5665)
-    let blob = create_update_batch_prover_pub_key_tx_with_chain_id(new_pub_key, 9999, [11u8; 32], 1);
+    let blob =
+        create_update_batch_prover_pub_key_tx_with_chain_id(new_pub_key, 9999, [11u8; 32], 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -4275,7 +4277,8 @@ fn test_nonce_skipped_nonce_rejected() {
 
     // Block 1: Send with nonce=3 (skipped, expected=1, should be rejected)
     let block_header_1 = MockBlockHeader::from_height(1);
-    let blob_skipped = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly, 3);
+    let blob_skipped =
+        create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly, 3);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -4392,9 +4395,12 @@ fn test_nonce_sequential_accepted_then_replay_rejected() {
 
     // Block 2: Try to replay nonce=2 and also send nonce=1 (both rejected), then nonce=3 (accepted)
     let block_header_2 = MockBlockHeader::from_height(2);
-    let blob_replay_2 = create_new_method_id_tx(30, [4u32; 8], method_id_sender, Network::Nightly, 2);
-    let blob_replay_1 = create_new_method_id_tx(40, [5u32; 8], method_id_sender, Network::Nightly, 1);
-    let blob_valid_3 = create_new_method_id_tx(50, [6u32; 8], method_id_sender, Network::Nightly, 3);
+    let blob_replay_2 =
+        create_new_method_id_tx(30, [4u32; 8], method_id_sender, Network::Nightly, 2);
+    let blob_replay_1 =
+        create_new_method_id_tx(40, [5u32; 8], method_id_sender, Network::Nightly, 1);
+    let blob_valid_3 =
+        create_new_method_id_tx(50, [6u32; 8], method_id_sender, Network::Nightly, 3);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -4469,7 +4475,8 @@ fn test_nonce_cross_message_types() {
 
     // Block 1: method id update with nonce=1, then add member with nonce=2
     let block_header_1 = MockBlockHeader::from_height(1);
-    let blob_method_id = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly, 1);
+    let blob_method_id =
+        create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly, 1);
     let new_member = [99u8; 20];
     let blob_add_member = create_add_member_tx(new_member, 3, method_id_sender, 2);
 

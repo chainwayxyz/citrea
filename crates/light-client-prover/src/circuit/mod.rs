@@ -5,8 +5,8 @@
 //! that verify L2 state transitions and updates to the light client state.
 use accessors::{
     BatchProofMethodIdAccessor, BatchProverDaPubKeyAccessor, BlockHashAccessor, ChunkAccessor,
-    SecurityCouncilAddressAccessor, SecurityCouncilNonceAccessor,
-    SecurityCouncilThresholdAccessor, SequencerCommitmentAccessor, SequencerDaPubKeyAccessor,
+    SecurityCouncilAddressAccessor, SecurityCouncilNonceAccessor, SecurityCouncilThresholdAccessor,
+    SequencerCommitmentAccessor, SequencerDaPubKeyAccessor,
     VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
 use alloy_primitives::{Address, B256};
