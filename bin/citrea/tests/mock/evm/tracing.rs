@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use alloy_primitives::ruint::aliases::U256;
 use alloy_primitives::{Address, Bytes};
-use alloy_rpc_types::{BlockNumberOrTag, TransactionInput, TransactionRequest};
+use alloy_rpc_types::{BlockId, BlockNumberOrTag, TransactionInput, TransactionRequest};
 use alloy_rpc_types_trace::geth::call::FlatCallFrame;
 use alloy_rpc_types_trace::geth::mux::{MuxConfig, MuxFrame};
 use alloy_rpc_types_trace::geth::GethTrace::{
@@ -11,7 +11,8 @@ use alloy_rpc_types_trace::geth::GethTrace::{
 };
 use alloy_rpc_types_trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType,
-    GethDebugTracingCallOptions, GethDebugTracingOptions, PreStateFrame, TraceResult,
+    GethDebugTracingCallOptions, GethDebugTracingOptions, PreStateConfig, PreStateFrame,
+    TraceResult,
 };
 // use citrea::initialize_logging;
 use citrea_common::SequencerConfig;
@@ -152,7 +153,12 @@ async fn test_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let call_frame_call_trace = test_client
-        .debug_trace_call(tx_request.clone(), None, Some(opts))
+        // test tracing in pending block
+        .debug_trace_call(
+            tx_request.clone(),
+            Some(BlockId::Number(BlockNumberOrTag::Pending)),
+            Some(opts),
+        )
         .await;
 
     let json_value = serde_json::from_value::<CallFrame>(json! [{
@@ -499,6 +505,7 @@ async fn test_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
             )),
         )
         .await
+        .expect("Trace chain rpc failed")
         .into_iter()
         .map(|trace| match trace {
             TraceResult::Success { result, .. } => Ok(result),
@@ -1003,6 +1010,51 @@ async fn test_pre_state_tracer() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(json_res.len(), 1);
     assert_eq!(json_res[0], PreStateTracer(json_value));
 
+    // reproduce bug where a contract deployment on an address with balance doesn't show up on
+    // "pre" field of prestate tracer when diff mode is enabled
+    let cur_nonce = test_client
+        .eth_get_transaction_count(test_client.from_addr, None)
+        .await
+        .unwrap();
+
+    // +1 because we'll send funds to the contract address first, using cur_nonce
+    let contract_addr = test_client.from_addr.create(cur_nonce + 1);
+
+    let res = test_client
+        .send_eth(contract_addr, None, None, Some(cur_nonce), 1_000_000)
+        .await?;
+
+    test_client.send_publish_batch_request().await;
+
+    res.get_receipt().await?;
+
+    // any contract works as this is CREATE
+    let deploy_tx = test_client
+        .deploy_contract(CallerContract::default().byte_code(), Some(cur_nonce + 1))
+        .await?;
+
+    test_client.send_publish_batch_request().await;
+
+    let tx_hash = deploy_tx.get_receipt().await?.transaction_hash;
+
+    let trace_result = test_client
+        .debug_trace_transaction(
+            tx_hash,
+            Some(GethDebugTracingOptions::prestate_tracer(PreStateConfig {
+                diff_mode: Some(true),
+                ..Default::default()
+            })),
+        )
+        .await;
+
+    assert!(trace_result
+        .try_into_pre_state_frame()
+        .unwrap()
+        .as_diff()
+        .unwrap()
+        .pre
+        .contains_key(&contract_addr));
+
     task_manager.graceful_shutdown();
     Ok(())
 }
@@ -1448,6 +1500,62 @@ async fn test_noop_tracer() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     task_manager.graceful_shutdown();
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_trace_chain_block_limit() -> Result<(), Box<dyn std::error::Error>> {
+    let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+
+    let mut rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+    rollup_config.rpc.trace_chain_block_limit = Some(10); // set the limit to 10 blocks
+    let sequencer_config = SequencerConfig::default();
+
+    let rollup_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
+
+    // Wait for rollup task to start:
+    let port = port_rx.await.unwrap();
+
+    let test_client = make_test_client(port).await?;
+
+    for _ in 0..15 {
+        test_client.send_publish_batch_request().await;
+    }
+
+    let result = test_client
+        .debug_trace_chain(
+            BlockNumberOrTag::Number(0),
+            BlockNumberOrTag::Number(15),
+            None,
+        )
+        .await
+        .expect_err("Expected error due to exceeding block limit");
+
+    assert!(result
+        .to_string()
+        .contains("Block range too large. Maximum allowed range is 10 blocks"));
+    rollup_task.graceful_shutdown();
 
     Ok(())
 }

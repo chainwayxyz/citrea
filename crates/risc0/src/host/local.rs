@@ -2,11 +2,15 @@ use std::env;
 use std::path::PathBuf;
 
 use anyhow::anyhow;
+use citrea_common::config::risc0::LocalProverConfig;
 use metrics::gauge;
 use risc0_zkvm::{
     AssumptionReceipt, ExecutorEnvBuilder, ExternalProver, ProveInfo, Prover, ProverOpts,
+    SessionStats,
 };
-use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType};
+use sov_rollup_interface::zk::{
+    LocalProvingSessionInfo, Proof, ProofWithJob, ProvingSessionInfo, ReceiptType,
+};
 use sov_rollup_interface::Network;
 use tokio::sync::oneshot;
 use tracing::error;
@@ -14,21 +18,16 @@ use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct LocalProver {
-    dev_mode: bool,
     r0vm_path: PathBuf,
     #[cfg_attr(not(feature = "testing"), allow(unused))]
     network: Network,
 }
 
 impl LocalProver {
-    pub fn new(network: Network) -> Self {
-        assert!(
-            env::var("RISC0_PROVER").map_or(true, |prover| prover == "ipc"),
-            "Only supported RISC0_PROVER for LocalProver is ipc"
-        );
-
-        let dev_mode = env::var("RISC0_DEV_MODE").is_ok();
-        let r0vm_path = get_r0vm_path().expect("Could not get r0vm path");
+    pub fn new(network: Network, config: LocalProverConfig) -> Self {
+        let r0vm_path = config
+            .r0vm_path
+            .unwrap_or_else(|| get_r0vm_path().expect("Could not get r0vm path"));
 
         // Check if the version of the r0vm matches the version of the risc0 crate
         // the `get_r0vm_path` function will return the path to the r0vm binary with the correct version
@@ -38,11 +37,7 @@ impl LocalProver {
         // so we need to check if the version is correct
         compare_risc0_versions(&r0vm_path).expect("Something is wrong with system r0vm");
 
-        Self {
-            dev_mode,
-            r0vm_path,
-            network,
-        }
+        Self { r0vm_path, network }
     }
 
     pub fn prove(
@@ -54,17 +49,6 @@ impl LocalProver {
         receipt_type: ReceiptType,
         with_prove: bool,
     ) -> anyhow::Result<oneshot::Receiver<ProofWithJob>> {
-        if self.dev_mode {
-            assert!(
-                !with_prove,
-                "Prove should not be called with prove in dev mode"
-            );
-        } else if with_prove {
-            env::remove_var("RISC0_DEV_MODE");
-        } else {
-            env::set_var("RISC0_DEV_MODE", "1");
-        }
-
         // std::fs::write("kumquat-input.bin", &input).unwrap();
 
         let prover_opts = match receipt_type {
@@ -72,14 +56,21 @@ impl LocalProver {
             ReceiptType::Succinct => ProverOpts::succinct(),
         };
 
+        let prover_opts = prover_opts.with_dev_mode(!with_prove); // pass dev mode here
+
         tracing::info!("Starting local risc0 proving, job_id={}", job_id);
 
         let this = self.clone();
         let (tx, rx) = oneshot::channel();
         tokio::task::spawn_blocking(move || {
             match this.handle_prove(job_id, elf, input, assumptions, prover_opts) {
-                Ok(proof) => {
-                    let _ = tx.send(ProofWithJob { job_id, proof });
+                Ok((proof, stats)) => {
+                    let info = ProvingSessionInfo::Local(local_info_from_stats(&stats));
+                    let _ = tx.send(ProofWithJob {
+                        job_id,
+                        proof,
+                        info,
+                    });
                 }
                 Err(e) => error!("Local proving error: {}", e),
             }
@@ -95,9 +86,8 @@ impl LocalProver {
         input: Vec<u8>,
         assumptions: Vec<AssumptionReceipt>,
         prover_opts: ProverOpts,
-    ) -> anyhow::Result<Proof> {
+    ) -> anyhow::Result<(Proof, SessionStats)> {
         let assumptions_len = assumptions.len();
-
         let mut env = ExecutorEnvBuilder::default();
         // Add assumptions
         for assumption in assumptions {
@@ -128,7 +118,8 @@ impl LocalProver {
         tracing::info!("Execution Stats for job_id={}: {:?}", job_id, stats);
         gauge!("proving_session_cycle_count").set(stats.total_cycles as f64);
 
-        Ok(bincode::serialize(&receipt.inner).expect("Receipt serialization cannot fail"))
+        let proof = bincode::serialize(&receipt.inner).expect("Receipt serialization cannot fail");
+        Ok((proof, stats))
     }
 }
 
@@ -193,4 +184,14 @@ fn compare_risc0_versions(r0vm_path: &PathBuf) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn local_info_from_stats(stats: &SessionStats) -> LocalProvingSessionInfo {
+    LocalProvingSessionInfo {
+        segments: stats.segments,
+        total_cycles: stats.total_cycles,
+        user_cycles: stats.user_cycles,
+        paging_cycles: stats.paging_cycles,
+        reserved_cycles: stats.reserved_cycles,
+    }
 }

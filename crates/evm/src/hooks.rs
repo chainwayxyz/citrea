@@ -71,6 +71,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             parent_block_gas_limit,
             parent_block_base_fee_per_gas,
             cfg.base_fee_params,
+            l2_block_info.current_spec,
         );
 
         let evm_spec = citrea_spec_id_to_evm_spec_id(l2_block_info.current_spec);
@@ -165,7 +166,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // EIP-4788 related field
             // unrelated for rollups
             parent_beacon_block_root: Some(B256::ZERO),
-            requests_hash: if let SpecId::PRAGUE = evm_spec {
+            requests_hash: if evm_spec.is_enabled_in(SpecId::PRAGUE) {
                 Some(EMPTY_REQUESTS_HASH)
             } else {
                 None
@@ -238,8 +239,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .get(accessory_working_set)
                 .unwrap_or_else(|| {
                     panic!(
-                        "Pending head must be set to block {}, but was empty",
-                        expected_block_number
+                        "Pending head must be set to block {expected_block_number}, but was empty"
                     )
                 });
 

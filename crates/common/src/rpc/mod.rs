@@ -19,6 +19,7 @@ use sov_rollup_interface::services::da::DaService;
 use tower_http::cors::{Any, CorsLayer};
 
 mod auth;
+pub mod eip_7966;
 mod metrics;
 pub(crate) use metrics::RpcMetrics;
 pub mod server;
@@ -45,7 +46,7 @@ pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
 
         let Some((L2BlockNumber(head_batch_num), _)) = ledger_db
             .get_head_l2_block()
-            .map_err(|err| error(&format!("Failed to get head l2 block: {}", err)))?
+            .map_err(|err| error(&format!("Failed to get head l2 block: {err}")))?
         else {
             return Ok::<(), ErrorObjectOwned>(());
         };
@@ -58,14 +59,14 @@ pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
             .get_l2_block_range(
                 &(L2BlockNumber(head_batch_num - 1)..=L2BlockNumber(head_batch_num)),
             )
-            .map_err(|err| error(&format!("Failed to get l2 block range: {}", err)))?;
+            .map_err(|err| error(&format!("Failed to get l2 block range: {err}")))?;
 
         let block_time_s = (l2_blocks[1].timestamp - l2_blocks[0].timestamp).max(1);
         tokio::time::sleep(Duration::from_millis(block_time_s * 1500)).await;
 
         let (new_head_batch_num, _) = ledger_db
             .get_head_l2_block()
-            .map_err(|err| error(&format!("Failed to get head l2 block: {}", err)))?
+            .map_err(|err| error(&format!("Failed to get head l2 block: {err}")))?
             .unwrap();
         if new_head_batch_num > L2BlockNumber(head_batch_num) {
             Ok::<(), ErrorObjectOwned>(())
@@ -110,10 +111,7 @@ pub fn register_healthcheck_rpc_light_client_prover<T: Send + Sync + 'static, Da
         .await;
         match res {
             Ok(_) => Ok::<(), ErrorObjectOwned>(()),
-            Err(e) => Err(error(&format!(
-                "Failed to retrieve head block header: {}",
-                e
-            ))),
+            Err(e) => Err(error(&format!("Failed to retrieve head block header: {e}"))),
         }
     })?;
 
@@ -155,7 +153,7 @@ where
                 tracing::trace!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_success");
             } else {
                 match req_method.as_str() {
-                    "eth_sendRawTransaction" => tracing::debug!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_error"),
+                    "eth_sendRawTransaction" | "eth_sendRawTransactionSync"=> tracing::debug!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_error"),
                     _ => tracing::warn!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_error")
                 }
 

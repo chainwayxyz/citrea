@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use alloy_eips::eip2930::{AccessList, AccessListItem, AccessListWithGasUsed};
 use alloy_eips::BlockNumberOrTag;
-use alloy_primitives::{address, b256, Address, TxKind, U256};
+use alloy_primitives::{address, b256, TxKind, U256};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
@@ -23,13 +23,11 @@ type C = DefaultContext;
 #[test]
 fn test_payable_contract_value() {
     let (evm, mut working_set, signer, ledger_db) =
-        init_evm_single_block(sov_modules_api::SpecId::Tangerine);
+        init_evm_single_block(sov_modules_api::SpecId::latest());
 
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(TxKind::Call(address!(
-            "819c5497b157177315e1204f52e588b393771719"
-        ))), // Address of the payable contract.
+        to: Some(TxKind::Call(signer.address().create(0))), // Address of the payable contract.
         gas: Some(100000),
         gas_price: Some(100000000),
         max_fee_per_gas: None,
@@ -52,6 +50,7 @@ fn test_payable_contract_value() {
     let result = evm.eth_estimate_gas_inner(
         tx_req,
         Some(BlockNumberOrTag::Latest),
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -62,13 +61,11 @@ fn test_payable_contract_value() {
 #[test]
 fn test_tx_request_fields_gas_fork1() {
     let (evm, mut working_set, signer, ledger_db) =
-        init_evm_single_block(sov_modules_api::SpecId::Tangerine);
+        init_evm_single_block(sov_modules_api::SpecId::latest());
 
     let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(TxKind::Call(address!(
-            "819c5497b157177315e1204f52e588b393771719"
-        ))),
+        to: Some(TxKind::Call(signer.address().create(0))),
         gas: Some(10000000),
         gas_price: Some(100),
         max_fee_per_gas: None,
@@ -91,6 +88,7 @@ fn test_tx_request_fields_gas_fork1() {
     let result_contract_call = evm.eth_estimate_gas_inner(
         tx_req_contract_call.clone(),
         Some(BlockNumberOrTag::Latest),
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -139,6 +137,7 @@ fn test_tx_request_fields_gas_fork1() {
     let result_no_sender = evm.eth_estimate_gas_inner(
         tx_req_no_sender,
         Some(BlockNumberOrTag::Latest),
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -154,6 +153,7 @@ fn test_tx_request_fields_gas_fork1() {
     let result_no_recipient = evm.eth_estimate_gas_inner(
         tx_req_no_recipient,
         Some(BlockNumberOrTag::Latest),
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -172,6 +172,7 @@ fn test_tx_request_fields_gas_fork1() {
     let result_no_gas = evm.eth_estimate_gas_inner(
         tx_req_no_gas,
         Some(BlockNumberOrTag::Latest),
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -187,6 +188,7 @@ fn test_tx_request_fields_gas_fork1() {
     let result_no_gas_price = evm.eth_estimate_gas_inner(
         tx_req_no_gas_price,
         Some(BlockNumberOrTag::Latest),
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -205,6 +207,7 @@ fn test_tx_request_fields_gas_fork1() {
     let result_no_chain_id = evm.eth_estimate_gas_inner(
         tx_req_no_chain_id,
         Some(BlockNumberOrTag::Latest),
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -223,6 +226,7 @@ fn test_tx_request_fields_gas_fork1() {
     let result_invalid_chain_id = evm.eth_estimate_gas_inner(
         tx_req_invalid_chain_id,
         Some(BlockNumberOrTag::Latest),
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -242,6 +246,7 @@ fn test_tx_request_fields_gas_fork1() {
     let result_no_blob_versioned_hashes = evm.eth_estimate_gas_inner(
         tx_req_no_blob_versioned_hashes,
         Some(BlockNumberOrTag::Latest),
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -260,6 +265,7 @@ fn test_tx_request_fields_gas_fork1() {
     let create_no_access_list_test = evm.create_access_list_inner(
         no_access_list_req,
         Some(BlockNumberOrTag::Latest),
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -269,7 +275,7 @@ fn test_tx_request_fields_gas_fork1() {
         create_no_access_list_test.unwrap(),
         AccessListWithGasUsed {
             access_list: AccessList(vec![AccessListItem {
-                address: address!("819c5497b157177315e1204f52e588b393771719"),
+                address: signer.address().create(0),
                 storage_keys: vec![b256!(
                     "d17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
                 )]
@@ -280,7 +286,7 @@ fn test_tx_request_fields_gas_fork1() {
 
     let access_list_req = TransactionRequest {
         access_list: Some(AccessList(vec![AccessListItem {
-            address: address!("819c5497b157177315e1204f52e588b393771719"),
+            address: signer.address().create(0),
             storage_keys: vec![b256!(
                 "d17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
             )],
@@ -291,6 +297,7 @@ fn test_tx_request_fields_gas_fork1() {
     let access_list_gas_test = evm.eth_estimate_gas_inner(
         access_list_req.clone(),
         Some(BlockNumberOrTag::Latest),
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -305,6 +312,7 @@ fn test_tx_request_fields_gas_fork1() {
     let already_formed_list = evm.create_access_list_inner(
         access_list_req,
         Some(BlockNumberOrTag::Latest),
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -314,7 +322,7 @@ fn test_tx_request_fields_gas_fork1() {
         already_formed_list.unwrap(),
         AccessListWithGasUsed {
             access_list: AccessList(vec![AccessListItem {
-                address: address!("819c5497b157177315e1204f52e588b393771719"),
+                address: signer.address().create(0),
                 storage_keys: vec![b256!(
                     "d17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
                 )]
@@ -332,16 +340,11 @@ fn test_access_list() {
     let (evm, mut working_set, signer, _, ledger_db) = init_evm_with_caller_contract();
 
     let caller = CallerContract::default();
-    let input_data = caller.call_set_call_data(
-        Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
-        42,
-    );
+    let input_data = caller.call_set_call_data(signer.address().create(0), 42);
 
     let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(TxKind::Call(address!(
-            "5ccda3e6d071a059f00d4f3f25a1adc244eb5c93"
-        ))),
+        to: Some(TxKind::Call(signer.address().create(2))),
         gas: Some(10000000),
         gas_price: Some(100),
         max_fee_per_gas: None,
@@ -361,6 +364,7 @@ fn test_access_list() {
     let no_access_list = evm.eth_estimate_gas_inner(
         tx_req_contract_call.clone(),
         None,
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -369,6 +373,7 @@ fn test_access_list() {
 
     let form_access_list = evm.create_access_list_inner(
         tx_req_contract_call.clone(),
+        None,
         None,
         &mut working_set,
         &ledger_db,
@@ -379,7 +384,7 @@ fn test_access_list() {
         form_access_list.unwrap(),
         AccessListWithGasUsed {
             access_list: AccessList(vec![AccessListItem {
-                address: address!("819c5497b157177315e1204f52e588b393771719"),
+                address: signer.address().create(0),
                 storage_keys: vec![b256!(
                     "0000000000000000000000000000000000000000000000000000000000000000"
                 )]
@@ -390,7 +395,7 @@ fn test_access_list() {
 
     let tx_req_with_access_list = TransactionRequest {
         access_list: Some(AccessList(vec![AccessListItem {
-            address: address!("819c5497b157177315e1204f52e588b393771719"),
+            address: signer.address().create(0),
             storage_keys: vec![b256!(
                 "0000000000000000000000000000000000000000000000000000000000000000"
             )],
@@ -400,6 +405,7 @@ fn test_access_list() {
 
     let with_access_list = evm.eth_estimate_gas_inner(
         tx_req_with_access_list,
+        None,
         None,
         &mut working_set,
         &ledger_db,
@@ -411,7 +417,7 @@ fn test_access_list() {
 #[test]
 fn estimate_gas_with_varied_inputs_test() {
     let (evm, mut working_set, _, signer, _, ledger_db) =
-        init_evm(sov_modules_api::SpecId::Tangerine);
+        init_evm(sov_modules_api::SpecId::latest());
 
     let simple_call_data = 0;
     let simple_result = test_estimate_gas_with_input(
@@ -453,13 +459,11 @@ fn estimate_gas_with_varied_inputs_test() {
 #[test]
 fn test_pending_env() {
     let (evm, mut working_set, signer, ledger_db) =
-        init_evm_single_block(sov_modules_api::SpecId::Tangerine);
+        init_evm_single_block(sov_modules_api::SpecId::latest());
 
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(TxKind::Call(address!(
-            "819c5497b157177315e1204f52e588b393771719"
-        ))), // Address of the payable contract.
+        to: Some(TxKind::Call(signer.address().create(0))), // Address of the payable contract.
         gas: Some(100000),
         gas_price: Some(100000000),
         max_fee_per_gas: None,
@@ -483,6 +487,7 @@ fn test_pending_env() {
         .eth_estimate_gas_inner(
             tx_req.clone(),
             Some(BlockNumberOrTag::Latest),
+            None,
             &mut working_set,
             &ledger_db,
             get_fork_fn_latest(),
@@ -492,6 +497,7 @@ fn test_pending_env() {
     let result_pending = evm.eth_estimate_gas_inner(
         tx_req.clone(),
         Some(BlockNumberOrTag::Pending),
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -501,6 +507,7 @@ fn test_pending_env() {
     let result = evm
         .create_access_list_inner(
             tx_req.clone(),
+            None,
             None,
             &mut working_set,
             &ledger_db,
@@ -512,6 +519,7 @@ fn test_pending_env() {
         .create_access_list_inner(
             tx_req.clone(),
             Some(BlockNumberOrTag::Pending),
+            None,
             &mut working_set,
             &ledger_db,
             get_fork_fn_latest(),
@@ -531,9 +539,7 @@ fn test_estimate_gas_with_input(
     let input_data = SimpleStorageContract::default().set_call_data(input_data);
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(TxKind::Call(address!(
-            "eeb03d20dae810f52111b853b31c8be6f30f4cd3"
-        ))),
+        to: Some(TxKind::Call(signer.address().create(7))),
         gas: Some(100_000),
         input: TransactionInput::new(input_data.into()),
         ..Default::default()
@@ -542,6 +548,7 @@ fn test_estimate_gas_with_input(
     evm.eth_estimate_gas_inner(
         tx_req,
         Some(BlockNumberOrTag::Latest),
+        None,
         working_set,
         ledger_db,
         get_fork_fn_latest(),
@@ -567,6 +574,7 @@ fn test_estimate_gas_with_value(
     evm.eth_estimate_gas_inner(
         tx_req,
         Some(BlockNumberOrTag::Latest),
+        None,
         working_set,
         ledger_db,
         get_fork_fn_latest(),

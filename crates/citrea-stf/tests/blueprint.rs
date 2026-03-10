@@ -43,9 +43,7 @@ fn assert_panic_message_contains(panic_payload: Box<dyn std::any::Any + Send>, e
     };
     assert!(
         message.contains(expected),
-        "Expected panic message to contain '{}', but got: '{}'",
-        expected,
-        message
+        "Expected panic message to contain '{expected}', but got: '{message}'"
     );
 }
 
@@ -95,7 +93,7 @@ fn create_l2_block(
     let l2_block_info = HookL2BlockInfo {
         l2_height: height,
         pre_state_root: prev_state_root,
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: sequencer_public_key.clone(),
         l1_fee_rate: 128u128,
         timestamp: 10 * (height - 1),
@@ -108,7 +106,7 @@ fn create_l2_block(
         .end_l2_block(l2_block_info, &mut working_set)
         .unwrap();
     let l2_block_result =
-        stf_blueprint.finalize_l2_block(SpecId::Tangerine, working_set, prover_storage);
+        stf_blueprint.finalize_l2_block(SpecId::latest(), working_set, prover_storage);
 
     let header = L2Header::new(
         height,
@@ -182,7 +180,7 @@ fn test_wrong_l2_block_signature() {
         header: SignedL2Header::new(header, hash, signature),
         txs: vec![],
     };
-    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key, SpecId::Fork3);
+    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key, SpecId::latest());
 
     assert!(matches!(
         result,
@@ -207,7 +205,7 @@ fn test_wrong_l2_block_hash() {
         header: SignedL2Header::new(header, [0; 32], signature),
         txs: vec![],
     };
-    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key, SpecId::Fork3);
+    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key, SpecId::latest());
     assert!(matches!(
         result,
         Err(StateTransitionError::L2BlockError(
@@ -231,7 +229,7 @@ fn test_wrong_l2_tx_merkle_root() {
         header: SignedL2Header::new(header, [0; 32], signature),
         txs: vec![],
     };
-    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key, SpecId::Fork3);
+    let result = stf_blueprint.verify_l2_block(&l2_block, &sequencer_public_key, SpecId::latest());
     assert!(matches!(
         result,
         Err(StateTransitionError::L2BlockError(
@@ -1196,7 +1194,7 @@ fn test_panic_state_root_assertion_failure() {
     let l2_block_info = HookL2BlockInfo {
         l2_height: 1,
         pre_state_root: state_root,
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: sequencer_public_key.clone(),
         l1_fee_rate: 128u128,
         timestamp: 0,
@@ -1209,7 +1207,7 @@ fn test_panic_state_root_assertion_failure() {
         .end_l2_block(l2_block_info, &mut working_set)
         .unwrap();
     let l2_block_result =
-        stf_blueprint.finalize_l2_block(SpecId::Tangerine, working_set, prover_storage);
+        stf_blueprint.finalize_l2_block(SpecId::latest(), working_set, prover_storage);
 
     // Create input with corrupted block
     let mut input: Vec<u8> = vec![];
@@ -1450,7 +1448,7 @@ fn test_panic_state_root_mismatch_assertion() {
     let l2_block_info = HookL2BlockInfo {
         l2_height: 1,
         pre_state_root: state_root,
-        current_spec: SpecId::Tangerine,
+        current_spec: SpecId::latest(),
         sequencer_pub_key: sequencer_public_key.clone(),
         l1_fee_rate: u128::MAX, // This should match the block's gas fee rate
         timestamp: 0,
@@ -1463,7 +1461,7 @@ fn test_panic_state_root_mismatch_assertion() {
         .end_l2_block(l2_block_info, &mut working_set)
         .unwrap();
     let l2_block_result =
-        stf_blueprint.finalize_l2_block(SpecId::Tangerine, working_set, prover_storage);
+        stf_blueprint.finalize_l2_block(SpecId::latest(), working_set, prover_storage);
 
     // Create input with the problematic block
     let mut input: Vec<u8> = vec![];

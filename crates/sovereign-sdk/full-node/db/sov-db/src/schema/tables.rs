@@ -14,7 +14,7 @@ use jmt::storage::{NibblePath, Node, NodeKey, StaleNodeIndex};
 use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::StateDiff;
-use sov_rollup_interface::zk::Proof;
+use sov_rollup_interface::zk::{Proof, ProvingSessionInfo};
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 use uuid::Uuid;
@@ -23,8 +23,8 @@ use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
 use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
-    AccessoryKey, AccessoryStateValue, BonsaiSession, DbHash, JmtValue, L1Height, L2BlockNumber,
-    L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber, StateKey,
+    AccessoryKey, AccessoryStateValue, BonsaiSession, BoundlessSession, DbHash, JmtValue, L1Height,
+    L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber, StateKey,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -101,7 +101,9 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     LastPrunedBlock::table_name(),
     PendingBonsaiSessionByJobId::table_name(),
     PendingL1SubmissionJobs::table_name(),
+    PendingBoundlessSessionByJobId::table_name(),
     ProofByJobId::table_name(),
+    ProvingSessionInfoByJobId::table_name(),
     ProverLastScannedSlot::table_name(),
     ProverPendingCommitments::table_name(),
     ProverStateDiffs::table_name(),
@@ -121,11 +123,13 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
 pub const LIGHT_CLIENT_PROVER_LEDGER_TABLES: &[&str] = &[
     // Don't know if this will be needed
     CommitmentMerkleRoots::table_name(),
+    PendingBonsaiSessionByJobId::table_name(),
+    PendingBoundlessSessionByJobId::table_name(),
     ExecutedMigrations::table_name(),
     LightClientProofBySlotNumber::table_name(),
     ProverLastScannedSlot::table_name(),
+    ProvingSessionInfoBySlotNumber::table_name(),
     SlotByHash::table_name(),
-    PendingBonsaiSessionByJobId::table_name(),
     // #### TESTS RELATED TABLES ####
     #[cfg(test)]
     TestTableOld::table_name(),
@@ -159,10 +163,13 @@ pub const LEDGER_TABLES: &[&str] = &[
     PendingProvingSessions::table_name(),
     PendingSequencerCommitments::table_name(),
     ProofByJobId::table_name(),
+    ProvingSessionInfoByJobId::table_name(),
+    ProvingSessionInfoBySlotNumber::table_name(),
     ProofsBySlotNumber::table_name(),
     ProofsBySlotNumberV2::table_name(),
     ProverLastScannedSlot::table_name(),
     ProverPendingCommitments::table_name(),
+    PendingBoundlessSessionByJobId::table_name(),
     ProverStateDiffs::table_name(),
     SequencerCommitmentByIndex::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
@@ -364,6 +371,11 @@ define_table_with_default_codec!(
     (ProofByJobId) Uuid => StoredBatchProof
 );
 
+define_table_with_seek_key_codec!(
+    /// Proving session information by job ID
+    (ProvingSessionInfoByJobId) Uuid => ProvingSessionInfo
+);
+
 define_table_with_default_codec!(
     /// Secondary index table for quickly associating commitment idx with its proving job id
     (JobIdOfCommitment) u32 => Uuid
@@ -384,9 +396,14 @@ define_table_with_default_codec!(
     (PendingL1SubmissionJobs) Uuid => ()
 );
 
-define_table_with_default_codec!(
+define_table_with_seek_key_codec!(
     /// Pending Bonsai proving sessions by job id
     (PendingBonsaiSessionByJobId) Uuid => BonsaiSession
+);
+
+define_table_with_seek_key_codec!(
+    /// Pending Boundless proving sessions by job id
+    (PendingBoundlessSessionByJobId) Uuid => BoundlessSession
 );
 
 define_table_with_default_codec!(
@@ -427,14 +444,74 @@ define_table_without_codec!(
     (JmtNodes) NodeKey => Node
 );
 
-define_table_with_default_codec!(
+define_table_without_codec!(
     /// The list of stale nodes in JMT
     (StaleNodes) StaleNodeIndex => ()
 );
 
+// Custom codec for StaleNodeIndex using big-endian encoding for correct RocksDB ordering.
+// RocksDB performs lexicographic byte-wise comparison for key ordering. Big-endian encoding
+// ensures numeric values sort correctly (higher numbers have higher byte values in the first bytes).
+// This correct ordering is critical for range queries and pruning operations
+// that depend on version-based iteration.
+impl KeyEncoder<StaleNodes> for StaleNodeIndex {
+    fn encode_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+        use anyhow::Context as _;
+        use bincode::Options as _;
+
+        let bincode_options = bincode::options().with_fixint_encoding().with_big_endian();
+
+        // Serialize both fields using bincode with big-endian
+        bincode_options
+            .serialize(&(self.stale_since_version, &self.node_key))
+            .context("Failed to serialize StaleNodeIndex")
+            .map_err(Into::into)
+    }
+}
+
+impl KeyDecoder<StaleNodes> for StaleNodeIndex {
+    fn decode_key(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
+        use anyhow::Context as _;
+        use bincode::Options as _;
+
+        let bincode_options = bincode::options().with_fixint_encoding().with_big_endian();
+
+        // Deserialize both fields using bincode with big-endian
+        let (stale_since_version, node_key): (u64, NodeKey) = bincode_options
+            .deserialize_from(&mut &data[..])
+            .context("Failed to deserialize StaleNodeIndex")?;
+
+        Ok(StaleNodeIndex {
+            stale_since_version,
+            node_key,
+        })
+    }
+}
+
+impl SeekKeyEncoder<StaleNodes> for StaleNodeIndex {
+    fn encode_seek_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+        <Self as KeyEncoder<StaleNodes>>::encode_key(self)
+    }
+}
+
+impl ValueCodec<StaleNodes> for () {
+    fn encode_value(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+        Ok(vec![])
+    }
+
+    fn decode_value(_data: &[u8]) -> sov_schema_db::schema::Result<Self> {
+        Ok(())
+    }
+}
+
 define_table_with_default_codec!(
     /// Light client proof data by l1 height
     (LightClientProofBySlotNumber) SlotNumber => StoredLightClientProof
+);
+
+define_table_with_seek_key_codec!(
+    /// Proving session information by slot number
+    (ProvingSessionInfoBySlotNumber) SlotNumber => ProvingSessionInfo
 );
 
 define_table_with_default_codec!(
@@ -474,7 +551,7 @@ define_table_with_seek_key_codec!(
 );
 
 define_table_with_default_codec!(
-    /// Stores merkle hash of seuencer commitment => l2 range
+    /// Stores merkle hash of sequencer commitment => l2 range
     (CommitmentMerkleRoots) [u8; 32] => L2HeightRange
 );
 
@@ -509,7 +586,7 @@ impl KeyEncoder<JmtNodes> for NodeKey {
     fn encode_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
         // 8 bytes for version, 4 each for the num_nibbles and bytes.len() fields, plus 1 byte per byte of nibblepath
         let mut output =
-            Vec::with_capacity(8 + 4 + 4 + ((self.nibble_path().num_nibbles() + 1) / 2));
+            Vec::with_capacity(8 + 4 + 4 + self.nibble_path().num_nibbles().div_ceil(2));
         let version = self.version().to_be_bytes();
         output.extend_from_slice(&version);
         BorshSerialize::serialize(self.nibble_path(), &mut output)?;

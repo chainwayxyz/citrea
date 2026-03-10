@@ -206,7 +206,7 @@ impl MockBlob {
         }
     }
 
-    /// Creates a new mock blob with the given data and an aggretated zkp proof, claiming to have been published by the provided address.
+    /// Creates a new mock blob with the given data and an aggregated zkp proof, claiming to have been published by the provided address.
     pub fn new_with_zkp_proof(
         data: Vec<u8>,
         zk_proofs_data: Vec<u8>,

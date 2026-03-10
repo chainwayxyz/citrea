@@ -31,17 +31,19 @@ pub struct RlpEvmTransaction {
     Default,
     Eq,
 )]
-pub(crate) struct TransactionSignedAndRecovered {
+/// A signed transaction with recovered signer address and associated block number.
+pub struct TransactionSignedAndRecovered {
     /// Signer of the transaction
-    pub(crate) signer: Address,
+    pub signer: Address,
     /// Signed transaction
-    pub(crate) signed_transaction: TransactionSigned,
+    pub signed_transaction: TransactionSigned,
     /// Block the transaction was added to
-    pub(crate) block_number: u64,
+    pub block_number: u64,
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct Block<H> {
+/// Block structure containing header and transaction range
+pub struct Block<H> {
     /// Block header.
     pub(crate) header: H,
 
@@ -50,6 +52,14 @@ pub(crate) struct Block<H> {
 
     /// Transactions in this block.
     pub(crate) transactions: Range<u64>,
+}
+
+#[cfg(feature = "native")]
+impl<H> Block<H> {
+    /// Get the transaction range for this block
+    pub fn transaction_range(&self) -> Range<u64> {
+        self.transactions.clone()
+    }
 }
 
 impl Block<AlloyHeader> {
@@ -66,15 +76,16 @@ impl Block<AlloyHeader> {
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct SealedBlock {
+/// A sealed block with finalized header, L1 fee rate, and transaction range.
+pub struct SealedBlock {
     /// Block header.
-    pub(crate) header: SealedHeader<AlloyHeader>,
+    pub header: SealedHeader<AlloyHeader>,
 
     /// L1 fee rate.
-    pub(crate) l1_fee_rate: u128,
+    pub l1_fee_rate: u128,
 
     /// Transactions in this block.
-    pub(crate) transactions: Range<u64>,
+    pub transactions: Range<u64>,
 }
 
 impl Encodable for Block<AlloyHeader> {
@@ -186,9 +197,14 @@ impl Decodable for SealedBlock {
     Default,
     Eq,
 )]
-pub(crate) struct CitreaReceiptWithBloom {
-    pub(crate) receipt: reth_primitives::ReceiptWithBloom<reth_primitives::Receipt>,
-    pub(crate) gas_used: u64,
-    pub(crate) log_index_start: u64,
-    pub(crate) l1_diff_size: u64,
+/// Transaction receipt with bloom filter and additional Citrea-specific metadata.
+pub struct CitreaReceiptWithBloom {
+    /// The wrapped receipt with bloom filter.
+    pub receipt: reth_primitives::ReceiptWithBloom<reth_primitives::Receipt>,
+    /// Gas used by this transaction.
+    pub gas_used: u64,
+    /// Starting index for logs emitted by this transaction.
+    pub log_index_start: u64,
+    /// Size difference contributed to L1 batch size.
+    pub l1_diff_size: u64,
 }

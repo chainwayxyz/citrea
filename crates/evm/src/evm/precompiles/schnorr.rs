@@ -5,7 +5,7 @@ use revm_precompile::{
     u64_to_address, PrecompileError, PrecompileOutput, PrecompileResult, PrecompileWithAddress,
 };
 
-// Benchmarks show that the zk cycle counts for schorr verification is
+// Benchmarks show that the zk cycle counts for schnorr verification is
 // %33 more than p256r1 verification. So we set the base gas cost
 // to be 4600 as 4600 ~ 1.33 * 3450 (p256r1 base gas cost).
 const SCHNORRVERIFY_BASE: u64 = 4600;
@@ -60,7 +60,7 @@ mod tests {
         let signature = SECP256K1.sign_schnorr_no_aux_rand(&message, &keypair);
         let public_key = XOnlyPublicKey::from_keypair(&keypair).0;
 
-        // sanitiy check
+        // sanity check
         signature.verify(&message, &public_key).unwrap();
 
         (public_key, message, signature)

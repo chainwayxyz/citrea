@@ -6,7 +6,7 @@ use anyhow::Result;
 use sov_rollup_interface::block::L2Block;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::StateDiff;
-use sov_rollup_interface::zk::{Proof, StorageRootHash};
+use sov_rollup_interface::zk::{Proof, ProvingSessionInfo, StorageRootHash};
 use sov_schema_db::SchemaIterator;
 use uuid::Uuid;
 
@@ -18,7 +18,8 @@ use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
 use crate::schema::types::{
-    BonsaiSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber,
+    BonsaiSession, BoundlessSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange,
+    L2HeightStatus, SlotNumber,
 };
 
 /// Shared ledger operations
@@ -245,7 +246,11 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
         id: Uuid,
         proof: Proof,
         output: StoredBatchProofOutput,
+        info: ProvingSessionInfo,
     ) -> Result<()>;
+
+    /// Deletes proving job by its id
+    fn remove_proving_job_by_id(&self, id: Uuid) -> Result<()>;
 
     /// Updates job tx id and removes job from running jobs
     fn finalize_proving_job(&self, id: Uuid, l1_tx_id: [u8; 32]) -> Result<()>;
@@ -253,11 +258,24 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get stored proof by job id
     fn get_proof_by_job_id(&self, id: Uuid) -> Result<Option<StoredBatchProof>>;
 
+    /// Get proving info by job id
+    fn get_proving_session_info_by_job_id(
+        &self,
+        id: Uuid,
+    ) -> anyhow::Result<Option<ProvingSessionInfo>>;
+
     /// Get jobs pending to be submitted to DA
     fn get_pending_l1_submission_jobs(&self) -> Result<Vec<Uuid>>;
 
-    /// Get latest (job id, status) with max count.
-    fn get_latest_jobs(&self, count: usize) -> Result<Vec<(Uuid, JobStatus)>>;
+    /// Get latest (job id, status) with max limit and skipped jobs (pagination).
+    fn get_latest_jobs(&self, limit: usize, skip: usize) -> Result<Vec<(Uuid, JobStatus)>>;
+
+    /// Get latest (session id, proving session info) with max limit and skipped sessions (pagination).
+    fn get_latest_proving_sessions(
+        &self,
+        limit: usize,
+        skip: usize,
+    ) -> Result<Vec<(Uuid, ProvingSessionInfo)>>;
 
     /// Get commitment indices by l1 height
     fn get_prover_commitment_indices_by_l1(
@@ -277,6 +295,7 @@ pub trait LightClientProverLedgerOps: SharedLedgerOps + Send + Sync {
         l1_height: u64,
         proof: Proof,
         light_client_proof_output: StoredLightClientProofOutput,
+        info: ProvingSessionInfo,
     ) -> Result<()>;
 
     /// Gets light client proof data by L1 height
@@ -284,6 +303,12 @@ pub trait LightClientProverLedgerOps: SharedLedgerOps + Send + Sync {
         &self,
         l1_height: u64,
     ) -> Result<Option<StoredLightClientProof>>;
+
+    /// Gets proving session info by L1 height
+    fn get_proving_session_info_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<Option<ProvingSessionInfo>>;
 }
 
 /// Ledger operations for the Bonsai service
@@ -296,6 +321,22 @@ pub trait BonsaiLedgerOps: BatchProverLedgerOps + SharedLedgerOps + Send + Sync 
 
     /// Removes bonsai proving session
     fn remove_pending_bonsai_session(&self, job_id: Uuid) -> Result<()>;
+}
+
+/// Ledger operations for the Boundless decentralized prover network
+pub trait BoundlessLedgerOps: BatchProverLedgerOps + SharedLedgerOps + Send + Sync {
+    /// Gets all boundless sessions and their associated job ids
+    fn get_pending_boundless_sessions(&self) -> Result<Vec<(Uuid, BoundlessSession)>>;
+
+    /// Insert or update boundless proving session
+    fn upsert_pending_boundless_session(
+        &self,
+        job_id: Uuid,
+        session: BoundlessSession,
+    ) -> Result<()>;
+
+    /// Removes boundless proving session
+    fn remove_pending_boundless_session(&self, job_id: Uuid) -> Result<()>;
 }
 
 /// Sequencer ledger operations

@@ -5,14 +5,21 @@ mod trace;
 
 use std::sync::Arc;
 
+use alloy_network::AnyTransactionReceipt;
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{
-    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter, Index, SyncInfo,
-    SyncStatus as EthSyncStatus, Transaction,
+    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter, FilterChanges,
+    FilterId, Index, Log, SyncInfo, SyncStatus as EthSyncStatus, Transaction, TransactionRequest,
 };
-use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
-use citrea_evm::{generate_eth_proof, Evm};
+use alloy_rpc_types_trace::geth::{
+    GethDebugTracerType, GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace,
+    TraceResult,
+};
+use citrea_common::rpc::eip_7966;
+use citrea_common::rpc::utils::internal_rpc_error;
+use citrea_common::RpcConfig;
+use citrea_evm::{generate_eth_proof, Evm, FilterKind};
 use citrea_sequencer::SequencerRpcClient;
 pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
@@ -129,6 +136,16 @@ pub trait EthereumRpc {
         opts: Option<GethDebugTracingOptions>,
     ) -> RpcResult<GethTrace>;
 
+    /// Handler for `debug_traceCall`
+    #[method(name = "debug_traceCall")]
+    #[blocking]
+    fn debug_trace_call(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        opts: Option<GethDebugTracingCallOptions>,
+    ) -> RpcResult<GethTrace>;
+
     /// Returns the transaction pool content.
     #[method(name = "txpool_content")]
     fn txpool_content(&self) -> RpcResult<Value>;
@@ -144,6 +161,14 @@ pub trait EthereumRpc {
     /// Sends raw transaction (full node only).
     #[method(name = "eth_sendRawTransaction")]
     async fn eth_send_raw_transaction(&self, data: Bytes) -> RpcResult<B256>;
+
+    /// Submits a raw transaction, wait until the transaction has been included in a block and return its receipt (full node only).
+    #[method(name = "eth_sendRawTransactionSync")]
+    async fn eth_send_raw_transaction_sync(
+        &self,
+        data: Bytes,
+        timeout_ms: Option<u64>,
+    ) -> RpcResult<AnyTransactionReceipt>;
 
     /// Gets transaction by hash (full node only).
     #[method(name = "eth_getTransactionByHash")]
@@ -174,6 +199,26 @@ pub trait EthereumRpc {
     /// Subscribe to Ethereum events.
     #[subscription(name = "eth_subscribe" => "eth_subscription", unsubscribe = "eth_unsubscribe", item = Value)]
     async fn subscribe_eth(&self, topic: String, filter: Option<Filter>) -> SubscriptionResult;
+
+    /// Install a new filter.
+    #[method(name = "eth_newFilter")]
+    async fn new_filter(&self, filter: Filter) -> RpcResult<FilterId>;
+
+    /// Uninstall a filter
+    #[method(name = "eth_uninstallFilter")]
+    async fn uninstall_filter(&self, filter_id: FilterId) -> RpcResult<bool>;
+
+    /// Filter changes
+    #[method(name = "eth_getFilterChanges")]
+    async fn get_filter_changes(&self, id: FilterId) -> RpcResult<FilterChanges<Transaction>>;
+
+    /// Filter logs
+    #[method(name = "eth_getFilterLogs")]
+    async fn get_filter_logs(&self, id: FilterId) -> RpcResult<Vec<Log>>;
+
+    /// Install a new block filter
+    #[method(name = "eth_newBlockFilter")]
+    async fn new_block_filter(&self) -> RpcResult<FilterId>;
 }
 
 const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
@@ -189,6 +234,10 @@ where
 {
     ethereum: Arc<Ethereum<C, Da>>,
     starting_l2_height: U64,
+    trace_chain_block_limit: Option<u64>,
+    enable_js_tracer: bool,
+    l2_block_rx: Option<broadcast::Receiver<u64>>,
+    max_sync_send_timeout_ms: u64,
 }
 
 impl<C, Da> EthereumRpcServerImpl<C, Da>
@@ -196,10 +245,21 @@ where
     C: sov_modules_api::Context,
     Da: DaService,
 {
-    pub fn new(ethereum: Arc<Ethereum<C, Da>>, starting_l2_height: U64) -> Self {
+    pub fn new(
+        ethereum: Arc<Ethereum<C, Da>>,
+        starting_l2_height: U64,
+        trace_chain_block_limit: Option<u64>,
+        enable_js_tracer: bool,
+        l2_block_rx: Option<broadcast::Receiver<u64>>,
+        max_sync_send_timeout_ms: u64,
+    ) -> Self {
         Self {
             ethereum,
             starting_l2_height,
+            trace_chain_block_limit,
+            enable_js_tracer,
+            l2_block_rx,
+            max_sync_send_timeout_ms,
         }
     }
 }
@@ -317,6 +377,7 @@ where
             &evm,
             &mut working_set,
             opts,
+            self.enable_js_tracer,
         )
         .map_err(to_eth_rpc_error)
     }
@@ -345,6 +406,7 @@ where
             &evm,
             &mut working_set,
             opts,
+            self.enable_js_tracer,
         )
         .map_err(to_eth_rpc_error)
     }
@@ -383,6 +445,7 @@ where
             &evm,
             &mut working_set,
             opts,
+            self.enable_js_tracer,
         )
         .map_err(to_eth_rpc_error)?;
 
@@ -393,6 +456,32 @@ where
                 Err(EthApiError::EvmCustom(error.clone()).into())
             }
         }
+    }
+
+    fn debug_trace_call(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        opts: Option<GethDebugTracingCallOptions>,
+    ) -> RpcResult<GethTrace> {
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+        let evm = Evm::<C>::default();
+
+        let is_js_tracer = matches!(
+            opts.as_ref()
+                .and_then(|o| o.tracing_options.tracer.as_ref()),
+            Some(GethDebugTracerType::JsTracer(_))
+        );
+        if is_js_tracer && !self.enable_js_tracer {
+            return Err(EthApiError::Unsupported("JsTracer is disabled.").into());
+        }
+        evm.debug_trace_call(
+            request,
+            block_id,
+            opts,
+            &mut working_set,
+            &self.ethereum.ledger_db,
+        )
     }
 
     // This method is implemented only for full nodes.
@@ -426,6 +515,105 @@ where
                 jsonrpsee::core::client::Error::Call(e_owned) => e_owned,
                 _ => to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e),
             })
+    }
+
+    /// eth_sendRawTransactionSync RPC call implementation (EIP-7966)
+    /// - Send raw transaction to sequencer
+    /// - If subscriptions are enabled, subscribes to new block subscription and waits for transaction to be included in a block
+    /// - Otherwise, falls back to polling for transaction receipt until transaction is included in a block
+    /// - Returns the transaction receipt
+    /// - Timeout in milliseconds (default: 5_000ms, max: configurable via RpcConfig, default max: 30_000ms)
+    ///
+    /// Error codes:
+    /// - Code 4: Transaction not included within timeout period
+    /// - Code 32603: Node is running without subscriptions enabled or block channel closed while waiting on transaction inclusion
+    async fn eth_send_raw_transaction_sync(
+        &self,
+        data: Bytes,
+        timeout_ms: Option<u64>,
+    ) -> RpcResult<AnyTransactionReceipt> {
+        let block_rx = self.l2_block_rx.as_ref().map(|rx| rx.resubscribe());
+
+        let hash: B256 = self
+            .ethereum
+            .sequencer_client
+            .as_ref()
+            .unwrap()
+            .eth_send_raw_transaction(data)
+            .await
+            .map_err(|e| match e {
+                jsonrpsee::core::client::Error::Call(e_owned) => e_owned,
+                _ => to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e),
+            })?;
+
+        let evm = Evm::<C>::default();
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+
+        // Fast path
+        if let Ok(Some(receipt)) = evm.get_transaction_receipt(hash, &mut working_set) {
+            return Ok(receipt);
+        }
+
+        let timeout = eip_7966::calculate_timeout_ms(timeout_ms, self.max_sync_send_timeout_ms);
+        let timeout_duration = tokio::time::Duration::from_millis(timeout);
+
+        tracing::info!(
+            transaction_hash = ?hash,
+            timeout_ms = timeout,
+            "Waiting for transaction inclusion"
+        );
+
+        let wait_for_receipt = async |mut block_rx: broadcast::Receiver<u64>| {
+            loop {
+                match block_rx.recv().await {
+                    Ok(_) => {
+                        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+                        if let Ok(Some(receipt)) =
+                            evm.get_transaction_receipt(hash, &mut working_set)
+                        {
+                            return Ok(receipt);
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                        tracing::warn!("Block subscription lagged by {skipped} blocks");
+                        // Receiver lagged but try looking up the receipt anyway
+                        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+                        if let Ok(Some(receipt)) =
+                            evm.get_transaction_receipt(hash, &mut working_set)
+                        {
+                            return Ok(receipt);
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        return Err(internal_rpc_error("Block subscription channel closed"));
+                    }
+                }
+            }
+        };
+
+        let wait_for_receipt_without_subscription = async {
+            loop {
+                let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+                if let Ok(Some(receipt)) = evm.get_transaction_receipt(hash, &mut working_set) {
+                    return Ok(receipt);
+                }
+                let duration_ms = eip_7966::POLL_INTERVAL_NO_SUBSCRIPTION_MS;
+                tokio::time::sleep(tokio::time::Duration::from_millis(duration_ms)).await;
+            }
+        };
+
+        let result = tokio::time::timeout(timeout_duration, async {
+            match block_rx {
+                Some(block_rx) => wait_for_receipt(block_rx).await,
+                None => wait_for_receipt_without_subscription.await,
+            }
+        })
+        .await;
+
+        match result {
+            Ok(result) => result,
+            Err(_) => Err(eip_7966::timeout_error(hash, timeout)),
+        }
     }
 
     async fn eth_get_transaction_by_hash(
@@ -577,8 +765,16 @@ where
         opts: Option<GethDebugTracingOptions>,
     ) -> SubscriptionResult {
         if &topic == "traceChain" {
-            handle_debug_trace_chain(start_block, end_block, opts, pending, self.ethereum.clone())
-                .await;
+            handle_debug_trace_chain(
+                start_block,
+                end_block,
+                opts,
+                pending,
+                self.ethereum.clone(),
+                self.trace_chain_block_limit,
+                self.enable_js_tracer,
+            )
+            .await;
         } else {
             pending
                 .reject(to_eth_rpc_error("Unsupported subscription topic"))
@@ -600,8 +796,7 @@ where
                     .subscription_manager
                     .as_ref()
                     .unwrap()
-                    .register_new_heads_subscription(subscription)
-                    .await;
+                    .register_new_heads_subscription(subscription);
             }
             "logs" => {
                 let subscription = pending.accept().await?;
@@ -609,8 +804,7 @@ where
                     .subscription_manager
                     .as_ref()
                     .unwrap()
-                    .register_new_logs_subscription(filter.unwrap_or_default(), subscription)
-                    .await;
+                    .register_new_logs_subscription(filter, subscription);
             }
             _ => {
                 pending
@@ -620,15 +814,63 @@ where
         }
         Ok(())
     }
+
+    async fn new_filter(&self, filter: Filter) -> RpcResult<FilterId> {
+        let evm = Evm::<C>::default();
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+        self.ethereum
+            .citrea_filter
+            .install_filter(&mut working_set, &evm, FilterKind::Log(Box::new(filter)))
+            .await
+    }
+
+    async fn new_block_filter(&self) -> RpcResult<FilterId> {
+        let evm = Evm::<C>::default();
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+        self.ethereum
+            .citrea_filter
+            .install_filter(&mut working_set, &evm, FilterKind::Block)
+            .await
+    }
+
+    async fn uninstall_filter(&self, filter_id: FilterId) -> RpcResult<bool> {
+        self.ethereum
+            .citrea_filter
+            .uninstall_filter(filter_id)
+            .await
+    }
+
+    async fn get_filter_changes(&self, id: FilterId) -> RpcResult<FilterChanges<Transaction>> {
+        let evm = Evm::<C>::default();
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+        Ok(self
+            .ethereum
+            .citrea_filter
+            .filter_changes(&mut working_set, &evm, id)
+            .await?)
+    }
+
+    async fn get_filter_logs(&self, id: FilterId) -> RpcResult<Vec<Log>> {
+        let evm = Evm::<C>::default();
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+        Ok(self
+            .ethereum
+            .citrea_filter
+            .filter_logs(&mut working_set, &evm, id)
+            .await?)
+    }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn create_rpc_module<C, Da>(
     da_service: Arc<Da>,
     eth_rpc_config: EthRpcConfig,
+    rpc_config: RpcConfig,
     storage: C::Storage,
     ledger_db: LedgerDB,
     sequencer_client_url: Option<String>,
     l2_block_rx: Option<broadcast::Receiver<u64>>,
+    task_executor: reth_tasks::TaskExecutor,
 ) -> RpcModule<EthereumRpcServerImpl<C, Da>>
 where
     C: sov_modules_api::Context,
@@ -640,33 +882,37 @@ where
         None => 0u64,
     };
 
-    // Unpack config
-    let EthRpcConfig {
-        gas_price_oracle_config,
-        fee_history_cache_config,
-    } = eth_rpc_config;
-
     // If the node does not have a sequencer client, then it is the sequencer.
     let is_sequencer = sequencer_client_url.is_none();
     let enable_subscriptions = l2_block_rx.is_some();
+    let enable_filters = eth_rpc_config.enable_filters;
 
     // If the running node is a full node rpc context should also have sequencer client so that it can send txs to sequencer
     let ethereum = Arc::new(Ethereum::new(
         da_service,
-        gas_price_oracle_config,
-        fee_history_cache_config,
+        eth_rpc_config,
         storage,
         ledger_db,
         sequencer_client_url.map(|url| HttpClientBuilder::default().build(url).unwrap()),
-        l2_block_rx,
+        &l2_block_rx,
+        task_executor,
     ));
-    let server = EthereumRpcServerImpl::new(ethereum, U64::from(head_l2_block));
+    let server = EthereumRpcServerImpl::new(
+        ethereum,
+        U64::from(head_l2_block),
+        rpc_config.trace_chain_block_limit,
+        rpc_config.enable_js_tracer,
+        l2_block_rx,
+        rpc_config.max_sync_send_timeout_ms,
+    );
 
     let mut module = EthereumRpcServer::into_rpc(server);
 
     if is_sequencer {
         module.remove_method("eth_sendRawTransaction");
+        module.remove_method("eth_sendRawTransactionSync");
         module.remove_method("eth_getTransactionByHash");
+        module.remove_method("eth_syncing");
         module.remove_method("citrea_syncStatus");
         module.remove_method("txpool_content");
     }
@@ -676,6 +922,14 @@ where
         module.remove_method("eth_unsubscribe");
         module.remove_method("debug_subscribe");
         module.remove_method("debug_unsubscribe");
+    }
+
+    if !enable_filters {
+        module.remove_method("eth_newFilter");
+        module.remove_method("eth_newBlockFilter");
+        module.remove_method("eth_uninstallFilter");
+        module.remove_method("eth_getFilterChanges");
+        module.remove_method("eth_getFilterLogs");
     }
 
     module

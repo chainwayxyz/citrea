@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::sync_l1;
+use citrea_common::utils::shutdown_requested;
 use citrea_common::LightClientProverConfig;
 use citrea_primitives::forks::fork_from_block_number;
 use prover_services::{ParallelProverService, ProofData, ProofWithDuration};
@@ -27,7 +28,7 @@ use sov_rollup_interface::zk::{ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
 use tokio::select;
 use tokio::sync::{Mutex, Notify};
-use tracing::{error, instrument};
+use tracing::{error, info, instrument};
 
 use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
@@ -171,12 +172,13 @@ where
             select! {
                 biased;
                 _ = &mut shutdown_signal => {
+                    info!("Shutting down L1BlockHandler");
                     return;
                 }
                 _ = &mut l1_sync_worker => {},
                 _ = notifier.notified() => {
                     let _l1_guard = backup_manager.start_l1_processing().await;
-                    if let Err(e) = self.process_queued_l1_blocks().await {
+                    if let Err(e) = self.process_queued_l1_blocks(&shutdown_signal).await {
                         error!("Could not process queued L1 blocks and generate proof: {:?}", e);
                     }
                 },
@@ -185,8 +187,16 @@ where
     }
 
     /// Processes L1 blocks waiting in the queue.
-    async fn process_queued_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
+    async fn process_queued_l1_blocks(
+        &mut self,
+        shutdown_signal: &GracefulShutdown,
+    ) -> Result<(), anyhow::Error> {
         loop {
+            if shutdown_requested(shutdown_signal) {
+                info!("Shutting down L1BlockHandler");
+                return Ok(());
+            }
+
             let Some(l1_block) = self.queued_l1_blocks.lock().await.front().cloned() else {
                 break;
             };
@@ -251,7 +261,7 @@ where
             self.network.initial_batch_proof_method_ids().to_vec(),
             &self.network.batch_prover_da_public_key(),
             &self.network.sequencer_da_public_key(),
-            &self.network.method_id_upgrade_authority_da_public_key(),
+            &self.network.method_id_upgrade_authority_da_public_keys(),
         );
 
         // This is not exactly right, but works for now because we have a single elf for
@@ -298,6 +308,7 @@ where
             l1_height,
             proof,
             stored_proof_output,
+            proof_with_duration.info,
         )?;
 
         LPM.set_lcp_proving_time(proof_with_duration.duration);
@@ -307,6 +318,11 @@ where
             .expect("Saving last scanned l1 height to ledger db");
 
         LPM.current_l1_block.set(l1_height as f64);
+        LPM.highest_proven_index
+            .set(result.last_sequencer_commitment_index as f64);
+        LPM.highest_proven_l2_height
+            .set(result.last_l2_height as f64);
+
         LPM.set_scan_l1_block_duration(
             Instant::now()
                 .saturating_duration_since(start_l1_block_processing)

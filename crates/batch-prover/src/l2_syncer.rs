@@ -12,6 +12,7 @@ use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::l2::{apply_l2_block, commit_l2_block, sync_l2};
+use citrea_common::utils::shutdown_requested;
 use citrea_primitives::types::L2BlockHash;
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -79,7 +80,7 @@ where
 
 impl<DA, DB> L2Syncer<DA, DB>
 where
-    DA: DaService<Error = anyhow::Error>,
+    DA: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
 {
     /// Creates a new `L2Syncer` instance.
@@ -159,27 +160,39 @@ where
             select! {
                 biased;
                 _ = &mut shutdown_signal => {
-                    info!("Shutting down L2 syncer");
+                    info!("Shutting down L2Syncer");
                     return;
                 },
                 Some(l2_blocks) = l2_rx.recv() => {
                     // While syncing, we'd like to process L2 blocks as they come without any delays.
                     for l2_block in l2_blocks {
                         let mut backoff = ExponentialBackoff::default();
+                        let mut last_backoff_duration = backoff.current_interval;
                         loop {
+                            if shutdown_requested(&shutdown_signal) {
+                                info!("Shutting down L2Syncer");
+                                return;
+                            }
+
                             let _l2_lock = backup_manager.start_l2_processing().await;
                             match self.process_l2_block(&l2_block).await {
                                 Ok(_) => break,
                                 Err(e) => {
-                                    error!("Failed to process L2 block {}: {}", l2_block.header.height, e);
-                                    let backoff_duration = backoff.next_backoff().expect("Failed to process L2 block multiple times. Killing L2Syncer...");
-                                    tokio::time::sleep(backoff_duration).await;
+                                    error!("Failed to process L2 block {}: {e}", l2_block.header.height);
+
+                                    if let Some(duration) = backoff.next_backoff() {
+                                        last_backoff_duration = duration;
+                                    }
+                                    tokio::time::sleep(last_backoff_duration).await;
                                 }
                             }
                         }
                     }
                 },
-                _ = &mut l2_sync_worker => {},
+                _ = &mut l2_sync_worker => {
+                    info!("Shutting down L2Syncer");
+                    return;
+                },
             }
         }
     }

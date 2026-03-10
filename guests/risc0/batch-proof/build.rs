@@ -1,7 +1,61 @@
 use std::collections::HashMap;
+use std::ffi::OsStr;
+use std::path::PathBuf;
 use std::{env, fs, path};
 
 use risc0_build::{embed_methods_with_options, DockerOptionsBuilder, GuestOptionsBuilder};
+
+fn get_cache_path() -> PathBuf {
+    let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR missing"));
+    let target_dir = out_dir
+        .ancestors()
+        .find(|ancestor| ancestor.file_name() == Some(OsStr::new("target")))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("target"));
+
+    target_dir.join(".method_ids_cache.txt")
+}
+
+fn testing_enabled() -> bool {
+    matches!(
+        env::var("CARGO_FEATURE_TESTING").as_deref(),
+        Ok("1" | "true")
+    )
+}
+
+fn cache_method_ids() {
+    if !testing_enabled() {
+        return;
+    }
+
+    let out_dir = env::var_os("OUT_DIR").unwrap();
+    let methods_path = path::Path::new(&out_dir).join("methods.rs");
+    if !methods_path.exists() {
+        return;
+    }
+
+    let cache_path = get_cache_path();
+    println!("cargo:warning=Setting method ids cache at path: {cache_path:?}");
+
+    fs::copy(methods_path, cache_path).ok();
+}
+
+fn use_cached_method_ids() -> bool {
+    if !testing_enabled() {
+        return false;
+    }
+
+    let cache_path = get_cache_path();
+    println!("cargo:warning=Using cache at path: {cache_path:?}");
+    if !cache_path.exists() {
+        return false;
+    }
+
+    let out_dir = env::var_os("OUT_DIR").unwrap();
+    let methods_path = path::Path::new(&out_dir).join("methods.rs");
+
+    fs::copy(cache_path, methods_path).is_ok()
+}
 
 fn main() {
     // Build environment variables
@@ -40,7 +94,10 @@ fn main() {
                 println!("cargo:warning=Performing guest build");
             }
             _ => {
-                println!("cargo:warning=Invalid value for SKIP_GUEST_BUILD: '{}'. Expected '0', '1', 'true', or 'false'. Defaulting to performing guest build.", value);
+                println!(
+                    "cargo:warning=Invalid value for SKIP_GUEST_BUILD: '{value}'. Expected '0'
+, '1', 'true', or 'false'. Defaulting to performing guest build."
+                );
             }
         },
         Err(env::VarError::NotPresent) => {
@@ -52,8 +109,24 @@ fn main() {
             println!("cargo:warning=SKIP_GUEST_BUILD contains invalid Unicode. Defaulting to performing guest build.");
         }
     }
+
+    // When compiled as a riscv dependency (inside light-client guest build),
+    // use cached method IDs instead of rebuilding.
+    let target = env::var("TARGET").unwrap_or_default();
+    println!("cargo:warning=Target {target}");
+    if target.contains("riscv") {
+        if use_cached_method_ids() {
+            println!("cargo:warning=Using cached method IDs for riscv target: {target}");
+            return;
+        }
+        println!("cargo:warning=No method ID cache, rebuilding for riscv target: {target}");
+    }
+
     let guest_pkg_to_options = get_guest_options();
     embed_methods_with_options(guest_pkg_to_options);
+
+    // Cache method IDs for reuse when building as a riscv dependency.
+    cache_method_ids();
 }
 
 fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
@@ -61,7 +134,7 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
 
     let mut features = Vec::new();
 
-    if env::var("CARGO_FEATURE_TESTING").is_ok() {
+    if testing_enabled() {
         println!("cargo:warning=Building with testing feature");
         features.push("testing".to_string());
     }
@@ -70,9 +143,11 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
         let network =
             env::var("CITREA_NETWORK").expect("CITREA_NETWORK must be set in docker build!");
         assert!(
-            matches!(network.as_str(), "mainnet" | "testnet" | "devnet" | "nightly"),
-            "Invalid CITREA_NETWORK value: {}. Valid values are: mainnet | testnet | devnet | nightly",
-            network,
+            matches!(
+                network.as_str(),
+                "mainnet" | "testnet" | "devnet" | "nightly"
+            ),
+            "Invalid CITREA_NETWORK value: {network}",
         );
 
         println!("cargo:warning=Building guest in docker with network {network}");

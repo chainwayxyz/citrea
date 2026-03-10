@@ -4,7 +4,8 @@ use std::time::Duration;
 
 use alloy_primitives::{Address, U256};
 use alloy_rpc_types::BlockNumberOrTag;
-use citrea_common::{BatchProverConfig, PruningConfig, SequencerConfig};
+use citrea_common::risc0::Risc0HostConfig;
+use citrea_common::{BatchProverConfig, FromEnv, PruningConfig, SequencerConfig};
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_stf::genesis_config::GenesisPaths;
@@ -24,8 +25,10 @@ use crate::common::{
 };
 
 mod evm;
+mod filter;
 mod l2_block_rule_enforcer;
 mod mempool;
+mod mempool_maintenance;
 mod proving;
 mod pruning;
 mod reopen;
@@ -108,6 +111,8 @@ async fn test_all_flow() {
             proving_mode: citrea_common::ProverGuestRunConfig::Execute,
             proof_sampling_number: 0,
             enable_recovery: true,
+            max_commitments_per_proof: None,
+            risc0_host: Risc0HostConfig::from_env().expect("Failed to load Risc0HostConfig"),
         }),
         None,
         rollup_config,
@@ -183,10 +188,31 @@ async fn test_all_flow() {
         .await
         .unwrap();
     assert_eq!(job_ids.len(), 1);
+
+    // Test RPC proving jobs limit
+    let arg_limited_proving_jobs = prover_client.get_proving_jobs(0, None).await;
+    assert_eq!(arg_limited_proving_jobs, vec![]);
+
+    // Test RPC proving jobs skip
+    let arg_skipped_proving_jobs = prover_client.get_proving_jobs(1, Some(1)).await;
+    assert_eq!(arg_skipped_proving_jobs, vec![]);
+
     // Wait for prover job to finish
     let response = wait_for_prover_job(&prover_client, job_ids[0], None)
         .await
         .unwrap();
+
+    // Test RPC proving sessions
+    let arg_limited_proving_sessions = prover_client.get_proving_sessions(1, None).await;
+    assert_eq!(arg_limited_proving_sessions.len(), 1);
+
+    // Test RPC proving sessions limit
+    let arg_limited_proving_sessions = prover_client.get_proving_sessions(0, None).await;
+    assert_eq!(arg_limited_proving_sessions.len(), 0);
+
+    // Test RPC proving sessions skip
+    let arg_skipped_proving_sessions = prover_client.get_proving_sessions(1, Some(1)).await;
+    assert_eq!(arg_skipped_proving_sessions.len(), 0);
 
     let commitments = prover_client
         .batch_prover_get_commitments_by_l1(3)
