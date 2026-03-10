@@ -4097,7 +4097,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let add_body_2 = AddSecurityCouncilMemberV1Body {
             new_member: new_member_2,
             new_threshold: 5,
-            nonce: 3,
+            nonce: 2,
         };
         let payload = AddSecurityCouncilMember::from(add_body_2.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
@@ -4134,7 +4134,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         // --- CASE 3: Update threshold below MIN_THRESHOLD=2 (rejected) ---
         let update_body_1 = UpdateSecurityCouncilThresholdV1Body {
             new_threshold: 1,
-            nonce: 4,
+            nonce: 3,
         };
         let payload = UpdateSecurityCouncilThreshold::from(update_body_1.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 5);
@@ -4168,7 +4168,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         // 7 members, max threshold = 7-2=5. Requesting threshold=6 is invalid.
         let update_body_2 = UpdateSecurityCouncilThresholdV1Body {
             new_threshold: 6,
-            nonce: 5,
+            nonce: 3,
         };
         let payload = UpdateSecurityCouncilThreshold::from(update_body_2.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 5);
@@ -4202,7 +4202,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         // 7 members, max threshold = 7-2=5. Requesting threshold=4 is valid.
         let update_body_3 = UpdateSecurityCouncilThresholdV1Body {
             new_threshold: 4,
-            nonce: 6,
+            nonce: 3,
         };
         let payload = UpdateSecurityCouncilThreshold::from(update_body_3.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 5);
@@ -4235,7 +4235,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let remove_body_1 = RemoveSecurityCouncilMemberV1Body {
             member_to_be_removed: new_member_1,
             new_threshold: 4,
-            nonce: 7,
+            nonce: 4,
         };
         let payload = RemoveSecurityCouncilMember::from(remove_body_1.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 4);
@@ -4273,13 +4273,13 @@ impl TestCase for SecurityCouncilMemberManagementTest {
             .await?;
         assert_eq!(threshold, 4, "CASE 6: Threshold should be 4 after remove");
 
-        // --- CASE 7: Remove member would go below MIN_NUMBER_OF_MEMBERS (rejected) ---
+        // --- CASE 7: Remove member  ---
         // Currently 6 members. Remove one to get to 5 first (valid, 4 is the min).
         let member_to_remove = _initial_addresses[4];
         let remove_body_2 = RemoveSecurityCouncilMemberV1Body {
             member_to_be_removed: member_to_remove.0 .0,
             new_threshold: 2,
-            nonce: 8,
+            nonce: 5,
         };
         let payload = RemoveSecurityCouncilMember::from(remove_body_2.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 4);
@@ -4315,7 +4315,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let remove_body_3 = RemoveSecurityCouncilMemberV1Body {
             member_to_be_removed: member_to_remove_2.0 .0,
             new_threshold: 2,
-            nonce: 9,
+            nonce: 6,
         };
         let payload = RemoveSecurityCouncilMember::from(remove_body_3.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 2);
@@ -4357,7 +4357,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let remove_body_3 = RemoveSecurityCouncilMemberV1Body {
             member_to_be_removed: member_to_remove_2.0 .0,
             new_threshold: 2,
-            nonce: 10,
+            nonce: 7,
         };
         let payload = RemoveSecurityCouncilMember::from(remove_body_3.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 2);
