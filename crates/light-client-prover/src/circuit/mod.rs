@@ -467,7 +467,12 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 initial_batch_prover_da_public_key,
                 &mut working_set,
             );
-            SecurityCouncilNonceAccessor::<S>::set(0, &mut working_set);
+            // Initialize nonce only if it doesn't exist yet (upgrading from a version
+            // without nonce support). Do NOT reset it if it already exists — that would
+            // allow replay of pre-upgrade security council messages.
+            if SecurityCouncilNonceAccessor::<S>::get(&mut working_set).is_none() {
+                SecurityCouncilNonceAccessor::<S>::set(0, &mut working_set);
+            }
         }
 
         // Read the active pub keys from state (may have been updated by security council)
