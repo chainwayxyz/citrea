@@ -60,7 +60,7 @@ pub(crate) struct Args {
     #[arg(long, short = 'q')]
     pub(crate) quiet: bool,
 
-    /// Stop the full node after reaching this L1 height (debug/testing).
+    /// Stop the full node L1 sync after reaching this L1 height (debug/testing).
     /// Only valid for full nodes.
     #[arg(
         long,
@@ -69,7 +69,7 @@ pub(crate) struct Args {
     )]
     pub(crate) stop_at_l1_height: Option<u64>,
 
-    /// Stop the full node after reaching this L2 height (debug/testing).
+    /// Stop the full node L2 sync after reaching this L2 height (debug/testing).
     /// Only valid for full nodes.
     #[arg(
         long,
