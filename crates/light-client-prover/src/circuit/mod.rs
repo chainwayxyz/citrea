@@ -986,13 +986,19 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
                 let (stored_height, stored_method_id) = batch_proof_method_ids[index];
                 if stored_method_id != body.batch_proof_method_id {
-                    log!("Method id at index does not match: expected {:?}, got {:?}",
-                        body.batch_proof_method_id, stored_method_id);
+                    log!(
+                        "Method id at index does not match: expected {:?}, got {:?}",
+                        body.batch_proof_method_id,
+                        stored_method_id
+                    );
                     return;
                 }
                 if stored_height != body.l2_activation_height {
-                    log!("Activation height at index does not match: expected {}, got {}",
-                        body.l2_activation_height, stored_height);
+                    log!(
+                        "Activation height at index does not match: expected {}, got {}",
+                        body.l2_activation_height,
+                        stored_height
+                    );
                     return;
                 }
 

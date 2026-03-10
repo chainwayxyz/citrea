@@ -14,10 +14,10 @@ use test_utils::{
     create_add_member_tx, create_mock_batch_proof, create_mock_sequencer_commitment,
     create_mock_sequencer_commitment_blob, create_new_method_id_tx, create_prev_lcp_serialized,
     create_random_state_diff, create_remove_member_tx, create_remove_method_id_tx,
-    create_replace_member_tx, create_serialized_mock_proof,
-    create_update_batch_prover_pub_key_tx, create_update_batch_prover_pub_key_tx_with_chain_id,
-    create_update_sequencer_pub_key_tx, create_update_sequencer_pub_key_tx_with_chain_id,
-    create_update_threshold_tx, NativeCircuitRunner,
+    create_replace_member_tx, create_serialized_mock_proof, create_update_batch_prover_pub_key_tx,
+    create_update_batch_prover_pub_key_tx_with_chain_id, create_update_sequencer_pub_key_tx,
+    create_update_sequencer_pub_key_tx_with_chain_id, create_update_threshold_tx,
+    NativeCircuitRunner,
 };
 
 use crate::circuit::accessors::{

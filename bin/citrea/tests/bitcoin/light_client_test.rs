@@ -1370,8 +1370,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             nonce: 3,
         };
         let remove_wrong_id_payload = RemoveBatchProofMethodId::from(remove_wrong_id_body.clone());
-        let signatures_with_index =
-            create_valid_signatures(&signers, &remove_wrong_id_payload, 3);
+        let signatures_with_index = create_valid_signatures(&signers, &remove_wrong_id_payload, 3);
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
