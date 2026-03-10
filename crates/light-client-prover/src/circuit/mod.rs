@@ -20,8 +20,9 @@ use sov_modules_api::{BlobReaderTrait, DaSpec, WorkingSet, Zkvm};
 use sov_modules_core::{ReadWriteLog, Storage};
 use sov_rollup_interface::da::{
     AddSecurityCouncilMemberV1Body, BatchProofMethodIdBody, DaVerifier, DataOnDa,
-    RemoveSecurityCouncilMemberV1Body, ReplaceSecurityCouncilMemberV1Body, SecurityCouncilTx,
-    SecurityCouncilTxType, UpdateBatchProverDaPubKeyV1Body, UpdateSecurityCouncilThresholdV1Body,
+    RemoveBatchProofMethodIdV1Body, RemoveSecurityCouncilMemberV1Body,
+    ReplaceSecurityCouncilMemberV1Body, SecurityCouncilTx, SecurityCouncilTxType,
+    UpdateBatchProverDaPubKeyV1Body, UpdateSecurityCouncilThresholdV1Body,
     UpdateSequencerDaPubKeyV1Body, MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL,
     MAX_THRESHOLD_PROXIMITY, MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL, MIN_THRESHOLD,
 };
@@ -950,6 +951,55 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
                 BatchProverDaPubKeyAccessor::<S>::set(&body.new_pub_key, working_set);
             }
+            SecurityCouncilTxType::RemoveBatchProofMethodIdV1(body) => {
+                log!("Processing RemoveBatchProofMethodIdV1");
+
+                if !verify_security_council_signatures(
+                    &upgrade_authority_addresses,
+                    RemoveBatchProofMethodId::from(body.clone()),
+                    &sc_tx.signatures_with_index,
+                    upgrade_authority_threshold,
+                    security_council_messages_domain.to_string(),
+                    circuit_chain_id,
+                ) {
+                    log!("Remove batch proof method id security council verification failed");
+                    return;
+                }
+
+                let batch_proof_method_ids =
+                    BatchProofMethodIdAccessor::<S>::get(working_set).unwrap();
+
+                if batch_proof_method_ids.len() <= 1 {
+                    log!("Cannot remove the last batch proof method id");
+                    return;
+                }
+
+                let index = body.method_id_index as usize;
+                if index >= batch_proof_method_ids.len() {
+                    log!(
+                        "Method id index out of bounds: index={}, len={}",
+                        index,
+                        batch_proof_method_ids.len()
+                    );
+                    return;
+                }
+
+                let (stored_height, stored_method_id) = batch_proof_method_ids[index];
+                if stored_method_id != body.batch_proof_method_id {
+                    log!("Method id at index does not match: expected {:?}, got {:?}",
+                        body.batch_proof_method_id, stored_method_id);
+                    return;
+                }
+                if stored_height != body.l2_activation_height {
+                    log!("Activation height at index does not match: expected {}, got {}",
+                        body.l2_activation_height, stored_height);
+                    return;
+                }
+
+                let mut new_method_ids = batch_proof_method_ids;
+                new_method_ids.remove(index);
+                BatchProofMethodIdAccessor::<S>::set(new_method_ids, working_set);
+            }
         }
 
         // Nonce check passed and message was processed successfully — increment
@@ -1242,6 +1292,37 @@ impl From<UpdateBatchProverDaPubKeyV1Body> for UpdateBatchProverDaPubKey {
         UpdateBatchProverDaPubKey {
             newPubKey: body.new_pub_key.to_vec().into(),
             chainId: body.chain_id,
+            nonce: body.nonce,
+        }
+    }
+}
+
+sol! {
+    #[derive(Debug, Serialize)]
+    struct RemoveBatchProofMethodId {
+        uint32 methodIdIndex;
+        bytes32 batchProofMethodId;
+        uint64 l2ActivationHeight;
+        uint64 nonce;
+    }
+}
+
+impl From<RemoveBatchProofMethodIdV1Body> for RemoveBatchProofMethodId {
+    fn from(body: RemoveBatchProofMethodIdV1Body) -> Self {
+        fn convert_u32_8_to_u8_32(value: [u32; 8]) -> [u8; 32] {
+            let mut output = [0u8; 32];
+            for (i, &val) in value.iter().enumerate() {
+                output[i * 4..(i + 1) * 4].copy_from_slice(&val.to_le_bytes());
+            }
+            output
+        }
+
+        RemoveBatchProofMethodId {
+            methodIdIndex: body.method_id_index,
+            batchProofMethodId: B256::from_slice(
+                convert_u32_8_to_u8_32(body.batch_proof_method_id).as_slice(),
+            ),
+            l2ActivationHeight: body.l2_activation_height,
             nonce: body.nonce,
         }
     }
