@@ -1113,7 +1113,7 @@ fn test_new_method_id_txs() {
         None,
         batch_prover_da_pub_key,
     );
-    let blob_2 = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly);
+    let blob_2 = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly, 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -1163,7 +1163,7 @@ fn test_new_method_id_txs() {
     );
 
     // now try wrong method id
-    let blob_2 = create_new_method_id_tx(10, [3u32; 8], batch_prover_da_pub_key, Network::Nightly);
+    let blob_2 = create_new_method_id_tx(10, [3u32; 8], batch_prover_da_pub_key, Network::Nightly, 2);
 
     let block_header_2 = MockBlockHeader::from_height(2);
 
@@ -1212,8 +1212,8 @@ fn test_new_method_id_txs() {
     );
 
     // now try activation height < last activating height and activation height = last activation height
-    let blob_1 = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly);
-    let blob_2 = create_new_method_id_tx(3, [2u32; 8], method_id_sender, Network::Nightly);
+    let blob_1 = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly, 2);
+    let blob_2 = create_new_method_id_tx(3, [2u32; 8], method_id_sender, Network::Nightly, 2);
 
     let block_header_3 = MockBlockHeader::from_height(3);
 
@@ -1285,7 +1285,7 @@ fn test_wrong_network_method_id_update_should_fail() {
     let block_header_1 = MockBlockHeader::from_height(1);
 
     // Create method id update for a different network
-    let blob = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Mainnet);
+    let blob = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Mainnet, 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -2758,7 +2758,7 @@ fn test_add_security_council_member() {
     let block_header_1 = MockBlockHeader::from_height(1);
 
     let new_member = [99u8; 20];
-    let blob = create_add_member_tx(new_member, 3, [11u8; 32]);
+    let blob = create_add_member_tx(new_member, 3, [11u8; 32], 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -2827,7 +2827,7 @@ fn test_add_duplicate_member_rejected() {
     let initial_addresses = METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner();
     let existing_member = initial_addresses[0].0 .0;
 
-    let blob = create_add_member_tx(existing_member, 3, [11u8; 32]);
+    let blob = create_add_member_tx(existing_member, 3, [11u8; 32], 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -2891,7 +2891,7 @@ fn test_remove_security_council_member() {
     let initial_addresses = METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner();
     let member_to_remove = initial_addresses[4].0 .0;
 
-    let blob = create_remove_member_tx(member_to_remove, 2, [11u8; 32]);
+    let blob = create_remove_member_tx(member_to_remove, 2, [11u8; 32], 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -2958,7 +2958,7 @@ fn test_remove_nonexistent_member_rejected() {
     let block_header_1 = MockBlockHeader::from_height(1);
 
     let nonexistent_member = [88u8; 20];
-    let blob = create_remove_member_tx(nonexistent_member, 3, [11u8; 32]);
+    let blob = create_remove_member_tx(nonexistent_member, 3, [11u8; 32], 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -3019,7 +3019,7 @@ fn test_update_security_council_threshold() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let blob = create_update_threshold_tx(2, [11u8; 32]);
+    let blob = create_update_threshold_tx(2, [11u8; 32], 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -3082,7 +3082,7 @@ fn test_invalid_threshold_update_rejected() {
     let block_header_1 = MockBlockHeader::from_height(1);
 
     // threshold 6 > 5 members, should be rejected
-    let blob = create_update_threshold_tx(6, [11u8; 32]);
+    let blob = create_update_threshold_tx(6, [11u8; 32], 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -3148,7 +3148,7 @@ fn test_replace_security_council_member() {
     let old_member = initial_addresses[4].0 .0;
     let new_member = [77u8; 20];
 
-    let blob = create_replace_member_tx(old_member, new_member, [11u8; 32]);
+    let blob = create_replace_member_tx(old_member, new_member, [11u8; 32], 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -3227,7 +3227,7 @@ fn test_add_member_exceeds_max_count_rejected() {
 
     let new_member = [99u8; 20];
     // threshold 3 is valid for 10 members (3 >= MIN_THRESHOLD=2, 3 <= 10-2=8)
-    let blob = create_add_member_tx(new_member, 3, [11u8; 32]);
+    let blob = create_add_member_tx(new_member, 3, [11u8; 32], 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -3294,7 +3294,7 @@ fn test_remove_member_below_min_count_rejected() {
     let member_to_remove = initial_addresses[3].0 .0;
 
     // threshold=2 is valid for 4 members (2 >= MIN_THRESHOLD=2, 2 <= 4-2=2)
-    let blob = create_remove_member_tx(member_to_remove, 2, [11u8; 32]);
+    let blob = create_remove_member_tx(member_to_remove, 2, [11u8; 32], 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -3357,7 +3357,7 @@ fn test_add_member_threshold_too_high_rejected() {
 
     let new_member = [99u8; 20];
     // After adding, 6 members. Max threshold = 6-2=4. Requesting threshold=5 is invalid.
-    let blob = create_add_member_tx(new_member, 5, [11u8; 32]);
+    let blob = create_add_member_tx(new_member, 5, [11u8; 32], 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -3423,7 +3423,7 @@ fn test_update_threshold_below_min_rejected() {
     let block_header_1 = MockBlockHeader::from_height(1);
 
     // threshold=1 is below MIN_THRESHOLD=2
-    let blob = create_update_threshold_tx(1, [11u8; 32]);
+    let blob = create_update_threshold_tx(1, [11u8; 32], 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -3486,7 +3486,7 @@ fn test_update_threshold_exceeds_proximity_rejected() {
     let block_header_1 = MockBlockHeader::from_height(1);
 
     // 5 members, max threshold = 5-2=3. Requesting threshold=4 is invalid.
-    let blob = create_update_threshold_tx(4, [11u8; 32]);
+    let blob = create_update_threshold_tx(4, [11u8; 32], 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -3549,7 +3549,7 @@ fn test_update_sequencer_da_pub_key() {
     let block_header_1 = MockBlockHeader::from_height(1);
 
     let new_pub_key = [77u8; 33];
-    let blob = create_update_sequencer_pub_key_tx(new_pub_key, [11u8; 32], Network::Nightly);
+    let blob = create_update_sequencer_pub_key_tx(new_pub_key, [11u8; 32], Network::Nightly, 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -3611,7 +3611,7 @@ fn test_update_batch_prover_da_pub_key() {
     let block_header_1 = MockBlockHeader::from_height(1);
 
     let new_pub_key = [88u8; 33];
-    let blob = create_update_batch_prover_pub_key_tx(new_pub_key, [11u8; 32], Network::Nightly);
+    let blob = create_update_batch_prover_pub_key_tx(new_pub_key, [11u8; 32], Network::Nightly, 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -3675,7 +3675,7 @@ fn test_update_sequencer_da_pub_key_wrong_chain_id_rejected() {
 
     let new_pub_key = [77u8; 33];
     // Use wrong chain_id (9999 instead of Nightly's 5665)
-    let blob = create_update_sequencer_pub_key_tx_with_chain_id(new_pub_key, 9999, [11u8; 32]);
+    let blob = create_update_sequencer_pub_key_tx_with_chain_id(new_pub_key, 9999, [11u8; 32], 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -3739,7 +3739,7 @@ fn test_update_batch_prover_da_pub_key_wrong_chain_id_rejected() {
 
     let new_pub_key = [88u8; 33];
     // Use wrong chain_id (9999 instead of Nightly's 5665)
-    let blob = create_update_batch_prover_pub_key_tx_with_chain_id(new_pub_key, 9999, [11u8; 32]);
+    let blob = create_update_batch_prover_pub_key_tx_with_chain_id(new_pub_key, 9999, [11u8; 32], 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {

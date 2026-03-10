@@ -589,6 +589,55 @@ impl<S: Storage> BatchProverDaPubKeyAccessor<S> {
     }
 }
 
+/// Accessor for the security council nonce (replay protection).
+/// Stores a strictly increasing u64 nonce that is checked and incremented
+/// for every security council transaction.
+pub struct SecurityCouncilNonceAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> SecurityCouncilNonceAccessor<S> {
+    /// Security council nonce prefix
+    const PREFIX: u8 = b'n';
+
+    /// Creates a storage key containing just the prefix
+    fn key() -> StorageKey {
+        let mut key = [0u8; 1];
+        key[0] = Self::PREFIX;
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    /// Retrieves the current nonce if it exists
+    pub fn get(working_set: &mut WorkingSet<S>) -> Option<u64> {
+        let key = Self::key();
+        working_set.get(&key).map(|v| {
+            let bytes: RefCount<[u8]> = v.into();
+            borsh::from_slice(&bytes)
+                .expect("Security council nonce deserialization should not fail")
+        })
+    }
+
+    /// Initializes the nonce. Must be called at most once.
+    pub fn initialize(nonce: u64, working_set: &mut WorkingSet<S>) {
+        assert!(
+            Self::get(working_set).is_none(),
+            "Security council nonce must not already be initialized!"
+        );
+        Self::set(nonce, working_set);
+    }
+
+    /// Overwrites the current nonce value
+    pub fn set(nonce: u64, working_set: &mut WorkingSet<S>) {
+        let key = Self::key();
+        let value: StorageValue = borsh::to_vec(&nonce)
+            .expect("Security council nonce serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use alloy_primitives::Address;

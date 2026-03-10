@@ -479,6 +479,7 @@ pub async fn generate_mock_txs(
         method_id: [0; 8],
         activation_l2_height: 0,
         chain_id: citrea_network_to_chain_id(Network::Nightly),
+        nonce: 1,
     };
 
     let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
@@ -598,6 +599,7 @@ pub async fn generate_mock_txs(
         method_id: [1; 8],
         activation_l2_height: 100,
         chain_id: citrea_network_to_chain_id(Network::Nightly),
+        nonce: 2,
     };
 
     let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS

@@ -679,6 +679,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             method_id: new_batch_proof_method_id,
             activation_l2_height: 210,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
+            nonce: 1,
         };
 
         let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
@@ -908,6 +909,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             method_id: new_batch_proof_method_id,
             activation_l2_height: 220,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
+            nonce: 1,
         };
         let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
             .map(|s| hex::decode(s).unwrap().try_into().unwrap());
@@ -952,6 +954,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             method_id: new_batch_proof_method_id2,
             activation_l2_height: 230,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
+            nonce: 2, // Correct nonce, but signature will be corrupted → rejected, nonce NOT consumed
         };
 
         let payload2 = BatchProofMethodIdUpdate::from(method_id_body2.clone());
@@ -996,6 +999,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
+            nonce: 2, // Previous rejected msg didn't consume nonce
         };
         let payload3 = BatchProofMethodIdUpdate::from(method_id_body3.clone());
 
@@ -1037,6 +1041,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
+            nonce: 2, // Previous rejected msgs didn't consume nonce
         };
 
         let payload3 = BatchProofMethodIdUpdate::from(method_id_body3.clone());
@@ -1079,6 +1084,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
+            nonce: 2, // Previous rejected msgs didn't consume nonce
         };
 
         let payload3 = BatchProofMethodIdUpdate::from(method_id_body3.clone());
@@ -1125,6 +1131,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             method_id: new_batch_proof_method_id4,
             activation_l2_height: 250,
             chain_id: citrea_network_to_chain_id(Network::Mainnet),
+            nonce: 2, // Previous rejected msgs didn't consume nonce
         };
 
         let payload4 = BatchProofMethodIdUpdate::from(method_id_body4.clone());
@@ -1164,6 +1171,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             activation_l2_height: 260,
 
             chain_id: citrea_network_to_chain_id(Network::Nightly),
+            nonce: 2, // Previous rejected msgs didn't consume nonce
         };
         let payload5 = BatchProofMethodIdUpdate::from(method_id_body5.clone());
         let mut signatures_with_index = create_valid_signatures(&signers, &payload5, 3);
@@ -3850,6 +3858,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let add_body_1 = AddSecurityCouncilMemberV1Body {
             new_member: new_member_1,
             new_threshold: 3,
+            nonce: 1,
         };
         let payload = AddSecurityCouncilMember::from(add_body_1.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
@@ -3893,6 +3902,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let add_body_1 = AddSecurityCouncilMemberV1Body {
             new_member: new_member_2,
             new_threshold: 6,
+            nonce: 2,
         };
         let payload = AddSecurityCouncilMember::from(add_body_1.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
@@ -3937,6 +3947,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let add_body_2 = AddSecurityCouncilMemberV1Body {
             new_member: new_member_2,
             new_threshold: 5,
+            nonce: 3,
         };
         let payload = AddSecurityCouncilMember::from(add_body_2.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
@@ -3971,7 +3982,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         assert_eq!(addresses.len(), 7, "CASE 2: Should have 7 members");
 
         // --- CASE 3: Update threshold below MIN_THRESHOLD=2 (rejected) ---
-        let update_body_1 = UpdateSecurityCouncilThresholdV1Body { new_threshold: 1 };
+        let update_body_1 = UpdateSecurityCouncilThresholdV1Body { new_threshold: 1, nonce: 4 };
         let payload = UpdateSecurityCouncilThreshold::from(update_body_1.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 5);
         bitcoin_da_service
@@ -4002,7 +4013,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
 
         // --- CASE 4: Update threshold exceeds proximity limit (rejected) ---
         // 7 members, max threshold = 7-2=5. Requesting threshold=6 is invalid.
-        let update_body_2 = UpdateSecurityCouncilThresholdV1Body { new_threshold: 6 };
+        let update_body_2 = UpdateSecurityCouncilThresholdV1Body { new_threshold: 6, nonce: 5 };
         let payload = UpdateSecurityCouncilThreshold::from(update_body_2.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 5);
         bitcoin_da_service
@@ -4033,7 +4044,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
 
         // --- CASE 5: Valid update threshold ---
         // 7 members, max threshold = 7-2=5. Requesting threshold=4 is valid.
-        let update_body_3 = UpdateSecurityCouncilThresholdV1Body { new_threshold: 4 };
+        let update_body_3 = UpdateSecurityCouncilThresholdV1Body { new_threshold: 4, nonce: 6 };
         let payload = UpdateSecurityCouncilThreshold::from(update_body_3.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 5);
         bitcoin_da_service
@@ -4065,6 +4076,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let remove_body_1 = RemoveSecurityCouncilMemberV1Body {
             member_to_be_removed: new_member_1,
             new_threshold: 4,
+            nonce: 7,
         };
         let payload = RemoveSecurityCouncilMember::from(remove_body_1.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 4);
@@ -4108,6 +4120,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let remove_body_2 = RemoveSecurityCouncilMemberV1Body {
             member_to_be_removed: member_to_remove.0 .0,
             new_threshold: 2,
+            nonce: 8,
         };
         let payload = RemoveSecurityCouncilMember::from(remove_body_2.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 4);
@@ -4143,6 +4156,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let remove_body_3 = RemoveSecurityCouncilMemberV1Body {
             member_to_be_removed: member_to_remove_2.0 .0,
             new_threshold: 2,
+            nonce: 9,
         };
         let payload = RemoveSecurityCouncilMember::from(remove_body_3.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 2);
@@ -4184,6 +4198,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let remove_body_3 = RemoveSecurityCouncilMemberV1Body {
             member_to_be_removed: member_to_remove_2.0 .0,
             new_threshold: 2,
+            nonce: 10,
         };
         let payload = RemoveSecurityCouncilMember::from(remove_body_3.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 2);
@@ -4353,6 +4368,7 @@ impl TestCase for DaPubKeyUpdateTest {
         let update_seq_body = UpdateSequencerDaPubKeyV1Body {
             new_pub_key: new_sequencer_pub_key,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
+            nonce: 1,
         };
         let payload = UpdateSequencerDaPubKey::from(update_seq_body.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
@@ -4393,6 +4409,7 @@ impl TestCase for DaPubKeyUpdateTest {
         let update_bp_body = UpdateBatchProverDaPubKeyV1Body {
             new_pub_key: new_batch_prover_pub_key,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
+            nonce: 2,
         };
         let payload = UpdateBatchProverDaPubKey::from(update_bp_body.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
@@ -4433,6 +4450,7 @@ impl TestCase for DaPubKeyUpdateTest {
         let bad_chain_id_body = UpdateSequencerDaPubKeyV1Body {
             new_pub_key: another_sequencer_pub_key,
             chain_id: 9999, // Wrong chain_id
+            nonce: 3,
         };
         let payload = UpdateSequencerDaPubKey::from(bad_chain_id_body.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
@@ -4724,6 +4742,7 @@ impl TestCase for TestLcpVersionUpgrade {
         let update_seq_body = UpdateSequencerDaPubKeyV1Body {
             new_pub_key: updated_seq_pub_key,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
+            nonce: 1,
         };
         let payload = UpdateSequencerDaPubKey::from(update_seq_body.clone());
         let sigs = create_valid_signatures(&signers, &payload, 3);
@@ -4746,6 +4765,7 @@ impl TestCase for TestLcpVersionUpgrade {
         let update_bp_body = UpdateBatchProverDaPubKeyV1Body {
             new_pub_key: updated_bp_pub_key,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
+            nonce: 2,
         };
         let payload = UpdateBatchProverDaPubKey::from(update_bp_body.clone());
         let sigs = create_valid_signatures(&signers, &payload, 3);
@@ -4764,6 +4784,7 @@ impl TestCase for TestLcpVersionUpgrade {
             method_id: [42u32; 8],
             activation_l2_height: 9999,
             chain_id: citrea_network_to_chain_id(Network::Nightly),
+            nonce: 3,
         };
         let payload = BatchProofMethodIdUpdate::from(new_method_id_body.clone());
         let sigs = create_valid_signatures(&signers, &payload, 3);
@@ -4823,6 +4844,7 @@ impl TestCase for TestLcpVersionUpgrade {
         let add_body = AddSecurityCouncilMemberV1Body {
             new_member,
             new_threshold: 3,
+            nonce: 4,
         };
         let payload = AddSecurityCouncilMember::from(add_body.clone());
         let sigs = create_valid_signatures(&signers, &payload, 3);
@@ -4858,6 +4880,7 @@ impl TestCase for TestLcpVersionUpgrade {
         let remove_body = RemoveSecurityCouncilMemberV1Body {
             member_to_be_removed: new_member,
             new_threshold: 3,
+            nonce: 5,
         };
         let payload = RemoveSecurityCouncilMember::from(remove_body.clone());
         let sigs = create_valid_signatures(&signers, &payload, 3);
@@ -4872,7 +4895,7 @@ impl TestCase for TestLcpVersionUpgrade {
             .await?;
 
         // --- SC Message 6: Update security council threshold ---
-        let threshold_body = UpdateSecurityCouncilThresholdV1Body { new_threshold: 2 };
+        let threshold_body = UpdateSecurityCouncilThresholdV1Body { new_threshold: 2, nonce: 6 };
         let payload = UpdateSecurityCouncilThreshold::from(threshold_body.clone());
         let sigs = create_valid_signatures(&signers, &payload, 3);
         bitcoin_da_service
