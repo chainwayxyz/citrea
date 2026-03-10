@@ -1,6 +1,9 @@
 # Changelog
 ## [Unreleased]
+
+## [v2.2.0](2026-03-02)
 ### Added
+- feat: Reactivate pruning. ([#3010](https://github.com/chainwayxyz/citrea/pull/3010))
 - feat: Support `eth_sendRawTransactionSync` on websocket disabled nodes. ([#3164](https://github.com/chainwayxyz/citrea/pull/3164))
 - feat: Stop at height full-node arguments
   **New hidden node args:**\
@@ -221,7 +224,8 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
 
-[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.1.0...HEAD
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.2.0...HEAD
+[v2.2.0]: https://github.com/chainwayxyz/citrea/compare/v2.1.0...v2.2.0
 [v2.1.0]: https://github.com/chainwayxyz/citrea/compare/v2.0.0...v2.1.0
 [v2.0.0]: https://github.com/chainwayxyz/citrea/compare/v1.2.2...v2.0.0
 [v1.2.2]: https://github.com/chainwayxyz/citrea/compare/v1.2.1...v1.2.2
