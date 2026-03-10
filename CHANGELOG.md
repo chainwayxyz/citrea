@@ -7,8 +7,8 @@
 - feat: Support `eth_sendRawTransactionSync` on websocket disabled nodes. ([#3164](https://github.com/chainwayxyz/citrea/pull/3164))
 - feat: Stop at height full-node arguments
   **New hidden node args:**\
-  `-stop-at-l1-height`: Stop the full node L1 sync after reaching this L1 height
-  `-stop-at-l2-height`: Stop the full node L2 sync after reaching this L2 height
+  `--stop-at-l1-height`: Stop the full node L1 sync after reaching this L1 height
+  `--stop-at-l2-height`: Stop the full node L2 sync after reaching this L2 height
 
 ### Changed
 - refactor: Remove `dev_mode` field from local prover config to fix prover config confusion.(This change does not require no env var change because it was set with `RISC0_DEV_MODE` env var, right now dev mode is determined with `PROVING_MODE` in batch prover config) ([#3160](https://github.com/chainwayxyz/citrea/pull/3160))
