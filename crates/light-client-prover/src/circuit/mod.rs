@@ -699,10 +699,17 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         let msg_nonce = sc_tx.tx_type.nonce();
         let current_nonce = SecurityCouncilNonceAccessor::<S>::get(working_set)
             .expect("Security council nonce must exist");
-        if msg_nonce != current_nonce + 1 {
+        let expected_nonce = match current_nonce.checked_add(1) {
+            Some(n) => n,
+            None => {
+                log!("Security council nonce overflow");
+                return;
+            }
+        };
+        if msg_nonce != expected_nonce {
             log!(
                 "Security council nonce mismatch: expected {}, got {}",
-                current_nonce + 1,
+                expected_nonce,
                 msg_nonce
             );
             return;
