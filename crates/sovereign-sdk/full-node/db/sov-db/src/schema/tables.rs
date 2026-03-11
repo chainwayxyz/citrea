@@ -444,10 +444,65 @@ define_table_without_codec!(
     (JmtNodes) NodeKey => Node
 );
 
-define_table_with_default_codec!(
+define_table_without_codec!(
     /// The list of stale nodes in JMT
     (StaleNodes) StaleNodeIndex => ()
 );
+
+// Custom codec for StaleNodeIndex using big-endian encoding for correct RocksDB ordering.
+// RocksDB performs lexicographic byte-wise comparison for key ordering. Big-endian encoding
+// ensures numeric values sort correctly (higher numbers have higher byte values in the first bytes).
+// This correct ordering is critical for range queries and pruning operations
+// that depend on version-based iteration.
+impl KeyEncoder<StaleNodes> for StaleNodeIndex {
+    fn encode_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+        use anyhow::Context as _;
+        use bincode::Options as _;
+
+        let bincode_options = bincode::options().with_fixint_encoding().with_big_endian();
+
+        // Serialize both fields using bincode with big-endian
+        bincode_options
+            .serialize(&(self.stale_since_version, &self.node_key))
+            .context("Failed to serialize StaleNodeIndex")
+            .map_err(Into::into)
+    }
+}
+
+impl KeyDecoder<StaleNodes> for StaleNodeIndex {
+    fn decode_key(data: &[u8]) -> sov_schema_db::schema::Result<Self> {
+        use anyhow::Context as _;
+        use bincode::Options as _;
+
+        let bincode_options = bincode::options().with_fixint_encoding().with_big_endian();
+
+        // Deserialize both fields using bincode with big-endian
+        let (stale_since_version, node_key): (u64, NodeKey) = bincode_options
+            .deserialize_from(&mut &data[..])
+            .context("Failed to deserialize StaleNodeIndex")?;
+
+        Ok(StaleNodeIndex {
+            stale_since_version,
+            node_key,
+        })
+    }
+}
+
+impl SeekKeyEncoder<StaleNodes> for StaleNodeIndex {
+    fn encode_seek_key(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+        <Self as KeyEncoder<StaleNodes>>::encode_key(self)
+    }
+}
+
+impl ValueCodec<StaleNodes> for () {
+    fn encode_value(&self) -> sov_schema_db::schema::Result<Vec<u8>> {
+        Ok(vec![])
+    }
+
+    fn decode_value(_data: &[u8]) -> sov_schema_db::schema::Result<Self> {
+        Ok(())
+    }
+}
 
 define_table_with_default_codec!(
     /// Light client proof data by l1 height

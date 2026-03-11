@@ -1520,7 +1520,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(working_set)
             .expect("EVM chain config should be set");
 
-        let cfg_env = get_cfg_env(cfg, evm_spec_id);
+        let mut cfg_env = get_cfg_env(cfg, evm_spec_id);
 
         let l1_fee_block_num = match block_number {
             // use l1 fee rate of latest block for pending block
@@ -1561,10 +1561,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let chain_id = cfg_env.chain_id();
 
         // create tx env
-        let tx_env = create_txn_env(
+        let tx_env = prepare_call_env(
             &block_env,
-            request.clone(),
-            Some(account.balance),
+            &mut cfg_env,
+            request,
+            account.balance,
             nonce,
             chain_id,
         )?;
@@ -1672,48 +1673,36 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .map(|t| t.bloom_filter().into_owned())
             .collect();
 
-        let max_headers_range = get_max_headers_range();
+        // Loop over the range of blocks and check logs if the filter matches the block bloom.
+        for idx in from_block_number..=to_block_number {
+            let block = match self
+                .blocks
+                .get((idx) as usize, &mut working_set.accessory_state())
+            {
+                Some(block) => block,
+                None => {
+                    return Err(EthFilterError::EthAPIError(
+                        // from and to are checked against last block
+                        // so this should never happen ideally
+                        ProviderError::BlockBodyIndicesNotFound(idx).into(),
+                    ));
+                }
+            };
 
-        // loop over the range of new blocks and check logs if the filter matches the log's bloom
-        // filter
-        for (from, to) in
-            BlockRangeInclusiveIter::new(from_block_number..=to_block_number, max_headers_range)
-        {
-            for idx in from..=to {
-                let block = match self
-                    .blocks
-                    .get((idx) as usize, &mut working_set.accessory_state())
-                {
-                    Some(block) => block,
-                    None => {
-                        return Err(EthFilterError::EthAPIError(
-                            // from and to are checked against last block
-                            // so this should never happen ideally
-                            ProviderError::BlockBodyIndicesNotFound(idx).into(),
-                        ));
-                    }
-                };
-
-                let logs_bloom = block.header.logs_bloom;
-                if FilteredParams::matches_address(logs_bloom, &address_filter)
-                    && FilteredParams::matches_topics(logs_bloom, &topics_filter)
-                {
-                    self.append_matching_block_logs(
-                        working_set,
-                        &mut all_logs,
-                        filter.clone(),
-                        block,
-                    );
-                    // size check but only if range is multiple blocks, so we always return all
-                    // logs of a single block
-                    let is_multi_block_range = from_block_number != to_block_number;
-                    if is_multi_block_range && all_logs.len() > max_logs_per_response {
-                        return Err(EthFilterError::QueryExceedsMaxResults {
-                            max_logs: max_logs_per_response,
-                            from_block: from,
-                            to_block: idx - 1,
-                        });
-                    }
+            let logs_bloom = block.header.logs_bloom;
+            if FilteredParams::matches_address(logs_bloom, &address_filter)
+                && FilteredParams::matches_topics(logs_bloom, &topics_filter)
+            {
+                self.append_matching_block_logs(working_set, &mut all_logs, filter.clone(), block);
+                // size check but only if range is multiple blocks, so we always return all
+                // logs of a single block
+                let is_multi_block_range = from_block_number != to_block_number;
+                if is_multi_block_range && all_logs.len() > max_logs_per_response {
+                    return Err(EthFilterError::QueryExceedsMaxResults {
+                        max_logs: max_logs_per_response,
+                        from_block: from_block_number,
+                        to_block: idx - 1,
+                    });
                 }
             }
         }

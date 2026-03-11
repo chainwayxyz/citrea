@@ -151,6 +151,11 @@ pub fn shutdown_requested(shutdown_signal: &GracefulShutdown) -> bool {
         .is_some()
 }
 
+/// Returns the configured stop height if `next_height` exceeds it.
+pub fn exceeded_stop_height(next_height: u64, stop_height: Option<u64>) -> Option<u64> {
+    stop_height.filter(|target| next_height > *target)
+}
+
 // If tangerine activation height is 0, return 1
 // Because in tests when the first l2 block for the first sequencer commitment is needed
 // Tangerine activation height should be sent
