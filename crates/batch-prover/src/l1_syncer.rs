@@ -96,7 +96,11 @@ where
     /// 3. Handles any errors with exponential backoff
     /// 4. Maintains metrics about syncing progress
     #[instrument(name = "L1Syncer", skip_all)]
-    pub async fn run(mut self, l1_start_variant: StartVariant, mut shutdown_signal: GracefulShutdown) {
+    pub async fn run(
+        mut self,
+        l1_start_variant: StartVariant,
+        mut shutdown_signal: GracefulShutdown,
+    ) {
         let l1_start_height = l1_start_variant.start_height();
 
         let notifier = Arc::new(Notify::new());

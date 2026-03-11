@@ -320,10 +320,8 @@ where
                 None => StartVariant::FromBlock(
                     rollup_config
                         .runner
-                        .context(
-                            "Failed to start prover L1 syncer: Runner config not present",
-                        )?
-                        .scan_l1_start_height
+                        .context("Failed to start prover L1 syncer: Runner config not present")?
+                        .scan_l1_start_height,
                 ),
             };
 
@@ -400,14 +398,16 @@ where
                         .context(
                             "Failed to start full node L1 block handler: Runner config not present",
                         )?
-                        .scan_l1_start_height
+                        .scan_l1_start_height,
                 ),
             };
 
             task_executor.spawn_critical_with_graceful_shutdown_signal(
                 "FullNodeL1BlockHandler",
                 |shutdown_signal| async move {
-                    l1_block_handler.run(l1_start_variant, shutdown_signal).await
+                    l1_block_handler
+                        .run(l1_start_variant, shutdown_signal)
+                        .await
                 },
             );
 

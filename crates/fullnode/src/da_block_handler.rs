@@ -139,7 +139,11 @@ where
     /// * `l1_start_variant` - Variant indicating where to start syncing L1 blocks from
     /// * `shutdown_signal` - Signal to gracefully shut down
     #[instrument(name = "L1BlockHandler", skip_all)]
-    pub async fn run(mut self, l1_start_variant: StartVariant, mut shutdown_signal: GracefulShutdown) {
+    pub async fn run(
+        mut self,
+        l1_start_variant: StartVariant,
+        mut shutdown_signal: GracefulShutdown,
+    ) {
         let notifier = Arc::new(Notify::new());
         let start_l1_height = l1_start_variant.start_height();
 

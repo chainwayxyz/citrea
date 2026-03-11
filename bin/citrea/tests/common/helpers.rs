@@ -10,7 +10,8 @@ use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_light_client_prover};
 use citrea_common::{
-    BatchProverConfig, FullNodeConfig, LightClientProverConfig, NodeType, PruningConfig, RollupPublicKeys, RpcConfig, RunnerConfig, SequencerConfig, StartVariant, StorageConfig
+    BatchProverConfig, FullNodeConfig, LightClientProverConfig, NodeType, PruningConfig,
+    RollupPublicKeys, RpcConfig, RunnerConfig, SequencerConfig, StartVariant, StorageConfig,
 };
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
@@ -325,7 +326,11 @@ pub async fn start_rollup(
             Some(l1_height) => StartVariant::LastScanned(l1_height.0),
             // first time starting the prover
             // start from the block given in the config
-            None => StartVariant::FromBlock(rollup_config.runner.map_or(1, |runner| runner.scan_l1_start_height)),
+            None => StartVariant::FromBlock(
+                rollup_config
+                    .runner
+                    .map_or(1, |runner| runner.scan_l1_start_height),
+            ),
         };
         task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
             l1_syncer
