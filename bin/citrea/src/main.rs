@@ -316,7 +316,7 @@ where
             start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
             let l1_start_variant = match ledger_db.get_last_scanned_l1_height()? {
-                Some(l1_height) => StartVariant::LastScanned(l1_height.0 + 1),
+                Some(l1_height) => StartVariant::LastScanned(l1_height.0),
                 None => StartVariant::FromBlock(
                     rollup_config
                         .runner
@@ -393,7 +393,7 @@ where
             start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
             let l1_start_variant = match ledger_db.get_last_scanned_l1_height()? {
-                Some(l1_height) => StartVariant::LastScanned(l1_height.0 + 1),
+                Some(l1_height) => StartVariant::LastScanned(l1_height.0),
                 None => StartVariant::FromBlock(
                     rollup_config
                         .runner
