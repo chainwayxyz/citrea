@@ -10,10 +10,8 @@ use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_light_client_prover};
 use citrea_common::{
-    BatchProverConfig, FullNodeConfig, LightClientProverConfig, NodeType, PruningConfig,
-    RollupPublicKeys, RpcConfig, RunnerConfig, SequencerConfig, StorageConfig,
+    BatchProverConfig, FullNodeConfig, LightClientProverConfig, NodeType, PruningConfig, RollupPublicKeys, RpcConfig, RunnerConfig, SequencerConfig, StartVariant, StorageConfig
 };
-use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_tasks::TaskManager;
@@ -319,9 +317,19 @@ pub async fn start_rollup(
         );
 
         let handler_span = span.clone();
+
+        let l1_start_variant = match ledger_db
+            .get_last_scanned_l1_height()
+            .expect("Should be able to read DB")
+        {
+            Some(l1_height) => StartVariant::LastScanned(l1_height.0),
+            // first time starting the prover
+            // start from the block given in the config
+            None => StartVariant::FromBlock(rollup_config.runner.map_or(1, |runner| runner.scan_l1_start_height)),
+        };
         task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
             l1_syncer
-                .run(shutdown_signal)
+                .run(l1_start_variant, shutdown_signal)
                 .instrument(handler_span)
                 .await
         });
@@ -416,7 +424,7 @@ pub async fn start_rollup(
                 .runner
                 .map_or(1, |runner| runner.scan_l1_start_height);
             l1_block_handler
-                .run(start_l1_height, shutdown_signal)
+                .run(StartVariant::FromBlock(start_l1_height), shutdown_signal)
                 .instrument(handler_span.clone())
                 .await
         });
