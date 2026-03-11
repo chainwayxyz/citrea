@@ -24,7 +24,7 @@ pub struct InitParams {
 }
 
 /// Variant to specify how to start processing L1 blocks
-pub enum StartVariant { // TODO: rename to L1StartVariant
+pub enum StartVariant {
     /// Resume from the last scanned L1 block height, the following L1 block will be the next one to process.
     LastScanned(u64),
     /// Start processing from an initial L1 block height
