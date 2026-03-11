@@ -10,7 +10,7 @@ use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::sync_l1;
 use citrea_common::utils::shutdown_requested;
-use citrea_common::LightClientProverConfig;
+use citrea_common::{LightClientProverConfig, StartVariant};
 use citrea_primitives::forks::fork_from_block_number;
 use prover_services::{ParallelProverService, ProofData, ProofWithDuration};
 use reth_tasks::shutdown::GracefulShutdown;
@@ -33,14 +33,6 @@ use tracing::{error, info, instrument};
 use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
 use crate::metrics::LIGHT_CLIENT_METRICS as LPM;
-
-/// Variant to specify how to start processing L1 blocks
-pub enum StartVariant {
-    /// Resume from the last scanned L1 block height, the following L1 block will be the next one to process.
-    LastScanned(u64),
-    /// Start processing from an initial L1 block height
-    FromBlock(u64),
-}
 
 /// Handler for processing L1 blocks and the relevant transactions within them.
 ///

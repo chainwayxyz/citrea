@@ -23,6 +23,14 @@ pub struct InitParams {
     pub prev_l2_block_hash: L2BlockHash,
 }
 
+/// Variant to specify how to start processing L1 blocks
+pub enum StartVariant { // TODO: rename to L1StartVariant
+    /// Resume from the last scanned L1 block height, the following L1 block will be the next one to process.
+    LastScanned(u64),
+    /// Start processing from an initial L1 block height
+    FromBlock(u64),
+}
+
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NodeType {
