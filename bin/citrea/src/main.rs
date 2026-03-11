@@ -6,7 +6,8 @@ use std::time::Duration;
 use anyhow::{anyhow, Context as _};
 use bitcoin_da::service::BitcoinServiceConfig;
 use citrea::{
-    initialize_logging, BitcoinRollup, CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage,
+    initialize_logging, BitcoinRollup, CitreaRollupBlueprint, Dependencies, MockDemoRollup,
+    StopConditions, Storage,
 };
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
@@ -77,6 +78,11 @@ async fn main() -> anyhow::Result<()> {
         panic!("RISC0_DEV_MODE is enabled but network is set to Mainnet. Dev mode SHOULD NOT be used on mainnet.");
     }
 
+    let stop_conditions = StopConditions {
+        stop_at_l1_height: args.stop_at_l1_height,
+        stop_at_l2_height: args.stop_at_l2_height,
+    };
+
     match args.da_layer {
         SupportedDaLayer::Mock => {
             start_rollup::<MockDemoRollup, MockDaConfig>(
@@ -84,6 +90,7 @@ async fn main() -> anyhow::Result<()> {
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 args.rollup_config_path,
                 node_type,
+                stop_conditions,
             )
             .await?;
         }
@@ -93,6 +100,7 @@ async fn main() -> anyhow::Result<()> {
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 args.rollup_config_path,
                 node_type,
+                stop_conditions,
             )
             .await?;
         }
@@ -107,6 +115,7 @@ async fn start_rollup<S, DaC>(
     runtime_genesis_paths: &<CitreaRuntime<DefaultContext, <S as RollupBlueprint>::DaSpec> as sov_modules_stf_blueprint::Runtime<DefaultContext, <S as RollupBlueprint>::DaSpec>>::GenesisPaths,
     rollup_config_path: Option<String>,
     node_type: NodeWithConfig,
+    stop_conditions: StopConditions,
 ) -> Result<(), anyhow::Error>
 where
     DaC: serde::de::DeserializeOwned + DebugTrait + Clone + FromEnv + Send + Sync + 'static,
@@ -365,6 +374,7 @@ where
                     l2_block_tx,
                     rpc_module,
                     backup_manager,
+                    stop_conditions,
                 )
                 .await
                 .expect("Could not start full-node");
