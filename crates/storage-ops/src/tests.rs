@@ -5,7 +5,7 @@ use std::time::Duration;
 use citrea_common::{NodeType, PruningConfig};
 use jmt::storage::TreeWriter;
 use jmt::KeyHash;
-use reth_tasks::TaskManager;
+use reth_tasks::TaskExecutor as TaskManager;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
