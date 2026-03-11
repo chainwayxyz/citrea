@@ -31,6 +31,16 @@ pub enum StartVariant { // TODO: rename to L1StartVariant
     FromBlock(u64),
 }
 
+impl StartVariant {
+    /// Returns the actual L1 block height to start processing from based on the variant.
+    pub fn start_height(self) -> u64 {
+        match self {
+            StartVariant::LastScanned(h) => h + 1,
+            StartVariant::FromBlock(h) => h,
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NodeType {

@@ -97,10 +97,7 @@ where
     /// 4. Maintains metrics about syncing progress
     #[instrument(name = "L1Syncer", skip_all)]
     pub async fn run(mut self, l1_start_variant: StartVariant, mut shutdown_signal: GracefulShutdown) {
-        let l1_start_height = match l1_start_variant {
-            StartVariant::LastScanned(height) => height + 1, // last scanned block + 1
-            StartVariant::FromBlock(height) => height,       // first block to scan
-        };
+        let l1_start_height = l1_start_variant.start_height();
 
         let notifier = Arc::new(Notify::new());
         let l1_sync_worker = sync_l1(

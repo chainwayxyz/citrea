@@ -141,11 +141,7 @@ where
     #[instrument(name = "L1BlockHandler", skip_all)]
     pub async fn run(mut self, l1_start_variant: StartVariant, mut shutdown_signal: GracefulShutdown) {
         let notifier = Arc::new(Notify::new());
-
-        let start_l1_height = match l1_start_variant {
-            StartVariant::LastScanned(height) => height + 1, // last scanned block + 1
-            StartVariant::FromBlock(height) => height,       // first block to scan
-        };
+        let start_l1_height = l1_start_variant.start_height();
 
         let l1_sync_worker = sync_l1(
             start_l1_height,

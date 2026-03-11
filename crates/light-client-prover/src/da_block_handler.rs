@@ -142,11 +142,7 @@ where
         //         .clear_pending_proving_sessions()
         //         .expect("Failed to clear pending proving sessions");
         // }
-        let start_l1_height = match last_l1_height_scanned {
-            StartVariant::LastScanned(height) => height + 1, // last scanned block + 1
-            StartVariant::FromBlock(height) => height,       // first block to scan
-        };
-
+        let start_l1_height = last_l1_height_scanned.start_height();
         let notifier = Arc::new(Notify::new());
 
         let l1_sync_worker = sync_l1(
