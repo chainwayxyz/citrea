@@ -41,8 +41,8 @@ use sov_rollup_interface::da::{
     AddSecurityCouncilMemberV1Body, BatchProofMethodIdBody, DaTxRequest, DaVerifier, DataOnDa,
     RemoveBatchProofMethodIdV1Body, RemoveSecurityCouncilMemberV1Body,
     ReplaceSecurityCouncilMemberV1Body, SecurityCouncilTx, SecurityCouncilTxType,
-    SequencerCommitment, UpdateBatchProverDaPubKeyV1Body,
-    UpdateSecurityCouncilThresholdV1Body, UpdateSequencerDaPubKeyV1Body,
+    SequencerCommitment, UpdateBatchProverDaPubKeyV1Body, UpdateSecurityCouncilThresholdV1Body,
+    UpdateSequencerDaPubKeyV1Body,
 };
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::services::da::DaService;
