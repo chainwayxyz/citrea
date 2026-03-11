@@ -283,6 +283,43 @@ mod tests {
     }
 
     #[test]
+    fn test_below_threshold_signature_count_rejected() {
+        let body = BatchProofMethodIdBody {
+            method_id: [0u32; 8],
+            activation_l2_height: 0,
+            nonce: 0,
+        };
+
+        let payload = BatchProofMethodIdUpdate::from(body.clone());
+
+        let (initial_addresses, signers) = generate_initial_addresses_with_signers();
+
+        // Create only 2 signatures when threshold is 3
+        let signatures_with_index =
+            crate::create_valid_signatures_with_count(&signers, &payload, 2);
+
+        assert!(!verify_security_council_signatures(
+            &initial_addresses,
+            BatchProofMethodIdUpdate::from(body.clone()),
+            &signatures_with_index,
+            TEST_THRESHOLD,
+            mockda::EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            citrea_network_to_chain_id(Network::Nightly),
+        ));
+
+        // Create 0 signatures
+        let empty_signatures: Vec<([u8; 65], u8)> = vec![];
+        assert!(!verify_security_council_signatures(
+            &initial_addresses,
+            BatchProofMethodIdUpdate::from(body),
+            &empty_signatures,
+            TEST_THRESHOLD,
+            mockda::EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            citrea_network_to_chain_id(Network::Nightly),
+        ));
+    }
+
+    #[test]
     fn test_signature_index_swapped() {
         let body = BatchProofMethodIdBody {
             method_id: [0u32; 8],
