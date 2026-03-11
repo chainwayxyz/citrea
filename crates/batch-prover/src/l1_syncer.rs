@@ -65,7 +65,6 @@ where
     /// * `ledger_db` - The database instance to store L1 block data.
     /// * `da_service` - The DA service instance to fetch L1 blocks.
     /// * `public_keys` - The public keys used for distinguishing between different rollup participants.
-    /// * `scan_l1_start_height` - The height from which to start scanning L1 blocks.
     /// * `l1_block_cache` - A cache for L1 blocks to avoid redundant fetches.
     /// * `backup_manager` - Manager for backup operations.
     /// * `l1_signal_tx` - A channel sender to signal prover module when new L1 blocks are processed.

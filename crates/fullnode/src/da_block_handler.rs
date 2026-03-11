@@ -136,7 +136,7 @@ where
     /// 4. Updates the chain state accordingly
     ///
     /// # Arguments
-    /// * `start_l1_height` - Height to start syncing from
+    /// * `l1_start_variant` - Variant indicating where to start syncing L1 blocks from
     /// * `shutdown_signal` - Signal to gracefully shut down
     #[instrument(name = "L1BlockHandler", skip_all)]
     pub async fn run(mut self, l1_start_variant: StartVariant, mut shutdown_signal: GracefulShutdown) {
