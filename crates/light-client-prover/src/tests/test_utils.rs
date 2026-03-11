@@ -274,6 +274,17 @@ pub(crate) fn create_valid_signatures_with_count<T: SolStruct>(
     payload: &T,
     count: usize,
 ) -> Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)> {
+    create_valid_signatures_with_count_and_network(signers, payload, count, Network::Nightly)
+}
+
+/// Creates valid signatures from the first `count` signers for the given payload,
+/// using the specified network for the EIP-712 domain separator.
+pub(crate) fn create_valid_signatures_with_count_and_network<T: SolStruct>(
+    signers: &[PrivateKeySigner],
+    payload: &T,
+    count: usize,
+    network: Network,
+) -> Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)> {
     use crate::circuit::initial_values::mockda;
 
     let mut signatures_in_inscription = Vec::new();
@@ -281,7 +292,7 @@ pub(crate) fn create_valid_signatures_with_count<T: SolStruct>(
     let domain = eip712_domain! {
         name: mockda::EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
         version: "1",
-        chain_id: citrea_network_to_chain_id(Network::Nightly),
+        chain_id: citrea_network_to_chain_id(network),
     };
 
     for (i, signer) in signers.iter().enumerate().take(count) {
@@ -306,7 +317,6 @@ pub(crate) fn create_new_method_id_tx(
     let method_id_body = BatchProofMethodIdBody {
         activation_l2_height: activation_height,
         method_id: new_method_id,
-        chain_id: citrea_network_to_chain_id(network),
         nonce,
     };
 
@@ -315,7 +325,8 @@ pub(crate) fn create_new_method_id_tx(
 
     let payload = BatchProofMethodIdUpdate::from(method_id_body.clone());
 
-    let signatures_with_index = create_valid_signatures(&signers, &payload);
+    let signatures_with_index =
+        create_valid_signatures_with_count_and_network(&signers, &payload, 3, network);
 
     let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
         tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(method_id_body),
@@ -608,17 +619,12 @@ impl NativeCircuitRunner {
 pub(crate) fn create_update_sequencer_pub_key_tx(
     new_pub_key: [u8; 33],
     pub_key: [u8; 32],
-    network: Network,
     nonce: u64,
 ) -> MockBlob {
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
-    let body = UpdateSequencerDaPubKeyV1Body {
-        new_pub_key,
-        chain_id: citrea_network_to_chain_id(network),
-        nonce,
-    };
+    let body = UpdateSequencerDaPubKeyV1Body { new_pub_key, nonce };
 
     let (_initial_addresses, signers) =
         generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
@@ -640,17 +646,12 @@ pub(crate) fn create_update_sequencer_pub_key_tx(
 pub(crate) fn create_update_batch_prover_pub_key_tx(
     new_pub_key: [u8; 33],
     pub_key: [u8; 32],
-    network: Network,
     nonce: u64,
 ) -> MockBlob {
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
-    let body = UpdateBatchProverDaPubKeyV1Body {
-        new_pub_key,
-        chain_id: citrea_network_to_chain_id(network),
-        nonce,
-    };
+    let body = UpdateBatchProverDaPubKeyV1Body { new_pub_key, nonce };
 
     let (_initial_addresses, signers) =
         generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
@@ -669,26 +670,37 @@ pub(crate) fn create_update_batch_prover_pub_key_tx(
     blob
 }
 
-pub(crate) fn create_update_sequencer_pub_key_tx_with_chain_id(
+pub(crate) fn create_update_sequencer_pub_key_tx_with_signing_chain_id(
     new_pub_key: [u8; 33],
-    chain_id: u64,
+    signing_chain_id: u64,
     pub_key: [u8; 32],
     nonce: u64,
 ) -> MockBlob {
+    use crate::circuit::initial_values::mockda;
+
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
-    let body = UpdateSequencerDaPubKeyV1Body {
-        new_pub_key,
-        chain_id,
-        nonce,
-    };
+    let body = UpdateSequencerDaPubKeyV1Body { new_pub_key, nonce };
 
     let (_initial_addresses, signers) =
         generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
 
     let payload = UpdateSequencerDaPubKey::from(body.clone());
-    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    // Sign with the specified chain_id in the domain separator
+    let domain = eip712_domain! {
+        name: mockda::EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        version: "1",
+        chain_id: signing_chain_id,
+    };
+    let mut signatures_in_inscription = Vec::new();
+    for (i, signer) in signers.iter().enumerate().take(3) {
+        let sig = signer.sign_typed_data_sync(&payload, &domain).unwrap();
+        let signature = sig.as_bytes()[0..SECURITY_COUNCIL_SIGNATURE_SIZE].to_vec();
+        signatures_in_inscription.push((signature, i as u8));
+    }
+    let signatures_with_index = from_vec_to_sigs(signatures_in_inscription);
 
     let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
         tx_type: SecurityCouncilTxType::UpdateSequencerDaPubKeyV1(body),
@@ -701,26 +713,37 @@ pub(crate) fn create_update_sequencer_pub_key_tx_with_chain_id(
     blob
 }
 
-pub(crate) fn create_update_batch_prover_pub_key_tx_with_chain_id(
+pub(crate) fn create_update_batch_prover_pub_key_tx_with_signing_chain_id(
     new_pub_key: [u8; 33],
-    chain_id: u64,
+    signing_chain_id: u64,
     pub_key: [u8; 32],
     nonce: u64,
 ) -> MockBlob {
+    use crate::circuit::initial_values::mockda;
+
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
-    let body = UpdateBatchProverDaPubKeyV1Body {
-        new_pub_key,
-        chain_id,
-        nonce,
-    };
+    let body = UpdateBatchProverDaPubKeyV1Body { new_pub_key, nonce };
 
     let (_initial_addresses, signers) =
         generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
 
     let payload = UpdateBatchProverDaPubKey::from(body.clone());
-    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    // Sign with the specified chain_id in the domain separator
+    let domain = eip712_domain! {
+        name: mockda::EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        version: "1",
+        chain_id: signing_chain_id,
+    };
+    let mut signatures_in_inscription = Vec::new();
+    for (i, signer) in signers.iter().enumerate().take(3) {
+        let sig = signer.sign_typed_data_sync(&payload, &domain).unwrap();
+        let signature = sig.as_bytes()[0..SECURITY_COUNCIL_SIGNATURE_SIZE].to_vec();
+        signatures_in_inscription.push((signature, i as u8));
+    }
+    let signatures_with_index = from_vec_to_sigs(signatures_in_inscription);
 
     let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
         tx_type: SecurityCouncilTxType::UpdateBatchProverDaPubKeyV1(body),

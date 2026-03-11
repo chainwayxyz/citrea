@@ -26,9 +26,9 @@ use citrea_e2e::traits::{Restart, RestartPolicy};
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::circuit::{
-    citrea_network_to_chain_id, AddSecurityCouncilMember, BatchProofMethodIdUpdate,
-    RemoveBatchProofMethodId, RemoveSecurityCouncilMember, UpdateBatchProverDaPubKey,
-    UpdateSecurityCouncilThreshold, UpdateSequencerDaPubKey,
+    AddSecurityCouncilMember, BatchProofMethodIdUpdate, RemoveBatchProofMethodId,
+    RemoveSecurityCouncilMember, UpdateBatchProverDaPubKey, UpdateSecurityCouncilThreshold,
+    UpdateSequencerDaPubKey,
 };
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
@@ -53,10 +53,10 @@ use sov_rollup_interface::Network;
 use super::get_citrea_path;
 use super::utils::PROVER_DA_PRIVATE_KEY;
 use crate::bitcoin::utils::{
-    create_valid_signatures, generate_initial_addresses_with_signers_from_pks,
-    spawn_bitcoin_da_prover_service, spawn_bitcoin_da_sequencer_service, spawn_bitcoin_da_service,
-    wait_for_prover_job, wait_for_zkproofs, DaServiceKeyKind,
-    BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS,
+    create_valid_signatures, create_valid_signatures_with_wrong_domain,
+    generate_initial_addresses_with_signers_from_pks, spawn_bitcoin_da_prover_service,
+    spawn_bitcoin_da_sequencer_service, spawn_bitcoin_da_service, wait_for_prover_job,
+    wait_for_zkproofs, DaServiceKeyKind, BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS,
 };
 
 pub const TEN_MINS: Duration = Duration::from_secs(10 * 60);
@@ -678,7 +678,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         let method_id_body = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id,
             activation_l2_height: 210,
-            chain_id: citrea_network_to_chain_id(Network::Nightly),
             nonce: 1,
         };
 
@@ -908,7 +907,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id,
             activation_l2_height: 220,
-            chain_id: citrea_network_to_chain_id(Network::Nightly),
             nonce: 1,
         };
         let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
@@ -953,7 +951,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body2 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id2,
             activation_l2_height: 230,
-            chain_id: citrea_network_to_chain_id(Network::Nightly),
             nonce: 2, // Correct nonce, but signature will be corrupted → rejected, nonce NOT consumed
         };
 
@@ -998,7 +995,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body3 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
-            chain_id: citrea_network_to_chain_id(Network::Nightly),
             nonce: 2, // Previous rejected msg didn't consume nonce
         };
         let payload3 = BatchProofMethodIdUpdate::from(method_id_body3.clone());
@@ -1040,7 +1036,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body3 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
-            chain_id: citrea_network_to_chain_id(Network::Nightly),
             nonce: 2, // Previous rejected msgs didn't consume nonce
         };
 
@@ -1083,7 +1078,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body3 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
-            chain_id: citrea_network_to_chain_id(Network::Nightly),
             nonce: 2, // Previous rejected msgs didn't consume nonce
         };
 
@@ -1126,16 +1120,17 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .any(|x| x.method_id == new_batch_proof_method_id3.into()));
 
         // Case 5: Test with wrong network (should be rejected)
+        // Sign with Mainnet domain instead of Nightly - signature verification should fail
         let new_batch_proof_method_id4 = [5u32; 8];
         let method_id_body4 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id4,
             activation_l2_height: 250,
-            chain_id: citrea_network_to_chain_id(Network::Mainnet),
             nonce: 2, // Previous rejected msgs didn't consume nonce
         };
 
         let payload4 = BatchProofMethodIdUpdate::from(method_id_body4.clone());
-        let signatures_with_index = create_valid_signatures(&signers, &payload4, 3);
+        let signatures_with_index =
+            create_valid_signatures_with_wrong_domain(&signers, &payload4, 3);
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
@@ -1169,8 +1164,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body5 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id5,
             activation_l2_height: 260,
-
-            chain_id: citrea_network_to_chain_id(Network::Nightly),
             nonce: 2, // Previous rejected msgs didn't consume nonce
         };
         let payload5 = BatchProofMethodIdUpdate::from(method_id_body5.clone());
@@ -1211,7 +1204,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let replay_body = BatchProofMethodIdBody {
             method_id: replay_method_id,
             activation_l2_height: 270,
-            chain_id: citrea_network_to_chain_id(Network::Nightly),
             nonce: 1, // Already consumed by CASE 1
         };
         let replay_payload = BatchProofMethodIdUpdate::from(replay_body.clone());
@@ -1247,7 +1239,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let lower_nonce_body = BatchProofMethodIdBody {
             method_id: lower_nonce_method_id,
             activation_l2_height: 280,
-            chain_id: citrea_network_to_chain_id(Network::Nightly),
             nonce: 0, // Lower than current nonce (1)
         };
         let lower_nonce_payload = BatchProofMethodIdUpdate::from(lower_nonce_body.clone());
@@ -1285,7 +1276,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let skipped_nonce_body = BatchProofMethodIdBody {
             method_id: skipped_nonce_method_id,
             activation_l2_height: 290,
-            chain_id: citrea_network_to_chain_id(Network::Nightly),
             nonce: 3, // Skipped nonce=2
         };
         let skipped_nonce_payload = BatchProofMethodIdUpdate::from(skipped_nonce_body.clone());
@@ -1323,7 +1313,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let correct_nonce_body = BatchProofMethodIdBody {
             method_id: correct_nonce_method_id,
             activation_l2_height: 300,
-            chain_id: citrea_network_to_chain_id(Network::Nightly),
             nonce: 2, // Correct next nonce
         };
         let correct_nonce_payload = BatchProofMethodIdUpdate::from(correct_nonce_body.clone());
@@ -4679,7 +4668,6 @@ impl TestCase for DaPubKeyUpdateTest {
         };
         let update_seq_body = UpdateSequencerDaPubKeyV1Body {
             new_pub_key: new_sequencer_pub_key,
-            chain_id: citrea_network_to_chain_id(Network::Nightly),
             nonce: 1,
         };
         let payload = UpdateSequencerDaPubKey::from(update_seq_body.clone());
@@ -4720,7 +4708,6 @@ impl TestCase for DaPubKeyUpdateTest {
         };
         let update_bp_body = UpdateBatchProverDaPubKeyV1Body {
             new_pub_key: new_batch_prover_pub_key,
-            chain_id: citrea_network_to_chain_id(Network::Nightly),
             nonce: 2,
         };
         let payload = UpdateBatchProverDaPubKey::from(update_bp_body.clone());
@@ -4752,24 +4739,25 @@ impl TestCase for DaPubKeyUpdateTest {
             "CASE 2: Batch prover DA pub key should be updated"
         );
 
-        // --- CASE 3: Wrong chain_id should be rejected ---
+        // --- CASE 3: Wrong signing domain should be rejected ---
         let another_sequencer_pub_key: [u8; 33] = {
             let mut key = [0x02u8; 33];
             key[1] = 0xFF;
             key[2] = 0xEE;
             key
         };
-        let bad_chain_id_body = UpdateSequencerDaPubKeyV1Body {
+        let bad_domain_body = UpdateSequencerDaPubKeyV1Body {
             new_pub_key: another_sequencer_pub_key,
-            chain_id: 9999, // Wrong chain_id
             nonce: 3,
         };
-        let payload = UpdateSequencerDaPubKey::from(bad_chain_id_body.clone());
-        let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
+        let payload = UpdateSequencerDaPubKey::from(bad_domain_body.clone());
+        // Sign with wrong domain (wrong chain_id) so signature verification fails
+        let signatures_with_index =
+            create_valid_signatures_with_wrong_domain(&signers, &payload, 3);
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
-                    tx_type: SecurityCouncilTxType::UpdateSequencerDaPubKeyV1(bad_chain_id_body),
+                    tx_type: SecurityCouncilTxType::UpdateSequencerDaPubKeyV1(bad_domain_body),
                     signatures_with_index,
                 }),
                 1.0,
@@ -4791,7 +4779,7 @@ impl TestCase for DaPubKeyUpdateTest {
         assert_eq!(
             sequencer_pk,
             hex::encode(new_sequencer_pub_key),
-            "CASE 3: Sequencer DA pub key should remain unchanged after wrong chain_id"
+            "CASE 3: Sequencer DA pub key should remain unchanged after wrong signing domain"
         );
 
         Ok(())
@@ -5053,7 +5041,6 @@ impl TestCase for TestLcpVersionUpgrade {
         };
         let update_seq_body = UpdateSequencerDaPubKeyV1Body {
             new_pub_key: updated_seq_pub_key,
-            chain_id: citrea_network_to_chain_id(Network::Nightly),
             nonce: 1,
         };
         let payload = UpdateSequencerDaPubKey::from(update_seq_body.clone());
@@ -5076,7 +5063,6 @@ impl TestCase for TestLcpVersionUpgrade {
         };
         let update_bp_body = UpdateBatchProverDaPubKeyV1Body {
             new_pub_key: updated_bp_pub_key,
-            chain_id: citrea_network_to_chain_id(Network::Nightly),
             nonce: 2,
         };
         let payload = UpdateBatchProverDaPubKey::from(update_bp_body.clone());
@@ -5095,7 +5081,6 @@ impl TestCase for TestLcpVersionUpgrade {
         let new_method_id_body = BatchProofMethodIdBody {
             method_id: [42u32; 8],
             activation_l2_height: 9999,
-            chain_id: citrea_network_to_chain_id(Network::Nightly),
             nonce: 3,
         };
         let payload = BatchProofMethodIdUpdate::from(new_method_id_body.clone());

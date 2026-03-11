@@ -57,8 +57,6 @@ pub struct BatchProofMethodIdBody {
     pub method_id: [u32; 8],
     /// Activation L2 height of the new method id
     pub activation_l2_height: u64,
-    /// Network identifier to prevent cross network replay attacks
-    pub chain_id: u64,
     /// Strictly increasing nonce to prevent replay attacks
     pub nonce: u64,
 }
@@ -117,8 +115,6 @@ pub struct ReplaceSecurityCouncilMemberV1Body {
 pub struct UpdateSequencerDaPubKeyV1Body {
     /// New compressed public key (33 bytes)
     pub new_pub_key: [u8; 33],
-    /// Network identifier to prevent cross network replay attacks
-    pub chain_id: u64,
     /// Strictly increasing nonce to prevent replay attacks
     pub nonce: u64,
 }
@@ -128,8 +124,6 @@ pub struct UpdateSequencerDaPubKeyV1Body {
 pub struct UpdateBatchProverDaPubKeyV1Body {
     /// New compressed public key (33 bytes)
     pub new_pub_key: [u8; 33],
-    /// Network identifier to prevent cross network replay attacks
-    pub chain_id: u64,
     /// Strictly increasing nonce to prevent replay attacks
     pub nonce: u64,
 }

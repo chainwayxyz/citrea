@@ -726,11 +726,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     return;
                 }
 
-                if circuit_chain_id != body.chain_id {
-                    log!("Method ID upgrade transactions chain ID does not match circuit chain ID");
-                    return;
-                }
-
                 if !verify_security_council_signatures(
                     &upgrade_authority_addresses,
                     BatchProofMethodIdUpdate::from(body.clone()),
@@ -900,11 +895,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             SecurityCouncilTxType::UpdateSequencerDaPubKeyV1(body) => {
                 log!("Processing UpdateSequencerDaPubKeyV1");
 
-                if circuit_chain_id != body.chain_id {
-                    log!("Update sequencer DA pub key chain ID does not match circuit chain ID");
-                    return;
-                }
-
                 if !verify_security_council_signatures(
                     &upgrade_authority_addresses,
                     UpdateSequencerDaPubKey::from(body.clone()),
@@ -926,11 +916,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             }
             SecurityCouncilTxType::UpdateBatchProverDaPubKeyV1(body) => {
                 log!("Processing UpdateBatchProverDaPubKeyV1");
-
-                if circuit_chain_id != body.chain_id {
-                    log!("Update batch prover DA pub key chain ID does not match circuit chain ID");
-                    return;
-                }
 
                 if !verify_security_council_signatures(
                     &upgrade_authority_addresses,
@@ -1165,7 +1150,6 @@ sol! {
     struct BatchProofMethodIdUpdate {
         uint64 activationL2Height;
         bytes32 batchProofMethodId;
-        uint64 chainId;
         uint64 nonce;
     }
 }
@@ -1185,7 +1169,6 @@ impl From<BatchProofMethodIdBody> for BatchProofMethodIdUpdate {
             batchProofMethodId: B256::from_slice(
                 convert_u32_8_to_u8_32(batch_proof_method_id_body.method_id).as_slice(),
             ),
-            chainId: batch_proof_method_id_body.chain_id,
             nonce: batch_proof_method_id_body.nonce,
         }
     }
@@ -1269,7 +1252,6 @@ sol! {
     #[derive(Debug, Serialize)]
     struct UpdateSequencerDaPubKey {
         bytes newPubKey;
-        uint64 chainId;
         uint64 nonce;
     }
 }
@@ -1278,7 +1260,6 @@ impl From<UpdateSequencerDaPubKeyV1Body> for UpdateSequencerDaPubKey {
     fn from(body: UpdateSequencerDaPubKeyV1Body) -> Self {
         UpdateSequencerDaPubKey {
             newPubKey: body.new_pub_key.to_vec().into(),
-            chainId: body.chain_id,
             nonce: body.nonce,
         }
     }
@@ -1288,7 +1269,6 @@ sol! {
     #[derive(Debug, Serialize)]
     struct UpdateBatchProverDaPubKey {
         bytes newPubKey;
-        uint64 chainId;
         uint64 nonce;
     }
 }
@@ -1297,7 +1277,6 @@ impl From<UpdateBatchProverDaPubKeyV1Body> for UpdateBatchProverDaPubKey {
     fn from(body: UpdateBatchProverDaPubKeyV1Body) -> Self {
         UpdateBatchProverDaPubKey {
             newPubKey: body.new_pub_key.to_vec().into(),
-            chainId: body.chain_id,
             nonce: body.nonce,
         }
     }
