@@ -13,8 +13,8 @@ use tempfile::tempdir;
 use test_utils::{
     create_add_member_tx, create_mock_batch_proof, create_mock_sequencer_commitment,
     create_mock_sequencer_commitment_blob, create_new_method_id_tx, create_prev_lcp_serialized,
-    create_random_state_diff, create_remove_member_tx, create_replace_member_tx,
-    create_serialized_mock_proof, create_update_batch_prover_pub_key_tx,
+    create_random_state_diff, create_remove_member_tx, create_remove_method_id_tx,
+    create_replace_member_tx, create_serialized_mock_proof, create_update_batch_prover_pub_key_tx,
     create_update_batch_prover_pub_key_tx_with_chain_id, create_update_sequencer_pub_key_tx,
     create_update_sequencer_pub_key_tx_with_chain_id, create_update_threshold_tx,
     NativeCircuitRunner,
@@ -4579,4 +4579,302 @@ fn test_nonce_cross_message_types() {
     assert_eq!(addresses.len(), 6);
     let nonce = SecurityCouncilNonceAccessor::<ProverStorage>::get(&mut working_set).unwrap();
     assert_eq!(nonce, 2); // Nonce unchanged
+}
+
+#[test]
+fn test_remove_batch_proof_method_id() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_sender = [11u8; 32];
+
+    // Block 1: Add a second method id (nonce=1)
+    let block_header_1 = MockBlockHeader::from_height(1);
+    let blob_add = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly, 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_add],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(batch_proof_method_ids.len(), 2);
+    assert_eq!(
+        batch_proof_method_ids,
+        vec![(0u64, [0u32; 8]), (10u64, [2u32; 8])]
+    );
+
+    // Block 2: Remove the first method id (index=0, method_id=[0;8], height=0, nonce=2)
+    let block_header_2 = MockBlockHeader::from_height(2);
+    let blob_remove = create_remove_method_id_tx(0, [0u32; 8], 0, method_id_sender, 2);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id,
+            da_block_header: block_header_2,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_remove],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output_2 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(batch_proof_method_ids.len(), 1);
+    assert_eq!(batch_proof_method_ids, vec![(10u64, [2u32; 8])]);
+}
+
+#[test]
+fn test_remove_last_method_id_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_sender = [11u8; 32];
+
+    // Block 1: Try to remove the only method id (should be rejected)
+    let block_header_1 = MockBlockHeader::from_height(1);
+    let blob_remove = create_remove_method_id_tx(0, [0u32; 8], 0, method_id_sender, 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_remove],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    // Still 1 — cannot remove the last method id
+    assert_eq!(batch_proof_method_ids.len(), 1);
+    assert_eq!(batch_proof_method_ids, vec![(0u64, [0u32; 8])]);
+}
+
+#[test]
+fn test_remove_method_id_wrong_fields_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_sender = [11u8; 32];
+
+    // Block 1: Add a second method id (nonce=1)
+    let block_header_1 = MockBlockHeader::from_height(1);
+    let blob_add = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly, 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_add],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    // Block 2: Three rejected remove attempts:
+    // 1. Wrong method_id at index 0 (nonce=2)
+    // 2. Wrong activation height at index 1 (nonce=2, prev rejected)
+    // 3. Out-of-bounds index (nonce=2, prev rejected)
+    let block_header_2 = MockBlockHeader::from_height(2);
+    // Wrong method id: index 0 has [0;8] but we claim [9;8]
+    let blob_wrong_id = create_remove_method_id_tx(0, [9u32; 8], 0, method_id_sender, 2);
+    // Wrong height: index 1 has height=10 but we claim height=99
+    let blob_wrong_height = create_remove_method_id_tx(1, [2u32; 8], 99, method_id_sender, 2);
+    // Out of bounds: index 5 doesn't exist
+    let blob_oob = create_remove_method_id_tx(5, [0u32; 8], 0, method_id_sender, 2);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id,
+            da_block_header: block_header_2,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_wrong_id, blob_wrong_height, blob_oob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output_2 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    // Still 2 — all three removes were rejected
+    assert_eq!(batch_proof_method_ids.len(), 2);
+    assert_eq!(
+        batch_proof_method_ids,
+        vec![(0u64, [0u32; 8]), (10u64, [2u32; 8])]
+    );
+    let nonce = SecurityCouncilNonceAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(nonce, 1); // Only the add from block 1 consumed a nonce
 }

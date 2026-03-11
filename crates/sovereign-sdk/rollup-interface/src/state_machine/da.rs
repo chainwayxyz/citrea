@@ -134,6 +134,19 @@ pub struct UpdateBatchProverDaPubKeyV1Body {
     pub nonce: u64,
 }
 
+/// Body for removing a batch proof method ID
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct RemoveBatchProofMethodIdV1Body {
+    /// Index of the method id in the list
+    pub method_id_index: u32,
+    /// The method id to remove (must match the one at the index)
+    pub batch_proof_method_id: [u32; 8],
+    /// The L2 activation height of the method id (must match the one at the index)
+    pub l2_activation_height: u64,
+    /// Strictly increasing nonce to prevent replay attacks
+    pub nonce: u64,
+}
+
 /// Versioned security council transaction type
 #[derive(Debug, Clone, Eq, PartialEq, BorshSerialize, BorshDeserialize)]
 pub enum SecurityCouncilTxType {
@@ -151,6 +164,8 @@ pub enum SecurityCouncilTxType {
     UpdateSequencerDaPubKeyV1(UpdateSequencerDaPubKeyV1Body),
     /// Update the batch prover DA public key (V1)
     UpdateBatchProverDaPubKeyV1(UpdateBatchProverDaPubKeyV1Body),
+    /// Remove a batch proof method ID (V1)
+    RemoveBatchProofMethodIdV1(RemoveBatchProofMethodIdV1Body),
 }
 
 impl SecurityCouncilTxType {
@@ -164,6 +179,7 @@ impl SecurityCouncilTxType {
             Self::ReplaceSecurityCouncilMemberV1(body) => body.nonce,
             Self::UpdateSequencerDaPubKeyV1(body) => body.nonce,
             Self::UpdateBatchProverDaPubKeyV1(body) => body.nonce,
+            Self::RemoveBatchProofMethodIdV1(body) => body.nonce,
         }
     }
 }
