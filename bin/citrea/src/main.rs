@@ -315,9 +315,21 @@ where
 
             start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
+            let l1_start_variant = match ledger_db.get_last_scanned_l1_height()? {
+                Some(l1_height) => StartVariant::LastScanned(l1_height.0 + 1),
+                None => StartVariant::FromBlock(
+                    rollup_config
+                        .runner
+                        .context(
+                            "Failed to start prover L1 syncer: Runner config not present",
+                        )?
+                        .scan_l1_start_height
+                ),
+            };
+
             task_executor.spawn_critical_with_graceful_shutdown_signal(
                 "ProverL1Syncer",
-                |shutdown_signal| async move { l1_syncer.run(shutdown_signal).await },
+                |shutdown_signal| async move { l1_syncer.run(l1_start_variant, shutdown_signal).await },
             );
 
             task_executor.spawn_critical_with_graceful_shutdown_signal(
