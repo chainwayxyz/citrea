@@ -5,6 +5,7 @@
   **New hidden node args:**\
   `--stop-at-l1-height`: Stop the full node L1 sync after reaching this L1 height
   `--stop-at-l2-height`: Stop the full node L2 sync after reaching this L2 height
+- refactor: Use `StartVariant` in L1 processing ([#3185](https://github.com/chainwayxyz/citrea/pull/3185))
 
 ## [v2.2.0](2026-03-02)
 ### Added
