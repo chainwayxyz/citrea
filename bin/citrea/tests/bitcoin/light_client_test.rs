@@ -27,8 +27,8 @@ use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::circuit::{
     AddSecurityCouncilMember, BatchProofMethodIdUpdate, RemoveBatchProofMethodId,
-    RemoveSecurityCouncilMember, UpdateBatchProverDaPubKey, UpdateSecurityCouncilThreshold,
-    UpdateSequencerDaPubKey,
+    RemoveSecurityCouncilMember, ReplaceSecurityCouncilMember, UpdateBatchProverDaPubKey,
+    UpdateSecurityCouncilThreshold, UpdateSequencerDaPubKey,
 };
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
@@ -39,9 +39,10 @@ use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{
     AddSecurityCouncilMemberV1Body, BatchProofMethodIdBody, DaTxRequest, DaVerifier, DataOnDa,
-    RemoveBatchProofMethodIdV1Body, RemoveSecurityCouncilMemberV1Body, SecurityCouncilTx,
-    SecurityCouncilTxType, SequencerCommitment, UpdateBatchProverDaPubKeyV1Body,
-    UpdateSecurityCouncilThresholdV1Body, UpdateSequencerDaPubKeyV1Body,
+    RemoveBatchProofMethodIdV1Body, RemoveSecurityCouncilMemberV1Body,
+    ReplaceSecurityCouncilMemberV1Body, SecurityCouncilTx, SecurityCouncilTxType,
+    SequencerCommitment, UpdateBatchProverDaPubKeyV1Body, UpdateSecurityCouncilThresholdV1Body,
+    UpdateSequencerDaPubKeyV1Body,
 };
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::services::da::DaService;
@@ -4528,6 +4529,126 @@ impl TestCase for SecurityCouncilMemberManagementTest {
             addresses.len(),
             4,
             "CASE 7: Should still have 4 members (below min rejected)"
+        );
+
+        // --- CASE 8: Replace non-existent member (rejected) ---
+        // Try to replace a member that doesn't exist in the council.
+        let replace_body_1 = ReplaceSecurityCouncilMemberV1Body {
+            to_be_replaced: [0xAAu8; 20], // not in council
+            new_member: [0x33u8; 20],
+            nonce: 7,
+        };
+        let payload = ReplaceSecurityCouncilMember::from(replace_body_1.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 2);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::ReplaceSecurityCouncilMemberV1(replace_body_1),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(l1_height, Some(TEN_MINS))
+            .await?;
+
+        let addresses = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_addresses()
+            .await?;
+        assert_eq!(
+            addresses.len(),
+            4,
+            "CASE 8: Should still have 4 members (non-existent member replace rejected)"
+        );
+
+        // --- CASE 9: Replace with already existing member (rejected) ---
+        // Try to replace one member with another who is already in the council.
+        let replace_body_2 = ReplaceSecurityCouncilMemberV1Body {
+            to_be_replaced: _initial_addresses[0].0 .0,
+            new_member: _initial_addresses[1].0 .0, // already in council
+            nonce: 7,
+        };
+        let payload = ReplaceSecurityCouncilMember::from(replace_body_2.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 2);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::ReplaceSecurityCouncilMemberV1(replace_body_2),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(l1_height, Some(TEN_MINS))
+            .await?;
+
+        let addresses = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_addresses()
+            .await?;
+        assert_eq!(
+            addresses.len(),
+            4,
+            "CASE 9: Should still have 4 members (duplicate member replace rejected)"
+        );
+
+        // --- CASE 10: Valid replace member ---
+        // Replace _initial_addresses[2] with a new address.
+        let new_replacement = [0x33u8; 20];
+        let replace_body_3 = ReplaceSecurityCouncilMemberV1Body {
+            to_be_replaced: _initial_addresses[2].0 .0,
+            new_member: new_replacement,
+            nonce: 7,
+        };
+        let payload = ReplaceSecurityCouncilMember::from(replace_body_3.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 2);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::ReplaceSecurityCouncilMemberV1(replace_body_3),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(l1_height, Some(TEN_MINS))
+            .await?;
+
+        let addresses = light_client_prover
+            .client
+            .http_client()
+            .get_security_council_addresses()
+            .await?;
+        assert_eq!(
+            addresses.len(),
+            4,
+            "CASE 10: Should still have 4 members after replace"
+        );
+        // Verify the old member is gone and new member is present
+        let old_member_addr = format!("{:?}", _initial_addresses[2]);
+        let new_member_addr = format!("{:?}", Address::from_slice(&new_replacement));
+        assert!(
+            !addresses.contains(&old_member_addr),
+            "CASE 10: Old member should be removed"
+        );
+        assert!(
+            addresses.contains(&new_member_addr),
+            "CASE 10: New member should be present"
         );
 
         Ok(())
