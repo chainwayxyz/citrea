@@ -407,6 +407,30 @@ pub(crate) fn create_valid_signatures<T: SolStruct>(
     from_vec_to_sigs(signatures_in_inscription)
 }
 
+/// Creates signatures using a wrong domain (wrong chain_id) to test rejection of wrong-network messages
+pub(crate) fn create_valid_signatures_with_wrong_domain<T: SolStruct>(
+    signers: &[PrivateKeySigner],
+    payload: &T,
+    threshold: usize,
+) -> Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)> {
+    let mut signatures_in_inscription = Vec::new();
+
+    // Use a wrong chain_id (9999) to create signatures that won't verify against the correct domain
+    let domain = eip712_domain! {
+        name: bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        version: "1",
+        chain_id: 9999u64,
+    };
+
+    for (i, signer) in signers.iter().enumerate().take(threshold) {
+        let sig = signer.sign_typed_data_sync(payload, &domain).unwrap();
+        let signature = sig.as_bytes()[0..SECURITY_COUNCIL_SIGNATURE_SIZE].to_vec();
+        signatures_in_inscription.push((signature, i as u8));
+    }
+
+    from_vec_to_sigs(signatures_in_inscription)
+}
+
 /// Generates 100 blocks and finalizes funds
 async fn finalize_funds(da_node: &BitcoinNode) {
     da_node.generate(100).await.unwrap();
@@ -478,7 +502,6 @@ pub async fn generate_mock_txs(
     let method_id_body = BatchProofMethodIdBody {
         method_id: [0; 8],
         activation_l2_height: 0,
-        chain_id: citrea_network_to_chain_id(Network::Nightly),
         nonce: 1,
     };
 
@@ -598,7 +621,6 @@ pub async fn generate_mock_txs(
     let method_id_body = BatchProofMethodIdBody {
         method_id: [1; 8],
         activation_l2_height: 100,
-        chain_id: citrea_network_to_chain_id(Network::Nightly),
         nonce: 2,
     };
 
