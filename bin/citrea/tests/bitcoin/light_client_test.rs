@@ -56,8 +56,7 @@ use crate::bitcoin::utils::{
     create_valid_signatures, create_valid_signatures_with_wrong_domain,
     generate_initial_addresses_with_signers_from_pks, spawn_bitcoin_da_prover_service,
     spawn_bitcoin_da_sequencer_service, spawn_bitcoin_da_service, wait_for_prover_job,
-    wait_for_zkproofs, DaServiceKeyKind,
-    BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS,
+    wait_for_zkproofs, DaServiceKeyKind, BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS,
 };
 
 pub const TEN_MINS: Duration = Duration::from_secs(10 * 60);

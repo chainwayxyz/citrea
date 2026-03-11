@@ -624,10 +624,7 @@ pub(crate) fn create_update_sequencer_pub_key_tx(
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
-    let body = UpdateSequencerDaPubKeyV1Body {
-        new_pub_key,
-        nonce,
-    };
+    let body = UpdateSequencerDaPubKeyV1Body { new_pub_key, nonce };
 
     let (_initial_addresses, signers) =
         generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
@@ -654,10 +651,7 @@ pub(crate) fn create_update_batch_prover_pub_key_tx(
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
-    let body = UpdateBatchProverDaPubKeyV1Body {
-        new_pub_key,
-        nonce,
-    };
+    let body = UpdateBatchProverDaPubKeyV1Body { new_pub_key, nonce };
 
     let (_initial_addresses, signers) =
         generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
@@ -687,10 +681,7 @@ pub(crate) fn create_update_sequencer_pub_key_tx_with_signing_chain_id(
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
-    let body = UpdateSequencerDaPubKeyV1Body {
-        new_pub_key,
-        nonce,
-    };
+    let body = UpdateSequencerDaPubKeyV1Body { new_pub_key, nonce };
 
     let (_initial_addresses, signers) =
         generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
@@ -733,10 +724,7 @@ pub(crate) fn create_update_batch_prover_pub_key_tx_with_signing_chain_id(
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
-    let body = UpdateBatchProverDaPubKeyV1Body {
-        new_pub_key,
-        nonce,
-    };
+    let body = UpdateBatchProverDaPubKeyV1Body { new_pub_key, nonce };
 
     let (_initial_addresses, signers) =
         generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);

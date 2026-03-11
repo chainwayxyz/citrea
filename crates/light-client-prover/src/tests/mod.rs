@@ -16,9 +16,8 @@ use test_utils::{
     create_random_state_diff, create_remove_member_tx, create_remove_method_id_tx,
     create_replace_member_tx, create_serialized_mock_proof, create_update_batch_prover_pub_key_tx,
     create_update_batch_prover_pub_key_tx_with_signing_chain_id,
-    create_update_sequencer_pub_key_tx,
-    create_update_sequencer_pub_key_tx_with_signing_chain_id, create_update_threshold_tx,
-    NativeCircuitRunner,
+    create_update_sequencer_pub_key_tx, create_update_sequencer_pub_key_tx_with_signing_chain_id,
+    create_update_threshold_tx, NativeCircuitRunner,
 };
 
 use crate::circuit::accessors::{
@@ -3677,7 +3676,8 @@ fn test_update_sequencer_da_pub_key_wrong_chain_id_rejected() {
 
     let new_pub_key = [77u8; 33];
     // Sign with wrong chain_id in domain (9999 instead of Nightly's 5665)
-    let blob = create_update_sequencer_pub_key_tx_with_signing_chain_id(new_pub_key, 9999, [11u8; 32], 1);
+    let blob =
+        create_update_sequencer_pub_key_tx_with_signing_chain_id(new_pub_key, 9999, [11u8; 32], 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -3741,8 +3741,12 @@ fn test_update_batch_prover_da_pub_key_wrong_chain_id_rejected() {
 
     let new_pub_key = [88u8; 33];
     // Sign with wrong chain_id in domain (9999 instead of Nightly's 5665)
-    let blob =
-        create_update_batch_prover_pub_key_tx_with_signing_chain_id(new_pub_key, 9999, [11u8; 32], 1);
+    let blob = create_update_batch_prover_pub_key_tx_with_signing_chain_id(
+        new_pub_key,
+        9999,
+        [11u8; 32],
+        1,
+    );
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
