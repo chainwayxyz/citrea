@@ -437,7 +437,7 @@ pub async fn start_rollup(
                     .map_or(1, |runner| runner.scan_l1_start_height),
             ),
         };
-        
+
         task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
             l1_block_handler
                 .run(l1_start_variant, shutdown_signal)
