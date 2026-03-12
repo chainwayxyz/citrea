@@ -1036,15 +1036,17 @@ impl<C: sov_modules_api::Context> Evm<C> {
         state_overrides: Option<StateOverride>,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<EstimatedTxExpenses> {
-        let account = self
-            .account_info(&request.from.unwrap_or_default(), working_set)
-            .unwrap_or_default();
-
         let mut evm_db = self.get_db(working_set, citrea_spec_id);
 
         if let Some(ref state_overrides) = state_overrides {
             apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
         }
+
+        let account: crate::AccountInfo = evm_db
+            .basic(request.from.unwrap_or_default())
+            .map_err(EthApiError::from)?
+            .map(|acc| acc.into())
+            .unwrap_or_default();
         // Disabled because eth_estimateGas is sometimes used with eoa senders
         // See <https://github.com/paradigmxyz/reth/issues/1959>
         // The revm feature is enabled through reth-rpc dependencies

@@ -2,6 +2,8 @@ use std::str::FromStr;
 
 use alloy_eips::eip2930::{AccessList, AccessListItem, AccessListWithGasUsed};
 use alloy_eips::BlockNumberOrTag;
+use alloy_primitives::map::AddressMap;
+use alloy_rpc_types::state::AccountOverride;
 use alloy_primitives::{address, b256, TxKind, U256};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;
@@ -683,4 +685,28 @@ fn test_estimate_gas_no_balance() {
         get_fork_fn_latest(),
     );
     assert!(result.is_ok());
+
+    // Test 6: Estimate gas from account with 1 wei balance should fail
+    let mut state_override = AddressMap::default();
+    state_override.insert(
+        no_balance_address,
+        AccountOverride {
+            balance: Some(U256::from(1)),
+            ..Default::default()
+        },
+    );
+    let result = evm.eth_estimate_gas_inner(
+        TransactionRequest {
+            from: Some(no_balance_address),
+            to: Some(TxKind::Call(signer.address())),
+            input: TransactionInput::default(),
+            ..Default::default()
+        },
+        Some(BlockNumberOrTag::Latest),
+        Some(state_override),
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+    );
+    assert!(result.is_err());
 }
