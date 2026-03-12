@@ -1066,6 +1066,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let block_gas_limit = U64::from(block_env_gas_limit);
         let block_env_base_fee = U256::from(block_env.basefee);
 
+        let inspect_l1_fee_rate = if account.balance > 0 {
+            l1_fee_rate
+        } else {
+            0 // run with l1 fee rate = 0, so that we don't get "Not enough funds for L1 fee" in simulations
+        };
+
         let nonce = request.nonce.unwrap_or(account.nonce);
         let chain_id = cfg_env.chain_id();
 
@@ -1098,7 +1104,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         cfg_env.clone(),
                         block_env.clone(),
                         inspect_tx_env.clone(),
-                        0, // run with l1 fee rate = 0, so that we don't get "Not enough funds for L1 fee"
+                        inspect_l1_fee_rate,
                         TracingInspector::new(TracingInspectorConfig::none()),
                     );
 
@@ -1150,7 +1156,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             cfg_env.clone(),
             block_env.clone(),
             tx_env.clone(),
-            0, // run with l1 fee rate = 0, so that we don't get "Not enough funds for L1 fee"
+            inspect_l1_fee_rate,
             TracingInspector::new(TracingInspectorConfig::none()),
         );
 
@@ -1245,7 +1251,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 cfg_env.clone(),
                 block_env.clone(),
                 tx_env.clone(),
-                0, // run with l1 fee rate = 0, so that we don't get "Not enough funds for L1 fee"
+                inspect_l1_fee_rate,
                 TracingInspector::new(TracingInspectorConfig::none()),
             );
             let (curr_result, tx_info) = match curr_result {
@@ -1292,7 +1298,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 cfg_env.clone(),
                 block_env.clone(),
                 tx_env.clone(),
-                0, // run with l1 fee rate = 0, so that we don't get "Not enough funds for L1 fee"
+                inspect_l1_fee_rate,
                 TracingInspector::new(TracingInspectorConfig::none()),
             );
 

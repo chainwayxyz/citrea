@@ -668,4 +668,19 @@ fn test_estimate_gas_no_balance() {
         }
         .into())
     );
+
+    // Test 5: Estimate gas with no from address should succeed
+    let result = evm.eth_estimate_gas_inner(
+        TransactionRequest {
+            to: Some(TxKind::Call(signer.address())),
+            input: TransactionInput::default(),
+            ..Default::default()
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+    );
+    assert!(result.is_ok());
 }
