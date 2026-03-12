@@ -1174,7 +1174,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
                 }
                 return Err(
-                    map_out_of_gas_err(block_env.clone(), tx_env.clone(), cfg_env, evm_db).into(),
+                    map_out_of_gas_err(block_env.clone(), tx_env.clone(), cfg_env, evm_db, inspect_l1_fee_rate).into(),
                 );
             }
         } else if let Err(EVMError::Transaction(
@@ -1210,7 +1210,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                             apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
                         }
                         Err(
-                            map_out_of_gas_err(block_env.clone(), tx_env.clone(), cfg_env, evm_db)
+                            map_out_of_gas_err(block_env.clone(), tx_env.clone(), cfg_env, evm_db, inspect_l1_fee_rate)
                                 .into(),
                         )
                     } else {
@@ -2102,6 +2102,7 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
     mut tx_env: revm::context::TxEnv,
     cfg_env: CfgEnv,
     db: EvmDb<'_, C>,
+    inspect_l1_fee_rate: u128,
 ) -> EthApiError {
     let req_gas_limit = tx_env.gas_limit;
     tx_env.gas_limit = block_env.gas_limit;
@@ -2111,7 +2112,7 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
         cfg_env,
         block_env,
         tx_env,
-        /* l1_fee_rate */ 0,
+        inspect_l1_fee_rate,
         TracingInspector::new(TracingInspectorConfig::none()),
     ) {
         Ok((res, _tx_info)) => match res.result {
