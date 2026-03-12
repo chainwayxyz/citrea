@@ -47,6 +47,15 @@ enum ProcessingResult {
     Pending,
 }
 
+/// Origin of a proof currently being processed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ProofSource {
+    /// Proof extracted from DA blobs in the currently scanned L1 block.
+    FromL1,
+    /// Proof loaded from the pending proofs table for retry.
+    FromPendingRetry,
+}
+
 /// Handler for processing L1 blocks and their contained proofs and commitments
 ///
 /// This component is responsible for:
@@ -278,6 +287,7 @@ where
                             l1_block.header().height(),
                             l1_block.header().height(),
                             proof,
+                            ProofSource::FromL1,
                         )
                         .await
                     {
@@ -564,6 +574,7 @@ where
     /// * `current_l1_block_height` - Current L1 block being processed
     /// * `found_in_l1_block_height` - L1 block where proof was found
     /// * `proof` - The ZK proof to process
+    /// * `proof_source` - Whether the proof came from L1 or pending retries
     ///
     /// # Returns
     /// The processing result indicating:
@@ -575,6 +586,7 @@ where
         current_l1_block_height: u64,
         found_in_l1_block_height: u64,
         proof: Proof,
+        proof_source: ProofSource,
     ) -> Result<ProcessingResult, ProcessingError> {
         tracing::info!(
             "Processing zk proof at height: {}",
@@ -619,6 +631,7 @@ where
             batch_proof_output.initial_state_root(),
             proof,
             batch_proof_output,
+            proof_source,
         )
         .await
     }
@@ -631,6 +644,7 @@ where
     /// * `initial_state_root` - Initial state root for verification
     /// * `raw_proof` - The raw ZK proof
     /// * `batch_proof_output` - The batch proof circuit output
+    /// * `proof_source` - Whether the proof came from L1 or pending retries
     ///
     /// # Returns
     /// The processing result indicating success, discard, or pending status
@@ -641,6 +655,7 @@ where
         initial_state_root: [u8; 32],
         raw_proof: Proof,
         batch_proof_output: BatchProofCircuitOutput,
+        proof_source: ProofSource,
     ) -> Result<ProcessingResult, ProcessingError> {
         let last_l1_hash_on_bitcoin_light_client_contract =
             batch_proof_output.last_l1_hash_on_bitcoin_light_client_contract();
@@ -710,16 +725,23 @@ where
         }
 
         if proof_is_pending {
-            info!(
-                "Proof is pending for commitment index range {}-{}. Storing proof as pending.",
-                sequencer_commitment_index_range.0, sequencer_commitment_index_range.1
-            );
-            self.ledger_db.store_pending_proof(
-                sequencer_commitment_index_range.0,
-                sequencer_commitment_index_range.1,
-                raw_proof,
-                found_in_l1_block_height,
-            )?;
+            if proof_source == ProofSource::FromL1 {
+                info!(
+                    "Proof is pending for commitment index range {}-{}. Storing proof as pending.",
+                    sequencer_commitment_index_range.0, sequencer_commitment_index_range.1
+                );
+                self.ledger_db.store_pending_proof(
+                    sequencer_commitment_index_range.0,
+                    sequencer_commitment_index_range.1,
+                    raw_proof,
+                    found_in_l1_block_height,
+                )?;
+            } else {
+                info!(
+                    "Proof is pending for commitment index range {}-{}. Keeping existing pending proof without rewrite.",
+                    sequencer_commitment_index_range.0, sequencer_commitment_index_range.1
+                );
+            }
             return Ok(ProcessingResult::Pending);
         }
 
@@ -743,19 +765,29 @@ where
         }
 
         if sequencer_commitment_index_range.0 > proven_height.commitment_index + 1 {
-            info!(
+            if proof_source == ProofSource::FromL1 {
+                info!(
                     "First commitment in range is not strictly increasing. Expected index {}, got {}. Storing proof as pending for commitment range {}-{}",
                     proven_height.commitment_index + 1,
                     sequencer_commitment_index_range.0,
                     sequencer_commitment_index_range.0,
                     sequencer_commitment_index_range.1
                 );
-            self.ledger_db.store_pending_proof(
-                sequencer_commitment_index_range.0,
-                sequencer_commitment_index_range.1,
-                raw_proof,
-                found_in_l1_block_height,
-            )?;
+                self.ledger_db.store_pending_proof(
+                    sequencer_commitment_index_range.0,
+                    sequencer_commitment_index_range.1,
+                    raw_proof,
+                    found_in_l1_block_height,
+                )?;
+            } else {
+                info!(
+                    "First commitment in range is not strictly increasing. Expected index {}, got {}. Keeping existing pending proof for commitment range {}-{} without rewrite",
+                    proven_height.commitment_index + 1,
+                    sequencer_commitment_index_range.0,
+                    sequencer_commitment_index_range.0,
+                    sequencer_commitment_index_range.1
+                );
+            }
             return Ok(ProcessingResult::Pending);
         }
 
@@ -879,7 +911,12 @@ where
         for item in pending_proofs {
             let ((min_index, max_index), (proof, found_in_l1_height)) = item?.into_tuple();
             match self
-                .process_zk_proof(current_l1_block_height, found_in_l1_height, proof)
+                .process_zk_proof(
+                    current_l1_block_height,
+                    found_in_l1_height,
+                    proof,
+                    ProofSource::FromPendingRetry,
+                )
                 .await
             {
                 Err(e) => {
