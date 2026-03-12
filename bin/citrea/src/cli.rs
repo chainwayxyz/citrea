@@ -59,6 +59,24 @@ pub(crate) struct Args {
     /// Logging verbosity
     #[arg(long, short = 'q')]
     pub(crate) quiet: bool,
+
+    /// Stop the full node L1 sync after reaching this L1 height (debug/testing).
+    /// Only valid for full nodes.
+    #[arg(
+        long,
+        hide = true,
+        conflicts_with_all = ["sequencer", "batch_prover", "light_client_prover"]
+    )]
+    pub(crate) stop_at_l1_height: Option<u64>,
+
+    /// Stop the full node L2 sync after reaching this L2 height (debug/testing).
+    /// Only valid for full nodes.
+    #[arg(
+        long,
+        hide = true,
+        conflicts_with_all = ["sequencer", "batch_prover", "light_client_prover"]
+    )]
+    pub(crate) stop_at_l2_height: Option<u64>,
 }
 
 pub(crate) enum NodeWithConfig {
