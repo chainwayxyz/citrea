@@ -1,7 +1,8 @@
 [package]
 name = "batch-proof-mock"
-version = "1.2.2"
+version = "2.2.0"
 edition = "2021"
+license = "GPL-3.0-only"
 resolver = "2"
 
 [workspace]

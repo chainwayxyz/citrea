@@ -5,7 +5,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::bail;
 use borsh::BorshDeserialize;
-use citrea::{CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage};
+use citrea::{CitreaRollupBlueprint, Dependencies, MockDemoRollup, StopConditions, Storage};
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_light_client_prover};
@@ -397,6 +397,7 @@ pub async fn start_rollup(
                 l2_block_tx,
                 rpc_module,
                 backup_manager,
+                StopConditions::default(),
             )
             .instrument(span.clone())
             .await
@@ -484,6 +485,7 @@ pub fn create_default_rollup_config(
             enable_js_tracer: true,
             api_key: None,
             enable_filters: false,
+            max_sync_send_timeout_ms: 30_000,
         },
         runner: match node_mode {
             NodeMode::FullNode(socket_addr)

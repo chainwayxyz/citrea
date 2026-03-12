@@ -9,7 +9,9 @@ use borsh::BorshDeserialize;
 use citrea_evm::system_contracts::{BitcoinLightClientContract, BridgeContract};
 use citrea_evm::{CallMessage as EvmCallMessage, SYSTEM_SIGNER};
 use citrea_primitives::forks::get_forks;
+use futures::FutureExt;
 use reth_primitives::{Recovered, TransactionSigned};
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_modules_api::DaSpec;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
@@ -138,6 +140,20 @@ pub async fn decode_sov_tx_and_update_short_header_proofs<Da: DaService, DB: Sha
 
 pub fn read_env(key: &str) -> anyhow::Result<String> {
     env::var(key).map_err(|_| anyhow::anyhow!("Env {} missing or invalid UTF-8", key))
+}
+
+/// Non-blocking shutdown probe.
+pub fn shutdown_requested(shutdown_signal: &GracefulShutdown) -> bool {
+    shutdown_signal
+        .clone()
+        .ignore_guard()
+        .now_or_never()
+        .is_some()
+}
+
+/// Returns the configured stop height if `next_height` exceeds it.
+pub fn exceeded_stop_height(next_height: u64, stop_height: Option<u64>) -> Option<u64> {
+    stop_height.filter(|target| next_height > *target)
 }
 
 // If tangerine activation height is 0, return 1

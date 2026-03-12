@@ -16,11 +16,9 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
-use bitcoin::block::Header;
-use bitcoin::consensus::Decodable;
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
-use bitcoin::{BlockHash, CompactTarget, Transaction, Txid, Wtxid};
+use bitcoin::{BlockHash, Transaction, Txid, Wtxid};
 use bitcoincore_rpc::{Client, Error as BitcoinError, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
 use citrea_common::utils::read_env;
@@ -1264,31 +1262,24 @@ impl DaService for BitcoinService {
         let hash = hash.0;
         debug!("Getting block with hash {:?}", hash);
 
-        let block = self.client.get_block_verbose(&hash).await?;
+        let block = self.client.get_block(&hash).await?;
 
-        let header: Header = Header {
-            bits: CompactTarget::from_unprefixed_hex(&block.bits)?,
-            merkle_root: block.merkleroot,
-            nonce: block.nonce,
-            prev_blockhash: block.previousblockhash.unwrap_or_else(BlockHash::all_zeros),
-            time: block.time as u32,
-            version: block.version,
+        // Safe to use `bip34_block_height` within citrea constraints:
+        // - Mainnet start height is 924022, past BIP-34 activation height of 227835.
+        // - Testnet4 started after BIP-34 activation.
+        // - Only working on finalized blocks so any invalid BIP-34 block would have been rejected by Bitcoin consensus
+        let height = match block.bip34_block_height() {
+            Ok(height) => height,
+            Err(_) => self.client.get_block_header_info(&hash).await?.height as u64,
         };
 
-        let txs = block
-            .tx
-            .iter()
-            .map(|tx| {
-                Transaction::consensus_decode(&mut &tx.hex[..])
-                    .map(|transaction| transaction.into())
-            })
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let txs = block.txdata.into_iter().map(Into::into).collect::<Vec<_>>();
         let tx_count = txs.len();
 
         let witness_root = calculate_witness_root(&txs, tx_count);
 
         Ok(BitcoinBlock {
-            header: HeaderWrapper::new(header, tx_count as u32, block.height, witness_root),
+            header: HeaderWrapper::new(block.header, tx_count as u32, height, witness_root),
             txdata: txs,
         })
     }

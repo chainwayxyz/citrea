@@ -96,13 +96,29 @@ curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/resources/gene
 
 Look through the `rollup_config.toml` and apply changes as you wish, if you modified any Bitcoin RPC configs, change corresponding values under `[da]`.
 
+**Optional: Enable Pruning**
+
+To manage disk space, you can enable pruning by adding this to `rollup_config.toml`:
+
+```toml
+[runner.pruning_config]
+distance = 129600  # Keep last 3 days of blocks
+```
+
+Or set via environment variable:
+```bash
+export PRUNING_DISTANCE=129600
+```
+
+Without pruning, the database grows continuously. With pruning enabled, old blocks are automatically removed while keeping recent history. See [Pruning documentation](./pruning.md) for details.
+
 #### Step 1.2: Run Citrea Full Node
 
 Finally run this command to run your Citrea full node:
 
 Mac:
 ```sh
-./citrea-v1.2.2-osx-arm64 --network mainnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+./citrea-v2.2.0-osx-arm64 --network mainnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 or if you wish to use environment variables for configuring your node:
@@ -132,12 +148,12 @@ SYNC_BLOCKS_COUNT=10 \
 SCAN_L1_START_HEIGHT=924022 \
 RUST_LOG=info \
 JSON_LOGS=1 \
-./citrea-v1.2.2-osx-arm64 --network mainnet --da-layer bitcoin --genesis-paths ./genesis
+./citrea-v2.2.0-osx-arm64 --network mainnet --da-layer bitcoin --genesis-paths ./genesis
 ```
 
 Linux:
 ```sh
-./citrea-v1.2.2-linux-amd64 --network mainnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+./citrea-v2.2.0-linux-amd64 --network mainnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 or if you wish to use environment variables for configuring your node:
@@ -168,7 +184,7 @@ SYNC_BLOCKS_COUNT=10 \
 SCAN_L1_START_HEIGHT=924022 \
 RUST_LOG=info \
 JSON_LOGS=1 \
-./citrea-v1.2.2-linux-amd64 --network mainnet --da-layer bitcoin --genesis-paths ./genesis
+./citrea-v2.2.0-linux-amd64 --network mainnet --da-layer bitcoin --genesis-paths ./genesis
 ```
 
 Your full node should be serving RPC at `http://0.0.0.0:8080` now.

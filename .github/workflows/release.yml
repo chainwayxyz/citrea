@@ -23,11 +23,6 @@ jobs:
           rustup install 1.88.0
           rustup default 1.88.0
 
-      - name: Install risc0
-        uses: ./.github/actions/install-risc0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build Project
         env:
           SKIP_GUEST_BUILD: 1
@@ -46,6 +41,41 @@ jobs:
           name: citrea-cli-${{ github.ref_name }}-linux-amd64
           path: target/release/citrea-cli
 
+  linux_arm64_binary_extraction:
+    runs-on: ubicloud-standard-30-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update && sudo apt -y install curl gcc cpp cmake clang llvm
+          sudo apt -y autoremove && sudo apt clean && sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          rustup install 1.88.0
+          rustup default 1.88.0
+
+      - name: Build Project
+        env:
+          SKIP_GUEST_BUILD: 1
+        run: |
+          cargo build --release
+
+      - name: Upload citrea linux-arm64 Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: citrea-${{ github.ref_name }}-linux-arm64
+          path: target/release/citrea
+
+      - name: Upload citrea-cli linux-arm64 Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: citrea-cli-${{ github.ref_name }}-linux-arm64
+          path: target/release/citrea-cli
+
   osx_arm64_binary_extraction:
     runs-on: self-hosted-citrea-osx-arm64
     steps:
@@ -58,10 +88,6 @@ jobs:
           rustup install 1.88.0
           rustup default 1.88.0
 
-      - name: Install risc0
-        uses: ./.github/actions/install-risc0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build Project
         env:
           SKIP_GUEST_BUILD: 1
@@ -82,7 +108,7 @@ jobs:
           path: target/release/citrea-cli
 
   release:
-    needs: [ linux_amd64_binary_extraction, osx_arm64_binary_extraction ]
+    needs: [ linux_amd64_binary_extraction, linux_arm64_binary_extraction, osx_arm64_binary_extraction ]
     runs-on: ubuntu-latest
     steps:
       - name: Download linux-amd64 Binary
@@ -95,6 +121,16 @@ jobs:
         run: |
           mv release/citrea release/citrea-${{ github.ref_name }}-linux-amd64
 
+      - name: Download linux-arm64 Binary
+        uses: actions/download-artifact@v4
+        with:
+          name: citrea-${{ github.ref_name }}-linux-arm64
+          path: release
+
+      - name: rename linux-arm64 file
+        run: |
+          mv release/citrea release/citrea-${{ github.ref_name }}-linux-arm64
+
       - name: Download OSX ARM64 Binary
         uses: actions/download-artifact@v4
         with:
@@ -103,7 +139,7 @@ jobs:
 
       - name: rename file
         run: |
-            mv release/citrea release/citrea-${{ github.ref_name }}-osx-arm64
+          mv release/citrea release/citrea-${{ github.ref_name }}-osx-arm64
 
       - name: Download citrea-cli linux-amd64 Binary
         uses: actions/download-artifact@v4
@@ -115,6 +151,16 @@ jobs:
       - name: rename file
         run: |
           mv release/citrea-cli release/citrea-cli-${{ github.ref_name }}-linux-amd64
+
+      - name: Download citrea-cli linux-arm64 Binary
+        uses: actions/download-artifact@v4
+        with:
+          name: citrea-cli-${{ github.ref_name }}-linux-arm64
+          path: release
+
+      - name: rename citrea-cli linux-arm64 file
+        run: |
+          mv release/citrea-cli release/citrea-cli-${{ github.ref_name }}-linux-arm64
 
       - name: Download citrea-cli osx-arm64 Binary
         uses: actions/download-artifact@v4
@@ -130,9 +176,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release/citrea-${{ github.ref_name }}-osx-arm64
             release/citrea-${{ github.ref_name }}-linux-amd64
+            release/citrea-${{ github.ref_name }}-linux-arm64
+            release/citrea-${{ github.ref_name }}-osx-arm64
             release/citrea-cli-${{ github.ref_name }}-linux-amd64
+            release/citrea-cli-${{ github.ref_name }}-linux-arm64
             release/citrea-cli-${{ github.ref_name }}-osx-arm64
           name: Release ${{ github.ref_name }}
           body: |
@@ -140,8 +188,10 @@ jobs:
 
             It includes:
             - citrea-${{ github.ref_name }}-linux-amd64
+            - citrea-${{ github.ref_name }}-linux-arm64
             - citrea-${{ github.ref_name }}-osx-arm64
             - citrea-cli-${{ github.ref_name }}-linux-amd64
+            - citrea-cli-${{ github.ref_name }}-linux-arm64
             - citrea-cli-${{ github.ref_name }}-osx-arm64
 
   update-dockerhub:
@@ -151,16 +201,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Download Citrea binary and prepare Docker context
+      - name: Download binaries and prepare Docker context
         run: |
-          sudo apt update
-          sudo apt -y install wget
+          sudo apt update && sudo apt -y install wget
           RELEASE="${{ github.ref_name }}"
 
-          BINARY_URL="https://github.com/chainwayxyz/citrea/releases/download/${RELEASE}/citrea-${RELEASE}-linux-amd64"
-          echo "Downloading binary from ${BINARY_URL}"
-          # Download the binary using wget
-          wget -O docker/full-node/citrea "${BINARY_URL}"
+          # Download both arch
+          wget -O docker/full-node/citrea-amd64 "https://github.com/chainwayxyz/citrea/releases/download/${RELEASE}/citrea-${RELEASE}-linux-amd64"
+          wget -O docker/full-node/citrea-arm64 "https://github.com/chainwayxyz/citrea/releases/download/${RELEASE}/citrea-${RELEASE}-linux-arm64"
 
           mkdir -p docker/full-node/genesis
           cp -r resources/genesis/mainnet docker/full-node/genesis/
@@ -178,28 +226,23 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build Linux image
+      - name: Build and push multi-arch image
         uses: docker/build-push-action@v5
         env:
           DOCKERHUB_REPOSITORY: citrea-full-node
-          IMAGE_TAG: latest
         with:
           context: docker/full-node/
           file: docker/full-node/Dockerfile
-          platforms: linux/amd64
-          push: false
-          load: true
+          platforms: linux/amd64,linux/arm64
+          push: true
           provenance: false
           tags: |
-            ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.IMAGE_TAG }}
+            ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:latest
+            ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ github.ref_name }}
 
-      - name: Tag and push image to Dockerhub
+      - name: Verify pushed manifest
         env:
-          DOCKERHUB_REPOSITORY: citrea-full-node
-          GENERAL_IMAGE_TAG: latest
-          VERSION_IMAGE_TAG: ${{ github.ref_name }}
+          IMAGE: ${{ vars.DOCKERHUB_USERNAME }}/citrea-full-node:${{ github.ref_name }}
         run: |
-          docker tag ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.GENERAL_IMAGE_TAG }} ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.VERSION_IMAGE_TAG }}
-
-          docker push ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.VERSION_IMAGE_TAG }}
-          docker push ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.GENERAL_IMAGE_TAG }}
+          set -euo pipefail
+          docker buildx imagetools inspect "${IMAGE}"
