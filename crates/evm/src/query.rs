@@ -1173,9 +1173,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 if let Some(ref state_overrides) = state_overrides {
                     apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
                 }
-                return Err(
-                    map_out_of_gas_err(block_env.clone(), tx_env.clone(), cfg_env, evm_db, inspect_l1_fee_rate).into(),
-                );
+                return Err(map_out_of_gas_err(
+                    block_env.clone(),
+                    tx_env.clone(),
+                    cfg_env,
+                    evm_db,
+                    inspect_l1_fee_rate,
+                )
+                .into());
             }
         } else if let Err(EVMError::Transaction(
             InvalidTransaction::CallGasCostMoreThanGasLimit { .. },
@@ -1209,10 +1214,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         if let Some(ref state_overrides) = state_overrides {
                             apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
                         }
-                        Err(
-                            map_out_of_gas_err(block_env.clone(), tx_env.clone(), cfg_env, evm_db, inspect_l1_fee_rate)
-                                .into(),
+                        Err(map_out_of_gas_err(
+                            block_env.clone(),
+                            tx_env.clone(),
+                            cfg_env,
+                            evm_db,
+                            inspect_l1_fee_rate,
                         )
+                        .into())
                     } else {
                         // the transaction did revert
                         Err(RpcInvalidTransactionError::Revert(RevertError::new(output)).into())
