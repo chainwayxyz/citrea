@@ -1,5 +1,11 @@
 # Changelog
 ## [Unreleased]
+### Added
+- feat: Stop at height full-node arguments
+  **New hidden node args:**\
+  `--stop-at-l1-height`: Stop the full node L1 sync after reaching this L1 height
+  `--stop-at-l2-height`: Stop the full node L2 sync after reaching this L2 height
+- fix(fullnode): avoid rewriting pending proofs on retry (reduces PendingProof retry-path rewrite amplification). ([#3176](https://github.com/chainwayxyz/citrea/pull/3176))
 
 ## [v2.2.0](2026-03-02)
 ### Added
@@ -14,6 +20,7 @@
 - perf: Skip re-execution of proof request in boundless([#3144](https://github.com/chainwayxyz/citrea/pull/3144))
 - perf: Mine DA transaction prefix using transaction locktime([#3111](https://github.com/chainwayxyz/citrea/pull/3111))
 - fix: Check for shutdown signal when processing blocks in L1/L2 syncers loops ([#3152](https://github.com/chainwayxyz/citrea/pull/3152))
+- perf: Set rocksdb bloom filter policy ([#3180](https://github.com/chainwayxyz/citrea/pull/3180))
 
 ## [v2.1.0](2026-02-17)
 ### Added
