@@ -17,8 +17,9 @@ use sov_rollup_interface::da::{
     AddSecurityCouncilMemberV1Body, BatchProofMethodIdBody, BlobReaderTrait, DaVerifier, DataOnDa,
     RemoveBatchProofMethodIdV1Body, RemoveSecurityCouncilMemberV1Body,
     ReplaceSecurityCouncilMemberV1Body, SecurityCouncilTx, SecurityCouncilTxType,
-    SequencerCommitment, UpdateBatchProverDaPubKeyV1Body, UpdateSecurityCouncilThresholdV1Body,
-    UpdateSequencerDaPubKeyV1Body, SECURITY_COUNCIL_SIGNATURE_SIZE,
+    SequencerCommitment, SetLcpToPreviousStateV1Body, UpdateBatchProverDaPubKeyV1Body,
+    UpdateSecurityCouncilThresholdV1Body, UpdateSequencerDaPubKeyV1Body,
+    SECURITY_COUNCIL_SIGNATURE_SIZE,
 };
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
@@ -31,8 +32,8 @@ use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::{
     citrea_network_to_chain_id, AddSecurityCouncilMember, BatchProofMethodIdUpdate,
     LightClientProofCircuit, RemoveBatchProofMethodId, RemoveSecurityCouncilMember,
-    ReplaceSecurityCouncilMember, UpdateBatchProverDaPubKey, UpdateSecurityCouncilThreshold,
-    UpdateSequencerDaPubKey,
+    ReplaceSecurityCouncilMember, SetLcpToPreviousState, UpdateBatchProverDaPubKey,
+    UpdateSecurityCouncilThreshold, UpdateSequencerDaPubKey,
 };
 
 /// Test private keys used for generating signatures in tests
@@ -781,6 +782,43 @@ pub(crate) fn create_remove_method_id_tx(
 
     let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
         tx_type: SecurityCouncilTxType::RemoveBatchProofMethodIdV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+/// Creates a SetLcpToPreviousState security council transaction blob
+pub(crate) fn create_set_lcp_to_previous_state_tx(
+    pre_state_root: [u8; 32],
+    index: u32,
+    last_l2_height: u64,
+    merkle_root: [u8; 32],
+    pub_key: [u8; 32],
+    nonce: u64,
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = SetLcpToPreviousStateV1Body {
+        pre_state_root,
+        index,
+        last_l2_height,
+        merkle_root,
+        nonce,
+    };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = SetLcpToPreviousState::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::SetLcpToPreviousStateV1(body),
         signatures_with_index,
     });
 

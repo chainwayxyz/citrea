@@ -5,8 +5,10 @@
 //! that verify L2 state transitions and updates to the light client state.
 use accessors::{
     BatchProofMethodIdAccessor, BatchProverDaPubKeyAccessor, BlockHashAccessor, ChunkAccessor,
-    SecurityCouncilAddressAccessor, SecurityCouncilNonceAccessor, SecurityCouncilThresholdAccessor,
-    SequencerCommitmentAccessor, SequencerDaPubKeyAccessor,
+    RevertEpochAccessor, SecurityCouncilAddressAccessor, SecurityCouncilNonceAccessor,
+    SecurityCouncilThresholdAccessor, SequencerCommitmentAccessor,
+    SequencerCommitmentEpochAccessor, SequencerDaPubKeyAccessor,
+    VerifiedStateTransitionEpochAccessor,
     VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
 use alloy_primitives::{Address, B256};
@@ -22,9 +24,10 @@ use sov_rollup_interface::da::{
     AddSecurityCouncilMemberV1Body, BatchProofMethodIdBody, DaVerifier, DataOnDa,
     RemoveBatchProofMethodIdV1Body, RemoveSecurityCouncilMemberV1Body,
     ReplaceSecurityCouncilMemberV1Body, SecurityCouncilTx, SecurityCouncilTxType,
-    UpdateBatchProverDaPubKeyV1Body, UpdateSecurityCouncilThresholdV1Body,
-    UpdateSequencerDaPubKeyV1Body, MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL,
-    MAX_THRESHOLD_PROXIMITY, MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL, MIN_THRESHOLD,
+    SetLcpToPreviousStateV1Body, UpdateBatchProverDaPubKeyV1Body,
+    UpdateSecurityCouncilThresholdV1Body, UpdateSequencerDaPubKeyV1Body,
+    MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL, MAX_THRESHOLD_PROXIMITY,
+    MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL, MIN_THRESHOLD,
 };
 use sov_rollup_interface::witness::Witness;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
@@ -325,18 +328,26 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             return Err("Last commitment index is less than or equal to previous output");
         }
 
+        let current_epoch = RevertEpochAccessor::<S>::get_or_default(working_set);
+
         for (idx, seq_comm_index) in (batch_proof_output.sequencer_commitment_index_range().0
             ..=batch_proof_output.sequencer_commitment_index_range().1)
             .enumerate()
         {
-            // No need to add data to jmt if index is less than or equal to the current index, because it will be the same since they have the same seq comm hash
-            // Also no need to add if we already have the same index.
-            if seq_comm_index <= last_sequencer_commitment_index
-                || VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<S>::get(
+            // No need to add data to jmt if index is less than or equal to the current index
+            if seq_comm_index <= last_sequencer_commitment_index {
+                continue;
+            }
+            // Skip if already verified in the current epoch
+            if VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<S>::get(
+                seq_comm_index,
+                working_set,
+            )
+            .is_some()
+                && VerifiedStateTransitionEpochAccessor::<S>::get_or_default(
                     seq_comm_index,
                     working_set,
-                )
-                .is_some()
+                ) == current_epoch
             {
                 continue;
             }
@@ -350,6 +361,11 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     batch_proof_output_state_roots[idx + 1],
                     jmt_commitment.l2_end_block_number,
                 ),
+                working_set,
+            );
+            VerifiedStateTransitionEpochAccessor::<S>::set(
+                seq_comm_index,
+                current_epoch,
                 working_set,
             );
         }
@@ -586,15 +602,30 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 }
                 DataOnDa::SecurityCouncilTx(sc_tx) => {
                     log!("Found security council transaction");
-                    self.process_security_council_tx(
-                        sc_tx,
-                        network,
-                        &security_council_messages_domain,
-                        &mut working_set,
-                    );
+                    if let SecurityCouncilTxType::SetLcpToPreviousStateV1(ref body) = sc_tx.tx_type
+                    {
+                        self.process_set_lcp_to_previous_state(
+                            sc_tx.clone(),
+                            body.clone(),
+                            network,
+                            &security_council_messages_domain,
+                            &mut working_set,
+                            &mut last_sequencer_commitment_index,
+                            &mut last_l2_state_root,
+                            &mut last_l2_height,
+                        );
+                    } else {
+                        self.process_security_council_tx(
+                            sc_tx,
+                            network,
+                            &security_council_messages_domain,
+                            &mut working_set,
+                        );
+                    }
                 }
                 DataOnDa::SequencerCommitment(commitment) => {
-                    log!("Found sequencer commitment with index {}", commitment.index);
+                    let comm_index = commitment.index;
+                    log!("Found sequencer commitment with index {}", comm_index);
                     if blob.sender().as_ref() != active_sequencer_da_public_key.as_slice() {
                         log!(
                             "Sequencer commitment sender is not sequencer, wtxid={:?}",
@@ -602,14 +633,27 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         );
                         continue;
                     }
-                    if SequencerCommitmentAccessor::<S>::get(commitment.index, &mut working_set)
-                        .is_none()
+                    let current_epoch =
+                        RevertEpochAccessor::<S>::get_or_default(&mut working_set);
+                    let existing =
+                        SequencerCommitmentAccessor::<S>::get(comm_index, &mut working_set);
+                    // Insert if no entry exists, or if existing entry is from a stale epoch
+                    if existing.is_none()
+                        || SequencerCommitmentEpochAccessor::<S>::get_or_default(
+                            comm_index,
+                            &mut working_set,
+                        ) != current_epoch
                     {
                         SequencerCommitmentAccessor::<S>::insert(
-                            commitment.index,
+                            comm_index,
                             commitment,
                             &mut working_set,
-                        )
+                        );
+                        SequencerCommitmentEpochAccessor::<S>::set(
+                            comm_index,
+                            current_epoch,
+                            &mut working_set,
+                        );
                     }
                 }
             }
@@ -618,12 +662,22 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         // Try to chain proofs using commitments
         // With this setup even if we have valid proofs with commitments like 3,4,5 and 5,6
         // We can update our last commitment index to 6
+        let current_epoch = RevertEpochAccessor::<S>::get_or_default(&mut working_set);
         while let Some(sequencer_commitment_info) =
             VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<S>::get(
                 last_sequencer_commitment_index + 1,
                 &mut working_set,
             )
         {
+            // Skip entries from previous epochs (stale data from before a revert)
+            let entry_epoch = VerifiedStateTransitionEpochAccessor::<S>::get_or_default(
+                last_sequencer_commitment_index + 1,
+                &mut working_set,
+            );
+            if entry_epoch != current_epoch {
+                break;
+            }
+
             if sequencer_commitment_info.initial_state_root == last_l2_state_root {
                 last_l2_state_root = sequencer_commitment_info.final_state_root;
                 last_l2_height = sequencer_commitment_info.last_l2_height;
@@ -998,9 +1052,148 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 new_method_ids.remove(index);
                 BatchProofMethodIdAccessor::<S>::set(new_method_ids, working_set);
             }
+            SecurityCouncilTxType::SetLcpToPreviousStateV1(_) => {
+                // Handled separately in process_set_lcp_to_previous_state
+                unreachable!("SetLcpToPreviousStateV1 should not reach process_security_council_tx");
+            }
         }
 
         // Nonce check passed and message was processed successfully — increment
+        SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
+    }
+
+    /// Processes a SetLcpToPreviousState security council message.
+    ///
+    /// This is an emergency operation that reverts the LCP state to a previous sequencer
+    /// commitment index. It validates the message fields against stored state, increments
+    /// the revert epoch (to invalidate stale verified state transitions), and resets the
+    /// chaining state.
+    #[allow(clippy::too_many_arguments)]
+    fn process_set_lcp_to_previous_state(
+        &self,
+        sc_tx: SecurityCouncilTx,
+        body: SetLcpToPreviousStateV1Body,
+        network: Network,
+        security_council_messages_domain: &str,
+        working_set: &mut WorkingSet<S>,
+        last_sequencer_commitment_index: &mut u32,
+        last_l2_state_root: &mut [u8; 32],
+        last_l2_height: &mut u64,
+    ) {
+        let upgrade_authority_addresses = SecurityCouncilAddressAccessor::<S>::get(working_set)
+            .expect("Upgrade authority addresses must exist");
+        let upgrade_authority_threshold = SecurityCouncilThresholdAccessor::<S>::get(working_set)
+            .expect("Security council threshold must exist");
+        let circuit_chain_id = citrea_network_to_chain_id(network);
+
+        // Replay protection: verify and increment nonce
+        let msg_nonce = sc_tx.tx_type.nonce();
+        let current_nonce = SecurityCouncilNonceAccessor::<S>::get(working_set)
+            .expect("Security council nonce must exist");
+        let expected_nonce = match current_nonce.checked_add(1) {
+            Some(n) => n,
+            None => {
+                log!("Security council nonce overflow");
+                return;
+            }
+        };
+        if msg_nonce != expected_nonce {
+            log!(
+                "Security council nonce mismatch: expected {}, got {}",
+                expected_nonce,
+                msg_nonce
+            );
+            return;
+        }
+
+        // Signature verification
+        if !verify_security_council_signatures(
+            &upgrade_authority_addresses,
+            SetLcpToPreviousState::from(body.clone()),
+            &sc_tx.signatures_with_index,
+            upgrade_authority_threshold,
+            security_council_messages_domain.to_string(),
+            circuit_chain_id,
+        ) {
+            log!("SetLcpToPreviousState security council verification failed");
+            return;
+        }
+
+        // Validate: index must be less than current last_sequencer_commitment_index
+        if body.index >= *last_sequencer_commitment_index {
+            log!(
+                "Revert index {} is not less than current last_sequencer_commitment_index {}",
+                body.index,
+                *last_sequencer_commitment_index
+            );
+            return;
+        }
+
+        // Validate: VerifiedStateTransition at the given index must exist and match preStateRoot
+        let verified_transition =
+            match VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<S>::get(
+                body.index,
+                working_set,
+            ) {
+                Some(t) => t,
+                None => {
+                    log!(
+                        "No verified state transition found at index {}",
+                        body.index
+                    );
+                    return;
+                }
+            };
+
+        if verified_transition.final_state_root != body.pre_state_root {
+            log!("preStateRoot does not match final_state_root at the given index");
+            return;
+        }
+
+        // Validate: SequencerCommitment at the given index must exist and match fields
+        let seq_commitment =
+            match SequencerCommitmentAccessor::<S>::get(body.index, working_set) {
+                Some(c) => c,
+                None => {
+                    log!(
+                        "No sequencer commitment found at index {}",
+                        body.index
+                    );
+                    return;
+                }
+            };
+
+        if seq_commitment.l2_end_block_number != body.last_l2_height {
+            log!(
+                "last_l2_height mismatch: expected {}, got {}",
+                seq_commitment.l2_end_block_number,
+                body.last_l2_height
+            );
+            return;
+        }
+
+        if seq_commitment.merkle_root != body.merkle_root {
+            log!("merkle_root does not match sequencer commitment at the given index");
+            return;
+        }
+
+        // All checks passed — increment revert epoch
+        let current_epoch = RevertEpochAccessor::<S>::get_or_default(working_set);
+        let new_epoch = current_epoch + 1;
+        RevertEpochAccessor::<S>::set(new_epoch, working_set);
+
+        // Reset chaining state
+        *last_sequencer_commitment_index = body.index;
+        *last_l2_state_root = body.pre_state_root;
+        *last_l2_height = body.last_l2_height;
+
+        log!(
+            "LCP reverted to index {}, epoch incremented to {}",
+            body.index,
+            new_epoch
+        );
+
+        // Increment nonce
         SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
     }
 
@@ -1315,6 +1508,29 @@ impl From<RemoveBatchProofMethodIdV1Body> for RemoveBatchProofMethodId {
                 convert_u32_8_to_u8_32(body.batch_proof_method_id).as_slice(),
             ),
             l2ActivationHeight: body.l2_activation_height,
+            nonce: body.nonce,
+        }
+    }
+}
+
+sol! {
+    #[derive(Debug, Serialize)]
+    struct SetLcpToPreviousState {
+        bytes32 preStateRoot;
+        uint32 index;
+        uint64 lastL2Height;
+        bytes32 merkleRoot;
+        uint64 nonce;
+    }
+}
+
+impl From<SetLcpToPreviousStateV1Body> for SetLcpToPreviousState {
+    fn from(body: SetLcpToPreviousStateV1Body) -> Self {
+        SetLcpToPreviousState {
+            preStateRoot: B256::from_slice(&body.pre_state_root),
+            index: body.index,
+            lastL2Height: body.last_l2_height,
+            merkleRoot: B256::from_slice(&body.merkle_root),
             nonce: body.nonce,
         }
     }

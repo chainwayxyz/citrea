@@ -141,6 +141,21 @@ pub struct RemoveBatchProofMethodIdV1Body {
     pub nonce: u64,
 }
 
+/// Body for setting the LCP to a previous state (emergency revert)
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct SetLcpToPreviousStateV1Body {
+    /// The state root to revert to (must match the final_state_root at the given index)
+    pub pre_state_root: [u8; 32],
+    /// The sequencer commitment index to revert to
+    pub index: u32,
+    /// The last L2 height (must match the sequencer commitment at the given index)
+    pub last_l2_height: u64,
+    /// The merkle root (must match the sequencer commitment at the given index)
+    pub merkle_root: [u8; 32],
+    /// Strictly increasing nonce to prevent replay attacks
+    pub nonce: u64,
+}
+
 /// Versioned security council transaction type
 #[derive(Debug, Clone, Eq, PartialEq, BorshSerialize, BorshDeserialize)]
 pub enum SecurityCouncilTxType {
@@ -160,6 +175,8 @@ pub enum SecurityCouncilTxType {
     UpdateBatchProverDaPubKeyV1(UpdateBatchProverDaPubKeyV1Body),
     /// Remove a batch proof method ID (V1)
     RemoveBatchProofMethodIdV1(RemoveBatchProofMethodIdV1Body),
+    /// Set the LCP to a previous state (emergency revert) (V1)
+    SetLcpToPreviousStateV1(SetLcpToPreviousStateV1Body),
 }
 
 impl SecurityCouncilTxType {
@@ -174,6 +191,7 @@ impl SecurityCouncilTxType {
             Self::UpdateSequencerDaPubKeyV1(body) => body.nonce,
             Self::UpdateBatchProverDaPubKeyV1(body) => body.nonce,
             Self::RemoveBatchProofMethodIdV1(body) => body.nonce,
+            Self::SetLcpToPreviousStateV1(body) => body.nonce,
         }
     }
 }
