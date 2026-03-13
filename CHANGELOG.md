@@ -5,6 +5,7 @@
   **New hidden node args:**\
   `--stop-at-l1-height`: Stop the full node L1 sync after reaching this L1 height
   `--stop-at-l2-height`: Stop the full node L2 sync after reaching this L2 height
+- fix(fullnode): avoid rewriting pending proofs on retry (reduces PendingProof retry-path rewrite amplification). ([#3176](https://github.com/chainwayxyz/citrea/pull/3176))
 
 ## [v2.2.0](2026-03-02)
 ### Added
