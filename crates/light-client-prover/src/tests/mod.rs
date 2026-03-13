@@ -2550,15 +2550,17 @@ fn test_lcp_input_values_cant_be_tampered() {
     );
 
     // at this point returned witness will look like this:
-    // <BatchProverDaPubKeyAccessor::get() val>
-    // <SequencerDaPubKeyAccessor::get() val>
-    // <VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) val>
-    // <prev root>
-    // <BatchProverDaPubKeyAccessor read proof>
-    // <SequencerDaPubKeyAccessor read proof>
-    // <VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) read proof>
-    // <jmt update proof> (includes inserting blockhash)
-    // <final root>
+    // <BatchProverDaPubKeyAccessor::get() val>          index 0
+    // <SequencerDaPubKeyAccessor::get() val>            index 1
+    // <RevertEpochAccessor::get_or_default() val>       index 2
+    // <VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) val>  index 3
+    // <prev root>                                       index 4
+    // <BatchProverDaPubKeyAccessor read proof>          index 5
+    // <SequencerDaPubKeyAccessor read proof>            index 6
+    // <RevertEpochAccessor read proof>                  index 7
+    // <VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) read proof>  index 8
+    // <jmt update proof> (includes inserting blockhash) index 9
+    // <final root>                                      index 10
     // let's try changing the value of VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2)
     // as it was None, we'll try cheating and setting it to Some(VerifiedStateTransitionForSequencerCommitmentIndex{})
     // this simulates a light client prover that tries to move state of the L2 without a valid batch proof found on DA
@@ -2577,17 +2579,28 @@ fn test_lcp_input_values_cant_be_tampered() {
         .unwrap()
         .into();
 
-    // Index 2 is the VerifiedStateTransitionForSequencerCommitmentIndex value
-    // (indices 0 and 1 are BatchProverDaPubKey and SequencerDaPubKey values)
-    witness[2] = borsh::to_vec(&Some(storage_value)).unwrap();
+    // Index 3 is the VerifiedStateTransitionForSequencerCommitmentIndex value
+    // (indices 0 and 1 are BatchProverDaPubKey and SequencerDaPubKey values, index 2 is RevertEpoch)
+    witness[3] = borsh::to_vec(&Some(storage_value)).unwrap();
 
-    // we'll also push a None so that incrementing of VerifiedStateTransitionForSequencerCommitmentIndexAccessor stops
-    witness.insert(3, vec![0]);
+    // Since we tampered index 3 to Some, the circuit will now also read:
+    // - VerifiedStateTransitionEpochAccessor::get_or_default(2) (None → returns default 0, matching current epoch)
+    // - VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(3) (None, stops the loop)
+    // Insert these two value hints after the tampered value
+    witness.insert(4, vec![0]); // VerifiedStateTransitionEpochAccessor::get_or_default(2) = None/default
+    witness.insert(5, vec![0]); // VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(3) = None
 
-    // reusing VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) read proof
-    // for VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(3) as get(2) will panic already
-    // (index 7 is the get(2) read proof, after indices 4-5 for BatchProverDaPubKey and SequencerDaPubKey proofs)
-    witness.insert(8, witness[7].clone());
+    // After inserting 2 value hints, the proof section has shifted by +2:
+    // index 6: prev root
+    // index 7: BatchProverDaPubKey read proof
+    // index 8: SequencerDaPubKey read proof
+    // index 9: RevertEpoch read proof
+    // index 10: VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) read proof
+
+    // reusing get(2) read proof for VerifiedStateTransitionEpoch(2) and get(3) absence proofs
+    // as get(2) value mismatch will cause the panic before these proofs are verified
+    witness.insert(11, witness[10].clone()); // VerifiedStateTransitionEpochAccessor::get_or_default(2) read proof
+    witness.insert(12, witness[10].clone()); // VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(3) read proof
 
     input.witness = witness.into();
 
