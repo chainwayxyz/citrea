@@ -15,6 +15,7 @@ use citrea_common::da::{extract_zk_proofs_and_sequencer_commitments, sync_l1, Pr
 use citrea_common::utils::{
     exceeded_stop_height, get_tangerine_activation_height_non_zero, shutdown_requested,
 };
+use citrea_common::StartVariant;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::network_to_dev_mode;
 use reth_tasks::shutdown::GracefulShutdown;
@@ -144,11 +145,16 @@ where
     /// 4. Updates the chain state accordingly
     ///
     /// # Arguments
-    /// * `start_l1_height` - Height to start syncing from
+    /// * `l1_start_variant` - Variant indicating where to start syncing L1 blocks from
     /// * `shutdown_signal` - Signal to gracefully shut down
     #[instrument(name = "L1BlockHandler", skip_all)]
-    pub async fn run(mut self, start_l1_height: u64, mut shutdown_signal: GracefulShutdown) {
+    pub async fn run(
+        mut self,
+        l1_start_variant: StartVariant,
+        mut shutdown_signal: GracefulShutdown,
+    ) {
         let notifier = Arc::new(Notify::new());
+        let start_l1_height = l1_start_variant.start_height();
 
         let l1_sync_worker = sync_l1(
             start_l1_height,
