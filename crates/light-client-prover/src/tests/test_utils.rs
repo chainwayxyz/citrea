@@ -17,9 +17,8 @@ use sov_rollup_interface::da::{
     AddSecurityCouncilMemberV1Body, BatchProofMethodIdBody, BlobReaderTrait, DaVerifier, DataOnDa,
     RemoveBatchProofMethodIdV1Body, RemoveSecurityCouncilMemberV1Body,
     ReplaceSecurityCouncilMemberV1Body, SecurityCouncilTx, SecurityCouncilTxType,
-    SequencerCommitment, SetLcpToPreviousStateV1Body, UpdateBatchProverDaPubKeyV1Body,
-    UpdateSecurityCouncilThresholdV1Body, UpdateSequencerDaPubKeyV1Body,
-    SECURITY_COUNCIL_SIGNATURE_SIZE,
+    SequencerCommitment, UpdateBatchProverDaPubKeyV1Body, UpdateSecurityCouncilThresholdV1Body,
+    UpdateSequencerDaPubKeyV1Body, SECURITY_COUNCIL_SIGNATURE_SIZE,
 };
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
@@ -32,8 +31,8 @@ use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::{
     citrea_network_to_chain_id, AddSecurityCouncilMember, BatchProofMethodIdUpdate,
     LightClientProofCircuit, RemoveBatchProofMethodId, RemoveSecurityCouncilMember,
-    ReplaceSecurityCouncilMember, SetLcpToPreviousState, UpdateBatchProverDaPubKey,
-    UpdateSecurityCouncilThreshold, UpdateSequencerDaPubKey,
+    ReplaceSecurityCouncilMember, UpdateBatchProverDaPubKey, UpdateSecurityCouncilThreshold,
+    UpdateSequencerDaPubKey,
 };
 
 /// Test private keys used for generating signatures in tests

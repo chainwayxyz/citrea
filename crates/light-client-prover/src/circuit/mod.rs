@@ -633,8 +633,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         );
                         continue;
                     }
-                    let current_epoch =
-                        RevertEpochAccessor::<S>::get_or_default(&mut working_set);
+                    let current_epoch = RevertEpochAccessor::<S>::get_or_default(&mut working_set);
                     let existing =
                         SequencerCommitmentAccessor::<S>::get(comm_index, &mut working_set);
                     // Insert if no entry exists, or if existing entry is from a stale epoch
@@ -1054,7 +1053,9 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             }
             SecurityCouncilTxType::SetLcpToPreviousStateV1(_) => {
                 // Handled separately in process_set_lcp_to_previous_state
-                unreachable!("SetLcpToPreviousStateV1 should not reach process_security_council_tx");
+                unreachable!(
+                    "SetLcpToPreviousStateV1 should not reach process_security_council_tx"
+                );
             }
         }
 
@@ -1130,20 +1131,16 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         }
 
         // Validate: VerifiedStateTransition at the given index must exist and match preStateRoot
-        let verified_transition =
-            match VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<S>::get(
-                body.index,
-                working_set,
-            ) {
-                Some(t) => t,
-                None => {
-                    log!(
-                        "No verified state transition found at index {}",
-                        body.index
-                    );
-                    return;
-                }
-            };
+        let verified_transition = match VerifiedStateTransitionForSequencerCommitmentIndexAccessor::<
+            S,
+        >::get(body.index, working_set)
+        {
+            Some(t) => t,
+            None => {
+                log!("No verified state transition found at index {}", body.index);
+                return;
+            }
+        };
 
         if verified_transition.final_state_root != body.pre_state_root {
             log!("preStateRoot does not match final_state_root at the given index");
@@ -1151,17 +1148,13 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         }
 
         // Validate: SequencerCommitment at the given index must exist and match fields
-        let seq_commitment =
-            match SequencerCommitmentAccessor::<S>::get(body.index, working_set) {
-                Some(c) => c,
-                None => {
-                    log!(
-                        "No sequencer commitment found at index {}",
-                        body.index
-                    );
-                    return;
-                }
-            };
+        let seq_commitment = match SequencerCommitmentAccessor::<S>::get(body.index, working_set) {
+            Some(c) => c,
+            None => {
+                log!("No sequencer commitment found at index {}", body.index);
+                return;
+            }
+        };
 
         if seq_commitment.l2_end_block_number != body.last_l2_height {
             log!(

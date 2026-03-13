@@ -665,8 +665,7 @@ impl<S: Storage> RevertEpochAccessor<S> {
             .get(&key)
             .map(|v| {
                 let bytes: RefCount<[u8]> = v.into();
-                borsh::from_slice(&bytes)
-                    .expect("Revert epoch deserialization should not fail")
+                borsh::from_slice(&bytes).expect("Revert epoch deserialization should not fail")
             })
             .unwrap_or(0)
     }
