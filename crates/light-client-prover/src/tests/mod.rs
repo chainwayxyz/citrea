@@ -6,8 +6,9 @@ use sov_modules_api::WorkingSet;
 use sov_modules_core::StorageValue;
 use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
-use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
-use sov_rollup_interface::zk::light_client_proof::output::VerifiedStateTransitionForSequencerCommitmentIndex;
+use sov_rollup_interface::zk::light_client_proof::output::{
+    LightClientCircuitOutput, VerifiedStateTransitionForSequencerCommitmentIndex,
+};
 use sov_rollup_interface::Network;
 use sov_state::{ProverStorage, ZkStorage};
 use tempfile::tempdir;
@@ -5013,8 +5014,7 @@ fn test_set_lcp_to_previous_state() {
         1,         // revert to index 1
         2,         // last_l2_height
         [2u8; 32], // merkle_root
-        [11u8; 32],
-        1, // nonce
+        [11u8; 32], 1, // nonce
     );
 
     let output_2 = run_block(
@@ -5107,14 +5107,8 @@ fn test_set_lcp_to_previous_state_invalidates_stale_proofs() {
     assert_eq!(output_1.last_sequencer_commitment_index, 2);
 
     // Block 2: revert to index=1; VerifiedStateTransition(2) is now from epoch 0
-    let revert_blob = create_set_lcp_to_previous_state_tx(
-        [2u8; 32],
-        1,
-        2,
-        [2u8; 32],
-        [11u8; 32],
-        1,
-    );
+    let revert_blob =
+        create_set_lcp_to_previous_state_tx([2u8; 32], 1, 2, [2u8; 32], [11u8; 32], 1);
     let output_2 = run_block(
         &native,
         &zk,
@@ -5202,12 +5196,8 @@ fn test_set_lcp_to_previous_state_rejected_if_index_not_less_than_current() {
 
     // Try to revert to index=1 while last_index=1 (index >= last_index → rejected)
     let bad_revert = create_set_lcp_to_previous_state_tx(
-        [2u8; 32],
-        1,         // index == last_index, not strictly less
-        2,
-        [2u8; 32],
-        [11u8; 32],
-        1,
+        [2u8; 32], 1, // index == last_index, not strictly less
+        2, [2u8; 32], [11u8; 32], 1,
     );
 
     let output_2 = run_block(
@@ -5384,10 +5374,7 @@ fn test_set_lcp_to_previous_state_rejected_if_no_verified_transition() {
     let bad_revert = create_set_lcp_to_previous_state_tx(
         [1u8; 32], // genesis root — irrelevant, check happens after index check
         0,         // index=0, no verified transition stored here
-        0,
-        [0u8; 32],
-        [11u8; 32],
-        1,
+        0, [0u8; 32], [11u8; 32], 1,
     );
 
     let output_2 = run_block(
