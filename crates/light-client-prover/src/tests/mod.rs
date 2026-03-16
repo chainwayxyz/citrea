@@ -6,6 +6,7 @@ use sov_modules_api::WorkingSet;
 use sov_modules_core::StorageValue;
 use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa, SequencerCommitment};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
+use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::zk::light_client_proof::output::VerifiedStateTransitionForSequencerCommitmentIndex;
 use sov_rollup_interface::Network;
 use sov_state::{ProverStorage, ZkStorage};
@@ -14,16 +15,18 @@ use test_utils::{
     create_add_member_tx, create_mock_batch_proof, create_mock_sequencer_commitment,
     create_mock_sequencer_commitment_blob, create_new_method_id_tx, create_prev_lcp_serialized,
     create_random_state_diff, create_remove_member_tx, create_remove_method_id_tx,
-    create_replace_member_tx, create_serialized_mock_proof, create_update_batch_prover_pub_key_tx,
+    create_replace_member_tx, create_serialized_mock_proof, create_set_lcp_to_previous_state_tx,
+    create_update_batch_prover_pub_key_tx,
     create_update_batch_prover_pub_key_tx_with_signing_chain_id,
     create_update_sequencer_pub_key_tx, create_update_sequencer_pub_key_tx_with_signing_chain_id,
     create_update_threshold_tx, NativeCircuitRunner,
 };
 
 use crate::circuit::accessors::{
-    BatchProofMethodIdAccessor, BatchProverDaPubKeyAccessor, SecurityCouncilAddressAccessor,
-    SecurityCouncilNonceAccessor, SecurityCouncilThresholdAccessor, SequencerCommitmentAccessor,
-    SequencerDaPubKeyAccessor, VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
+    BatchProofMethodIdAccessor, BatchProverDaPubKeyAccessor, RevertEpochAccessor,
+    SecurityCouncilAddressAccessor, SecurityCouncilNonceAccessor, SecurityCouncilThresholdAccessor,
+    SequencerCommitmentAccessor, SequencerDaPubKeyAccessor,
+    VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
 use crate::circuit::initial_values::mockda::{
     EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME, INITIAL_SECURITY_COUNCIL_THRESHOLD,
@@ -4895,4 +4898,519 @@ fn test_remove_method_id_wrong_fields_rejected() {
     );
     let nonce = SecurityCouncilNonceAccessor::<ProverStorage>::get(&mut working_set).unwrap();
     assert_eq!(nonce, 1); // Only the add from block 1 consumed a nonce
+}
+
+// ── SetLcpToPreviousState tests ────────────────────────────────────────────────
+
+// Helper: run the circuit through the native runner and then through the ZK
+// runner, asserting it succeeds, and return the output.
+fn run_block(
+    native: &NativeCircuitRunner,
+    zk: &LightClientProofCircuit<ZkStorage, MockDaSpec, MockZkGuest>,
+    da_verifier: &MockDaVerifier,
+    input: LightClientCircuitInput<MockDaSpec>,
+    l2_genesis_state_root: [u8; 32],
+    batch_prover_da_pub_key: &[u8; 32],
+    sequencer_da_pub_key: &[u8; 32],
+) -> LightClientCircuitOutput {
+    let input = native.run(
+        input,
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        batch_prover_da_pub_key,
+        sequencer_da_pub_key,
+        METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+    zk.run_circuit(
+        da_verifier.clone(),
+        input,
+        ZkStorage::new(),
+        Network::Nightly,
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        batch_prover_da_pub_key,
+        sequencer_da_pub_key,
+        METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+        &[],
+    )
+    .unwrap()
+}
+
+/// Happy path: SetLcpToPreviousState reverts the LCP state to an earlier
+/// commitment index, resets l2_state_root / last_l2_height, and increments
+/// the revert epoch in persistent storage.
+#[test]
+fn test_set_lcp_to_previous_state() {
+    let db_dir = tempdir().unwrap();
+    let native = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9u8; 32];
+    let sequencer_da_pub_key = [45u8; 32];
+
+    // seq_comm_1: index=1, l2_end=2, merkle_root=[2;32]
+    // seq_comm_2: index=2, l2_end=3, merkle_root=[3;32]
+    let seq_comm_1 = create_mock_sequencer_commitment(1, 2, [2u8; 32]);
+    let seq_comm_2 = create_mock_sequencer_commitment(2, 3, [3u8; 32]);
+
+    // batch_proof_1: initial_state=[1;32] → final=[2;32]  (merkle_root of seq_comm_1)
+    // batch_proof_2: initial_state=[2;32] → final=[3;32]  (merkle_root of seq_comm_2)
+    let blob_seq_1 = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
+    let blob_seq_2 = create_mock_sequencer_commitment_blob(seq_comm_2.clone());
+    let blob_proof_1 = create_mock_batch_proof(
+        [1u8; 32],
+        2,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_1.clone()],
+        None,
+        batch_prover_da_pub_key,
+    );
+    let blob_proof_2 = create_mock_batch_proof(
+        [2u8; 32],
+        3,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_2.clone()],
+        Some(seq_comm_1.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
+    );
+
+    // Block 1: process both commitments and both batch proofs
+    let output_1 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(1),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_seq_1, blob_seq_2, blob_proof_1, blob_proof_2],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+
+    assert_eq!(output_1.last_sequencer_commitment_index, 2);
+    assert_eq!(output_1.l2_state_root, [3u8; 32]);
+    assert_eq!(output_1.last_l2_height, 3);
+
+    // Block 2: SetLcpToPreviousState — revert to index=1
+    // pre_state_root must match VerifiedStateTransition(1).final_state_root = [2;32]
+    // last_l2_height must match seq_comm_1.l2_end_block_number = 2
+    // merkle_root must match seq_comm_1.merkle_root = [2;32]
+    let revert_blob = create_set_lcp_to_previous_state_tx(
+        [2u8; 32], // pre_state_root
+        1,         // revert to index 1
+        2,         // last_l2_height
+        [2u8; 32], // merkle_root
+        [11u8; 32],
+        1, // nonce
+    );
+
+    let output_2 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(2),
+            inclusion_proof: [2u8; 32],
+            completeness_proof: vec![revert_blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+
+    // LCP state should be rolled back to index 1
+    assert_eq!(output_2.last_sequencer_commitment_index, 1);
+    assert_eq!(output_2.l2_state_root, [2u8; 32]);
+    assert_eq!(output_2.last_l2_height, 2);
+
+    // Revert epoch must have been incremented to 1
+    let mut ws = WorkingSet::new(native.prover_storage_manager.create_final_view_storage());
+    let epoch = RevertEpochAccessor::<ProverStorage>::get_or_default(&mut ws);
+    assert_eq!(epoch, 1);
+
+    // Nonce was consumed
+    let nonce = SecurityCouncilNonceAccessor::<ProverStorage>::get(&mut ws).unwrap();
+    assert_eq!(nonce, 1);
+}
+
+/// After a revert, verified state transitions from the previous epoch must be
+/// ignored by the chaining loop so the LCP cannot advance past the revert point
+/// using stale data.
+#[test]
+fn test_set_lcp_to_previous_state_invalidates_stale_proofs() {
+    let db_dir = tempdir().unwrap();
+    let native = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9u8; 32];
+    let sequencer_da_pub_key = [45u8; 32];
+
+    let seq_comm_1 = create_mock_sequencer_commitment(1, 2, [2u8; 32]);
+    let seq_comm_2 = create_mock_sequencer_commitment(2, 3, [3u8; 32]);
+
+    let blob_seq_1 = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
+    let blob_seq_2 = create_mock_sequencer_commitment_blob(seq_comm_2.clone());
+    let blob_proof_1 = create_mock_batch_proof(
+        [1u8; 32],
+        2,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_1.clone()],
+        None,
+        batch_prover_da_pub_key,
+    );
+    let blob_proof_2 = create_mock_batch_proof(
+        [2u8; 32],
+        3,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_2.clone()],
+        Some(seq_comm_1.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
+    );
+
+    // Block 1: process seq_comm_1 and seq_comm_2 with their batch proofs
+    let output_1 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(1),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_seq_1, blob_seq_2, blob_proof_1, blob_proof_2],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+    assert_eq!(output_1.last_sequencer_commitment_index, 2);
+
+    // Block 2: revert to index=1; VerifiedStateTransition(2) is now from epoch 0
+    let revert_blob = create_set_lcp_to_previous_state_tx(
+        [2u8; 32],
+        1,
+        2,
+        [2u8; 32],
+        [11u8; 32],
+        1,
+    );
+    let output_2 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(2),
+            inclusion_proof: [2u8; 32],
+            completeness_proof: vec![revert_blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+    assert_eq!(output_2.last_sequencer_commitment_index, 1);
+
+    // Block 3: empty DA — chaining loop finds VerifiedStateTransition(2) stored in JMT
+    // but its epoch (0) != current_epoch (1), so it must be skipped
+    let output_3 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_2, true)),
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(3),
+            inclusion_proof: [3u8; 32],
+            completeness_proof: vec![],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+
+    // Must still be at index 1 — stale transition for index 2 must NOT have advanced it
+    assert_eq!(output_3.last_sequencer_commitment_index, 1);
+    assert_eq!(output_3.l2_state_root, [2u8; 32]);
+}
+
+/// A revert message whose index is equal to (not less than) last_sequencer_commitment_index
+/// must be rejected; the LCP state must remain unchanged.
+#[test]
+fn test_set_lcp_to_previous_state_rejected_if_index_not_less_than_current() {
+    let db_dir = tempdir().unwrap();
+    let native = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9u8; 32];
+    let sequencer_da_pub_key = [45u8; 32];
+
+    let seq_comm_1 = create_mock_sequencer_commitment(1, 2, [2u8; 32]);
+    let blob_seq_1 = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
+    let blob_proof_1 = create_mock_batch_proof(
+        [1u8; 32],
+        2,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_1.clone()],
+        None,
+        batch_prover_da_pub_key,
+    );
+
+    let output_1 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(1),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_seq_1, blob_proof_1],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+    assert_eq!(output_1.last_sequencer_commitment_index, 1);
+
+    // Try to revert to index=1 while last_index=1 (index >= last_index → rejected)
+    let bad_revert = create_set_lcp_to_previous_state_tx(
+        [2u8; 32],
+        1,         // index == last_index, not strictly less
+        2,
+        [2u8; 32],
+        [11u8; 32],
+        1,
+    );
+
+    let output_2 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(2),
+            inclusion_proof: [2u8; 32],
+            completeness_proof: vec![bad_revert],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+
+    // State must be unchanged
+    assert_eq!(output_2.last_sequencer_commitment_index, 1);
+    assert_eq!(output_2.l2_state_root, [2u8; 32]);
+
+    let mut ws = WorkingSet::new(native.prover_storage_manager.create_final_view_storage());
+    let epoch = RevertEpochAccessor::<ProverStorage>::get_or_default(&mut ws);
+    assert_eq!(epoch, 0); // epoch must NOT have been incremented
+}
+
+/// A revert message with a mismatched pre_state_root must be rejected.
+#[test]
+fn test_set_lcp_to_previous_state_rejected_if_pre_state_root_mismatch() {
+    let db_dir = tempdir().unwrap();
+    let native = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9u8; 32];
+    let sequencer_da_pub_key = [45u8; 32];
+
+    let seq_comm_1 = create_mock_sequencer_commitment(1, 2, [2u8; 32]);
+    let seq_comm_2 = create_mock_sequencer_commitment(2, 3, [3u8; 32]);
+    let blob_seq_1 = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
+    let blob_seq_2 = create_mock_sequencer_commitment_blob(seq_comm_2.clone());
+    let blob_proof_1 = create_mock_batch_proof(
+        [1u8; 32],
+        2,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_1.clone()],
+        None,
+        batch_prover_da_pub_key,
+    );
+    let blob_proof_2 = create_mock_batch_proof(
+        [2u8; 32],
+        3,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_2.clone()],
+        Some(seq_comm_1.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
+    );
+
+    let output_1 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(1),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_seq_1, blob_seq_2, blob_proof_1, blob_proof_2],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+    assert_eq!(output_1.last_sequencer_commitment_index, 2);
+
+    // pre_state_root is wrong — does not match VerifiedStateTransition(1).final_state_root
+    let bad_revert = create_set_lcp_to_previous_state_tx(
+        [0xFFu8; 32], // wrong pre_state_root
+        1,
+        2,
+        [2u8; 32],
+        [11u8; 32],
+        1,
+    );
+
+    let output_2 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(2),
+            inclusion_proof: [2u8; 32],
+            completeness_proof: vec![bad_revert],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+
+    // State must be unchanged
+    assert_eq!(output_2.last_sequencer_commitment_index, 2);
+    assert_eq!(output_2.l2_state_root, [3u8; 32]);
+
+    let mut ws = WorkingSet::new(native.prover_storage_manager.create_final_view_storage());
+    let epoch = RevertEpochAccessor::<ProverStorage>::get_or_default(&mut ws);
+    assert_eq!(epoch, 0);
+}
+
+/// A revert message that references an index with no verified state transition
+/// stored must be rejected.
+#[test]
+fn test_set_lcp_to_previous_state_rejected_if_no_verified_transition() {
+    let db_dir = tempdir().unwrap();
+    let native = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9u8; 32];
+    let sequencer_da_pub_key = [45u8; 32];
+
+    let seq_comm_1 = create_mock_sequencer_commitment(1, 2, [2u8; 32]);
+    let seq_comm_2 = create_mock_sequencer_commitment(2, 3, [3u8; 32]);
+    let blob_seq_1 = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
+    let blob_seq_2 = create_mock_sequencer_commitment_blob(seq_comm_2.clone());
+    let blob_proof_1 = create_mock_batch_proof(
+        [1u8; 32],
+        2,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_1.clone()],
+        None,
+        batch_prover_da_pub_key,
+    );
+    let blob_proof_2 = create_mock_batch_proof(
+        [2u8; 32],
+        3,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_2.clone()],
+        Some(seq_comm_1.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
+    );
+
+    let output_1 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(1),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_seq_1, blob_seq_2, blob_proof_1, blob_proof_2],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+    assert_eq!(output_1.last_sequencer_commitment_index, 2);
+
+    // Try to revert to index=0; there is no VerifiedStateTransition at index 0
+    // (the circuit never stores one there — index starts at 1)
+    let bad_revert = create_set_lcp_to_previous_state_tx(
+        [1u8; 32], // genesis root — irrelevant, check happens after index check
+        0,         // index=0, no verified transition stored here
+        0,
+        [0u8; 32],
+        [11u8; 32],
+        1,
+    );
+
+    let output_2 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(2),
+            inclusion_proof: [2u8; 32],
+            completeness_proof: vec![bad_revert],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+
+    assert_eq!(output_2.last_sequencer_commitment_index, 2);
+    assert_eq!(output_2.l2_state_root, [3u8; 32]);
+
+    let mut ws = WorkingSet::new(native.prover_storage_manager.create_final_view_storage());
+    let epoch = RevertEpochAccessor::<ProverStorage>::get_or_default(&mut ws);
+    assert_eq!(epoch, 0);
 }
