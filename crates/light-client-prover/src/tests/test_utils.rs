@@ -539,7 +539,7 @@ impl NativeCircuitRunner {
         initial_batch_proof_method_ids: Vec<(u64, [u32; 8])>,
         batch_prover_da_pub_key: &[u8],
         sequencer_da_pub_key: &[u8],
-        initial_method_id_upgrade_authority: &[Address],
+        initial_security_council_da_addresses: &[Address],
         initial_security_council_threshold: usize,
         network: Network,
     ) -> LightClientCircuitInput<MockDaSpec> {
@@ -576,7 +576,7 @@ impl NativeCircuitRunner {
             initial_batch_proof_method_ids,
             batch_prover_da_pub_key,
             sequencer_da_pub_key,
-            initial_method_id_upgrade_authority,
+            initial_security_council_da_addresses,
             initial_security_council_threshold,
             domain_name.to_string(),
             input.light_client_proof_method_id,

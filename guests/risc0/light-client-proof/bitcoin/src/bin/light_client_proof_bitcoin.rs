@@ -68,22 +68,22 @@ const INITIAL_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
     }
 };
 
-pub const INITIAL_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES: NonEmptySlice<Address> = {
+pub const INITIAL_SECURITY_COUNCIL_DA_ADDRESSES: NonEmptySlice<Address> = {
     match NETWORK {
         Network::Mainnet => {
-            bitcoinda::MAINNET_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES
+            bitcoinda::MAINNET_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES
         }
         Network::Testnet => {
-            bitcoinda::TESTNET_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES
+            bitcoinda::TESTNET_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES
         }
         Network::Devnet => {
-            bitcoinda::DEVNET_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES
+            bitcoinda::DEVNET_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES
         }
         Network::Nightly => {
-            bitcoinda::NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES
+            bitcoinda::NIGHTLY_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES
         }
         Network::TestNetworkWithForks => {
-            bitcoinda::TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES
+            bitcoinda::TEST_NETWORK_WITH_FORKS_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES
         }
     }
 };
@@ -139,7 +139,7 @@ pub fn main() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &INITIAL_BATCH_PROVER_DA_PUBLIC_KEY,
             &INITIAL_SEQUENCER_DA_PUBLIC_KEY,
-            INITIAL_METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_DA_ADDRESSES.inner(),
             INITIAL_SECURITY_COUNCIL_THRESHOLD,
             SECURITY_COUNCIL_DOMAIN_NAME.to_string(),
             ALLOWED_PREVIOUS_LCP_METHOD_IDS,
