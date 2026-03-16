@@ -638,6 +638,136 @@ impl<S: Storage> SecurityCouncilNonceAccessor<S> {
     }
 }
 
+/// Accessor for the global revert epoch counter.
+/// Incremented each time a `SetLcpToPreviousState` message is processed.
+/// Used to distinguish pre-revert verified state transitions from post-revert ones.
+pub struct RevertEpochAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> RevertEpochAccessor<S> {
+    /// Revert epoch storage prefix
+    const PREFIX: u8 = b'e';
+
+    /// Creates a storage key containing just the prefix
+    fn key() -> StorageKey {
+        let mut key = [0u8; 1];
+        key[0] = Self::PREFIX;
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    /// Retrieves the current revert epoch. Returns 0 if not set (backward compat).
+    pub fn get_or_default(working_set: &mut WorkingSet<S>) -> u32 {
+        let key = Self::key();
+        working_set
+            .get(&key)
+            .map(|v| {
+                let bytes: RefCount<[u8]> = v.into();
+                borsh::from_slice(&bytes).expect("Revert epoch deserialization should not fail")
+            })
+            .unwrap_or(0)
+    }
+
+    /// Sets the revert epoch value
+    pub fn set(epoch: u32, working_set: &mut WorkingSet<S>) {
+        let key = Self::key();
+        let value: StorageValue = borsh::to_vec(&epoch)
+            .expect("Revert epoch serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
+/// Accessor for the epoch of each verified state transition entry.
+/// Keyed by sequencer commitment index, stores the epoch at which the entry was written.
+/// Entries without an epoch are treated as epoch 0 (backward compat).
+pub struct VerifiedStateTransitionEpochAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> VerifiedStateTransitionEpochAccessor<S> {
+    /// Verified state transition epoch prefix
+    const PREFIX: u8 = b'v';
+
+    /// Creates a storage key for a given sequencer commitment index
+    fn key(index: u32) -> StorageKey {
+        let mut key = [0u8; 5]; // 1 prefix + 4 bytes
+        key[0] = Self::PREFIX;
+        key[1..].copy_from_slice(&index.to_be_bytes());
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    /// Retrieves the epoch for a given index. Returns 0 if not set (backward compat).
+    pub fn get_or_default(index: u32, working_set: &mut WorkingSet<S>) -> u32 {
+        let key = Self::key(index);
+        working_set
+            .get(&key)
+            .map(|v| {
+                let bytes: RefCount<[u8]> = v.into();
+                borsh::from_slice(&bytes)
+                    .expect("Verified state transition epoch deserialization should not fail")
+            })
+            .unwrap_or(0)
+    }
+
+    /// Sets the epoch for a given index
+    pub fn set(index: u32, epoch: u32, working_set: &mut WorkingSet<S>) {
+        let key = Self::key(index);
+        let value: StorageValue = borsh::to_vec(&epoch)
+            .expect("Verified state transition epoch serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
+/// Accessor for the epoch of each sequencer commitment entry.
+/// Keyed by sequencer commitment index, stores the epoch at which the entry was written.
+/// Entries without an epoch are treated as epoch 0 (backward compat).
+pub struct SequencerCommitmentEpochAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> SequencerCommitmentEpochAccessor<S> {
+    /// Sequencer commitment epoch prefix
+    const PREFIX: u8 = b'f';
+
+    /// Creates a storage key for a given sequencer commitment index
+    fn key(index: u32) -> StorageKey {
+        let mut key = [0u8; 5]; // 1 prefix + 4 bytes
+        key[0] = Self::PREFIX;
+        key[1..].copy_from_slice(&index.to_be_bytes());
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    /// Retrieves the epoch for a given index. Returns 0 if not set (backward compat).
+    pub fn get_or_default(index: u32, working_set: &mut WorkingSet<S>) -> u32 {
+        let key = Self::key(index);
+        working_set
+            .get(&key)
+            .map(|v| {
+                let bytes: RefCount<[u8]> = v.into();
+                borsh::from_slice(&bytes)
+                    .expect("Sequencer commitment epoch deserialization should not fail")
+            })
+            .unwrap_or(0)
+    }
+
+    /// Sets the epoch for a given index
+    pub fn set(index: u32, epoch: u32, working_set: &mut WorkingSet<S>) {
+        let key = Self::key(index);
+        let value: StorageValue = borsh::to_vec(&epoch)
+            .expect("Sequencer commitment epoch serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use alloy_primitives::Address;

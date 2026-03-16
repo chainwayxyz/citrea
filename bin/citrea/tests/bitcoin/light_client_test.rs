@@ -27,8 +27,8 @@ use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::circuit::{
     AddSecurityCouncilMember, BatchProofMethodIdUpdate, RemoveBatchProofMethodId,
-    RemoveSecurityCouncilMember, ReplaceSecurityCouncilMember, UpdateBatchProverDaPubKey,
-    UpdateSecurityCouncilThreshold, UpdateSequencerDaPubKey,
+    RemoveSecurityCouncilMember, ReplaceSecurityCouncilMember, SetLcpToPreviousState,
+    UpdateBatchProverDaPubKey, UpdateSecurityCouncilThreshold, UpdateSequencerDaPubKey,
 };
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
@@ -36,13 +36,14 @@ use citrea_primitives::REVEAL_TX_PREFIX;
 use rand::{thread_rng, Rng};
 use reth_tasks::TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
+use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{
     AddSecurityCouncilMemberV1Body, BatchProofMethodIdBody, DaTxRequest, DaVerifier, DataOnDa,
     RemoveBatchProofMethodIdV1Body, RemoveSecurityCouncilMemberV1Body,
     ReplaceSecurityCouncilMemberV1Body, SecurityCouncilTx, SecurityCouncilTxType,
-    SequencerCommitment, UpdateBatchProverDaPubKeyV1Body, UpdateSecurityCouncilThresholdV1Body,
-    UpdateSequencerDaPubKeyV1Body,
+    SequencerCommitment, SetLcpToPreviousStateV1Body, UpdateBatchProverDaPubKeyV1Body,
+    UpdateSecurityCouncilThresholdV1Body, UpdateSequencerDaPubKeyV1Body,
 };
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::services::da::DaService;
@@ -5361,6 +5362,704 @@ impl TestCase for TestLcpVersionUpgrade {
 
         Ok(())
     }
+}
+
+struct SetLcpToPreviousStateTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for SetLcpToPreviousStateTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_sequencer: true,
+            with_batch_prover: true,
+            with_light_client_prover: true,
+            with_full_node: true,
+            mode: CitreaMode::Dev,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 2,
+            da_update_interval_ms: 500,
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            enable_recovery: false,
+            ..Default::default()
+        }
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            enable_recovery: false,
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(195)
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
+
+        // DA service for security council messages (any key works)
+        let sc_da_service = spawn_bitcoin_da_service(
+            &self.task_manager.executor(),
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::Other(
+                BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS[0].to_string(),
+            ),
+            REVEAL_TX_PREFIX.to_vec(),
+            None,
+            None,
+        )
+        .await;
+
+        // DA services for sending fake commitments/proofs with correct DA keys
+        let sequencer_da_service = spawn_bitcoin_da_sequencer_service(
+            &self.task_manager.executor(),
+            &da.config,
+            Self::test_config().dir,
+        )
+        .await;
+        let prover_da_service = spawn_bitcoin_da_prover_service(
+            &self.task_manager.executor(),
+            &da.config,
+            Self::test_config().dir,
+        )
+        .await;
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+
+        // Get signers for security council messages
+        let pk_bytes_arr: [[u8; 32]; 5] = BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS
+            .map(|s| hex::decode(s).unwrap().try_into().unwrap());
+        let (_initial_addresses, signers) =
+            generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+        // ========================================================
+        // PHASE 1: Normal operation - commitments 1-2, batch proof, LCP processes
+        // ========================================================
+        for _ in 0..(2 * max_l2_blocks_per_commitment) {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        sequencer
+            .wait_for_l2_height(2 * max_l2_blocks_per_commitment, None)
+            .await?;
+        da.wait_mempool_len(4, None).await?; // 2 commitments * 2 txs each
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let commitment_l1_height = da.get_finalized_height(None).await?;
+        batch_prover
+            .wait_for_l1_height(commitment_l1_height, Some(TEN_MINS))
+            .await?;
+        da.wait_mempool_len(2, None).await?; // batch proof tx
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let batch_proof_l1_height_1 = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(batch_proof_l1_height_1, Some(TEN_MINS))
+            .await?;
+
+        // Verify LCP processed the batch proof
+        let lcp_1 = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(U64::from(batch_proof_l1_height_1))
+            .await?
+            .expect("LCP proof must exist after phase 1");
+
+        let _phase1_state_root = lcp_1.light_client_proof_output.l2_state_root;
+        let _phase1_last_l2_height = lcp_1.light_client_proof_output.last_l2_height;
+        let phase1_last_seq_comm_idx = lcp_1
+            .light_client_proof_output
+            .last_sequencer_commitment_index;
+
+        assert!(
+            phase1_last_seq_comm_idx.to::<u32>() >= 1,
+            "Phase 1: LCP should have processed at least 1 commitment"
+        );
+
+        // ========================================================
+        // PHASE 2: More commitments 3-4, batch proof, LCP processes
+        // ========================================================
+        let l2_height = sequencer.client.ledger_get_head_l2_block_height().await?;
+        for _ in 0..(2 * max_l2_blocks_per_commitment) {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        sequencer
+            .wait_for_l2_height(l2_height + 2 * max_l2_blocks_per_commitment, None)
+            .await?;
+        da.wait_mempool_len(4, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let commitment_l1_height = da.get_finalized_height(None).await?;
+        batch_prover
+            .wait_for_l1_height(commitment_l1_height, Some(TEN_MINS))
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let batch_proof_l1_height_2 = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(batch_proof_l1_height_2, Some(TEN_MINS))
+            .await?;
+
+        let lcp_2 = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(U64::from(batch_proof_l1_height_2))
+            .await?
+            .expect("LCP proof must exist after phase 2");
+
+        let phase2_state_root = lcp_2.light_client_proof_output.l2_state_root;
+        let phase2_last_l2_height = lcp_2.light_client_proof_output.last_l2_height;
+        let phase2_last_seq_comm_idx = lcp_2
+            .light_client_proof_output
+            .last_sequencer_commitment_index;
+
+        assert!(
+            phase2_last_seq_comm_idx > phase1_last_seq_comm_idx,
+            "Phase 2: LCP should have advanced beyond phase 1"
+        );
+
+        // ========================================================
+        // PHASE 3: SC sends BatchProofMethodIdUpdate (new method ID)
+        // ========================================================
+        let new_method_id = [42u32; 8];
+        let method_id_body = BatchProofMethodIdBody {
+            method_id: new_method_id,
+            activation_l2_height: 9,
+            nonce: 1,
+        };
+        let payload = BatchProofMethodIdUpdate::from(method_id_body.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
+        sc_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(method_id_body),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let method_id_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(method_id_l1_height, Some(TEN_MINS))
+            .await?;
+
+        // Verify method ID was added
+        let method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert!(
+            method_ids.len() >= 2,
+            "Phase 3: Should have at least 2 method IDs after update"
+        );
+
+        // ========================================================
+        // PHASE 4: Send fake commitments + fake batch proof with new method ID
+        // ========================================================
+        let next_comm_idx = phase2_last_seq_comm_idx.to::<u32>() + 1;
+
+        // Create fake sequencer commitments continuing from where phase 2 left off
+        let fake_commitment_1 = SequencerCommitment {
+            merkle_root: [0xA1u8; 32],
+            index: next_comm_idx,
+            l2_end_block_number: phase2_last_l2_height.to::<u64>() + 100,
+        };
+        let fake_commitment_2 = SequencerCommitment {
+            merkle_root: [0xA2u8; 32],
+            index: next_comm_idx + 1,
+            l2_end_block_number: phase2_last_l2_height.to::<u64>() + 200,
+        };
+
+        // Send fake sequencer commitments via sequencer DA service (correct DA key)
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_commitment_1.clone()),
+                1.0,
+            )
+            .await?;
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_commitment_2.clone()),
+                1.0,
+            )
+            .await?;
+
+        // Wait for full node to have processed phase 2 commitments so we can get the
+        // previous commitment hash for chaining
+        full_node
+            .wait_for_l1_height(batch_proof_l1_height_2, Some(TEN_MINS))
+            .await?;
+        let prev_commitment = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(phase2_last_seq_comm_idx.to::<u32>()))
+            .await?
+            .expect("Previous commitment must exist");
+        let prev_commitment_as_seq = SequencerCommitment {
+            merkle_root: prev_commitment.merkle_root,
+            index: prev_commitment.index.to::<u32>(),
+            l2_end_block_number: prev_commitment.l2_end_block_number.to::<u64>(),
+        };
+
+        // 2 commitments (4 txs)
+        da.wait_mempool_len(4, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+
+        // Get an L1 block hash for the fake batch proof
+        let l1_hash = da
+            .get_block_hash(da.get_finalized_height(None).await?)
+            .await?;
+
+        // Create fake batch proof covering both fake commitments with the new method ID
+        let fake_batch_proof = create_serialized_fake_receipt_batch_proof(
+            phase2_state_root,
+            fake_commitment_2.l2_end_block_number,
+            new_method_id,
+            None,
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![fake_commitment_1.clone(), fake_commitment_2.clone()],
+            Some(prev_commitment_as_seq.serialize_and_calculate_sha_256()),
+        );
+
+        // Send fake batch proof via batch prover DA service (correct DA key)
+        prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(fake_batch_proof), 1.0)
+            .await?;
+
+        // 1 batch proof (2 txs)
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+
+        let fake_proof_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(fake_proof_l1_height, Some(TEN_MINS))
+            .await?;
+
+        // Verify LCP advanced with the fake batch proof
+        let lcp_after_fake = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(U64::from(fake_proof_l1_height))
+            .await?
+            .expect("LCP proof must exist after fake batch proof");
+
+        assert!(
+            lcp_after_fake
+                .light_client_proof_output
+                .last_sequencer_commitment_index
+                .to::<u32>()
+                > phase2_last_seq_comm_idx.to::<u32>(),
+            "Phase 4: LCP should have advanced with fake batch proof"
+        );
+
+        // ========================================================
+        // PHASE 5: SC removes the new method ID
+        // ========================================================
+        // Find the index of the new method ID in the list
+        let method_id_index = method_ids
+            .iter()
+            .position(|m| m.method_id == new_method_id.into())
+            .expect("New method ID must be in the list") as u32;
+
+        let remove_body = RemoveBatchProofMethodIdV1Body {
+            method_id_index,
+            batch_proof_method_id: new_method_id,
+            l2_activation_height: 9,
+            nonce: 2,
+        };
+        let payload = RemoveBatchProofMethodId::from(remove_body.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
+        sc_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::RemoveBatchProofMethodIdV1(remove_body),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let remove_method_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(remove_method_l1_height, Some(TEN_MINS))
+            .await?;
+
+        // Verify method ID was removed
+        let method_ids_after_remove = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        assert!(
+            !method_ids_after_remove
+                .iter()
+                .any(|m| m.method_id == new_method_id.into()),
+            "Phase 5: New method ID should be removed"
+        );
+
+        // ========================================================
+        // PHASE 6: SC sends SetLcpToPreviousState to revert to phase 2 end
+        // ========================================================
+        let revert_target_idx = phase2_last_seq_comm_idx.to::<u32>();
+
+        // Get sequencer commitment data at the revert target index
+        let target_commitment = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(revert_target_idx))
+            .await?
+            .expect("Sequencer commitment must exist at revert target index");
+
+        let set_lcp_body = SetLcpToPreviousStateV1Body {
+            pre_state_root: phase2_state_root,
+            index: revert_target_idx,
+            last_l2_height: target_commitment.l2_end_block_number.to::<u64>(),
+            merkle_root: target_commitment.merkle_root,
+            nonce: 3,
+        };
+        let payload = SetLcpToPreviousState::from(set_lcp_body.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
+        sc_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::SetLcpToPreviousStateV1(set_lcp_body),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let revert_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(revert_l1_height, Some(TEN_MINS))
+            .await?;
+
+        // Verify LCP state was reverted to phase 2
+        let lcp_after_revert = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(U64::from(revert_l1_height))
+            .await?
+            .expect("LCP proof must exist after revert");
+
+        assert_eq!(
+            lcp_after_revert
+                .light_client_proof_output
+                .last_sequencer_commitment_index
+                .to::<u32>(),
+            revert_target_idx,
+            "Phase 6: LCP last_sequencer_commitment_index should be reverted"
+        );
+        assert_eq!(
+            lcp_after_revert.light_client_proof_output.l2_state_root, phase2_state_root,
+            "Phase 6: LCP l2_state_root should be reverted to phase 2 state"
+        );
+        assert_eq!(
+            lcp_after_revert.light_client_proof_output.last_l2_height, phase2_last_l2_height,
+            "Phase 6: LCP last_l2_height should be reverted to phase 2 height"
+        );
+
+        // ========================================================
+        // PHASE 7: SC updates sequencer and batch prover DA pub keys
+        // ========================================================
+        // Use real key pairs so we can create DA services with the new private keys later
+        let new_seq_private_key =
+            "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0C1D2E3F4A5B6C7D8E9F0A1B2";
+        let new_bp_private_key = "B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0C1D2E3F4A5B6C7D8E9F0A1B2C3";
+
+        let secp = bitcoin::secp256k1::Secp256k1::new();
+        let new_seq_secret_key = bitcoin::secp256k1::SecretKey::from_str(new_seq_private_key)?;
+        let new_seq_pub_key =
+            bitcoin::secp256k1::PublicKey::from_secret_key(&secp, &new_seq_secret_key);
+        let new_sequencer_pub_key: [u8; 33] = new_seq_pub_key.serialize();
+
+        let new_bp_secret_key = bitcoin::secp256k1::SecretKey::from_str(new_bp_private_key)?;
+        let new_bp_pub_key =
+            bitcoin::secp256k1::PublicKey::from_secret_key(&secp, &new_bp_secret_key);
+        let new_batch_prover_pub_key: [u8; 33] = new_bp_pub_key.serialize();
+
+        let update_seq_body = UpdateSequencerDaPubKeyV1Body {
+            new_pub_key: new_sequencer_pub_key,
+            nonce: 4,
+        };
+        let payload = UpdateSequencerDaPubKey::from(update_seq_body.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
+        sc_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::UpdateSequencerDaPubKeyV1(update_seq_body),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+
+        let update_bp_body = UpdateBatchProverDaPubKeyV1Body {
+            new_pub_key: new_batch_prover_pub_key,
+            nonce: 5,
+        };
+        let payload = UpdateBatchProverDaPubKey::from(update_bp_body.clone());
+        let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
+        sc_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::UpdateBatchProverDaPubKeyV1(update_bp_body),
+                    signatures_with_index,
+                }),
+                1.0,
+            )
+            .await?;
+
+        da.wait_mempool_len(4, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let pubkey_update_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(pubkey_update_l1_height, Some(TEN_MINS))
+            .await?;
+
+        // Verify pub keys were updated
+        let sequencer_pk = light_client_prover
+            .client
+            .http_client()
+            .get_sequencer_da_pub_key()
+            .await?;
+        assert_eq!(
+            sequencer_pk,
+            hex::encode(new_sequencer_pub_key),
+            "Phase 7: Sequencer DA pub key should be updated"
+        );
+
+        let batch_prover_pk = light_client_prover
+            .client
+            .http_client()
+            .get_batch_prover_da_pub_key()
+            .await?;
+        assert_eq!(
+            batch_prover_pk,
+            hex::encode(new_batch_prover_pub_key),
+            "Phase 7: Batch prover DA pub key should be updated"
+        );
+
+        // ========================================================
+        // PHASE 8: Hacked key sends commitments+proofs → LCP ignores them
+        // ========================================================
+        // The sequencer and batch prover are still running with the old (hacked) keys.
+        // They will produce new commitments and proofs, but LCP should reject them
+        // because the DA pub keys have been updated.
+        let fake_commitment = SequencerCommitment {
+            merkle_root: [0xDEu8; 32],
+            index: revert_target_idx + 1,
+            l2_end_block_number: phase2_last_l2_height.to::<u64>() + 300,
+        };
+
+        // Send fake commitment and batch proof with old keys
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(fake_commitment.clone()),
+                1.0,
+            )
+            .await?;
+
+        // 1 commitment (2 txs)
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+
+        let l1_block_hash = da
+            .get_block_hash(da.get_finalized_height(None).await?)
+            .await?;
+        let fake_batch_proof = create_serialized_fake_receipt_batch_proof(
+            phase2_state_root,
+            fake_commitment.l2_end_block_number,
+            new_method_id,
+            None,
+            false,
+            l1_block_hash.as_raw_hash().to_byte_array(),
+            vec![fake_commitment.clone()],
+            Some(prev_commitment_as_seq.serialize_and_calculate_sha_256()),
+        );
+        prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(fake_batch_proof), 1.0)
+            .await?;
+
+        // 1 batch proof (2 txs)
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let hacked_batch_proof_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(hacked_batch_proof_l1_height, Some(TEN_MINS))
+            .await?;
+
+        // Verify LCP did NOT advance - it should still be at the reverted state
+        let lcp_after_hacked = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(U64::from(hacked_batch_proof_l1_height))
+            .await?
+            .expect("LCP proof must exist");
+
+        assert_eq!(
+            lcp_after_hacked
+                .light_client_proof_output
+                .last_sequencer_commitment_index
+                .to::<u32>(),
+            revert_target_idx,
+            "Phase 8: LCP should not advance with hacked key commitments/proofs"
+        );
+        assert_eq!(
+            lcp_after_hacked.light_client_proof_output.l2_state_root, phase2_state_root,
+            "Phase 8: LCP state root should remain at reverted state"
+        );
+
+        // ========================================================
+        // PHASE 9: New key sends fake commitments+proofs → LCP accepts them
+        // ========================================================
+        // Create DA services with the new private keys (matching the updated pub keys)
+        let new_seq_da_service = spawn_bitcoin_da_service(
+            &self.task_manager.executor(),
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::Other(new_seq_private_key.to_string()),
+            REVEAL_TX_PREFIX.to_vec(),
+            None,
+            None,
+        )
+        .await;
+
+        let new_bp_da_service = spawn_bitcoin_da_service(
+            &self.task_manager.executor(),
+            &da.config,
+            Self::test_config().dir,
+            DaServiceKeyKind::Other(new_bp_private_key.to_string()),
+            REVEAL_TX_PREFIX.to_vec(),
+            None,
+            None,
+        )
+        .await;
+
+        // Get the current batch proof method IDs (the original one should still be valid)
+        let current_method_ids = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        let valid_method_id: [u32; 8] = current_method_ids[0].method_id.into();
+
+        // Get an L1 block hash for the fake batch proof
+        let l1_hash = da.get_block_hash(hacked_batch_proof_l1_height).await?;
+
+        // Create fake sequencer commitments continuing from the reverted state
+        let new_comm_idx = revert_target_idx + 1;
+        let new_fake_commitment = SequencerCommitment {
+            merkle_root: [0xB1u8; 32],
+            index: new_comm_idx,
+            l2_end_block_number: phase2_last_l2_height.to::<u64>() + 100,
+        };
+
+        // Get the previous commitment hash for chaining
+        let prev_commitment_for_phase9 = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(revert_target_idx))
+            .await?
+            .expect("Previous commitment must exist for phase 9");
+        let prev_commitment_as_seq_9 = SequencerCommitment {
+            merkle_root: prev_commitment_for_phase9.merkle_root,
+            index: prev_commitment_for_phase9.index.to::<u32>(),
+            l2_end_block_number: prev_commitment_for_phase9.l2_end_block_number.to::<u64>(),
+        };
+
+        // Send fake commitment via new sequencer DA service (new key)
+        new_seq_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(new_fake_commitment.clone()),
+                1.0,
+            )
+            .await?;
+
+        // Create and send fake batch proof with the original method ID via new prover DA service
+        let new_fake_batch_proof = create_serialized_fake_receipt_batch_proof(
+            phase2_state_root,
+            new_fake_commitment.l2_end_block_number,
+            valid_method_id,
+            None,
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![new_fake_commitment.clone()],
+            Some(prev_commitment_as_seq_9.serialize_and_calculate_sha_256()),
+        );
+
+        new_bp_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(new_fake_batch_proof), 1.0)
+            .await?;
+
+        // 1 commitment (2 txs) + 1 batch proof (2 txs) = 4 txs
+        da.wait_mempool_len(4, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let new_key_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(new_key_l1_height, Some(TEN_MINS))
+            .await?;
+
+        // Verify LCP advanced with the new key's commitments/proofs
+        let lcp_after_new_key = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(U64::from(new_key_l1_height))
+            .await?
+            .expect("LCP proof must exist after new key proofs");
+
+        assert_eq!(
+            lcp_after_new_key
+                .light_client_proof_output
+                .last_sequencer_commitment_index
+                .to::<u32>(),
+            new_comm_idx,
+            "Phase 9: LCP should advance with new key commitments/proofs"
+        );
+        assert_ne!(
+            lcp_after_new_key.light_client_proof_output.l2_state_root, phase2_state_root,
+            "Phase 9: LCP state root should have changed"
+        );
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_set_lcp_to_previous_state() -> Result<()> {
+    TestCaseRunner::new(SetLcpToPreviousStateTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
 }
 
 #[tokio::test]
