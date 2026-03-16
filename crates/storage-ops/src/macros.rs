@@ -11,7 +11,7 @@ macro_rules! log_result_or_error {
                     $tables_group,
                     e
                 );
-                return;
+                return Err(e);
             }
         }
     }};

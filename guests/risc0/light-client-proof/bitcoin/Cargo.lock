@@ -573,7 +573,7 @@ dependencies = [
 
 [[package]]
 name = "bitcoin-da"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "anyhow",
  "bitcoin",
@@ -828,7 +828,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-light-client-prover"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -846,7 +846,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "alloy-eips",
  "brotli",
@@ -857,7 +857,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-adapter"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "bincode",
  "borsh",
@@ -871,7 +871,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-batch-proof"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "risc0-build",
 ]
@@ -1707,7 +1707,7 @@ dependencies = [
 
 [[package]]
 name = "light-client-proof-bitcoin"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -2753,7 +2753,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "sov-keys"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "borsh",
  "derive_more 1.0.0",
@@ -2769,7 +2769,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -2789,7 +2789,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -2809,7 +2809,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2826,7 +2826,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2840,7 +2840,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
