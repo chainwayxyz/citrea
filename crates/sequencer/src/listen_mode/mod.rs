@@ -124,6 +124,7 @@ where
 
         while self.ledger_db.get_head_l2_block_height()?.unwrap_or(0) < 1 {
             // Wait until one block to be processed before starting L1 syncer
+            sleep(Duration::from_millis(100)).await;
         }
 
         // Start L1 syncer task
