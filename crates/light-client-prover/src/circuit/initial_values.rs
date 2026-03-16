@@ -508,13 +508,19 @@ pub mod bitcoinda {
     > = NonEmptySlice::new(&TEST_NETWORK_WITH_FORKS_ADDRESSES);
 
     /// Allowed previous LCP method IDs for circuit upgrades on Mainnet.
-    pub const MAINNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] = &[];
+    pub const MAINNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] = &[decode_to_u32_array(
+        "970628d6e6dac5b4069872281e2db2653b1bdb7bf33b6a3452029027f4f73bab",
+    )];
 
     /// Allowed previous LCP method IDs for circuit upgrades on Testnet.
-    pub const TESTNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] = &[];
+    pub const TESTNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] = &[decode_to_u32_array(
+        "217bc300c2023f1697bedaf84d4397f91b569c5c8ad3ddacb03943fc123acdee",
+    )];
 
     /// Allowed previous LCP method IDs for circuit upgrades on Devnet.
-    pub const DEVNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] = &[];
+    pub const DEVNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] = &[decode_to_u32_array(
+        "418fd1ca90a3ea9e9d99626078e618750aa6209261c645fb456bf0e8293c368a",
+    )];
 
     /// Allowed previous LCP method IDs for circuit upgrades on Nightly.
     pub const NIGHTLY_ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] = &[decode_to_u32_array(
