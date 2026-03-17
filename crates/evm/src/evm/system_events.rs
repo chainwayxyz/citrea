@@ -81,7 +81,8 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
     Transaction::Eip1559(body)
 }
 
-pub(crate) fn signed_system_transaction(
+/// Creates a single signed system transaction from a system event with the given nonce.
+pub fn signed_system_transaction(
     event: SystemEvent,
     nonce: u64,
     chain_id: u64,

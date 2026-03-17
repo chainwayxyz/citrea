@@ -11,7 +11,7 @@ use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use citrea_common::backup::BackupManager;
 use citrea_common::{InitParams, RollupPublicKeys, SequencerConfig};
-use citrea_evm::system_events::{create_system_transactions, SystemEvent};
+use citrea_evm::system_events::{signed_system_transaction, SystemEvent};
 use citrea_evm::{
     create_initial_system_events, get_last_l1_height_in_light_client,
     populate_deposit_system_events, populate_set_block_info_event, AccountInfo, CallMessage, Evm,
@@ -1613,14 +1613,16 @@ where
         let cfg = evm.cfg.get(&mut working_set_to_discard).unwrap();
         let chain_id = cfg.chain_id;
 
-        // Store deposit txs by index
-        let is_deposit_tx = system_events
-            .iter()
-            .map(|ev| matches!(ev, SystemEvent::BridgeDeposit(_)))
-            .collect::<Vec<_>>();
-        // Create and process each system transaction
-        let sys_txs = create_system_transactions(system_events, system_signer.nonce, chain_id);
-        for (sys_tx, is_deposit) in sys_txs.iter().zip(is_deposit_tx) {
+        // Track EVM nonce separately; only increment on successful execution
+        let mut evm_nonce = system_signer.nonce;
+
+        // Create and process each system transaction with lazy nonce assignment
+        for event in system_events {
+            let is_deposit = matches!(event, SystemEvent::BridgeDeposit(_));
+
+            // Create transaction with CURRENT nonce (lazy assignment)
+            let sys_tx = signed_system_transaction(event, evm_nonce, chain_id);
+
             // Encode transaction in EIP-2718 format
             let buf = sys_tx.encoded_2718();
             let sys_tx_rlp = RlpEvmTransaction { rlp: buf };
@@ -1658,10 +1660,12 @@ where
                     warn!("Deposit transaction failed: {:?}", e);
                     *nonce = nonce.saturating_sub(1);
                     working_set_to_discard = working_set.revert().to_revertable();
+                    // evm_nonce stays the same — next tx gets the correct nonce
                     continue;
                 }
                 return Err(anyhow!("Failed to apply system transaction: {:?}", e));
             }
+            evm_nonce += 1; // only increment on success
             working_set_to_discard = working_set.checkpoint().to_revertable();
             all_txs.push(sys_tx_rlp);
         }
