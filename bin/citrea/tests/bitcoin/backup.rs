@@ -137,6 +137,10 @@ impl TestCase for BackupSequencerTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
+        sequencer
+            .wait_for_l2_height(block_to_generate, None)
+            .await?;
+
         let start_height = sequencer.client.ledger_get_head_l2_block_height().await?;
 
         let backup_path = sequencer.config.base.dir.join("backup");
@@ -182,6 +186,10 @@ impl TestCase for BackupSequencerTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
+        sequencer
+            .wait_for_l2_height(block_to_generate * 2, None)
+            .await?;
+
         let current_height = sequencer.client.ledger_get_head_l2_block_height().await?;
 
         // Update incremental backup after height increase
@@ -202,6 +210,10 @@ impl TestCase for BackupSequencerTest {
         for _ in 0..block_to_generate {
             sequencer.client.send_publish_batch_request().await?;
         }
+        sequencer
+            .wait_for_l2_height(block_to_generate * 3, None)
+            .await?;
+
         let current_height = sequencer.client.ledger_get_head_l2_block_height().await?;
 
         sequencer.wait_until_stopped().await?;
@@ -236,6 +248,10 @@ impl TestCase for BackupSequencerTest {
         for _ in 0..block_to_generate {
             sequencer.client.send_publish_batch_request().await?;
         }
+
+        sequencer
+            .wait_for_l2_height(restored_l2_height + block_to_generate, None)
+            .await?;
 
         let current_height = sequencer.client.ledger_get_head_l2_block_height().await?;
 
@@ -286,6 +302,10 @@ impl TestCase for BackupSequencerTest {
         for _ in 0..block_to_generate {
             sequencer.client.send_publish_batch_request().await?;
         }
+
+        sequencer
+            .wait_for_l2_height(rolled_back_height + block_to_generate, None)
+            .await?;
 
         sequencer.wait_until_stopped().await?;
 
@@ -761,10 +781,9 @@ impl TestCase for BackupBatchProverTest {
             .wait_for_l1_height(second_commitment_l1_height, None)
             .await?;
 
-        let restored_job_ids = wait_for_prover_job_count(batch_prover, 1, None).await?;
-        assert_eq!(restored_job_ids.len(), 1);
+        let restored_job_ids = wait_for_prover_job_count(batch_prover, 2, None).await?;
+        assert_eq!(restored_job_ids.len(), 2);
         let restored_job_id = restored_job_ids[0];
-
         let restored_response = wait_for_prover_job(batch_prover, restored_job_id, None).await?;
         let restored_proof = restored_response.proof.unwrap();
 
@@ -798,7 +817,7 @@ impl TestCase for BackupBatchProverTest {
         let rollback_target_l1 = commitment_l1_height;
         let proof_output = first_proof.proof_output;
 
-        let rollback_target_commitment_index = 0;
+        let rollback_target_commitment_index = 1;
         let rollback_target_l2 = proof_output.last_l2_height.to::<u64>();
 
         citrea_cli
@@ -826,8 +845,8 @@ impl TestCase for BackupBatchProverTest {
             .wait_for_l1_height(second_commitment_l1_height, None)
             .await?;
 
-        let rollback_job_ids = wait_for_prover_job_count(batch_prover, 1, None).await?;
-        assert_eq!(rollback_job_ids.len(), 1);
+        let rollback_job_ids = wait_for_prover_job_count(batch_prover, 2, None).await?;
+        assert_eq!(rollback_job_ids.len(), 2);
         let rollback_job_id = rollback_job_ids[0];
         let rollback_response = wait_for_prover_job(batch_prover, rollback_job_id, None).await?;
         let rollback_proof = rollback_response.proof.unwrap();

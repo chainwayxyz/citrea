@@ -8,7 +8,7 @@ curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/docker/docker-
 
 Then use `docker-compose` to both launch a Bitcoin testnet4 node and Citrea full node:
 ```sh
-docker-compose -f docker/docker-compose.yml up
+docker-compose -f docker-compose.yml up
 ```
 
 # Run a Citrea Testnet Full Node
@@ -111,13 +111,29 @@ tar -xzvf genesis.tar.gz
 
 Look through the `rollup_config.toml` and apply changes as you wish, if you modified any Bitcoin RPC configs, change corresponding values under `[da]`.
 
+**Optional: Enable Pruning**
+
+To manage disk space, you can enable pruning by adding this to `rollup_config.toml`:
+
+```toml
+[runner.pruning_config]
+distance = 129600  # Keep last 3 days of blocks
+```
+
+Or set via environment variable:
+```bash
+export PRUNING_DISTANCE=129600
+```
+
+Without pruning, the database grows continuously. With pruning enabled, old blocks are automatically removed while keeping recent history. See [Pruning documentation](./pruning.md) for details.
+
 #### Step 1.2: Run Citrea Full Node
 
 Finally run this command to run your Citrea full node:
 
 Mac:
 ```sh
-./citrea-v1.0.2-osx-arm64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+./citrea-v2.2.0-osx-arm64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 or if you wish to use environment variables for configuring your node:
@@ -147,12 +163,12 @@ SYNC_BLOCKS_COUNT=10 \
 SCAN_L1_START_HEIGHT=45496 \
 RUST_LOG=info \
 JSON_LOGS=1 \
-./citrea-v1.0.2-osx-arm64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
+./citrea-v2.2.0-osx-arm64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
 ```
 
 Linux:
 ```sh
-./citrea-v1.0.2-linux-amd64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+./citrea-v2.2.0-linux-amd64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 or if you wish to use environment variables for configuring your node:
@@ -183,7 +199,7 @@ SYNC_BLOCKS_COUNT=10 \
 SCAN_L1_START_HEIGHT=45496 \
 RUST_LOG=info \
 JSON_LOGS=1 \
-./citrea-v1.0.2-linux-amd64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
+./citrea-v2.2.0-linux-amd64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
 ```
 
 Your full node should be serving RPC at `http://0.0.0.0:8080` now.
@@ -260,4 +276,39 @@ If you've made any changes to your bitcoin node url, username or password, don't
 
 ### Option 3: Using Docker
 
+#### Quick Start with docker-compose
+
 See the [top section](#tl-dr-i-want-to-run-it-asap).
+
+#### Running Docker Manually
+
+Run the full node:
+```sh
+docker run -d \
+  -e NETWORK=testnet \
+  -e NODE_URL=<your_bitcoin_url> \
+  -e NODE_USERNAME=<your_usename> \
+  -e NODE_PASSWORD=<your_usename> \
+  -v citrea-data:/mnt/task/citrea-db \
+  -p 8080:8080 \
+  chainwayxyz/citrea-full-node:latest
+```
+
+#### Environment Variables
+
+**Required:**
+| Variable | Description |
+|----------|-------------|
+| `NETWORK` | Network to run on: `mainnet` or `testnet` |
+| `NODE_URL` | Bitcoin node RPC URL |
+| `NODE_USERNAME` | Bitcoin RPC username |
+| `NODE_PASSWORD` | Bitcoin RPC password |
+
+**Auto-configured per network (can be overridden):**
+| Variable | Description |
+|----------|-------------|
+| `SEQUENCER_PUBLIC_KEY` | Sequencer's public key |
+| `SEQUENCER_DA_PUB_KEY` | Sequencer DA public key |
+| `PROVER_DA_PUB_KEY` | Prover DA public key |
+| `SCAN_L1_START_HEIGHT` | L1 block height to start syncing |
+| `SEQUENCER_CLIENT_URL` | Sequencer RPC URL |

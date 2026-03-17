@@ -27,6 +27,7 @@ use reth_execution_types::{Chain, ExecutionOutcome};
 use reth_primitives::{Receipt, RecoveredBlock, SealedBlock};
 use reth_provider::{BlockReaderIdExt, CanonStateNotification};
 use reth_tasks::shutdown::GracefulShutdown;
+use reth_tasks::TaskExecutor;
 use reth_transaction_pool::error::InvalidPoolTransactionError;
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
@@ -63,7 +64,7 @@ use tracing::{debug, error, info, trace, warn};
 use tracing_subscriber::layer::SubscriberExt;
 
 use crate::commitment::service::CommitmentService;
-use crate::da::{da_block_monitor, get_da_block_data};
+use crate::da::{da_block_monitor, fee_rate_monitor, get_finalized_block, DaBlockData};
 use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::{Deposit, DepositDataMempool};
 use crate::mempool::CitreaMempool;
@@ -122,6 +123,8 @@ where
     backup_manager: Arc<BackupManager>,
     /// Channel for sending canonical state notifications to mempool maintenance
     canon_state_tx: mpsc::UnboundedSender<CanonStateNotification>,
+    /// Executor for spawning async tasks
+    task_executor: TaskExecutor,
 }
 
 impl<Da> CitreaSequencer<Da>
@@ -163,6 +166,7 @@ where
         backup_manager: Arc<BackupManager>,
         rpc_message_rx: UnboundedReceiver<SequencerRpcMessage>,
         canon_state_tx: mpsc::UnboundedSender<CanonStateNotification>,
+        task_executor: TaskExecutor,
     ) -> anyhow::Result<Self> {
         let sov_tx_signer_priv_key =
             K256PrivateKey::try_from(hex::decode(&config.private_key)?.as_slice())?;
@@ -186,6 +190,7 @@ where
             mempool_transaction_tx,
             backup_manager,
             canon_state_tx,
+            task_executor,
         })
     }
 
@@ -926,7 +931,7 @@ where
                     let account_id =
                         borsh::from_slice::<u64>(encoded_id).expect("Failed to parse account ID");
                     let account_info = borsh::from_slice::<AccountInfo>(&value.value)
-                        .expect("Failed to borsh deserialize account inf");
+                        .expect("Failed to borsh deserialize account info");
                     account_id_to_info.insert(account_id, account_info);
                     // Account was written to, so it's Changed (overrides Loaded if it was read)
                     account_id_to_status.insert(account_id, AccountStatus::Changed);
@@ -1102,14 +1107,25 @@ where
         }
 
         // Get initial DA block data and fee rate
-        let (mut last_finalized_block, mut l1_fee_rate) =
-            match get_da_block_data(self.da_service.clone()).await {
-                Ok(l1_data) => l1_data,
-                Err(e) => {
-                    error!("{}", e);
-                    return Err(e);
-                }
-            };
+        let mut last_finalized_block = match get_finalized_block(self.da_service.clone()).await {
+            Ok(block) => block,
+            Err(e) => {
+                error!("{e}");
+                return Err(e);
+            }
+        };
+        let mut l1_fee_rate = match self
+            .da_service
+            .get_fee_rate()
+            .await
+            .map_err(|e| anyhow!("{e:?}"))
+        {
+            Ok(rate) => rate,
+            Err(e) => {
+                error!("{e}");
+                return Err(e);
+            }
+        };
         l1_fee_rate = multiplied_l1_fee_rate(l1_fee_rate);
 
         let mut last_finalized_l1_height = last_finalized_block.header().height();
@@ -1128,7 +1144,8 @@ where
             };
 
         // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
-        let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
+        let (da_block_update_tx, mut da_block_update_rx) = mpsc::channel::<DaBlockData<Da>>(1);
+        let (fee_rate_update_tx, mut fee_rate_update_rx) = mpsc::channel::<u128>(1);
 
         // Create channel for communicating halt signals to the commitment service
         let (halt_commitment_tx, halt_commitment_rx) = mpsc::unbounded_channel();
@@ -1143,19 +1160,38 @@ where
         );
 
         // Spawn commitment service task
-        tokio::spawn(commitment_service.run(
-            self.storage_manager.clone(),
-            self.l2_block_hash,
-            shutdown_signal.clone(),
-        ));
+        let storage_manager = self.storage_manager.clone();
+        let l2_block_hash = self.l2_block_hash;
+        self.task_executor
+            .spawn_with_graceful_shutdown_signal(|shutdown| {
+                commitment_service.run(storage_manager, l2_block_hash, shutdown)
+            });
 
         // Spawn DA block monitor task
-        tokio::spawn(da_block_monitor(
-            self.da_service.clone(),
-            da_height_update_tx,
-            self.config.da_update_interval_ms,
-            shutdown_signal.clone(),
-        ));
+        let da_service = self.da_service.clone();
+        let da_update_interval_ms = self.config.da_update_interval_ms;
+        self.task_executor
+            .spawn_with_graceful_shutdown_signal(|shutdown| {
+                da_block_monitor(
+                    da_service,
+                    da_block_update_tx,
+                    da_update_interval_ms,
+                    shutdown,
+                )
+            });
+
+        // Spawn fee rate monitor task
+        let da_service = self.da_service.clone();
+        let l1_fee_rate_update_interval_ms = self.config.l1_fee_rate_update_interval_ms;
+        self.task_executor
+            .spawn_with_graceful_shutdown_signal(|shutdown| {
+                fee_rate_monitor(
+                    da_service,
+                    fee_rate_update_tx,
+                    l1_fee_rate_update_interval_ms,
+                    shutdown,
+                )
+            });
 
         let target_block_time = Duration::from_millis(self.config.block_production_interval_ms);
 
@@ -1171,12 +1207,10 @@ where
         let backup_manager = self.backup_manager.clone();
         loop {
             tokio::select! {
-                // Receive updates from DA layer worker.
-                l1_data = da_height_update_rx.recv() => {
-                    if let Some(l1_data) = l1_data {
-                        (last_finalized_block, l1_fee_rate) = l1_data;
-                        l1_fee_rate = multiplied_l1_fee_rate(l1_fee_rate);
-
+                // Receive DA block updates from DA layer worker.
+                da_block = da_block_update_rx.recv() => {
+                    if let Some(block) = da_block {
+                        last_finalized_block = block;
                         let new_finalized_l1_height = last_finalized_block.header().height();
                         if new_finalized_l1_height < last_finalized_l1_height {
                             info!("DA potential fork detected, known last finalized L1 height: {last_finalized_l1_height}, new finalized L1 height: {new_finalized_l1_height}")
@@ -1188,6 +1222,13 @@ where
                         missed_da_blocks_count = self.da_blocks_missed(last_finalized_l1_height, last_used_l1_height);
                     }
                     SM.current_l1_block.set(last_finalized_l1_height as f64);
+                },
+                // Receive L1 fee rate updates
+                new_fee_rate = fee_rate_update_rx.recv() => {
+                    if let Some(rate) = new_fee_rate {
+                        l1_fee_rate = multiplied_l1_fee_rate(rate);
+                        debug!("Updated L1 fee rate: {l1_fee_rate} wei/byte");
+                    }
                 },
                 // Handle RPC messages (both test mode and halt signals)
                 rpc_message = self.rpc_message_rx.recv() => {
@@ -1257,7 +1298,8 @@ where
                 },
                 _ = &mut shutdown_signal => {
                     info!("Shutting down sequencer");
-                    da_height_update_rx.close();
+                    da_block_update_rx.close();
+                    fee_rate_update_rx.close();
                     self.rpc_message_rx.close();
                     return Ok(());
                 }
@@ -1508,8 +1550,7 @@ where
         for (index, l1_block) in da_blocks.into_iter().enumerate() {
             // First l1 block of first l2 block
             if l2_block_info.l2_height() == 1 && index == 0 {
-                let bridge_init_param = hex::decode(self.config.bridge_initialize_params.clone())
-                    .expect("should deserialize");
+                let bridge_init_param = self.config.bridge_initialize_params.clone();
 
                 info!("Initializing Bitcoin Light Client with L1 block: #{} with hash {}, tx commitment {}, and coinbase depth {}. Using {:?} for bridge initialization params.", l1_block.header().height(), hex::encode(Into::<[u8; 32]>::into(l1_block.header().txs_commitment())), hex::encode(l1_block.hash()), l1_block.header().coinbase_txid_merkle_proof_height(), bridge_init_param);
 

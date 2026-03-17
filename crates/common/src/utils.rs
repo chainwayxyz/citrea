@@ -3,6 +3,8 @@ use std::env;
 use std::sync::Arc;
 
 use citrea_primitives::forks::get_forks;
+use futures::FutureExt;
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::StateDiff;
@@ -27,6 +29,20 @@ pub fn check_l2_block_exists<DB: SharedLedgerOps>(ledger_db: &DB, l2_height: u64
 
 pub fn read_env(key: &str) -> anyhow::Result<String> {
     env::var(key).map_err(|_| anyhow::anyhow!("Env {} missing or invalid UTF-8", key))
+}
+
+/// Non-blocking shutdown probe.
+pub fn shutdown_requested(shutdown_signal: &GracefulShutdown) -> bool {
+    shutdown_signal
+        .clone()
+        .ignore_guard()
+        .now_or_never()
+        .is_some()
+}
+
+/// Returns the configured stop height if `next_height` exceeds it.
+pub fn exceeded_stop_height(next_height: u64, stop_height: Option<u64>) -> Option<u64> {
+    stop_height.filter(|target| next_height > *target)
 }
 
 // If tangerine activation height is 0, return 1

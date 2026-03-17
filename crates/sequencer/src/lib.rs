@@ -64,6 +64,7 @@ use sov_rollup_interface::services::da::DaService;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::{broadcast, mpsc, Mutex as AsyncMutex};
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use tracing::debug;
 
 /// Module containing commitment-related functionality
 mod commitment;
@@ -191,6 +192,9 @@ where
     );
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
 
+    if let Err(e) = crate::metrics::initialize_metrics(&ledger_db) {
+        debug!("Failed to initialize sequencer metrics: {:?}", e);
+    }
     // If this is a listen mode sequencer, we create both L2 and L1 syncers
     if is_listen_mode {
         let listen_mode_config = sequencer_config
@@ -212,6 +216,7 @@ where
             backup_manager.clone(),
             true, // Include tx body must be true in listen mode
             true,
+            None, // Sequencer doesn't need stop-at-height
         )
         .unwrap();
 
@@ -262,6 +267,7 @@ where
             backup_manager,
             rpc_message_rx,
             canon_state_tx,
+            task_executor,
         )
         .unwrap();
         Ok((SequencerType::Normal(seq), rpc_module))

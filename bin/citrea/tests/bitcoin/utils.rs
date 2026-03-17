@@ -15,11 +15,10 @@ use anyhow::bail;
 use bitcoin_da::fee::FeeService;
 use bitcoin_da::monitoring::{MonitoringConfig, MonitoringService};
 use bitcoin_da::network_constants::get_network_constants;
-use bitcoin_da::service::{
-    network_to_bitcoin_network, BitcoinService, BitcoinServiceConfig, UtxoSelectionMode,
-};
+use bitcoin_da::service::{network_to_bitcoin_network, BitcoinService, BitcoinServiceConfig};
 use bitcoin_da::spec::block::BitcoinBlock;
 use bitcoin_da::spec::RollupParams;
+use bitcoin_da::utxo_manager::UtxoSelectionMode;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_e2e::bitcoin::BitcoinNode;
@@ -44,7 +43,6 @@ use tokio::time::sleep;
 use uuid::Uuid;
 
 pub enum DaServiceKeyKind {
-    #[allow(dead_code)]
     Sequencer,
     BatchProver,
     Other(String),
@@ -304,7 +302,7 @@ pub async fn wait_for_prover_job(
         let response = batch_prover
             .client
             .http_client()
-            .get_proving_job(job_id)
+            .get_proving_job(job_id, Some(true))
             .await?;
         if let Some(response) = response {
             if let Some(proof) = &response.proof {

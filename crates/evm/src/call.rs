@@ -73,7 +73,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // system txs at the beginning of their respective calls
         let mut should_be_end_of_sys_txs = self.should_be_end_of_sys_txs;
 
-        let evm_db: EvmDb<'_, C> = self.get_db(working_set);
+        let evm_db: EvmDb<'_, C> = self.get_db(working_set, context.active_spec());
 
         let results = executor::execute_multiple_tx(
             evm_db,

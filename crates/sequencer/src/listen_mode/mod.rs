@@ -22,6 +22,9 @@
 //!     For that reason listen mode sequencer also stores all mempool transactions in its own persistent storage, updates the persistent storage regularly and does not keep in block txs in that storage
 //!     When restarted as producer sequencer, it will put all the txs in the persistent storage back into mempool
 
+use std::thread::sleep;
+use std::time::Duration;
+
 use citrea_common::l2::{AppliedL2Block, L2BlockProcessor, L2Syncer};
 use l1_syncer::L1Syncer;
 use mempool_syncer::MempoolSyncer;
@@ -124,7 +127,7 @@ where
 
         while self.ledger_db.get_head_l2_block_height()?.unwrap_or(0) < 1 {
             // Wait until one block to be processed before starting L1 syncer
-            sleep(Duration::from_millis(100)).await;
+            sleep(Duration::from_millis(100));
         }
 
         // Start L1 syncer task

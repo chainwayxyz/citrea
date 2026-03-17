@@ -44,6 +44,7 @@ use crate::backup::BackupManager;
 use crate::cache::L1BlockCache;
 use crate::l2::error::L2SyncerError;
 use crate::l2::utils::decode_sov_tx_and_update_short_header_proofs;
+use crate::utils::{exceeded_stop_height, shutdown_requested};
 use crate::{InitParams, RollupPublicKeys};
 
 mod error;
@@ -466,6 +467,8 @@ where
     block_queue: Arc<Mutex<SequentialL2BlockBuffer>>,
     /// L2 Block processor
     _phantom_processor: PhantomData<P>,
+    /// Optional L2 height at which to stop syncing (debug/testing)
+    stop_at_l2_height: Option<u64>,
 }
 
 impl<DA, DB, P> L2Syncer<DA, DB, P>
@@ -503,6 +506,7 @@ where
         backup_manager: Arc<BackupManager>,
         include_tx_body: bool,
         with_subscription: bool,
+        stop_at_l2_height: Option<u64>,
     ) -> Result<Self, anyhow::Error> {
         let start_l2_height = ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
 
@@ -528,6 +532,7 @@ where
             backup_manager,
             block_queue: Arc::new(Mutex::new(SequentialL2BlockBuffer::new(start_l2_height))),
             _phantom_processor: PhantomData,
+            stop_at_l2_height,
         })
     }
 
@@ -540,12 +545,13 @@ where
     /// 4. Maintains metrics about syncing progress
     #[instrument(name = "L2Syncer", skip_all)]
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
-        tokio::spawn(sync_l2(
+        let l2_sync_worker = tokio::spawn(sync_l2(
             self.start_l2_height,
             self.sequencer_client.clone(),
             self.block_queue.clone(),
             self.sync_blocks_count,
         ));
+        tokio::pin!(l2_sync_worker);
 
         if let Some(ws_endpoint) = self.sequencer_ws_endpoint.clone() {
             tokio::spawn(run_subscription_task(ws_endpoint, self.block_queue.clone()));
@@ -562,6 +568,10 @@ where
                     info!("Shutting down L2 syncer");
                     return;
                 },
+                _ = &mut l2_sync_worker => {
+                    info!("Shutting down L2Syncer");
+                    return;
+                },
                 _ = notifier.notified() => {
                     let blocks_to_process = {
                         let mut queue = self.block_queue.lock().await;
@@ -569,20 +579,31 @@ where
                     };
 
                     for l2_block in blocks_to_process {
+                        if let Some(stop_height) =
+                            exceeded_stop_height(l2_block.header.height.to(), self.stop_at_l2_height)
+                        {
+                            return info!("Reached target L2 height {stop_height}");
+                        }
+
+
                         let mut backoff = ExponentialBackoff::default();
+                        let mut last_backoff_duration = backoff.current_interval;
                         loop {
+                            if shutdown_requested(&shutdown_signal) {
+                                info!("Shutting down L2Syncer");
+                                return;
+                            }
+
                             let _l2_lock = backup_manager.start_l2_processing().await;
 
                             match self.process_l2_block(&l2_block).await {
                                 Ok(_) => break,
                                 Err(L2SyncerError::MissingDaBlock(block)) => {
                                     warn!("Missing DA block hash {block:?} for block {}, waiting for DA sync", l2_block.header.height);
-                                    let backoff_duration = backoff.next_backoff().expect("Failed to process L2 block multiple times. Killing L2Syncer...");
-
-                                    select! {
-                                        _ = &mut shutdown_signal => { info!("Shutting down L2 syncer"); return; },
-                                       _ = tokio::time::sleep(backoff_duration) => {}
+                                    if let Some(duration) = backoff.next_backoff() {
+                                        last_backoff_duration = duration;
                                     }
+                                    tokio::time::sleep(last_backoff_duration).await;
                                 }
                                 // Unrecoverable error
                                 Err(e) => {
