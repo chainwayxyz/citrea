@@ -1616,11 +1616,10 @@ where
         // Track EVM nonce separately; only increment on successful execution
         let mut evm_nonce = system_signer.nonce;
 
-        // Create and process each system transaction with lazy nonce assignment
         for event in system_events {
             let is_deposit = matches!(event, SystemEvent::BridgeDeposit(_));
 
-            // Create transaction with CURRENT nonce (lazy assignment)
+            // Create transaction with current nonce
             let sys_tx = signed_system_transaction(event, evm_nonce, chain_id);
 
             // Encode transaction in EIP-2718 format
