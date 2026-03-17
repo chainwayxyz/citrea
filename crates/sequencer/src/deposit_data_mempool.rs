@@ -42,7 +42,7 @@ impl DepositDataMempool {
             from: Some(SYSTEM_SIGNER),
             to: Some(TxKind::Call(BridgeWrapper::address())),
             input: TransactionInput::new(BridgeWrapper::deposit(deposit_tx_data)),
-            // gas: Some(SYSTEM_TX_GAS_LIMIT),
+            gas: Some(SYSTEM_TX_GAS_LIMIT),
             ..Default::default()
         }
     }
