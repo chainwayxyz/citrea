@@ -12,7 +12,11 @@ resolver = "2"
 
 [dependencies]
 # Citrea deps
+citrea-batch-prover = { path = "../../crates/batch-prover" }
 citrea-common = { path = "../../crates/common" }
+citrea-fullnode = { path = "../../crates/fullnode" }
+citrea-light-client-prover = { path = "../../crates/light-client-prover", features = ["native"] }
+citrea-sequencer = { path = "../../crates/sequencer" }
 citrea-storage-ops = { path = "../../crates/storage-ops" }
 
 # Sovereign-SDK deps

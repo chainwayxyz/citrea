@@ -14,21 +14,23 @@ use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use bitcoincore_rpc::{Auth, Client};
 use citrea_common::backup::{create_backup_rpc_module, BackupManager};
+use citrea_common::config::risc0::Risc0HostConfig;
 use citrea_common::config::ProverGuestRunConfig;
-use citrea_common::{FromEnv, FullNodeConfig, RpcConfig};
+use citrea_common::{FullNodeConfig, NodeType, RpcConfig};
 use citrea_primitives::forks::use_network_forks;
 use citrea_primitives::REVEAL_TX_PREFIX;
-use citrea_risc0_adapter::host::config::Risc0HostConfig;
 use citrea_risc0_adapter::host::Risc0Host;
 // use citrea_sp1::host::SP1Host;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::CitreaRuntime;
+use jsonrpsee::RpcModule;
 use prover_services::{ParallelProverService, ProofGenMode};
 use reth_tasks::TaskExecutor;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::{Address, SpecId, Zkvm};
+use sov_modules_api::{SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
+use sov_modules_stf_blueprint::Runtime;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::services::da::TxRequestWithNotifier;
 use sov_state::ProverStorage;
@@ -65,25 +67,37 @@ impl RollupBlueprint for BitcoinRollup {
     #[instrument(level = "trace", skip_all, err)]
     fn create_rpc_methods(
         &self,
+        node_type: NodeType,
         storage: ProverStorage,
         ledger_db: &LedgerDB,
         da_service: &Arc<Self::DaService>,
         backup_manager: &Arc<BackupManager>,
         rpc_config: RpcConfig,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
-        // unused inside register RPC
-        let sov_sequencer = Address::new([0; 32]);
+        let mut rpc_methods = RpcModule::new(());
 
-        let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
-            Self::DaService,
-            CitreaRuntime<DefaultContext, Self::DaSpec>,
-        >(storage.clone(), ledger_db, sov_sequencer, rpc_config)?;
+        if !matches!(node_type, NodeType::LightClientProver) {
+            let methods = <CitreaRuntime<DefaultContext, Self::DaSpec>>::rpc_methods(
+                storage,
+                ledger_db.clone(),
+            );
+
+            rpc_methods.merge(methods)?;
+        }
+
+        let ledger_db_methods = sov_ledger_rpc::server::create_rpc_module::<LedgerDB>(
+            ledger_db.clone(),
+            rpc_config.into(),
+        );
+        rpc_methods.merge(ledger_db_methods)?;
 
         let backup_methods = create_backup_rpc_module(ledger_db.clone(), backup_manager.clone());
         rpc_methods.merge(backup_methods)?;
 
-        let da_methods = create_da_rpc_module(da_service.clone());
-        rpc_methods.merge(da_methods)?;
+        if matches!(node_type, NodeType::BatchProver) || matches!(node_type, NodeType::Sequencer) {
+            let da_methods = create_da_rpc_module(da_service.clone());
+            rpc_methods.merge(da_methods)?;
+        }
 
         Ok(rpc_methods)
     }
@@ -276,13 +290,13 @@ impl RollupBlueprint for BitcoinRollup {
     async fn create_prover_service(
         &self,
         proving_mode: ProverGuestRunConfig,
+        risc0_host_config: Risc0HostConfig,
         da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,
         proof_sampling_number: usize,
         is_light_client_prover: bool,
     ) -> ParallelProverService<Self::DaService, Self::Vm> {
-        let risc0_config = Risc0HostConfig::from_env().expect("Failed to load risc0 config");
-        let vm = Risc0Host::new(ledger_db.clone(), self.network, risc0_config).await;
+        let vm = Risc0Host::new(ledger_db.clone(), self.network, risc0_host_config).await;
         // let vm = SP1Host::new(
         //     include_bytes!("../guests/sp1/batch-prover-bitcoin/elf/zkvm-elf"),
         //     ledger_db.clone(),

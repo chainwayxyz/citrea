@@ -9,7 +9,9 @@ use borsh::BorshDeserialize;
 use citrea_evm::system_contracts::{BitcoinLightClientContract, BridgeContract};
 use citrea_evm::{CallMessage as EvmCallMessage, SYSTEM_SIGNER};
 use citrea_primitives::forks::get_forks;
+use futures::FutureExt;
 use reth_primitives::{Recovered, TransactionSigned};
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_modules_api::DaSpec;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
@@ -140,6 +142,20 @@ pub fn read_env(key: &str) -> anyhow::Result<String> {
     env::var(key).map_err(|_| anyhow::anyhow!("Env {} missing or invalid UTF-8", key))
 }
 
+/// Non-blocking shutdown probe.
+pub fn shutdown_requested(shutdown_signal: &GracefulShutdown) -> bool {
+    shutdown_signal
+        .clone()
+        .ignore_guard()
+        .now_or_never()
+        .is_some()
+}
+
+/// Returns the configured stop height if `next_height` exceeds it.
+pub fn exceeded_stop_height(next_height: u64, stop_height: Option<u64>) -> Option<u64> {
+    stop_height.filter(|target| next_height > *target)
+}
+
 // If tangerine activation height is 0, return 1
 // Because in tests when the first l2 block for the first sequencer commitment is needed
 // Tangerine activation height should be sent
@@ -163,4 +179,24 @@ pub fn get_tangerine_activation_height_non_zero() -> u64 {
         return 1;
     }
     fork.activation_height
+}
+
+/// Check if RISC0_DEV_MODE is enabled via environment variable.
+///
+/// This is a copy of https://github.com/risc0/risc0/blob/912c2e198f3abc1094fa55e45840febaee203c22/risc0/zkvm/src/lib.rs#L205
+/// This function is deprecated in risc0, but we still need it here.
+///
+/// # Note
+/// Be aware that this function does not check risc0 disable-dev-mode feature flag.
+/// However in prover and verifier config it does the check automatically,
+/// and will panic if env var is set to values below while the feature flag is set in risc0-zkvm.
+///
+/// # Returns
+/// Returns `true` if RISC0_DEV_MODE environment variable is set to "1", "true", or "yes".
+pub fn is_dev_mode_enabled_via_environment() -> bool {
+    std::env::var("RISC0_DEV_MODE")
+        .ok()
+        .map(|x| x.to_lowercase())
+        .filter(|x| x == "1" || x == "true" || x == "yes")
+        .is_some()
 }

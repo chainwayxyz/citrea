@@ -28,8 +28,8 @@ use std::time::Instant;
 use ::metrics::{gauge, histogram};
 use anyhow::format_err;
 pub use iterator::{RawDbReverseIterator, ScanDirection, SchemaIterator, SeekKeyEncoder};
-pub use rocksdb;
-pub use rocksdb::DEFAULT_COLUMN_FAMILY_NAME;
+use rocksdb::backup::BackupEngineInfo;
+pub use rocksdb::{self, DEFAULT_COLUMN_FAMILY_NAME};
 use rocksdb::{DBIterator, ReadOptions, WriteBatch};
 use thiserror::Error;
 use tracing::info;
@@ -428,7 +428,10 @@ impl DB {
     }
 
     /// Create backup at directory specified by `backup_path`
-    pub fn create_backup(&self, backup_path: impl AsRef<Path>) -> anyhow::Result<()> {
+    pub fn create_backup(
+        &self,
+        backup_path: impl AsRef<Path>,
+    ) -> anyhow::Result<Vec<BackupEngineInfo>> {
         std::fs::create_dir_all(&backup_path)?;
 
         let backup_opts = rocksdb::backup::BackupEngineOptions::new(backup_path.as_ref())?;
@@ -443,7 +446,7 @@ impl DB {
             "Created database backup"
         );
 
-        Ok(())
+        Ok(backup_engine.get_backup_info())
     }
 }
 

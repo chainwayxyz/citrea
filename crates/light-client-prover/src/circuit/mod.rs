@@ -762,8 +762,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> Default for LightClientProofCircuit<S, DS,
 /// but for simplicity we use the same values
 pub fn citrea_network_to_chain_id(network: sov_rollup_interface::Network) -> u64 {
     match network {
-        // TODO: Change when decided
-        sov_rollup_interface::Network::Mainnet => 1,
+        sov_rollup_interface::Network::Mainnet => 4114,
         sov_rollup_interface::Network::Testnet => 5115,
         sov_rollup_interface::Network::Devnet => 62298,
         sov_rollup_interface::Network::Nightly => 5665,

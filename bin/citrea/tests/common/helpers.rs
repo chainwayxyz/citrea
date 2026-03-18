@@ -1,19 +1,18 @@
 use std::net::SocketAddr;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::bail;
 use borsh::BorshDeserialize;
-use citrea::{CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage};
+use citrea::{CitreaRollupBlueprint, Dependencies, MockDemoRollup, StopConditions, Storage};
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_light_client_prover};
 use citrea_common::{
     BatchProverConfig, FullNodeConfig, LightClientProverConfig, NodeType, PruningConfig,
-    RollupPublicKeys, RpcConfig, RunnerConfig, SequencerConfig, StorageConfig,
+    RollupPublicKeys, RpcConfig, RunnerConfig, SequencerConfig, StartVariant, StorageConfig,
 };
-use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_tasks::TaskManager;
@@ -43,6 +42,8 @@ use uuid::Uuid;
 
 use crate::common::client::TestClient;
 use crate::common::DEFAULT_PROOF_WAIT_DURATION;
+
+static PROMETHEUS_INITIALIZED: OnceLock<()> = OnceLock::new();
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeMode {
@@ -76,6 +77,29 @@ pub async fn start_rollup(
     }
     if rollup_prover_config.is_some() && light_client_prover_config.is_some() {
         panic!("Both batch prover and light client prover config cannot be set at the same time");
+    }
+
+    if rollup_config.telemetry.bind_host.is_some() && rollup_config.telemetry.bind_port.is_some() {
+        let bind_host = rollup_config.telemetry.bind_host.as_ref().unwrap();
+        let bind_port = rollup_config.telemetry.bind_port.unwrap();
+        PROMETHEUS_INITIALIZED.get_or_init(|| {
+            let telemetry_addr: std::net::SocketAddr = format!("{bind_host}:{bind_port}")
+                .parse()
+                .expect("Invalid telemetry address");
+
+            std::thread::spawn(move || {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    let builder = metrics_exporter_prometheus::PrometheusBuilder::new()
+                        .with_http_listener(telemetry_addr);
+                    let _ = builder.install();
+                    loop {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
+                    }
+                });
+            });
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        });
     }
 
     let (tables, migrations, backup_manager) = if sequencer_config.is_some() {
@@ -195,6 +219,7 @@ pub async fn start_rollup(
     let rpc_storage = storage_manager.create_final_view_storage();
     let mut rpc_module = mock_demo_rollup
         .create_rpc_methods(
+            NodeType::FullNode, // Allow all RPC in tests
             rpc_storage.clone(),
             &ledger_db,
             &da_service,
@@ -216,6 +241,7 @@ pub async fn start_rollup(
             &mut rpc_module,
             sequencer_client_url,
             l2_block_rx,
+            task_executor.clone(),
         )
         .expect("Failed to register Ethereum RPC methods");
         register_healthcheck_rpc(&mut rpc_module, ledger_db.clone())
@@ -292,9 +318,23 @@ pub async fn start_rollup(
         );
 
         let handler_span = span.clone();
+
+        let l1_start_variant = match ledger_db
+            .get_last_scanned_l1_height()
+            .expect("Should be able to read DB")
+        {
+            Some(l1_height) => StartVariant::LastScanned(l1_height.0),
+            // first time starting the prover
+            // start from the block given in the config
+            None => StartVariant::FromBlock(
+                rollup_config
+                    .runner
+                    .map_or(1, |runner| runner.scan_l1_start_height),
+            ),
+        };
         task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
             l1_syncer
-                .run(shutdown_signal)
+                .run(l1_start_variant, shutdown_signal)
                 .instrument(handler_span)
                 .await
         });
@@ -370,6 +410,7 @@ pub async fn start_rollup(
                 l2_block_tx,
                 rpc_module,
                 backup_manager,
+                StopConditions::default(),
             )
             .instrument(span.clone())
             .await
@@ -383,12 +424,23 @@ pub async fn start_rollup(
         );
 
         let handler_span = span.clone();
+        let l1_start_variant = match ledger_db
+            .get_last_scanned_l1_height()
+            .expect("Should be able to read DB")
+        {
+            Some(l1_height) => StartVariant::LastScanned(l1_height.0),
+            // first time starting the full node
+            // start from the block given in the config
+            None => StartVariant::FromBlock(
+                rollup_config
+                    .runner
+                    .map_or(1, |runner| runner.scan_l1_start_height),
+            ),
+        };
+
         task_executor.spawn_with_graceful_shutdown_signal(|shutdown_signal| async move {
-            let start_l1_height = rollup_config
-                .runner
-                .map_or(1, |runner| runner.scan_l1_start_height);
             l1_block_handler
-                .run(start_l1_height, shutdown_signal)
+                .run(l1_start_variant, shutdown_signal)
                 .instrument(handler_span.clone())
                 .await
         });
@@ -453,8 +505,11 @@ pub fn create_default_rollup_config(
             trace_chain_block_limit: None,
             proving_jobs_limit: 100,
             timeout: 30,
+            stale_filter_ttl: Some(10),
             enable_js_tracer: true,
             api_key: None,
+            enable_filters: false,
+            max_sync_send_timeout_ms: 30_000,
         },
         runner: match node_mode {
             NodeMode::FullNode(socket_addr)
@@ -526,7 +581,7 @@ pub async fn wait_for_prover_job(
     let timeout = timeout.unwrap_or(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)); // Default 600 seconds timeout
     loop {
         debug!("Waiting for prover job {}", job_id);
-        let response = prover_client.get_proving_job(job_id).await;
+        let response = prover_client.get_proving_job(job_id, Some(true)).await;
         if let Some(response) = response {
             if let Some(proof) = &response.proof {
                 if proof.l1_tx_id.is_some() {

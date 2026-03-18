@@ -41,6 +41,7 @@ use tracing::{debug, info, instrument};
 mod bitcoin;
 mod mock;
 pub use bitcoin::*;
+pub use citrea_fullnode::StopConditions;
 pub use mock::*;
 
 type GenesisParams<T> = StfGenesisParams<
@@ -251,6 +252,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         l2_block_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
+        stop_conditions: StopConditions,
     ) -> Result<(
         FullNodeL2Syncer<Self::DaService, LedgerDB>,
         FullNodeL1BlockHandler<Self::Vm, Self::DaService, LedgerDB>,
@@ -290,6 +292,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             code_commitments,
             rpc_module,
             backup_manager,
+            stop_conditions,
         )
     }
 
@@ -335,6 +338,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let prover_service = Arc::new(
             self.create_prover_service(
                 prover_config.proving_mode,
+                prover_config.risc0_host.clone(),
                 &da_service,
                 ledger_db.clone(),
                 prover_config.proof_sampling_number,
@@ -389,6 +393,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let prover_service = Arc::new(
             self.create_prover_service(
                 prover_config.proving_mode,
+                prover_config.risc0_host.clone(),
                 &da_service,
                 ledger_db.clone(),
                 prover_config.proof_sampling_number,

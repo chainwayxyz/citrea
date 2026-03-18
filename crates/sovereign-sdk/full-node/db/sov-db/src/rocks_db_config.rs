@@ -66,6 +66,8 @@ impl<'a> RocksdbConfig<'a> {
         // is reached.
         let cache = Cache::new_lru_cache(100 * 1024 * 1024); // 100 MB
         block_options.set_block_cache(&cache);
+
+        block_options.set_bloom_filter(10.0, false);
         // jemalloc friendly bloom filter sizing
         block_options.set_optimize_filters_for_memory(true);
         // By default our block size is 4KB, we set this to 32KB.

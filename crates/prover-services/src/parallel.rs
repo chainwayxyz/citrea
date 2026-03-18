@@ -95,9 +95,9 @@ where
         data: ProofData,
         receipt_type: ReceiptType,
     ) -> anyhow::Result<ProofWithDuration> {
-        let job_id = Uuid::nil();
+        let job_id = Uuid::new_v4();
         let rx = self.start_proving(data, receipt_type, job_id).await?;
-        Ok(rx.await.expect("Proof channel should not close"))
+        Ok(rx.await?)
     }
 
     /// Starts the proving task in the background and returns a channel which will resolve
@@ -154,12 +154,15 @@ where
 
             match proof {
                 Ok(proof) => {
+                    let ProofWithJob { proof, info, .. } = proof;
+
                     let duration = Instant::now()
                         .saturating_duration_since(proof_start_time)
                         .as_secs_f64();
                     let proof_with_duration = ProofWithDuration {
-                        proof: proof.proof,
+                        proof,
                         duration,
+                        info,
                     };
                     tx.send(proof_with_duration)
                         .expect("Proof channel should not close");
