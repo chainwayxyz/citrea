@@ -4,6 +4,7 @@ use alloy_primitives::TxKind;
 use alloy_rpc_types_eth::transaction::{TransactionInput, TransactionRequest};
 use alloy_sol_types::SolCall;
 use citrea_evm::system_contracts::{BridgeContract, BridgeWrapper};
+use citrea_evm::system_events::SYSTEM_TX_GAS_LIMIT;
 use citrea_evm::SYSTEM_SIGNER;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::Hasher;
@@ -41,6 +42,7 @@ impl DepositDataMempool {
             from: Some(SYSTEM_SIGNER),
             to: Some(TxKind::Call(BridgeWrapper::address())),
             input: TransactionInput::new(BridgeWrapper::deposit(deposit_tx_data)),
+            gas: Some(SYSTEM_TX_GAS_LIMIT),
             ..Default::default()
         }
     }
