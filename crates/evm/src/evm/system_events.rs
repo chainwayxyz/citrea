@@ -34,33 +34,6 @@ pub enum SystemEvent {
     BridgeDeposit(Vec<u8>), // version, flag, vin, vout, witness, locktime, intermediate nodes, block height, index
 }
 
-impl std::fmt::Display for SystemEvent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SystemEvent::BitcoinLightClientInitialize(block_number) => {
-                write!(f, "BitcoinLightClientInitialize({block_number})")
-            }
-            SystemEvent::BitcoinLightClientSetBlockInfo(
-                block_hash,
-                txs_commitments,
-                coinbase_depth,
-            ) => {
-                write!(
-                    f,
-                    "BitcoinLightClientSetBlockInfo(block hash: {:#x}, txs commitments: {:#x}, coinbase depth: {coinbase_depth})",
-                    block_hash, txs_commitments
-                )
-            }
-            SystemEvent::BridgeInitialize(params) => {
-                write!(f, "BridgeInitialize(0x{})", hex::encode(params))
-            }
-            SystemEvent::BridgeDeposit(params) => {
-                write!(f, "BridgeDeposit(0x{})", hex::encode(params))
-            }
-        }
-    }
-}
-
 fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) -> Transaction {
     let body: TxEip1559 = match event {
         SystemEvent::BitcoinLightClientInitialize(block_number) => TxEip1559 {
