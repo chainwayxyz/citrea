@@ -35,6 +35,7 @@ impl<'a> RocksdbConfig<'a> {
         column_families: Option<Vec<String>>,
     ) -> Self {
         let max_open_files = max_open_files.unwrap_or_else(get_rocksdb_fd_limit);
+
         Self {
             path,
             // Allow db to close old sst files, saving memory.
@@ -110,14 +111,11 @@ fn get_rocksdb_fd_limit() -> i32 {
     // Default is 256 due to it being the lowest default limit among operating systems, namely OSX.
     const DEFAULT_FD_LIMIT: i32 = 256;
 
-    let limit = getrlimit(Resource::NOFILE)
+    getrlimit(Resource::NOFILE)
         .inspect_err(|e| {
             warn!("Failed to retrieve max open file limit from the os, defaulting to 256. err={e}")
         })
         .map_or(DEFAULT_FD_LIMIT, |(soft_limit, _)| {
             soft_limit.min(i32::MAX as u64) as i32
-        });
-
-    // Allocates half of that for rocksdb
-    limit / 2
+        })
 }
