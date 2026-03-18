@@ -1617,6 +1617,11 @@ where
         let mut evm_nonce = system_signer.nonce;
 
         for event in system_events {
+            info!(
+                "Processing system event: {:?}, current nonce: {}, evm_nonce: {}",
+                event, *nonce, evm_nonce
+            );
+
             let is_deposit = matches!(event, SystemEvent::BridgeDeposit(_));
 
             // Create transaction with current nonce
