@@ -953,7 +953,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body2 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id2,
             activation_l2_height: 230,
-            nonce: 2, // Correct nonce, but signature will be corrupted → rejected, nonce NOT consumed
+            nonce: 2, // Correct nonce, but signature will be corrupted → rejected, nonce still consumed
         };
 
         let payload2 = BatchProofMethodIdUpdate::from(method_id_body2.clone());
@@ -997,7 +997,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body3 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
-            nonce: 2, // Previous rejected msg didn't consume nonce
+            nonce: 3, // Previous rejected msg consumed nonce
         };
         let payload3 = BatchProofMethodIdUpdate::from(method_id_body3.clone());
 
@@ -1038,7 +1038,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body3 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
-            nonce: 2, // Previous rejected msgs didn't consume nonce
+            nonce: 4, // Previous rejected msgs consumed nonces
         };
 
         let payload3 = BatchProofMethodIdUpdate::from(method_id_body3.clone());
@@ -1080,7 +1080,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body3 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id3,
             activation_l2_height: 240,
-            nonce: 2, // Previous rejected msgs didn't consume nonce
+            nonce: 5, // Previous rejected msgs consumed nonces
         };
 
         let payload3 = BatchProofMethodIdUpdate::from(method_id_body3.clone());
@@ -1127,7 +1127,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body4 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id4,
             activation_l2_height: 250,
-            nonce: 2, // Previous rejected msgs didn't consume nonce
+            nonce: 6, // Previous rejected msgs consumed nonces
         };
 
         let payload4 = BatchProofMethodIdUpdate::from(method_id_body4.clone());
@@ -1166,7 +1166,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let method_id_body5 = BatchProofMethodIdBody {
             method_id: new_batch_proof_method_id5,
             activation_l2_height: 260,
-            nonce: 2, // Previous rejected msgs didn't consume nonce
+            nonce: 7, // Previous rejected msgs consumed nonces
         };
         let payload5 = BatchProofMethodIdUpdate::from(method_id_body5.clone());
         let mut signatures_with_index = create_valid_signatures(&signers, &payload5, 3);
@@ -1315,7 +1315,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let correct_nonce_body = BatchProofMethodIdBody {
             method_id: correct_nonce_method_id,
             activation_l2_height: 300,
-            nonce: 2, // Correct next nonce
+            nonce: 8, // Correct next nonce (failed msgs consumed nonces 2-7)
         };
         let correct_nonce_payload = BatchProofMethodIdUpdate::from(correct_nonce_body.clone());
         let signatures_with_index = create_valid_signatures(&signers, &correct_nonce_payload, 3);
@@ -1351,14 +1351,14 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         // index 0: (0, initial_method_id)
         // index 1: (220, [2;8]) from CASE 1
         // index 2: (300, [10;8]) from CASE 10
-        // Current nonce: 2
+        // Current nonce: 8
 
         // --- CASE 11: Remove method id with wrong method_id field (should be rejected) ---
         let remove_wrong_id_body = RemoveBatchProofMethodIdV1Body {
             method_id_index: 1,
             batch_proof_method_id: [99u32; 8], // Wrong — actual is [2;8]
             l2_activation_height: 220,
-            nonce: 3,
+            nonce: 9,
         };
         let remove_wrong_id_payload = RemoveBatchProofMethodId::from(remove_wrong_id_body.clone());
         let signatures_with_index = create_valid_signatures(&signers, &remove_wrong_id_payload, 3);
@@ -1390,12 +1390,11 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         assert_eq!(method_ids_after_wrong.len(), 3);
 
         // --- CASE 12: Remove method id with wrong activation height (should be rejected) ---
-        // Nonce still 2 because CASE 11 was rejected
         let remove_wrong_height_body = RemoveBatchProofMethodIdV1Body {
             method_id_index: 1,
             batch_proof_method_id: new_batch_proof_method_id, // Correct [2;8]
             l2_activation_height: 999,                        // Wrong — actual is 220
-            nonce: 3,                                         // Still 3, CASE 11 rejected
+            nonce: 10,                                        // CASE 11 consumed nonce
         };
         let remove_wrong_height_payload =
             RemoveBatchProofMethodId::from(remove_wrong_height_body.clone());
@@ -1432,7 +1431,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             method_id_index: 10, // Only 3 entries
             batch_proof_method_id: [0u32; 8],
             l2_activation_height: 0,
-            nonce: 3,
+            nonce: 11,
         };
         let remove_oob_payload = RemoveBatchProofMethodId::from(remove_oob_body.clone());
         let signatures_with_index = create_valid_signatures(&signers, &remove_oob_payload, 3);
@@ -1465,7 +1464,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             method_id_index: 1,
             batch_proof_method_id: new_batch_proof_method_id, // [2;8]
             l2_activation_height: 220,
-            nonce: 3, // Correct — all previous removes were rejected
+            nonce: 12, // Correct — previous removes consumed nonces 9-11
         };
         let remove_valid_payload = RemoveBatchProofMethodId::from(remove_valid_body.clone());
         let signatures_with_index = create_valid_signatures(&signers, &remove_valid_payload, 3);
@@ -4241,7 +4240,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let add_body_2 = AddSecurityCouncilMemberV1Body {
             new_member: new_member_2,
             new_threshold: 5,
-            nonce: 2,
+            nonce: 3, // CASE 1 consumed nonce 2
         };
         let payload = AddSecurityCouncilMember::from(add_body_2.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 3);
@@ -4278,7 +4277,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         // --- CASE 3: Update threshold below MIN_THRESHOLD=2 (rejected) ---
         let update_body_1 = UpdateSecurityCouncilThresholdV1Body {
             new_threshold: 1,
-            nonce: 3,
+            nonce: 4,
         };
         let payload = UpdateSecurityCouncilThreshold::from(update_body_1.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 5);
@@ -4312,7 +4311,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         // 7 members, max threshold = 7-2=5. Requesting threshold=6 is invalid.
         let update_body_2 = UpdateSecurityCouncilThresholdV1Body {
             new_threshold: 6,
-            nonce: 3,
+            nonce: 5,
         };
         let payload = UpdateSecurityCouncilThreshold::from(update_body_2.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 5);
@@ -4346,7 +4345,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         // 7 members, max threshold = 7-2=5. Requesting threshold=4 is valid.
         let update_body_3 = UpdateSecurityCouncilThresholdV1Body {
             new_threshold: 4,
-            nonce: 3,
+            nonce: 6,
         };
         let payload = UpdateSecurityCouncilThreshold::from(update_body_3.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 5);
@@ -4379,7 +4378,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let remove_body_1 = RemoveSecurityCouncilMemberV1Body {
             member_to_be_removed: new_member_1,
             new_threshold: 4,
-            nonce: 4,
+            nonce: 7,
         };
         let payload = RemoveSecurityCouncilMember::from(remove_body_1.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 4);
@@ -4423,7 +4422,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let remove_body_2 = RemoveSecurityCouncilMemberV1Body {
             member_to_be_removed: member_to_remove.0 .0,
             new_threshold: 2,
-            nonce: 5,
+            nonce: 8,
         };
         let payload = RemoveSecurityCouncilMember::from(remove_body_2.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 4);
@@ -4459,7 +4458,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let remove_body_3 = RemoveSecurityCouncilMemberV1Body {
             member_to_be_removed: member_to_remove_2.0 .0,
             new_threshold: 2,
-            nonce: 6,
+            nonce: 9,
         };
         let payload = RemoveSecurityCouncilMember::from(remove_body_3.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 2);
@@ -4501,7 +4500,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let remove_body_3 = RemoveSecurityCouncilMemberV1Body {
             member_to_be_removed: member_to_remove_2.0 .0,
             new_threshold: 2,
-            nonce: 7,
+            nonce: 10,
         };
         let payload = RemoveSecurityCouncilMember::from(remove_body_3.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 2);
@@ -4537,7 +4536,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let replace_body_1 = ReplaceSecurityCouncilMemberV1Body {
             to_be_replaced: [0xAAu8; 20], // not in council
             new_member: [0x33u8; 20],
-            nonce: 7,
+            nonce: 11,
         };
         let payload = ReplaceSecurityCouncilMember::from(replace_body_1.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 2);
@@ -4573,7 +4572,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let replace_body_2 = ReplaceSecurityCouncilMemberV1Body {
             to_be_replaced: _initial_addresses[0].0 .0,
             new_member: _initial_addresses[1].0 .0, // already in council
-            nonce: 7,
+            nonce: 12,
         };
         let payload = ReplaceSecurityCouncilMember::from(replace_body_2.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 2);
@@ -4610,7 +4609,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         let replace_body_3 = ReplaceSecurityCouncilMemberV1Body {
             to_be_replaced: _initial_addresses[2].0 .0,
             new_member: new_replacement,
-            nonce: 7,
+            nonce: 13,
         };
         let payload = ReplaceSecurityCouncilMember::from(replace_body_3.clone());
         let signatures_with_index = create_valid_signatures(&signers, &payload, 2);
