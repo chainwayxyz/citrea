@@ -766,6 +766,9 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             return;
         }
 
+        // Increment nonce immediately after validation (like EVM tx nonce on revert)
+        SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
+
         match sc_tx.tx_type {
             SecurityCouncilTxType::BatchProofMethodIdUpdateV1(body) => {
                 log!("Processing BatchProofMethodIdUpdateV1");
@@ -1056,9 +1059,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 );
             }
         }
-
-        // Nonce check passed and message was processed successfully — increment
-        SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
     }
 
     /// Processes a SetLcpToPreviousState security council message.
@@ -1104,6 +1104,9 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             );
             return;
         }
+
+        // Increment nonce immediately after validation (like EVM tx nonce on revert)
+        SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
 
         // Signature verification
         if !verify_security_council_signatures(
@@ -1183,9 +1186,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             body.index,
             new_epoch
         );
-
-        // Increment nonce
-        SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
     }
 
     /// Called by the guest to run the light client circuit.

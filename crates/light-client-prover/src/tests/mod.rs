@@ -4898,7 +4898,7 @@ fn test_remove_method_id_wrong_fields_rejected() {
         vec![(0u64, [0u32; 8]), (10u64, [2u32; 8])]
     );
     let nonce = SecurityCouncilNonceAccessor::<ProverStorage>::get(&mut working_set).unwrap();
-    assert_eq!(nonce, 1); // Only the add from block 1 consumed a nonce
+    assert_eq!(nonce, 2); // Add from block 1 consumed nonce 1, first failed remove consumed nonce 2
 }
 
 // ── SetLcpToPreviousState tests ────────────────────────────────────────────────
