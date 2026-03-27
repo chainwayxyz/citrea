@@ -263,6 +263,7 @@ impl BoundlessProver {
         let request = self
             .build_proof_request(
                 receipt_claim.digest(),
+                image_id,
                 image_url,
                 input_url,
                 U256::from(cmp::min(
@@ -314,6 +315,7 @@ impl BoundlessProver {
     pub async fn build_proof_request(
         &self,
         receipt_claim_digest: Digest,
+        image_id: Digest,
         image_url: Url,
         input_url: Url,
         min_price_per_cycle: U256,
@@ -397,6 +399,7 @@ impl BoundlessProver {
 
         self.client
             .new_request()
+            .with_image_id(image_id)
             .with_program_url(image_url)
             .unwrap()
             .with_input_url(input_url)
@@ -712,6 +715,7 @@ impl BoundlessProver {
             .build_proof_request(
                 // this now has receipt claim digest
                 receipt_claim.digest(),
+                image_id,
                 Url::parse(&failed_request.imageUrl).expect("Invalid image URL"),
                 Url::parse(
                     core::str::from_utf8(&failed_request.input.data).expect("Invalid input URL"),
