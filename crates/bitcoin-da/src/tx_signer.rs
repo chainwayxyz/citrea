@@ -61,8 +61,8 @@ impl SignedTxPair {
 }
 
 #[derive(Debug)]
-pub(crate) struct TxSigner {
-    client: Arc<Client>,
+pub struct TxSigner {
+    pub client: Arc<Client>,
 }
 
 impl TxSigner {
@@ -70,7 +70,7 @@ impl TxSigner {
         Self { client }
     }
 
-    pub(crate) async fn sign_da_txs(&self, da_txs: DaTxs) -> Result<Vec<SignedTxPair>> {
+    pub async fn sign_da_txs(&self, da_txs: DaTxs) -> Result<Vec<SignedTxPair>> {
         let queued_txs = match da_txs {
             DaTxs::Complete { commit, reveal } => {
                 vec![

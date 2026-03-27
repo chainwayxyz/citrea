@@ -307,7 +307,7 @@ pub struct MonitoringService {
     /// Only takes into account inner tx field from MonitoredTx
     total_size: AtomicUsize,
     finality_depth: u64,
-    block_tx: UnboundedSender<u64>,
+    pub block_tx: UnboundedSender<u64>,
 }
 
 impl MonitoringService {

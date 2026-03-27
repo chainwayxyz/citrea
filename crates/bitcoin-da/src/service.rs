@@ -140,20 +140,20 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
 /// A service that provides data and data availability proofs for Bitcoin
 #[derive(Debug)]
 pub struct BitcoinService {
-    client: Arc<Client>,
-    pub(crate) network: bitcoin::Network,
-    network_constants: NetworkConstants,
+    pub client: Arc<Client>,
+    pub network: bitcoin::Network,
+    pub network_constants: NetworkConstants,
     pub(crate) da_private_key: Option<SecretKey>,
-    pub(crate) reveal_tx_prefix: Vec<u8>,
+    pub reveal_tx_prefix: Vec<u8>,
     inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
     pub(crate) tx_backup_dir: PathBuf,
     /// Monitoring service for tracking transaction status.
     pub monitoring: Arc<MonitoringService>,
-    fee: FeeService,
-    l1_block_hash_to_height: Arc<Mutex<LruCache<BlockHash, usize>>>,
-    tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
-    pub(crate) tx_signer: TxSigner,
-    pub(crate) utxo_manager: UtxoManager,
+    pub fee: FeeService,
+    pub l1_block_hash_to_height: Arc<Mutex<LruCache<BlockHash, usize>>>,
+    pub tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
+    pub tx_signer: TxSigner,
+    pub utxo_manager: UtxoManager,
 }
 
 impl BitcoinService {
@@ -392,7 +392,7 @@ impl BitcoinService {
 
     /// Sends a transaction to the Bitcoin network with a specified fee rate.
     #[instrument(level = "trace", fields(prev_utxo), ret, err, skip(self))]
-    async fn create_da_transactions_with_fee_rate(
+    pub async fn create_da_transactions_with_fee_rate(
         &self,
         tx_request: DaTxRequest,
         fee_sat_per_vbyte: f64,

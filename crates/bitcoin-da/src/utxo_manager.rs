@@ -52,7 +52,7 @@ pub struct UtxoContext {
 /// Queries available UTXOs via bitcoin RPC, filters based on mode and queue state,
 /// and ensures available UTXOs don't conflict with queued transactions.
 #[derive(Debug)]
-pub(crate) struct UtxoManager {
+pub struct UtxoManager {
     client: Arc<Client>,
     monitoring: Arc<MonitoringService>,
     tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
@@ -94,7 +94,7 @@ impl UtxoManager {
     /// If queue has pending txs:
     /// - Chained mode: returns Err(BitcoinServiceError::QueueNotEmpty)
     /// - Oldest mode: uses UTXO with highest number of confirmation to start new chain
-    pub(crate) async fn select_prev_utxo(&self, available_utxos: &[UTXO]) -> Result<Option<UTXO>> {
+    pub async fn select_prev_utxo(&self, available_utxos: &[UTXO]) -> Result<Option<UTXO>> {
         let prev_utxo = self.get_prev_utxo().await;
         if self.tx_queue.lock().await.is_empty() {
             return Ok(prev_utxo);
@@ -120,7 +120,7 @@ impl UtxoManager {
     }
 
     /// Retrieves the most recent spendable UTXO from the transaction chain.
-    pub(crate) async fn get_prev_utxo(&self) -> Option<UTXO> {
+    pub async fn get_prev_utxo(&self) -> Option<UTXO> {
         let (txid, tx) = self.monitoring.get_last_tx().await?;
 
         let utxos = tx.to_utxos()?;
@@ -134,7 +134,7 @@ impl UtxoManager {
     }
 
     /// Gets available UTXOs from `list_unspent` RPC, and filter by mode.
-    pub(crate) async fn get_available_utxos(&self) -> Result<Vec<UTXO>> {
+    pub async fn get_available_utxos(&self) -> Result<Vec<UTXO>> {
         let utxos = self
             .client
             .list_unspent(Some(0), None, None, None, None)
