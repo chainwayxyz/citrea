@@ -497,6 +497,9 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         let active_sequencer_da_public_key = SequencerDaPubKeyAccessor::<S>::get(&mut working_set)
             .expect("Sequencer DA public key must exist");
 
+        // Collect security council transactions to sort by nonce before processing
+        let mut sc_txs: Vec<SecurityCouncilTx> = Vec::new();
+
         'blob_loop: for blob in da_txs {
             let Ok(data) = DataOnDa::try_from_slice(blob.full_data()) else {
                 log!("Unparsable blob in da_data, wtxid={:?}", blob.wtxid());
@@ -599,27 +602,8 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     }
                 }
                 DataOnDa::SecurityCouncilTx(sc_tx) => {
-                    log!("Found security council transaction");
-                    if let SecurityCouncilTxType::SetLcpToPreviousStateV1(ref body) = sc_tx.tx_type
-                    {
-                        self.process_set_lcp_to_previous_state(
-                            sc_tx.clone(),
-                            body.clone(),
-                            network,
-                            &security_council_messages_domain,
-                            &mut working_set,
-                            &mut last_sequencer_commitment_index,
-                            &mut last_l2_state_root,
-                            &mut last_l2_height,
-                        );
-                    } else {
-                        self.process_security_council_tx(
-                            sc_tx,
-                            network,
-                            &security_council_messages_domain,
-                            &mut working_set,
-                        );
-                    }
+                    log!("Found security council transaction, collecting for nonce-sorted processing");
+                    sc_txs.push(sc_tx);
                 }
                 DataOnDa::SequencerCommitment(commitment) => {
                     let comm_index = commitment.index;
@@ -653,6 +637,30 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                         );
                     }
                 }
+            }
+        }
+
+        // Sort security council transactions by nonce and process them in order
+        sc_txs.sort_by_key(|tx| tx.tx_type.nonce());
+        for sc_tx in sc_txs {
+            if let SecurityCouncilTxType::SetLcpToPreviousStateV1(ref body) = sc_tx.tx_type {
+                self.process_set_lcp_to_previous_state(
+                    sc_tx.clone(),
+                    body.clone(),
+                    network,
+                    &security_council_messages_domain,
+                    &mut working_set,
+                    &mut last_sequencer_commitment_index,
+                    &mut last_l2_state_root,
+                    &mut last_l2_height,
+                );
+            } else {
+                self.process_security_council_tx(
+                    sc_tx,
+                    network,
+                    &security_council_messages_domain,
+                    &mut working_set,
+                );
             }
         }
 
