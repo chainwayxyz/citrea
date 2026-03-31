@@ -1,6 +1,13 @@
 # Changelog
 ## [Unreleased]
 
+## [v2.3.1](2026-03-31)
+
+Fix version. Only provers must update.
+
+### Changed
+- fix: Set image id in request builder ([#3195](https://github.com/chainwayxyz/citrea/pull/3195))
+
 ## [v2.3.0](2026-03-23)
 ### Added
 - feat: Stop at height full-node arguments\
@@ -233,7 +240,8 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
 
-[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.3.0...HEAD
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.3.1...HEAD
+[v2.3.1]: https://github.com/chainwayxyz/citrea/compare/v2.3.0...v2.3.1
 [v2.3.0]: https://github.com/chainwayxyz/citrea/compare/v2.2.0...v2.3.0
 [v2.2.0]: https://github.com/chainwayxyz/citrea/compare/v2.1.0...v2.2.0
 [v2.1.0]: https://github.com/chainwayxyz/citrea/compare/v2.0.0...v2.1.0
