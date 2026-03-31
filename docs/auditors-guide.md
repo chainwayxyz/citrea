@@ -60,7 +60,7 @@ The batch prover on the other hand is semi-trusted. The batch proof circuit make
 - `crates/evm`: Citrea's EVM implementation.
     - System contracts under `crates/evm/src/evm/system_contracts`.
 
-- `crates/fullnode`: Citrea full node implementation. (See [](./node-types.md#2-full-node)).
+- `crates/fullnode`: Citrea full node implementation. (See [Full node](./node-types.md#2-full-node)).
 
 - `crates/l2-block-rule-enforcer`: `sov-module` that applies certain rules on L2 blocks.
 
