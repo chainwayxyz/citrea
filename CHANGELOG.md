@@ -4,6 +4,9 @@
 ### Added
 - feat: Get raw transaction rpcs. ([#3201](https://github.com/chainwayxyz/citrea/pull/3201))
 
+### Changed
+- perf: Mine reveal prefix relying on `sign_schnorr` internal randomness.([#3192](https://github.com/chainwayxyz/citrea/pull/3192))
+
 ## [v2.3.1](2026-03-31)
 
 Fix version. Only provers must update.
@@ -20,7 +23,7 @@ Fix version. Only provers must update.
 
 ### Changed
 - fix(fullnode): avoid rewriting pending proofs on retry (reduces PendingProof retry-path rewrite amplification). ([#3176](https://github.com/chainwayxyz/citrea/pull/3176))
-- fix: set L1 fee rate to zero in `eth_estimateGas` if sender has no balance ([#3169](https://github.com/chainwayxyz/citrea/pull/3169)) 
+- fix: set L1 fee rate to zero in `eth_estimateGas` if sender has no balance ([#3169](https://github.com/chainwayxyz/citrea/pull/3169))
 
 ## [v2.2.0](2026-03-02)
 ### Added
