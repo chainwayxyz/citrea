@@ -28,7 +28,7 @@ Through the **Clementine bridge** Citrea has BTC as its native asset. This bridg
    `citrea_sendRawDepositTransaction`
     This generates a **Citrea system transaction** calling the [`deposit`](./bridge-contract.md) function of the Bridge Contract with:
     - The `MoveToVault` transaction
-    - Merkle proof of its Bitcoin block inclusion (verified via the [`verifyInclusion`](crates/evm/src/evm/system_contracts/src/BitcoinLightClient.sol) function  of the Light Client Contract)
+    - Merkle proof of its Bitcoin block inclusion (verified via the [`verifyInclusion`](../crates/evm/src/evm/system_contracts/src/BitcoinLightClient.sol) function  of the Light Client Contract)
     - SHA script pubkeys (for verifying Schnorr signatures in the MoveTx)
 
 4. **Finalization**  

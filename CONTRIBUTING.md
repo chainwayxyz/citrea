@@ -4,7 +4,7 @@ Thank you for your interest in contributing to Citrea! We accept and appreciate 
 
 ## On questions
 
-If you have some questions regarding the project or the repository, or if there are parts in the code that you could not understand, please visit our [Discord](https://discord.citrea.xyz). You can ask your technical questions regarding the project/repository in the #developer-chat there.
+If you have some questions regarding the project or the repository, or if there are parts in the code that you could not understand, please visit our [Discord](https://discord.com/invite/citrea). You can ask your technical questions regarding the project/repository in the #developer-chat there.
 
 Using issues for questions creates lots of noise on the codebase, so we kindly ask you to follow this convention.
 
@@ -18,7 +18,7 @@ Along with that, we expect the issue owner to be active in discussions when nece
 
 #### On typo fixes
 
-We do not accept typo fixes as issues / pull requests as of now. If you want to contribute in that sense still, you may state it in our [Discord](https://discord.citrea.xyz).
+We do not accept typo fixes as issues / pull requests as of now. If you want to contribute in that sense still, you may state it in our [Discord](https://discord.com/invite/citrea).
 
 ### Pull Requests
 
