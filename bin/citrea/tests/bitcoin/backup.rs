@@ -817,7 +817,7 @@ impl TestCase for BackupBatchProverTest {
         let rollback_target_l1 = commitment_l1_height;
         let proof_output = first_proof.proof_output;
 
-        let rollback_target_commitment_index = 0;
+        let rollback_target_commitment_index = 1;
         let rollback_target_l2 = proof_output.last_l2_height.to::<u64>();
 
         citrea_cli
