@@ -62,7 +62,7 @@ fn build_commit_transaction(
     recipient: Address,
     change_address: Address,
     output_value: u64,
-    fee_rate: u64,
+    fee_rate: f64,
 ) -> Result<(Transaction, Vec<UTXO>), anyhow::Error> {
     // Non-dust change - is a minimal change to make change non_dust
     let non_dust_change = 546;
@@ -106,7 +106,7 @@ fn build_commit_transaction(
                 warn!("Too many iterations choosing UTXOs");
             }
         }
-        let fee = (last_size as u64) * fee_rate;
+        let fee = (last_size as f64 * fee_rate).ceil() as u64;
 
         let input_total = output_value + fee + non_dust_change;
 
@@ -181,7 +181,7 @@ fn build_reveal_transaction(
     input_vout: u32,
     recipient: Address,
     output_value: u64,
-    fee_rate: u64,
+    fee_rate: f64,
     reveal_script: &ScriptBuf,
     control_block: &ControlBlock,
 ) -> Result<Transaction, anyhow::Error> {
@@ -209,7 +209,7 @@ fn build_reveal_transaction(
         control_block,
     );
 
-    let fee = (size as u64) * fee_rate;
+    let fee = (size as f64 * fee_rate).ceil() as u64;
 
     let input_total = output_value + fee;
 

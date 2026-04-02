@@ -2,7 +2,9 @@ use std::str::FromStr;
 
 use alloy_eips::eip2930::{AccessList, AccessListItem, AccessListWithGasUsed};
 use alloy_eips::BlockNumberOrTag;
-use alloy_primitives::{address, b256, Address, TxKind, U256};
+use alloy_primitives::map::AddressMap;
+use alloy_primitives::{address, b256, TxKind, U256};
+use alloy_rpc_types::state::AccountOverride;
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
@@ -27,9 +29,7 @@ fn test_payable_contract_value() {
 
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(TxKind::Call(address!(
-            "819c5497b157177315e1204f52e588b393771719"
-        ))), // Address of the payable contract.
+        to: Some(TxKind::Call(signer.address().create(0))), // Address of the payable contract.
         gas: Some(100000),
         gas_price: Some(100000000),
         max_fee_per_gas: None,
@@ -67,9 +67,7 @@ fn test_tx_request_fields_gas_fork1() {
 
     let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(TxKind::Call(address!(
-            "819c5497b157177315e1204f52e588b393771719"
-        ))),
+        to: Some(TxKind::Call(signer.address().create(0))),
         gas: Some(10000000),
         gas_price: Some(100),
         max_fee_per_gas: None,
@@ -279,7 +277,7 @@ fn test_tx_request_fields_gas_fork1() {
         create_no_access_list_test.unwrap(),
         AccessListWithGasUsed {
             access_list: AccessList(vec![AccessListItem {
-                address: address!("819c5497b157177315e1204f52e588b393771719"),
+                address: signer.address().create(0),
                 storage_keys: vec![b256!(
                     "d17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
                 )]
@@ -290,7 +288,7 @@ fn test_tx_request_fields_gas_fork1() {
 
     let access_list_req = TransactionRequest {
         access_list: Some(AccessList(vec![AccessListItem {
-            address: address!("819c5497b157177315e1204f52e588b393771719"),
+            address: signer.address().create(0),
             storage_keys: vec![b256!(
                 "d17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
             )],
@@ -326,7 +324,7 @@ fn test_tx_request_fields_gas_fork1() {
         already_formed_list.unwrap(),
         AccessListWithGasUsed {
             access_list: AccessList(vec![AccessListItem {
-                address: address!("819c5497b157177315e1204f52e588b393771719"),
+                address: signer.address().create(0),
                 storage_keys: vec![b256!(
                     "d17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
                 )]
@@ -344,16 +342,11 @@ fn test_access_list() {
     let (evm, mut working_set, signer, _, ledger_db) = init_evm_with_caller_contract();
 
     let caller = CallerContract::default();
-    let input_data = caller.call_set_call_data(
-        Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
-        42,
-    );
+    let input_data = caller.call_set_call_data(signer.address().create(0), 42);
 
     let tx_req_contract_call = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(TxKind::Call(address!(
-            "5ccda3e6d071a059f00d4f3f25a1adc244eb5c93"
-        ))),
+        to: Some(TxKind::Call(signer.address().create(2))),
         gas: Some(10000000),
         gas_price: Some(100),
         max_fee_per_gas: None,
@@ -393,7 +386,7 @@ fn test_access_list() {
         form_access_list.unwrap(),
         AccessListWithGasUsed {
             access_list: AccessList(vec![AccessListItem {
-                address: address!("819c5497b157177315e1204f52e588b393771719"),
+                address: signer.address().create(0),
                 storage_keys: vec![b256!(
                     "0000000000000000000000000000000000000000000000000000000000000000"
                 )]
@@ -404,7 +397,7 @@ fn test_access_list() {
 
     let tx_req_with_access_list = TransactionRequest {
         access_list: Some(AccessList(vec![AccessListItem {
-            address: address!("819c5497b157177315e1204f52e588b393771719"),
+            address: signer.address().create(0),
             storage_keys: vec![b256!(
                 "0000000000000000000000000000000000000000000000000000000000000000"
             )],
@@ -472,9 +465,7 @@ fn test_pending_env() {
 
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(TxKind::Call(address!(
-            "819c5497b157177315e1204f52e588b393771719"
-        ))), // Address of the payable contract.
+        to: Some(TxKind::Call(signer.address().create(0))), // Address of the payable contract.
         gas: Some(100000),
         gas_price: Some(100000000),
         max_fee_per_gas: None,
@@ -550,9 +541,7 @@ fn test_estimate_gas_with_input(
     let input_data = SimpleStorageContract::default().set_call_data(input_data);
     let tx_req = TransactionRequest {
         from: Some(signer.address()),
-        to: Some(TxKind::Call(address!(
-            "eeb03d20dae810f52111b853b31c8be6f30f4cd3"
-        ))),
+        to: Some(TxKind::Call(signer.address().create(7))),
         gas: Some(100_000),
         input: TransactionInput::new(input_data.into()),
         ..Default::default()
@@ -592,4 +581,132 @@ fn test_estimate_gas_with_value(
         ledger_db,
         get_fork_fn_latest(),
     )
+}
+
+#[test]
+fn test_estimate_gas_no_balance() {
+    let (evm, mut working_set, _, signer, _, ledger_db) =
+        init_evm(sov_modules_api::SpecId::latest());
+
+    let contract = SimpleStorageContract::default();
+    let contract_address = signer.address().create(7);
+
+    // Random address that has no balance
+    let no_balance_address = address!("0x1234567890123456789012345678901234567890");
+
+    // Assert that the address has no balance
+    let balance = evm.get_balance(no_balance_address, None, &mut working_set, &ledger_db);
+    assert_eq!(balance.unwrap(), U256::ZERO);
+
+    // Test 1: Simple transfer to an EOA (no data)
+    let result = evm
+        .eth_estimate_gas_inner(
+            TransactionRequest {
+                from: Some(no_balance_address),
+                to: Some(TxKind::Call(signer.address())),
+                input: TransactionInput::default(),
+                ..Default::default()
+            },
+            Some(BlockNumberOrTag::Latest),
+            None,
+            &mut working_set,
+            &ledger_db,
+            get_fork_fn_latest(),
+        )
+        .expect("simple transfer to EOA should succeed");
+    assert!(result >= U256::from(MIN_TRANSACTION_GAS));
+
+    // Test 2: Call to a contract with data field populated (getter function)
+    evm.eth_estimate_gas_inner(
+        TransactionRequest {
+            from: Some(no_balance_address),
+            to: Some(TxKind::Call(contract_address)),
+            input: TransactionInput::new(contract.get_call_data().into()),
+            ..Default::default()
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+    )
+    .expect("call to getter function should succeed");
+
+    // Test 3: Call to a contract with data field populated (setter function)
+    evm.eth_estimate_gas_inner(
+        TransactionRequest {
+            from: Some(no_balance_address),
+            to: Some(TxKind::Call(contract_address)),
+            input: TransactionInput::new(contract.set_call_data(42).into()),
+            ..Default::default()
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+    )
+    .expect("call to setter function should succeed");
+
+    // Test 4: Estimate gas with value transfer should still fail
+    let result = evm.eth_estimate_gas_inner(
+        TransactionRequest {
+            from: Some(no_balance_address),
+            to: Some(TxKind::Call(signer.address())),
+            value: Some(U256::from(1000)),
+            ..Default::default()
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+    );
+    assert_eq!(
+        result,
+        Err(RpcInvalidTransactionError::InsufficientFunds {
+            cost: U256::from(1000),
+            balance: U256::from(0)
+        }
+        .into())
+    );
+
+    // Test 5: Estimate gas with no from address should succeed
+    let result = evm.eth_estimate_gas_inner(
+        TransactionRequest {
+            to: Some(TxKind::Call(signer.address())),
+            input: TransactionInput::default(),
+            ..Default::default()
+        },
+        Some(BlockNumberOrTag::Latest),
+        None,
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+    );
+    assert!(result.is_ok());
+
+    // Test 6: Estimate gas from account with 1 wei balance should fail
+    let mut state_override = AddressMap::default();
+    state_override.insert(
+        no_balance_address,
+        AccountOverride {
+            balance: Some(U256::from(1)),
+            ..Default::default()
+        },
+    );
+    let result = evm.eth_estimate_gas_inner(
+        TransactionRequest {
+            from: Some(no_balance_address),
+            to: Some(TxKind::Call(signer.address())),
+            input: TransactionInput::default(),
+            ..Default::default()
+        },
+        Some(BlockNumberOrTag::Latest),
+        Some(state_override),
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+    );
+    assert!(result.is_err());
 }

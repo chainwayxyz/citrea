@@ -6,15 +6,15 @@ use std::time::Duration;
 use anyhow::{anyhow, Context as _};
 use bitcoin_da::service::BitcoinServiceConfig;
 use citrea::{
-    initialize_logging, BitcoinRollup, CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage,
+    initialize_logging, BitcoinRollup, CitreaRollupBlueprint, Dependencies, MockDemoRollup,
+    StopConditions, Storage,
 };
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_light_client_prover};
 use citrea_common::utils::is_dev_mode_enabled_via_environment;
-use citrea_common::{from_toml_path, FromEnv, FullNodeConfig, NodeType};
+use citrea_common::{from_toml_path, FromEnv, FullNodeConfig, NodeType, StartVariant};
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
-use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use clap::Parser;
@@ -77,6 +77,11 @@ async fn main() -> anyhow::Result<()> {
         panic!("RISC0_DEV_MODE is enabled but network is set to Mainnet. Dev mode SHOULD NOT be used on mainnet.");
     }
 
+    let stop_conditions = StopConditions {
+        stop_at_l1_height: args.stop_at_l1_height,
+        stop_at_l2_height: args.stop_at_l2_height,
+    };
+
     match args.da_layer {
         SupportedDaLayer::Mock => {
             start_rollup::<MockDemoRollup, MockDaConfig>(
@@ -84,6 +89,7 @@ async fn main() -> anyhow::Result<()> {
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 args.rollup_config_path,
                 node_type,
+                stop_conditions,
             )
             .await?;
         }
@@ -93,6 +99,7 @@ async fn main() -> anyhow::Result<()> {
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 args.rollup_config_path,
                 node_type,
+                stop_conditions,
             )
             .await?;
         }
@@ -107,6 +114,7 @@ async fn start_rollup<S, DaC>(
     runtime_genesis_paths: &<CitreaRuntime<DefaultContext, <S as RollupBlueprint>::DaSpec> as sov_modules_stf_blueprint::Runtime<DefaultContext, <S as RollupBlueprint>::DaSpec>>::GenesisPaths,
     rollup_config_path: Option<String>,
     node_type: NodeWithConfig,
+    stop_conditions: StopConditions,
 ) -> Result<(), anyhow::Error>
 where
     DaC: serde::de::DeserializeOwned + DebugTrait + Clone + FromEnv + Send + Sync + 'static,
@@ -231,6 +239,7 @@ where
 
     let rpc_storage = storage_manager.create_final_view_storage();
     let mut rpc_module = rollup_blueprint.create_rpc_methods(
+        (&node_type).into(),
         rpc_storage.clone(),
         &ledger_db,
         &da_service,
@@ -306,9 +315,19 @@ where
 
             start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
+            let l1_start_variant = match ledger_db.get_last_scanned_l1_height()? {
+                Some(l1_height) => StartVariant::LastScanned(l1_height.0),
+                None => StartVariant::FromBlock(
+                    rollup_config
+                        .runner
+                        .context("Failed to start prover L1 syncer: Runner config not present")?
+                        .scan_l1_start_height,
+                ),
+            };
+
             task_executor.spawn_critical_with_graceful_shutdown_signal(
                 "ProverL1Syncer",
-                |shutdown_signal| async move { l1_syncer.run(shutdown_signal).await },
+                |shutdown_signal| async move { l1_syncer.run(l1_start_variant, shutdown_signal).await },
             );
 
             task_executor.spawn_critical_with_graceful_shutdown_signal(
@@ -364,28 +383,31 @@ where
                     l2_block_tx,
                     rpc_module,
                     backup_manager,
+                    stop_conditions,
                 )
                 .await
                 .expect("Could not start full-node");
 
             start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
-            let l1_start_height = match ledger_db.get_last_scanned_l1_height()? {
-                Some(l1_height) => l1_height.0,
-                None => {
+            let l1_start_variant = match ledger_db.get_last_scanned_l1_height()? {
+                Some(l1_height) => StartVariant::LastScanned(l1_height.0),
+                None => StartVariant::FromBlock(
                     rollup_config
                         .runner
-                        .ok_or(anyhow!(
-                    "Failed to start batch prover L1 block handler: Runner config not present"
-                ))?
-                        .scan_l1_start_height
-                }
+                        .context(
+                            "Failed to start full node L1 block handler: Runner config not present",
+                        )?
+                        .scan_l1_start_height,
+                ),
             };
 
             task_executor.spawn_critical_with_graceful_shutdown_signal(
                 "FullNodeL1BlockHandler",
                 |shutdown_signal| async move {
-                    l1_block_handler.run(l1_start_height, shutdown_signal).await
+                    l1_block_handler
+                        .run(l1_start_variant, shutdown_signal)
+                        .await
                 },
             );
 

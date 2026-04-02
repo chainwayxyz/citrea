@@ -2,8 +2,8 @@ use alloy_primitives::{TxHash, U256};
 use alloy_rpc_types::TransactionInfo;
 use alloy_rpc_types_trace::geth::call::FlatCallFrame;
 use alloy_rpc_types_trace::geth::{
-    FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingCallOptions,
-    GethDebugTracingOptions, GethTrace, NoopFrame,
+    FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
+    GethTrace, NoopFrame,
 };
 use reth_rpc_eth_api::FromEthApiError;
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
@@ -22,27 +22,13 @@ use crate::handler::{CitreaBuilder, CitreaChain, CitreaChainExt, CitreaContext, 
 use crate::rpc_helpers::*;
 
 pub(crate) fn trace_call<C: sov_modules_api::Context>(
-    opts: GethDebugTracingCallOptions,
+    tracing_options: GethDebugTracingOptions,
     config_env: CfgEnv,
-    mut block_env: BlockEnv,
+    block_env: BlockEnv,
     tx_env: TxEnv,
     db: &mut EvmDb<'_, C>,
     l1_fee_rate: u128,
 ) -> EthResult<GethTrace> {
-    let GethDebugTracingCallOptions {
-        tracing_options,
-        state_overrides,
-        block_overrides,
-    } = opts;
-
-    if let Some(state_overrides) = state_overrides {
-        apply_state_overrides(state_overrides, db)?;
-    }
-
-    if let Some(mut block_overrides) = block_overrides {
-        apply_block_overrides(&mut block_env, &mut block_overrides, db);
-    }
-
     let GethDebugTracingOptions {
         config,
         tracer,
@@ -108,23 +94,11 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         l1_fee_rate,
                         &mut inspector,
                     )?;
-                    let mut frame = inspector
+                    let frame = inspector
                         .with_transaction_gas_limit(tx_env.gas_limit())
                         .into_geth_builder()
                         .geth_prestate_traces(&res, &prestate_config, &db_ref)
                         .map_err(EthApiError::from_eth_err)?;
-
-                    // Workaround for revm-inspectors v0.18.0 bug where disableCode doesn't filter post state
-                    // TODO: Remove this when upgrading revm-inspectors to a version with the fix
-                    if prestate_config.disable_code.unwrap_or(false) {
-                        if let alloy_rpc_types_trace::geth::PreStateFrame::Diff(ref mut diff_mode) =
-                            &mut frame
-                        {
-                            for (_, account_state) in diff_mode.post.iter_mut() {
-                                account_state.code = None;
-                            }
-                        }
-                    }
 
                     Ok(frame.into())
                 }
@@ -304,23 +278,11 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         l1_fee_rate,
                         &mut inspector,
                     )?;
-                    let mut frame = inspector
+                    let frame = inspector
                         .with_transaction_gas_limit(tx_env.gas_limit())
                         .into_geth_builder()
                         .geth_prestate_traces(&res, &prestate_config, db_ref)
                         .map_err(EthApiError::from_eth_err)?;
-
-                    // Workaround for revm-inspectors v0.18.0 bug where disableCode doesn't filter post state
-                    // TODO: Remove this when upgrading revm-inspectors to a version with the fix
-                    if prestate_config.disable_code.unwrap_or(false) {
-                        if let alloy_rpc_types_trace::geth::PreStateFrame::Diff(ref mut diff_mode) =
-                            &mut frame
-                        {
-                            for (_, account_state) in diff_mode.post.iter_mut() {
-                                account_state.code = None;
-                            }
-                        }
-                    }
 
                     Ok((frame.into(), res.state))
                 }

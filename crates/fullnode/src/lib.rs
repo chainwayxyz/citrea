@@ -140,6 +140,19 @@ use sov_rollup_interface::zk::ZkvmHost;
 use sov_rollup_interface::Network;
 use tokio::sync::{broadcast, Mutex};
 
+/// Configuration for optional height-based node stopping (debug/testing)
+///
+/// When either stop condition is set, the fullnode will gracefully shut down
+/// after processing blocks up to and including the specified height.
+/// Similar to Bitcoin's `--stopatheight` option.
+#[derive(Debug, Clone, Default)]
+pub struct StopConditions {
+    /// Stop the fullnode after processing this L1 block height
+    pub stop_at_l1_height: Option<u64>,
+    /// Stop the fullnode after processing this L2 block height
+    pub stop_at_l2_height: Option<u64>,
+}
+
 /// Module for handling L1 data availability blocks
 pub mod da_block_handler;
 /// Module containing database migration definitions
@@ -169,6 +182,7 @@ pub mod rpc;
 /// * `code_commitments` - Map of ZKVM code commitments by spec ID
 /// * `rpc_module` - RPC module for external communication
 /// * `backup_manager` - Manager for backup operations
+/// * `stop_conditions` - Optional stop conditions for height-based shutdown (debug/testing)
 ///
 /// # Type Parameters
 /// * `DA` - Data availability service type
@@ -200,6 +214,7 @@ pub fn build_services<DA, DB, Vm>(
     code_commitments: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
     rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
+    stop_conditions: StopConditions,
 ) -> Result<(
     L2Syncer<DA, DB>,
     L1BlockHandler<Vm, DA, DB>,
@@ -226,6 +241,11 @@ where
         PrunerService::new(pruner, last_pruned_block, l2_block_tx.subscribe())
     });
 
+    // Initialize metrics once at component startup
+    if let Err(e) = crate::metrics::initialize_metrics(&ledger_db) {
+        tracing::debug!("Failed to initialize fullnode metrics: {:?}", e);
+    }
+
     let include_tx_bodies = runner_config.include_tx_body;
     let l2_syncer = L2Syncer::new(
         runner_config,
@@ -239,6 +259,7 @@ where
         l2_block_tx,
         backup_manager.clone(),
         include_tx_bodies,
+        stop_conditions.stop_at_l2_height,
     )?;
 
     let l1_block_handler = L1BlockHandler::new(
@@ -250,6 +271,7 @@ where
         code_commitments,
         Arc::new(Mutex::new(L1BlockCache::new())),
         backup_manager,
+        stop_conditions.stop_at_l1_height,
     );
 
     Ok((l2_syncer, l1_block_handler, pruner, rpc_module))

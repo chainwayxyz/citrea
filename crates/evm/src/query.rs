@@ -47,7 +47,7 @@ use sov_db::schema::types::L2HeightStatus;
 use sov_modules_api::fork::Fork;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{SpecId as CitreaSpecId, WorkingSet};
 
 use crate::call::get_cfg_env;
 use crate::conversions::{create_tx_env, sealed_block_to_block_env};
@@ -76,6 +76,8 @@ const ESTIMATE_GAS_ERROR_RATIO: f64 = 0.015;
 pub(crate) struct EstimatedTxExpenses {
     /// Evm gas used.
     pub gas_used: U64,
+    /// Gas limit of the block used for simulation.
+    block_gas_limit: U64,
     /// Base fee of the L2 block when tx was executed.
     base_fee: U256,
     /// L1 fee.
@@ -651,7 +653,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let mut cfg_env = get_cfg_env(cfg, evm_spec_id);
 
-        let mut evm_db = self.get_db(working_set);
+        let mut evm_db = self.get_db(working_set, citrea_spec_id);
 
         if let Some(mut block_overrides) = block_overrides {
             apply_block_overrides(&mut block_env, &mut block_overrides, &mut evm_db);
@@ -782,7 +784,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // <https://github.com/ethereum/go-ethereum/blob/8990c92aea01ca07801597b00c0d83d4e2d9b811/internal/ethapi/api.go#L1476-L1476>
         cfg_env.disable_base_fee = true;
 
-        let mut evm_db = self.get_db(working_set);
+        let mut evm_db = self.get_db(working_set, citrea_spec_id);
 
         if let Some(ref state_overrides) = state_overrides {
             apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
@@ -840,13 +842,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
             l1_fee_rate,
             block_env.clone(),
             cfg_env,
+            citrea_spec_id,
             state_overrides.clone(),
             working_set,
         )?;
 
         Ok(AccessListWithGasUsed {
             access_list,
-            gas_used: gas_limit_to_return(U64::from(block_env.gas_limit), estimated),
+            gas_used: gas_limit_to_return(estimated),
         })
     }
 
@@ -898,6 +901,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             l1_fee_rate,
             block_env,
             cfg_env,
+            citrea_spec_id,
             state_overrides,
             working_set,
         )
@@ -943,16 +947,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             fork_fn,
         )?;
 
-        // TODO: this assumes all blocks have the same gas limit
-        // if gas limit ever changes this should be updated
-        let last_block = self
-            .blocks
-            .last(&mut working_set.accessory_state())
-            .expect("Head block must be set");
-
-        let block_gas_limit = U64::from(last_block.header.gas_limit);
-
-        Ok(gas_limit_to_return(block_gas_limit, estimated))
+        Ok(gas_limit_to_return(estimated))
     }
 
     /// Handler for: `eth_estimateDiffSize`
@@ -1037,18 +1032,21 @@ impl<C: sov_modules_api::Context> Evm<C> {
         l1_fee_rate: u128,
         block_env: BlockEnv,
         mut cfg_env: CfgEnv,
+        citrea_spec_id: CitreaSpecId,
         state_overrides: Option<StateOverride>,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<EstimatedTxExpenses> {
-        let account = self
-            .account_info(&request.from.unwrap_or_default(), working_set)
-            .unwrap_or_default();
-
-        let mut evm_db = self.get_db(working_set);
+        let mut evm_db = self.get_db(working_set, citrea_spec_id);
 
         if let Some(ref state_overrides) = state_overrides {
             apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
         }
+
+        let account: crate::AccountInfo = evm_db
+            .basic(request.from.unwrap_or_default())
+            .map_err(EthApiError::from)?
+            .map(|acc| acc.into())
+            .unwrap_or_default();
         // Disabled because eth_estimateGas is sometimes used with eoa senders
         // See <https://github.com/paradigmxyz/reth/issues/1959>
         // The revm feature is enabled through reth-rpc dependencies
@@ -1067,7 +1065,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let request_gas_limit = request.gas;
         let request_gas_price = request.gas_price;
         let block_env_gas_limit = block_env.gas_limit;
+        let block_gas_limit = U64::from(block_env_gas_limit);
         let block_env_base_fee = U256::from(block_env.basefee);
+
+        let inspect_l1_fee_rate = if request.from.is_some() && account.balance > 0 {
+            l1_fee_rate
+        } else {
+            0 // run with l1 fee rate = 0, so that we don't get "Not enough funds for L1 fee" in simulations
+        };
 
         let nonce = request.nonce.unwrap_or(account.nonce);
         let chain_id = cfg_env.chain_id();
@@ -1101,7 +1106,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         cfg_env.clone(),
                         block_env.clone(),
                         inspect_tx_env.clone(),
-                        l1_fee_rate,
+                        inspect_l1_fee_rate,
                         TracingInspector::new(TracingInspectorConfig::none()),
                     );
 
@@ -1112,18 +1117,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
                             // One with 0 value and the other with the remaining balance that extract from the current balance after the gas fee is deducted
                             // This causes the diff size to be lower than the actual diff size, and the tx to fail due to not enough l1 fee
                             let mut diff_size = tx_info.l1_diff_size;
-                            let mut l1_fee = tx_info.l1_fee;
                             if tx_env.value.is_zero() {
                                 // Calculation taken from diff size calculation in handler.rs
                                 let balance_diff_size = diff_size_send_eth_eoa() as u64;
 
                                 diff_size += balance_diff_size;
-                                l1_fee = l1_fee.saturating_add(
-                                    U256::from(l1_fee_rate) * (U256::from(balance_diff_size)),
-                                );
                             }
+                            let l1_fee = U256::from(l1_fee_rate) * (U256::from(diff_size));
                             return Ok(EstimatedTxExpenses {
                                 gas_used: U64::from(MIN_TRANSACTION_GAS),
+                                block_gas_limit,
                                 base_fee: block_env_base_fee,
                                 l1_fee,
                                 l1_diff_size: diff_size,
@@ -1135,7 +1138,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }
 
         // Recreate evm_db with overrides if it was consumed by the early return optimization
-        let mut evm_db = self.get_db(working_set);
+        let mut evm_db = self.get_db(working_set, citrea_spec_id);
         if let Some(ref state_overrides) = state_overrides {
             apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
         }
@@ -1155,7 +1158,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             cfg_env.clone(),
             block_env.clone(),
             tx_env.clone(),
-            l1_fee_rate,
+            inspect_l1_fee_rate,
             TracingInspector::new(TracingInspectorConfig::none()),
         );
 
@@ -1166,7 +1169,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // if price or limit was included in the request then we can execute the request
             // again with the block's gas limit to check if revert is gas related or not
             if request_gas_limit.is_some() || request_gas_price.is_some() {
-                let mut evm_db = self.get_db(working_set);
+                let mut evm_db = self.get_db(working_set, citrea_spec_id);
                 if let Some(ref state_overrides) = state_overrides {
                     apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
                 }
@@ -1175,7 +1178,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     tx_env.clone(),
                     cfg_env,
                     evm_db,
-                    l1_fee_rate,
+                    inspect_l1_fee_rate,
                 )
                 .into());
             }
@@ -1196,7 +1199,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let (result, mut l1_fee, mut diff_size) = match result {
             Ok((result, tx_info)) => match result.result {
                 ExecutionResult::Success { .. } => {
-                    (result.result, tx_info.l1_fee, tx_info.l1_diff_size)
+                    let TxInfo { l1_diff_size, .. } = tx_info;
+                    let l1_fee = U256::from(l1_fee_rate) * (U256::from(l1_diff_size));
+                    (result.result, l1_fee, l1_diff_size)
                 }
                 ExecutionResult::Halt { reason, gas_used } => {
                     return Err(RpcInvalidTransactionError::halt(reason, gas_used).into())
@@ -1205,7 +1210,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     // if price or limit was included in the request then we can execute the request
                     // again with the block's gas limit to check if revert is gas related or not
                     return if request_gas_limit.is_some() || request_gas_price.is_some() {
-                        let mut evm_db = self.get_db(working_set);
+                        let mut evm_db = self.get_db(working_set, citrea_spec_id);
                         if let Some(ref state_overrides) = state_overrides {
                             apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
                         }
@@ -1214,7 +1219,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                             tx_env.clone(),
                             cfg_env,
                             evm_db,
-                            l1_fee_rate,
+                            inspect_l1_fee_rate,
                         )
                         .into())
                     } else {
@@ -1248,7 +1253,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         if optimistic_gas_limit < highest_gas_limit {
             tx_env.gas_limit = optimistic_gas_limit;
             // (result, env) = executor::transact(&mut db, env)?;
-            let mut evm_db = self.get_db(working_set);
+            let mut evm_db = self.get_db(working_set, citrea_spec_id);
             if let Some(ref state_overrides) = state_overrides {
                 apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
             }
@@ -1257,7 +1262,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 cfg_env.clone(),
                 block_env.clone(),
                 tx_env.clone(),
-                l1_fee_rate,
+                inspect_l1_fee_rate,
                 TracingInspector::new(TracingInspectorConfig::none()),
             );
             let (curr_result, tx_info) = match curr_result {
@@ -1272,6 +1277,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 &mut l1_fee,
                 &mut diff_size,
                 tx_info,
+                l1_fee_rate,
             )?;
         };
 
@@ -1294,7 +1300,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let mut tx_env = tx_env.clone();
             tx_env.gas_limit = mid_gas_limit;
 
-            let mut evm_db = self.get_db(working_set);
+            let mut evm_db = self.get_db(working_set, citrea_spec_id);
             if let Some(ref state_overrides) = state_overrides {
                 apply_state_overrides(state_overrides.clone(), &mut evm_db)?;
             }
@@ -1303,7 +1309,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 cfg_env.clone(),
                 block_env.clone(),
                 tx_env.clone(),
-                l1_fee_rate,
+                inspect_l1_fee_rate,
                 TracingInspector::new(TracingInspectorConfig::none()),
             );
 
@@ -1334,6 +1340,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     &mut l1_fee,
                     &mut diff_size,
                     tx_info,
+                    l1_fee_rate,
                 )?;
             }
 
@@ -1343,6 +1350,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         Ok(EstimatedTxExpenses {
             gas_used: U64::from(highest_gas_limit),
+            block_gas_limit,
             base_fee: block_env_base_fee,
             l1_fee,
             l1_diff_size: diff_size,
@@ -1453,9 +1461,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let cfg_env = get_cfg_env(cfg, evm_spec_id);
         let l1_fee_rate = sealed_block.l1_fee_rate;
 
-        // EvmDB is the replacement of revm::CacheDB because cachedb requires immutable state
-        // TODO: Move to CacheDB once immutable state is implemented
-        let mut evm_db = self.get_db(working_set);
+        let mut evm_db = self.get_db(working_set, citrea_spec_id);
 
         // TODO: Convert below steps to blocking task like in reth after implementing the semaphores
         let mut traces = Vec::new();
@@ -1507,7 +1513,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             None => BlockNumberOrTag::Latest,
         };
 
-        let block_env = match block_number {
+        let mut block_env = match block_number {
             BlockNumberOrTag::Pending => get_pending_block_env(self, working_set),
             _ => {
                 let block = self
@@ -1536,32 +1542,56 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .get(working_set)
             .expect("EVM chain config should be set");
 
-        let cfg_env = get_cfg_env(cfg, evm_spec_id);
+        let mut cfg_env = get_cfg_env(cfg, evm_spec_id);
 
-        let sealed_block = self
-            .get_sealed_block_by_number(Some(block_number), working_set, ledger_db)?
+        let l1_fee_block_num = match block_number {
+            // use l1 fee rate of latest block for pending block
+            BlockNumberOrTag::Pending => BlockNumberOrTag::Latest,
+            _ => block_number,
+        };
+        let l1_fee_block = self
+            .get_sealed_block_by_number(Some(l1_fee_block_num), working_set, ledger_db)?
             .ok_or_else(|| EthApiError::HeaderNotFound(block_id.unwrap()))?;
-        let l1_fee_rate = sealed_block.l1_fee_rate;
+        let l1_fee_rate = l1_fee_block.l1_fee_rate;
 
-        let account = self
-            .account_info(&request.from.unwrap_or_default(), working_set)
+        let mut evm_db = self.get_db(working_set, citrea_spec_id);
+
+        let GethDebugTracingCallOptions {
+            tracing_options,
+            state_overrides,
+            block_overrides,
+        } = opts.unwrap_or_default();
+
+        // Apply state overrides before create_txn_env so that balance overrides
+        // are reflected in gas allowance calculation (issue #3135).
+        if let Some(state_overrides) = state_overrides {
+            apply_state_overrides(state_overrides, &mut evm_db)?;
+        }
+
+        if let Some(mut block_overrides) = block_overrides {
+            apply_block_overrides(&mut block_env, &mut block_overrides, &mut evm_db);
+        }
+
+        let from = request.from.unwrap_or_default();
+        let account = evm_db
+            .basic(from)
+            .map_err(EthApiError::from)?
             .unwrap_or_default();
-
-        let mut evm_db = self.get_db(working_set);
 
         let nonce = request.nonce.unwrap_or(account.nonce);
         let chain_id = cfg_env.chain_id();
 
         // create tx env
-        let tx_env = create_txn_env(
+        let tx_env = prepare_call_env(
             &block_env,
-            request.clone(),
-            Some(account.balance),
+            &mut cfg_env,
+            request,
+            account.balance,
             nonce,
             chain_id,
         )?;
         let trace = trace_call(
-            opts.unwrap_or_default(),
+            tracing_options,
             cfg_env,
             block_env,
             tx_env,
@@ -1661,48 +1691,36 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let topics_filter: Vec<BloomFilter> =
             filter.topics.iter().map(|t| t.to_bloom_filter()).collect();
 
-        let max_headers_range = get_max_headers_range();
+        // Loop over the range of blocks and check logs if the filter matches the block bloom.
+        for idx in from_block_number..=to_block_number {
+            let block = match self
+                .blocks
+                .get((idx) as usize, &mut working_set.accessory_state())
+            {
+                Some(block) => block,
+                None => {
+                    return Err(EthFilterError::EthAPIError(
+                        // from and to are checked against last block
+                        // so this should never happen ideally
+                        ProviderError::BlockBodyIndicesNotFound(idx).into(),
+                    ));
+                }
+            };
 
-        // loop over the range of new blocks and check logs if the filter matches the log's bloom
-        // filter
-        for (from, to) in
-            BlockRangeInclusiveIter::new(from_block_number..=to_block_number, max_headers_range)
-        {
-            for idx in from..=to {
-                let block = match self
-                    .blocks
-                    .get((idx) as usize, &mut working_set.accessory_state())
-                {
-                    Some(block) => block,
-                    None => {
-                        return Err(EthFilterError::EthAPIError(
-                            // from and to are checked against last block
-                            // so this should never happen ideally
-                            ProviderError::BlockBodyIndicesNotFound(idx).into(),
-                        ));
-                    }
-                };
-
-                let logs_bloom = block.header.logs_bloom;
-                if FilteredParams::matches_address(logs_bloom, &address_filter)
-                    && FilteredParams::matches_topics(logs_bloom, &topics_filter)
-                {
-                    self.append_matching_block_logs(
-                        working_set,
-                        &mut all_logs,
-                        filter.clone(),
-                        block,
-                    );
-                    // size check but only if range is multiple blocks, so we always return all
-                    // logs of a single block
-                    let is_multi_block_range = from_block_number != to_block_number;
-                    if is_multi_block_range && all_logs.len() > max_logs_per_response {
-                        return Err(EthFilterError::QueryExceedsMaxResults {
-                            max_logs: max_logs_per_response,
-                            from_block: from,
-                            to_block: idx - 1,
-                        });
-                    }
+            let logs_bloom = block.header.logs_bloom;
+            if FilteredParams::matches_address(logs_bloom, &address_filter)
+                && FilteredParams::matches_topics(logs_bloom, &topics_filter)
+            {
+                self.append_matching_block_logs(working_set, &mut all_logs, filter.clone(), block);
+                // size check but only if range is multiple blocks, so we always return all
+                // logs of a single block
+                let is_multi_block_range = from_block_number != to_block_number;
+                if is_multi_block_range && all_logs.len() > max_logs_per_response {
+                    return Err(EthFilterError::QueryExceedsMaxResults {
+                        max_logs: max_logs_per_response,
+                        from_block: from_block_number,
+                        to_block: idx - 1,
+                    });
                 }
             }
         }
@@ -2093,7 +2111,7 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
     mut tx_env: revm::context::TxEnv,
     cfg_env: CfgEnv,
     db: EvmDb<'_, C>,
-    l1_fee_rate: u128,
+    inspect_l1_fee_rate: u128,
 ) -> EthApiError {
     let req_gas_limit = tx_env.gas_limit;
     tx_env.gas_limit = block_env.gas_limit;
@@ -2103,7 +2121,7 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
         cfg_env,
         block_env,
         tx_env,
-        l1_fee_rate,
+        inspect_l1_fee_rate,
         TracingInspector::new(TracingInspectorConfig::none()),
     ) {
         Ok((res, _tx_info)) => match res.result {
@@ -2127,6 +2145,7 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
 /// Updates the highest and lowest gas limits for binary search
 /// based on the result of the execution
 #[inline]
+#[allow(clippy::too_many_arguments)]
 fn update_estimated_gas_range(
     result: ExecutionResult,
     tx_gas_limit: u64,
@@ -2135,19 +2154,20 @@ fn update_estimated_gas_range(
     l1_fee: &mut U256,
     diff_size: &mut u64,
     tx_info: TxInfo,
+    l1_fee_rate: u128,
 ) -> EthResult<()> {
     match result {
         ExecutionResult::Success { .. } => {
             // cap the highest gas limit with succeeding gas limit
             *highest_gas_limit = tx_gas_limit;
-            *l1_fee = tx_info.l1_fee;
+            *l1_fee = U256::from(tx_info.l1_diff_size) * U256::from(l1_fee_rate);
             *diff_size = tx_info.l1_diff_size;
         }
         ExecutionResult::Revert { .. } => {
             // increase the lowest gas limit
             *lowest_gas_limit = tx_gas_limit;
 
-            *l1_fee = tx_info.l1_fee;
+            *l1_fee = U256::from(tx_info.l1_diff_size) * U256::from(l1_fee_rate);
             *diff_size = tx_info.l1_diff_size;
         }
         ExecutionResult::Halt { reason, .. } => {
@@ -2195,7 +2215,9 @@ fn set_state_to_end_of_evm_block<C: sov_modules_api::Context>(
 /// we want to return the gas estimation as is since the mempool will reject it
 /// anyway.
 #[inline]
-fn gas_limit_to_return(block_gas_limit: U64, estimated_tx_expenses: EstimatedTxExpenses) -> U256 {
+fn gas_limit_to_return(estimated_tx_expenses: EstimatedTxExpenses) -> U256 {
+    let block_gas_limit = estimated_tx_expenses.block_gas_limit;
+
     if estimated_tx_expenses.gas_used > block_gas_limit {
         estimated_tx_expenses.gas_with_l1_overhead()
     } else {
@@ -2274,28 +2296,24 @@ fn get_pending_block_env<C: sov_modules_api::Context>(
 #[test]
 fn test_gas_limit_to_return() {
     assert_eq!(
-        gas_limit_to_return(
-            U64::from(8_000_000),
-            EstimatedTxExpenses {
-                gas_used: U64::from(5_000_000),
-                base_fee: U256::from(10000000), // 0.01 gwei
-                l1_fee: U256::from(40_000_000_000_000u128),
-                l1_diff_size: 1 // not relevant to this test
-            }
-        ),
+        gas_limit_to_return(EstimatedTxExpenses {
+            gas_used: U64::from(5_000_000),
+            block_gas_limit: U64::from(8_000_000),
+            base_fee: U256::from(10000000), // 0.01 gwei
+            l1_fee: U256::from(40_000_000_000_000u128),
+            l1_diff_size: 1 // not relevant to this test
+        }),
         U256::from(8_000_000)
     );
 
     assert_eq!(
-        gas_limit_to_return(
-            U64::from(8_000_000),
-            EstimatedTxExpenses {
-                gas_used: U64::from(8_000_001),
-                base_fee: U256::from(10000000), // 0.01 gwei
-                l1_fee: U256::from(40_000_000u128),
-                l1_diff_size: 1 // not relevant to this test
-            }
-        ),
+        gas_limit_to_return(EstimatedTxExpenses {
+            gas_used: U64::from(8_000_001),
+            block_gas_limit: U64::from(8_000_000),
+            base_fee: U256::from(10000000), // 0.01 gwei
+            l1_fee: U256::from(40_000_000u128),
+            l1_diff_size: 1 // not relevant to this test
+        }),
         U256::from(8_000_005)
     );
 }

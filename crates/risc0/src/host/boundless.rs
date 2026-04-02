@@ -1,19 +1,22 @@
 use std::cmp;
 use std::str::FromStr;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
-use boundless_market::alloy::primitives::U256;
+use boundless_market::alloy::primitives::{Address, U256};
+use boundless_market::alloy::providers::Provider;
 use boundless_market::alloy::signers::local::PrivateKeySigner;
 use boundless_market::client::{Client, ClientBuilder, ClientError};
 use boundless_market::contracts::boundless_market::MarketError;
 use boundless_market::contracts::{Offer, Predicate, Requirements};
 use boundless_market::deployments::BASE;
-use boundless_market::request_builder::{RequestParams, RequirementParams};
+use boundless_market::request_builder::{
+    OfferLayer, OfferLayerConfigBuilder, RequestParams, RequirementParams,
+};
 use boundless_market::storage::{PinataStorageProvider, S3StorageProvider};
-use boundless_market::{GuestEnv, StandardStorageProvider};
+use boundless_market::{GuestEnv, RequestId, StandardStorageProvider};
 use citrea_common::config::risc0::{BoundlessProverConfig, BoundlessStorageConfig};
 use citrea_common::utils::is_dev_mode_enabled_via_environment;
 use metrics::gauge;
@@ -49,6 +52,12 @@ const MIN_PRICE_INCREASE_DIVISOR: u32 = 10;
 
 /// If a proof was picked up by a prover but not delivered within lock timeout, we increase the timeout by 2x
 const LOCKTIME_INCREASE_RATIO: u32 = 2; // 2x
+
+/// Average gas price is less than 0.1 gwei
+const FALLBACK_BASE_GAS_PRICE: u128 = 1_000_000_000; // 1 gwei
+
+/// Duration to sleep before retrying a failed proof request in seconds
+const RETRY_RESUBMISSION_DELAY_SECS: Duration = Duration::from_secs(10);
 
 enum ResubmitResult {
     Retry,
@@ -193,12 +202,12 @@ impl BoundlessProver {
 
         // move non-Send logic to blocking thread
         // I had to do this because the executor env builder is not Send
-        let (journal, total_cycles_approx) = tokio::task::spawn_blocking({
+        let (journal, receipt_claim, total_cycles_approx,) = tokio::task::spawn_blocking({
             let elf = elf.clone(); // clone since we move into thread
             let input = input.clone();
             let assumptions = assumptions.clone();
 
-            move || -> anyhow::Result<(Journal, u64)> {
+            move || -> anyhow::Result<(Journal, ReceiptClaim, u64)> {
                 let mut env = ExecutorEnvBuilder::default();
                 for assumption in assumptions {
                     env.add_assumption(assumption);
@@ -216,7 +225,7 @@ impl BoundlessProver {
                     "Boundless proving session with job id: {job_id} takes {total_cycles_approx} cycles"
                 );
 
-                Ok((session_info.journal, total_cycles_approx))
+                Ok((session_info.journal, session_info.receipt_claim.expect("should exist"), total_cycles_approx))
             }
         })
         .await??;
@@ -225,14 +234,14 @@ impl BoundlessProver {
 
         let exponential_backoff = ExponentialBackoff::default();
         let PriceResponse {
-            min_price,
-            max_price,
+            min_price_wei_per_cycle,
+            max_price_wei_per_cycle,
             lock_timeout,
-            max_possible_price,
+            max_possible_price_wei_per_cycle,
             lock_stake,
             ramp_up_period,
             timeout,
-            bidding_start,
+            bidding_start_delay,
             ..
         } = retry_backoff(exponential_backoff, || async move {
             self.pricing_service
@@ -251,25 +260,41 @@ impl BoundlessProver {
 
         let lock_timeout = cmp::max(lock_timeout, MIN_LOCK_TIMEOUT); // at least 200 seconds
 
-        let request = self.build_proof_request(
-            image_id,
-            journal.digest(),
-            image_url,
-            input_url,
-            U256::from(cmp::min(min_price, max_possible_price)),
-            U256::from(cmp::min(max_price, max_possible_price)),
-            lock_timeout,
-            timeout,
-            ramp_up_period,
-            lock_stake,
-            bidding_start,
-            total_cycles_approx,
-            Some(journal),
-        );
+        let request = self
+            .build_proof_request(
+                receipt_claim.digest(),
+                image_id,
+                image_url,
+                input_url,
+                U256::from(cmp::min(
+                    min_price_wei_per_cycle,
+                    max_possible_price_wei_per_cycle,
+                )),
+                U256::from(cmp::min(
+                    max_price_wei_per_cycle,
+                    max_possible_price_wei_per_cycle,
+                )),
+                lock_timeout,
+                timeout,
+                ramp_up_period,
+                lock_stake,
+                bidding_start_delay,
+                total_cycles_approx,
+                journal.clone(),
+            )
+            .await;
 
         // Start boundless proving session
         let (req_id, request_expiry) = self
-            .send_request(request, job_id, image_id, receipt_type, total_cycles_approx)
+            .send_request(
+                request,
+                job_id,
+                image_id,
+                journal.clone(),
+                receipt_claim.clone(),
+                receipt_type,
+                total_cycles_approx,
+            )
             .await?;
 
         let rx = self.spawn_handler(
@@ -277,6 +302,8 @@ impl BoundlessProver {
             receipt_type,
             req_id,
             image_id,
+            journal,
+            receipt_claim,
             request_expiry,
             total_cycles_approx,
         );
@@ -285,62 +312,121 @@ impl BoundlessProver {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn build_proof_request(
+    pub async fn build_proof_request(
         &self,
+        receipt_claim_digest: Digest,
         image_id: Digest,
-        journal_digest: Digest,
         image_url: Url,
         input_url: Url,
-        min_price_per_mcycle: U256,
-        max_price_per_mcycle: U256,
+        min_price_per_cycle: U256,
+        max_price_per_cycle: U256,
         lock_timeout: u64,
         timeout: u64,
         ramp_up_period: u64,
         lock_stake: u64,
-        bidding_start: u64,
+        bidding_start_delay: u64,
         total_cycles_approx: u64,
-        journal: Option<Journal>,
+        journal: Journal,
     ) -> RequestParams {
         // Note that offer ramp up period must be less than or equal to the lock timeout)
-        let mcycles_count = total_cycles_approx.div_ceil(1_000_000);
 
-        let mut request_params =
-            self.client
-                .new_request()
-                .with_program_url(image_url)
-                .unwrap()
-                .with_input_url(input_url)
-                .unwrap()
-                .with_requirements(
-                    TryInto::<RequirementParams>::try_into(Requirements::new(
-                        Predicate::digest_match(image_id, journal_digest),
-                    ))
-                    .expect("TODO: handle error"),
-                )
-                .with_groth16_proof()
-                .with_offer(
-                    Offer::default()
-                        .with_min_price_per_mcycle(min_price_per_mcycle, mcycles_count)
-                        .with_max_price_per_mcycle(max_price_per_mcycle, mcycles_count)
-                        .with_lock_timeout(lock_timeout as u32)
-                        .with_timeout(timeout as u32)
-                        .with_ramp_up_period(ramp_up_period as u32)
-                        .with_lock_collateral(U256::from(lock_stake))
-                        .with_ramp_up_start(bidding_start),
-                )
-                .with_cycles(total_cycles_approx);
+        let provider = self.client.provider().clone();
 
-        if let Some(journal) = journal {
-            request_params = request_params.with_journal(journal);
-        }
-        request_params
+        let offer_layer_config = OfferLayerConfigBuilder::default()
+            .min_price_per_cycle(min_price_per_cycle)
+            .max_price_per_cycle(max_price_per_cycle)
+            .lock_timeout(lock_timeout as u32)
+            .timeout(timeout as u32)
+            .ramp_up_period(ramp_up_period as u32)
+            .lock_collateral(U256::from(lock_stake))
+            .bidding_start_delay(bidding_start_delay)
+            .build()
+            .expect("Failed to build offer layer config");
+
+        let exponential_backoff = ExponentialBackoff::default();
+
+        let gas_price = retry_backoff(exponential_backoff, || {
+            let p = provider.clone();
+            async move {
+                match p.get_gas_price().await {
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to get gas price from provider, retrying... err={}",
+                            e
+                        );
+                        Err(backoff::Error::transient(e))
+                    }
+                    Ok(price) => Ok(price),
+                }
+            }
+        })
+        .await
+        .unwrap_or_else(|e| {
+            tracing::error!(
+                "Failed to get gas price from provider, using fallback gas price: {} wei. err={}",
+                FALLBACK_BASE_GAS_PRICE,
+                e
+            );
+            FALLBACK_BASE_GAS_PRICE
+        });
+
+        let offer_layer = OfferLayer::new(provider, offer_layer_config);
+
+        let requirements = Requirements::new(Predicate::claim_digest_match(receipt_claim_digest))
+            .with_groth16_proof();
+
+        // Use a dummy request id for gas estimation. The gas cost can depend on the request id,
+        // but in our case it does not, because the request is not smart contract signed.
+        // We cannot use the actual request id since it is generated after the request is submitted.
+        let dummy_request_id = RequestId::new(Address::new([1u8; 20]), 0);
+
+        // Unwrap is safe here because no callbacks exist in requirements
+        let gas_cost_estimate = offer_layer
+            .estimate_gas_cost_upper_bound(&requirements, &dummy_request_id, gas_price)
+            .unwrap();
+
+        let max_price_cycle = max_price_per_cycle * U256::from(total_cycles_approx);
+
+        // https://github.com/boundless-xyz/boundless/blob/eced0f1eab1b0666ac1cd263ce815861a9558925/crates/boundless-market/src/request_builder/offer_layer.rs#L329
+        // Add the estimated gas cost plus 10% to the cycle-based max price.
+        let max_price =
+            max_price_cycle + (gas_cost_estimate + (gas_cost_estimate / U256::from(10)));
+
+        let min_price = min_price_per_cycle * U256::from(total_cycles_approx);
+
+        let ts = get_timestamp();
+        let bidding_start = ts + bidding_start_delay;
+
+        self.client
+            .new_request()
+            .with_image_id(image_id)
+            .with_program_url(image_url)
+            .unwrap()
+            .with_input_url(input_url)
+            .unwrap()
+            .with_requirements(TryInto::<RequirementParams>::try_into(requirements).unwrap())
+            .with_offer(
+                Offer::default()
+                    .with_min_price(min_price)
+                    .with_max_price(max_price)
+                    .with_lock_timeout(lock_timeout as u32)
+                    .with_timeout(timeout as u32)
+                    .with_ramp_up_period(ramp_up_period as u32)
+                    .with_lock_collateral(U256::from(lock_stake))
+                    .with_ramp_up_start(bidding_start),
+            )
+            .with_cycles(total_cycles_approx)
+            .with_journal(journal)
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn send_request(
         &self,
         request: RequestParams,
         job_id: Uuid,
         image_id: Digest,
+        journal: Journal,
+        receipt_claim: ReceiptClaim,
         receipt_type: ReceiptType,
         total_cycles_approx: u64,
     ) -> Result<(String, u64), ClientError> {
@@ -376,6 +462,8 @@ impl BoundlessProver {
             request_id: req_id.clone(),
             request_expiry,
             image_id: image_id.into(),
+            journal_bytes: journal.bytes.to_vec(),
+            receipt_claim_bytes: borsh::to_vec(&receipt_claim).expect("should serialize"),
             receipt_type,
             total_cycles_approx,
         };
@@ -386,12 +474,15 @@ impl BoundlessProver {
         Ok((req_id.to_string(), request_expiry))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn spawn_handler(
         &self,
         job_id: Uuid,
         receipt_type: ReceiptType,
         request_id: String,
         image_id: Digest,
+        journal: Journal,
+        receipt_claim: ReceiptClaim,
         request_expiry: u64,
         total_cycles_approx: u64,
     ) -> oneshot::Receiver<ProofWithJob> {
@@ -403,7 +494,7 @@ impl BoundlessProver {
             let mut request_expiry = request_expiry;
             loop {
                 match this
-                    .handle_session(request_id.clone(), image_id, request_expiry)
+                    .handle_session(request_id.clone(), image_id, journal.clone(), receipt_claim.clone(), request_expiry)
                     .await
                 {
                     Ok(receipt) => {
@@ -451,6 +542,8 @@ impl BoundlessProver {
                             job_id,
                             &mut request_id,
                             &mut request_expiry,
+                            journal.clone(),
+                            receipt_claim.clone(),
                             total_cycles_approx,
                             image_id,
                             receipt_type,
@@ -458,19 +551,26 @@ impl BoundlessProver {
                         .await
                         {
                             Ok(res) => {
-                                if matches!(res, ResubmitResult::Success) {
-                                    tracing::info!(
-                                    "Resubmitted boundless proving session job: {} | Boundless request id: {}",
-                                    job_id,
-                                    request_id
-                                );
-                            }
-                                tracing::info!(
-                                    "Resubmit boundless proving session Failed with job id: {}, and boundless request id: {} retrying...",
-                                    job_id,
-                                    request_id
-                                );
-                                continue;
+                                match res {
+                                    ResubmitResult::Retry => {
+                                        tracing::info!(
+                                            "Retrying resubmission of boundless proving session job: {} | Boundless request id: {} after {:?}",
+                                            job_id,
+                                            request_id,
+                                            RETRY_RESUBMISSION_DELAY_SECS
+                                        );
+                                        // Retry resubmission after a delay
+                                        tokio::time::sleep(RETRY_RESUBMISSION_DELAY_SECS).await;
+                                    }
+                                    ResubmitResult::Success => {
+                                        // Successfully resubmitted, continue to next iteration to monitor new request
+                                        tracing::info!(
+                                            "Resubmitted boundless proving session job: {} | Boundless request id: {}",
+                                            job_id,
+                                            request_id
+                                        );
+                                    }
+                                }
                             }
                             Err(e) => {
                                 tracing::error!(
@@ -497,11 +597,14 @@ impl BoundlessProver {
         rx
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn handle_resubmit_on_failed_request(
         &self,
         job_id: Uuid,
         request_id: &mut String,
         request_expiry: &mut u64,
+        journal: Journal,
+        receipt_claim: ReceiptClaim,
         total_cycles_approx: u64,
         image_id: Digest,
         receipt_type: ReceiptType,
@@ -555,12 +658,12 @@ impl BoundlessProver {
                 e
             )
         })?;
-        let max_possible_price = price_response.max_possible_price;
+        let max_possible_price_wei_per_cycle = price_response.max_possible_price_wei_per_cycle;
         let lock_stake = price_response.lock_stake;
 
         // TODO: https://github.com/chainwayxyz/citrea/issues/2417
         // Define new request with updated parameters
-        let (new_min_price_per_mcycle, new_max_price_per_mcycle, new_lock_timeout) = {
+        let (new_min_price_per_cycle, new_max_price_per_cycle, new_lock_timeout) = {
             let is_locked = match self
                 .client
                 .boundless_market
@@ -579,66 +682,65 @@ impl BoundlessProver {
                 }
             };
             // Get old parameters from the failed order
-            let mcycles_count = total_cycles_approx.div_ceil(1_000_000);
-            let min_price_per_mcycle = failed_request
+            let min_price_per_cycle = failed_request
                 .offer
                 .minPrice
-                .div_ceil(U256::from(mcycles_count));
-            let max_price_per_mcycle = failed_request
+                .div_ceil(U256::from(total_cycles_approx));
+            let max_price_per_cycle = failed_request
                 .offer
                 .maxPrice
-                .div_ceil(U256::from(mcycles_count));
+                .div_ceil(U256::from(total_cycles_approx));
             let lock_timeout = failed_request.offer.lockTimeout;
 
             if is_locked {
                 // If locked, that means a prover worked on the request but failed to deliver it on time.
                 // Increase the lock timeout.
                 let lock_timeout = lock_timeout.saturating_mul(LOCKTIME_INCREASE_RATIO);
-                (min_price_per_mcycle, max_price_per_mcycle, lock_timeout)
+                (min_price_per_cycle, max_price_per_cycle, lock_timeout)
             } else {
                 // If not locked, that means the request was never taken by a prover.
-                // Increase the min and max price per mcycle.
-                let min_price_per_mcycle = min_price_per_mcycle
+                // Increase the min and max price per cycle.
+                let min_price_per_cycle = min_price_per_cycle
                     .saturating_mul(U256::from(MIN_PRICE_INCREASE_MULTIPLIER))
                     .div_ceil(U256::from(MIN_PRICE_INCREASE_DIVISOR))
-                    .min(U256::from(max_possible_price));
-                let max_price_per_mcycle = max_price_per_mcycle
+                    .min(U256::from(max_possible_price_wei_per_cycle));
+                let max_price_per_cycle = max_price_per_cycle
                     .saturating_mul(U256::from(MAX_PRICE_INCREASE_RATIO))
-                    .min(U256::from(max_possible_price));
-                (min_price_per_mcycle, max_price_per_mcycle, lock_timeout)
+                    .min(U256::from(max_possible_price_wei_per_cycle));
+                (min_price_per_cycle, max_price_per_cycle, lock_timeout)
             }
         };
 
-        let new_request = self.build_proof_request(
-            image_id,
-            // this now has image id and digest
-            // first 32 bytes is image id
-            // second 32 bytes is digest
-            failed_request.requirements.predicate.data.to_vec()[32..]
-                .try_into()
-                .unwrap(),
-            Url::parse(&failed_request.imageUrl).expect("Invalid image URL"),
-            Url::parse(
-                core::str::from_utf8(&failed_request.input.data).expect("Invalid input URL"),
+        let new_request = self
+            .build_proof_request(
+                // this now has receipt claim digest
+                receipt_claim.digest(),
+                image_id,
+                Url::parse(&failed_request.imageUrl).expect("Invalid image URL"),
+                Url::parse(
+                    core::str::from_utf8(&failed_request.input.data).expect("Invalid input URL"),
+                )
+                .expect("Invalid input URL"),
+                new_min_price_per_cycle,
+                new_max_price_per_cycle,
+                new_lock_timeout as u64,
+                new_lock_timeout as u64 * TIMEOUT_IS_N_LOCK_TIMEOUT,
+                failed_request.offer.rampUpPeriod as u64,
+                lock_stake,
+                price_response.bidding_start_delay,
+                // TODO: https://github.com/chainwayxyz/citrea/issues/2820
+                total_cycles_approx,
+                journal.clone(),
             )
-            .expect("Invalid input URL"),
-            new_min_price_per_mcycle,
-            new_max_price_per_mcycle,
-            new_lock_timeout as u64,
-            new_lock_timeout as u64 * TIMEOUT_IS_N_LOCK_TIMEOUT,
-            failed_request.offer.rampUpPeriod as u64,
-            lock_stake,
-            price_response.bidding_start,
-            // TODO: https://github.com/chainwayxyz/citrea/issues/2820
-            total_cycles_approx,
-            None,
-        );
+            .await;
 
         let (new_req_id, new_exp_time) = match self
             .send_request(
                 new_request,
                 job_id,
                 image_id,
+                journal.clone(),
+                receipt_claim.clone(),
                 receipt_type,
                 total_cycles_approx,
             )
@@ -661,11 +763,11 @@ impl BoundlessProver {
         *request_expiry = new_exp_time;
 
         tracing::info!(
-            "Resubmitted previously failing boundless proving session, job_id={} request_id={}, new min_price_per_mcycle={:?}, new max_price_per_mcycle={:?}, new lock_timeout={}",
+            "Resubmitted previously failing boundless proving session, job_id={} request_id={}, new min_price_per_cycle={:?}, new max_price_per_cycle={:?}, new lock_timeout={}",
             job_id,
             request_id,
-            new_min_price_per_mcycle,
-            new_max_price_per_mcycle,
+            new_min_price_per_cycle,
+            new_max_price_per_cycle,
             new_lock_timeout
         );
         Ok(ResubmitResult::Success)
@@ -675,6 +777,8 @@ impl BoundlessProver {
         &self,
         request_id: String,
         image_id: Digest,
+        journal: Journal,
+        receipt_claim: ReceiptClaim,
         request_expiry: u64,
     ) -> Result<Receipt, ClientError> {
         let fulfilled_request = self
@@ -685,11 +789,10 @@ impl BoundlessProver {
                 request_expiry,
             )
             .await?;
-        let fulfillment_data = fulfilled_request.data().expect("TODO: handle error");
-        let journal = fulfillment_data.journal().expect("TODO: handle error");
+
         let seal = fulfilled_request.seal;
 
-        let claim = ReceiptClaim::ok(image_id, journal.clone().to_vec());
+        let claim = receipt_claim;
 
         // The first 4 bytes of the seal are reserved for metadata; the actual data starts at index 4.
         const SEAL_DATA_OFFSET: usize = 4;
@@ -698,7 +801,7 @@ impl BoundlessProver {
             MaybePruned::Value(claim),
             risc0_zkvm::Groth16ReceiptVerifierParameters::default().digest(),
         ));
-        let full_snark_receipt = Receipt::new(inner, journal.to_vec());
+        let full_snark_receipt = Receipt::new(inner, journal.bytes.to_vec());
         full_snark_receipt.verify(image_id).unwrap();
 
         tracing::info!(
@@ -735,6 +838,11 @@ impl BoundlessProver {
                 session.receipt_type,
                 session.request_id,
                 session.image_id.into(),
+                Journal {
+                    bytes: session.journal_bytes,
+                },
+                borsh::from_slice(&session.receipt_claim_bytes)
+                    .expect("Failed to deserialize receipt claim from bytes"),
                 session.request_expiry,
                 session.total_cycles_approx,
             );
@@ -742,4 +850,12 @@ impl BoundlessProver {
         }
         Ok(rxs)
     }
+}
+
+/// Return UNIX timestamp in seconds
+fn get_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Cannot fail because there is always a UNIX epoch")
+        .as_secs()
 }

@@ -144,7 +144,7 @@ impl BackupManager {
     ///
     /// # Returns
     /// Information about the created backup including block height, path and timestamp
-    pub(super) async fn create_backup(
+    pub async fn create_backup(
         &self,
         path: Option<PathBuf>,
         ledger_db: &LedgerDB,
@@ -326,7 +326,7 @@ impl BackupManager {
     ///
     /// # Arguments
     /// * `backup_path` - Path to the backup directory to validate
-    pub(super) fn validate_backup<P: AsRef<Path>>(&self, backup_path: P) -> anyhow::Result<()> {
+    pub fn validate_backup<P: AsRef<Path>>(&self, backup_path: P) -> anyhow::Result<()> {
         let backup_path = backup_path.as_ref();
 
         if !backup_path.exists() {

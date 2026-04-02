@@ -69,6 +69,17 @@ pub struct ProvingJobResponse {
     pub status: JobStatus,
 }
 
+/// Response type for the proving session info.
+/// Contains the session ID and its current session info.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvingSessionInfoResponse {
+    /// The unique identifier for the proving session
+    pub session_id: Uuid,
+    /// The current session info of the proving session
+    pub session_info: ProvingSessionInfo,
+}
+
 /// Context for the RPC methods.
 pub struct RpcContext<Da, DB, Vm>
 where
@@ -219,11 +230,16 @@ pub trait BatchProverRpc {
     ///
     /// # Arguments
     /// * `job_id` - The unique identifier of the proving job to retrieve.
+    /// * `with_proof` - Whether to include the proof in the response (default is true).
     ///
     /// # Returns
     /// An optional `JobRpcResponse` containing the job details, including commitments and proof.
     #[method(name = "getProvingJob")]
-    async fn get_proving_job(&self, job_id: Uuid) -> RpcResult<Option<JobRpcResponse>>;
+    async fn get_proving_job(
+        &self,
+        job_id: Uuid,
+        with_proof: Option<bool>,
+    ) -> RpcResult<Option<JobRpcResponse>>;
 
     /// Gets last `count` number of job ids. Returns ids in descending order, so latest job is the first index.
     ///
@@ -240,15 +256,35 @@ pub trait BatchProverRpc {
         skip: Option<U64>,
     ) -> RpcResult<Vec<ProvingJobResponse>>;
 
+    /// Gets last `count` number of proving sessions. Returns ids in descending order, so latest session is the first index.
+    ///
+    /// # Arguments
+    /// * `limit` - The number of latest proving sessions to retrieve.
+    /// * `skip` - The number of latest proving sessions to skip for pagination (default is 0).
+    ///
+    /// # Returns
+    /// A vector of `ProvingSessionInfoResponse` containing session IDs and their infos.
+    #[method(name = "getLatestProvingSessionInfos")]
+    async fn get_proving_session_infos(
+        &self,
+        limit: U64,
+        skip: Option<U64>,
+    ) -> RpcResult<Vec<ProvingSessionInfoResponse>>;
+
     /// Gets proving job details of the commitment index.
     ///
     /// # Arguments
     /// * `index` - The commitment index to retrieve the proving job for.
+    /// * `with_proof` - Whether to include the proof in the response (default is true).
     ///
     /// # Returns
     /// An optional `JobRpcResponse` containing the job details if it exists.
     #[method(name = "getProvingJobOfCommitment")]
-    async fn get_proving_job_of_commitment(&self, index: u32) -> RpcResult<Option<JobRpcResponse>>;
+    async fn get_proving_job_of_commitment(
+        &self,
+        index: u32,
+        with_proof: Option<bool>,
+    ) -> RpcResult<Option<JobRpcResponse>>;
 
     /// Gets commitment indices seen in the L1 block
     ///
@@ -559,7 +595,11 @@ where
         Ok(b64_inputs)
     }
 
-    async fn get_proving_job(&self, job_id: Uuid) -> RpcResult<Option<JobRpcResponse>> {
+    async fn get_proving_job(
+        &self,
+        job_id: Uuid,
+        with_proof: Option<bool>,
+    ) -> RpcResult<Option<JobRpcResponse>> {
         let ledger_db = &self.context.ledger_db;
 
         let Some(commitment_indices) = ledger_db
@@ -582,18 +622,22 @@ where
             });
         }
 
-        let stored_proof = ledger_db
-            .get_proof_by_job_id(job_id)
-            .map_err(internal_rpc_error)?;
+        let proof = if with_proof.unwrap_or(true) {
+            let stored_proof = ledger_db
+                .get_proof_by_job_id(job_id)
+                .map_err(internal_rpc_error)?;
 
-        let proof = match stored_proof {
-            Some(sp) => {
-                let info = ledger_db
-                    .get_proving_session_info_by_job_id(job_id)
-                    .map_err(internal_rpc_error)?;
-                Some(make_batch_proof_response(sp, info))
+            match stored_proof {
+                Some(sp) => {
+                    let info = ledger_db
+                        .get_proving_session_info_by_job_id(job_id)
+                        .map_err(internal_rpc_error)?;
+                    Some(make_batch_proof_response(sp, info))
+                }
+                None => None,
             }
-            None => None,
+        } else {
+            None
         };
 
         Ok(Some(JobRpcResponse {
@@ -624,14 +668,42 @@ where
         Ok(jobs)
     }
 
-    async fn get_proving_job_of_commitment(&self, index: u32) -> RpcResult<Option<JobRpcResponse>> {
+    async fn get_proving_session_infos(
+        &self,
+        limit: U64,
+        skip: Option<U64>,
+    ) -> RpcResult<Vec<ProvingSessionInfoResponse>> {
+        let skip = skip.unwrap_or(U64::ZERO).to::<usize>();
+        let limit = limit.to::<usize>();
+        let limit = limit.min(self.context.rpc_config.proving_jobs_limit);
+
+        let sessions = self
+            .context
+            .ledger_db
+            .get_latest_proving_sessions(limit, skip)
+            .map_err(internal_rpc_error)?;
+        let sessions = sessions
+            .into_iter()
+            .map(|(session_id, session_info)| ProvingSessionInfoResponse {
+                session_id,
+                session_info,
+            })
+            .collect();
+        Ok(sessions)
+    }
+
+    async fn get_proving_job_of_commitment(
+        &self,
+        index: u32,
+        with_proof: Option<bool>,
+    ) -> RpcResult<Option<JobRpcResponse>> {
         let job_id = self
             .context
             .ledger_db
             .get_job_id_by_commitment_index(index)
             .map_err(internal_rpc_error)?;
         match job_id {
-            Some(job_id) => self.get_proving_job(job_id).await,
+            Some(job_id) => self.get_proving_job(job_id, with_proof).await,
             None => Ok(None),
         }
     }

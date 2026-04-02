@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
 use anyhow::bail;
@@ -11,6 +12,7 @@ use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
 use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
+use citrea_e2e::node::NodeKind;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
@@ -26,7 +28,7 @@ impl TestCase for BitcoinReorgTest {
         TestCaseConfig {
             with_sequencer: true,
             with_batch_prover: true,
-            n_nodes: 2,
+            n_nodes: HashMap::from([(NodeKind::Bitcoin, 2)]),
             ..Default::default()
         }
     }
@@ -101,8 +103,7 @@ impl TestCase for BitcoinReorgTest {
             .await?;
         assert!(matches!(tx_status, Some(TxStatus::InMempool { .. })));
 
-        // Wait for re-org monitoring
-        tokio::time::sleep(Duration::from_secs(5)).await;
+        da1.wait_mempool_len(2, None).await?;
 
         // Seq TXs should be rebroadcasted after re-org
         let mempool1 = da1.get_raw_mempool().await?;

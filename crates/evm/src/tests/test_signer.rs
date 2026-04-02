@@ -32,8 +32,8 @@ impl TestSigner {
         }
     }
 
-    /// Creates a new signer with random private key.
-    pub(crate) fn new_random() -> Self {
+    /// Creates a new signer with a deterministic private key derived from a fixed seed.
+    pub(crate) fn new_default() -> Self {
         let mut rng = StdRng::seed_from_u64(22);
         let secret_key = SecretKey::new(&mut rng);
         Self::new(secret_key)

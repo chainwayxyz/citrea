@@ -4,7 +4,8 @@ use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin_da::error::BitcoinServiceError;
-use bitcoin_da::service::{BitcoinService, UtxoSelectionMode};
+use bitcoin_da::service::BitcoinService;
+use bitcoin_da::utxo_manager::UtxoSelectionMode;
 use bitcoincore_rpc::RpcApi;
 use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
 use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
@@ -61,7 +62,7 @@ impl DaTransactionQueueingTest {
             da_service
                 .send_transaction_with_fee_rate(
                     DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                    1,
+                    1.0,
                 )
                 .await?;
             da.wait_mempool_len(8 * i, None).await?;
@@ -70,7 +71,7 @@ impl DaTransactionQueueingTest {
         da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                1,
+                1.0,
             )
             .await?;
 
@@ -88,7 +89,7 @@ impl DaTransactionQueueingTest {
         let res = da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                1,
+                1.0,
             )
             .await;
 
@@ -166,14 +167,14 @@ impl DaTransactionQueueingTest {
         let res = da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::ZKProof(verifiable_400kb_batch_proof.clone()),
-                1,
+                1.0,
             )
             .await;
         assert!(res.is_ok());
 
         // Queue is already not empty and proof cannot be sent.
         let res = da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_400kb_batch_proof), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_400kb_batch_proof), 1.0)
             .await;
         assert!(res.is_err());
 
@@ -399,7 +400,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
             da_service
                 .send_transaction_with_fee_rate(
                     DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                    1,
+                    1.0,
                 )
                 .await?;
             da.wait_mempool_len(8 * i, None).await?;
@@ -408,7 +409,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                1,
+                1.0,
             )
             .await?;
 
@@ -426,7 +427,7 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         let res = da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::ZKProof(verifiable_100kb_batch_proof.clone()),
-                1,
+                1.0,
             )
             .await;
 
@@ -501,14 +502,14 @@ impl DaTransactionQueueingUtxoSelectionModeOldestTest {
         let res = da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::ZKProof(verifiable_400kb_batch_proof.clone()),
-                1,
+                1.0,
             )
             .await;
         assert!(res.is_ok());
 
         // Should be able to send another proof that is also split up over multiple blocks
         let res = da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_400kb_batch_proof), 1)
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_400kb_batch_proof), 1.0)
             .await;
         assert!(res.is_ok());
 

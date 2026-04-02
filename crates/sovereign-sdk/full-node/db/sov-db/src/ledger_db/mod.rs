@@ -22,8 +22,8 @@ use crate::schema::tables::{
     PendingBonsaiSessionByJobId, PendingBoundlessSessionByJobId, PendingL1SubmissionJobs,
     PendingProofs, PendingSequencerCommitments, ProofByJobId, ProverLastScannedSlot,
     ProverPendingCommitments, ProverStateDiffs, ProvingSessionInfoByJobId,
-    SequencerCommitmentByIndex, ShortHeaderProofBySlotHash, SlotByHash, StateDiffByBlockNumber,
-    VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
+    ProvingSessionInfoBySlotNumber, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash,
+    SlotByHash, StateDiffByBlockNumber, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::batch_proof::{
     StoredBatchProof, StoredBatchProofOutput, StoredVerifiedProof,
@@ -468,14 +468,18 @@ impl LightClientProverLedgerOps for LedgerDB {
         l1_height: u64,
         proof: Proof,
         light_client_proof_output: StoredLightClientProofOutput,
+        info: ProvingSessionInfo,
     ) -> anyhow::Result<()> {
         let data_to_store = StoredLightClientProof {
             proof,
             light_client_proof_output,
         };
 
-        self.db
-            .put::<LightClientProofBySlotNumber>(&SlotNumber(l1_height), &data_to_store)
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<LightClientProofBySlotNumber>(&SlotNumber(l1_height), &data_to_store)?;
+        schema_batch.put::<ProvingSessionInfoBySlotNumber>(&SlotNumber(l1_height), &info)?;
+
+        self.db.write_schemas(schema_batch)
     }
 
     fn get_light_client_proof_data_by_l1_height(
@@ -484,6 +488,14 @@ impl LightClientProverLedgerOps for LedgerDB {
     ) -> anyhow::Result<Option<StoredLightClientProof>> {
         self.db
             .get::<LightClientProofBySlotNumber>(&SlotNumber(l1_height))
+    }
+
+    fn get_proving_session_info_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<Option<ProvingSessionInfo>> {
+        self.db
+            .get::<ProvingSessionInfoBySlotNumber>(&SlotNumber(l1_height))
     }
 }
 
@@ -680,6 +692,32 @@ impl BatchProverLedgerOps for LedgerDB {
         }
 
         Ok(jobs)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_latest_proving_sessions(
+        &self,
+        limit: usize,
+        skip: usize,
+    ) -> anyhow::Result<Vec<(Uuid, ProvingSessionInfo)>> {
+        let mut read_opts = ReadOptions::default();
+        // Do not fill the cache with garbage data just to read ids
+        read_opts.fill_cache(false);
+
+        let mut iter = self
+            .db
+            .iter_with_direction::<ProvingSessionInfoByJobId>(read_opts, ScanDirection::Backward)?;
+        iter.seek_to_last();
+
+        let mut sessions = Vec::with_capacity(limit);
+        for el in iter.skip(skip).take(limit) {
+            let el = el?;
+            let job_id = el.key;
+            let session = el.value;
+            sessions.push((job_id, session));
+        }
+
+        Ok(sessions)
     }
 
     #[instrument(level = "trace", skip(self), err)]
