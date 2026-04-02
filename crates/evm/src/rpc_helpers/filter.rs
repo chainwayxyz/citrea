@@ -1,4 +1,4 @@
-// https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-types/src/eth/filter.rs
+// https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/filter.rs
 
 use std::collections::HashMap;
 use std::env;
