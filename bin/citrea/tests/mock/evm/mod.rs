@@ -868,9 +868,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     );
 
     // Assert getRawTransactionByHash
-    let raw_tx_by_hash = client
-        .eth_get_raw_transaction_by_hash(tx_hash, None)
-        .await;
+    let raw_tx_by_hash = client.eth_get_raw_transaction_by_hash(tx_hash, None).await;
     assert!(raw_tx_by_hash.is_some());
 
     // Encode the transaction locally and verify it matches the RPC response

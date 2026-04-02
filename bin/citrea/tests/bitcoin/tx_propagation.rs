@@ -293,7 +293,10 @@ impl TestCase for GetRawTransactionTest {
         let raw_tx1_mempool_fn = full_node_test_client
             .eth_get_raw_transaction_by_hash(*pending_tx1.tx_hash(), Some(true))
             .await;
-        assert!(raw_tx1_mempool_fn.is_some(), "Full node should find pending tx in mempool");
+        assert!(
+            raw_tx1_mempool_fn.is_some(),
+            "Full node should find pending tx in mempool"
+        );
         assert_eq!(
             alloy::primitives::keccak256(raw_tx1_mempool_fn.as_ref().unwrap()),
             *pending_tx1.tx_hash(),
@@ -303,7 +306,10 @@ impl TestCase for GetRawTransactionTest {
         let raw_tx1_mempool_seq = seq_test_client
             .eth_get_raw_transaction_by_hash(*pending_tx1.tx_hash(), Some(true))
             .await;
-        assert!(raw_tx1_mempool_seq.is_some(), "Sequencer should find pending tx in mempool");
+        assert!(
+            raw_tx1_mempool_seq.is_some(),
+            "Sequencer should find pending tx in mempool"
+        );
         assert_eq!(
             alloy::primitives::keccak256(raw_tx1_mempool_seq.as_ref().unwrap()),
             *pending_tx1.tx_hash(),
@@ -392,7 +398,10 @@ impl TestCase for GetRawTransactionTest {
             .eth_get_raw_transaction_by_hash(*pending_tx2.tx_hash(), None)
             .await;
         assert!(raw_tx2_confirmed_seq.is_some());
-        assert_eq!(raw_tx2_confirmed_fn.unwrap(), raw_tx2_confirmed_seq.unwrap());
+        assert_eq!(
+            raw_tx2_confirmed_fn.unwrap(),
+            raw_tx2_confirmed_seq.unwrap()
+        );
 
         // === Block-based queries (same EVM code path on both nodes, only test on full node) ===
         let block = full_node_test_client
