@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 
 use alloy::network::TransactionResponse;
-use alloy_primitives::{Address, TxHash};
+use alloy_primitives::{Address, TxHash, B256, U64};
 use alloy_rpc_types::BlockNumberOrTag;
 use async_trait::async_trait;
 use citrea_e2e::config::TestCaseConfig;
@@ -239,6 +239,213 @@ impl TestCase for GetTransactionByHashTest {
 #[tokio::test]
 async fn test_get_transaction_by_hash() -> Result<()> {
     TestCaseRunner::new(GetTransactionByHashTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+/// Tests eth_getRawTransactionByHash, eth_getRawTransactionByBlockHashAndIndex,
+/// and eth_getRawTransactionByBlockNumberAndIndex RPCs.
+/// Verifies raw bytes hash to the correct transaction hash.
+/// Tests mempool (pending) and confirmed (in-block) scenarios.
+struct GetRawTransactionTest;
+
+#[async_trait]
+impl TestCase for GetRawTransactionTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_sequencer: true,
+            with_full_node: true,
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
+
+        let seq_test_client = make_test_client(SocketAddr::new(
+            sequencer.config().rpc_bind_host().parse()?,
+            sequencer.config().rpc_bind_port(),
+        ))
+        .await?;
+
+        let full_node_test_client = make_test_client(SocketAddr::new(
+            full_node.config().rpc_bind_host().parse()?,
+            full_node.config().rpc_bind_port(),
+        ))
+        .await?;
+
+        let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92265")?;
+
+        // Send two transactions
+        let pending_tx1 = seq_test_client
+            .send_eth(addr, None, None, None, 1_000_000_000u128)
+            .await?;
+
+        let pending_tx2 = seq_test_client
+            .send_eth(addr, None, None, None, 2_000_000_000u128)
+            .await?;
+
+        // Test getRawTransactionByHash with mempool_only=true (pending txs)
+        let raw_tx1_mempool = full_node_test_client
+            .eth_get_raw_transaction_by_hash(*pending_tx1.tx_hash(), Some(true))
+            .await;
+        assert!(
+            raw_tx1_mempool.is_some(),
+            "Should find pending tx in mempool"
+        );
+        // Verify raw bytes hash to correct tx hash
+        assert_eq!(
+            alloy::primitives::keccak256(raw_tx1_mempool.as_ref().unwrap()),
+            *pending_tx1.tx_hash(),
+            "Raw mempool tx bytes should hash to the original tx hash"
+        );
+
+        // Test getRawTransactionByHash with mempool_only=false (should also find in mempool)
+        let raw_tx2_any = full_node_test_client
+            .eth_get_raw_transaction_by_hash(*pending_tx2.tx_hash(), None)
+            .await;
+        assert!(raw_tx2_any.is_some());
+        assert_eq!(
+            alloy::primitives::keccak256(raw_tx2_any.as_ref().unwrap()),
+            *pending_tx2.tx_hash(),
+        );
+
+        // Block-based raw tx methods should return None when no txs in block
+        let raw_by_number_pending = full_node_test_client
+            .eth_get_raw_tx_by_block_number_and_index(BlockNumberOrTag::Latest, U64::from(0))
+            .await;
+        // Latest block (genesis) has no transactions
+        assert!(raw_by_number_pending.is_none());
+
+        // Include transactions in a block
+        sequencer.client.send_publish_batch_request().await?;
+        full_node.wait_for_l2_height(1, None).await?;
+
+        // After block publication, mempool_only=true should return None
+        let raw_tx_gone = full_node_test_client
+            .eth_get_raw_transaction_by_hash(*pending_tx1.tx_hash(), Some(true))
+            .await;
+        assert!(
+            raw_tx_gone.is_none(),
+            "Should not find confirmed tx in mempool"
+        );
+
+        // getRawTransactionByHash should find confirmed tx
+        let raw_tx1_confirmed = full_node_test_client
+            .eth_get_raw_transaction_by_hash(*pending_tx1.tx_hash(), Some(false))
+            .await;
+        assert!(raw_tx1_confirmed.is_some());
+        assert_eq!(
+            alloy::primitives::keccak256(raw_tx1_confirmed.as_ref().unwrap()),
+            *pending_tx1.tx_hash(),
+        );
+
+        let raw_tx2_confirmed = full_node_test_client
+            .eth_get_raw_transaction_by_hash(*pending_tx2.tx_hash(), None)
+            .await;
+        assert!(raw_tx2_confirmed.is_some());
+        assert_eq!(
+            alloy::primitives::keccak256(raw_tx2_confirmed.as_ref().unwrap()),
+            *pending_tx2.tx_hash(),
+        );
+
+        // Get the block to use for block-based queries
+        let block = seq_test_client
+            .eth_get_block_by_number(Some(BlockNumberOrTag::Number(1)))
+            .await;
+        let block_txs = block.transactions.as_hashes().unwrap();
+        assert!(block_txs.contains(pending_tx1.tx_hash()));
+        assert!(block_txs.contains(pending_tx2.tx_hash()));
+
+        // Find the index of tx1 in the block
+        let tx1_index = block_txs
+            .iter()
+            .position(|h| h == pending_tx1.tx_hash())
+            .unwrap();
+
+        // getRawTransactionByBlockHashAndIndex
+        let raw_by_block_hash = full_node_test_client
+            .eth_get_raw_tx_by_block_hash_and_index(block.header.hash, U64::from(tx1_index as u64))
+            .await;
+        assert!(raw_by_block_hash.is_some());
+        assert_eq!(
+            alloy::primitives::keccak256(raw_by_block_hash.as_ref().unwrap()),
+            *pending_tx1.tx_hash(),
+        );
+
+        // getRawTransactionByBlockNumberAndIndex
+        let raw_by_block_number = full_node_test_client
+            .eth_get_raw_tx_by_block_number_and_index(
+                BlockNumberOrTag::Number(1),
+                U64::from(tx1_index as u64),
+            )
+            .await;
+        assert!(raw_by_block_number.is_some());
+        assert_eq!(
+            alloy::primitives::keccak256(raw_by_block_number.as_ref().unwrap()),
+            *pending_tx1.tx_hash(),
+        );
+
+        // getRawTransactionByBlockNumberAndIndex with Latest tag
+        let raw_by_latest = full_node_test_client
+            .eth_get_raw_tx_by_block_number_and_index(
+                BlockNumberOrTag::Latest,
+                U64::from(tx1_index as u64),
+            )
+            .await;
+        assert!(raw_by_latest.is_some());
+        assert_eq!(
+            alloy::primitives::keccak256(raw_by_latest.as_ref().unwrap()),
+            *pending_tx1.tx_hash(),
+        );
+
+        // All three methods should return identical bytes for the same tx
+        assert_eq!(
+            raw_by_block_hash.unwrap(),
+            raw_by_block_number.unwrap(),
+            "Block hash and block number methods should return identical raw bytes"
+        );
+
+        // Verify consistency between raw tx and non-raw tx methods
+        let raw_tx1 = raw_tx1_confirmed.unwrap();
+        let raw_mempool_tx1 = raw_tx1_mempool.unwrap();
+        assert_eq!(
+            raw_tx1, raw_mempool_tx1,
+            "Raw tx bytes should be identical whether fetched from mempool or confirmed block"
+        );
+
+        // Non-existent transaction should return None
+        let random_hash = TxHash::random();
+        assert!(full_node_test_client
+            .eth_get_raw_transaction_by_hash(random_hash, None)
+            .await
+            .is_none());
+
+        // Invalid block hash should return None
+        assert!(full_node_test_client
+            .eth_get_raw_tx_by_block_hash_and_index(B256::ZERO, U64::from(0))
+            .await
+            .is_none());
+
+        // Invalid index should return None
+        assert!(full_node_test_client
+            .eth_get_raw_tx_by_block_hash_and_index(block.header.hash, U64::from(99))
+            .await
+            .is_none());
+        assert!(full_node_test_client
+            .eth_get_raw_tx_by_block_number_and_index(BlockNumberOrTag::Number(1), U64::from(99))
+            .await
+            .is_none());
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_get_raw_transaction() -> Result<()> {
+    TestCaseRunner::new(GetRawTransactionTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await
