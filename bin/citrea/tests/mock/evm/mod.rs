@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use alloy::consensus::constants::KECCAK_EMPTY;
 use alloy::hex::FromHex;
+use alloy::network::eip2718::Encodable2718;
 use alloy::network::TransactionResponse;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::SignerSync;
@@ -861,10 +862,41 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
 
     // Verify both block-based raw transaction methods return the same bytes
     assert_eq!(
-        raw_tx_by_block_hash.unwrap(),
-        raw_tx_by_number.unwrap(),
+        raw_tx_by_block_hash.as_ref().unwrap(),
+        raw_tx_by_number.as_ref().unwrap(),
         "Raw tx by block hash and by block number should be identical"
     );
+
+    // Assert getRawTransactionByHash
+    let raw_tx_by_hash = client
+        .eth_get_raw_transaction_by_hash(tx_hash, None)
+        .await;
+    assert!(raw_tx_by_hash.is_some());
+
+    // Encode the transaction locally and verify it matches the RPC response
+    let tx_obj = client
+        .eth_get_transaction_by_hash(tx_hash, None)
+        .await
+        .expect("Transaction should exist");
+    let locally_encoded: Bytes = tx_obj.inner.encoded_2718().into();
+    assert_eq!(
+        raw_tx_by_hash.as_ref().unwrap(),
+        &locally_encoded,
+        "Raw tx by hash should match locally encoded transaction bytes"
+    );
+
+    // Also verify consistency with block-based raw transaction methods
+    assert_eq!(
+        raw_tx_by_hash.as_ref().unwrap(),
+        raw_tx_by_block_hash.as_ref().unwrap(),
+        "Raw tx by hash and by block hash should be identical"
+    );
+
+    // Assert getRawTransactionByHash with non-existent hash returns None
+    let raw_tx_nonexistent = client
+        .eth_get_raw_transaction_by_hash(B256::ZERO, None)
+        .await;
+    assert!(raw_tx_nonexistent.is_none());
 
     let get_arg: U256 = client
         .contract_call(contract_address, contract.get_call_data(), None)
