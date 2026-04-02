@@ -55,4 +55,11 @@ ignore = [
   "RUSTSEC-2025-0141", # Ignore unmaintained bincode crate
   "RUSTSEC-2026-0009", # Ignore as no user input time present in project
   "RUSTSEC-2025-0137", # Ignore until it's fixed in upstream `alloy-primitives`. Though we shouldn't be affected.
+  # TODO: Remove after reth upgrade unblocks aws-lc-sys >=0.38.0 and rustls-webpki >=0.103.10
+  # None of these are reachable: Citrea doesn't use AES-CCM, PKCS7_verify, or CRL checking.
+  "RUSTSEC-2026-0045", # aws-lc-sys: AES-CCM timing side-channel (not used by rustls)
+  "RUSTSEC-2026-0046", # aws-lc-sys: PKCS7_verify cert chain bypass (not exposed via Rust API)
+  "RUSTSEC-2026-0047", # aws-lc-sys: PKCS7_verify signature bypass (not exposed via Rust API)
+  "RUSTSEC-2026-0048", # aws-lc-sys: CRL distribution point scope check (no CRL config in project)
+  "RUSTSEC-2026-0049", # rustls-webpki: CRL DP matching logic (no CRL config in project)
 ]
