@@ -150,6 +150,22 @@ pub trait SequencerRpc {
     #[blocking]
     fn send_raw_deposit_transaction(&self, deposit: Bytes) -> RpcResult<()>;
 
+    /// Retrieves the raw (RLP-encoded) transaction by hash
+    ///
+    /// Same lookup logic as `eth_getTransactionByHash` but returns the EIP-2718
+    /// encoded transaction bytes instead of the parsed transaction object.
+    ///
+    /// # Arguments
+    /// * `hash` - The transaction hash
+    /// * `mempool_only` - If true, only check the mempool. Default is false.
+    #[method(name = "eth_getRawTransactionByHash")]
+    #[blocking]
+    fn eth_get_raw_transaction_by_hash(
+        &self,
+        hash: B256,
+        mempool_only: Option<bool>,
+    ) -> RpcResult<Option<Bytes>>;
+
     /// Forces block production in test mode
     ///
     /// This method is only available when the sequencer is running in test mode.
@@ -272,6 +288,37 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
 
                     match evm.get_transaction_by_hash(hash, &mut working_set) {
                         Ok(tx) => Ok(tx),
+                        Err(e) => Err(e),
+                    }
+                }
+            },
+        }
+    }
+
+    fn eth_get_raw_transaction_by_hash(
+        &self,
+        hash: B256,
+        mempool_only: Option<bool>,
+    ) -> RpcResult<Option<Bytes>> {
+        debug!(
+            "Sequencer: eth_getRawTransactionByHash({}, {:?})",
+            hash, mempool_only
+        );
+
+        match self.context.mempool.get(&hash) {
+            Some(tx) => {
+                let raw = tx.transaction.transaction().inner().encoded_2718();
+                Ok(Some(raw.into()))
+            }
+            None => match mempool_only {
+                Some(true) => Ok(None),
+                _ => {
+                    let evm = Evm::<DefaultContext>::default();
+                    let mut working_set = WorkingSet::new(self.context.storage.clone());
+
+                    match evm.get_transaction_by_hash(hash, &mut working_set) {
+                        Ok(Some(tx)) => Ok(Some(tx.as_recovered().encoded_2718().into())),
+                        Ok(None) => Ok(None),
                         Err(e) => Err(e),
                     }
                 }
