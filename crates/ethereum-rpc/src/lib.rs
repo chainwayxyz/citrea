@@ -5,6 +5,7 @@ mod trace;
 
 use std::sync::Arc;
 
+use alloy_network::eip2718::Encodable2718;
 use alloy_network::AnyTransactionReceipt;
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
@@ -219,6 +220,14 @@ pub trait EthereumRpc {
     /// Install a new block filter
     #[method(name = "eth_newBlockFilter")]
     async fn new_block_filter(&self) -> RpcResult<FilterId>;
+
+    /// Get raw transaction by hash
+    #[method(name = "eth_getRawTransactionByHash")]
+    async fn eth_get_raw_transaction_by_hash(
+        &self,
+        hash: B256,
+        mempool_only: Option<bool>,
+    ) -> RpcResult<Option<Bytes>>;
 }
 
 const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
@@ -858,6 +867,61 @@ where
             .citrea_filter
             .filter_logs(&mut working_set, &evm, id)
             .await?)
+    }
+
+    async fn eth_get_raw_transaction_by_hash(
+        &self,
+        hash: B256,
+        mempool_only: Option<bool>,
+    ) -> RpcResult<Option<Bytes>> {
+        match mempool_only {
+            Some(true) => {
+                match self
+                    .ethereum
+                    .sequencer_client
+                    .as_ref()
+                    .unwrap()
+                    .eth_get_transaction_by_hash(hash, Some(true))
+                    .await
+                {
+                    Ok(tx) => match tx {
+                        Some(tx) => Ok(Some(tx.as_recovered().encoded_2718().into())),
+                        None => Ok(None),
+                    },
+                    Err(e) => match e {
+                        jsonrpsee::core::client::Error::Call(e_owned) => Err(e_owned),
+                        _ => Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
+                    },
+                }
+            }
+            _ => {
+                let evm = Evm::<C>::default();
+                let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+                match evm.get_transaction_by_hash(hash, &mut working_set) {
+                    Ok(Some(tx)) => Ok(Some(tx.as_recovered().encoded_2718().into())),
+                    Ok(None) => {
+                        match self
+                            .ethereum
+                            .sequencer_client
+                            .as_ref()
+                            .unwrap()
+                            .eth_get_transaction_by_hash(hash, Some(true))
+                            .await
+                        {
+                            Ok(tx) => match tx {
+                                Some(tx) => Ok(Some(tx.as_recovered().encoded_2718().into())),
+                                None => Ok(None),
+                            },
+                            Err(e) => match e {
+                                jsonrpsee::core::client::Error::Call(e_owned) => Err(e_owned),
+                                _ => Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
+                            },
+                        }
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+        }
     }
 }
 
