@@ -1,6 +1,9 @@
 # Changelog
 ## [Unreleased]
 
+### Added
+- feat: Get raw transaction rpcs. ([#3201](https://github.com/chainwayxyz/citrea/pull/3201))
+
 ## [v2.3.1](2026-03-31)
 
 Fix version. Only provers must update.
