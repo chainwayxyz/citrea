@@ -228,22 +228,6 @@ pub trait EthereumRpc {
         hash: B256,
         mempool_only: Option<bool>,
     ) -> RpcResult<Option<Bytes>>;
-
-    /// Get raw transaction by block hash and index
-    #[method(name = "eth_getRawTransactionByBlockHashAndIndex")]
-    async fn eth_get_raw_transaction_by_block_hash_and_index(
-        &self,
-        block_hash: B256,
-        index: U64,
-    ) -> RpcResult<Option<Bytes>>;
-
-    /// Get raw transaction by block number and index
-    #[method(name = "eth_getRawTransactionByBlockNumberAndIndex")]
-    async fn eth_get_raw_transaction_by_block_number_and_index(
-        &self,
-        block_number: BlockNumberOrTag,
-        index: U64,
-    ) -> RpcResult<Option<Bytes>>;
 }
 
 const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
@@ -940,38 +924,6 @@ where
         }
     }
 
-    async fn eth_get_raw_transaction_by_block_hash_and_index(
-        &self,
-        block_hash: B256,
-        index: U64,
-    ) -> RpcResult<Option<Bytes>> {
-        let evm = Evm::<C>::default();
-        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
-        match evm.get_transaction_by_block_hash_and_index(block_hash, index, &mut working_set) {
-            Ok(Some(tx)) => Ok(Some(tx.as_recovered().encoded_2718().into())),
-            Ok(None) => Ok(None),
-            Err(e) => Err(e),
-        }
-    }
-
-    async fn eth_get_raw_transaction_by_block_number_and_index(
-        &self,
-        block_number: BlockNumberOrTag,
-        index: U64,
-    ) -> RpcResult<Option<Bytes>> {
-        let evm = Evm::<C>::default();
-        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
-        match evm.get_transaction_by_block_number_and_index(
-            block_number,
-            index,
-            &mut working_set,
-            &self.ethereum.ledger_db,
-        ) {
-            Ok(Some(tx)) => Ok(Some(tx.as_recovered().encoded_2718().into())),
-            Ok(None) => Ok(None),
-            Err(e) => Err(e),
-        }
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
