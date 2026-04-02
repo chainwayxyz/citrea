@@ -287,79 +287,121 @@ impl TestCase for GetRawTransactionTest {
             .send_eth(addr, None, None, None, 2_000_000_000u128)
             .await?;
 
-        // Test getRawTransactionByHash with mempool_only=true (pending txs)
-        let raw_tx1_mempool = full_node_test_client
+        // === Pending stage: test getRawTransactionByHash on both full node and sequencer ===
+
+        // Full node: mempool_only=true
+        let raw_tx1_mempool_fn = full_node_test_client
             .eth_get_raw_transaction_by_hash(*pending_tx1.tx_hash(), Some(true))
             .await;
-        assert!(
-            raw_tx1_mempool.is_some(),
-            "Should find pending tx in mempool"
-        );
-        // Verify raw bytes hash to correct tx hash
+        assert!(raw_tx1_mempool_fn.is_some(), "Full node should find pending tx in mempool");
         assert_eq!(
-            alloy::primitives::keccak256(raw_tx1_mempool.as_ref().unwrap()),
+            alloy::primitives::keccak256(raw_tx1_mempool_fn.as_ref().unwrap()),
             *pending_tx1.tx_hash(),
-            "Raw mempool tx bytes should hash to the original tx hash"
         );
 
-        // Test getRawTransactionByHash with mempool_only=false (should also find in mempool)
-        let raw_tx2_any = full_node_test_client
+        // Sequencer: mempool_only=true
+        let raw_tx1_mempool_seq = seq_test_client
+            .eth_get_raw_transaction_by_hash(*pending_tx1.tx_hash(), Some(true))
+            .await;
+        assert!(raw_tx1_mempool_seq.is_some(), "Sequencer should find pending tx in mempool");
+        assert_eq!(
+            alloy::primitives::keccak256(raw_tx1_mempool_seq.as_ref().unwrap()),
+            *pending_tx1.tx_hash(),
+        );
+
+        // Sequencer and full node should return same raw bytes
+        assert_eq!(
+            raw_tx1_mempool_fn.as_ref().unwrap(),
+            raw_tx1_mempool_seq.as_ref().unwrap(),
+            "Sequencer and full node should return identical raw bytes for pending tx"
+        );
+
+        // Full node: mempool_only=None (should also find via sequencer fallback)
+        let raw_tx2_fn = full_node_test_client
             .eth_get_raw_transaction_by_hash(*pending_tx2.tx_hash(), None)
             .await;
-        assert!(raw_tx2_any.is_some());
+        assert!(raw_tx2_fn.is_some());
         assert_eq!(
-            alloy::primitives::keccak256(raw_tx2_any.as_ref().unwrap()),
+            alloy::primitives::keccak256(raw_tx2_fn.as_ref().unwrap()),
             *pending_tx2.tx_hash(),
         );
+
+        // Sequencer: mempool_only=None
+        let raw_tx2_seq = seq_test_client
+            .eth_get_raw_transaction_by_hash(*pending_tx2.tx_hash(), None)
+            .await;
+        assert!(raw_tx2_seq.is_some());
+        assert_eq!(raw_tx2_fn.unwrap(), raw_tx2_seq.unwrap());
 
         // Block-based raw tx methods should return None when no txs in block
         let raw_by_number_pending = full_node_test_client
             .eth_get_raw_tx_by_block_number_and_index(BlockNumberOrTag::Latest, U64::from(0))
             .await;
-        // Latest block (genesis) has no transactions
         assert!(raw_by_number_pending.is_none());
 
-        // Include transactions in a block
+        // === Include transactions in a block ===
         sequencer.client.send_publish_batch_request().await?;
         full_node.wait_for_l2_height(1, None).await?;
 
-        // After block publication, mempool_only=true should return None
-        let raw_tx_gone = full_node_test_client
-            .eth_get_raw_transaction_by_hash(*pending_tx1.tx_hash(), Some(true))
-            .await;
+        // After block publication, mempool_only=true should return None on both
         assert!(
-            raw_tx_gone.is_none(),
-            "Should not find confirmed tx in mempool"
+            full_node_test_client
+                .eth_get_raw_transaction_by_hash(*pending_tx1.tx_hash(), Some(true))
+                .await
+                .is_none(),
+            "Full node should not find confirmed tx in mempool"
+        );
+        assert!(
+            seq_test_client
+                .eth_get_raw_transaction_by_hash(*pending_tx1.tx_hash(), Some(true))
+                .await
+                .is_none(),
+            "Sequencer should not find confirmed tx in mempool"
         );
 
-        // getRawTransactionByHash should find confirmed tx
-        let raw_tx1_confirmed = full_node_test_client
+        // === Confirmed stage: getRawTransactionByHash on both nodes ===
+        let raw_tx1_confirmed_fn = full_node_test_client
             .eth_get_raw_transaction_by_hash(*pending_tx1.tx_hash(), Some(false))
             .await;
-        assert!(raw_tx1_confirmed.is_some());
+        assert!(raw_tx1_confirmed_fn.is_some());
         assert_eq!(
-            alloy::primitives::keccak256(raw_tx1_confirmed.as_ref().unwrap()),
+            alloy::primitives::keccak256(raw_tx1_confirmed_fn.as_ref().unwrap()),
             *pending_tx1.tx_hash(),
         );
 
-        let raw_tx2_confirmed = full_node_test_client
+        let raw_tx1_confirmed_seq = seq_test_client
+            .eth_get_raw_transaction_by_hash(*pending_tx1.tx_hash(), Some(false))
+            .await;
+        assert!(raw_tx1_confirmed_seq.is_some());
+        assert_eq!(
+            raw_tx1_confirmed_fn.as_ref().unwrap(),
+            raw_tx1_confirmed_seq.as_ref().unwrap(),
+            "Sequencer and full node should return identical raw bytes for confirmed tx"
+        );
+
+        let raw_tx2_confirmed_fn = full_node_test_client
             .eth_get_raw_transaction_by_hash(*pending_tx2.tx_hash(), None)
             .await;
-        assert!(raw_tx2_confirmed.is_some());
+        assert!(raw_tx2_confirmed_fn.is_some());
         assert_eq!(
-            alloy::primitives::keccak256(raw_tx2_confirmed.as_ref().unwrap()),
+            alloy::primitives::keccak256(raw_tx2_confirmed_fn.as_ref().unwrap()),
             *pending_tx2.tx_hash(),
         );
 
-        // Get the block to use for block-based queries
-        let block = seq_test_client
+        let raw_tx2_confirmed_seq = seq_test_client
+            .eth_get_raw_transaction_by_hash(*pending_tx2.tx_hash(), None)
+            .await;
+        assert!(raw_tx2_confirmed_seq.is_some());
+        assert_eq!(raw_tx2_confirmed_fn.unwrap(), raw_tx2_confirmed_seq.unwrap());
+
+        // === Block-based queries (same EVM code path on both nodes, only test on full node) ===
+        let block = full_node_test_client
             .eth_get_block_by_number(Some(BlockNumberOrTag::Number(1)))
             .await;
         let block_txs = block.transactions.as_hashes().unwrap();
         assert!(block_txs.contains(pending_tx1.tx_hash()));
         assert!(block_txs.contains(pending_tx2.tx_hash()));
 
-        // Find the index of tx1 in the block
         let tx1_index = block_txs
             .iter()
             .position(|h| h == pending_tx1.tx_hash())
@@ -401,35 +443,37 @@ impl TestCase for GetRawTransactionTest {
             *pending_tx1.tx_hash(),
         );
 
-        // All three methods should return identical bytes for the same tx
+        // All methods should return identical bytes for the same tx
         assert_eq!(
             raw_by_block_hash.unwrap(),
             raw_by_block_number.unwrap(),
             "Block hash and block number methods should return identical raw bytes"
         );
 
-        // Verify consistency between raw tx and non-raw tx methods
-        let raw_tx1 = raw_tx1_confirmed.unwrap();
-        let raw_mempool_tx1 = raw_tx1_mempool.unwrap();
+        // Verify consistency: raw bytes are same from mempool and confirmed
         assert_eq!(
-            raw_tx1, raw_mempool_tx1,
+            raw_tx1_confirmed_fn.unwrap(),
+            raw_tx1_mempool_fn.unwrap(),
             "Raw tx bytes should be identical whether fetched from mempool or confirmed block"
         );
 
-        // Non-existent transaction should return None
+        // === Edge cases ===
+        // getRawTransactionByHash: non-existent hash on both nodes
         let random_hash = TxHash::random();
         assert!(full_node_test_client
             .eth_get_raw_transaction_by_hash(random_hash, None)
             .await
             .is_none());
+        assert!(seq_test_client
+            .eth_get_raw_transaction_by_hash(random_hash, None)
+            .await
+            .is_none());
 
-        // Invalid block hash should return None
+        // Block-based edge cases (same code path, only test on full node)
         assert!(full_node_test_client
             .eth_get_raw_tx_by_block_hash_and_index(B256::ZERO, U64::from(0))
             .await
             .is_none());
-
-        // Invalid index should return None
         assert!(full_node_test_client
             .eth_get_raw_tx_by_block_hash_and_index(block.header.hash, U64::from(99))
             .await
