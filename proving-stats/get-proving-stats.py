@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import json
 import requests
-from pathlib import Path
 import sys
 
 COMMITMENTS = [1, 2]
@@ -38,13 +36,11 @@ def wait_for_proofs()->dict:
                 raise TimeoutError(f"Timeout: Commitment {commitment_id} not proven within 10 minutes.")
             time.sleep(5)
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        futures = {executor.submit(query_until_proven, commitment_id): commitment_id for commitment_id in COMMITMENTS}
-        results = []
-        for future in as_completed(futures):
-            job_response = future.result()
-            results.append(job_response)
-        return results
+    results = []
+    for commitment_id in COMMITMENTS:
+        print(f"Waiting for proof of commitment {commitment_id}...")
+        results.append(query_until_proven(commitment_id))
+    return results
 
 def extract_cycles_from_job_responses(proof_responses):
     """Extract cycles from the proving session info in proof responses (Local prover format)"""
