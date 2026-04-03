@@ -881,13 +881,10 @@ where
                     .sequencer_client
                     .as_ref()
                     .unwrap()
-                    .eth_get_transaction_by_hash(hash, Some(true))
+                    .eth_get_raw_transaction_by_hash(hash, Some(true))
                     .await
                 {
-                    Ok(tx) => match tx {
-                        Some(tx) => Ok(Some(tx.as_recovered().encoded_2718().into())),
-                        None => Ok(None),
-                    },
+                    Ok(raw) => Ok(raw),
                     Err(e) => match e {
                         jsonrpsee::core::client::Error::Call(e_owned) => Err(e_owned),
                         _ => Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
@@ -905,13 +902,10 @@ where
                             .sequencer_client
                             .as_ref()
                             .unwrap()
-                            .eth_get_transaction_by_hash(hash, mempool_only)
+                            .eth_get_raw_transaction_by_hash(hash, mempool_only)
                             .await
                         {
-                            Ok(tx) => match tx {
-                                Some(tx) => Ok(Some(tx.as_recovered().encoded_2718().into())),
-                                None => Ok(None),
-                            },
+                            Ok(raw) => Ok(raw),
                             Err(e) => match e {
                                 jsonrpsee::core::client::Error::Call(e_owned) => Err(e_owned),
                                 _ => Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
