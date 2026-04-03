@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import subprocess
 import time
-import uuid
-import os
-import re
 import json
-import signal
 import requests
 from pathlib import Path
 import sys
@@ -28,7 +23,7 @@ def wait_for_proofs()->dict:
             res = requests.post(PROVER_RPC_URL, json=payload, timeout=5)
             res.raise_for_status()
             result = res.json().get("result")
-            return result.get("proof")
+            return result
         except Exception as e:
             print(f"RPC error for commitment {commitment_id}: {e}")
             return None
@@ -36,38 +31,33 @@ def wait_for_proofs()->dict:
     def query_until_proven(commitment_id):
         start_time = time.time()
         while True:
-            proof = query(commitment_id)
-            if proof:
-                return proof
+            job_response = query(commitment_id)
+            if job_response and job_response.get("proof"):
+                return job_response.get("proof")
             elif (time.time() - start_time) > 600: # 10 minutes in seconds
                 raise TimeoutError(f"Timeout: Commitment {commitment_id} not proven within 10 minutes.")
-                return None
             time.sleep(5)
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = {executor.submit(query_until_proven, commitment_id): commitment_id for commitment_id in COMMITMENTS}
         results = []
         for future in as_completed(futures):
-            proof = future.result()
-            results.append(proof)
+            job_response = future.result()
+            results.append(job_response)
         return results
 
-# --- Parse log lines ---
-def extract_cycles(log_lines):
-    pattern = re.compile(r"SessionStats\s*{[^}]*?total_cycles:\s*(\d+),\s*user_cycles:\s*(\d+),\s*paging_cycles:\s*(\d+),\s*reserved_cycles:\s*(\d+)")
+def extract_cycles_from_job_responses(proof_responses):
+    """Extract cycles from the proving session info in proof responses (Local prover format)"""
     total = user = paging = reserved = 0
-    matched = 0
-    for line in log_lines:
-        match = pattern.search(line)
-        if match:
-            matched += 1
+    
+    for proof in proof_responses:
+        info = proof["info"]
+        local_info = info["Local"]
 
-            total += int(match.group(1))
-            user += int(match.group(2))
-            paging += int(match.group(3))
-            reserved += int(match.group(4))
-
-    assert matched == 2, f"Expected exactly two lines with cycle counts, found {matched}."
+        total += local_info["total_cycles"]
+        user += local_info["user_cycles"]
+        paging += local_info["paging_cycles"]
+        reserved += local_info["reserved_cycles"]
     return {
         "Total Cycles": total,
         "User Cycles": user,
@@ -85,26 +75,24 @@ def state_diff_size(state_diff):
 
 
 def main():
-    if len(sys.argv) < 3:
-        print("Usage: python get_proof_data.py <batch_prover_stdout_file> <output_file>")
+    if len(sys.argv) < 2:
+        print("Usage: python get_proof_data.py <output_file>")
         sys.exit(1)
-    batch_prover_stdout_file = sys.argv[1]
-    output_file = sys.argv[2]
+    output_file = sys.argv[1]
 
     # Wait for proofs to be ready
-    proofs = wait_for_proofs()
+    proof_responses = wait_for_proofs()
 
-    state_diffs = map(lambda proof: proof["proofOutput"]["stateDiff"], proofs)
+    # Extract cycles from RPC responses
+    cycles = extract_cycles_from_job_responses(proof_responses)
+    print(f"Extracted cycles: {cycles}")
+
+    # Extract state diffs
+    state_diffs = map(lambda proof: proof["proofOutput"]["stateDiff"], proof_responses)
     total_diff_size = sum(
         map(state_diff_size, state_diffs)
     )
     print(f"Total state diff size: {total_diff_size} bytes")
-
-    # Read log lines from the batch prover stdout file
-    with open(batch_prover_stdout_file, 'r') as log_f:
-        log_lines = log_f.readlines()
-    cycles = extract_cycles(log_lines)
-    print(f"Extracted cycles: {cycles}")
 
     with open(output_file, 'w') as out_f:
         output_data = {**cycles, "State Diff Size (bytes)": total_diff_size}
