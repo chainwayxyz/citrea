@@ -307,7 +307,7 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
 
         match self.context.mempool.get(&hash) {
             Some(tx) => {
-                let raw = tx.transaction.transaction().inner().encoded_2718();
+                let raw = tx.to_consensus().encoded_2718();
                 Ok(Some(raw.into()))
             }
             None => match mempool_only {
