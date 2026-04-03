@@ -5,8 +5,9 @@ use bitcoin::secp256k1::constants::SCHNORR_SIGNATURE_SIZE;
 use bitcoin::secp256k1::schnorr::Signature;
 use bitcoin::secp256k1::SecretKey;
 use bitcoin::taproot::ControlBlock;
-use bitcoin::{Address, Amount, ScriptBuf, TxOut, Txid};
+use bitcoin::{Address, Amount, ScriptBuf, Transaction, TxOut, Txid};
 use citrea_primitives::compression::{compress_blob, decompress_blob};
+use sov_rollup_interface::da::DataOnDa;
 
 use super::body_builders::{DaTxs, RawTxData};
 use crate::helpers::builders::sign_blob_with_private_key;
@@ -100,6 +101,37 @@ fn get_mock_data() -> (Vec<u8>, Address, Vec<UTXO>) {
     ];
 
     (body, address, utxos)
+}
+
+fn assert_reveal_transaction(
+    commit: &Transaction,
+    reveal: &Transaction,
+    tx_prefix: &[u8],
+    address: &Address,
+) {
+    assert!(
+        reveal
+            .compute_wtxid()
+            .as_byte_array()
+            .starts_with(tx_prefix),
+        "reveal wtxid should start with the requested prefix"
+    );
+    assert_eq!(commit.output.len(), 2, "commit tx should have 2 outputs");
+    assert_eq!(reveal.output.len(), 1, "reveal tx should have 1 output");
+    assert_eq!(
+        reveal.input[0].previous_output.txid,
+        commit.compute_txid(),
+        "reveal should use commit as input"
+    );
+    assert_eq!(
+        reveal.input[0].previous_output.vout, 0,
+        "reveal should use commit output 0 as input"
+    );
+    assert_eq!(
+        reveal.output[0].script_pubkey,
+        address.script_pubkey(),
+        "reveal should pay to the correct address"
+    );
 }
 
 #[test]
@@ -525,18 +557,8 @@ fn create_inscription_transactions() {
         panic!("Unexpected tx kind was produced");
     };
 
-    // check pow
-    assert!(reveal
-        .tx
-        .compute_wtxid()
-        .as_byte_array()
-        .starts_with(tx_prefix));
-
-    // check outputs
-    assert_eq!(commit.output.len(), 2, "commit tx should have 2 outputs");
-
     let reveal = reveal.tx;
-    assert_eq!(reveal.output.len(), 1, "reveal tx should have 1 output");
+    assert_reveal_transaction(&commit, &reveal, tx_prefix, &address);
 
     assert_eq!(
         commit.input[0].previous_output.txid, utxos[2].tx_id,
@@ -545,22 +567,6 @@ fn create_inscription_transactions() {
     assert_eq!(
         commit.input[0].previous_output.vout, utxos[2].vout,
         "utxo to inscribe should be chosen correctly"
-    );
-
-    assert_eq!(
-        reveal.input[0].previous_output.txid,
-        commit.compute_txid(),
-        "reveal should use commit as input"
-    );
-    assert_eq!(
-        reveal.input[0].previous_output.vout, 0,
-        "reveal should use commit as input"
-    );
-
-    assert_eq!(
-        reveal.output[0].script_pubkey,
-        address.script_pubkey(),
-        "reveal should pay to the correct address"
     );
 
     // check inscription
@@ -578,6 +584,205 @@ fn create_inscription_transactions() {
         inscription.public_key, signer_public_key,
         "sequencer public key should be correct"
     );
+}
+
+#[test]
+fn create_chunked_inscription_transactions() {
+    let (_, address, utxos) = get_mock_data();
+
+    let da_private_key = SecretKey::from_slice(&[0xab; 32]).expect("32 bytes, within curve order");
+    let tx_prefix = &[0u8];
+    let chunks = vec![vec![1u8; 300], vec![2u8; 700]];
+
+    let DaTxs::Chunked {
+        commit_chunks,
+        reveal_chunks,
+        commit,
+        reveal,
+    } = super::body_builders::create_inscription_transactions(
+        RawTxData::Chunks(chunks.clone()),
+        da_private_key,
+        UtxoContext {
+            prev_utxo: None,
+            available_utxos: utxos.clone(),
+        },
+        address.clone(),
+        12.0,
+        10.0,
+        bitcoin::Network::Bitcoin,
+        tx_prefix.to_vec(),
+    )
+    .unwrap()
+    else {
+        panic!("Unexpected tx kind was produced");
+    };
+
+    assert_eq!(commit_chunks.len(), chunks.len());
+    assert_eq!(reveal_chunks.len(), chunks.len());
+    assert_eq!(
+        commit_chunks[0].input[0].previous_output.txid, utxos[2].tx_id,
+        "first chunk commit should use the smallest sufficient UTXO"
+    );
+    assert_eq!(
+        commit_chunks[0].input[0].previous_output.vout, utxos[2].vout,
+        "first chunk commit should use the smallest sufficient UTXO"
+    );
+
+    for (idx, ((commit_chunk, reveal_chunk), expected_chunk)) in commit_chunks
+        .iter()
+        .zip(reveal_chunks.iter())
+        .zip(chunks.iter())
+        .enumerate()
+    {
+        assert_reveal_transaction(commit_chunk, reveal_chunk, tx_prefix, &address);
+
+        if idx > 0 {
+            assert_eq!(
+                commit_chunk.input[0].previous_output.txid,
+                reveal_chunks[idx - 1].compute_txid(),
+                "chunk commits after the first should chain from the previous reveal"
+            );
+        }
+
+        let ParsedTransaction::Chunk(parsed_chunk) =
+            parse_relevant_transaction(reveal_chunk).unwrap()
+        else {
+            panic!("Unexpected tx kind");
+        };
+
+        assert_eq!(
+            parsed_chunk.body.as_slice(),
+            expected_chunk.as_slice(),
+            "chunk reveal should round-trip through the parser"
+        );
+    }
+
+    assert_eq!(
+        commit.input[0].previous_output.txid,
+        reveal_chunks.last().unwrap().compute_txid(),
+        "aggregate commit should chain from the last chunk reveal"
+    );
+    assert_reveal_transaction(&commit, &reveal.tx, tx_prefix, &address);
+
+    let aggregate_body = borsh::to_vec(&DataOnDa::Aggregate(
+        reveal_chunks
+            .iter()
+            .map(|tx| tx.compute_txid().to_byte_array())
+            .collect(),
+        reveal_chunks
+            .iter()
+            .map(|tx| tx.compute_wtxid().to_byte_array())
+            .collect(),
+    ))
+    .unwrap();
+    let (signature, signer_public_key) =
+        sign_blob_with_private_key(&aggregate_body, &da_private_key);
+
+    let ParsedTransaction::Aggregate(aggregate) = parse_relevant_transaction(&reveal.tx).unwrap()
+    else {
+        panic!("Unexpected tx kind");
+    };
+
+    assert_eq!(aggregate.body, aggregate_body);
+    assert_eq!(aggregate.signature, signature);
+    assert_eq!(aggregate.public_key, signer_public_key);
+}
+
+#[test]
+fn create_batch_proof_method_id_inscription_transactions() {
+    let (_, address, utxos) = get_mock_data();
+
+    let da_private_key = SecretKey::from_slice(&[0xef; 32]).expect("32 bytes, within curve order");
+    let tx_prefix = &[0u8];
+    let body = vec![7u8; 128];
+
+    let DaTxs::BatchProofMethodId { commit, reveal } =
+        super::body_builders::create_inscription_transactions(
+            RawTxData::BatchProofMethodId(body.clone()),
+            da_private_key,
+            UtxoContext {
+                prev_utxo: None,
+                available_utxos: utxos.clone(),
+            },
+            address.clone(),
+            12.0,
+            10.0,
+            bitcoin::Network::Bitcoin,
+            tx_prefix.to_vec(),
+        )
+        .unwrap()
+    else {
+        panic!("Unexpected tx kind was produced");
+    };
+
+    assert_eq!(
+        commit.input[0].previous_output.txid, utxos[2].tx_id,
+        "utxo to inscribe should be chosen correctly"
+    );
+    assert_eq!(
+        commit.input[0].previous_output.vout, utxos[2].vout,
+        "utxo to inscribe should be chosen correctly"
+    );
+
+    assert_reveal_transaction(&commit, &reveal.tx, tx_prefix, &address);
+
+    let ParsedTransaction::BatchProofMethodId(parsed_body) =
+        parse_relevant_transaction(&reveal.tx).unwrap()
+    else {
+        panic!("Unexpected tx kind");
+    };
+
+    assert_eq!(parsed_body.body, body);
+}
+
+#[test]
+fn create_sequencer_commitment_inscription_transactions() {
+    let (_, address, utxos) = get_mock_data();
+
+    let da_private_key = SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order");
+    let tx_prefix = &[0u8];
+    let body = vec![9u8; 128];
+    let (signature, signer_public_key) = sign_blob_with_private_key(&body, &da_private_key);
+
+    let DaTxs::SequencerCommitment { commit, reveal } =
+        super::body_builders::create_inscription_transactions(
+            RawTxData::SequencerCommitment(body.clone()),
+            da_private_key,
+            UtxoContext {
+                prev_utxo: None,
+                available_utxos: utxos.clone(),
+            },
+            address.clone(),
+            12.0,
+            10.0,
+            bitcoin::Network::Bitcoin,
+            tx_prefix.to_vec(),
+        )
+        .unwrap()
+    else {
+        panic!("Unexpected tx kind was produced");
+    };
+
+    assert_eq!(
+        commit.input[0].previous_output.txid, utxos[2].tx_id,
+        "utxo to inscribe should be chosen correctly"
+    );
+    assert_eq!(
+        commit.input[0].previous_output.vout, utxos[2].vout,
+        "utxo to inscribe should be chosen correctly"
+    );
+
+    assert_reveal_transaction(&commit, &reveal.tx, tx_prefix, &address);
+
+    let ParsedTransaction::SequencerCommitment(parsed_commitment) =
+        parse_relevant_transaction(&reveal.tx).unwrap()
+    else {
+        panic!("Unexpected tx kind");
+    };
+
+    assert_eq!(parsed_commitment.body, body);
+    assert_eq!(parsed_commitment.signature, signature);
+    assert_eq!(parsed_commitment.public_key, signer_public_key);
 }
 
 #[test]
