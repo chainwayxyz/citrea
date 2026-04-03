@@ -658,7 +658,7 @@ where
                             .sequencer_client
                             .as_ref()
                             .unwrap()
-                            .eth_get_transaction_by_hash(hash, Some(true))
+                            .eth_get_transaction_by_hash(hash, mempool_only)
                             .await
                         {
                             Ok(tx) => Ok(tx),
@@ -905,7 +905,7 @@ where
                             .sequencer_client
                             .as_ref()
                             .unwrap()
-                            .eth_get_transaction_by_hash(hash, Some(true))
+                            .eth_get_transaction_by_hash(hash, mempool_only)
                             .await
                         {
                             Ok(tx) => match tx {
