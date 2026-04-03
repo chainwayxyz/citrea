@@ -150,7 +150,7 @@ pub trait SequencerRpc {
     #[blocking]
     fn send_raw_deposit_transaction(&self, deposit: Bytes) -> RpcResult<()>;
 
-    /// Retrieves the raw (RLP-encoded) transaction by hash
+    /// Retrieves the raw EIP-2718 encoded transaction by hash
     ///
     /// Same lookup logic as `eth_getTransactionByHash` but returns the EIP-2718
     /// encoded transaction bytes instead of the parsed transaction object.
