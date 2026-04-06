@@ -1,6 +1,9 @@
 # Changelog
 ## [Unreleased]
 
+### Added
+- feat: Get raw transaction rpcs. ([#3201](https://github.com/chainwayxyz/citrea/pull/3201))
+
 ### Changed
 - perf: Mine reveal prefix relying on `sign_schnorr` internal randomness.([#3192](https://github.com/chainwayxyz/citrea/pull/3192))
 
