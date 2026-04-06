@@ -748,9 +748,9 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         security_council_messages_domain: &str,
         working_set: &mut WorkingSet<S>,
     ) {
-        let upgrade_authority_addresses = SecurityCouncilAddressAccessor::<S>::get(working_set)
-            .expect("Upgrade authority addresses must exist");
-        let upgrade_authority_threshold = SecurityCouncilThresholdAccessor::<S>::get(working_set)
+        let security_council_addresses = SecurityCouncilAddressAccessor::<S>::get(working_set)
+            .expect("Security council addresses must exist");
+        let security_council_threshold = SecurityCouncilThresholdAccessor::<S>::get(working_set)
             .expect("Security council threshold must exist");
         let circuit_chain_id = citrea_network_to_chain_id(network);
 
@@ -796,10 +796,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 }
 
                 if !verify_security_council_signatures(
-                    &upgrade_authority_addresses,
+                    &security_council_addresses,
                     BatchProofMethodIdUpdate::from(body.clone()),
                     &sc_tx.signatures_with_index,
-                    upgrade_authority_threshold,
+                    security_council_threshold,
                     security_council_messages_domain.to_string(),
                     circuit_chain_id,
                 ) {
@@ -818,10 +818,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 let new_member_address = Address::from_slice(&body.new_member);
 
                 if !verify_security_council_signatures(
-                    &upgrade_authority_addresses,
+                    &security_council_addresses,
                     AddSecurityCouncilMember::from(body.clone()),
                     &sc_tx.signatures_with_index,
-                    upgrade_authority_threshold,
+                    security_council_threshold,
                     security_council_messages_domain.to_string(),
                     circuit_chain_id,
                 ) {
@@ -829,12 +829,12 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     return;
                 }
 
-                if upgrade_authority_addresses.contains(&new_member_address) {
+                if security_council_addresses.contains(&new_member_address) {
                     log!("Member already exists in security council");
                     return;
                 }
 
-                let new_count = upgrade_authority_addresses.len() + 1;
+                let new_count = security_council_addresses.len() + 1;
                 if new_count > MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL {
                     log!("Adding member would exceed max security council size: new_count={}, max={}", new_count, MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL);
                     return;
@@ -849,7 +849,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     return;
                 }
 
-                let mut new_addresses = upgrade_authority_addresses.clone();
+                let mut new_addresses = security_council_addresses.clone();
                 new_addresses.push(new_member_address);
                 SecurityCouncilAddressAccessor::<S>::set(&new_addresses, working_set);
                 SecurityCouncilThresholdAccessor::<S>::set(
@@ -862,10 +862,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 let member_address = Address::from_slice(&body.member_to_be_removed);
 
                 if !verify_security_council_signatures(
-                    &upgrade_authority_addresses,
+                    &security_council_addresses,
                     RemoveSecurityCouncilMember::from(body.clone()),
                     &sc_tx.signatures_with_index,
-                    upgrade_authority_threshold,
+                    security_council_threshold,
                     security_council_messages_domain.to_string(),
                     circuit_chain_id,
                 ) {
@@ -873,12 +873,12 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     return;
                 }
 
-                if !upgrade_authority_addresses.contains(&member_address) {
+                if !security_council_addresses.contains(&member_address) {
                     log!("Member does not exist in security council");
                     return;
                 }
 
-                let remaining_count = upgrade_authority_addresses.len() - 1;
+                let remaining_count = security_council_addresses.len() - 1;
                 if remaining_count < MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL {
                     log!("Removing member would go below min security council size: remaining_count={}, min={}", remaining_count, MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL);
                     return;
@@ -903,10 +903,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 log!("Processing UpdateSecurityCouncilThresholdV1");
 
                 if !verify_security_council_signatures(
-                    &upgrade_authority_addresses,
+                    &security_council_addresses,
                     UpdateSecurityCouncilThreshold::from(body.clone()),
                     &sc_tx.signatures_with_index,
-                    upgrade_authority_threshold,
+                    security_council_threshold,
                     security_council_messages_domain.to_string(),
                     circuit_chain_id,
                 ) {
@@ -914,7 +914,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     return;
                 }
 
-                let member_count = upgrade_authority_addresses.len();
+                let member_count = security_council_addresses.len();
                 if !Self::is_valid_threshold(body.new_threshold, member_count) {
                     log!(
                         "Invalid new threshold: threshold={}, member_count={}",
@@ -935,10 +935,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 let new_address = Address::from_slice(&body.new_member);
 
                 if !verify_security_council_signatures(
-                    &upgrade_authority_addresses,
+                    &security_council_addresses,
                     ReplaceSecurityCouncilMember::from(body.clone()),
                     &sc_tx.signatures_with_index,
-                    upgrade_authority_threshold,
+                    security_council_threshold,
                     security_council_messages_domain.to_string(),
                     circuit_chain_id,
                 ) {
@@ -946,16 +946,16 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     return;
                 }
 
-                if !upgrade_authority_addresses.contains(&old_address) {
+                if !security_council_addresses.contains(&old_address) {
                     log!("Member to be replaced does not exist in security council");
                     return;
                 }
-                if upgrade_authority_addresses.contains(&new_address) {
+                if security_council_addresses.contains(&new_address) {
                     log!("New member already exists in security council");
                     return;
                 }
 
-                let new_addresses: Vec<Address> = upgrade_authority_addresses
+                let new_addresses: Vec<Address> = security_council_addresses
                     .iter()
                     .map(|a| if *a == old_address { new_address } else { *a })
                     .collect();
@@ -965,10 +965,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 log!("Processing UpdateSequencerDaPubKeyV1");
 
                 if !verify_security_council_signatures(
-                    &upgrade_authority_addresses,
+                    &security_council_addresses,
                     UpdateSequencerDaPubKey::from(body.clone()),
                     &sc_tx.signatures_with_index,
-                    upgrade_authority_threshold,
+                    security_council_threshold,
                     security_council_messages_domain.to_string(),
                     circuit_chain_id,
                 ) {
@@ -987,10 +987,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 log!("Processing UpdateBatchProverDaPubKeyV1");
 
                 if !verify_security_council_signatures(
-                    &upgrade_authority_addresses,
+                    &security_council_addresses,
                     UpdateBatchProverDaPubKey::from(body.clone()),
                     &sc_tx.signatures_with_index,
-                    upgrade_authority_threshold,
+                    security_council_threshold,
                     security_council_messages_domain.to_string(),
                     circuit_chain_id,
                 ) {
@@ -1009,10 +1009,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                 log!("Processing RemoveBatchProofMethodIdV1");
 
                 if !verify_security_council_signatures(
-                    &upgrade_authority_addresses,
+                    &security_council_addresses,
                     RemoveBatchProofMethodId::from(body.clone()),
                     &sc_tx.signatures_with_index,
-                    upgrade_authority_threshold,
+                    security_council_threshold,
                     security_council_messages_domain.to_string(),
                     circuit_chain_id,
                 ) {
@@ -1087,9 +1087,9 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         last_l2_state_root: &mut [u8; 32],
         last_l2_height: &mut u64,
     ) {
-        let upgrade_authority_addresses = SecurityCouncilAddressAccessor::<S>::get(working_set)
+        let security_council_addresses = SecurityCouncilAddressAccessor::<S>::get(working_set)
             .expect("Upgrade authority addresses must exist");
-        let upgrade_authority_threshold = SecurityCouncilThresholdAccessor::<S>::get(working_set)
+        let security_council_threshold = SecurityCouncilThresholdAccessor::<S>::get(working_set)
             .expect("Security council threshold must exist");
         let circuit_chain_id = citrea_network_to_chain_id(network);
 
@@ -1118,10 +1118,10 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
         // Signature verification
         if !verify_security_council_signatures(
-            &upgrade_authority_addresses,
+            &security_council_addresses,
             SetLcpToPreviousState::from(body.clone()),
             &sc_tx.signatures_with_index,
-            upgrade_authority_threshold,
+            security_council_threshold,
             security_council_messages_domain.to_string(),
             circuit_chain_id,
         ) {

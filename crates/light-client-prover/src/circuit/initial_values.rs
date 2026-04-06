@@ -62,8 +62,8 @@ pub mod mockda {
         Err(_) => panic!("Can't happen"),
     };
 
-    /// Initial addresses of the method ID upgrade authority in the mock DA.
-    pub const METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES: NonEmptySlice<Address> =
+    /// Initial addresses of the security council in the mock DA.
+    pub const SECURITY_COUNCIL_INITIAL_DA_ADDRESSES: NonEmptySlice<Address> =
         NonEmptySlice::new(&[
             // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077
             address!("0xd51bd554b82aa486f56030bef90b70a27a4f6d20"),
@@ -350,8 +350,8 @@ pub mod bitcoinda {
     };
 
     // TODO: Update with real addresses
-    /// Initial addresses of the method ID upgrade authority in the Bitcoin DA on Mainnet.
-    pub const MAINNET_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES: NonEmptySlice<Address> =
+    /// Initial addresses of the security council in the Bitcoin DA on Mainnet.
+    pub const MAINNET_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES: NonEmptySlice<Address> =
         NonEmptySlice::new(&[
             // TODO: Remove place holder addresses
             address!("0xffffffffffffffffffffffffffffffffffffffff"),
@@ -362,8 +362,8 @@ pub mod bitcoinda {
         ]);
 
     // TODO: Update with real addresses
-    /// Initial addresses of the method ID upgrade authority in the Bitcoin DA on Testnet.
-    pub const TESTNET_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES: NonEmptySlice<Address> =
+    /// Initial addresses of the security council in the Bitcoin DA on Testnet.
+    pub const TESTNET_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES: NonEmptySlice<Address> =
         NonEmptySlice::new(&[
             // TODO: Remove place holder addresses
             address!("0xffffffffffffffffffffffffffffffffffffffff"),
@@ -374,8 +374,8 @@ pub mod bitcoinda {
         ]);
 
     // TODO: Update with real addresses
-    /// Initial addresses of the method ID upgrade authority in the Bitcoin DA on Devnet.
-    pub const DEVNET_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES: NonEmptySlice<Address> =
+    /// Initial addresses of the security council in the Bitcoin DA on Devnet.
+    pub const DEVNET_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES: NonEmptySlice<Address> =
         NonEmptySlice::new(&[
             // TODO: Remove place holder addresses
             address!("0xffffffffffffffffffffffffffffffffffffffff"),
@@ -385,146 +385,127 @@ pub mod bitcoinda {
             address!("0xffffffffffffffffffffffffffffffffffffffff"),
         ]);
 
-    /// Initial addresses of the method ID upgrade authority in the Bitcoin DA on Nightly.
-    /// These addresses are set at compile time via the `METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS` environment variable.
+    /// Initial addresses of the security council in the Bitcoin DA on Nightly.
+    /// These addresses are set at compile time via the `SECURITY_COUNCIL_DA_ADDRESS` environment variable.
     /// If the variables are not set, they default to a predefined value.
     const NIGHTLY_ADDRESSES: [Address; 5] = [
         {
-            let address_str = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_1") {
+            let address_str = match option_env!("SECURITY_COUNCIL_DA_ADDRESS_1") {
                 Some(k) => k,
                 // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077
                 None => "0xd51bd554b82aa486f56030bef90b70a27a4f6d20",
             };
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
-                Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_1 must be valid 20-byte hex string"
-                ),
+                Err(_) => panic!("SECURITY_COUNCIL_DA_ADDRESS_1 must be valid 20-byte hex string"),
             }
         },
         {
-            let address_str = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_2") {
+            let address_str = match option_env!("SECURITY_COUNCIL_DA_ADDRESS_2") {
                 Some(k) => k,
                 // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9076
                 None => "0xfef24931c137d6c0df4f76116e0e58d281203360",
             };
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
-                Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_2 must be valid 20-byte hex string"
-                ),
+                Err(_) => panic!("SECURITY_COUNCIL_DA_ADDRESS_2 must be valid 20-byte hex string"),
             }
         },
         {
-            let address_str = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_3") {
+            let address_str = match option_env!("SECURITY_COUNCIL_DA_ADDRESS_3") {
                 Some(k) => k,
                 // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9075
                 None => "0xbb3833932330eef589dd56e855f2ca1ac015d200",
             };
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
-                Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_3 must be valid 20-byte hex string"
-                ),
+                Err(_) => panic!("SECURITY_COUNCIL_DA_ADDRESS_3 must be valid 20-byte hex string"),
             }
         },
         {
-            let address_str = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_4") {
+            let address_str = match option_env!("SECURITY_COUNCIL_DA_ADDRESS_4") {
                 Some(k) => k,
                 // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9074
                 None => "0xe976fdbc72670c34b7973ae3fa7d38478eade018",
             };
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
-                Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_4 must be valid 20-byte hex string"
-                ),
+                Err(_) => panic!("SECURITY_COUNCIL_DA_ADDRESS_4 must be valid 20-byte hex string"),
             }
         },
         {
-            let address_str = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_5") {
+            let address_str = match option_env!("SECURITY_COUNCIL_DA_ADDRESS_5") {
                 Some(k) => k,
                 // Private key: 79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9073
                 None => "0x8632ebc44c4515c9b85fae29eae3fd3722fd35ea",
             };
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
-                Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_5 must be valid 20-byte hex string"
-                ),
+                Err(_) => panic!("SECURITY_COUNCIL_DA_ADDRESS_5 must be valid 20-byte hex string"),
             }
         },
     ];
     /// Nightly addresses wrapped in NonEmptySlice.
-    pub const NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES: NonEmptySlice<Address> =
+    pub const NIGHTLY_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES: NonEmptySlice<Address> =
         NonEmptySlice::new(&NIGHTLY_ADDRESSES);
 
-    /// Initial addresses of the method ID upgrade authority in the Bitcoin DA on Test Network with Forks.
+    /// Initial addresses of the security council in the Bitcoin DA on Test Network with Forks.
     const TEST_NETWORK_WITH_FORKS_ADDRESSES: [Address; 5] = [
         {
-            let address_str = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_1") {
+            let address_str = match option_env!("SECURITY_COUNCIL_DA_ADDRESS_1") {
                 Some(k) => k,
                 None => "0xd51bd554b82aa486f56030bef90b70a27a4f6d20",
             };
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
-                Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_1 must be valid 20-byte hex string"
-                ),
+                Err(_) => panic!("SECURITY_COUNCIL_DA_ADDRESS_1 must be valid 20-byte hex string"),
             }
         },
         {
-            let address_str = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_2") {
+            let address_str = match option_env!("SECURITY_COUNCIL_DA_ADDRESS_2") {
                 Some(k) => k,
                 None => "0xfef24931c137d6c0df4f76116e0e58d281203360",
             };
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
-                Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_2 must be valid 20-byte hex string"
-                ),
+                Err(_) => panic!("SECURITY_COUNCIL_DA_ADDRESS_2 must be valid 20-byte hex string"),
             }
         },
         {
-            let address_str = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_3") {
+            let address_str = match option_env!("SECURITY_COUNCIL_DA_ADDRESS_3") {
                 Some(k) => k,
                 None => "0xbb3833932330eef589dd56e855f2ca1ac015d200",
             };
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
-                Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_3 must be valid 20-byte hex string"
-                ),
+                Err(_) => panic!("SECURITY_COUNCIL_DA_ADDRESS_3 must be valid 20-byte hex string"),
             }
         },
         {
-            let address_str = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_4") {
+            let address_str = match option_env!("SECURITY_COUNCIL_DA_ADDRESS_4") {
                 Some(k) => k,
                 None => "0xe976fdbc72670c34b7973ae3fa7d38478eade018",
             };
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
-                Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_4 must be valid 20-byte hex string"
-                ),
+                Err(_) => panic!("SECURITY_COUNCIL_DA_ADDRESS_4 must be valid 20-byte hex string"),
             }
         },
         {
-            let address_str = match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_5") {
+            let address_str = match option_env!("SECURITY_COUNCIL_DA_ADDRESS_5") {
                 Some(k) => k,
                 None => "0x8632ebc44c4515c9b85fae29eae3fd3722fd35ea",
             };
             match const_hex::const_decode_to_array(address_str.as_bytes()) {
                 Ok(address) => Address::new(address),
-                Err(_) => panic!(
-                    "METHOD_ID_UPGRADE_AUTHORITY_DA_ADDRESS_5 must be valid 20-byte hex string"
-                ),
+                Err(_) => panic!("SECURITY_COUNCIL_DA_ADDRESS_5 must be valid 20-byte hex string"),
             }
         },
     ];
     /// Test network with forks addresses wrapped in NonEmptySlice.
-    pub const TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES:
-        NonEmptySlice<Address> = NonEmptySlice::new(&TEST_NETWORK_WITH_FORKS_ADDRESSES);
+    pub const TEST_NETWORK_WITH_FORKS_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES: NonEmptySlice<
+        Address,
+    > = NonEmptySlice::new(&TEST_NETWORK_WITH_FORKS_ADDRESSES);
 
     /// Allowed previous LCP method IDs for circuit upgrades on Mainnet.
     pub const MAINNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] = &[decode_to_u32_array(
@@ -591,10 +572,8 @@ pub trait InitialValueProvider<Das: DaSpec> {
     /// Returns the public key of the sequencer.
     fn initial_sequencer_da_public_key(&self) -> [u8; 33];
 
-    /// Returns the initial addresses of the method ID upgrade authority.
-    fn initial_method_id_upgrade_authority_da_addresses(
-        &self,
-    ) -> NonEmptySlice<alloy_primitives::Address>;
+    /// Returns the initial addresses of the security council.
+    fn initial_security_council_da_addresses(&self) -> NonEmptySlice<alloy_primitives::Address>;
 
     /// Returns the initial security council signature threshold.
     fn initial_security_council_threshold(&self) -> usize;
@@ -623,11 +602,9 @@ impl InitialValueProvider<MockDaSpec> for Network {
         mockda::INITIAL_BATCH_PROVER_DA_PUBLIC_KEY
     }
 
-    fn initial_method_id_upgrade_authority_da_addresses(
-        &self,
-    ) -> NonEmptySlice<alloy_primitives::Address> {
+    fn initial_security_council_da_addresses(&self) -> NonEmptySlice<alloy_primitives::Address> {
         assert_eq!(self, &Network::Nightly, "Only nightly allowed on mock da!");
-        mockda::METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES
+        mockda::SECURITY_COUNCIL_INITIAL_DA_ADDRESSES
     }
 
     fn initial_security_council_threshold(&self) -> usize {
@@ -687,16 +664,14 @@ impl InitialValueProvider<BitcoinSpec> for Network {
         }
     }
 
-    fn initial_method_id_upgrade_authority_da_addresses(
-        &self,
-    ) -> NonEmptySlice<alloy_primitives::Address> {
+    fn initial_security_council_da_addresses(&self) -> NonEmptySlice<alloy_primitives::Address> {
         match self {
-            Network::Mainnet => bitcoinda::MAINNET_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES,
-            Network::Testnet => bitcoinda::TESTNET_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES,
-            Network::Devnet => bitcoinda::DEVNET_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES,
-            Network::Nightly => bitcoinda::NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES,
+            Network::Mainnet => bitcoinda::MAINNET_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES,
+            Network::Testnet => bitcoinda::TESTNET_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES,
+            Network::Devnet => bitcoinda::DEVNET_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES,
+            Network::Nightly => bitcoinda::NIGHTLY_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES,
             Network::TestNetworkWithForks => {
-                bitcoinda::TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_INITIAL_DA_ADDRESSES
+                bitcoinda::TEST_NETWORK_WITH_FORKS_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES
             }
         }
     }

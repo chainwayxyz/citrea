@@ -269,9 +269,7 @@ where
             self.network.initial_batch_proof_method_ids().to_vec(),
             &self.network.initial_batch_prover_da_public_key(),
             &self.network.initial_sequencer_da_public_key(),
-            self.network
-                .initial_method_id_upgrade_authority_da_addresses()
-                .inner(),
+            self.network.initial_security_council_da_addresses().inner(),
             self.network.initial_security_council_threshold(),
             self.network
                 .get_eip712_security_council_message_domain_name()
