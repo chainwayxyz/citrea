@@ -140,7 +140,7 @@ jobs:
 
   udeps:
     name: udeps
-    runs-on: ubicloud-standard-8
+    runs-on: ubicloud-standard-8-ubuntu-2404-20260312.1
     timeout-minutes: 60
     if: github.event.pull_request.draft == false
     steps:

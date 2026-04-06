@@ -7,7 +7,7 @@ on:
 
 jobs:
   linux_amd64_binary_extraction:
-    runs-on: ubicloud-standard-30
+    runs-on: ubicloud-standard-30-ubuntu-2404-20260312.1
     steps:
       - name: Checkout
         uses: actions/checkout@v5
