@@ -10,6 +10,27 @@ use sov_rollup_interface::RefCount;
 
 use super::InitialBatchProofMethodIds;
 
+/// Central registry of all storage prefixes used by LCP accessors.
+/// All prefixes must be unique to prevent storage key collisions.
+mod prefixes {
+    /// Block hash storage prefix
+    pub const BLOCK_HASH: u8 = b'b';
+    /// Chunk storage prefix
+    pub const CHUNK: u8 = b'c';
+    /// Sequencer commitment storage prefix
+    pub const SEQUENCER_COMMITMENT: u8 = b's';
+    /// Verified state transition storage prefix
+    pub const VERIFIED_STATE_TRANSITION: u8 = b'u';
+    /// Batch proof method ids storage prefix
+    pub const BATCH_PROOF_METHOD_ID: u8 = b'm';
+    /// Security council address storage prefix
+    pub const SECURITY_COUNCIL_ADDRESS: u8 = b'a';
+    /// Security council threshold storage prefix
+    pub const SECURITY_COUNCIL_THRESHOLD: u8 = b't';
+    /// Sequencer DA public key storage prefix
+    pub const SEQUENCER_DA_PUB_KEY: u8 = b'q';
+}
+
 /// Vector of activation height to method id
 pub type BatchProofMethodIds = Vec<(u64, [u32; 8])>;
 
@@ -24,8 +45,7 @@ pub struct BlockHashAccessor<S: Storage> {
 }
 
 impl<S: Storage> BlockHashAccessor<S> {
-    /// Block hash storage prefix
-    const PREFIX: u8 = b'b';
+    const PREFIX: u8 = prefixes::BLOCK_HASH;
 
     /// Checks if a block hash exists in storage
     ///
@@ -81,8 +101,7 @@ pub struct ChunkAccessor<S: Storage> {
 }
 
 impl<S: Storage> ChunkAccessor<S> {
-    /// Chunk storage prefix
-    const PREFIX: u8 = b'c';
+    const PREFIX: u8 = prefixes::CHUNK;
 
     /// Retrieves the body of a chunk if it exists in storage
     ///
@@ -141,8 +160,7 @@ pub struct SequencerCommitmentAccessor<S: Storage> {
 }
 
 impl<S: Storage> SequencerCommitmentAccessor<S> {
-    /// Sequencer commitment storage prefix
-    const PREFIX: u8 = b's';
+    const PREFIX: u8 = prefixes::SEQUENCER_COMMITMENT;
 
     /// Creates a storage key for a sequencer commitment index
     ///
@@ -206,8 +224,7 @@ pub struct VerifiedStateTransitionForSequencerCommitmentIndexAccessor<S: Storage
 }
 
 impl<S: Storage> VerifiedStateTransitionForSequencerCommitmentIndexAccessor<S> {
-    /// Verified state transaction storage prefix
-    const PREFIX: u8 = b'u';
+    const PREFIX: u8 = prefixes::VERIFIED_STATE_TRANSITION;
 
     /// Creates a storage key for a verified state transition index
     ///
@@ -278,8 +295,7 @@ pub struct BatchProofMethodIdAccessor<S: Storage> {
 }
 
 impl<S: Storage> BatchProofMethodIdAccessor<S> {
-    /// Batch proof method ids storage prefix
-    const PREFIX: u8 = b'm';
+    const PREFIX: u8 = prefixes::BATCH_PROOF_METHOD_ID;
 
     /// Creates a storage key containing just the prefix
     /// # Returns
@@ -373,8 +389,7 @@ pub struct SecurityCouncilAddressAccessor<S: Storage> {
 }
 
 impl<S: Storage> SecurityCouncilAddressAccessor<S> {
-    /// Security council address storage prefix
-    const PREFIX: u8 = b'a';
+    const PREFIX: u8 = prefixes::SECURITY_COUNCIL_ADDRESS;
 
     /// Creates a storage key containing just the prefix
     fn key() -> StorageKey {
@@ -447,8 +462,7 @@ pub struct SecurityCouncilThresholdAccessor<S: Storage> {
 }
 
 impl<S: Storage> SecurityCouncilThresholdAccessor<S> {
-    /// Security council threshold storage prefix
-    const PREFIX: u8 = b't';
+    const PREFIX: u8 = prefixes::SECURITY_COUNCIL_THRESHOLD;
 
     /// Creates a storage key containing just the prefix
     fn key() -> StorageKey {
@@ -501,8 +515,7 @@ pub struct SequencerDaPubKeyAccessor<S: Storage> {
 }
 
 impl<S: Storage> SequencerDaPubKeyAccessor<S> {
-    /// Sequencer da pubkey prefix
-    const PREFIX: u8 = b'q';
+    const PREFIX: u8 = prefixes::SEQUENCER_DA_PUB_KEY;
 
     /// Creates a storage key containing just the prefix
     fn key() -> StorageKey {
