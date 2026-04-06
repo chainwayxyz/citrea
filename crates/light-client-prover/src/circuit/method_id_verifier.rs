@@ -1,6 +1,6 @@
 use alloy_primitives::{keccak256, Address};
 use alloy_sol_types::{eip712_domain, SolStruct};
-use k256::ecdsa::VerifyingKey;
+use k256::ecdsa::{RecoveryId, VerifyingKey};
 use sov_rollup_interface::da::SECURITY_COUNCIL_SIGNATURE_SIZE;
 
 /// Error type for public key recovery operations
@@ -136,8 +136,6 @@ fn recover_pub_key_from_signature_and_prehash(
     signature: &[u8],
     message_prehash: &[u8],
 ) -> Result<VerifyingKey, PubKeyRecoveryError> {
-    use k256::ecdsa::RecoveryId;
-
     if signature.len() != 65 {
         return Err(PubKeyRecoveryError::InvalidSignatureLength);
     }
