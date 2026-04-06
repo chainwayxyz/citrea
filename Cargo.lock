@@ -3139,9 +3139,9 @@ dependencies = [
 
 [[package]]
 name = "boundless-market"
-version = "1.1.0"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b60977dc05d0a5b092d8fb30c2fe12e7408928ebf83a45117cc240f9e1375d4"
+checksum = "e939949e2749b619d344203780648f4d85433a623199adc314807ad11bb6338a"
 dependencies = [
  "alloy 1.0.9",
  "alloy-chains 0.2.1",
