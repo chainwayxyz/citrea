@@ -14,7 +14,7 @@ fn transaction_kind_to_backup_name(kind: &TransactionKind) -> &str {
     match kind {
         TransactionKind::Complete => "complete_zk_proof",
         TransactionKind::SequencerCommitment => "sequencer_commitment",
-        TransactionKind::SecurityCouncilTx => "method_id_update",
+        TransactionKind::SecurityCouncilTx => "security_council_tx",
         TransactionKind::Chunks => "chunks",
         TransactionKind::Aggregate => "aggregate",
         TransactionKind::Unknown(_) => "unknown",
