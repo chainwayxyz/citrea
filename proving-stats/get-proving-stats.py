@@ -42,7 +42,7 @@ def wait_for_proofs()->dict:
         results.append(query_until_proven(commitment_id))
     return results
 
-def extract_cycles_from_job_responses(proof_responses):
+def extract_cycles_from_proof_responses(proof_responses):
     """Extract cycles from the proving session info in proof responses (Local prover format)"""
     total = user = paging = reserved = 0
     
@@ -72,7 +72,7 @@ def state_diff_size(state_diff):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python get_proof_data.py <output_file>")
+        print("Usage: python get-proving-stats.py <output_file>")
         sys.exit(1)
     output_file = sys.argv[1]
 
@@ -80,7 +80,7 @@ def main():
     proof_responses = wait_for_proofs()
 
     # Extract cycles from RPC responses
-    cycles = extract_cycles_from_job_responses(proof_responses)
+    cycles = extract_cycles_from_proof_responses(proof_responses)
     print(f"Extracted cycles: {cycles}")
 
     # Extract state diffs
