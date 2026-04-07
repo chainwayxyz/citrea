@@ -1,11 +1,14 @@
 pub mod test_utils;
 
+use citrea_primitives::MAX_COMPRESSED_BLOB_SIZE;
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::MockZkGuest;
 use sov_modules_api::WorkingSet;
 use sov_modules_core::StorageValue;
 use sov_rollup_interface::da::{
-    BlobReaderTrait, DataOnDa, SequencerCommitment, MAX_THRESHOLD_PROXIMITY, MIN_THRESHOLD,
+    BlobReaderTrait, DataOnDa, MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL,
+    MAX_THRESHOLD_PROXIMITY, MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL, MIN_THRESHOLD,
+    SequencerCommitment,
 };
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::{
@@ -39,6 +42,7 @@ use crate::circuit::{LightClientProofCircuit, LightClientVerificationError};
 
 type Height = u64;
 const INITIAL_BATCH_PROOF_METHOD_IDS: [(Height, [u32; 8]); 1] = [(0, [0u32; 8])];
+const INITIAL_SC_MEMBER_COUNT: usize = SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner().len();
 
 /// In the below tests, mock batch proofs are constructed with their last_l1_hash_on_bitcoin_light_client_contract field
 /// having the same value with the L1 block these proofs are "found" on.
@@ -1709,6 +1713,14 @@ fn test_light_client_circuit_aggregate_size_overflow() {
         None,
     );
 
+    // Ensure the serialized proof exceeds the compressed blob size limit
+    assert!(
+        serialized_mock_proof.len() > MAX_COMPRESSED_BLOB_SIZE,
+        "Serialized mock proof ({} bytes) must exceed MAX_COMPRESSED_BLOB_SIZE ({} bytes)",
+        serialized_mock_proof.len(),
+        MAX_COMPRESSED_BLOB_SIZE,
+    );
+
     let mut chunk_blobs = vec![];
 
     for (i, chunk) in serialized_mock_proof.chunks(39700).enumerate() {
@@ -2821,12 +2833,12 @@ fn test_add_security_council_member() {
             .create_final_view_storage(),
     );
     let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
-    assert_eq!(addresses.len(), 6); // 5 initial + 1 new
+    assert_eq!(addresses.len(), INITIAL_SC_MEMBER_COUNT + 1);
     assert_eq!(addresses.last().unwrap().0 .0, new_member);
 
     let threshold =
         SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
-    assert_eq!(threshold, 3);
+    assert_eq!(threshold, INITIAL_SECURITY_COUNCIL_THRESHOLD);
 }
 
 #[test]
@@ -2890,7 +2902,7 @@ fn test_add_duplicate_member_rejected() {
             .create_final_view_storage(),
     );
     let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
-    assert_eq!(addresses.len(), 5);
+    assert_eq!(addresses.len(), INITIAL_SC_MEMBER_COUNT);
 }
 
 #[test]
@@ -2954,7 +2966,7 @@ fn test_remove_security_council_member() {
             .create_final_view_storage(),
     );
     let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
-    assert_eq!(addresses.len(), 4);
+    assert_eq!(addresses.len(), INITIAL_SC_MEMBER_COUNT - 1);
     assert!(!addresses.iter().any(|a| a.0 .0 == member_to_remove));
 
     let threshold =
@@ -3021,7 +3033,7 @@ fn test_remove_nonexistent_member_rejected() {
             .create_final_view_storage(),
     );
     let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
-    assert_eq!(addresses.len(), 5);
+    assert_eq!(addresses.len(), INITIAL_SC_MEMBER_COUNT);
 }
 
 #[test]
@@ -3211,7 +3223,7 @@ fn test_replace_security_council_member() {
             .create_final_view_storage(),
     );
     let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
-    assert_eq!(addresses.len(), 5);
+    assert_eq!(addresses.len(), INITIAL_SC_MEMBER_COUNT);
     assert!(!addresses.iter().any(|a| a.0 .0 == old_member));
     assert!(addresses.iter().any(|a| a.0 .0 == new_member));
 
@@ -3237,16 +3249,17 @@ fn test_add_member_exceeds_max_count_rejected() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    // Build 10 initial members: 5 from known keys + 5 random
+    // Build MAX initial members: known keys + random to fill
     let known_addresses = SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner();
     let mut initial_addresses: Vec<Address> = known_addresses.to_vec();
-    for i in 0u8..5 {
+    let extra_count = MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL - known_addresses.len();
+    for i in 0u8..(extra_count as u8) {
         initial_addresses.push(Address::from_slice(&[50 + i; 20]));
     }
-    assert_eq!(initial_addresses.len(), 10);
+    assert_eq!(initial_addresses.len(), MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL);
 
     let new_member = [99u8; 20];
-    // threshold 3 is valid for 10 members (3 >= MIN_THRESHOLD=2, 3 <= 10-2=8)
+    // threshold 3 is valid for MAX members (3 >= MIN_THRESHOLD=2, 3 <= MAX-2=8)
     let threshold = 3u32;
     let member_count = initial_addresses.len();
     assert!(threshold as usize >= MIN_THRESHOLD);
@@ -3294,7 +3307,7 @@ fn test_add_member_exceeds_max_count_rejected() {
             .create_final_view_storage(),
     );
     let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
-    assert_eq!(addresses.len(), 10); // Still 10, add was rejected
+    assert_eq!(addresses.len(), MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL); // Still at max, add was rejected
 }
 
 #[test]
@@ -3315,6 +3328,7 @@ fn test_remove_member_below_min_count_rejected() {
     // Use only the first 4 addresses from the known keys
     let known_addresses = SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner();
     let initial_addresses = &known_addresses[..4];
+    assert!(initial_addresses.len() - 1 < MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL);
     let member_to_remove = initial_addresses[3].0 .0;
 
     // threshold=2 is valid for 4 members (2 >= MIN_THRESHOLD=2, 2 <= 4-2=2)
@@ -3361,7 +3375,7 @@ fn test_remove_member_below_min_count_rejected() {
             .create_final_view_storage(),
     );
     let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
-    assert_eq!(addresses.len(), 4); // Still 4, remove was rejected (would go below min=4)
+    assert_eq!(addresses.len(), MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL); // Still at min, remove was rejected
 }
 
 #[test]
@@ -3424,7 +3438,7 @@ fn test_add_member_threshold_too_high_rejected() {
             .create_final_view_storage(),
     );
     let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
-    assert_eq!(addresses.len(), 5); // Still 5, add was rejected
+    assert_eq!(addresses.len(), INITIAL_SC_MEMBER_COUNT); // Still at initial, add was rejected
 
     let threshold =
         SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
@@ -4553,7 +4567,7 @@ fn test_nonce_cross_message_types() {
         BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
     assert_eq!(batch_proof_method_ids.len(), 2);
     let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
-    assert_eq!(addresses.len(), 6); // 5 initial + 1 new
+    assert_eq!(addresses.len(), INITIAL_SC_MEMBER_COUNT + 1);
     let nonce = SecurityCouncilNonceAccessor::<ProverStorage>::get(&mut working_set).unwrap();
     assert_eq!(nonce, 2);
 
@@ -4603,8 +4617,8 @@ fn test_nonce_cross_message_types() {
             .create_final_view_storage(),
     );
     let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
-    // Still 6, the replay was rejected
-    assert_eq!(addresses.len(), 6);
+    // Still initial+1, the replay was rejected
+    assert_eq!(addresses.len(), INITIAL_SC_MEMBER_COUNT + 1);
     let nonce = SecurityCouncilNonceAccessor::<ProverStorage>::get(&mut working_set).unwrap();
     assert_eq!(nonce, 2); // Nonce unchanged
 }

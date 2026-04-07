@@ -46,6 +46,7 @@ tracing = { workspace = true, optional = true }
 [dev-dependencies]
 alloy-signer = { workspace = true, features = ["eip712"] }
 alloy-signer-local = { workspace = true }
+citrea-primitives = { path = "../primitives", features = ["testing"] }
 rand = { workspace = true }
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
