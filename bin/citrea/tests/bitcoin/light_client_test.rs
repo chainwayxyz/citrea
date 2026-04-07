@@ -4408,6 +4408,10 @@ impl TestCase for SecurityCouncilMemberManagementTest {
             6,
             "CASE 6: Should have 6 members after valid remove"
         );
+        assert!(
+            !addresses.contains(&format!("{:?}", Address::from_slice(&new_member_1))),
+            "CASE 6: Removed member should not be in the list"
+        );
 
         let threshold = light_client_prover
             .client
@@ -4452,6 +4456,10 @@ impl TestCase for SecurityCouncilMemberManagementTest {
             5,
             "CASE 7 setup: Should have 5 members after valid remove"
         );
+        assert!(
+            !addresses.contains(&format!("{:?}", member_to_remove)),
+            "CASE 7 setup: Removed member should not be in the list"
+        );
 
         // Now remove another member (would leave 4, min=4). Should be valid.
         let member_to_remove_2 = _initial_addresses[3];
@@ -4486,7 +4494,11 @@ impl TestCase for SecurityCouncilMemberManagementTest {
         assert_eq!(
             addresses.len(),
             4,
-            "CASE 7: Should still have 4 members (below min rejected)"
+            "CASE 7: Should have 4 members after valid remove"
+        );
+        assert!(
+            !addresses.contains(&format!("{:?}", member_to_remove_2)),
+            "CASE 7: Removed member should not be in the list"
         );
 
         let addresses = light_client_prover
@@ -4529,6 +4541,10 @@ impl TestCase for SecurityCouncilMemberManagementTest {
             addresses.len(),
             4,
             "CASE 7: Should still have 4 members (below min rejected)"
+        );
+        assert!(
+            addresses.contains(&format!("{:?}", member_to_remove_2)),
+            "CASE 7: Member should still be present after rejected removal"
         );
 
         // --- CASE 8: Replace non-existent member (rejected) ---
@@ -5347,6 +5363,10 @@ impl TestCase for TestLcpVersionUpgrade {
             addresses_after_remove.len(),
             new_security_council_addresses.len(),
             "Security council should be back to original size after Remove"
+        );
+        assert!(
+            !addresses_after_remove.contains(&format!("{:?}", Address::from_slice(&new_member))),
+            "Removed member should not be in the list after Remove"
         );
 
         let threshold_after = light_client_prover
