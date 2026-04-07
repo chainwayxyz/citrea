@@ -77,7 +77,7 @@ struct DirectDaSubmitter {
 #[derive(Debug)]
 enum DaTxSubmitter {
     Direct(DirectDaSubmitter),
-    TxSender(tx_sender_jsonrpc_client::JsonRpcTxSenderClient),
+    TxSender(Box<tx_sender_jsonrpc_client::JsonRpcTxSenderClient>),
 }
 
 /// Map sov Network to Bitcoin Network.
@@ -240,7 +240,7 @@ impl BitcoinService {
                 })
             }?;
 
-            DaTxSubmitter::TxSender(tx_sender_client)
+            DaTxSubmitter::TxSender(Box::new(tx_sender_client))
         } else {
             let da_private_key = config
                 .da_private_key
