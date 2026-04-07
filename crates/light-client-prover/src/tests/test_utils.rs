@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-// use alloy_dyn_abi::eip712::TypedData;
 use alloy_primitives::{keccak256, Address};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
