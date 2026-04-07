@@ -4,7 +4,9 @@ use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaSpec, MockDaVeri
 use sov_mock_zkvm::MockZkGuest;
 use sov_modules_api::WorkingSet;
 use sov_modules_core::StorageValue;
-use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa, SequencerCommitment};
+use sov_rollup_interface::da::{
+    BlobReaderTrait, DataOnDa, SequencerCommitment, MAX_THRESHOLD_PROXIMITY, MIN_THRESHOLD,
+};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::{
     LightClientCircuitOutput, VerifiedStateTransitionForSequencerCommitmentIndex,
@@ -3245,7 +3247,11 @@ fn test_add_member_exceeds_max_count_rejected() {
 
     let new_member = [99u8; 20];
     // threshold 3 is valid for 10 members (3 >= MIN_THRESHOLD=2, 3 <= 10-2=8)
-    let blob = create_add_member_tx(new_member, 3, [11u8; 32], 1);
+    let threshold = 3u32;
+    let member_count = initial_addresses.len();
+    assert!(threshold as usize >= MIN_THRESHOLD);
+    assert!(threshold as usize <= member_count - MAX_THRESHOLD_PROXIMITY);
+    let blob = create_add_member_tx(new_member, threshold, [11u8; 32], 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -3261,7 +3267,7 @@ fn test_add_member_exceeds_max_count_rejected() {
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
         &initial_addresses,
-        3, // threshold=3, valid for 10 members
+        threshold as usize,
         Network::Nightly,
     );
 
@@ -3276,7 +3282,7 @@ fn test_add_member_exceeds_max_count_rejected() {
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
             &initial_addresses,
-            3,
+            threshold as usize,
             EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
             &[],
         )
