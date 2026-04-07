@@ -774,9 +774,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             return;
         }
 
-        // Increment nonce immediately after validation (like EVM tx nonce on revert)
-        SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
-
         match sc_tx.tx_type {
             SecurityCouncilTxType::BatchProofMethodIdUpdateV1(body) => {
                 log!("Processing BatchProofMethodIdUpdateV1");
@@ -806,6 +803,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     log!("Method ID security council verification failed");
                     return;
                 }
+                SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
 
                 BatchProofMethodIdAccessor::<S>::insert(
                     body.activation_l2_height,
@@ -828,6 +826,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     log!("Add member security council verification failed");
                     return;
                 }
+                SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
 
                 if security_council_addresses.contains(&new_member_address) {
                     log!("Member already exists in security council");
@@ -872,6 +871,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     log!("Remove member security council verification failed");
                     return;
                 }
+                SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
 
                 if !security_council_addresses.contains(&member_address) {
                     log!("Member does not exist in security council");
@@ -913,6 +913,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     log!("Update threshold security council verification failed");
                     return;
                 }
+                SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
 
                 let member_count = security_council_addresses.len();
                 if !Self::is_valid_threshold(body.new_threshold, member_count) {
@@ -945,6 +946,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     log!("Replace member security council verification failed");
                     return;
                 }
+                SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
 
                 if !security_council_addresses.contains(&old_address) {
                     log!("Member to be replaced does not exist in security council");
@@ -975,6 +977,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     log!("Update sequencer DA pub key security council verification failed");
                     return;
                 }
+                SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
 
                 if body.new_pub_key == [0u8; 33] {
                     log!("New sequencer DA pub key cannot be all zeros");
@@ -997,6 +1000,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     log!("Update batch prover DA pub key security council verification failed");
                     return;
                 }
+                SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
 
                 if body.new_pub_key == [0u8; 33] {
                     log!("New batch prover DA pub key cannot be all zeros");
@@ -1019,6 +1023,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     log!("Remove batch proof method id security council verification failed");
                     return;
                 }
+                SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
 
                 let batch_proof_method_ids =
                     BatchProofMethodIdAccessor::<S>::get(working_set).unwrap();
@@ -1113,9 +1118,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             return;
         }
 
-        // Increment nonce immediately after validation (like EVM tx nonce on revert)
-        SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
-
         // Signature verification
         if !verify_security_council_signatures(
             &security_council_addresses,
@@ -1128,6 +1130,9 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             log!("SetLcpToPreviousState security council verification failed");
             return;
         }
+        // Increment nonce after signature verification - authentic messages consume their nonce
+        // even if subsequent business logic checks fail
+        SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
 
         // Validate: index must be less than current last_sequencer_commitment_index
         if body.index >= *last_sequencer_commitment_index {
