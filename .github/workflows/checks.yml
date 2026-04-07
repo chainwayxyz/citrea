@@ -101,9 +101,9 @@ jobs:
       - name: Cache riscv-guest
         uses: ubicloud/cache@v4
         with:
-          key: build-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: build-guests-v1-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/riscv-guest
-          restore-keys: build-guests-v0-${{ runner.os }}-
+          restore-keys: build-guests-v1-${{ runner.os }}-
 
       - name: Build citrea
         run: make build
@@ -417,9 +417,9 @@ jobs:
       - name: Cache riscv-guest
         uses: ubicloud/cache@v4
         with:
-          key: build-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: build-guests-v1-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/riscv-guest
-          restore-keys: build-guests-v0-${{ runner.os }}-
+          restore-keys: build-guests-v1-${{ runner.os }}-
 
       - name: Run nextest
         run: make test
