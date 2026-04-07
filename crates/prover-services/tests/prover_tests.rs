@@ -36,7 +36,7 @@ async fn test_successful_prover_execution() {
     let hash_from_proof = extract_output_header(&proof.proof);
     assert_eq!(hash_from_proof, header_hash);
 
-    prover_service.submit_proof(proof.proof, id).await.unwrap();
+    let _tx_id = prover_service.submit_proof(proof.proof, id).await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]

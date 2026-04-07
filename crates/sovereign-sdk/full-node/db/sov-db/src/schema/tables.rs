@@ -395,7 +395,6 @@ define_table_with_default_codec!(
     /// Jobs waiting to be submitted to DA layer
     (PendingL1SubmissionJobs) Uuid => ()
 );
-
 define_table_with_seek_key_codec!(
     /// Pending Bonsai proving sessions by job id
     (PendingBonsaiSessionByJobId) Uuid => BonsaiSession

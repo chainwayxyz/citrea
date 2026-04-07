@@ -27,6 +27,7 @@ pub mod tangerine_related;
 pub mod taproot_key_spend;
 pub mod tx_chain;
 pub mod tx_propagation;
+pub mod tx_sender;
 
 pub(super) fn get_citrea_path() -> PathBuf {
     std::env::var("CITREA_E2E_TEST_BINARY").map_or_else(

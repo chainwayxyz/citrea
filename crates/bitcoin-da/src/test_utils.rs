@@ -18,8 +18,9 @@ impl BitcoinService {
         fee_sat_per_vbyte: f64,
     ) -> Result<()> {
         let network = self.network;
-
-        let da_private_key = self.da_private_key.expect("No private key set");
+        let da_private_key = self.da_private_key()?;
+        let utxo_manager = self.utxo_manager()?;
+        let tx_signer = self.tx_signer()?;
 
         match tx_request {
             DaTxRequest::ZKProof(zkproof) => {
@@ -33,7 +34,7 @@ impl BitcoinService {
                     RawTxData::Chunks(chunks) => {
                         for body in chunks {
                             // get all available utxos that are not already spent
-                            let utxos = self.utxo_manager.get_available_utxos().await?;
+                            let utxos = utxo_manager.get_available_utxos().await?;
                             let utxos = utxos
                                 .into_iter()
                                 .filter(|utxo| {
@@ -43,7 +44,7 @@ impl BitcoinService {
                                 })
                                 .collect::<Vec<_>>();
 
-                            let prev_utxo = self.utxo_manager.get_prev_utxo().await;
+                            let prev_utxo = utxo_manager.get_prev_utxo().await;
 
                             // get address from a utxo
                             let address = utxos[0]
@@ -76,7 +77,7 @@ impl BitcoinService {
                                 }
                                 .unwrap();
 
-                            let signed_txs = self.tx_signer.sign_da_txs(da_txs).await?;
+                            let signed_txs = tx_signer.sign_da_txs(da_txs).await?;
 
                             reveal_chunks.push((txid, wtxid));
 
@@ -92,12 +93,12 @@ impl BitcoinService {
                             borsh::to_vec(&aggregate).expect("Aggregate serialize must not fail");
 
                         // get all available utxos that are not already spent
-                        let utxos = self.utxo_manager.get_available_utxos().await?;
+                        let utxos = utxo_manager.get_available_utxos().await?;
                         let utxos = utxos
                             .into_iter()
                             .filter(|utxo| utxo.amount >= 50 * 10_u64.pow(8))
                             .collect::<Vec<_>>();
-                        let prev_utxo = self.utxo_manager.get_prev_utxo().await;
+                        let prev_utxo = utxo_manager.get_prev_utxo().await;
 
                         // get address from a utxo
                         let address = utxos[0]
@@ -119,7 +120,7 @@ impl BitcoinService {
                         )
                         .unwrap();
 
-                        let signed_txs = self.tx_signer.sign_da_txs(da_txs).await?;
+                        let signed_txs = tx_signer.sign_da_txs(da_txs).await?;
 
                         txids.extend(self.send_signed_transaction(&signed_txs[0]).await?);
                     }

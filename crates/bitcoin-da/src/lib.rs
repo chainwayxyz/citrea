@@ -70,6 +70,9 @@ pub mod fee;
 pub mod rpc;
 
 #[cfg(feature = "native")]
+pub mod tx_sender;
+
+#[cfg(feature = "native")]
 pub mod utxo_manager;
 
 #[cfg(feature = "testing")]

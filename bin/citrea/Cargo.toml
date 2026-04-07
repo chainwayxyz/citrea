@@ -99,6 +99,7 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
+tx-sender-jsonrpc-client = { workspace = true }
 uuid = { workspace = true }
 
 revm = { workspace = true }

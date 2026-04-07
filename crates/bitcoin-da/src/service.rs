@@ -55,6 +55,7 @@ use crate::spec::proof::InclusionMultiProof;
 use crate::spec::short_proof::BitcoinHeaderShortProof;
 use crate::spec::transaction::TransactionWrapper;
 use crate::spec::{BitcoinSpec, RollupParams};
+use crate::tx_sender::queue_tx_sender_request;
 use crate::tx_signer::{SignedTxPair, TxSigner};
 use crate::utxo_manager::{UtxoContext, UtxoManager, UtxoSelectionMode};
 use crate::verifier::{
@@ -64,6 +65,20 @@ use crate::verifier::{
 pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
 
 const POLLING_INTERVAL: u64 = 10; // seconds
+
+#[derive(Debug)]
+struct DirectDaSubmitter {
+    da_private_key: Option<SecretKey>,
+    tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
+    tx_signer: TxSigner,
+    utxo_manager: UtxoManager,
+}
+
+#[derive(Debug)]
+enum DaTxSubmitter {
+    Direct(DirectDaSubmitter),
+    TxSender(tx_sender_jsonrpc_client::JsonRpcTxSenderClient),
+}
 
 /// Map sov Network to Bitcoin Network.
 pub fn network_to_bitcoin_network(network: &Network) -> bitcoin::Network {
@@ -108,6 +123,11 @@ pub struct BitcoinServiceConfig {
 
     /// Connection timeout for RPC in seconds
     pub rpc_connect_timeout_secs: Option<u64>,
+
+    /// URL of the external tx-sender service.
+    /// When set, DA transactions are delegated to the tx-sender instead of
+    /// being broadcast directly via the Bitcoin RPC.
+    pub tx_sender_url: Option<String>,
 }
 
 impl citrea_common::FromEnv for BitcoinServiceConfig {
@@ -133,6 +153,7 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
             rpc_connect_timeout_secs: read_env("BITCOIN_RPC_CONNECT_TIMEOUT_SECS")
                 .ok()
                 .and_then(|v| v.parse::<u64>().ok()),
+            tx_sender_url: read_env("TX_SENDER_URL").ok(),
         })
     }
 }
@@ -143,7 +164,6 @@ pub struct BitcoinService {
     client: Arc<Client>,
     pub(crate) network: bitcoin::Network,
     network_constants: NetworkConstants,
-    pub(crate) da_private_key: Option<SecretKey>,
     pub(crate) reveal_tx_prefix: Vec<u8>,
     inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
     pub(crate) tx_backup_dir: PathBuf,
@@ -151,9 +171,7 @@ pub struct BitcoinService {
     pub monitoring: Arc<MonitoringService>,
     fee: FeeService,
     l1_block_hash_to_height: Arc<Mutex<LruCache<BlockHash, usize>>>,
-    tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
-    pub(crate) tx_signer: TxSigner,
-    pub(crate) utxo_manager: UtxoManager,
+    submitter: DaTxSubmitter,
 }
 
 impl BitcoinService {
@@ -165,18 +183,14 @@ impl BitcoinService {
         monitoring: Arc<MonitoringService>,
         fee: FeeService,
         inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
-        da_private_key: Option<SecretKey>,
         reveal_tx_prefix: Vec<u8>,
         tx_backup_dir: PathBuf,
-        tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
-        utxo_manager: UtxoManager,
+        submitter: DaTxSubmitter,
     ) -> Self {
         Self {
-            tx_signer: TxSigner::new(client.clone()),
             client,
             network_constants,
             network,
-            da_private_key,
             reveal_tx_prefix,
             inscribes_queue,
             tx_backup_dir,
@@ -185,8 +199,7 @@ impl BitcoinService {
             l1_block_hash_to_height: Arc::new(Mutex::new(LruCache::new(
                 NonZeroUsize::new(100).unwrap(),
             ))),
-            tx_queue,
-            utxo_manager,
+            submitter,
         }
     }
 
@@ -219,21 +232,39 @@ impl BitcoinService {
                 .map_err(BitcoinServiceError::BackupDirectoryError)?;
         }
 
-        let da_private_key = config
-            .da_private_key
-            .as_ref()
-            .map(|pk| SecretKey::from_str(pk))
-            .transpose()
-            .map_err(|_| BitcoinServiceError::InvalidPrivateKey)?;
+        let submitter = if let Some(url) = config.tx_sender_url.as_ref() {
+            let tx_sender_client = {
+                info!("Initializing external tx-sender client at {url}");
+                tx_sender_jsonrpc_client::JsonRpcTxSenderClient::new(url).map_err(|e| {
+                    BitcoinServiceError::Other(anyhow!("Failed to create tx-sender client: {e}"))
+                })
+            }?;
 
-        let tx_queue = Arc::new(Mutex::new(VecDeque::new()));
-        let utxo_manager = UtxoManager::new(
-            client.clone(),
-            monitoring.clone(),
-            tx_queue.clone(),
-            network_constants,
-            config.utxo_selection_mode.clone().unwrap_or_default(),
-        );
+            DaTxSubmitter::TxSender(tx_sender_client)
+        } else {
+            let da_private_key = config
+                .da_private_key
+                .as_ref()
+                .map(|pk| SecretKey::from_str(pk))
+                .transpose()
+                .map_err(|_| BitcoinServiceError::InvalidPrivateKey)?;
+
+            let tx_queue = Arc::new(Mutex::new(VecDeque::new()));
+            let utxo_manager = UtxoManager::new(
+                client.clone(),
+                monitoring.clone(),
+                tx_queue.clone(),
+                network_constants,
+                config.utxo_selection_mode.clone().unwrap_or_default(),
+            );
+
+            DaTxSubmitter::Direct(DirectDaSubmitter {
+                da_private_key,
+                tx_queue,
+                tx_signer: TxSigner::new(client.clone()),
+                utxo_manager,
+            })
+        };
 
         Ok(Self::new(
             client,
@@ -242,12 +273,40 @@ impl BitcoinService {
             monitoring,
             fee_service,
             inscribes_queue,
-            da_private_key,
             chain_params.reveal_tx_prefix,
             tx_backup_dir.to_path_buf(),
-            tx_queue,
-            utxo_manager,
+            submitter,
         ))
+    }
+
+    fn tx_sender_client(&self) -> Option<&tx_sender_jsonrpc_client::JsonRpcTxSenderClient> {
+        match &self.submitter {
+            DaTxSubmitter::Direct(_) => None,
+            DaTxSubmitter::TxSender(client) => Some(client),
+        }
+    }
+
+    fn direct_submitter(&self) -> Result<&DirectDaSubmitter> {
+        match &self.submitter {
+            DaTxSubmitter::Direct(submitter) => Ok(submitter),
+            DaTxSubmitter::TxSender(_) => Err(BitcoinServiceError::UnsupportedInTxSenderMode(
+                "Direct Bitcoin DA submission",
+            )),
+        }
+    }
+
+    pub(crate) fn da_private_key(&self) -> Result<SecretKey> {
+        self.direct_submitter()?
+            .da_private_key
+            .ok_or(BitcoinServiceError::MissingPrivateKey)
+    }
+
+    pub(crate) fn tx_signer(&self) -> Result<&TxSigner> {
+        Ok(&self.direct_submitter()?.tx_signer)
+    }
+
+    pub(crate) fn utxo_manager(&self) -> Result<&UtxoManager> {
+        Ok(&self.direct_submitter()?.utxo_manager)
     }
 
     /// Run the task to process the DA commands from the queue.
@@ -271,14 +330,26 @@ impl BitcoinService {
                 new_height_opt = new_block_rx.recv() => {
                     if let Some(new_height) = new_height_opt {
                         trace!("New da block height {new_height}. Processing transaction queue.");
-                        if let Err(e) = self.process_transaction_queue().await {
-                            error!(?e, "Error processing queue on new block");
+                        if self.tx_sender_client().is_none() {
+                            if let Err(e) = self.process_transaction_queue().await {
+                                error!(?e, "Error processing queue on new block");
+                            }
                         }
                     }
                 }
                 request_opt = rx.recv() => {
                     if let Some(request) = request_opt {
                         trace!("A new request is received");
+
+                        if let Some(tx_sender) = self.tx_sender_client() {
+                            queue_tx_sender_request(
+                                tx_sender.clone(),
+                                request,
+                                Duration::from_secs(POLLING_INTERVAL),
+                            )
+                            .await;
+                            continue;
+                        }
 
                         loop {
                             // Build and queue tx with retries:
@@ -299,10 +370,8 @@ impl BitcoinService {
                             {
                                 Ok(txs) => {
                                     let txid = txs.last().unwrap()[1].id;
-                                    let tx_id = TxidWrapper(txid);
                                     info!(%txid, "Sent tx to BitcoinDA");
-                                    let _ = request.notify.send(Ok(tx_id));
-
+                                    let _ = request.notify.send(Ok(TxidWrapper(txid)));
                                     fee_rate_multiplier = self.fee.base_fee_rate_multiplier();
                                 }
                                 Err(e) => {
@@ -310,12 +379,16 @@ impl BitcoinService {
                                     tokio::time::sleep(Duration::from_secs(1)).await;
 
                                     match e {
-                                        BitcoinServiceError::MempoolRejection(MempoolRejection::MinRelayFeeNotMet) | BitcoinServiceError::FeeCalculation(_) => {
-                                            fee_rate_multiplier = self.fee.get_next_fee_rate_multiplier(fee_rate_multiplier);
-                                        },
+                                        BitcoinServiceError::MempoolRejection(
+                                            MempoolRejection::MinRelayFeeNotMet,
+                                        )
+                                        | BitcoinServiceError::FeeCalculation(_) => {
+                                            fee_rate_multiplier =
+                                                self.fee.get_next_fee_rate_multiplier(fee_rate_multiplier);
+                                        }
                                         BitcoinServiceError::QueueNotEmpty => {
                                             let _ = self.process_transaction_queue().await;
-                                        },
+                                        }
                                         _ => {}
                                     }
 
@@ -337,8 +410,10 @@ impl BitcoinService {
         fee_sat_per_vbyte: f64,
     ) -> Result<Vec<[TxWithId; 2]>> {
         let now = Instant::now();
+        let utxo_manager = self.utxo_manager()?;
+        let tx_signer = self.tx_signer()?;
 
-        let utxo_context = self.utxo_manager.prepare_context().await?;
+        let utxo_context = utxo_manager.prepare_context().await?;
 
         let da_txs = self
             .create_da_transactions_with_fee_rate(
@@ -347,7 +422,7 @@ impl BitcoinService {
                 utxo_context.clone(),
             )
             .await?;
-        let signed_txs = self.tx_signer.sign_da_txs(da_txs).await?;
+        let signed_txs = tx_signer.sign_da_txs(da_txs).await?;
 
         // Test whether signed_txs should be accepted in queue
         if !self.test_mempool_accept_queue_tx(&signed_txs).await? {
@@ -368,7 +443,7 @@ impl BitcoinService {
             .await?;
 
         // Queue transactions
-        self.queue_transactions(signed_txs).await;
+        self.queue_transactions(signed_txs).await?;
 
         // Process transaction queue.
         self.process_transaction_queue().await?;
@@ -413,7 +488,7 @@ impl BitcoinService {
         };
 
         let network = self.network;
-        let da_private_key = self.da_private_key.expect("No private key set");
+        let da_private_key = self.da_private_key()?;
         // get address from a utxo
         let address = utxo_context.available_utxos[0]
             .address
@@ -440,21 +515,22 @@ impl BitcoinService {
         .map_err(|e| BitcoinServiceError::TransactionBuilderError(e.to_string()))
     }
 
-    async fn queue_transactions(&self, txs: Vec<SignedTxPair>) {
+    async fn queue_transactions(&self, txs: Vec<SignedTxPair>) -> Result<()> {
         let txs_len = txs.len();
-        self.tx_queue.lock().await.extend(txs);
+        self.direct_submitter()?.tx_queue.lock().await.extend(txs);
         BM.transaction_queue_size.increment(txs_len as f64);
+        Ok(())
     }
 
     pub(crate) async fn process_transaction_queue(&self) -> Result<Vec<Txid>> {
-        match self.utxo_manager.mode {
+        match self.utxo_manager()?.mode {
             UtxoSelectionMode::Chained => self.process_transaction_queue_chained().await,
             UtxoSelectionMode::Oldest => self.process_transaction_queue_oldest_mode().await,
         }
     }
 
     pub(crate) async fn process_transaction_queue_oldest_mode(&self) -> Result<Vec<Txid>> {
-        let mut queue = self.tx_queue.lock().await;
+        let mut queue = self.direct_submitter()?.tx_queue.lock().await;
 
         let mut txids = Vec::new();
         let mut failed_txs = VecDeque::new();
@@ -495,7 +571,7 @@ impl BitcoinService {
     /// Send transaction out of the queue to DA until the first error.
     /// Returns the successfully sent txs.
     pub(crate) async fn process_transaction_queue_chained(&self) -> Result<Vec<Txid>> {
-        let mut queue = self.tx_queue.lock().await;
+        let mut queue = self.direct_submitter()?.tx_queue.lock().await;
 
         let mut txids = Vec::new();
         while let Some(tx) = queue.front() {
@@ -628,7 +704,7 @@ impl BitcoinService {
             return Err(BitcoinServiceError::WrongStatusForBumping(tx.status));
         };
 
-        let Some(utxo) = self.utxo_manager.get_prev_utxo().await else {
+        let Some(utxo) = self.utxo_manager()?.get_prev_utxo().await else {
             return Err(BitcoinServiceError::MissingPreviousUTXO);
         };
 
@@ -1212,7 +1288,7 @@ impl DaService for BitcoinService {
                 notify: tx,
             })
             .map_err(|_| BitcoinServiceError::ChannelSendError)?;
-        Ok(rx.await?.expect("Queue never sends error"))
+        rx.await?.map_err(BitcoinServiceError::Other)
     }
 
     fn get_send_transaction_queue(
@@ -1353,7 +1429,8 @@ impl DaService for BitcoinService {
 
 /// Wrapper around Txid to be used in DaSpec.
 #[derive(PartialEq, Eq, PartialOrd, Ord, core::hash::Hash)]
-pub struct TxidWrapper(Txid);
+pub struct TxidWrapper(pub(crate) Txid);
+
 impl From<TxidWrapper> for [u8; 32] {
     fn from(val: TxidWrapper) -> Self {
         val.0.to_byte_array()

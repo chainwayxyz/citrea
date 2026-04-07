@@ -232,25 +232,16 @@ where
             l2_start.0, l2_end.0, commitment_index,
         );
 
-        let start = Instant::now();
-        let ledger_db = self.ledger_db.clone();
+        rx.await
+            .map_err(|_| anyhow!("Commitment DA submission task dropped before responding"))?
+            .map_err(|e| anyhow!("Failed to submit commitment to DA: {e}"))?;
 
-        let _tx_id = rx
-            .await
-            .map_err(|_| anyhow!("DA service is dead!"))?
-            .map_err(|_| anyhow!("Send transaction cannot fail"))?;
-
-        SM.send_commitment_execution.record(
-            Instant::now()
-                .saturating_duration_since(start)
-                .as_secs_f64(),
-        );
-
-        ledger_db
+        self.ledger_db
             .put_commitment_by_index(&commitment)
             .map_err(|_| anyhow!("Sequencer: Failed to store sequencer commitment by index"))?;
 
-        ledger_db.delete_state_diff_by_range(commitment_range)?;
+        self.ledger_db
+            .delete_state_diff_by_range(commitment_range)?;
 
         info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
 

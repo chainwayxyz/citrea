@@ -86,6 +86,9 @@ pub enum BitcoinServiceError {
     /// Invalid private key.
     #[error("Invalid private key")]
     InvalidPrivateKey,
+    /// Missing private key.
+    #[error("Missing DA private key")]
+    MissingPrivateKey,
     /// Failed to backup transactions to file.
     #[error("Failed to backup transactions to file: {0}")]
     TransactionBackupError(String),
@@ -110,6 +113,12 @@ pub enum BitcoinServiceError {
     /// Fee service operation failure.
     #[error("Fee service error: {0}")]
     FeeServiceError(#[from] FeeServiceError),
+    /// Direct Bitcoin RPC submission is unavailable when tx-sender mode is enabled.
+    #[error("{0} is unavailable when TX_SENDER_URL is configured")]
+    UnsupportedInTxSenderMode(&'static str),
+    /// Other error.
+    #[error(transparent)]
+    Other(anyhow::Error),
 }
 
 /// Error type for mempool rejections via testmempoolaccept method.

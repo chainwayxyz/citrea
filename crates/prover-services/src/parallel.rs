@@ -206,7 +206,7 @@ where
         Ok(permit)
     }
 
-    /// Submits the zk proof to the DA service, returning transaction id.
+    #[allow(clippy::type_complexity)]
     #[instrument(name = "ParallelProverService", skip_all, fields(job_id = _job_id.to_string()))]
     pub async fn submit_proof(
         &self,
