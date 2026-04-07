@@ -45,6 +45,7 @@ pub struct BlockHashAccessor<S: Storage> {
 }
 
 impl<S: Storage> BlockHashAccessor<S> {
+    /// Block hash storage prefix
     const PREFIX: u8 = prefixes::BLOCK_HASH;
 
     /// Checks if a block hash exists in storage
@@ -101,6 +102,7 @@ pub struct ChunkAccessor<S: Storage> {
 }
 
 impl<S: Storage> ChunkAccessor<S> {
+    /// Chunk storage prefix
     const PREFIX: u8 = prefixes::CHUNK;
 
     /// Retrieves the body of a chunk if it exists in storage
@@ -160,6 +162,7 @@ pub struct SequencerCommitmentAccessor<S: Storage> {
 }
 
 impl<S: Storage> SequencerCommitmentAccessor<S> {
+    /// Sequencer commitment storage prefix
     const PREFIX: u8 = prefixes::SEQUENCER_COMMITMENT;
 
     /// Creates a storage key for a sequencer commitment index
@@ -224,6 +227,7 @@ pub struct VerifiedStateTransitionForSequencerCommitmentIndexAccessor<S: Storage
 }
 
 impl<S: Storage> VerifiedStateTransitionForSequencerCommitmentIndexAccessor<S> {
+    /// Verified state transition storage prefix
     const PREFIX: u8 = prefixes::VERIFIED_STATE_TRANSITION;
 
     /// Creates a storage key for a verified state transition index
@@ -295,6 +299,7 @@ pub struct BatchProofMethodIdAccessor<S: Storage> {
 }
 
 impl<S: Storage> BatchProofMethodIdAccessor<S> {
+    /// Batch proof method ids storage prefix
     const PREFIX: u8 = prefixes::BATCH_PROOF_METHOD_ID;
 
     /// Creates a storage key containing just the prefix
@@ -389,6 +394,7 @@ pub struct SecurityCouncilAddressAccessor<S: Storage> {
 }
 
 impl<S: Storage> SecurityCouncilAddressAccessor<S> {
+    /// Security council address storage prefix
     const PREFIX: u8 = prefixes::SECURITY_COUNCIL_ADDRESS;
 
     /// Creates a storage key containing just the prefix
@@ -462,6 +468,7 @@ pub struct SecurityCouncilThresholdAccessor<S: Storage> {
 }
 
 impl<S: Storage> SecurityCouncilThresholdAccessor<S> {
+    /// Security council threshold storage prefix
     const PREFIX: u8 = prefixes::SECURITY_COUNCIL_THRESHOLD;
 
     /// Creates a storage key containing just the prefix
@@ -515,6 +522,7 @@ pub struct SequencerDaPubKeyAccessor<S: Storage> {
 }
 
 impl<S: Storage> SequencerDaPubKeyAccessor<S> {
+    /// Sequencer DA public key storage prefix
     const PREFIX: u8 = prefixes::SEQUENCER_DA_PUB_KEY;
 
     /// Creates a storage key containing just the prefix
