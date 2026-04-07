@@ -63,6 +63,7 @@ env:
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
   BITCOIN_DOCKER_IMAGE: "bitcoin/bitcoin:30.0"
+  RUST_CACHE_PREFIX: v1-rust-ubuntu-2204
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -85,6 +86,7 @@ jobs:
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
         with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
           shared-key: build
       - name: Install risc0
         uses: ./.github/actions/install-risc0
@@ -129,6 +131,8 @@ jobs:
         uses: dprint/check@v2.2
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
+        with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Run lint
         run: |
           if ! make lint ; then
@@ -206,6 +210,8 @@ jobs:
           components: llvm-tools-preview
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
+        with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
         run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
@@ -383,6 +389,8 @@ jobs:
         uses: dtolnay/rust-toolchain@1.88.0
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
+        with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
         run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
@@ -642,7 +650,8 @@ jobs:
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: ubicloud/rust-cache@v2
         with:
-            shared-key: build
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
+          shared-key: build
       - name: Cache ethereum-tests
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: ubicloud/cache@v4
