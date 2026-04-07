@@ -5363,6 +5363,21 @@ impl TestCase for TestLcpVersionUpgrade {
     }
 }
 
+#[tokio::test]
+async fn test_lcp_version_upgrade() -> Result<()> {
+    std::env::set_var(
+        "CITREA_DOCKER_IMAGE",
+        // Image tag with the old lcp binary
+        "chainwayxyz/citrea-test:f3da96cea8d59f9b72df0f1b6b80144ad47901b9",
+    );
+    TestCaseRunner::new(TestLcpVersionUpgrade {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
+}
+
 struct SetLcpToPreviousStateTest {
     task_manager: TaskManager,
 }
@@ -6054,21 +6069,6 @@ impl TestCase for SetLcpToPreviousStateTest {
 #[tokio::test]
 async fn test_set_lcp_to_previous_state() -> Result<()> {
     TestCaseRunner::new(SetLcpToPreviousStateTest {
-        task_manager: TaskManager::current(),
-    })
-    .set_citrea_path(get_citrea_path())
-    .run()
-    .await
-}
-
-#[tokio::test]
-async fn test_lcp_version_upgrade() -> Result<()> {
-    std::env::set_var(
-        "CITREA_DOCKER_IMAGE",
-        // Image tag with the old lcp binary
-        "chainwayxyz/citrea-test:f3da96cea8d59f9b72df0f1b6b80144ad47901b9",
-    );
-    TestCaseRunner::new(TestLcpVersionUpgrade {
         task_manager: TaskManager::current(),
     })
     .set_citrea_path(get_citrea_path())
