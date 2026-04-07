@@ -6,9 +6,8 @@ use sov_mock_zkvm::MockZkGuest;
 use sov_modules_api::WorkingSet;
 use sov_modules_core::StorageValue;
 use sov_rollup_interface::da::{
-    BlobReaderTrait, DataOnDa, MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL,
+    BlobReaderTrait, DataOnDa, SequencerCommitment, MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL,
     MAX_THRESHOLD_PROXIMITY, MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL, MIN_THRESHOLD,
-    SequencerCommitment,
 };
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::{
@@ -3256,7 +3255,10 @@ fn test_add_member_exceeds_max_count_rejected() {
     for i in 0u8..(extra_count as u8) {
         initial_addresses.push(Address::from_slice(&[50 + i; 20]));
     }
-    assert_eq!(initial_addresses.len(), MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL);
+    assert_eq!(
+        initial_addresses.len(),
+        MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL
+    );
 
     let new_member = [99u8; 20];
     // threshold 3 is valid for MAX members (3 >= MIN_THRESHOLD=2, 3 <= MAX-2=8)

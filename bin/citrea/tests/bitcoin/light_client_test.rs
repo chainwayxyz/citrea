@@ -4548,7 +4548,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
             "CASE 7 setup: Should have 5 members after valid remove"
         );
         assert!(
-            !addresses.contains(&format!("{:?}", member_to_remove)),
+            !addresses.contains(&format!("{member_to_remove:?}")),
             "CASE 7 setup: Removed member should not be in the list"
         );
 
@@ -4588,7 +4588,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
             "CASE 7: Should have 4 members after valid remove"
         );
         assert!(
-            !addresses.contains(&format!("{:?}", member_to_remove_2)),
+            !addresses.contains(&format!("{member_to_remove_2:?}")),
             "CASE 7: Removed member should not be in the list"
         );
 
@@ -4634,7 +4634,7 @@ impl TestCase for SecurityCouncilMemberManagementTest {
             "CASE 7: Should still have 4 members (below min rejected)"
         );
         assert!(
-            addresses.contains(&format!("{:?}", member_to_remove_2)),
+            addresses.contains(&format!("{member_to_remove_2:?}")),
             "CASE 7: Member should still be present after rejected removal"
         );
 
