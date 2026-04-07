@@ -445,6 +445,30 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
 
         // If this is the first lcp initialize the batch proof method ids, security council addresses, and DA pub keys
         if previous_light_client_proof_output.is_none() {
+            assert!(
+                initial_security_council_da_addresses.len()
+                    >= MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL,
+                "Initial security council must have at least {} members, got {}",
+                MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL,
+                initial_security_council_da_addresses.len(),
+            );
+            assert!(
+                initial_security_council_da_addresses.len()
+                    <= MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL,
+                "Initial security council must have at most {} members, got {}",
+                MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL,
+                initial_security_council_da_addresses.len(),
+            );
+            assert!(
+                Self::is_valid_threshold(
+                    initial_security_council_threshold as u32,
+                    initial_security_council_da_addresses.len(),
+                ),
+                "Initial threshold {} is invalid for {} members",
+                initial_security_council_threshold,
+                initial_security_council_da_addresses.len(),
+            );
+
             BatchProofMethodIdAccessor::<S>::initialize(
                 initial_batch_proof_method_ids,
                 &mut working_set,
