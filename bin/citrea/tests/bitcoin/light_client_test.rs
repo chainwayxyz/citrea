@@ -1499,6 +1499,97 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             .iter()
             .any(|x| x.method_id == correct_nonce_method_id.into()));
 
+        // --- CASE 15: Multiple valid txs in the same block with unsorted nonces ---
+        // Submit 3 valid method ID updates in reverse nonce order (9, 8, 7).
+        // The circuit should sort by nonce and process all of them.
+        // Current nonce after CASE 14: 6
+        let method_id_a = [11u32; 8];
+        let method_id_b = [12u32; 8];
+        let method_id_c = [13u32; 8];
+
+        // Submit nonce=9 first (highest)
+        let body_c = BatchProofMethodIdBody {
+            method_id: method_id_c,
+            activation_l2_height: 330,
+            nonce: 9,
+        };
+        let payload_c = BatchProofMethodIdUpdate::from(body_c.clone());
+        let sigs_c = create_valid_signatures(&signers, &payload_c, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(body_c),
+                    signatures_with_index: sigs_c,
+                }),
+                1.0,
+            )
+            .await
+            .unwrap();
+
+        // Submit nonce=7 second (lowest)
+        let body_a = BatchProofMethodIdBody {
+            method_id: method_id_a,
+            activation_l2_height: 310,
+            nonce: 7,
+        };
+        let payload_a = BatchProofMethodIdUpdate::from(body_a.clone());
+        let sigs_a = create_valid_signatures(&signers, &payload_a, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(body_a),
+                    signatures_with_index: sigs_a,
+                }),
+                1.0,
+            )
+            .await
+            .unwrap();
+
+        // Submit nonce=8 last (middle)
+        let body_b = BatchProofMethodIdBody {
+            method_id: method_id_b,
+            activation_l2_height: 320,
+            nonce: 8,
+        };
+        let payload_b = BatchProofMethodIdUpdate::from(body_b.clone());
+        let sigs_b = create_valid_signatures(&signers, &payload_b, 3);
+        bitcoin_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SecurityCouncilTx(SecurityCouncilTx {
+                    tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(body_b),
+                    signatures_with_index: sigs_b,
+                }),
+                1.0,
+            )
+            .await
+            .unwrap();
+
+        // Wait for all 3 txs + coinbase in mempool, then mine
+        da.wait_mempool_len(4, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let sorted_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(sorted_l1_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+
+        let method_ids_after_sorted = light_client_prover
+            .client
+            .http_client()
+            .get_batch_proof_method_ids()
+            .await?;
+        // Should have 5 method IDs: initial + [10;8] from CASE 10 + [11;8], [12;8], [13;8]
+        assert_eq!(method_ids_after_sorted.len(), 5);
+        assert!(method_ids_after_sorted
+            .iter()
+            .any(|x| x.method_id == method_id_a.into()));
+        assert!(method_ids_after_sorted
+            .iter()
+            .any(|x| x.method_id == method_id_b.into()));
+        assert!(method_ids_after_sorted
+            .iter()
+            .any(|x| x.method_id == method_id_c.into()));
+
         Ok(())
     }
 }

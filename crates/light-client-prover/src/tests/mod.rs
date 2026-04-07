@@ -3698,7 +3698,7 @@ fn test_update_sequencer_da_pub_key_wrong_chain_id_rejected() {
     let block_header_1 = MockBlockHeader::from_height(1);
 
     let new_pub_key = [77u8; 33];
-    // Sign with wrong chain_id in domain (9999 instead of Nightly's 5665)
+    // Sign with wrong chain_id in domain (9999 instead of Nightly's 5655)
     let blob =
         create_update_sequencer_pub_key_tx_with_signing_chain_id(new_pub_key, 9999, [11u8; 32], 1);
 
@@ -3763,7 +3763,7 @@ fn test_update_batch_prover_da_pub_key_wrong_chain_id_rejected() {
     let block_header_1 = MockBlockHeader::from_height(1);
 
     let new_pub_key = [88u8; 33];
-    // Sign with wrong chain_id in domain (9999 instead of Nightly's 5665)
+    // Sign with wrong chain_id in domain (9999 instead of Nightly's 5655)
     let blob = create_update_batch_prover_pub_key_tx_with_signing_chain_id(
         new_pub_key,
         9999,
