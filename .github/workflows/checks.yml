@@ -63,6 +63,7 @@ env:
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
   BITCOIN_DOCKER_IMAGE: "bitcoin/bitcoin:30.0"
+  RUST_CACHE_PREFIX: v1-rust-ubuntu-2204
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -75,7 +76,7 @@ concurrency:
 jobs:
   build:
     name: build
-    runs-on: ubicloud-standard-30
+    runs-on: ubicloud-standard-30-ubuntu-2204
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
@@ -85,6 +86,7 @@ jobs:
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
         with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
           shared-key: build
       - name: Install risc0
         uses: ./.github/actions/install-risc0
@@ -99,9 +101,9 @@ jobs:
       - name: Cache riscv-guest
         uses: ubicloud/cache@v4
         with:
-          key: build-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: build-guests-v1-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/riscv-guest
-          restore-keys: build-guests-v0-${{ runner.os }}-
+          restore-keys: build-guests-v1-${{ runner.os }}-
 
       - name: Build citrea
         run: make build
@@ -116,7 +118,7 @@ jobs:
 
   check:
     name: check
-    runs-on: ubicloud-standard-4
+    runs-on: ubicloud-standard-4-ubuntu-2204
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
@@ -129,6 +131,8 @@ jobs:
         uses: dprint/check@v2.2
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
+        with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Run lint
         run: |
           if ! make lint ; then
@@ -140,7 +144,7 @@ jobs:
 
   udeps:
     name: udeps
-    runs-on: ubicloud-standard-8
+    runs-on: ubicloud-standard-8-ubuntu-2204
     timeout-minutes: 60
     if: github.event.pull_request.draft == false
     steps:
@@ -198,7 +202,7 @@ jobs:
   coverage:
     needs:
       - docker-setup
-    runs-on: ubicloud-standard-30
+    runs-on: ubicloud-standard-30-ubuntu-2204
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@1.88.0
@@ -206,6 +210,8 @@ jobs:
           components: llvm-tools-preview
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
+        with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
         run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
@@ -234,9 +240,9 @@ jobs:
       - name: Cache riscv-guest
         uses: ubicloud/cache@v4
         with:
-          key: coverage-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: coverage-guests-v1-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/llvm-cov-target/riscv-guest
-          restore-keys: coverage-guests-v0-${{ runner.os }}-
+          restore-keys: coverage-guests-v1-${{ runner.os }}-
 
       - name: Run coverage
         run: make coverage
@@ -374,7 +380,7 @@ jobs:
     needs:
       - docker-setup
     name: nextest
-    runs-on: ubicloud-standard-30
+    runs-on: ubicloud-standard-30-ubuntu-2204
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
@@ -383,6 +389,8 @@ jobs:
         uses: dtolnay/rust-toolchain@1.88.0
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
+        with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
         run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
@@ -409,9 +417,9 @@ jobs:
       - name: Cache riscv-guest
         uses: ubicloud/cache@v4
         with:
-          key: build-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: build-guests-v1-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/riscv-guest
-          restore-keys: build-guests-v0-${{ runner.os }}-
+          restore-keys: build-guests-v1-${{ runner.os }}-
 
       - name: Run nextest
         run: make test
@@ -458,6 +466,7 @@ jobs:
           cd crates/evm/src/evm/system_contracts
           forge test -vvv
         id: test
+
   check_genesis_files:
     strategy:
       fail-fast: true
@@ -539,7 +548,7 @@ jobs:
 
   proving-stats:
     name: Proving stats
-    runs-on: ubicloud-standard-2
+    runs-on: ubicloud-standard-2-ubuntu-2204
     needs: [build, docker-setup]
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'guest-code')
     steps:
@@ -641,7 +650,8 @@ jobs:
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: ubicloud/rust-cache@v2
         with:
-            shared-key: build
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
+          shared-key: build
       - name: Cache ethereum-tests
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: ubicloud/cache@v4

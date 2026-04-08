@@ -9,6 +9,7 @@ env:
   TARGET_PCT: 3
   COMPARISON_FILE: comparison_results.log
   USE_DOCKER: "true"
+  RUST_CACHE_PREFIX: v1-rust-ubuntu-2204
 
 jobs:
   performance-comparison:
@@ -31,6 +32,8 @@ jobs:
           components: rustfmt, clippy
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
+        with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
