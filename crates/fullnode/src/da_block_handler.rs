@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use anyhow::{anyhow, bail};
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::da::{extract_zk_proofs_and_sequencer_commitments, sync_l1, ProofOrCommitment};
+use citrea_common::da::{extract_zk_proofs_and_sequencer_commitments, sync_l1, ProofOrCommitment, ProofWithLocation};
 use citrea_common::utils::{
     exceeded_stop_height, get_tangerine_activation_height_non_zero, shutdown_requested,
 };
@@ -591,9 +591,11 @@ where
         &self,
         current_l1_block_height: u64,
         found_in_l1_block_height: u64,
-        proof: Proof,
+        proof_with_location: ProofWithLocation,
         proof_source: ProofSource,
     ) -> Result<ProcessingResult, ProcessingError> {
+        let proof = &proof_with_location.proof;
+        
         tracing::info!(
             "Processing zk proof at height: {}",
             found_in_l1_block_height
@@ -601,7 +603,7 @@ where
         tracing::trace!("ZK proof: {:?}", proof);
 
         // Extract and verify the proof using the appropriate ZKVM
-        let Ok(batch_proof_output) = Vm::extract_output::<BatchProofCircuitOutput>(&proof) else {
+        let Ok(batch_proof_output) = Vm::extract_output::<BatchProofCircuitOutput>(proof) else {
             return Ok(ProcessingResult::Discarded);
         };
 
@@ -635,7 +637,7 @@ where
             current_l1_block_height,
             found_in_l1_block_height,
             batch_proof_output.initial_state_root(),
-            proof,
+            proof_with_location,
             batch_proof_output,
             proof_source,
         )
@@ -648,7 +650,7 @@ where
     /// * `current_l1_block_height` - Current L1 block being processed
     /// * `found_in_l1_block_height` - L1 block where proof was found
     /// * `initial_state_root` - Initial state root for verification
-    /// * `raw_proof` - The raw ZK proof
+    /// * `proof_with_location` - The ZK proof with Bitcoin location metadata
     /// * `batch_proof_output` - The batch proof circuit output
     /// * `proof_source` - Whether the proof came from L1 or pending retries
     ///
@@ -659,7 +661,7 @@ where
         current_l1_block_height: u64,
         found_in_l1_block_height: u64,
         initial_state_root: [u8; 32],
-        raw_proof: Proof,
+        proof_with_location: ProofWithLocation,
         batch_proof_output: BatchProofCircuitOutput,
         proof_source: ProofSource,
     ) -> Result<ProcessingResult, ProcessingError> {
@@ -733,15 +735,16 @@ where
         if proof_is_pending {
             if proof_source == ProofSource::FromL1 {
                 info!(
-                    "Proof is pending for commitment index range {}-{}. Storing proof as pending.",
+                    "Proof is pending for commitment index range {}-{}. Storing proof location instead of full proof to reduce disk usage.",
                     sequencer_commitment_index_range.0, sequencer_commitment_index_range.1
                 );
                 self.ledger_db.store_pending_proof(
                     sequencer_commitment_index_range.0,
                     sequencer_commitment_index_range.1,
-                    raw_proof,
+                    proof_with_location.bitcoin_block_height,
+                    proof_with_location.bitcoin_tx_index,
                     found_in_l1_block_height,
-                )?;
+                )?
             } else {
                 info!(
                     "Proof is pending for commitment index range {}-{}. Keeping existing pending proof without rewrite.",
@@ -773,7 +776,7 @@ where
         if sequencer_commitment_index_range.0 > proven_height.commitment_index + 1 {
             if proof_source == ProofSource::FromL1 {
                 info!(
-                    "First commitment in range is not strictly increasing. Expected index {}, got {}. Storing proof as pending for commitment range {}-{}",
+                    "First commitment in range is not strictly increasing. Expected index {}, got {}. Storing proof location for commitment range {}-{}",
                     proven_height.commitment_index + 1,
                     sequencer_commitment_index_range.0,
                     sequencer_commitment_index_range.0,
@@ -782,9 +785,10 @@ where
                 self.ledger_db.store_pending_proof(
                     sequencer_commitment_index_range.0,
                     sequencer_commitment_index_range.1,
-                    raw_proof,
+                    proof_with_location.bitcoin_block_height,
+                    proof_with_location.bitcoin_tx_index,
                     found_in_l1_block_height,
-                )?;
+                )?
             } else {
                 info!(
                     "First commitment in range is not strictly increasing. Expected index {}, got {}. Keeping existing pending proof for commitment range {}-{} without rewrite",
@@ -797,6 +801,7 @@ where
             return Ok(ProcessingResult::Pending);
         }
 
+        let raw_proof = proof_with_location.proof.clone();
         // store in ledger db
         self.ledger_db.update_verified_proof_data(
             found_in_l1_block_height,
@@ -915,12 +920,25 @@ where
         let pending_proofs = self.ledger_db.get_pending_proofs()?;
 
         for item in pending_proofs {
-            let ((min_index, max_index), (proof, found_in_l1_height)) = item?.into_tuple();
+            let ((min_index, max_index), (proof_location, found_in_l1_height)) = item?.into_tuple();
+            
+            // Fetch the proof from Bitcoin using the stored location
+            let proof_with_location = match self.fetch_proof_from_bitcoin(proof_location, found_in_l1_height).await {
+                Ok(p) => p,
+                Err(e) => {
+                    warn!(
+                        "Failed to fetch proof from Bitcoin for index {min_index}-{max_index} at location block={}, tx_idx={}: {e:?}",
+                        proof_location.block_height, proof_location.tx_index
+                    );
+                    break;
+                }
+            };
+            
             match self
                 .process_zk_proof(
                     current_l1_block_height,
                     found_in_l1_height,
-                    proof,
+                    proof_with_location,
                     ProofSource::FromPendingRetry,
                 )
                 .await
@@ -994,5 +1012,64 @@ where
             );
         }
         Ok(sequencer_commitment.l2_end_block_number)
+    }
+
+    /// Fetches a proof from Bitcoin using stored location information
+    ///
+    /// This method retrieves a proof that was previously identified by its Bitcoin block height
+    /// and transaction index, reducing the need to store full proofs in the pending proofs table.
+    ///
+    /// # Arguments
+    /// * `proof_location` - Bitcoin block height and transaction index where proof is located
+    /// * `l1_height` - L1 block height for context
+    ///
+    /// # Returns
+    /// A ProofWithLocation containing the fetched proof and location metadata
+    async fn fetch_proof_from_bitcoin(
+        &self,
+        proof_location: sov_db::schema::types::BitcoinProofLocation,
+        l1_height: u64,
+    ) -> Result<ProofWithLocation, ProcessingError> {
+        // Fetch the Bitcoin block at the specified height
+        let block = self.da_service
+            .get_block_at(proof_location.block_height)
+            .await
+            .map_err(|e| {
+                ProcessingError::SkippableError(
+                    SkippableError::Proof(
+                        ProofError::ProofFetchFailed(format!(
+                            "Failed to fetch Bitcoin block at height {}: {}",
+                            proof_location.block_height, e
+                        ))
+                    )
+                )
+            })?;
+
+        // Extract proofs from the block
+        let proofs = self.da_service
+            .extract_relevant_zk_proofs(&block, &self.prover_da_pub_key)
+            .await;
+
+        // Find the proof at the specified transaction index
+        let proof = proofs
+            .into_iter()
+            .find(|(tx_idx, _)| *tx_idx == proof_location.tx_index as usize)
+            .map(|(_, proof)| proof)
+            .ok_or_else(|| {
+                ProcessingError::SkippableError(
+                    SkippableError::Proof(
+                        ProofError::ProofFetchFailed(format!(
+                            "Proof not found at Bitcoin block {} tx index {}",
+                            proof_location.block_height, proof_location.tx_index
+                        ))
+                    )
+                )
+            })?;
+
+        Ok(ProofWithLocation {
+            proof,
+            bitcoin_block_height: proof_location.block_height,
+            bitcoin_tx_index: proof_location.tx_index,
+        })
     }
 }

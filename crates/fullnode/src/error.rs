@@ -20,6 +20,9 @@ pub enum ProofError {
     /// Error when the sequencer commitment hash doesn't match the expected value
     #[error("Proof verification: For a known and verified sequencer commitment. Hash mismatch - expected 0x{0} but got 0x{1}. Skipping proof.")]
     SequencerCommitmentHashMismatch(String, String),
+    /// Error when fetching a proof from Bitcoin fails
+    #[error("Failed to fetch proof from Bitcoin: {0}")]
+    ProofFetchFailed(String),
     /// Other general errors that may occur during proof processing
     #[error("{0}")]
     Other(#[from] anyhow::Error),

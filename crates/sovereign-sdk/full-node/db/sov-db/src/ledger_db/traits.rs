@@ -195,11 +195,14 @@ pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
     fn remove_pending_commitment(&self, index: u32) -> Result<()>;
 
     /// Store an out of order proof by commitment index range for later processing
+    /// Instead of storing the full proof, we store the Bitcoin block height and transaction index
+    /// to reduce disk usage. The proof will be fetched from Bitcoin via RPC when retrying.
     fn store_pending_proof(
         &self,
         min_commitment_index: u32,
         max_commitment_index: u32,
-        proof: Proof,
+        bitcoin_block_height: u64,
+        bitcoin_tx_index: u32,
         found_in_l1_height: u64,
     ) -> Result<()>;
 

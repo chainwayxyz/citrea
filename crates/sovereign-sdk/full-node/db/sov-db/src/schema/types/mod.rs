@@ -33,8 +33,30 @@ pub type L2HeightRange = (L2BlockNumber, L2BlockNumber);
 /// L1 height
 pub type L1Height = u64;
 
+/// Location of a proof on Bitcoin for lazy fetching
+/// Stores the Bitcoin block height and transaction index to retrieve the proof via RPC
+/// instead of keeping the full proof in memory
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    ::borsh::BorshDeserialize,
+    ::borsh::BorshSerialize,
+    ::serde::Serialize,
+    ::serde::Deserialize,
+)]
+pub struct BitcoinProofLocation {
+    /// Bitcoin block height where the proof is stored
+    pub block_height: u64,
+    /// Transaction index within the Bitcoin block
+    pub tx_index: u32,
+}
+
 /// The output of the pending proofs table
-pub type PendingProofsOutput = ((u32, u32), Proof, L1Height);
+/// Stores commit index range, Bitcoin proof location, and L1 height
+pub type PendingProofsOutput = ((u32, u32), BitcoinProofLocation, L1Height);
 
 /// Height and index of a sequencer commitment
 #[derive(

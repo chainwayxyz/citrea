@@ -34,7 +34,7 @@ use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
 use crate::schema::types::{
-    BonsaiSession, BoundlessSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange,
+    BitcoinProofLocation, BonsaiSession, BoundlessSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange,
     L2HeightStatus, SlotNumber,
 };
 
@@ -979,13 +979,18 @@ impl NodeLedgerOps for LedgerDB {
         &self,
         min_commitment_index: u32,
         max_commitment_index: u32,
-        proof: Proof,
+        bitcoin_block_height: u64,
+        bitcoin_tx_index: u32,
         found_in_l1_height: u64,
     ) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
+        let proof_location = BitcoinProofLocation {
+            block_height: bitcoin_block_height,
+            tx_index: bitcoin_tx_index,
+        };
         schema_batch.put::<PendingProofs>(
             &(min_commitment_index, max_commitment_index),
-            &(proof, found_in_l1_height),
+            &(proof_location, found_in_l1_height),
         )?;
         self.db.write_schemas(schema_batch)?;
         Ok(())
