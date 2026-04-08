@@ -13,22 +13,32 @@ use super::InitialBatchProofMethodIds;
 /// Central registry of all storage prefixes used by LCP accessors.
 /// All prefixes must be unique to prevent storage key collisions.
 mod prefixes {
+    /// Security council address storage prefix
+    pub const SECURITY_COUNCIL_ADDRESS: u8 = b'a';
     /// Block hash storage prefix
     pub const BLOCK_HASH: u8 = b'b';
     /// Chunk storage prefix
     pub const CHUNK: u8 = b'c';
-    /// Sequencer commitment storage prefix
-    pub const SEQUENCER_COMMITMENT: u8 = b's';
-    /// Verified state transition storage prefix
-    pub const VERIFIED_STATE_TRANSITION: u8 = b'u';
+    /// Revert epoch storage prefix
+    pub const REVERT_EPOCH: u8 = b'e';
+    /// Sequencer commitment epoch storage prefix
+    pub const SEQUENCER_COMMITMENT_EPOCH: u8 = b'f';
     /// Batch proof method ids storage prefix
     pub const BATCH_PROOF_METHOD_ID: u8 = b'm';
-    /// Security council address storage prefix
-    pub const SECURITY_COUNCIL_ADDRESS: u8 = b'a';
-    /// Security council threshold storage prefix
-    pub const SECURITY_COUNCIL_THRESHOLD: u8 = b't';
+    /// Security council nonce storage prefix
+    pub const SECURITY_COUNCIL_NONCE: u8 = b'n';
+    /// Batch prover DA public key storage prefix
+    pub const BATCH_PROVER_DA_PUB_KEY: u8 = b'p';
     /// Sequencer DA public key storage prefix
     pub const SEQUENCER_DA_PUB_KEY: u8 = b'q';
+    /// Sequencer commitment storage prefix
+    pub const SEQUENCER_COMMITMENT: u8 = b's';
+    /// Security council threshold storage prefix
+    pub const SECURITY_COUNCIL_THRESHOLD: u8 = b't';
+    /// Verified state transition storage prefix
+    pub const VERIFIED_STATE_TRANSITION: u8 = b'u';
+    /// Verified state transition epoch storage prefix
+    pub const VERIFIED_STATE_TRANSITION_EPOCH: u8 = b'v';
 }
 
 /// Vector of activation height to method id
@@ -570,8 +580,8 @@ pub struct BatchProverDaPubKeyAccessor<S: Storage> {
 }
 
 impl<S: Storage> BatchProverDaPubKeyAccessor<S> {
-    /// Batch prover da pubkey prefix
-    const PREFIX: u8 = b'p';
+    /// Batch prover DA public key storage prefix
+    const PREFIX: u8 = prefixes::BATCH_PROVER_DA_PUB_KEY;
 
     /// Creates a storage key containing just the prefix
     fn key() -> StorageKey {
@@ -619,8 +629,8 @@ pub struct SecurityCouncilNonceAccessor<S: Storage> {
 }
 
 impl<S: Storage> SecurityCouncilNonceAccessor<S> {
-    /// Security council nonce prefix
-    const PREFIX: u8 = b'n';
+    /// Security council nonce storage prefix
+    const PREFIX: u8 = prefixes::SECURITY_COUNCIL_NONCE;
 
     /// Creates a storage key containing just the prefix
     fn key() -> StorageKey {
@@ -669,7 +679,7 @@ pub struct RevertEpochAccessor<S: Storage> {
 
 impl<S: Storage> RevertEpochAccessor<S> {
     /// Revert epoch storage prefix
-    const PREFIX: u8 = b'e';
+    const PREFIX: u8 = prefixes::REVERT_EPOCH;
 
     /// Creates a storage key containing just the prefix
     fn key() -> StorageKey {
@@ -710,8 +720,8 @@ pub struct VerifiedStateTransitionEpochAccessor<S: Storage> {
 }
 
 impl<S: Storage> VerifiedStateTransitionEpochAccessor<S> {
-    /// Verified state transition epoch prefix
-    const PREFIX: u8 = b'v';
+    /// Verified state transition epoch storage prefix
+    const PREFIX: u8 = prefixes::VERIFIED_STATE_TRANSITION_EPOCH;
 
     /// Creates a storage key for a given sequencer commitment index
     fn key(index: u32) -> StorageKey {
@@ -754,8 +764,8 @@ pub struct SequencerCommitmentEpochAccessor<S: Storage> {
 }
 
 impl<S: Storage> SequencerCommitmentEpochAccessor<S> {
-    /// Sequencer commitment epoch prefix
-    const PREFIX: u8 = b'f';
+    /// Sequencer commitment epoch storage prefix
+    const PREFIX: u8 = prefixes::SEQUENCER_COMMITMENT_EPOCH;
 
     /// Creates a storage key for a given sequencer commitment index
     fn key(index: u32) -> StorageKey {
