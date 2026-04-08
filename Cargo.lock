@@ -1098,7 +1098,9 @@ version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d087fe5aea96a93fbe71be8aaed5c57c3caac303c09e674bc5b1647990d648b"
 dependencies = [
+ "alloy-dyn-abi 0.8.26",
  "alloy-primitives 0.8.26",
+ "alloy-sol-types 0.8.26",
  "async-trait",
  "auto_impl",
  "either",
@@ -3615,7 +3617,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=143d76086591006d2424bda027512bd03565229a#143d76086591006d2424bda027512bd03565229a"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=f0ddc2b#f0ddc2bef632014e772632279db3a8048257347f"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -3741,6 +3743,7 @@ dependencies = [
  "alloy-primitives 0.8.26",
  "alloy-signer 0.13.0",
  "alloy-signer-local 0.13.0",
+ "alloy-sol-types 0.8.26",
  "anyhow",
  "async-trait",
  "bitcoin-da",
@@ -3758,6 +3761,7 @@ dependencies = [
  "prover-services",
  "rand 0.8.5",
  "reth-tasks",
+ "serde",
  "sov-db",
  "sov-mock-da",
  "sov-mock-zkvm",

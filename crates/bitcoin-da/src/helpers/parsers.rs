@@ -21,7 +21,7 @@ pub enum ParsedTransaction {
     /// Kind 2
     Chunk(ParsedChunk),
     /// Kind 3
-    BatchProofMethodId(ParsedBatchProofMethodId),
+    SecurityCouncilTx(ParsedSecurityCouncilTx),
     /// Kind 4
     SequencerCommitment(ParsedSequencerCommitment),
     // /// Kind ?
@@ -60,17 +60,17 @@ pub struct ParsedSequencerCommitment {
     pub(crate) public_key: Vec<u8>,
 }
 
-/// ParsedBatchProofMethodId is a transaction that contains the batch proof method ID
-/// and the security council signatures and pubkeys.
+/// ParsedSecurityCouncilTx is a transaction that contains a security council transaction
+/// (method ID update, member management, etc.) and the security council signatures.
 #[derive(Debug, Clone)]
-pub struct ParsedBatchProofMethodId {
-    /// Contains borsh(BatchProofMethodId)
-    /// So it has public keys and signatures of security council and the body
-    /// which is BatchProofMethodIdBody{activation_l2_height, method_id}
+pub struct ParsedSecurityCouncilTx {
+    /// Contains borsh(SecurityCouncilTx)
+    /// So it has signatures of security council and the body
+    /// which is one of the SecurityCouncilTxType variants
     pub(crate) body: Vec<u8>,
 }
 
-impl ParsedBatchProofMethodId {
+impl ParsedSecurityCouncilTx {
     /// Hash of the body
     pub fn hash(&self) -> [u8; 32] {
         let hash = sha2::Sha256::new_with_prefix(&self.body);
@@ -217,8 +217,8 @@ fn parse_transaction(
         TransactionKind::Chunks => {
             body_parsers::parse_type_2_body(instructions).map(ParsedTransaction::Chunk)
         }
-        TransactionKind::BatchProofMethodId => {
-            body_parsers::parse_type_3_body(instructions).map(ParsedTransaction::BatchProofMethodId)
+        TransactionKind::SecurityCouncilTx => {
+            body_parsers::parse_type_3_body(instructions).map(ParsedTransaction::SecurityCouncilTx)
         }
         TransactionKind::SequencerCommitment => body_parsers::parse_type_4_body(instructions)
             .map(ParsedTransaction::SequencerCommitment),
@@ -268,7 +268,7 @@ mod body_parsers {
         read_instr, read_opcode, read_push_bytes, ParsedAggregate, ParsedChunk, ParsedComplete,
         ParsedSequencerCommitment, ParserError,
     };
-    use crate::helpers::parsers::ParsedBatchProofMethodId;
+    use crate::helpers::parsers::ParsedSecurityCouncilTx;
 
     /// Parse transaction body of Type0 Complete proof
     pub(super) fn parse_type_0_body(
@@ -440,7 +440,7 @@ mod body_parsers {
     /// Parse transaction body of Type3 Batch Proof MethodId upgrade tx
     pub(super) fn parse_type_3_body(
         instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
-    ) -> Result<ParsedBatchProofMethodId, ParserError> {
+    ) -> Result<ParsedSecurityCouncilTx, ParserError> {
         let op_false = read_push_bytes(instructions)?;
         if !op_false.is_empty() {
             // OP_FALSE = OP_PUSHBYTES_0
@@ -467,7 +467,7 @@ mod body_parsers {
             return Err(ParserError::UnexpectedOpcode);
         }
 
-        Ok(ParsedBatchProofMethodId { body })
+        Ok(ParsedSecurityCouncilTx { body })
     }
 
     /// Parse transaction body of Type4 Sequencer Commitment

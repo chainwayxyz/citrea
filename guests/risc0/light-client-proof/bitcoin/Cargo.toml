@@ -15,6 +15,7 @@ risc0-bigint2 = "1.4.10"
 risc0-zkvm = { version = "3.0.3", default-features = false, features = ["unstable", "std"] }
 risc0-zkvm-platform = { version = "2.2.0" }
 
+alloy-primitives = { version = "0.8.26", default-features = false, features = ["serde", "tiny-keccak", "k256"] }
 anyhow = "1.0.95"
 bitcoin-da = { path = "../../../../crates/bitcoin-da", default-features = false }
 citrea-light-client-prover = { path = "../../../../crates/light-client-prover", default-features = false }

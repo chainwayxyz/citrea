@@ -1,11 +1,10 @@
 #![no_main]
+use alloy_primitives::Address;
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_light_client_prover::circuit::initial_values::bitcoinda;
 use citrea_light_client_prover::circuit::initial_values::non_empty_slice::NonEmptySlice;
-use citrea_light_client_prover::circuit::{
-    LightClientProofCircuit, SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT,
-};
+use citrea_light_client_prover::circuit::LightClientProofCircuit;
 use citrea_primitives::REVEAL_TX_PREFIX;
 use citrea_risc0_adapter::guest::Risc0Guest;
 use sov_rollup_interface::da::DaVerifier;
@@ -45,38 +44,73 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> = {
     }
 };
 
-const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
+const INITIAL_SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
     match NETWORK {
-        Network::Mainnet => bitcoinda::MAINNET_SEQUENCER_DA_PUBLIC_KEY,
-        Network::Testnet => bitcoinda::TESTNET_SEQUENCER_DA_PUBLIC_KEY,
-        Network::Devnet => bitcoinda::DEVNET_SEQUENCER_DA_PUBLIC_KEY,
-        Network::Nightly => bitcoinda::NIGHTLY_SEQUENCER_DA_PUBLIC_KEY,
-        Network::TestNetworkWithForks => bitcoinda::TEST_NETWORK_WITH_FORKS_SEQUENCER_DA_PUBLIC_KEY,
-    }
-};
-
-const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
-    match NETWORK {
-        Network::Mainnet => bitcoinda::MAINNET_BATCH_PROVER_DA_PUBLIC_KEY,
-        Network::Testnet => bitcoinda::TESTNET_BATCH_PROVER_DA_PUBLIC_KEY,
-        Network::Devnet => bitcoinda::DEVNET_BATCH_PROVER_DA_PUBLIC_KEY,
-        Network::Nightly => bitcoinda::NIGHTLY_BATCH_PROVER_DA_PUBLIC_KEY,
+        Network::Mainnet => bitcoinda::INITIAL_MAINNET_SEQUENCER_DA_PUBLIC_KEY,
+        Network::Testnet => bitcoinda::INITIAL_TESTNET_SEQUENCER_DA_PUBLIC_KEY,
+        Network::Devnet => bitcoinda::INITIAL_DEVNET_SEQUENCER_DA_PUBLIC_KEY,
+        Network::Nightly => bitcoinda::INITIAL_NIGHTLY_SEQUENCER_DA_PUBLIC_KEY,
         Network::TestNetworkWithForks => {
-            bitcoinda::TEST_NETWORK_WITH_FORKS_BATCH_PROVER_DA_PUBLIC_KEY
+            bitcoinda::INITIAL_TEST_NETWORK_WITH_FORKS_SEQUENCER_DA_PUBLIC_KEY
         }
     }
 };
 
-pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8;
-    SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
-    SECURITY_COUNCIL_MEMBER_COUNT] = {
+const INITIAL_BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
     match NETWORK {
-        Network::Mainnet => bitcoinda::MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
-        Network::Testnet => bitcoinda::TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
-        Network::Devnet => bitcoinda::DEVNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
-        Network::Nightly => bitcoinda::NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Mainnet => bitcoinda::INITIAL_MAINNET_BATCH_PROVER_DA_PUBLIC_KEY,
+        Network::Testnet => bitcoinda::INITIAL_TESTNET_BATCH_PROVER_DA_PUBLIC_KEY,
+        Network::Devnet => bitcoinda::INITIAL_DEVNET_BATCH_PROVER_DA_PUBLIC_KEY,
+        Network::Nightly => bitcoinda::INITIAL_NIGHTLY_BATCH_PROVER_DA_PUBLIC_KEY,
         Network::TestNetworkWithForks => {
-            bitcoinda::TEST_NETWORK_WITH_FORKS_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS
+            bitcoinda::INITIAL_TEST_NETWORK_WITH_FORKS_BATCH_PROVER_DA_PUBLIC_KEY
+        }
+    }
+};
+
+pub const INITIAL_SECURITY_COUNCIL_DA_ADDRESSES: NonEmptySlice<Address> = {
+    match NETWORK {
+        Network::Mainnet => {
+            bitcoinda::MAINNET_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES
+        }
+        Network::Testnet => {
+            bitcoinda::TESTNET_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES
+        }
+        Network::Devnet => {
+            bitcoinda::DEVNET_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES
+        }
+        Network::Nightly => {
+            bitcoinda::NIGHTLY_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES
+        }
+        Network::TestNetworkWithForks => {
+            bitcoinda::TEST_NETWORK_WITH_FORKS_SECURITY_COUNCIL_INITIAL_DA_ADDRESSES
+        }
+    }
+};
+
+pub const INITIAL_SECURITY_COUNCIL_THRESHOLD: usize =
+    bitcoinda::INITIAL_SECURITY_COUNCIL_THRESHOLD;
+
+pub const SECURITY_COUNCIL_DOMAIN_NAME: &str = {
+    match NETWORK {
+        Network::Mainnet => bitcoinda::MAINNET_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        Network::Testnet => bitcoinda::TESTNET_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        Network::Devnet => bitcoinda::DEVNET_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        Network::Nightly => bitcoinda::NIGHTLY_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        Network::TestNetworkWithForks => {
+            bitcoinda::TEST_NETWORK_WITH_FORKS_EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME
+        }
+    }
+};
+
+const ALLOWED_PREVIOUS_LCP_METHOD_IDS: &[[u32; 8]] = {
+    match NETWORK {
+        Network::Mainnet => bitcoinda::MAINNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS,
+        Network::Testnet => bitcoinda::TESTNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS,
+        Network::Devnet => bitcoinda::DEVNET_ALLOWED_PREVIOUS_LCP_METHOD_IDS,
+        Network::Nightly => bitcoinda::NIGHTLY_ALLOWED_PREVIOUS_LCP_METHOD_IDS,
+        Network::TestNetworkWithForks => {
+            bitcoinda::TEST_NETWORK_WITH_FORKS_ALLOWED_PREVIOUS_LCP_METHOD_IDS
         }
     }
 };
@@ -103,9 +137,12 @@ pub fn main() {
             NETWORK,
             L2_GENESIS_ROOT,
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
-            &BATCH_PROVER_DA_PUBLIC_KEY,
-            &SEQUENCER_DA_PUBLIC_KEY,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            &INITIAL_BATCH_PROVER_DA_PUBLIC_KEY,
+            &INITIAL_SEQUENCER_DA_PUBLIC_KEY,
+            INITIAL_SECURITY_COUNCIL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            SECURITY_COUNCIL_DOMAIN_NAME.to_string(),
+            ALLOWED_PREVIOUS_LCP_METHOD_IDS,
         )
         .unwrap();
 

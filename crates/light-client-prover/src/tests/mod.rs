@@ -1,30 +1,47 @@
 pub mod test_utils;
 
+use citrea_primitives::MAX_COMPRESSED_BLOB_SIZE;
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::MockZkGuest;
 use sov_modules_api::WorkingSet;
 use sov_modules_core::StorageValue;
-use sov_rollup_interface::da::{BlobReaderTrait, DataOnDa, SequencerCommitment};
+use sov_rollup_interface::da::{
+    BlobReaderTrait, DataOnDa, SequencerCommitment, MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL,
+    MAX_THRESHOLD_PROXIMITY, MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL, MIN_THRESHOLD,
+};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
-use sov_rollup_interface::zk::light_client_proof::output::VerifiedStateTransitionForSequencerCommitmentIndex;
+use sov_rollup_interface::zk::light_client_proof::output::{
+    LightClientCircuitOutput, VerifiedStateTransitionForSequencerCommitmentIndex,
+};
 use sov_rollup_interface::Network;
 use sov_state::{ProverStorage, ZkStorage};
 use tempfile::tempdir;
 use test_utils::{
-    create_mock_batch_proof, create_mock_sequencer_commitment,
+    create_add_member_tx, create_mock_batch_proof, create_mock_sequencer_commitment,
     create_mock_sequencer_commitment_blob, create_new_method_id_tx, create_prev_lcp_serialized,
-    create_random_state_diff, create_serialized_mock_proof, NativeCircuitRunner,
+    create_random_state_diff, create_remove_member_tx, create_remove_method_id_tx,
+    create_replace_member_tx, create_serialized_mock_proof, create_set_lcp_to_previous_state_tx,
+    create_update_batch_prover_pub_key_tx,
+    create_update_batch_prover_pub_key_tx_with_signing_chain_id,
+    create_update_sequencer_pub_key_tx, create_update_sequencer_pub_key_tx_with_signing_chain_id,
+    create_update_threshold_tx, NativeCircuitRunner,
 };
 
 use crate::circuit::accessors::{
-    BatchProofMethodIdAccessor, SequencerCommitmentAccessor,
+    BatchProofMethodIdAccessor, BatchProverDaPubKeyAccessor, RevertEpochAccessor,
+    SecurityCouncilAddressAccessor, SecurityCouncilNonceAccessor, SecurityCouncilThresholdAccessor,
+    SequencerCommitmentAccessor, SequencerDaPubKeyAccessor,
     VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
-use crate::circuit::initial_values::mockda::METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS;
+use crate::circuit::initial_values::mockda::{
+    EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME, INITIAL_SECURITY_COUNCIL_THRESHOLD,
+    SECURITY_COUNCIL_INITIAL_DA_ADDRESSES,
+};
 use crate::circuit::{LightClientProofCircuit, LightClientVerificationError};
 
 type Height = u64;
 const INITIAL_BATCH_PROOF_METHOD_IDS: [(Height, [u32; 8]); 1] = [(0, [0u32; 8])];
+const INITIAL_SC_MEMBER_COUNT: usize = SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner().len();
 
 /// In the below tests, mock batch proofs are constructed with their last_l1_hash_on_bitcoin_light_client_contract field
 /// having the same value with the L1 block these proofs are "found" on.
@@ -85,7 +102,8 @@ fn test_light_client_circuit_valid_da_valid_data() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -99,7 +117,10 @@ fn test_light_client_circuit_valid_da_valid_data() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -150,7 +171,8 @@ fn test_light_client_circuit_valid_da_valid_data() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -164,7 +186,10 @@ fn test_light_client_circuit_valid_da_valid_data() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -243,7 +268,8 @@ fn test_light_client_circuit_commitment_chaining() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -257,7 +283,10 @@ fn test_light_client_circuit_commitment_chaining() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -321,7 +350,8 @@ fn test_previous_commitment_not_set_should_not_transition() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -335,7 +365,10 @@ fn test_previous_commitment_not_set_should_not_transition() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -385,7 +418,8 @@ fn test_batch_proof_with_missing_commitment_not_set_should_not_transition() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -399,7 +433,10 @@ fn test_batch_proof_with_missing_commitment_not_set_should_not_transition() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -462,7 +499,8 @@ fn test_wrong_order_da_blocks_should_still_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -476,7 +514,10 @@ fn test_wrong_order_da_blocks_should_still_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -547,7 +588,8 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -561,7 +603,10 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -627,7 +672,8 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -641,7 +687,10 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -705,7 +754,8 @@ fn test_header_chain_proof_height_and_hash() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -719,7 +769,10 @@ fn test_header_chain_proof_height_and_hash() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -771,7 +824,8 @@ fn test_header_chain_proof_height_and_hash() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -785,7 +839,10 @@ fn test_header_chain_proof_height_and_hash() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+        &[],
     );
     assert!(matches!(
         res,
@@ -860,7 +917,8 @@ fn test_unverifiable_batch_proofs() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -874,7 +932,10 @@ fn test_unverifiable_batch_proofs() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -952,7 +1013,8 @@ fn test_unverifiable_prev_light_client_proof() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -966,7 +1028,10 @@ fn test_unverifiable_prev_light_client_proof() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1005,7 +1070,8 @@ fn test_unverifiable_prev_light_client_proof() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -1019,7 +1085,10 @@ fn test_unverifiable_prev_light_client_proof() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 }
@@ -1053,7 +1122,7 @@ fn test_new_method_id_txs() {
         None,
         batch_prover_da_pub_key,
     );
-    let blob_2 = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly);
+    let blob_2 = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly, 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -1068,7 +1137,8 @@ fn test_new_method_id_txs() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -1082,7 +1152,10 @@ fn test_new_method_id_txs() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
     let mut working_set = WorkingSet::new(
@@ -1099,7 +1172,8 @@ fn test_new_method_id_txs() {
     );
 
     // now try wrong method id
-    let blob_2 = create_new_method_id_tx(10, [3u32; 8], batch_prover_da_pub_key, Network::Nightly);
+    let blob_2 =
+        create_new_method_id_tx(10, [3u32; 8], batch_prover_da_pub_key, Network::Nightly, 2);
 
     let block_header_2 = MockBlockHeader::from_height(2);
 
@@ -1116,7 +1190,8 @@ fn test_new_method_id_txs() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -1130,7 +1205,10 @@ fn test_new_method_id_txs() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
     let batch_proof_method_ids =
@@ -1144,8 +1222,8 @@ fn test_new_method_id_txs() {
     );
 
     // now try activation height < last activating height and activation height = last activation height
-    let blob_1 = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly);
-    let blob_2 = create_new_method_id_tx(3, [2u32; 8], method_id_sender, Network::Nightly);
+    let blob_1 = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly, 2);
+    let blob_2 = create_new_method_id_tx(3, [2u32; 8], method_id_sender, Network::Nightly, 2);
 
     let block_header_3 = MockBlockHeader::from_height(3);
 
@@ -1162,7 +1240,8 @@ fn test_new_method_id_txs() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -1176,7 +1255,10 @@ fn test_new_method_id_txs() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1213,7 +1295,7 @@ fn test_wrong_network_method_id_update_should_fail() {
     let block_header_1 = MockBlockHeader::from_height(1);
 
     // Create method id update for a different network
-    let blob = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Mainnet);
+    let blob = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Mainnet, 1);
 
     let input = native_circuit_runner.run(
         LightClientCircuitInput {
@@ -1228,7 +1310,8 @@ fn test_wrong_network_method_id_update_should_fail() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -1242,7 +1325,10 @@ fn test_wrong_network_method_id_update_should_fail() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
     let mut working_set = WorkingSet::new(
@@ -1311,7 +1397,8 @@ fn test_unverifiable_batch_proof_is_ignored() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -1325,7 +1412,10 @@ fn test_unverifiable_batch_proof_is_ignored() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1440,7 +1530,8 @@ fn test_light_client_circuit_verify_chunks() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -1454,7 +1545,10 @@ fn test_light_client_circuit_verify_chunks() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1557,7 +1651,8 @@ fn test_missing_chunk() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -1571,7 +1666,10 @@ fn test_missing_chunk() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1612,6 +1710,14 @@ fn test_light_client_circuit_aggregate_size_overflow() {
         block_header_1.hash.0,
         vec![seq_comm_1.clone(), seq_comm_2.clone(), seq_comm_3.clone()],
         None,
+    );
+
+    // Ensure the serialized proof exceeds the compressed blob size limit
+    assert!(
+        serialized_mock_proof.len() > MAX_COMPRESSED_BLOB_SIZE,
+        "Serialized mock proof ({} bytes) must exceed MAX_COMPRESSED_BLOB_SIZE ({} bytes)",
+        serialized_mock_proof.len(),
+        MAX_COMPRESSED_BLOB_SIZE,
     );
 
     let mut chunk_blobs = vec![];
@@ -1661,7 +1767,8 @@ fn test_light_client_circuit_aggregate_size_overflow() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -1675,7 +1782,10 @@ fn test_light_client_circuit_aggregate_size_overflow() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1755,7 +1865,8 @@ fn test_malicious_aggregate_should_not_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -1769,7 +1880,10 @@ fn test_malicious_aggregate_should_not_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1808,7 +1922,8 @@ fn test_malicious_aggregate_should_not_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -1822,7 +1937,10 @@ fn test_malicious_aggregate_should_not_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1874,7 +1992,8 @@ fn test_malicious_aggregate_should_not_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -1888,7 +2007,10 @@ fn test_malicious_aggregate_should_not_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -1960,7 +2082,8 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -1974,7 +2097,10 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2033,7 +2159,8 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -2047,7 +2174,10 @@ fn test_unknown_block_hash_in_batch_proof_not_verified() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2102,7 +2232,8 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -2116,7 +2247,10 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2153,7 +2287,8 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -2167,7 +2302,10 @@ fn test_light_client_circuit_verify_sequencer_commitment() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2229,7 +2367,8 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -2243,7 +2382,10 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2280,7 +2422,8 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -2294,7 +2437,10 @@ fn wrong_pubkey_sequencer_commitment_should_not_work() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key.clone(),
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2370,7 +2516,8 @@ fn test_lcp_input_values_cant_be_tampered() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -2384,7 +2531,10 @@ fn test_lcp_input_values_cant_be_tampered() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2411,16 +2561,23 @@ fn test_lcp_input_values_cant_be_tampered() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
     // at this point returned witness will look like this:
-    // <VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) val>
-    // <prev root>
-    // <VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) read proof>
-    // <jmt update proof> (includes inserting blockhash)
-    // <final root>
+    // <BatchProverDaPubKeyAccessor::get() val>          index 0
+    // <SequencerDaPubKeyAccessor::get() val>            index 1
+    // <RevertEpochAccessor::get_or_default() val>       index 2
+    // <VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) val>  index 3
+    // <prev root>                                       index 4
+    // <BatchProverDaPubKeyAccessor read proof>          index 5
+    // <SequencerDaPubKeyAccessor read proof>            index 6
+    // <RevertEpochAccessor read proof>                  index 7
+    // <VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) read proof>  index 8
+    // <jmt update proof> (includes inserting blockhash) index 9
+    // <final root>                                      index 10
     // let's try changing the value of VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2)
     // as it was None, we'll try cheating and setting it to Some(VerifiedStateTransitionForSequencerCommitmentIndex{})
     // this simulates a light client prover that tries to move state of the L2 without a valid batch proof found on DA
@@ -2439,14 +2596,28 @@ fn test_lcp_input_values_cant_be_tampered() {
         .unwrap()
         .into();
 
-    witness[0] = borsh::to_vec(&Some(storage_value)).unwrap();
+    // Index 3 is the VerifiedStateTransitionForSequencerCommitmentIndex value
+    // (indices 0 and 1 are BatchProverDaPubKey and SequencerDaPubKey values, index 2 is RevertEpoch)
+    witness[3] = borsh::to_vec(&Some(storage_value)).unwrap();
 
-    // we'll also push a None so that incrementing of VerifiedStateTransitionForSequencerCommitmentIndexAccessor stops
-    witness.insert(1, vec![0]);
+    // Since we tampered index 3 to Some, the circuit will now also read:
+    // - VerifiedStateTransitionEpochAccessor::get_or_default(2) (None → returns default 0, matching current epoch)
+    // - VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(3) (None, stops the loop)
+    // Insert these two value hints after the tampered value
+    witness.insert(4, vec![0]); // VerifiedStateTransitionEpochAccessor::get_or_default(2) = None/default
+    witness.insert(5, vec![0]); // VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(3) = None
 
-    // reusing VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) read proof
-    // for VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(3) as get(2) will panic already
-    witness.insert(4, witness[3].clone());
+    // After inserting 2 value hints, the proof section has shifted by +2:
+    // index 6: prev root
+    // index 7: BatchProverDaPubKey read proof
+    // index 8: SequencerDaPubKey read proof
+    // index 9: RevertEpoch read proof
+    // index 10: VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(2) read proof
+
+    // reusing get(2) read proof for VerifiedStateTransitionEpoch(2) and get(3) absence proofs
+    // as get(2) value mismatch will cause the panic before these proofs are verified
+    witness.insert(11, witness[10].clone()); // VerifiedStateTransitionEpochAccessor::get_or_default(2) read proof
+    witness.insert(12, witness[10].clone()); // VerifiedStateTransitionForSequencerCommitmentIndexAccessor::get(3) read proof
 
     input.witness = witness.into();
 
@@ -2465,7 +2636,10 @@ fn test_lcp_input_values_cant_be_tampered() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 }
@@ -2525,7 +2699,8 @@ fn test_lcp_cant_be_passed_roots_from_a_different_tree() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -2539,7 +2714,10 @@ fn test_lcp_cant_be_passed_roots_from_a_different_tree() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
 
@@ -2572,7 +2750,8 @@ fn test_lcp_cant_be_passed_roots_from_a_different_tree() {
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         &sequencer_da_pub_key,
-        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
         Network::Nightly,
     );
 
@@ -2586,7 +2765,2661 @@ fn test_lcp_cant_be_passed_roots_from_a_different_tree() {
             INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
             &batch_prover_da_pub_key,
             &sequencer_da_pub_key,
-            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
         )
         .unwrap();
+}
+
+#[test]
+fn test_add_security_council_member() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let new_member = [99u8; 20];
+    let blob = create_add_member_tx(new_member, 3, [11u8; 32], 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(addresses.len(), INITIAL_SC_MEMBER_COUNT + 1);
+    assert_eq!(addresses.last().unwrap().0 .0, new_member);
+
+    let threshold =
+        SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(threshold, INITIAL_SECURITY_COUNCIL_THRESHOLD);
+}
+
+#[test]
+fn test_add_duplicate_member_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let initial_addresses = SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner();
+    let existing_member = initial_addresses[0].0 .0;
+
+    let blob = create_add_member_tx(existing_member, 3, [11u8; 32], 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        initial_addresses,
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            initial_addresses,
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(addresses.len(), INITIAL_SC_MEMBER_COUNT);
+}
+
+#[test]
+fn test_remove_security_council_member() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let initial_addresses = SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner();
+    let member_to_remove = initial_addresses[4].0 .0;
+
+    let blob = create_remove_member_tx(member_to_remove, 2, [11u8; 32], 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        initial_addresses,
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            initial_addresses,
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(addresses.len(), INITIAL_SC_MEMBER_COUNT - 1);
+    assert!(!addresses.iter().any(|a| a.0 .0 == member_to_remove));
+
+    let threshold =
+        SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(threshold, 2);
+}
+
+#[test]
+fn test_remove_nonexistent_member_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let nonexistent_member = [88u8; 20];
+    let blob = create_remove_member_tx(nonexistent_member, 3, [11u8; 32], 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(addresses.len(), INITIAL_SC_MEMBER_COUNT);
+}
+
+#[test]
+fn test_update_security_council_threshold() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let blob = create_update_threshold_tx(2, [11u8; 32], 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let threshold =
+        SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(threshold, 2);
+}
+
+#[test]
+fn test_invalid_threshold_update_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    // threshold 6 > 5 members, should be rejected
+    let blob = create_update_threshold_tx(6, [11u8; 32], 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let threshold =
+        SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(threshold, INITIAL_SECURITY_COUNCIL_THRESHOLD);
+}
+
+#[test]
+fn test_replace_security_council_member() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let initial_addresses = SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner();
+    let old_member = initial_addresses[4].0 .0;
+    let new_member = [77u8; 20];
+
+    let blob = create_replace_member_tx(old_member, new_member, [11u8; 32], 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        initial_addresses,
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            initial_addresses,
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(addresses.len(), INITIAL_SC_MEMBER_COUNT);
+    assert!(!addresses.iter().any(|a| a.0 .0 == old_member));
+    assert!(addresses.iter().any(|a| a.0 .0 == new_member));
+
+    let threshold =
+        SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(threshold, INITIAL_SECURITY_COUNCIL_THRESHOLD);
+}
+
+#[test]
+fn test_add_member_exceeds_max_count_rejected() {
+    use alloy_primitives::Address;
+
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    // Build MAX initial members: known keys + random to fill
+    let known_addresses = SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner();
+    let mut initial_addresses: Vec<Address> = known_addresses.to_vec();
+    let extra_count = MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL - known_addresses.len();
+    for i in 0u8..(extra_count as u8) {
+        initial_addresses.push(Address::from_slice(&[50 + i; 20]));
+    }
+    assert_eq!(
+        initial_addresses.len(),
+        MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL
+    );
+
+    let new_member = [99u8; 20];
+    // threshold 3 is valid for MAX members (3 >= MIN_THRESHOLD=2, 3 <= MAX-2=8)
+    let threshold = 3u32;
+    let member_count = initial_addresses.len();
+    assert!(threshold as usize >= MIN_THRESHOLD);
+    assert!(threshold as usize <= member_count - MAX_THRESHOLD_PROXIMITY);
+    let blob = create_add_member_tx(new_member, threshold, [11u8; 32], 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        &initial_addresses,
+        threshold as usize,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            &initial_addresses,
+            threshold as usize,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(addresses.len(), MAX_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL); // Still at max, add was rejected
+}
+
+#[test]
+fn test_remove_member_below_min_count_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    // Use only the first 4 addresses from the known keys
+    let known_addresses = SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner();
+    let initial_addresses = &known_addresses[..4];
+    assert!(initial_addresses.len() - 1 < MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL);
+    let member_to_remove = initial_addresses[3].0 .0;
+
+    // threshold=2 is valid for 4 members (2 >= MIN_THRESHOLD=2, 2 <= 4-2=2)
+    let blob = create_remove_member_tx(member_to_remove, 2, [11u8; 32], 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        initial_addresses,
+        2, // threshold=2, valid for 4 members
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            initial_addresses,
+            2,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(addresses.len(), MIN_NUMBER_OF_MEMBERS_IN_SECURITY_COUNCIL); // Still at min, remove was rejected
+}
+
+#[test]
+fn test_add_member_threshold_too_high_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let new_member = [99u8; 20];
+    // After adding, 6 members. Max threshold = 6-2=4. Requesting threshold=5 is invalid.
+    let blob = create_add_member_tx(new_member, 5, [11u8; 32], 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(addresses.len(), INITIAL_SC_MEMBER_COUNT); // Still at initial, add was rejected
+
+    let threshold =
+        SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(threshold, INITIAL_SECURITY_COUNCIL_THRESHOLD); // Threshold unchanged
+}
+
+#[test]
+fn test_update_threshold_below_min_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    // threshold=1 is below MIN_THRESHOLD=2
+    let blob = create_update_threshold_tx(1, [11u8; 32], 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let threshold =
+        SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(threshold, INITIAL_SECURITY_COUNCIL_THRESHOLD); // Threshold unchanged (still 3)
+}
+
+#[test]
+fn test_update_threshold_exceeds_proximity_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    // 5 members, max threshold = 5-2=3. Requesting threshold=4 is invalid.
+    let blob = create_update_threshold_tx(4, [11u8; 32], 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let threshold =
+        SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(threshold, INITIAL_SECURITY_COUNCIL_THRESHOLD); // Threshold unchanged (still 3)
+}
+
+#[test]
+fn test_update_sequencer_da_pub_key() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let new_pub_key = [77u8; 33];
+    let blob = create_update_sequencer_pub_key_tx(new_pub_key, [11u8; 32], 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let stored_pub_key = SequencerDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(stored_pub_key, new_pub_key.to_vec());
+}
+
+#[test]
+fn test_update_batch_prover_da_pub_key() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let new_pub_key = [88u8; 33];
+    let blob = create_update_batch_prover_pub_key_tx(new_pub_key, [11u8; 32], 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let stored_pub_key =
+        BatchProverDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(stored_pub_key, new_pub_key.to_vec());
+}
+
+#[test]
+fn test_update_sequencer_da_pub_key_wrong_chain_id_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let new_pub_key = [77u8; 33];
+    // Sign with wrong chain_id in domain (9999 instead of Nightly's 5655)
+    let blob =
+        create_update_sequencer_pub_key_tx_with_signing_chain_id(new_pub_key, 9999, [11u8; 32], 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    // Key should remain unchanged (the initial value)
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let stored_pub_key = SequencerDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(stored_pub_key, sequencer_da_pub_key.to_vec());
+}
+
+#[test]
+fn test_update_batch_prover_da_pub_key_wrong_chain_id_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let new_pub_key = [88u8; 33];
+    // Sign with wrong chain_id in domain (9999 instead of Nightly's 5655)
+    let blob = create_update_batch_prover_pub_key_tx_with_signing_chain_id(
+        new_pub_key,
+        9999,
+        [11u8; 32],
+        1,
+    );
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    // Key should remain unchanged (the initial value)
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let stored_pub_key =
+        BatchProverDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(stored_pub_key, batch_prover_da_pub_key.to_vec());
+}
+
+#[test]
+fn test_lcp_method_id_upgrade_reinitializes_state() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let old_method_id = [1u32; 8];
+    let new_method_id = [2u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let seq_comm_1 = create_mock_sequencer_commitment(1, 2, [2u8; 32]);
+    let seq_comm_1_blob = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
+
+    let batch_prover_da_pub_key = [9; 32];
+
+    let blob_1 = create_mock_batch_proof(
+        [1u8; 32],
+        2,
+        true,
+        block_header_1.hash.0,
+        vec![seq_comm_1.clone()],
+        None,
+        batch_prover_da_pub_key,
+    );
+
+    let l2_genesis_state_root = [1u8; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    // First proof with old method ID — initializes state
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id: old_method_id,
+            da_block_header: block_header_1.clone(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![seq_comm_1_blob, blob_1],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    assert_eq!(output_1.light_client_proof_method_id, old_method_id);
+    assert_eq!(output_1.l2_state_root, [2; 32]);
+    assert_eq!(output_1.last_l2_height, 2);
+    assert_eq!(output_1.last_sequencer_commitment_index, 1);
+
+    // Second proof with new method ID — LCP upgrade with re-initialization
+    let block_header_2 = MockBlockHeader::from_height(2);
+    let mock_output_1_serialized = create_prev_lcp_serialized(output_1.clone(), true);
+
+    // Use different initial values for the "new circuit" to verify re-initialization
+    let new_batch_proof_method_ids: Vec<(u64, [u32; 8])> = vec![(0, [99u32; 8])];
+    let new_batch_prover_da_pub_key = [77; 32];
+    let new_sequencer_da_pub_key = [88; 32];
+
+    let input_2 = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(mock_output_1_serialized),
+            light_client_proof_method_id: new_method_id,
+            da_block_header: block_header_2,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        new_batch_proof_method_ids.clone(),
+        &new_batch_prover_da_pub_key,
+        &new_sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let output_2 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input_2,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            new_batch_proof_method_ids.clone(),
+            &new_batch_prover_da_pub_key,
+            &new_sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[old_method_id], // allowed previous method IDs
+        )
+        .unwrap();
+
+    // Verify the output has the new method ID
+    assert_eq!(output_2.light_client_proof_method_id, new_method_id);
+
+    // Verify L2 state carries over from the previous proof
+    assert_eq!(output_2.l2_state_root, output_1.l2_state_root);
+    assert_eq!(output_2.last_l2_height, output_1.last_l2_height);
+    assert_eq!(
+        output_2.last_sequencer_commitment_index,
+        output_1.last_sequencer_commitment_index
+    );
+
+    // Verify JMT state was re-initialized with new initial constants
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+
+    let stored_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(stored_method_ids, new_batch_proof_method_ids);
+
+    let stored_batch_prover_pub_key =
+        BatchProverDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(stored_batch_prover_pub_key, new_batch_prover_da_pub_key);
+
+    let stored_sequencer_pub_key =
+        SequencerDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(stored_sequencer_pub_key, new_sequencer_da_pub_key);
+
+    let stored_threshold =
+        SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(stored_threshold, INITIAL_SECURITY_COUNCIL_THRESHOLD);
+}
+
+#[test]
+#[should_panic(expected = "Previous LCP method ID is not in the allowed list")]
+fn test_lcp_upgrade_with_disallowed_previous_method_id_panics() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let old_method_id = [1u32; 8];
+    let new_method_id = [2u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+
+    // First proof with old method ID
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id: old_method_id,
+            da_block_header: block_header_1.clone(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    // Second proof with new method ID, but allowed list does NOT contain old_method_id
+    let block_header_2 = MockBlockHeader::from_height(2);
+    let mock_output_1_serialized = create_prev_lcp_serialized(output_1, true);
+
+    let input_2 = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(mock_output_1_serialized.clone()),
+            light_client_proof_method_id: new_method_id,
+            da_block_header: block_header_2.clone(),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    // This should panic because [3u32; 8] does not contain old_method_id [1u32; 8]
+    let _output_2 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input_2,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[[3u32; 8]], // does NOT contain old_method_id [1u32; 8]
+        )
+        .unwrap();
+}
+
+#[test]
+fn test_nonce_replay_same_nonce_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_sender = [11u8; 32];
+
+    // Block 1: Send method id update with nonce=1 (accepted)
+    let block_header_1 = MockBlockHeader::from_height(1);
+    let blob_1 = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly, 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_1],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(batch_proof_method_ids.len(), 2);
+    let nonce = SecurityCouncilNonceAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(nonce, 1);
+
+    // Block 2: Replay the same nonce=1 (should be rejected)
+    let block_header_2 = MockBlockHeader::from_height(2);
+    let blob_replay = create_new_method_id_tx(20, [3u32; 8], method_id_sender, Network::Nightly, 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id,
+            da_block_header: block_header_2,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_replay],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output_2 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    // Still only 2 method ids - the replay was rejected
+    assert_eq!(batch_proof_method_ids.len(), 2);
+    assert_eq!(
+        batch_proof_method_ids,
+        vec![(0u64, [0u32; 8]), (10u64, [2u32; 8])]
+    );
+    let nonce = SecurityCouncilNonceAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(nonce, 1); // Nonce unchanged
+}
+
+#[test]
+fn test_nonce_lower_nonce_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_sender = [11u8; 32];
+
+    // Block 1: Send method id update with nonce=1 (accepted)
+    let block_header_1 = MockBlockHeader::from_height(1);
+    let blob_1 = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly, 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_1],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    // Block 2: Send with nonce=0 (lower than current=1, should be rejected)
+    let block_header_2 = MockBlockHeader::from_height(2);
+    let blob_lower = create_new_method_id_tx(20, [3u32; 8], method_id_sender, Network::Nightly, 0);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id,
+            da_block_header: block_header_2,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_lower],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output_2 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(batch_proof_method_ids.len(), 2);
+    assert_eq!(
+        batch_proof_method_ids,
+        vec![(0u64, [0u32; 8]), (10u64, [2u32; 8])]
+    );
+    let nonce = SecurityCouncilNonceAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(nonce, 1); // Nonce unchanged
+}
+
+#[test]
+fn test_nonce_skipped_nonce_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_sender = [11u8; 32];
+
+    // Block 1: Send with nonce=3 (skipped, expected=1, should be rejected)
+    let block_header_1 = MockBlockHeader::from_height(1);
+    let blob_skipped =
+        create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly, 3);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_skipped],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    // Method id not added because nonce was skipped
+    assert_eq!(batch_proof_method_ids.len(), 1);
+    let nonce = SecurityCouncilNonceAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(nonce, 0); // Nonce unchanged from initial
+}
+
+#[test]
+fn test_nonce_sequential_accepted_then_replay_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_sender = [11u8; 32];
+
+    // Block 1: Two SC messages with nonce=1 and nonce=2 (both accepted)
+    let block_header_1 = MockBlockHeader::from_height(1);
+    let blob_1 = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly, 1);
+    let blob_2 = create_new_method_id_tx(20, [3u32; 8], method_id_sender, Network::Nightly, 2);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_1, blob_2],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(batch_proof_method_ids.len(), 3);
+    let nonce = SecurityCouncilNonceAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(nonce, 2);
+
+    // Block 2: Try to replay nonce=2 and also send nonce=1 (both rejected), then nonce=3 (accepted)
+    let block_header_2 = MockBlockHeader::from_height(2);
+    let blob_replay_2 =
+        create_new_method_id_tx(30, [4u32; 8], method_id_sender, Network::Nightly, 2);
+    let blob_replay_1 =
+        create_new_method_id_tx(40, [5u32; 8], method_id_sender, Network::Nightly, 1);
+    let blob_valid_3 =
+        create_new_method_id_tx(50, [6u32; 8], method_id_sender, Network::Nightly, 3);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id,
+            da_block_header: block_header_2,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_replay_2, blob_replay_1, blob_valid_3],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output_2 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    // Only nonce=3 was accepted, so 4 total method ids (initial + 3 valid ones)
+    assert_eq!(batch_proof_method_ids.len(), 4);
+    assert_eq!(
+        batch_proof_method_ids,
+        vec![
+            (0u64, [0u32; 8]),
+            (10u64, [2u32; 8]),
+            (20u64, [3u32; 8]),
+            (50u64, [6u32; 8]),
+        ]
+    );
+    let nonce = SecurityCouncilNonceAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(nonce, 3);
+}
+
+#[test]
+fn test_nonce_cross_message_types() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_sender = [11u8; 32];
+
+    // Block 1: method id update with nonce=1, then add member with nonce=2
+    let block_header_1 = MockBlockHeader::from_height(1);
+    let blob_method_id =
+        create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly, 1);
+    let new_member = [99u8; 20];
+    let blob_add_member = create_add_member_tx(new_member, 3, method_id_sender, 2);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_method_id, blob_add_member],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    // Both messages accepted
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(batch_proof_method_ids.len(), 2);
+    let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(addresses.len(), INITIAL_SC_MEMBER_COUNT + 1);
+    let nonce = SecurityCouncilNonceAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(nonce, 2);
+
+    // Block 2: Try add member with nonce=2 again (replay across different message type, should be rejected)
+    let block_header_2 = MockBlockHeader::from_height(2);
+    let another_member = [88u8; 20];
+    let blob_replay = create_add_member_tx(another_member, 3, method_id_sender, 2);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id,
+            da_block_header: block_header_2,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_replay],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output_2 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    // Still initial+1, the replay was rejected
+    assert_eq!(addresses.len(), INITIAL_SC_MEMBER_COUNT + 1);
+    let nonce = SecurityCouncilNonceAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(nonce, 2); // Nonce unchanged
+}
+
+#[test]
+fn test_remove_batch_proof_method_id() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_sender = [11u8; 32];
+
+    // Block 1: Add a second method id (nonce=1)
+    let block_header_1 = MockBlockHeader::from_height(1);
+    let blob_add = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly, 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_add],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(batch_proof_method_ids.len(), 2);
+    assert_eq!(
+        batch_proof_method_ids,
+        vec![(0u64, [0u32; 8]), (10u64, [2u32; 8])]
+    );
+
+    // Block 2: Remove the first method id (index=0, method_id=[0;8], height=0, nonce=2)
+    let block_header_2 = MockBlockHeader::from_height(2);
+    let blob_remove = create_remove_method_id_tx(0, [0u32; 8], 0, method_id_sender, 2);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id,
+            da_block_header: block_header_2,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_remove],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output_2 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(batch_proof_method_ids.len(), 1);
+    assert_eq!(batch_proof_method_ids, vec![(10u64, [2u32; 8])]);
+}
+
+#[test]
+fn test_remove_last_method_id_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_sender = [11u8; 32];
+
+    // Block 1: Try to remove the only method id (should be rejected)
+    let block_header_1 = MockBlockHeader::from_height(1);
+    let blob_remove = create_remove_method_id_tx(0, [0u32; 8], 0, method_id_sender, 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_remove],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    // Still 1 — cannot remove the last method id
+    assert_eq!(batch_proof_method_ids.len(), 1);
+    assert_eq!(batch_proof_method_ids, vec![(0u64, [0u32; 8])]);
+}
+
+#[test]
+fn test_remove_method_id_wrong_fields_rejected() {
+    let db_dir = tempdir().unwrap();
+    let native_circuit_runner = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk_circuit_runner = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let sequencer_da_pub_key = [45; 32];
+    let method_id_sender = [11u8; 32];
+
+    // Block 1: Add a second method id (nonce=1)
+    let block_header_1 = MockBlockHeader::from_height(1);
+    let blob_add = create_new_method_id_tx(10, [2u32; 8], method_id_sender, Network::Nightly, 1);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id,
+            da_block_header: block_header_1,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_add],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let output_1 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    // Block 2: Three rejected remove attempts:
+    // 1. Wrong method_id at index 0 (nonce=2)
+    // 2. Wrong activation height at index 1 (nonce=2, prev rejected)
+    // 3. Out-of-bounds index (nonce=2, prev rejected)
+    let block_header_2 = MockBlockHeader::from_height(2);
+    // Wrong method id: index 0 has [0;8] but we claim [9;8]
+    let blob_wrong_id = create_remove_method_id_tx(0, [9u32; 8], 0, method_id_sender, 2);
+    // Wrong height: index 1 has height=10 but we claim height=99
+    let blob_wrong_height = create_remove_method_id_tx(1, [2u32; 8], 99, method_id_sender, 2);
+    // Out of bounds: index 5 doesn't exist
+    let blob_oob = create_remove_method_id_tx(5, [0u32; 8], 0, method_id_sender, 2);
+
+    let input = native_circuit_runner.run(
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id,
+            da_block_header: block_header_2,
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_wrong_id, blob_wrong_height, blob_oob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+
+    let _output_2 = zk_circuit_runner
+        .run_circuit(
+            da_verifier.clone(),
+            input,
+            ZkStorage::new(),
+            Network::Nightly,
+            l2_genesis_state_root,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &batch_prover_da_pub_key,
+            &sequencer_da_pub_key,
+            SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+            INITIAL_SECURITY_COUNCIL_THRESHOLD,
+            EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+            &[],
+        )
+        .unwrap();
+
+    let mut working_set = WorkingSet::new(
+        native_circuit_runner
+            .prover_storage_manager
+            .create_final_view_storage(),
+    );
+    let batch_proof_method_ids =
+        BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    // Still 2 — all three removes were rejected
+    assert_eq!(batch_proof_method_ids.len(), 2);
+    assert_eq!(
+        batch_proof_method_ids,
+        vec![(0u64, [0u32; 8]), (10u64, [2u32; 8])]
+    );
+    let nonce = SecurityCouncilNonceAccessor::<ProverStorage>::get(&mut working_set).unwrap();
+    assert_eq!(nonce, 2); // Add from block 1 consumed nonce 1, first failed remove consumed nonce 2
+}
+
+// ── SetLcpToPreviousState tests ────────────────────────────────────────────────
+
+// Helper: run the circuit through the native runner and then through the ZK
+// runner, asserting it succeeds, and return the output.
+fn run_block(
+    native: &NativeCircuitRunner,
+    zk: &LightClientProofCircuit<ZkStorage, MockDaSpec, MockZkGuest>,
+    da_verifier: &MockDaVerifier,
+    input: LightClientCircuitInput<MockDaSpec>,
+    l2_genesis_state_root: [u8; 32],
+    batch_prover_da_pub_key: &[u8; 32],
+    sequencer_da_pub_key: &[u8; 32],
+) -> LightClientCircuitOutput {
+    let input = native.run(
+        input,
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        batch_prover_da_pub_key,
+        sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        Network::Nightly,
+    );
+    zk.run_circuit(
+        da_verifier.clone(),
+        input,
+        ZkStorage::new(),
+        Network::Nightly,
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        batch_prover_da_pub_key,
+        sequencer_da_pub_key,
+        SECURITY_COUNCIL_INITIAL_DA_ADDRESSES.inner(),
+        INITIAL_SECURITY_COUNCIL_THRESHOLD,
+        EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME.to_string(),
+        &[],
+    )
+    .unwrap()
+}
+
+/// Happy path: SetLcpToPreviousState reverts the LCP state to an earlier
+/// commitment index, resets l2_state_root / last_l2_height, and increments
+/// the revert epoch in persistent storage.
+#[test]
+fn test_set_lcp_to_previous_state() {
+    let db_dir = tempdir().unwrap();
+    let native = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9u8; 32];
+    let sequencer_da_pub_key = [45u8; 32];
+
+    // seq_comm_1: index=1, l2_end=2, merkle_root=[2;32]
+    // seq_comm_2: index=2, l2_end=3, merkle_root=[3;32]
+    let seq_comm_1 = create_mock_sequencer_commitment(1, 2, [2u8; 32]);
+    let seq_comm_2 = create_mock_sequencer_commitment(2, 3, [3u8; 32]);
+
+    // batch_proof_1: initial_state=[1;32] → final=[2;32]  (merkle_root of seq_comm_1)
+    // batch_proof_2: initial_state=[2;32] → final=[3;32]  (merkle_root of seq_comm_2)
+    let blob_seq_1 = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
+    let blob_seq_2 = create_mock_sequencer_commitment_blob(seq_comm_2.clone());
+    let blob_proof_1 = create_mock_batch_proof(
+        [1u8; 32],
+        2,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_1.clone()],
+        None,
+        batch_prover_da_pub_key,
+    );
+    let blob_proof_2 = create_mock_batch_proof(
+        [2u8; 32],
+        3,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_2.clone()],
+        Some(seq_comm_1.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
+    );
+
+    // Block 1: process both commitments and both batch proofs
+    let output_1 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(1),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_seq_1, blob_seq_2, blob_proof_1, blob_proof_2],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+
+    assert_eq!(output_1.last_sequencer_commitment_index, 2);
+    assert_eq!(output_1.l2_state_root, [3u8; 32]);
+    assert_eq!(output_1.last_l2_height, 3);
+
+    // Block 2: SetLcpToPreviousState — revert to index=1
+    // pre_state_root must match VerifiedStateTransition(1).final_state_root = [2;32]
+    // last_l2_height must match seq_comm_1.l2_end_block_number = 2
+    // merkle_root must match seq_comm_1.merkle_root = [2;32]
+    let revert_blob = create_set_lcp_to_previous_state_tx(
+        [2u8; 32], // pre_state_root
+        1,         // revert to index 1
+        2,         // last_l2_height
+        [2u8; 32], // merkle_root
+        [11u8; 32], 1, // nonce
+    );
+
+    let output_2 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(2),
+            inclusion_proof: [2u8; 32],
+            completeness_proof: vec![revert_blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+
+    // LCP state should be rolled back to index 1
+    assert_eq!(output_2.last_sequencer_commitment_index, 1);
+    assert_eq!(output_2.l2_state_root, [2u8; 32]);
+    assert_eq!(output_2.last_l2_height, 2);
+
+    // Revert epoch must have been incremented to 1
+    let mut ws = WorkingSet::new(native.prover_storage_manager.create_final_view_storage());
+    let epoch = RevertEpochAccessor::<ProverStorage>::get_or_default(&mut ws);
+    assert_eq!(epoch, 1);
+
+    // Nonce was consumed
+    let nonce = SecurityCouncilNonceAccessor::<ProverStorage>::get(&mut ws).unwrap();
+    assert_eq!(nonce, 1);
+}
+
+/// After a revert, verified state transitions from the previous epoch must be
+/// ignored by the chaining loop so the LCP cannot advance past the revert point
+/// using stale data.
+#[test]
+fn test_set_lcp_to_previous_state_invalidates_stale_proofs() {
+    let db_dir = tempdir().unwrap();
+    let native = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9u8; 32];
+    let sequencer_da_pub_key = [45u8; 32];
+
+    let seq_comm_1 = create_mock_sequencer_commitment(1, 2, [2u8; 32]);
+    let seq_comm_2 = create_mock_sequencer_commitment(2, 3, [3u8; 32]);
+
+    let blob_seq_1 = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
+    let blob_seq_2 = create_mock_sequencer_commitment_blob(seq_comm_2.clone());
+    let blob_proof_1 = create_mock_batch_proof(
+        [1u8; 32],
+        2,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_1.clone()],
+        None,
+        batch_prover_da_pub_key,
+    );
+    let blob_proof_2 = create_mock_batch_proof(
+        [2u8; 32],
+        3,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_2.clone()],
+        Some(seq_comm_1.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
+    );
+
+    // Block 1: process seq_comm_1 and seq_comm_2 with their batch proofs
+    let output_1 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(1),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_seq_1, blob_seq_2, blob_proof_1, blob_proof_2],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+    assert_eq!(output_1.last_sequencer_commitment_index, 2);
+
+    // Block 2: revert to index=1; VerifiedStateTransition(2) is now from epoch 0
+    let revert_blob =
+        create_set_lcp_to_previous_state_tx([2u8; 32], 1, 2, [2u8; 32], [11u8; 32], 1);
+    let output_2 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(2),
+            inclusion_proof: [2u8; 32],
+            completeness_proof: vec![revert_blob],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+    assert_eq!(output_2.last_sequencer_commitment_index, 1);
+
+    // Block 3: empty DA — chaining loop finds VerifiedStateTransition(2) stored in JMT
+    // but its epoch (0) != current_epoch (1), so it must be skipped
+    let output_3 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_2, true)),
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(3),
+            inclusion_proof: [3u8; 32],
+            completeness_proof: vec![],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+
+    // Must still be at index 1 — stale transition for index 2 must NOT have advanced it
+    assert_eq!(output_3.last_sequencer_commitment_index, 1);
+    assert_eq!(output_3.l2_state_root, [2u8; 32]);
+}
+
+/// A revert message whose index is equal to (not less than) last_sequencer_commitment_index
+/// must be rejected; the LCP state must remain unchanged.
+#[test]
+fn test_set_lcp_to_previous_state_rejected_if_index_not_less_than_current() {
+    let db_dir = tempdir().unwrap();
+    let native = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9u8; 32];
+    let sequencer_da_pub_key = [45u8; 32];
+
+    let seq_comm_1 = create_mock_sequencer_commitment(1, 2, [2u8; 32]);
+    let blob_seq_1 = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
+    let blob_proof_1 = create_mock_batch_proof(
+        [1u8; 32],
+        2,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_1.clone()],
+        None,
+        batch_prover_da_pub_key,
+    );
+
+    let output_1 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(1),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_seq_1, blob_proof_1],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+    assert_eq!(output_1.last_sequencer_commitment_index, 1);
+
+    // Try to revert to index=1 while last_index=1 (index >= last_index → rejected)
+    let bad_revert = create_set_lcp_to_previous_state_tx(
+        [2u8; 32], 1, // index == last_index, not strictly less
+        2, [2u8; 32], [11u8; 32], 1,
+    );
+
+    let output_2 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(2),
+            inclusion_proof: [2u8; 32],
+            completeness_proof: vec![bad_revert],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+
+    // State must be unchanged
+    assert_eq!(output_2.last_sequencer_commitment_index, 1);
+    assert_eq!(output_2.l2_state_root, [2u8; 32]);
+
+    let mut ws = WorkingSet::new(native.prover_storage_manager.create_final_view_storage());
+    let epoch = RevertEpochAccessor::<ProverStorage>::get_or_default(&mut ws);
+    assert_eq!(epoch, 0); // epoch must NOT have been incremented
+}
+
+/// A revert message with a mismatched pre_state_root must be rejected.
+#[test]
+fn test_set_lcp_to_previous_state_rejected_if_pre_state_root_mismatch() {
+    let db_dir = tempdir().unwrap();
+    let native = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9u8; 32];
+    let sequencer_da_pub_key = [45u8; 32];
+
+    let seq_comm_1 = create_mock_sequencer_commitment(1, 2, [2u8; 32]);
+    let seq_comm_2 = create_mock_sequencer_commitment(2, 3, [3u8; 32]);
+    let blob_seq_1 = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
+    let blob_seq_2 = create_mock_sequencer_commitment_blob(seq_comm_2.clone());
+    let blob_proof_1 = create_mock_batch_proof(
+        [1u8; 32],
+        2,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_1.clone()],
+        None,
+        batch_prover_da_pub_key,
+    );
+    let blob_proof_2 = create_mock_batch_proof(
+        [2u8; 32],
+        3,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_2.clone()],
+        Some(seq_comm_1.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
+    );
+
+    let output_1 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(1),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_seq_1, blob_seq_2, blob_proof_1, blob_proof_2],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+    assert_eq!(output_1.last_sequencer_commitment_index, 2);
+
+    // pre_state_root is wrong — does not match VerifiedStateTransition(1).final_state_root
+    let bad_revert = create_set_lcp_to_previous_state_tx(
+        [0xFFu8; 32], // wrong pre_state_root
+        1,
+        2,
+        [2u8; 32],
+        [11u8; 32],
+        1,
+    );
+
+    let output_2 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(2),
+            inclusion_proof: [2u8; 32],
+            completeness_proof: vec![bad_revert],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+
+    // State must be unchanged
+    assert_eq!(output_2.last_sequencer_commitment_index, 2);
+    assert_eq!(output_2.l2_state_root, [3u8; 32]);
+
+    let mut ws = WorkingSet::new(native.prover_storage_manager.create_final_view_storage());
+    let epoch = RevertEpochAccessor::<ProverStorage>::get_or_default(&mut ws);
+    assert_eq!(epoch, 0);
+}
+
+/// A revert message that references an index with no verified state transition
+/// stored must be rejected.
+#[test]
+fn test_set_lcp_to_previous_state_rejected_if_no_verified_transition() {
+    let db_dir = tempdir().unwrap();
+    let native = NativeCircuitRunner::new(db_dir.path().to_path_buf());
+    let zk = LightClientProofCircuit::<ZkStorage, MockDaSpec, MockZkGuest>::new();
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9u8; 32];
+    let sequencer_da_pub_key = [45u8; 32];
+
+    let seq_comm_1 = create_mock_sequencer_commitment(1, 2, [2u8; 32]);
+    let seq_comm_2 = create_mock_sequencer_commitment(2, 3, [3u8; 32]);
+    let blob_seq_1 = create_mock_sequencer_commitment_blob(seq_comm_1.clone());
+    let blob_seq_2 = create_mock_sequencer_commitment_blob(seq_comm_2.clone());
+    let blob_proof_1 = create_mock_batch_proof(
+        [1u8; 32],
+        2,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_1.clone()],
+        None,
+        batch_prover_da_pub_key,
+    );
+    let blob_proof_2 = create_mock_batch_proof(
+        [2u8; 32],
+        3,
+        true,
+        MockBlockHeader::from_height(1).hash.0,
+        vec![seq_comm_2.clone()],
+        Some(seq_comm_1.serialize_and_calculate_sha_256()),
+        batch_prover_da_pub_key,
+    );
+
+    let output_1 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: None,
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(1),
+            inclusion_proof: [1u8; 32],
+            completeness_proof: vec![blob_seq_1, blob_seq_2, blob_proof_1, blob_proof_2],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+    assert_eq!(output_1.last_sequencer_commitment_index, 2);
+
+    // Try to revert to index=0; there is no VerifiedStateTransition at index 0
+    // (the circuit never stores one there — index starts at 1)
+    let bad_revert = create_set_lcp_to_previous_state_tx(
+        [1u8; 32], // genesis root — irrelevant, check happens after index check
+        0,         // index=0, no verified transition stored here
+        0, [0u8; 32], [11u8; 32], 1,
+    );
+
+    let output_2 = run_block(
+        &native,
+        &zk,
+        &da_verifier,
+        LightClientCircuitInput {
+            previous_light_client_proof: Some(create_prev_lcp_serialized(output_1, true)),
+            light_client_proof_method_id: [1u32; 8],
+            da_block_header: MockBlockHeader::from_height(2),
+            inclusion_proof: [2u8; 32],
+            completeness_proof: vec![bad_revert],
+            witness: Default::default(),
+        },
+        l2_genesis_state_root,
+        &batch_prover_da_pub_key,
+        &sequencer_da_pub_key,
+    );
+
+    assert_eq!(output_2.last_sequencer_commitment_index, 2);
+    assert_eq!(output_2.l2_state_root, [3u8; 32]);
+
+    let mut ws = WorkingSet::new(native.prover_storage_manager.create_final_view_storage());
+    let epoch = RevertEpochAccessor::<ProverStorage>::get_or_default(&mut ws);
+    assert_eq!(epoch, 0);
 }

@@ -14,7 +14,10 @@ use sov_modules_api::{Spec, WorkingSet};
 use sov_rollup_interface::rpc::{BatchProofMethodIdRpcResponse, LightClientProofResponse};
 use sov_state::ProverStorage;
 
-use crate::circuit::accessors::BatchProofMethodIdAccessor;
+use crate::circuit::accessors::{
+    BatchProofMethodIdAccessor, BatchProverDaPubKeyAccessor, SecurityCouncilAddressAccessor,
+    SecurityCouncilThresholdAccessor, SequencerDaPubKeyAccessor,
+};
 
 /// Context containing shared data needed for RPC method implementations
 pub struct RpcContext<DB>
@@ -85,6 +88,22 @@ pub trait LightClientProverRpc {
     /// Gets the current method ids saved light client provers jmt state
     #[method(name = "getBatchProofMethodIds")]
     async fn get_batch_proof_method_ids(&self) -> RpcResult<Vec<BatchProofMethodIdRpcResponse>>;
+
+    /// Gets the current security council member addresses
+    #[method(name = "getSecurityCouncilAddresses")]
+    async fn get_security_council_addresses(&self) -> RpcResult<Vec<String>>;
+
+    /// Gets the current security council signature threshold
+    #[method(name = "getSecurityCouncilThreshold")]
+    async fn get_security_council_threshold(&self) -> RpcResult<u64>;
+
+    /// Gets the current sequencer DA public key
+    #[method(name = "getSequencerDaPubKey")]
+    async fn get_sequencer_da_pub_key(&self) -> RpcResult<String>;
+
+    /// Gets the current batch prover DA public key
+    #[method(name = "getBatchProverDaPubKey")]
+    async fn get_batch_prover_da_pub_key(&self) -> RpcResult<String>;
 }
 
 /// Server implementation of the light client prover RPC interface
@@ -156,5 +175,44 @@ where
             .collect::<Vec<_>>();
 
         Ok(method_ids)
+    }
+
+    async fn get_security_council_addresses(&self) -> RpcResult<Vec<String>> {
+        let mut working_set = WorkingSet::new(self.context.storage.clone());
+
+        let addresses = SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|a| format!("{a}"))
+            .collect::<Vec<_>>();
+
+        Ok(addresses)
+    }
+
+    async fn get_security_council_threshold(&self) -> RpcResult<u64> {
+        let mut working_set = WorkingSet::new(self.context.storage.clone());
+
+        let threshold = SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set)
+            .unwrap_or(0) as u64;
+
+        Ok(threshold)
+    }
+
+    async fn get_sequencer_da_pub_key(&self) -> RpcResult<String> {
+        let mut working_set = WorkingSet::new(self.context.storage.clone());
+
+        let pub_key =
+            SequencerDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap_or_default();
+
+        Ok(hex::encode(pub_key))
+    }
+
+    async fn get_batch_prover_da_pub_key(&self) -> RpcResult<String> {
+        let mut working_set = WorkingSet::new(self.context.storage.clone());
+
+        let pub_key =
+            BatchProverDaPubKeyAccessor::<ProverStorage>::get(&mut working_set).unwrap_or_default();
+
+        Ok(hex::encode(pub_key))
     }
 }

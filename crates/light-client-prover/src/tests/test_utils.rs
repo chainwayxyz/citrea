@@ -2,9 +2,10 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use alloy_primitives::{eip191_hash_message, B256};
+use alloy_primitives::{keccak256, Address};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
+use alloy_sol_types::{eip712_domain, SolStruct};
 use rand::{thread_rng, Rng};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
@@ -12,8 +13,12 @@ use sov_modules_api::{WorkingSet, Zkvm};
 use sov_modules_core::Storage;
 use sov_prover_storage_manager::{Config, ProverStorage, ProverStorageManager};
 use sov_rollup_interface::da::{
-    BatchProofMethodId, BatchProofMethodIdBody, BlobReaderTrait, DaVerifier, DataOnDa,
-    SequencerCommitment, SECURITY_COUNCIL_SIGNATURE_SIZE, SECURITY_COUNCIL_SIGNATURE_THRESHOLD,
+    AddSecurityCouncilMemberV1Body, BatchProofMethodIdBody, BlobReaderTrait, DaVerifier, DataOnDa,
+    RemoveBatchProofMethodIdV1Body, RemoveSecurityCouncilMemberV1Body,
+    ReplaceSecurityCouncilMemberV1Body, SecurityCouncilTx, SecurityCouncilTxType,
+    SequencerCommitment, SetLcpToPreviousStateV1Body, UpdateBatchProverDaPubKeyV1Body,
+    UpdateSecurityCouncilThresholdV1Body, UpdateSequencerDaPubKeyV1Body,
+    SECURITY_COUNCIL_SIGNATURE_SIZE,
 };
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
@@ -22,9 +27,12 @@ use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutp
 use sov_rollup_interface::Network;
 
 use crate::circuit::accessors::ChunkAccessor;
+use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::{
-    citrea_network_to_chain_id, LightClientProofCircuit, SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE,
-    SECURITY_COUNCIL_MEMBER_COUNT,
+    citrea_network_to_chain_id, AddSecurityCouncilMember, BatchProofMethodIdUpdate,
+    LightClientProofCircuit, RemoveBatchProofMethodId, RemoveSecurityCouncilMember,
+    ReplaceSecurityCouncilMember, SetLcpToPreviousState, UpdateBatchProverDaPubKey,
+    UpdateSecurityCouncilThreshold, UpdateSequencerDaPubKey,
 };
 
 /// Test private keys used for generating signatures in tests
@@ -206,71 +214,89 @@ pub(crate) fn create_prev_lcp_serialized(
     mock_proof.encode_to_vec()
 }
 
-/// Converts a vector of signatures in Vec<u8> format to an array of signatures in [u8; 64] format
+/// Converts a vector of signatures in Vec<u8> format to a vector of signatures in [u8; 65] format
 pub(crate) fn from_vec_to_sigs(
     vec: Vec<(Vec<u8>, u8)>,
-) -> [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
-    let mut sigs = Vec::new();
-    for (v, i) in vec.into_iter() {
-        sigs.push((v.try_into().unwrap(), i));
-    }
-    sigs.try_into().unwrap()
+) -> Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)> {
+    vec.into_iter()
+        .map(|(v, i)| (v.try_into().unwrap(), i))
+        .collect()
 }
 
-/// Generates 5 valid keypairs and returns the public keys and signers from the given private keys
-pub(crate) fn generate_initial_pub_keys_with_signers_from_pks(
-    private_keys: [[u8; 32]; 5],
-) -> (
-    [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT],
-    Vec<PrivateKeySigner>,
-) {
-    let mut initial_da_pubkeys =
-        [[0u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT];
+/// Generates valid keypairs and returns the addresses and signers from the given private keys
+pub(crate) fn generate_initial_addresses_with_signers_from_pks(
+    private_keys: &[[u8; 32]],
+) -> (Vec<Address>, Vec<PrivateKeySigner>) {
+    let mut initial_da_addresses = Vec::new();
     let mut signers = Vec::new();
 
-    // Generate 5 valid keypairs and signatures
-    for (i, secret_key) in private_keys.iter().enumerate() {
-        let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
+    for pk in private_keys {
+        let signer = PrivateKeySigner::from_bytes(&(*pk).into()).unwrap();
         let verifying_key = signer.credential().verifying_key();
-        let pubkey = verifying_key.to_sec1_bytes();
-        initial_da_pubkeys[i] = pubkey.to_vec().try_into().unwrap();
+        let ep = verifying_key.to_encoded_point(false); // uncompressed: 0x04 + X(32) + Y(32)
+        let bytes = ep.as_bytes();
+        initial_da_addresses.push(Address::from_slice(&keccak256(&bytes[1..])[12..]));
         signers.push(signer);
     }
 
-    (initial_da_pubkeys, signers)
+    (initial_da_addresses, signers)
 }
 
-/// Generates 5 valid keypairs and returns the public keys and signers
-pub(crate) fn generate_initial_pub_keys_with_signers() -> (
-    [[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT],
-    Vec<PrivateKeySigner>,
-) {
-    let mut initial_da_pubkeys =
-        [[0u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE]; SECURITY_COUNCIL_MEMBER_COUNT];
+/// Generates 5 valid keypairs and returns the addresses and signers
+pub(crate) fn generate_initial_addresses_with_signers() -> (Vec<Address>, Vec<PrivateKeySigner>) {
+    let mut initial_da_addresses = Vec::new();
     let mut signers = Vec::new();
 
-    // Generate 5 valid keypairs and signatures
-    for (i, public_key) in initial_da_pubkeys.iter_mut().enumerate() {
+    for i in 0..5 {
         let secret_key = [i as u8 + 1; 32];
         let signer = PrivateKeySigner::from_bytes(&secret_key.into()).unwrap();
         let verifying_key = signer.credential().verifying_key();
-        let pubkey = verifying_key.to_sec1_bytes();
-        *public_key = pubkey.to_vec().try_into().unwrap();
+        let ep = verifying_key.to_encoded_point(false); // uncompressed: 0x04 + X(32) + Y(32)
+        let bytes = ep.as_bytes();
+        initial_da_addresses.push(Address::from_slice(&keccak256(&bytes[1..])[12..]));
         signers.push(signer);
     }
 
-    (initial_da_pubkeys, signers)
+    (initial_da_addresses, signers)
 }
 
-/// Creates 3 valid signatures from the first 3 signers for the given prehash
-pub(crate) fn create_valid_signatures(
+/// Creates valid signatures from the first 3 signers for the given payload
+pub(crate) fn create_valid_signatures<T: SolStruct>(
     signers: &[PrivateKeySigner],
-    prehash: &B256,
-) -> [([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8); SECURITY_COUNCIL_SIGNATURE_THRESHOLD] {
+    payload: &T,
+) -> Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)> {
+    create_valid_signatures_with_count(signers, payload, 3)
+}
+
+/// Creates valid signatures from the first `count` signers for the given payload
+pub(crate) fn create_valid_signatures_with_count<T: SolStruct>(
+    signers: &[PrivateKeySigner],
+    payload: &T,
+    count: usize,
+) -> Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)> {
+    create_valid_signatures_with_count_and_network(signers, payload, count, Network::Nightly)
+}
+
+/// Creates valid signatures from the first `count` signers for the given payload,
+/// using the specified network for the EIP-712 domain separator.
+pub(crate) fn create_valid_signatures_with_count_and_network<T: SolStruct>(
+    signers: &[PrivateKeySigner],
+    payload: &T,
+    count: usize,
+    network: Network,
+) -> Vec<([u8; SECURITY_COUNCIL_SIGNATURE_SIZE], u8)> {
+    use crate::circuit::initial_values::mockda;
+
     let mut signatures_in_inscription = Vec::new();
 
-    for (i, signer) in signers.iter().enumerate().take(3) {
-        let sig = signer.sign_hash_sync(prehash).unwrap();
+    let domain = eip712_domain! {
+        name: mockda::EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        version: "1",
+        chain_id: citrea_network_to_chain_id(network),
+    };
+
+    for (i, signer) in signers.iter().enumerate().take(count) {
+        let sig = signer.sign_typed_data_sync(payload, &domain).unwrap();
         let signature = sig.as_bytes()[0..SECURITY_COUNCIL_SIGNATURE_SIZE].to_vec();
         signatures_in_inscription.push((signature, i as u8));
     }
@@ -283,27 +309,27 @@ pub(crate) fn create_new_method_id_tx(
     new_method_id: [u32; 8],
     pub_key: [u8; 32],
     network: Network,
+    nonce: u64,
 ) -> MockBlob {
     let pk_bytes_arr: [[u8; 32]; 5] =
         TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
 
-    let msg = borsh::to_vec(&BatchProofMethodIdBody {
+    let method_id_body = BatchProofMethodIdBody {
         activation_l2_height: activation_height,
         method_id: new_method_id,
-        chain_id: citrea_network_to_chain_id(network),
-    })
-    .unwrap();
+        nonce,
+    };
 
-    let (_initial_pubkeys, signers) = generate_initial_pub_keys_with_signers_from_pks(pk_bytes_arr);
-    let prehash = eip191_hash_message(&msg);
-    let signatures_with_index = create_valid_signatures(&signers, &prehash);
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
 
-    let da_data = DataOnDa::BatchProofMethodId(BatchProofMethodId {
-        body: BatchProofMethodIdBody {
-            method_id: new_method_id,
-            activation_l2_height: activation_height,
-            chain_id: citrea_network_to_chain_id(network),
-        },
+    let payload = BatchProofMethodIdUpdate::from(method_id_body.clone());
+
+    let signatures_with_index =
+        create_valid_signatures_with_count_and_network(&signers, &payload, 3, network);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::BatchProofMethodIdUpdateV1(method_id_body),
         signatures_with_index,
     });
 
@@ -312,6 +338,132 @@ pub(crate) fn create_new_method_id_tx(
     let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
     blob.full_data();
 
+    blob
+}
+
+pub(crate) fn create_add_member_tx(
+    new_member: [u8; 20],
+    new_threshold: u32,
+    pub_key: [u8; 32],
+    nonce: u64,
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = AddSecurityCouncilMemberV1Body {
+        new_member,
+        new_threshold,
+        nonce,
+    };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = AddSecurityCouncilMember::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::AddSecurityCouncilMemberV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+pub(crate) fn create_remove_member_tx(
+    member_to_be_removed: [u8; 20],
+    new_threshold: u32,
+    pub_key: [u8; 32],
+    nonce: u64,
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = RemoveSecurityCouncilMemberV1Body {
+        member_to_be_removed,
+        new_threshold,
+        nonce,
+    };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = RemoveSecurityCouncilMember::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::RemoveSecurityCouncilMemberV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+pub(crate) fn create_update_threshold_tx(
+    new_threshold: u32,
+    pub_key: [u8; 32],
+    nonce: u64,
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = UpdateSecurityCouncilThresholdV1Body {
+        new_threshold,
+        nonce,
+    };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = UpdateSecurityCouncilThreshold::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::UpdateSecurityCouncilThresholdV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+pub(crate) fn create_replace_member_tx(
+    to_be_replaced: [u8; 20],
+    new_member: [u8; 20],
+    pub_key: [u8; 32],
+    nonce: u64,
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = ReplaceSecurityCouncilMemberV1Body {
+        to_be_replaced,
+        new_member,
+        nonce,
+    };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = ReplaceSecurityCouncilMember::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::ReplaceSecurityCouncilMemberV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
     blob
 }
 
@@ -386,8 +538,8 @@ impl NativeCircuitRunner {
         initial_batch_proof_method_ids: Vec<(u64, [u32; 8])>,
         batch_prover_da_pub_key: &[u8],
         sequencer_da_pub_key: &[u8],
-        method_id_upgrade_authority: &[[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
-             SECURITY_COUNCIL_MEMBER_COUNT],
+        initial_security_council_da_addresses: &[Address],
+        initial_security_council_threshold: usize,
         network: Network,
     ) -> LightClientCircuitInput<MockDaSpec> {
         let prover_storage = self
@@ -410,6 +562,8 @@ impl NativeCircuitRunner {
             )
             .unwrap();
 
+        let domain_name = <Network as InitialValueProvider<MockDaSpec>>::get_eip712_security_council_message_domain_name(&network);
+
         let res = self.circuit.run_l1_block(
             network,
             prover_storage,
@@ -421,7 +575,10 @@ impl NativeCircuitRunner {
             initial_batch_proof_method_ids,
             batch_prover_da_pub_key,
             sequencer_da_pub_key,
-            method_id_upgrade_authority,
+            initial_security_council_da_addresses,
+            initial_security_council_threshold,
+            domain_name.to_string(),
+            input.light_client_proof_method_id,
         );
 
         self.prover_storage_manager.finalize_storage(res.change_set);
@@ -457,4 +614,214 @@ impl NativeCircuitRunner {
         prover_storage.commit(&jmt_state_update, &Default::default(), &Default::default());
         self.prover_storage_manager.finalize_storage(prover_storage);
     }
+}
+
+pub(crate) fn create_update_sequencer_pub_key_tx(
+    new_pub_key: [u8; 33],
+    pub_key: [u8; 32],
+    nonce: u64,
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = UpdateSequencerDaPubKeyV1Body { new_pub_key, nonce };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = UpdateSequencerDaPubKey::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::UpdateSequencerDaPubKeyV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+pub(crate) fn create_update_batch_prover_pub_key_tx(
+    new_pub_key: [u8; 33],
+    pub_key: [u8; 32],
+    nonce: u64,
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = UpdateBatchProverDaPubKeyV1Body { new_pub_key, nonce };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = UpdateBatchProverDaPubKey::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::UpdateBatchProverDaPubKeyV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+pub(crate) fn create_update_sequencer_pub_key_tx_with_signing_chain_id(
+    new_pub_key: [u8; 33],
+    signing_chain_id: u64,
+    pub_key: [u8; 32],
+    nonce: u64,
+) -> MockBlob {
+    use crate::circuit::initial_values::mockda;
+
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = UpdateSequencerDaPubKeyV1Body { new_pub_key, nonce };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = UpdateSequencerDaPubKey::from(body.clone());
+
+    // Sign with the specified chain_id in the domain separator
+    let domain = eip712_domain! {
+        name: mockda::EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        version: "1",
+        chain_id: signing_chain_id,
+    };
+    let mut signatures_in_inscription = Vec::new();
+    for (i, signer) in signers.iter().enumerate().take(3) {
+        let sig = signer.sign_typed_data_sync(&payload, &domain).unwrap();
+        let signature = sig.as_bytes()[0..SECURITY_COUNCIL_SIGNATURE_SIZE].to_vec();
+        signatures_in_inscription.push((signature, i as u8));
+    }
+    let signatures_with_index = from_vec_to_sigs(signatures_in_inscription);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::UpdateSequencerDaPubKeyV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+pub(crate) fn create_update_batch_prover_pub_key_tx_with_signing_chain_id(
+    new_pub_key: [u8; 33],
+    signing_chain_id: u64,
+    pub_key: [u8; 32],
+    nonce: u64,
+) -> MockBlob {
+    use crate::circuit::initial_values::mockda;
+
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = UpdateBatchProverDaPubKeyV1Body { new_pub_key, nonce };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = UpdateBatchProverDaPubKey::from(body.clone());
+
+    // Sign with the specified chain_id in the domain separator
+    let domain = eip712_domain! {
+        name: mockda::EIP712_SECURITY_COUNCIL_MESSAGE_DOMAIN_NAME,
+        version: "1",
+        chain_id: signing_chain_id,
+    };
+    let mut signatures_in_inscription = Vec::new();
+    for (i, signer) in signers.iter().enumerate().take(3) {
+        let sig = signer.sign_typed_data_sync(&payload, &domain).unwrap();
+        let signature = sig.as_bytes()[0..SECURITY_COUNCIL_SIGNATURE_SIZE].to_vec();
+        signatures_in_inscription.push((signature, i as u8));
+    }
+    let signatures_with_index = from_vec_to_sigs(signatures_in_inscription);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::UpdateBatchProverDaPubKeyV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+pub(crate) fn create_remove_method_id_tx(
+    method_id_index: u32,
+    batch_proof_method_id: [u32; 8],
+    l2_activation_height: u64,
+    pub_key: [u8; 32],
+    nonce: u64,
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = RemoveBatchProofMethodIdV1Body {
+        method_id_index,
+        batch_proof_method_id,
+        l2_activation_height,
+        nonce,
+    };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = RemoveBatchProofMethodId::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::RemoveBatchProofMethodIdV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
+}
+
+pub(crate) fn create_set_lcp_to_previous_state_tx(
+    pre_state_root: [u8; 32],
+    index: u32,
+    last_l2_height: u64,
+    merkle_root: [u8; 32],
+    pub_key: [u8; 32],
+    nonce: u64,
+) -> MockBlob {
+    let pk_bytes_arr: [[u8; 32]; 5] =
+        TEST_PRIVATE_KEYS.map(|s| hex::decode(s).unwrap().try_into().unwrap());
+
+    let body = SetLcpToPreviousStateV1Body {
+        pre_state_root,
+        index,
+        last_l2_height,
+        merkle_root,
+        nonce,
+    };
+
+    let (_initial_addresses, signers) =
+        generate_initial_addresses_with_signers_from_pks(&pk_bytes_arr);
+
+    let payload = SetLcpToPreviousState::from(body.clone());
+    let signatures_with_index = create_valid_signatures(&signers, &payload);
+
+    let da_data = DataOnDa::SecurityCouncilTx(SecurityCouncilTx {
+        tx_type: SecurityCouncilTxType::SetLcpToPreviousStateV1(body),
+        signatures_with_index,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+    let blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32], [42; 32]);
+    blob.full_data();
+    blob
 }

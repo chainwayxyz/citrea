@@ -250,6 +250,14 @@ where
 
         let storage = self.storage_manager.create_storage_for_next_l2_height();
 
+        // This is not exactly right, but works for now because we have a single elf for
+        // light client proof circuit.
+        let current_fork = fork_from_block_number(l2_last_height);
+        let light_client_proof_code_commitment = self
+            .light_client_proof_code_commitments
+            .get(&current_fork.spec_id)
+            .expect("Fork should have a guest code attached");
+
         let result = self.circuit.run_l1_block(
             self.network,
             storage,
@@ -259,18 +267,15 @@ where
             previous_lcp_output,
             self.network.get_l2_genesis_root(),
             self.network.initial_batch_proof_method_ids().to_vec(),
-            &self.network.batch_prover_da_public_key(),
-            &self.network.sequencer_da_public_key(),
-            &self.network.method_id_upgrade_authority_da_public_keys(),
+            &self.network.initial_batch_prover_da_public_key(),
+            &self.network.initial_sequencer_da_public_key(),
+            self.network.initial_security_council_da_addresses().inner(),
+            self.network.initial_security_council_threshold(),
+            self.network
+                .get_eip712_security_council_message_domain_name()
+                .to_string(),
+            light_client_proof_code_commitment.clone().into(),
         );
-
-        // This is not exactly right, but works for now because we have a single elf for
-        // light client proof circuit.
-        let current_fork = fork_from_block_number(l2_last_height);
-        let light_client_proof_code_commitment = self
-            .light_client_proof_code_commitments
-            .get(&current_fork.spec_id)
-            .expect("Fork should have a guest code attached");
         let light_client_elf = self
             .light_client_proof_elfs
             .get(&current_fork.spec_id)

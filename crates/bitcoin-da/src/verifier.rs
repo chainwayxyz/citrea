@@ -69,8 +69,8 @@ pub enum ValidationError {
     HeaderInclusionTxCountMismatch,
     /// Failed to deserialize complete chunks.
     FailedToDeserializeCompleteChunks,
-    /// Failed to deserialize batch proof method id body
-    FailedToDeserializeBatchProofMethodIdBody,
+    /// Failed to deserialize security council transaction
+    FailedToDeserializeSecurityCouncilTx,
 }
 
 impl DaVerifier for BitcoinVerifier {
@@ -150,20 +150,17 @@ impl DaVerifier for BitcoinVerifier {
                             *wtxid,
                         ));
                     }
-                    // The verification of BatchProofMethodId security council signatures are done in the circuit
-                    ParsedTransaction::BatchProofMethodId(method_id) => {
+                    // The verification of SecurityCouncilTx security council signatures are done in the circuit
+                    ParsedTransaction::SecurityCouncilTx(sc_tx) => {
                         // Pubkey here is given as 0 because the security council pub keys are inside the body
                         let public_key = [0u8; 32].to_vec();
-                        let hash = method_id.hash();
+                        let hash = sc_tx.hash();
 
                         blobs.push(BlobWithSender::new(
-                            // Body here is: borsh(DataOnDa::BatchProofMethodId(BatchProofMethodId { ... }))
+                            // Body here is: borsh(DataOnDa::SecurityCouncilTx(SecurityCouncilTx { ... }))
                             // The sender field here is not used because this transaction has a security council
-                            // consisting of 5 public keys, this data and signatures are embedded in the body
-                            method_id.body,
-                            public_key,
-                            hash,
-                            *wtxid,
+                            // consisting of N public keys, this data and signatures are embedded in the body
+                            sc_tx.body, public_key, hash, *wtxid,
                         ))
                     }
                     ParsedTransaction::SequencerCommitment(seq_comm) => {

@@ -1,6 +1,7 @@
 /// In this module we define the accessors for the different type of data we'll be using in the circuit.
 /// We don't use the StateMap or Module system here, as our keys are all hashes of different things, we
 /// don't want the serialization overhead.
+use alloy_primitives::Address;
 use sov_modules_api::{StateReaderAndWriter, WorkingSet};
 use sov_modules_core::{Prefix, Storage, StorageKey, StorageValue};
 use sov_rollup_interface::da::SequencerCommitment;
@@ -8,6 +9,37 @@ use sov_rollup_interface::zk::light_client_proof::output::VerifiedStateTransitio
 use sov_rollup_interface::RefCount;
 
 use super::InitialBatchProofMethodIds;
+
+/// Central registry of all storage prefixes used by LCP accessors.
+/// All prefixes must be unique to prevent storage key collisions.
+mod prefixes {
+    /// Security council address storage prefix
+    pub const SECURITY_COUNCIL_ADDRESS: u8 = b'a';
+    /// Block hash storage prefix
+    pub const BLOCK_HASH: u8 = b'b';
+    /// Chunk storage prefix
+    pub const CHUNK: u8 = b'c';
+    /// Revert epoch storage prefix
+    pub const REVERT_EPOCH: u8 = b'e';
+    /// Sequencer commitment epoch storage prefix
+    pub const SEQUENCER_COMMITMENT_EPOCH: u8 = b'f';
+    /// Batch proof method ids storage prefix
+    pub const BATCH_PROOF_METHOD_ID: u8 = b'm';
+    /// Security council nonce storage prefix
+    pub const SECURITY_COUNCIL_NONCE: u8 = b'n';
+    /// Batch prover DA public key storage prefix
+    pub const BATCH_PROVER_DA_PUB_KEY: u8 = b'p';
+    /// Sequencer DA public key storage prefix
+    pub const SEQUENCER_DA_PUB_KEY: u8 = b'q';
+    /// Sequencer commitment storage prefix
+    pub const SEQUENCER_COMMITMENT: u8 = b's';
+    /// Security council threshold storage prefix
+    pub const SECURITY_COUNCIL_THRESHOLD: u8 = b't';
+    /// Verified state transition storage prefix
+    pub const VERIFIED_STATE_TRANSITION: u8 = b'u';
+    /// Verified state transition epoch storage prefix
+    pub const VERIFIED_STATE_TRANSITION_EPOCH: u8 = b'v';
+}
 
 /// Vector of activation height to method id
 pub type BatchProofMethodIds = Vec<(u64, [u32; 8])>;
@@ -24,7 +56,7 @@ pub struct BlockHashAccessor<S: Storage> {
 
 impl<S: Storage> BlockHashAccessor<S> {
     /// Block hash storage prefix
-    const PREFIX: u8 = b'b';
+    const PREFIX: u8 = prefixes::BLOCK_HASH;
 
     /// Checks if a block hash exists in storage
     ///
@@ -81,7 +113,7 @@ pub struct ChunkAccessor<S: Storage> {
 
 impl<S: Storage> ChunkAccessor<S> {
     /// Chunk storage prefix
-    const PREFIX: u8 = b'c';
+    const PREFIX: u8 = prefixes::CHUNK;
 
     /// Retrieves the body of a chunk if it exists in storage
     ///
@@ -141,7 +173,7 @@ pub struct SequencerCommitmentAccessor<S: Storage> {
 
 impl<S: Storage> SequencerCommitmentAccessor<S> {
     /// Sequencer commitment storage prefix
-    const PREFIX: u8 = b's';
+    const PREFIX: u8 = prefixes::SEQUENCER_COMMITMENT;
 
     /// Creates a storage key for a sequencer commitment index
     ///
@@ -205,8 +237,8 @@ pub struct VerifiedStateTransitionForSequencerCommitmentIndexAccessor<S: Storage
 }
 
 impl<S: Storage> VerifiedStateTransitionForSequencerCommitmentIndexAccessor<S> {
-    /// Verified state transaction storage prefix
-    const PREFIX: u8 = b'u';
+    /// Verified state transition storage prefix
+    const PREFIX: u8 = prefixes::VERIFIED_STATE_TRANSITION;
 
     /// Creates a storage key for a verified state transition index
     ///
@@ -278,7 +310,7 @@ pub struct BatchProofMethodIdAccessor<S: Storage> {
 
 impl<S: Storage> BatchProofMethodIdAccessor<S> {
     /// Batch proof method ids storage prefix
-    const PREFIX: u8 = b'm';
+    const PREFIX: u8 = prefixes::BATCH_PROOF_METHOD_ID;
 
     /// Creates a storage key containing just the prefix
     /// # Returns
@@ -326,6 +358,15 @@ impl<S: Storage> BatchProofMethodIdAccessor<S> {
         working_set.set(&key, value);
     }
 
+    /// Overwrites the batch proof method ids with a new set of method ids.
+    pub fn set(method_ids: InitialBatchProofMethodIds, working_set: &mut WorkingSet<S>) {
+        let key = Self::key();
+        let value: StorageValue = borsh::to_vec(&method_ids)
+            .expect("Batch proof method ids serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+
     /// Initializes the batch proof method ids with an initial set of method ids. Must be called at most once and before any insertions.
     /// # Arguments
     /// * `initial_batch_proof_method_ids` - The initial set of method ids to store
@@ -352,8 +393,415 @@ impl<S: Storage> BatchProofMethodIdAccessor<S> {
     }
 }
 
+/// Accessor for managing security council (upgrade authority) addresses in the LCP state
+///
+/// This accessor handles storage and retrieval of security council addresses.
+/// Initialized from compile-time constants on first LCP run, updatable via DA messages in the future.
+/// The number of addresses is dynamic (not fixed at compile time).
+pub struct SecurityCouncilAddressAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> SecurityCouncilAddressAccessor<S> {
+    /// Security council address storage prefix
+    const PREFIX: u8 = prefixes::SECURITY_COUNCIL_ADDRESS;
+
+    /// Creates a storage key containing just the prefix
+    fn key() -> StorageKey {
+        let mut key = [0u8; 1];
+        key[0] = Self::PREFIX;
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    /// Retrieves the security council addresses if they exist
+    ///
+    /// # Returns
+    /// The security council addresses as a Vec, or `None` if not initialized
+    pub fn get(working_set: &mut WorkingSet<S>) -> Option<Vec<Address>> {
+        let key = Self::key();
+
+        working_set.get(&key).map(|v| {
+            let bytes: RefCount<[u8]> = v.into();
+            let raw: Vec<[u8; 20]> = borsh::from_slice(&bytes)
+                .expect("Security council addresses deserialization should not fail");
+            raw.iter().map(|a| Address::from_slice(a)).collect()
+        })
+    }
+
+    /// Initializes the security council addresses. Must be called at most once.
+    ///
+    /// # Panics
+    /// Panics if the addresses are already initialized
+    pub fn initialize(addresses: &[Address], working_set: &mut WorkingSet<S>) {
+        assert!(
+            Self::get(working_set).is_none(),
+            "Security council addresses must not already be initialized!"
+        );
+        Self::set(addresses, working_set);
+    }
+
+    /// Overwrites the current security council addresses (for future updates)
+    pub fn set(addresses: &[Address], working_set: &mut WorkingSet<S>) {
+        let key = Self::key();
+        let raw: Vec<[u8; 20]> = addresses.iter().map(|a| a.0 .0).collect();
+        let value: StorageValue = borsh::to_vec(&raw)
+            .expect("Security council addresses serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+
+    /// Removes a single address by value from the stored list
+    pub fn remove(address: Address, working_set: &mut WorkingSet<S>) {
+        let current = Self::get(working_set).expect("Security council addresses must exist");
+        let filtered: Vec<[u8; 20]> = current
+            .iter()
+            .filter(|a| **a != address)
+            .map(|a| a.0 .0)
+            .collect();
+        let key = Self::key();
+        let value: StorageValue = borsh::to_vec(&filtered)
+            .expect("Security council addresses serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
+/// Accessor for managing the security council signature threshold in the LCP state
+///
+/// This accessor handles storage and retrieval of the minimum number of valid signatures
+/// required to approve a method ID upgrade. Initialized on first LCP run, updatable via DA messages in the future.
+pub struct SecurityCouncilThresholdAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> SecurityCouncilThresholdAccessor<S> {
+    /// Security council threshold storage prefix
+    const PREFIX: u8 = prefixes::SECURITY_COUNCIL_THRESHOLD;
+
+    /// Creates a storage key containing just the prefix
+    fn key() -> StorageKey {
+        let mut key = [0u8; 1];
+        key[0] = Self::PREFIX;
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    /// Retrieves the security council signature threshold if it exists
+    pub fn get(working_set: &mut WorkingSet<S>) -> Option<usize> {
+        let key = Self::key();
+
+        working_set.get(&key).map(|v| {
+            let bytes: RefCount<[u8]> = v.into();
+            let val: u64 = borsh::from_slice(&bytes)
+                .expect("Security council threshold deserialization should not fail");
+            val as usize
+        })
+    }
+
+    /// Initializes the security council threshold. Must be called at most once.
+    ///
+    /// # Panics
+    /// Panics if the threshold is already initialized
+    pub fn initialize(threshold: usize, working_set: &mut WorkingSet<S>) {
+        assert!(
+            Self::get(working_set).is_none(),
+            "Security council threshold must not already be initialized!"
+        );
+        Self::set(threshold, working_set);
+    }
+
+    /// Overwrites the current security council threshold (for future updates)
+    pub fn set(threshold: usize, working_set: &mut WorkingSet<S>) {
+        let key = Self::key();
+        let value: StorageValue = borsh::to_vec(&(threshold as u64))
+            .expect("Security council threshold serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
+/// Accessor for managing the sequencer DA public key in the LCP state
+///
+/// Initialized from compile-time constants on first LCP run, updatable via security council messages.
+pub struct SequencerDaPubKeyAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> SequencerDaPubKeyAccessor<S> {
+    /// Sequencer DA public key storage prefix
+    const PREFIX: u8 = prefixes::SEQUENCER_DA_PUB_KEY;
+
+    /// Creates a storage key containing just the prefix
+    fn key() -> StorageKey {
+        let mut key = [0u8; 1];
+        key[0] = Self::PREFIX;
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    /// Retrieves the sequencer DA public key if it exists
+    pub fn get(working_set: &mut WorkingSet<S>) -> Option<Vec<u8>> {
+        let key = Self::key();
+        working_set.get(&key).map(|v| {
+            let bytes: RefCount<[u8]> = v.into();
+            borsh::from_slice(&bytes).expect("Sequencer DA pub key deserialization should not fail")
+        })
+    }
+
+    /// Initializes the sequencer DA public key. Must be called at most once.
+    pub fn initialize(pub_key: &[u8], working_set: &mut WorkingSet<S>) {
+        assert!(
+            Self::get(working_set).is_none(),
+            "Sequencer DA pub key must not already be initialized!"
+        );
+        Self::set(pub_key, working_set);
+    }
+
+    /// Overwrites the current sequencer DA public key
+    pub fn set(pub_key: &[u8], working_set: &mut WorkingSet<S>) {
+        let key = Self::key();
+        let value: StorageValue = borsh::to_vec(&pub_key.to_vec())
+            .expect("Sequencer DA pub key serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
+/// Accessor for managing the batch prover DA public key in the LCP state
+///
+/// Initialized from compile-time constants on first LCP run, updatable via security council messages.
+pub struct BatchProverDaPubKeyAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> BatchProverDaPubKeyAccessor<S> {
+    /// Batch prover DA public key storage prefix
+    const PREFIX: u8 = prefixes::BATCH_PROVER_DA_PUB_KEY;
+
+    /// Creates a storage key containing just the prefix
+    fn key() -> StorageKey {
+        let mut key = [0u8; 1];
+        key[0] = Self::PREFIX;
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    /// Retrieves the batch prover DA public key if it exists
+    pub fn get(working_set: &mut WorkingSet<S>) -> Option<Vec<u8>> {
+        let key = Self::key();
+        working_set.get(&key).map(|v| {
+            let bytes: RefCount<[u8]> = v.into();
+            borsh::from_slice(&bytes)
+                .expect("Batch prover DA pub key deserialization should not fail")
+        })
+    }
+
+    /// Initializes the batch prover DA public key. Must be called at most once.
+    pub fn initialize(pub_key: &[u8], working_set: &mut WorkingSet<S>) {
+        assert!(
+            Self::get(working_set).is_none(),
+            "Batch prover DA pub key must not already be initialized!"
+        );
+        Self::set(pub_key, working_set);
+    }
+
+    /// Overwrites the current batch prover DA public key
+    pub fn set(pub_key: &[u8], working_set: &mut WorkingSet<S>) {
+        let key = Self::key();
+        let value: StorageValue = borsh::to_vec(&pub_key.to_vec())
+            .expect("Batch prover DA pub key serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
+/// Accessor for the security council nonce (replay protection).
+/// Stores a strictly increasing u64 nonce that is checked and incremented
+/// for every security council transaction.
+pub struct SecurityCouncilNonceAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> SecurityCouncilNonceAccessor<S> {
+    /// Security council nonce storage prefix
+    const PREFIX: u8 = prefixes::SECURITY_COUNCIL_NONCE;
+
+    /// Creates a storage key containing just the prefix
+    fn key() -> StorageKey {
+        let mut key = [0u8; 1];
+        key[0] = Self::PREFIX;
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    /// Retrieves the current nonce if it exists
+    pub fn get(working_set: &mut WorkingSet<S>) -> Option<u64> {
+        let key = Self::key();
+        working_set.get(&key).map(|v| {
+            let bytes: RefCount<[u8]> = v.into();
+            borsh::from_slice(&bytes)
+                .expect("Security council nonce deserialization should not fail")
+        })
+    }
+
+    /// Initializes the nonce. Must be called at most once.
+    pub fn initialize(nonce: u64, working_set: &mut WorkingSet<S>) {
+        assert!(
+            Self::get(working_set).is_none(),
+            "Security council nonce must not already be initialized!"
+        );
+        Self::set(nonce, working_set);
+    }
+
+    /// Overwrites the current nonce value
+    pub fn set(nonce: u64, working_set: &mut WorkingSet<S>) {
+        let key = Self::key();
+        let value: StorageValue = borsh::to_vec(&nonce)
+            .expect("Security council nonce serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
+/// Accessor for the global revert epoch counter.
+/// Incremented each time a `SetLcpToPreviousState` message is processed.
+/// Used to distinguish pre-revert verified state transitions from post-revert ones.
+pub struct RevertEpochAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> RevertEpochAccessor<S> {
+    /// Revert epoch storage prefix
+    const PREFIX: u8 = prefixes::REVERT_EPOCH;
+
+    /// Creates a storage key containing just the prefix
+    fn key() -> StorageKey {
+        let mut key = [0u8; 1];
+        key[0] = Self::PREFIX;
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    /// Retrieves the current revert epoch. Returns 0 if not set (backward compat).
+    pub fn get_or_default(working_set: &mut WorkingSet<S>) -> u32 {
+        let key = Self::key();
+        working_set
+            .get(&key)
+            .map(|v| {
+                let bytes: RefCount<[u8]> = v.into();
+                borsh::from_slice(&bytes).expect("Revert epoch deserialization should not fail")
+            })
+            .unwrap_or(0)
+    }
+
+    /// Sets the revert epoch value
+    pub fn set(epoch: u32, working_set: &mut WorkingSet<S>) {
+        let key = Self::key();
+        let value: StorageValue = borsh::to_vec(&epoch)
+            .expect("Revert epoch serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
+/// Accessor for the epoch of each verified state transition entry.
+/// Keyed by sequencer commitment index, stores the epoch at which the entry was written.
+/// Entries without an epoch are treated as epoch 0 (backward compat).
+pub struct VerifiedStateTransitionEpochAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> VerifiedStateTransitionEpochAccessor<S> {
+    /// Verified state transition epoch storage prefix
+    const PREFIX: u8 = prefixes::VERIFIED_STATE_TRANSITION_EPOCH;
+
+    /// Creates a storage key for a given sequencer commitment index
+    fn key(index: u32) -> StorageKey {
+        let mut key = [0u8; 5]; // 1 prefix + 4 bytes
+        key[0] = Self::PREFIX;
+        key[1..].copy_from_slice(&index.to_be_bytes());
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    /// Retrieves the epoch for a given index. Returns 0 if not set (backward compat).
+    pub fn get_or_default(index: u32, working_set: &mut WorkingSet<S>) -> u32 {
+        let key = Self::key(index);
+        working_set
+            .get(&key)
+            .map(|v| {
+                let bytes: RefCount<[u8]> = v.into();
+                borsh::from_slice(&bytes)
+                    .expect("Verified state transition epoch deserialization should not fail")
+            })
+            .unwrap_or(0)
+    }
+
+    /// Sets the epoch for a given index
+    pub fn set(index: u32, epoch: u32, working_set: &mut WorkingSet<S>) {
+        let key = Self::key(index);
+        let value: StorageValue = borsh::to_vec(&epoch)
+            .expect("Verified state transition epoch serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
+/// Accessor for the epoch of each sequencer commitment entry.
+/// Keyed by sequencer commitment index, stores the epoch at which the entry was written.
+/// Entries without an epoch are treated as epoch 0 (backward compat).
+pub struct SequencerCommitmentEpochAccessor<S: Storage> {
+    /// Phantom data to make the accessor generic over the storage type
+    phantom: core::marker::PhantomData<S>,
+}
+
+impl<S: Storage> SequencerCommitmentEpochAccessor<S> {
+    /// Sequencer commitment epoch storage prefix
+    const PREFIX: u8 = prefixes::SEQUENCER_COMMITMENT_EPOCH;
+
+    /// Creates a storage key for a given sequencer commitment index
+    fn key(index: u32) -> StorageKey {
+        let mut key = [0u8; 5]; // 1 prefix + 4 bytes
+        key[0] = Self::PREFIX;
+        key[1..].copy_from_slice(&index.to_be_bytes());
+        let p = Prefix::from_slice(&key);
+        StorageKey::singleton_owned(p)
+    }
+
+    /// Retrieves the epoch for a given index. Returns 0 if not set (backward compat).
+    pub fn get_or_default(index: u32, working_set: &mut WorkingSet<S>) -> u32 {
+        let key = Self::key(index);
+        working_set
+            .get(&key)
+            .map(|v| {
+                let bytes: RefCount<[u8]> = v.into();
+                borsh::from_slice(&bytes)
+                    .expect("Sequencer commitment epoch deserialization should not fail")
+            })
+            .unwrap_or(0)
+    }
+
+    /// Sets the epoch for a given index
+    pub fn set(index: u32, epoch: u32, working_set: &mut WorkingSet<S>) {
+        let key = Self::key(index);
+        let value: StorageValue = borsh::to_vec(&epoch)
+            .expect("Sequencer commitment epoch serialization should not fail")
+            .into();
+        working_set.set(&key, value);
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use alloy_primitives::Address;
     use sov_modules_api::WorkingSet;
     use sov_modules_core::Storage;
     use sov_prover_storage_manager::{new_orphan_storage, ProverStorage};
@@ -363,7 +811,8 @@ mod tests {
 
     use super::{BlockHashAccessor, ChunkAccessor};
     use crate::circuit::accessors::{
-        BatchProofMethodIdAccessor, SequencerCommitmentAccessor,
+        BatchProofMethodIdAccessor, SecurityCouncilAddressAccessor,
+        SecurityCouncilThresholdAccessor, SequencerCommitmentAccessor,
         VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
     };
 
@@ -611,6 +1060,101 @@ mod tests {
         assert_eq!(
             BatchProofMethodIdAccessor::<ProverStorage>::get(&mut working_set).unwrap(),
             vec![(3, [3; 8]), (4, [4; 8]), (1, [1; 8])]
+        );
+    }
+
+    #[test]
+    fn test_security_council_address_accessor() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let witness = Witness::default();
+        let mut working_set =
+            WorkingSet::with_witness(prover_storage.clone(), witness, Default::default());
+
+        assert!(SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).is_none());
+
+        let addresses = vec![
+            Address::new([1u8; 20]),
+            Address::new([2u8; 20]),
+            Address::new([3u8; 20]),
+            Address::new([4u8; 20]),
+            Address::new([5u8; 20]),
+        ];
+
+        SecurityCouncilAddressAccessor::<ProverStorage>::initialize(&addresses, &mut working_set);
+
+        assert_eq!(
+            SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap(),
+            addresses
+        );
+
+        // Test set (overwrite) with a different number of addresses
+        let new_addresses = vec![
+            Address::new([10u8; 20]),
+            Address::new([20u8; 20]),
+            Address::new([30u8; 20]),
+        ];
+        SecurityCouncilAddressAccessor::<ProverStorage>::set(&new_addresses, &mut working_set);
+        assert_eq!(
+            SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap(),
+            new_addresses
+        );
+
+        let (read_write_log, mut witness) = working_set.checkpoint().freeze();
+
+        let (_, state_update, _) = prover_storage
+            .compute_state_update(&read_write_log, &mut witness, false)
+            .expect("should not fail");
+
+        prover_storage.commit(&state_update, &vec![], &Default::default());
+
+        // reset working set to actually read from storage
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+
+        assert_eq!(
+            SecurityCouncilAddressAccessor::<ProverStorage>::get(&mut working_set).unwrap(),
+            new_addresses
+        );
+    }
+
+    #[test]
+    fn test_security_council_threshold_accessor() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
+        let witness = Witness::default();
+        let mut working_set =
+            WorkingSet::with_witness(prover_storage.clone(), witness, Default::default());
+
+        assert!(SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).is_none());
+
+        SecurityCouncilThresholdAccessor::<ProverStorage>::initialize(3, &mut working_set);
+
+        assert_eq!(
+            SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap(),
+            3
+        );
+
+        // Test set (overwrite)
+        SecurityCouncilThresholdAccessor::<ProverStorage>::set(4, &mut working_set);
+        assert_eq!(
+            SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap(),
+            4
+        );
+
+        let (read_write_log, mut witness) = working_set.checkpoint().freeze();
+
+        let (_, state_update, _) = prover_storage
+            .compute_state_update(&read_write_log, &mut witness, false)
+            .expect("should not fail");
+
+        prover_storage.commit(&state_update, &vec![], &Default::default());
+
+        // reset working set to actually read from storage
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+
+        assert_eq!(
+            SecurityCouncilThresholdAccessor::<ProverStorage>::get(&mut working_set).unwrap(),
+            4
         );
     }
 }
