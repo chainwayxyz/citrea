@@ -5,12 +5,8 @@ use bitcoin::Transaction;
 use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
 use bitcoin_da::spec::blob::BlobWithSender;
 
-pub mod batch_prover_test;
-pub mod light_client_test;
-pub mod rollback;
-mod utils;
-// pub mod mempool_accept;
 pub mod backup;
+pub mod batch_prover_test;
 pub mod bitcoin_service;
 pub mod bitcoin_test;
 pub mod bitcoin_verifier;
@@ -20,6 +16,9 @@ pub mod fork;
 #[cfg(feature = "testing")]
 pub mod full_node;
 pub mod guest_cycles;
+pub mod light_client_test;
+pub mod mempool_accept;
+pub mod rollback;
 pub mod sequencer_commitments;
 pub mod sequencer_test;
 pub mod syncing;
@@ -27,6 +26,7 @@ pub mod tangerine_related;
 pub mod taproot_key_spend;
 pub mod tx_chain;
 pub mod tx_propagation;
+mod utils;
 
 pub(super) fn get_citrea_path() -> PathBuf {
     std::env::var("CITREA_E2E_TEST_BINARY").map_or_else(
