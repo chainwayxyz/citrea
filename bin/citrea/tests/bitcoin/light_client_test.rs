@@ -6096,9 +6096,6 @@ impl TestCase for SetLcpToPreviousStateTest {
             .await?;
         let valid_method_id: [u32; 8] = current_method_ids[0].method_id.into();
 
-        // Get an L1 block hash for the fake batch proof
-        let l1_hash = da.get_block_hash(hacked_batch_proof_l1_height).await?;
-
         // Create fake sequencer commitments continuing from the reverted state
         let new_comm_idx = revert_target_idx + 1;
         let new_fake_commitment = SequencerCommitment {
@@ -6121,12 +6118,24 @@ impl TestCase for SetLcpToPreviousStateTest {
         };
 
         // Send fake commitment via new sequencer DA service (new key)
+        // Must be in an earlier block than the batch proof so LCP stores it first
         new_seq_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::SequencerCommitment(new_fake_commitment.clone()),
                 1.0,
             )
             .await?;
+
+        // Mine the commitment first so LCP processes it before the batch proof
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let commitment_l1_height = da.get_finalized_height(None).await?;
+        light_client_prover
+            .wait_for_l1_height(commitment_l1_height, Some(TEN_MINS))
+            .await?;
+
+        // Now get the L1 hash for the batch proof (must reference a known L1 block)
+        let l1_hash = da.get_block_hash(commitment_l1_height).await?;
 
         // Create and send fake batch proof with the original method ID via new prover DA service
         let new_fake_batch_proof = create_serialized_fake_receipt_batch_proof(
@@ -6144,8 +6153,8 @@ impl TestCase for SetLcpToPreviousStateTest {
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(new_fake_batch_proof), 1.0)
             .await?;
 
-        // 1 commitment (2 txs) + 1 batch proof (2 txs) = 4 txs
-        da.wait_mempool_len(4, None).await?;
+        // 1 batch proof (2 txs)
+        da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let new_key_l1_height = da.get_finalized_height(None).await?;
         light_client_prover
