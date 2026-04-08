@@ -923,14 +923,16 @@ where
             let ((min_index, max_index), (proof_location, found_in_l1_height)) = item?.into_tuple();
             
             // Fetch the proof from Bitcoin using the stored location
-            let proof_with_location = match self.fetch_proof_from_bitcoin(proof_location, found_in_l1_height).await {
+            let proof_with_location = match self.fetch_proof_from_bitcoin(proof_location).await {
                 Ok(p) => p,
                 Err(e) => {
                     warn!(
-                        "Failed to fetch proof from Bitcoin for index {min_index}-{max_index} at location block={}, tx_idx={}: {e:?}",
-                        proof_location.block_height, proof_location.tx_index
+                        "Failed to fetch proof from Bitcoin for index {min_index}-{max_index} at location block={}, tx_idx={}, found_in_l1_height={}: {e:?}",
+                        proof_location.block_height, proof_location.tx_index, found_in_l1_height
                     );
-                    break;
+                    // Keep this entry pending for future retry but don't block processing of later proofs.
+                    // Transient RPC failures may succeed on next cycle.
+                    continue;
                 }
             };
             
@@ -1028,7 +1030,6 @@ where
     async fn fetch_proof_from_bitcoin(
         &self,
         proof_location: sov_db::schema::types::BitcoinProofLocation,
-        l1_height: u64,
     ) -> Result<ProofWithLocation, ProcessingError> {
         // Fetch the Bitcoin block at the specified height
         let block = self.da_service
