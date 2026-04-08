@@ -299,7 +299,7 @@ impl FromEnv for MonitoringConfig {
 pub struct MonitoringService {
     client: Arc<Client>,
     monitored_txs: RwLock<HashMap<Txid, MonitoredTx>>,
-    chain_state: RwLock<ChainState>,
+    chain_state: Mutex<ChainState>,
     config: MonitoringConfig,
     // Last tx in queue
     last_tx: Mutex<Option<Txid>>,
@@ -323,7 +323,7 @@ impl MonitoringService {
             Self {
                 client,
                 monitored_txs: RwLock::new(HashMap::new()),
-                chain_state: RwLock::new(ChainState::default()),
+                chain_state: Mutex::new(ChainState::default()),
                 config: config.unwrap_or_default(),
                 last_tx: Mutex::new(None),
                 total_size: AtomicUsize::new(0),
@@ -352,7 +352,7 @@ impl MonitoringService {
             recent_blocks.push((current_hash, height));
         }
 
-        let mut chain_state = self.chain_state.write().await;
+        let mut chain_state = self.chain_state.lock().await;
         *chain_state = ChainState {
             current_height,
             current_tip,
@@ -579,7 +579,7 @@ impl MonitoringService {
         let new_height = self.client.get_block_count().await?;
         let new_tip = self.client.get_best_block_hash().await?;
 
-        let mut chain_state = self.chain_state.write().await;
+        let mut chain_state = self.chain_state.lock().await;
 
         if new_tip != chain_state.current_tip {
             // Send new tip notification
