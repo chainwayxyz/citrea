@@ -772,12 +772,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         security_council_messages_domain: &str,
         working_set: &mut WorkingSet<S>,
     ) {
-        let security_council_addresses = SecurityCouncilAddressAccessor::<S>::get(working_set)
-            .expect("Security council addresses must exist");
-        let security_council_threshold = SecurityCouncilThresholdAccessor::<S>::get(working_set)
-            .expect("Security council threshold must exist");
-        let circuit_chain_id = citrea_network_to_chain_id(network);
-
         // Replay protection: verify and increment nonce
         let msg_nonce = sc_tx.tx_type.nonce();
         let current_nonce = SecurityCouncilNonceAccessor::<S>::get(working_set)
@@ -798,9 +792,30 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             return;
         }
 
+        let security_council_addresses = SecurityCouncilAddressAccessor::<S>::get(working_set)
+            .expect("Security council addresses must exist");
+        let security_council_threshold = SecurityCouncilThresholdAccessor::<S>::get(working_set)
+            .expect("Security council threshold must exist");
+        let circuit_chain_id = citrea_network_to_chain_id(network);
+
         match sc_tx.tx_type {
             SecurityCouncilTxType::BatchProofMethodIdUpdateV1(body) => {
                 log!("Processing BatchProofMethodIdUpdateV1");
+
+                if !verify_security_council_signatures(
+                    &security_council_addresses,
+                    BatchProofMethodIdUpdate::from(body.clone()),
+                    &sc_tx.signatures_with_index,
+                    security_council_threshold,
+                    security_council_messages_domain.to_string(),
+                    circuit_chain_id,
+                ) {
+                    log!("Method ID security council verification failed");
+                    return;
+                }
+
+                SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
+
                 let batch_proof_method_ids =
                     BatchProofMethodIdAccessor::<S>::get(working_set).unwrap();
 
@@ -815,19 +830,6 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
                     );
                     return;
                 }
-
-                if !verify_security_council_signatures(
-                    &security_council_addresses,
-                    BatchProofMethodIdUpdate::from(body.clone()),
-                    &sc_tx.signatures_with_index,
-                    security_council_threshold,
-                    security_council_messages_domain.to_string(),
-                    circuit_chain_id,
-                ) {
-                    log!("Method ID security council verification failed");
-                    return;
-                }
-                SecurityCouncilNonceAccessor::<S>::set(msg_nonce, working_set);
 
                 BatchProofMethodIdAccessor::<S>::insert(
                     body.activation_l2_height,
