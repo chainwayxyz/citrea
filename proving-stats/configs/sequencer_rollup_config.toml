@@ -10,8 +10,7 @@ node_url = "http://127.0.0.1:18443/wallet/sequencer"
 node_username = "citrea"
 # fill here
 node_password = "citrea"
-da_private_key = "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262"
-tx_backup_dir = "resources/bitcoin/inscription_txs"
+tx_sender_url = "http://127.0.0.1:3000"
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.

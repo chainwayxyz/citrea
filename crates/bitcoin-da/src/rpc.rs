@@ -1,18 +1,16 @@
 //! Provides the RPC interface for the Bitcoin service in Citrea.
 //! The namespace for these RPC methods is "da" (Data Availability).
 //! This module defines methods to interact with monitored transactions,
-//! including fetching, listing, and bumping fees for transactions.
+//! including fetching and listing monitored transactions.
 
 use std::sync::Arc;
 
 use bitcoin::consensus::Encodable;
 use bitcoin::Txid;
-use citrea_common::rpc::utils::internal_rpc_error;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use serde::{Deserialize, Serialize};
 
-use crate::fee::BumpFeeMethod;
 use crate::monitoring::{MonitoredTx, MonitoredTxKind, TxStatus};
 use crate::service::BitcoinService;
 
@@ -108,24 +106,6 @@ pub trait DaRpc {
     /// Retrieves the last monitored transaction, if any.
     #[method(name = "getLastMonitoredTx")]
     async fn da_get_last_monitored_tx(&self) -> RpcResult<Option<MonitoredTxResponse>>;
-
-    /// Bumps the transaction fee using Child-Pays-For-Parent (CPFP) method.
-    #[method(name = "bumpFeeCpfp")]
-    async fn da_bump_transaction_fee_cpfp(
-        &self,
-        txid: Option<Txid>,
-        fee_rate: f64,
-        force: Option<bool>,
-    ) -> RpcResult<Txid>;
-
-    /// Bumps the transaction fee using Replace-By-Fee (RBF) method.
-    #[method(name = "bumpFeeRbf")]
-    async fn da_bump_transaction_fee_rbf(
-        &self,
-        txid: Option<Txid>,
-        fee_rate: f64,
-        force: Option<bool>,
-    ) -> RpcResult<Txid>;
 }
 
 /// The implementation of the RPC itself.
@@ -182,30 +162,6 @@ impl DaRpcServer for DaRpcServerImpl {
 
     async fn da_get_last_monitored_tx(&self) -> RpcResult<Option<MonitoredTxResponse>> {
         Ok(self.da.monitoring.get_last_tx().await.map(Into::into))
-    }
-
-    async fn da_bump_transaction_fee_cpfp(
-        &self,
-        txid: Option<Txid>,
-        fee_rate: f64,
-        force: Option<bool>,
-    ) -> RpcResult<Txid> {
-        self.da
-            .bump_fee(txid, fee_rate, force, BumpFeeMethod::Cpfp)
-            .await
-            .map_err(internal_rpc_error)
-    }
-
-    async fn da_bump_transaction_fee_rbf(
-        &self,
-        txid: Option<Txid>,
-        fee_rate: f64,
-        force: Option<bool>,
-    ) -> RpcResult<Txid> {
-        self.da
-            .bump_fee(txid, fee_rate, force, BumpFeeMethod::Rbf)
-            .await
-            .map_err(internal_rpc_error)
     }
 }
 

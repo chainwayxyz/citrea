@@ -13,7 +13,7 @@ use crate::da::{DaSpec, DaTxRequest, DaVerifier, SequencerCommitment};
 #[cfg(feature = "native")]
 use crate::zk::Proof;
 
-/// This type represents a queued request to send_transaction
+/// This type represents a queued DA submission request.
 #[cfg(feature = "native")]
 pub struct TxRequestWithNotifier<TxID> {
     /// Data to send.
@@ -101,15 +101,13 @@ pub trait DaService: Send + Sync + 'static {
     /// Decompress chunks.
     fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error>;
 
-    /// Send a transaction directly to the DA layer.
-    /// blob is the serialized and signed transaction.
-    /// Returns nothing if the transaction was successfully sent.
+    /// Submit a transaction request to the DA service backend.
     async fn send_transaction(
         &self,
         tx_request: DaTxRequest,
     ) -> Result<Self::TransactionId, Self::Error>;
 
-    /// A tx part of the queue to send transactions in order
+    /// Queue used by DA implementations that serialize transaction submissions.
     fn get_send_transaction_queue(
         &self,
     ) -> UnboundedSender<TxRequestWithNotifier<Self::TransactionId>> {
