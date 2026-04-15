@@ -5,9 +5,6 @@ on:
     tags:
       - "v*.*.*"
 
-permissions:
-  contents: write
-
 jobs:
   linux_amd64_binary_extraction:
     runs-on: ubicloud-standard-30-ubuntu-2204
@@ -113,9 +110,13 @@ jobs:
   create-draft-release:
     needs: [ linux_amd64_binary_extraction, linux_arm64_binary_extraction, osx_arm64_binary_extraction ]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       release_id: ${{ steps.create_release.outputs.id }}
       sha256sums_hash: ${{ steps.hash_sums.outputs.sha256sums_hash }}
+      amd64_hash: ${{ steps.binary_hashes.outputs.amd64 }}
+      arm64_hash: ${{ steps.binary_hashes.outputs.arm64 }}
     steps:
       - name: Download linux-amd64 Binary
         uses: actions/download-artifact@v4
@@ -184,6 +185,15 @@ jobs:
           sha256sum * > SHA256SUMS
           echo "Hash file created."
 
+      - name: Calculate Binary Hashes for Docker Job
+        id: binary_hashes
+        run: |
+          AMD64=$(sha256sum release/citrea-${{ github.ref_name }}-linux-amd64 | awk '{print $1}')
+          ARM64=$(sha256sum release/citrea-${{ github.ref_name }}-linux-arm64 | awk '{print $1}')
+          echo "amd64=$AMD64" >> "$GITHUB_OUTPUT"
+          echo "arm64=$ARM64" >> "$GITHUB_OUTPUT"
+          echo "Calculated output hashes for Docker job."
+
       - name: Hash the SHA256SUMS file for cross-job integrity
         id: hash_sums
         run: |
@@ -219,6 +229,8 @@ jobs:
   verify-and-publish:
     needs: [ create-draft-release ]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     environment: 'protected-release'
     steps:
       - uses: actions/checkout@v5
@@ -336,12 +348,15 @@ jobs:
 
   update-dockerhub:
     runs-on: ubuntu-latest
-    needs: [ verify-and-publish ]
+    needs: [ create-draft-release, verify-and-publish ]
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
       - name: Download binaries and verify integrity
+        env:
+          EXPECTED_AMD: ${{ needs.create-draft-release.outputs.amd64_hash }}
+          EXPECTED_ARM: ${{ needs.create-draft-release.outputs.arm64_hash }}
         run: |
           sudo apt update && sudo apt -y install wget
           RELEASE="${{ github.ref_name }}"
@@ -349,10 +364,8 @@ jobs:
 
           wget -O docker/full-node/citrea-amd64 "${BASE_URL}/citrea-${RELEASE}-linux-amd64"
           wget -O docker/full-node/citrea-arm64 "${BASE_URL}/citrea-${RELEASE}-linux-arm64"
-          wget -O SHA256SUMS "${BASE_URL}/SHA256SUMS"
 
-          # Verify the AMD64 binary
-          EXPECTED_AMD=$(grep "citrea-${RELEASE}-linux-amd64" SHA256SUMS | awk '{print $1}')
+          # Verify AMD64
           ACTUAL_AMD=$(sha256sum docker/full-node/citrea-amd64 | awk '{print $1}')
           if [[ "$ACTUAL_AMD" != "$EXPECTED_AMD" ]]; then
             echo "CRITICAL: AMD64 Binary hash mismatch!"
@@ -361,8 +374,7 @@ jobs:
             exit 1
           fi
 
-          # Verify the ARM64 binary
-          EXPECTED_ARM=$(grep "citrea-${RELEASE}-linux-arm64" SHA256SUMS | awk '{print $1}')
+          # Verify ARM64
           ACTUAL_ARM=$(sha256sum docker/full-node/citrea-arm64 | awk '{print $1}')
           if [[ "$ACTUAL_ARM" != "$EXPECTED_ARM" ]]; then
             echo "CRITICAL: ARM64 Binary hash mismatch!"
@@ -371,7 +383,7 @@ jobs:
             exit 1
           fi
 
-          echo "Binaries integrity verified."
+          echo "Binaries integrity verified securely via internal outputs."
 
           mkdir -p docker/full-node/genesis
           cp -r resources/genesis/mainnet docker/full-node/genesis/
