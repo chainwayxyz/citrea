@@ -5,6 +5,9 @@ on:
     tags:
       - "v*.*.*"
 
+permissions:
+  contents: write
+
 jobs:
   linux_amd64_binary_extraction:
     runs-on: ubicloud-standard-30-ubuntu-2204
@@ -107,9 +110,12 @@ jobs:
           name: citrea-cli-${{ github.ref_name }}-osx-arm64
           path: target/release/citrea-cli
 
-  release:
+  create-draft-release:
     needs: [ linux_amd64_binary_extraction, linux_arm64_binary_extraction, osx_arm64_binary_extraction ]
     runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create_release.outputs.id }}
+      sha256sums_hash: ${{ steps.hash_sums.outputs.sha256sums_hash }}
     steps:
       - name: Download linux-amd64 Binary
         uses: actions/download-artifact@v4
@@ -172,19 +178,35 @@ jobs:
         run: |
           mv release/citrea-cli release/citrea-cli-${{ github.ref_name }}-osx-arm64
 
-      - name: Release
+      - name: Prepare Release Assets & Checksums
+        run: |
+          cd release
+          sha256sum * > SHA256SUMS
+          echo "Hash file created."
+
+      - name: Hash the SHA256SUMS file for cross-job integrity
+        id: hash_sums
+        run: |
+          HASH=$(sha256sum release/SHA256SUMS | awk '{print $1}')
+          echo "sha256sums_hash=$HASH" >> "$GITHUB_OUTPUT"
+          echo "SHA256SUMS integrity hash: $HASH"
+
+      - name: Create Draft Release
+        id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            release/citrea-${{ github.ref_name }}-linux-amd64
-            release/citrea-${{ github.ref_name }}-linux-arm64
-            release/citrea-${{ github.ref_name }}-osx-arm64
-            release/citrea-cli-${{ github.ref_name }}-linux-amd64
-            release/citrea-cli-${{ github.ref_name }}-linux-arm64
-            release/citrea-cli-${{ github.ref_name }}-osx-arm64
+          draft: true
+          files: release/*
           name: Release ${{ github.ref_name }}
           body: |
-            This is the release for version ${{ github.ref_name }}.
+            ## GPG Verification Required
+            This release is in DRAFT mode. Signatures are required for `SHA256SUMS`.
+            
+            **Action required:**
+            1. Download `SHA256SUMS`
+            2. Sign it: `gpg --armor --detach-sign SHA256SUMS`
+            3. Rename to `SHA256SUMS.<your-name>.sig`
+            4. Upload to this release.
 
             It includes:
             - citrea-${{ github.ref_name }}-linux-amd64
@@ -194,21 +216,162 @@ jobs:
             - citrea-cli-${{ github.ref_name }}-linux-arm64
             - citrea-cli-${{ github.ref_name }}-osx-arm64
 
+  verify-and-publish:
+    needs: [ create-draft-release ]
+    runs-on: ubuntu-latest
+    environment: 'protected-release'
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download and verify SHA256SUMS integrity
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          EXPECTED_HASH: ${{ needs.create-draft-release.outputs.sha256sums_hash }}
+        run: |
+          gh release download "$TAG" -p "SHA256SUMS*"
+
+          ACTUAL_HASH=$(sha256sum SHA256SUMS | awk '{print $1}')
+          if [[ "$ACTUAL_HASH" != "$EXPECTED_HASH" ]]; then
+            echo "CRITICAL: SHA256SUMS was tampered with between jobs!"
+            echo "Expected: $EXPECTED_HASH"
+            echo "Got:      $ACTUAL_HASH"
+            exit 1
+          fi
+          echo "SHA256SUMS integrity verified."
+
+      - name: Check Authorized Signatures
+        env:
+          REQUIRED_SIGS: 2
+          AUTHORIZED_KEYS: >-
+            7F52EC9A995025E87F3AF1200C17966C01E52A9A
+            CFF759A7C0EF99813BD1E6EE85CCAD8803F887A0
+
+        run: |
+          if [ -z "$AUTHORIZED_KEYS" ]; then
+            echo "CRITICAL: No authorized keys configured."
+            exit 1
+          fi
+
+          KEY_COUNT=$(echo $AUTHORIZED_KEYS | wc -w)
+          echo "Loaded $KEY_COUNT authorized key(s)."
+
+          if [ "$KEY_COUNT" -lt "$REQUIRED_SIGS" ]; then
+            echo "CRITICAL: Only $KEY_COUNT key(s) configured but $REQUIRED_SIGS signature(s) required."
+            exit 1
+          fi
+
+          MAX_RETRIES=3
+          for i in $(seq 1 $MAX_RETRIES); do
+            if gpg --keyserver keyserver.ubuntu.com --recv-keys $AUTHORIZED_KEYS; then
+              echo "Keys imported successfully."
+              break
+            fi
+            echo "Keyserver attempt $i/$MAX_RETRIES failed."
+            if [ "$i" -eq "$MAX_RETRIES" ]; then
+              echo "CRITICAL: Could not import GPG keys after $MAX_RETRIES attempts."
+              exit 1
+            fi
+            sleep 5
+          done
+
+          VALID_AUTH_COUNT=0
+          declare -A SEEN_KEYS
+          
+          for sig in *.sig; do
+            [ -e "$sig" ] || continue
+            echo "--- Analyzing: $sig ---"
+            
+            SIG_STATUS=$(gpg --status-fd 1 --verify "$sig" SHA256SUMS 2>/dev/null)
+            
+            if echo "$SIG_STATUS" | grep -q "VALIDSIG"; then
+              CURRENT_SIG_FPR=$(echo "$SIG_STATUS" | grep "VALIDSIG" | awk '{print $3}')
+              PRIMARY_FPR=$(gpg --with-colons --list-keys "$CURRENT_SIG_FPR" | awk -F: '$1=="fpr"{print $10; exit}')
+              
+              echo "Signature by subkey: $CURRENT_SIG_FPR"
+              echo "Belongs to primary: $PRIMARY_FPR"
+
+              AUTHORIZED=false
+              for AUTH_FPR in $AUTHORIZED_KEYS; do
+                if [[ "$PRIMARY_FPR" == "$AUTH_FPR" ]]; then
+                  AUTHORIZED=true
+                  break
+                fi
+              done
+
+              if $AUTHORIZED; then
+                if [[ -z "${SEEN_KEYS[$PRIMARY_FPR]}" ]]; then
+                  echo "Verified: $PRIMARY_FPR"
+                  VALID_AUTH_COUNT=$((VALID_AUTH_COUNT + 1))
+                  SEEN_KEYS[$PRIMARY_FPR]=1
+                else
+                  echo "Duplicate from $PRIMARY_FPR ignored."
+                fi
+              else
+                echo "Unauthorized key: $PRIMARY_FPR"
+              fi
+            else
+              echo "Invalid signature: $sig"
+            fi
+          done
+          
+          echo "---------------------------------------"
+          echo "Total authorized signers confirmed: $VALID_AUTH_COUNT"
+          
+          if [ "$VALID_AUTH_COUNT" -lt "$REQUIRED_SIGS" ]; then
+            echo "Security failure: Need $REQUIRED_SIGS signatures, found $VALID_AUTH_COUNT."
+            exit 1
+          fi
+
+          echo "VALID_AUTH_COUNT=$VALID_AUTH_COUNT" >> "$GITHUB_ENV"
+
+      - name: Publish Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit ${{ github.ref_name }} \
+            --draft=false \
+            --title "Release ${{ github.ref_name }} - Verified" \
+            --notes "This release has been cryptographically verified by ${{ env.VALID_AUTH_COUNT }} authorized maintainer(s)."
+
   update-dockerhub:
     runs-on: ubuntu-latest
-    needs: [ release ]
+    needs: [ verify-and-publish ]
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Download binaries and prepare Docker context
+      - name: Download binaries and verify integrity
         run: |
           sudo apt update && sudo apt -y install wget
           RELEASE="${{ github.ref_name }}"
+          BASE_URL="https://github.com/chainwayxyz/citrea/releases/download/${RELEASE}"
 
-          # Download both arch
-          wget -O docker/full-node/citrea-amd64 "https://github.com/chainwayxyz/citrea/releases/download/${RELEASE}/citrea-${RELEASE}-linux-amd64"
-          wget -O docker/full-node/citrea-arm64 "https://github.com/chainwayxyz/citrea/releases/download/${RELEASE}/citrea-${RELEASE}-linux-arm64"
+          wget -O docker/full-node/citrea-amd64 "${BASE_URL}/citrea-${RELEASE}-linux-amd64"
+          wget -O docker/full-node/citrea-arm64 "${BASE_URL}/citrea-${RELEASE}-linux-arm64"
+          wget -O SHA256SUMS "${BASE_URL}/SHA256SUMS"
+
+          # Verify the AMD64 binary
+          EXPECTED_AMD=$(grep "citrea-${RELEASE}-linux-amd64" SHA256SUMS | awk '{print $1}')
+          ACTUAL_AMD=$(sha256sum docker/full-node/citrea-amd64 | awk '{print $1}')
+          if [[ "$ACTUAL_AMD" != "$EXPECTED_AMD" ]]; then
+            echo "CRITICAL: AMD64 Binary hash mismatch!"
+            echo "Expected: $EXPECTED_AMD"
+            echo "Got:      $ACTUAL_AMD"
+            exit 1
+          fi
+
+          # Verify the ARM64 binary
+          EXPECTED_ARM=$(grep "citrea-${RELEASE}-linux-arm64" SHA256SUMS | awk '{print $1}')
+          ACTUAL_ARM=$(sha256sum docker/full-node/citrea-arm64 | awk '{print $1}')
+          if [[ "$ACTUAL_ARM" != "$EXPECTED_ARM" ]]; then
+            echo "CRITICAL: ARM64 Binary hash mismatch!"
+            echo "Expected: $EXPECTED_ARM"
+            echo "Got:      $ACTUAL_ARM"
+            exit 1
+          fi
+
+          echo "Binaries integrity verified."
 
           mkdir -p docker/full-node/genesis
           cp -r resources/genesis/mainnet docker/full-node/genesis/
