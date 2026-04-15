@@ -113,7 +113,6 @@ jobs:
     permissions:
       contents: write
     outputs:
-      release_id: ${{ steps.create_release.outputs.id }}
       sha256sums_hash: ${{ steps.hash_sums.outputs.sha256sums_hash }}
       amd64_hash: ${{ steps.binary_hashes.outputs.amd64 }}
       arm64_hash: ${{ steps.binary_hashes.outputs.arm64 }}
