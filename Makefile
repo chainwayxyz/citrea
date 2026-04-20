@@ -25,6 +25,15 @@ build-reproducible: build-sp1 ## Build the project in release mode with reproduc
 build-release: ## Build the project in release mode
 	@cargo build --release --locked
 
+.PHONY: build-reproducible-fullnode
+build-reproducible-fullnode: ## Build fullnode binaries reproducibly via Nix. Prints key=value lines (build_out, citrea_hash, cli_hash) for CI consumption.
+	@BUILD_OUT=$$(nix build ./nix#citrea --no-link --print-out-paths) && \
+	CITREA_HASH=$$(sha256sum $$BUILD_OUT/bin/citrea | awk '{print $$1}') && \
+	CLI_HASH=$$(sha256sum $$BUILD_OUT/bin/citrea-cli | awk '{print $$1}') && \
+	echo "build_out=$$BUILD_OUT" && \
+	echo "citrea_hash=$$CITREA_HASH" && \
+	echo "cli_hash=$$CLI_HASH"
+
 clean: ## Cleans compiled
 	@cargo clean
 

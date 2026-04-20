@@ -1,0 +1,94 @@
+name: Reproducible Build
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+    # TEMPORARY: remove before merging.
+    branches:
+      - feat/repr-build
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-amd64
+            runner: ubicloud-standard-30-ubuntu-2204
+          - platform: linux-arm64
+            runner: ubicloud-standard-30-arm-ubuntu-2204
+          - platform: osx-arm64
+            runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.34.6/install
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Build
+        run: nix build ./nix#citrea
+
+      - name: Rebuild to verify reproducibility
+        run: nix build ./nix#citrea --rebuild
+
+      - name: Hash binaries
+        id: hash
+        shell: bash
+        run: |
+          set -euo pipefail
+          CITREA_HASH=$(shasum -a 256 ./result/bin/citrea | awk '{print $1}')
+          CLI_HASH=$(shasum -a 256 ./result/bin/citrea-cli | awk '{print $1}')
+          echo "citrea_hash=$CITREA_HASH" >> "$GITHUB_OUTPUT"
+          echo "cli_hash=$CLI_HASH" >> "$GITHUB_OUTPUT"
+          {
+            echo "## ${{ matrix.platform }}"
+            echo ""
+            echo "| Binary | SHA-256 |"
+            echo "|--------|---------|"
+            echo "| citrea | \`$CITREA_HASH\` |"
+            echo "| citrea-cli | \`$CLI_HASH\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Collect artifacts
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          CITREA_PATH="artifacts/citrea-${{ github.ref_name }}-${{ matrix.platform }}-reproducible"
+          CLI_PATH="artifacts/citrea-cli-${{ github.ref_name }}-${{ matrix.platform }}-reproducible"
+          cp ./result/bin/citrea "$CITREA_PATH"
+          cp ./result/bin/citrea-cli "$CLI_PATH"
+          (cd artifacts && shasum -a 256 \
+            "$(basename "$CITREA_PATH")" \
+            "$(basename "$CLI_PATH")" \
+            > "SHA256SUMS-${{ matrix.platform }}.txt")
+          cat "artifacts/SHA256SUMS-${{ matrix.platform }}.txt"
+
+      - name: Upload artifacts
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: reproducible-build-${{ matrix.platform }}-${{ github.ref_name }}
+          path: artifacts/
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/SHA256SUMS-${{ matrix.platform }}.txt
+            artifacts/citrea-${{ github.ref_name }}-${{ matrix.platform }}-reproducible
+            artifacts/citrea-cli-${{ github.ref_name }}-${{ matrix.platform }}-reproducible
