@@ -63,6 +63,7 @@ jobs:
             echo "| citrea-cli | \`$CLI_HASH\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # TODO: Remove -reproducible suffix once we replace release workflow with this one. Kept to prevent collision
       - name: Collect artifacts
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
@@ -86,6 +87,7 @@ jobs:
           name: reproducible-build-${{ matrix.platform }}-${{ github.ref_name }}
           path: artifacts/
 
+      # TODO: Remove -reproducible suffix once we replace release workflow with this one. Kept to prevent collision
       - name: Attest build provenance
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/attest-build-provenance@v1
