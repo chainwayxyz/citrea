@@ -126,10 +126,20 @@
             '';
 
             postFixup = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
+              otool="${pkgs.darwin.cctools}/bin/otool"
+              install_name_tool="${pkgs.darwin.cctools}/bin/install_name_tool"
               codesign_allocate="${pkgs.darwin.binutils.bintools}/bin/codesign_allocate"
               codesign="${pkgs.darwin.sigtool}/bin/codesign"
               for bin in $out/bin/citrea $out/bin/citrea-cli; do
                 chmod +w "$bin"
+
+                LIBICONV_PATH="$("$otool" -L "$bin" | awk '/libiconv\.2\.dylib/{print $1; exit}')"
+                if [ -n "$LIBICONV_PATH" ]; then
+                  "$install_name_tool" \
+                    -change "$LIBICONV_PATH" /usr/lib/libiconv.2.dylib \
+                    "$bin"
+                fi
+
                 CODESIGN_ALLOCATE="$codesign_allocate" "$codesign" -f -s - "$bin"
                 chmod 555 "$bin"
               done
