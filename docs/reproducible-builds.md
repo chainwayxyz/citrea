@@ -25,7 +25,7 @@ gh attestation verify citrea-v1.2.3-linux-amd64 \
 
 ### 2. Published hashes
 
-This is the Sigstore/keyless equivalent of a traditional `SHA256SUMS.asc`: the checksum manifest is signed, but without a long-lived GPG key to distribute and rotate. Requires [`cosign`](https://docs.sigstore.dev/cosign/system_config/installation/).
+Requires [`cosign`](https://docs.sigstore.dev/cosign/system_config/installation/).
 
 ```bash
 cosign verify-blob SHA256SUMS.txt \
