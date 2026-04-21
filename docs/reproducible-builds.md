@@ -4,7 +4,8 @@ Citrea release binaries are produced by a pinned [Nix](https://nixos.org/) build
 
 - `citrea-<tag>-<platform>-reproducible` — fullnode binary
 - `citrea-cli-<tag>-<platform>-reproducible` — citrea CLI
-- `SHA256SUMS-<platform>.txt` — SHA-256 of both binaries
+- `SHA256SUMS.txt` — SHA-256 manifest for all release binaries
+- `SHA256SUMS.txt.sigstore.json` — Sigstore bundle for the checksum manifest
 - A Sigstore provenance attestation binding the artifacts to the workflow, commit, and runner identity
 
 Supported platforms: `linux-amd64`, `linux-arm64`, `osx-arm64`.
@@ -24,11 +25,22 @@ gh attestation verify citrea-v1.2.3-linux-amd64-reproducible \
 
 ### 2. Published hashes
 
+This is the Sigstore/keyless equivalent of a traditional `SHA256SUMS.asc`: the checksum manifest is signed, but without a long-lived GPG key to distribute and rotate. Requires [`cosign`](https://docs.sigstore.dev/cosign/system_config/installation/).
+
 ```bash
-shasum -a 256 -c SHA256SUMS-linux-amd64.txt
+cosign verify-blob SHA256SUMS.txt \
+  --bundle SHA256SUMS.txt.sigstore.json \
+  --certificate-identity "https://github.com/chainwayxyz/citrea/.github/workflows/reproducible-build.yml@refs/tags/v1.2.3" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
 ```
 
-Pair this with (1) — on its own, a hash file the attacker controls proves nothing.
+Then check your downloaded artifact against the signed manifest:
+
+```bash
+grep '  citrea-v1.2.3-linux-amd64-reproducible$' SHA256SUMS.txt | shasum -a 256 -c -
+```
+
+Pair this with (1) — a hash manifest is only useful if you verify its signature.
 
 ### 3. Rebuild from source
 
@@ -42,7 +54,7 @@ nix build ./nix#citrea
 shasum -a 256 ./result/bin/citrea ./result/bin/citrea-cli
 ```
 
-The hashes must match `SHA256SUMS-<platform>.txt` from the release. If they don't, something is wrong — file an issue.
+The hashes must match the corresponding entries in `SHA256SUMS.txt` from the release. If they don't, something is wrong — file an issue.
 
 ## macOS: Gatekeeper quarantine
 

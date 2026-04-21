@@ -9,7 +9,7 @@ on:
   push:
     tags:
       - "v*.*.*"
-    # TEMPORARY: remove before merging.
+    # TODO: remove before merging.
     branches:
       - feat/repr-build
   workflow_dispatch:
@@ -86,11 +86,6 @@ jobs:
           CLI_PATH="artifacts/citrea-cli-${{ github.ref_name }}-${{ matrix.platform }}-reproducible"
           cp ./result/bin/citrea "$CITREA_PATH"
           cp ./result/bin/citrea-cli "$CLI_PATH"
-          (cd artifacts && shasum -a 256 \
-            "$(basename "$CITREA_PATH")" \
-            "$(basename "$CLI_PATH")" \
-            > "SHA256SUMS-${{ matrix.platform }}.txt")
-          cat "artifacts/SHA256SUMS-${{ matrix.platform }}.txt"
 
       - name: Upload artifacts
         if: startsWith(github.ref, 'refs/tags/')
@@ -102,12 +97,11 @@ jobs:
       # TODO: Remove -reproducible suffix once we replace release workflow with this one. Kept to prevent collision
       - name: Attest build provenance
         if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest@v4
         with:
           subject-path: |
             artifacts/citrea-${{ github.ref_name }}-${{ matrix.platform }}-reproducible
             artifacts/citrea-cli-${{ github.ref_name }}-${{ matrix.platform }}-reproducible
-            artifacts/SHA256SUMS-${{ matrix.platform }}.txt
 
   release:
     if: startsWith(github.ref, 'refs/tags/')
@@ -121,13 +115,53 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      # TODO: Remove -reproducible suffix once we replace release workflow with this one. Kept to prevent collision
+      - name: Generate SHA256SUMS.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd artifacts && shasum -a 256 \
+            "citrea-${{ github.ref_name }}-linux-amd64-reproducible" \
+            "citrea-${{ github.ref_name }}-linux-arm64-reproducible" \
+            "citrea-${{ github.ref_name }}-osx-arm64-reproducible" \
+            "citrea-cli-${{ github.ref_name }}-linux-amd64-reproducible" \
+            "citrea-cli-${{ github.ref_name }}-linux-arm64-reproducible" \
+            "citrea-cli-${{ github.ref_name }}-osx-arm64-reproducible" \
+            > "SHA256SUMS.txt")
+          cat "artifacts/SHA256SUMS.txt"
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.1.0
+
+      - name: Sign SHA256SUMS.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cosign sign-blob --yes \
+            --bundle artifacts/SHA256SUMS.txt.sigstore.json \
+            artifacts/SHA256SUMS.txt
+
+      - name: Verify signed SHA256SUMS.txt
+        shell: bash
+        env:
+          CERTIFICATE_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/reproducible-build.yml@${{ github.ref }}
+        run: |
+          set -euo pipefail
+          cosign verify-blob artifacts/SHA256SUMS.txt \
+            --bundle artifacts/SHA256SUMS.txt.sigstore.json \
+            --certificate-identity "$CERTIFICATE_IDENTITY" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            --certificate-github-workflow-repository "${{ github.repository }}" \
+            --certificate-github-workflow-ref "${{ github.ref }}" \
+            --certificate-github-workflow-sha "${{ github.sha }}"
+
+      # TODO: Remove -reproducible suffix once we replace release workflow with this one. Kept to prevent collision
       - name: Attach to release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/SHA256SUMS-linux-amd64.txt
-            artifacts/SHA256SUMS-linux-arm64.txt
-            artifacts/SHA256SUMS-osx-arm64.txt
+            artifacts/SHA256SUMS.txt
+            artifacts/SHA256SUMS.txt.sigstore.json
             artifacts/citrea-${{ github.ref_name }}-linux-amd64-reproducible
             artifacts/citrea-${{ github.ref_name }}-linux-arm64-reproducible
             artifacts/citrea-${{ github.ref_name }}-osx-arm64-reproducible
