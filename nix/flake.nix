@@ -104,14 +104,7 @@
           '';
         };
 
-        # Crane's dummy-source deps-only pass currently miscompiles
-        # boundless-market 1.0.0 in Linux CI even when scoped to the shipped
-        # packages. Reusing an empty target dir keeps buildPackage on a single
-        # real-source build path, which is slower but matches the actual
-        # package build and avoids the failing citrea-deps derivation.
-        cargoArtifacts = pkgs.runCommand "citrea-empty-cargo-artifacts" { } ''
-          mkdir -p $out
-        '';
+        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
 
       in {
         packages = {
