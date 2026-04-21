@@ -1,9 +1,9 @@
 # Reproducible Builds
 
-Citrea release binaries are produced by a pinned [Nix](https://nixos.org/) build (`nix/flake.nix`) in the `Reproducible Build` GitHub Actions workflow. Every tagged release publishes:
+Citrea release binaries are produced by a pinned [Nix](https://nixos.org/) build (`nix/flake.nix`) in the `release` GitHub Actions workflow. Every tagged release publishes:
 
-- `citrea-<tag>-<platform>-reproducible` — fullnode binary
-- `citrea-cli-<tag>-<platform>-reproducible` — citrea CLI
+- `citrea-<tag>-<platform>` — fullnode binary
+- `citrea-cli-<tag>-<platform>` — citrea CLI
 - `SHA256SUMS.txt` — SHA-256 manifest for all release binaries
 - `SHA256SUMS.txt.sigstore.json` — Sigstore bundle for the checksum manifest
 - A Sigstore provenance attestation binding the artifacts to the workflow, commit, and runner identity
@@ -16,10 +16,10 @@ Three independent checks, from cheapest to strongest.
 
 ### 1. Provenance attestation (recommended)
 
-Requires the [`gh` CLI](https://cli.github.com/). Confirms the binary was produced by the `Reproducible Build` workflow on `chainwayxyz/citrea` at a specific commit, recorded in the public Sigstore transparency log.
+Requires the [`gh` CLI](https://cli.github.com/). Confirms the binary was produced by the `release` workflow on `chainwayxyz/citrea` at a specific commit, recorded in the public Sigstore transparency log.
 
 ```bash
-gh attestation verify citrea-v1.2.3-linux-amd64-reproducible \
+gh attestation verify citrea-v1.2.3-linux-amd64 \
   --repo chainwayxyz/citrea
 ```
 
@@ -30,14 +30,14 @@ This is the Sigstore/keyless equivalent of a traditional `SHA256SUMS.asc`: the c
 ```bash
 cosign verify-blob SHA256SUMS.txt \
   --bundle SHA256SUMS.txt.sigstore.json \
-  --certificate-identity "https://github.com/chainwayxyz/citrea/.github/workflows/reproducible-build.yml@refs/tags/v1.2.3" \
+  --certificate-identity "https://github.com/chainwayxyz/citrea/.github/workflows/release.yml@refs/tags/v1.2.3" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
 ```
 
 Then check your downloaded artifact against the signed manifest:
 
 ```bash
-grep '  citrea-v1.2.3-linux-amd64-reproducible$' SHA256SUMS.txt | shasum -a 256 -c -
+grep '  citrea-v1.2.3-linux-amd64$' SHA256SUMS.txt | shasum -a 256 -c -
 ```
 
 Pair this with (1) — a hash manifest is only useful if you verify its signature.
