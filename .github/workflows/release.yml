@@ -103,7 +103,6 @@ jobs:
             "citrea-cli-${{ github.ref_name }}-linux-arm64" \
             "citrea-cli-${{ github.ref_name }}-osx-arm64" \
             > "SHA256SUMS.txt")
-          cat "artifacts/SHA256SUMS.txt"
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v4.1.0
