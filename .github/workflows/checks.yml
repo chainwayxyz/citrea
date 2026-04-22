@@ -63,7 +63,7 @@ env:
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
   BITCOIN_DOCKER_IMAGE: "bitcoin/bitcoin:30.0"
-  RUST_CACHE_PREFIX: v1-rust-ubuntu-2204
+  RUST_CACHE_PREFIX: v2-rust
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -76,7 +76,7 @@ concurrency:
 jobs:
   build:
     name: build
-    runs-on: ubicloud-standard-30-ubuntu-2204
+    runs-on: ubicloud-standard-30
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
@@ -101,9 +101,9 @@ jobs:
       - name: Cache riscv-guest
         uses: ubicloud/cache@v4
         with:
-          key: build-guests-v1-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: build-guests-v2-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/riscv-guest
-          restore-keys: build-guests-v1-${{ runner.os }}-
+          restore-keys: build-guests-v2-${{ runner.os }}-
 
       - name: Build citrea
         run: make build
@@ -118,7 +118,7 @@ jobs:
 
   check:
     name: check
-    runs-on: ubicloud-standard-4-ubuntu-2204
+    runs-on: ubicloud-standard-4
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
@@ -144,7 +144,7 @@ jobs:
 
   udeps:
     name: udeps
-    runs-on: ubicloud-standard-8-ubuntu-2204
+    runs-on: ubicloud-standard-8
     timeout-minutes: 60
     if: github.event.pull_request.draft == false
     steps:
@@ -202,7 +202,7 @@ jobs:
   coverage:
     needs:
       - docker-setup
-    runs-on: ubicloud-standard-30-ubuntu-2204
+    runs-on: ubicloud-standard-30
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@1.88.0
@@ -240,9 +240,9 @@ jobs:
       - name: Cache riscv-guest
         uses: ubicloud/cache@v4
         with:
-          key: coverage-guests-v1-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: coverage-guests-v2-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/llvm-cov-target/riscv-guest
-          restore-keys: coverage-guests-v1-${{ runner.os }}-
+          restore-keys: coverage-guests-v2-${{ runner.os }}-
 
       - name: Run coverage
         run: make coverage
@@ -380,7 +380,7 @@ jobs:
     needs:
       - docker-setup
     name: nextest
-    runs-on: ubicloud-standard-30-ubuntu-2204
+    runs-on: ubicloud-standard-30
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
@@ -417,9 +417,9 @@ jobs:
       - name: Cache riscv-guest
         uses: ubicloud/cache@v4
         with:
-          key: build-guests-v1-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: build-guests-v2-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/riscv-guest
-          restore-keys: build-guests-v1-${{ runner.os }}-
+          restore-keys: build-guests-v2-${{ runner.os }}-
 
       - name: Run nextest
         run: make test
@@ -548,7 +548,7 @@ jobs:
 
   proving-stats:
     name: Proving stats
-    runs-on: ubicloud-standard-2-ubuntu-2204
+    runs-on: ubicloud-standard-2
     needs: [build, docker-setup]
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'guest-code')
     steps:
