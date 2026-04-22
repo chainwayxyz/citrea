@@ -3140,7 +3140,7 @@ dependencies = [
 [[package]]
 name = "boundless-market"
 version = "1.0.0"
-source = "git+https://github.com/chainwayxyz/boundless?branch=v1.0.0-deterministic-build#005352d0afd8db93f6b674175fdd678ae7d887a5"
+source = "git+https://github.com/chainwayxyz/boundless?rev=005352d#005352d0afd8db93f6b674175fdd678ae7d887a5"
 dependencies = [
  "alloy 1.0.9",
  "alloy-chains 0.2.1",
