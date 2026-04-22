@@ -9,6 +9,8 @@ on:
   push:
     tags:
       - "v*.*.*"
+    branches:
+      - feat/repr-build
 
 jobs:
   build:
@@ -22,10 +24,16 @@ jobs:
             runner: ubicloud-standard-30-arm-ubuntu-2204
           - platform: osx-arm64
             runner: self-hosted-citrea-osx-arm64
+
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Compute release tag
+        id: vars
+        shell: bash
+        run: echo "release_tag=${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
@@ -64,24 +72,25 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          cp ./result/bin/citrea "artifacts/citrea-${{ github.ref_name }}-${{ matrix.platform }}"
-          cp ./result/bin/citrea-cli "artifacts/citrea-cli-${{ github.ref_name }}-${{ matrix.platform }}"
+          cp ./result/bin/citrea "artifacts/citrea-${{ steps.vars.outputs.release_tag }}-${{ matrix.platform }}"
+          cp ./result/bin/citrea-cli "artifacts/citrea-cli-${{ steps.vars.outputs.release_tag }}-${{ matrix.platform }}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-build-${{ matrix.platform }}-${{ github.ref_name }}
+          name: release-build-${{ matrix.platform }}-${{ steps.vars.outputs.release_tag }}
           path: artifacts/
 
       - name: Attest build provenance
         uses: actions/attest@v4
         with:
           subject-path: |
-            artifacts/citrea-${{ github.ref_name }}-${{ matrix.platform }}
-            artifacts/citrea-cli-${{ github.ref_name }}-${{ matrix.platform }}
+            artifacts/citrea-${{ steps.vars.outputs.release_tag }}-${{ matrix.platform }}
+            artifacts/citrea-cli-${{ steps.vars.outputs.release_tag }}-${{ matrix.platform }}
 
   package:
     needs: build
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
@@ -163,6 +172,7 @@ jobs:
 
   update-dockerhub:
     needs: [package]
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
