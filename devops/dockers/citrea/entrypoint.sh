@@ -49,5 +49,5 @@ fi
 
 ./citrea --da-layer "$DA_LAYER" --genesis-paths "$GENESIS_PATH" "${SERVICE_FLAG[@]}" --network "$NETWORK" &
 MAIN_PROCESS_PID=$!
-wait "$MAIN_PROCESS_PID"
 sleep "$START_WAIT"
+wait "$MAIN_PROCESS_PID"
