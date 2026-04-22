@@ -81,8 +81,6 @@
           TZ = "UTC";
           ZERO_AR_DATE = "1";
           CARGO_INCREMENTAL = "0";
-          # Avoid host-dependent jemalloc rtree sizing on machines with 5-level paging.
-          JEMALLOC_SYS_WITH_LG_VADDR = "48";
           LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
 
           # GCC 14 promoted -Wint-conversion to an error by default, which breaks
