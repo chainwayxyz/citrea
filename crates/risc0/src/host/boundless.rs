@@ -283,6 +283,14 @@ impl BoundlessProver {
 
         let lock_timeout = cmp::max(lock_timeout, MIN_LOCK_TIMEOUT); // at least 200 seconds
 
+        tracing::info!(
+            "Got pricing response, building proof request for job_id={} image_id={} lock_timeout={}s timeout={}s",
+            job_id,
+            image_id,
+            lock_timeout,
+            timeout
+        );
+
         let request = self
             .build_proof_request(
                 receipt_claim.digest(),
@@ -306,6 +314,12 @@ impl BoundlessProver {
                 journal.clone(),
             )
             .await;
+
+        tracing::info!(
+            "Built proof request for job_id={} image_id={}, handing off to send_request",
+            job_id,
+            image_id
+        );
 
         // Start boundless proving session
         let (req_id, request_expiry) = self
@@ -353,7 +367,15 @@ impl BoundlessProver {
     ) -> RequestParams {
         // Note that offer ramp up period must be less than or equal to the lock timeout)
 
+        tracing::info!(
+            "build_proof_request: entered, image_id={} total_cycles_approx={}",
+            image_id,
+            total_cycles_approx
+        );
+
         let provider = self.client.provider().clone();
+
+        tracing::info!("build_proof_request: building offer_layer_config");
 
         let offer_layer_config = OfferLayerConfigBuilder::default()
             .min_price_per_cycle(min_price_per_cycle)
@@ -367,6 +389,11 @@ impl BoundlessProver {
             .expect("Failed to build offer layer config");
 
         let exponential_backoff = ExponentialBackoff::default();
+
+        tracing::info!(
+            "build_proof_request: fetching gas price via provider.get_gas_price() (per-attempt timeout={:?})",
+            GAS_PRICE_RPC_TIMEOUT
+        );
 
         let gas_price = retry_backoff(exponential_backoff, || {
             let p = provider.clone();
@@ -403,6 +430,11 @@ impl BoundlessProver {
             FALLBACK_BASE_GAS_PRICE
         });
 
+        tracing::info!(
+            "build_proof_request: gas_price={} wei, building OfferLayer and Requirements",
+            gas_price
+        );
+
         let offer_layer = OfferLayer::new(provider, offer_layer_config);
 
         let requirements = Requirements::new(Predicate::claim_digest_match(receipt_claim_digest))
@@ -418,6 +450,11 @@ impl BoundlessProver {
             .estimate_gas_cost_upper_bound(&requirements, &dummy_request_id, gas_price)
             .unwrap();
 
+        tracing::info!(
+            "build_proof_request: gas_cost_estimate={}",
+            gas_cost_estimate
+        );
+
         let max_price_cycle = max_price_per_cycle * U256::from(total_cycles_approx);
 
         // https://github.com/boundless-xyz/boundless/blob/eced0f1eab1b0666ac1cd263ce815861a9558925/crates/boundless-market/src/request_builder/offer_layer.rs#L329
@@ -430,7 +467,15 @@ impl BoundlessProver {
         let ts = get_timestamp();
         let bidding_start = ts + bidding_start_delay;
 
-        self.client
+        tracing::info!(
+            "build_proof_request: min_price={} max_price={} bidding_start={}, assembling RequestParams",
+            min_price,
+            max_price,
+            bidding_start
+        );
+
+        let params = self
+            .client
             .new_request()
             .with_image_id(image_id)
             .with_program_url(image_url)
@@ -449,7 +494,11 @@ impl BoundlessProver {
                     .with_ramp_up_start(bidding_start),
             )
             .with_cycles(total_cycles_approx)
-            .with_journal(journal)
+            .with_journal(journal);
+
+        tracing::info!("build_proof_request: finished assembling RequestParams");
+
+        params
     }
 
     #[allow(clippy::too_many_arguments)]
