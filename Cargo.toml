@@ -120,7 +120,7 @@ url = { version = "2.5.4" }
 
 # Risc0 dependencies
 bonsai-sdk = { version = "1.4.1" }
-boundless-market = { version = "1.0.0", default-features = false }
+boundless-market = { version = "=1.0.1", default-features = false }
 risc0-ethereum-contracts = { version = "3.0.1" }
 risc0-binfmt = "3.0.2"
 risc0-zkvm = { version = "3.0.3", default-features = false }
@@ -178,8 +178,6 @@ bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/ru
 # Use our fork of revm-inspectors to apply fixes after v0.18.1
 # Cannot update to latest as it requires latest revm, which we cannot use yet
 revm-inspectors = { git = "https://github.com/chainwayxyz/revm-inspectors", rev = "574d614ce505d3c0c4534d8b8e62d8acb3fa9651" }
-# Fix build non-determinism in boundless-market
-boundless-market = { git = "https://github.com/chainwayxyz/boundless", rev = "005352d" }
 
 [profile.release]
 opt-level = 3
