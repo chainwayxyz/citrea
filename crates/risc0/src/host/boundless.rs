@@ -59,6 +59,14 @@ const FALLBACK_BASE_GAS_PRICE: u128 = 1_000_000_000; // 1 gwei
 /// Duration to sleep before retrying a failed proof request in seconds
 const RETRY_RESUBMISSION_DELAY_SECS: Duration = Duration::from_secs(10);
 
+/// Per-attempt timeout for the `get_gas_price` RPC. A silent hang here would otherwise
+/// prevent `backoff` from ever observing an error and retrying.
+const GAS_PRICE_RPC_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Per-attempt timeout for the pricing service HTTP call. Same rationale: surface silent
+/// hangs as errors so `backoff` can retry.
+const PRICING_SERVICE_TIMEOUT: Duration = Duration::from_secs(30);
+
 enum ResubmitResult {
     Retry,
     Success,
@@ -244,10 +252,25 @@ impl BoundlessProver {
             bidding_start_delay,
             ..
         } = retry_backoff(exponential_backoff, || async move {
-            self.pricing_service
-                .get_price(total_cycles_approx)
-                .await
-                .map_err(backoff::Error::transient)
+            match tokio::time::timeout(
+                PRICING_SERVICE_TIMEOUT,
+                self.pricing_service.get_price(total_cycles_approx),
+            )
+            .await
+            {
+                Ok(Ok(res)) => Ok(res),
+                Ok(Err(e)) => Err(backoff::Error::transient(anyhow::Error::from(e))),
+                Err(_elapsed) => {
+                    tracing::error!(
+                        "pricing_service.get_price timed out after {:?}, retrying...",
+                        PRICING_SERVICE_TIMEOUT
+                    );
+                    Err(backoff::Error::transient(anyhow::anyhow!(
+                        "pricing_service.get_price timed out after {:?}",
+                        PRICING_SERVICE_TIMEOUT
+                    )))
+                }
+            }
         })
         .await
         .map_err(|e| {
@@ -348,15 +371,25 @@ impl BoundlessProver {
         let gas_price = retry_backoff(exponential_backoff, || {
             let p = provider.clone();
             async move {
-                match p.get_gas_price().await {
-                    Err(e) => {
+                match tokio::time::timeout(GAS_PRICE_RPC_TIMEOUT, p.get_gas_price()).await {
+                    Ok(Ok(price)) => Ok(price),
+                    Ok(Err(e)) => {
                         tracing::error!(
                             "Failed to get gas price from provider, retrying... err={}",
                             e
                         );
-                        Err(backoff::Error::transient(e))
+                        Err(backoff::Error::transient(anyhow::Error::from(e)))
                     }
-                    Ok(price) => Ok(price),
+                    Err(_elapsed) => {
+                        tracing::error!(
+                            "get_gas_price timed out after {:?}, retrying...",
+                            GAS_PRICE_RPC_TIMEOUT
+                        );
+                        Err(backoff::Error::transient(anyhow::anyhow!(
+                            "get_gas_price timed out after {:?}",
+                            GAS_PRICE_RPC_TIMEOUT
+                        )))
+                    }
                 }
             }
         })
@@ -637,16 +670,32 @@ impl BoundlessProver {
         let exponential_backoff = ExponentialBackoff::default();
 
         let price_response = retry_backoff(exponential_backoff, || async move {
-            match self.pricing_service.get_price(total_cycles_approx).await {
-                Err(e) => {
+            match tokio::time::timeout(
+                PRICING_SERVICE_TIMEOUT,
+                self.pricing_service.get_price(total_cycles_approx),
+            )
+            .await
+            {
+                Ok(Ok(res)) => Ok(res),
+                Ok(Err(e)) => {
                     tracing::error!(
                         "Failed to get price from pricing service for job: {}  | err={}",
                         job_id,
                         e
                     );
-                    Err(backoff::Error::transient(e))
+                    Err(backoff::Error::transient(anyhow::Error::from(e)))
                 }
-                Ok(res) => Ok(res),
+                Err(_elapsed) => {
+                    tracing::error!(
+                        "pricing_service.get_price timed out after {:?} for job: {}, retrying...",
+                        PRICING_SERVICE_TIMEOUT,
+                        job_id
+                    );
+                    Err(backoff::Error::transient(anyhow::anyhow!(
+                        "pricing_service.get_price timed out after {:?}",
+                        PRICING_SERVICE_TIMEOUT
+                    )))
+                }
             }
         })
         .await
