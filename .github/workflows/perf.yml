@@ -9,7 +9,7 @@ env:
   TARGET_PCT: 3
   COMPARISON_FILE: comparison_results.log
   USE_DOCKER: "true"
-  RUST_CACHE_PREFIX: v1-rust-ubuntu-2204
+  RUST_CACHE_PREFIX: v2-rust
 
 jobs:
   performance-comparison:
