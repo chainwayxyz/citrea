@@ -42,6 +42,9 @@ pub trait DaService: Send + Sync + 'static {
     /// A transaction ID, used to identify the transaction in the DA layer.
     type TransactionId: Send + PartialEq + Eq + PartialOrd + Ord + core::hash::Hash + Into<[u8; 32]>;
 
+    /// A submission handle returned immediately after the DA backend accepts a request.
+    type SubmissionId: Send;
+
     /// The error type for fallible methods.
     type Error: core::fmt::Debug + Send + Sync + core::fmt::Display;
 
@@ -105,12 +108,18 @@ pub trait DaService: Send + Sync + 'static {
     async fn send_transaction(
         &self,
         tx_request: DaTxRequest,
+    ) -> Result<Self::SubmissionId, Self::Error>;
+
+    /// Wait until a transaction handle resolves to a final DA-layer transaction id.
+    async fn wait_for_transaction_id(
+        &self,
+        submission_id: Self::SubmissionId,
     ) -> Result<Self::TransactionId, Self::Error>;
 
     /// Queue used by DA implementations that serialize transaction submissions.
     fn get_send_transaction_queue(
         &self,
-    ) -> UnboundedSender<TxRequestWithNotifier<Self::TransactionId>> {
+    ) -> UnboundedSender<TxRequestWithNotifier<Self::SubmissionId>> {
         unimplemented!()
     }
 

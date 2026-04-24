@@ -24,9 +24,9 @@ use sov_rollup_interface::da::{BlobReaderTrait, DaTxRequest, DataOnDa, Sequencer
 use sov_rollup_interface::rpc::SequencerCommitmentResponse;
 use tokio::time::sleep;
 
-use super::get_citrea_path;
+use super::{get_citrea_path, tx_builder};
 use crate::bitcoin::get_relevant_seqcoms_from_txs;
-use crate::bitcoin::utils::spawn_bitcoin_da_with_wallet;
+use crate::bitcoin::utils::SEQUENCER_DA_PRIVATE_KEY;
 
 pub async fn wait_for_sequencer_commitments(
     full_node: &FullNode,
@@ -348,13 +348,6 @@ impl TestCase for SequencerCommitmentsFromDaTest {
         let sequencer = f.sequencer.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
-        let da_service = spawn_bitcoin_da_with_wallet(
-            &self.task_manager.executor(),
-            &da.config,
-            NodeKind::Sequencer.to_string(),
-        )
-        .await;
-
         // publish blocks, no commitments should be sent
         sequencer.client.http_client().halt_commitments().await?;
         for _ in 0..40 {
@@ -362,6 +355,9 @@ impl TestCase for SequencerCommitmentsFromDaTest {
         }
         sequencer.wait_for_l2_height(40, None).await?;
         sequencer.wait_until_stopped().await?;
+        if let Some(tx_sender) = f.tx_senders.get_mut(&NodeKind::Sequencer) {
+            tx_sender.wait_until_stopped().await?;
+        }
 
         // Send commitment with index 1 to DA
         let commitment = SequencerCommitment {
@@ -369,10 +365,13 @@ impl TestCase for SequencerCommitmentsFromDaTest {
             l2_end_block_number: 15,
             index: 1,
         };
-        da_service
-            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment), 1.0)
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            da,
+            DaTxRequest::SequencerCommitment(commitment),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
@@ -382,11 +381,18 @@ impl TestCase for SequencerCommitmentsFromDaTest {
             l2_end_block_number: 25,
             index: 2,
         };
-        da_service
-            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment), 1.0)
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            da,
+            DaTxRequest::SequencerCommitment(commitment),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
+        da.wait_mempool_len(2, None).await?;
         // Restart sequencer, it should fetch commitment with index 1 and 2
+        if let Some(tx_sender) = f.tx_senders.get_mut(&NodeKind::Sequencer) {
+            tx_sender.start(None, None).await?;
+        }
         sequencer.restart(None, None).await?;
         // Sequencer should submit the next commitment with index 3
         da.wait_mempool_len(4, None).await?;

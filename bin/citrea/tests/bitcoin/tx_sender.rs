@@ -30,7 +30,10 @@ use crate::bitcoin::light_client_test::{
     create_random_state_diff, create_serialized_fake_receipt_batch_proof,
 };
 use crate::bitcoin::sequencer_commitments::wait_for_sequencer_commitments;
-use crate::bitcoin::utils::{wait_for_prover_job, wait_for_prover_job_count, wait_for_zkproofs};
+use crate::bitcoin::utils::{
+    wait_for_prover_job, wait_for_prover_job_count, wait_for_prover_job_with_l1_tx_id,
+    wait_for_zkproofs,
+};
 
 async fn get_commit_reveal_status(
     client: &JsonRpcTxSenderClient,
@@ -261,7 +264,6 @@ impl TestCase for TxSenderBasicTest {
         TestCaseConfig {
             with_batch_prover: true,
             with_full_node: true,
-            with_tx_sender: true,
             ..Default::default()
         }
     }
@@ -310,7 +312,6 @@ impl TestCase for TxSenderRestartTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
             with_full_node: true,
-            with_tx_sender: true,
             ..Default::default()
         }
     }
@@ -357,10 +358,10 @@ async fn tx_sender_restart_test() -> Result<()> {
         .await
 }
 
-/// Batch prover routes proof submission through the tx-sender and the poller resolves
-/// with a real L1 txid (not all-zeros). This validates the full job-based DA flow:
-///   send_transaction → tx-sender send_citrea_tx → poll_tx_sender_job → track_tx →
-///   Finalized → oneshot resolves with real txid → finalize_proving_job stores it.
+/// Batch prover routes proof submission through the tx-sender and ultimately stores
+/// a real L1 txid (not all-zeros). This validates the full job-based DA flow:
+///   send_transaction → tx-sender send_citrea_tx → wait_for_transaction_id →
+///   track_tx → Finalized → finalize_proving_job stores the real txid.
 struct TxSenderBatchProverTxidTest;
 
 #[async_trait]
@@ -369,7 +370,6 @@ impl TestCase for TxSenderBatchProverTxidTest {
         TestCaseConfig {
             with_batch_prover: true,
             with_full_node: true,
-            with_tx_sender: true,
             ..Default::default()
         }
     }
@@ -437,7 +437,7 @@ impl TestCase for TxSenderBatchProverTxidTest {
 
         // Wait for the proving job to be finalized with a real l1_tx_id.
         let job_ids = wait_for_prover_job_count(batch_prover, 1, None).await?;
-        let response = wait_for_prover_job(batch_prover, job_ids[0], None).await?;
+        let response = wait_for_prover_job_with_l1_tx_id(batch_prover, job_ids[0], None).await?;
 
         let proof = response.proof.expect("Job should have a proof");
         let l1_tx_id = proof
@@ -470,7 +470,7 @@ async fn tx_sender_batch_prover_txid_test() -> Result<()> {
 }
 
 /// `submitFakeProof` is explicitly called out in the job-service issue.
-/// This test verifies that, under `with_tx_sender`, the RPC still drives the
+/// This test verifies that the RPC still drives the
 /// proof through the external tx-sender path and returns a real finalized L1 txid.
 struct TxSenderSubmitFakeProofTest;
 
@@ -480,7 +480,6 @@ impl TestCase for TxSenderSubmitFakeProofTest {
         TestCaseConfig {
             with_batch_prover: true,
             with_full_node: true,
-            with_tx_sender: true,
             ..Default::default()
         }
     }
@@ -608,7 +607,6 @@ impl TestCase for TxSenderLargeBatchProofChunkingTest {
         TestCaseConfig {
             with_batch_prover: true,
             with_full_node: true,
-            with_tx_sender: true,
             ..Default::default()
         }
     }
@@ -778,7 +776,6 @@ impl TestCase for TxSenderLargeBatchProofReorgRebroadcastTest {
         TestCaseConfig {
             with_batch_prover: true,
             with_full_node: true,
-            with_tx_sender: true,
             ..Default::default()
         }
     }
@@ -933,7 +930,6 @@ impl TestCase for TxSenderLargeBatchProofRestartRecoveryTest {
         TestCaseConfig {
             with_batch_prover: true,
             with_full_node: true,
-            with_tx_sender: true,
             ..Default::default()
         }
     }
@@ -1169,7 +1165,6 @@ impl TestCase for TxSenderPackageMempoolLimitsTest {
         TestCaseConfig {
             with_batch_prover: true,
             with_full_node: true,
-            with_tx_sender: true,
             ..Default::default()
         }
     }
@@ -1351,7 +1346,6 @@ impl TestCase for TxSenderMultipleCommitmentsTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
             with_full_node: true,
-            with_tx_sender: true,
             ..Default::default()
         }
     }

@@ -707,11 +707,15 @@ where
         // start watching the proving jobs to finish in the background
         tokio::spawn(async move {
             while let Some((job_id, rx)) = proving_jobs.recv().await {
-                let ProofWithDuration {
+                let Ok(ProofWithDuration {
                     proof,
                     duration,
                     info,
-                } = rx.await.expect("Proof channel should never close");
+                }) = rx.await
+                else {
+                    warn!(%job_id, "Proving job channel closed before returning a proof");
+                    continue;
+                };
                 info!(
                     "Proving job finished {}, took {:?} seconds",
                     job_id, duration
@@ -737,6 +741,10 @@ where
                         .submit_proof(proof, job_id)
                         .await
                         .expect("Failed to submit proof");
+                    let tx_id = prover_service
+                        .wait_for_transaction_id(tx_id)
+                        .await
+                        .expect("Failed to resolve proof tx id");
 
                     info!("Job {} proof sent to DA", job_id);
 
@@ -834,6 +842,10 @@ where
                     .submit_proof(proof, job_id)
                     .await
                     .expect("Failed to submit transaction");
+                let tx_id = prover_service
+                    .wait_for_transaction_id(tx_id)
+                    .await
+                    .expect("Failed to resolve recovered proof tx id");
                 info!("Recovered Job {} proof sent to DA", job_id);
 
                 // stores tx id and removes job from pending da submission

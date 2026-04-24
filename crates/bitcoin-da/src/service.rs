@@ -36,7 +36,7 @@ use crate::fee::FeeService;
 use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
-use crate::monitoring::{MonitoringConfig, MonitoringService};
+use crate::monitoring::{MonitoringConfig, MonitoringService, TxStatus};
 use crate::network_constants::NetworkConstants;
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
@@ -45,7 +45,7 @@ use crate::spec::proof::InclusionMultiProof;
 use crate::spec::short_proof::BitcoinHeaderShortProof;
 use crate::spec::transaction::TransactionWrapper;
 use crate::spec::{BitcoinSpec, RollupParams};
-use crate::tx_sender::queue_tx_sender_request;
+use crate::tx_sender::{queue_tx_sender_request, wait_for_tx_sender_job};
 use crate::verifier::{
     BitcoinVerifier, MINIMUM_WITNESS_COMMITMENT_SIZE, WITNESS_COMMITMENT_PREFIX,
 };
@@ -120,7 +120,7 @@ pub struct BitcoinService {
     pub(crate) network: bitcoin::Network,
     network_constants: NetworkConstants,
     pub(crate) reveal_tx_prefix: Vec<u8>,
-    inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
+    inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxSenderJobId>>,
     /// Monitoring service for tracking transaction status.
     pub monitoring: Arc<MonitoringService>,
     fee: FeeService,
@@ -129,6 +129,117 @@ pub struct BitcoinService {
 }
 
 impl BitcoinService {
+    pub(crate) fn uses_tx_sender(&self) -> bool {
+        self.tx_sender.is_some()
+    }
+
+    pub(crate) async fn get_monitored_tx_status(
+        &self,
+        txid: Txid,
+    ) -> Option<crate::monitoring::TxStatus> {
+        if let Some(status) = self.monitoring.get_tx_status(&txid).await {
+            return Some(status);
+        }
+
+        if let Some(tx_sender) = self.tx_sender.clone() {
+            let response = tx_sender
+                .track_tx(tx_sender_jsonrpc_client::TrackRequest::ByTxid {
+                    txid: txid.to_string(),
+                })
+                .await
+                .ok();
+
+            if let Some(tx_sender_jsonrpc_client::TrackResponse::Transaction(status)) = response {
+                if let Some(status) = self.map_tx_sender_status(status).await {
+                    return Some(status);
+                }
+            }
+        }
+
+        self.get_bitcoin_node_status(txid).await
+    }
+
+    pub(crate) async fn get_transaction(&self, txid: &Txid) -> Option<Transaction> {
+        self.client.get_raw_transaction(txid, None).await.ok()
+    }
+
+    pub(crate) async fn get_pending_monitored_transactions(&self) -> Vec<Transaction> {
+        self.get_pending_transactions().await
+    }
+
+    async fn map_tx_sender_status(
+        &self,
+        status: tx_sender_jsonrpc_client::TxStatus,
+    ) -> Option<crate::monitoring::TxStatus> {
+        if status.tx_info.in_mempool {
+            return Some(crate::monitoring::TxStatus::InMempool {
+                base_fee: status
+                    .fee_sat_kvb
+                    .map(|fee_sat_kvb| fee_sat_kvb as f64 / 1000.0)
+                    .unwrap_or_default(),
+                timestamp: 0,
+                height: 0,
+            });
+        }
+
+        let mined_at_height = u64::from(status.tx_info.mined_at_height?);
+        let block_hash = self.client.get_block_hash(mined_at_height).await.ok()?;
+        let current_height = self.client.get_block_count().await.ok()?;
+        let confirmations = current_height.saturating_sub(mined_at_height) + 1;
+
+        if confirmations >= self.network_constants.finality_depth {
+            Some(crate::monitoring::TxStatus::Finalized {
+                block_hash,
+                block_height: mined_at_height,
+                confirmations,
+            })
+        } else {
+            Some(crate::monitoring::TxStatus::Confirmed {
+                block_hash,
+                block_height: mined_at_height,
+                confirmations,
+            })
+        }
+    }
+
+    async fn get_bitcoin_node_status(&self, txid: Txid) -> Option<crate::monitoring::TxStatus> {
+        if let Ok(entry) = self.client.get_mempool_entry(&txid).await {
+            return Some(crate::monitoring::TxStatus::InMempool {
+                base_fee: entry.fees.base.to_sat() as f64 / entry.vsize as f64,
+                timestamp: entry.time,
+                height: entry.height,
+            });
+        }
+
+        let info = self
+            .client
+            .get_raw_transaction_info(&txid, None)
+            .await
+            .ok()?;
+        let block_hash = info.blockhash?;
+        let confirmations = u64::from(info.confirmations?);
+        let block_height = self
+            .client
+            .get_block_header_info(&block_hash)
+            .await
+            .ok()?
+            .height as u64;
+
+        if confirmations >= self.network_constants.finality_depth {
+            Some(crate::monitoring::TxStatus::Finalized {
+                block_hash,
+                block_height,
+                confirmations,
+            })
+        } else {
+            Some(crate::monitoring::TxStatus::Confirmed {
+                block_hash,
+                block_height,
+                confirmations,
+            })
+        }
+    }
+
     /// Create a new instance of the DA service from the given configuration.
     #[allow(clippy::too_many_arguments)]
     pub async fn from_config(
@@ -140,7 +251,7 @@ impl BitcoinService {
         monitoring: Arc<MonitoringService>,
         fee_service: FeeService,
         require_wallet_check: bool,
-        inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
+        inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxSenderJobId>>,
     ) -> Result<Self> {
         let tx_sender = match (require_wallet_check, config.tx_sender_url.as_deref()) {
             (true, Some(url)) => {
@@ -177,7 +288,7 @@ impl BitcoinService {
     #[instrument(name = "BitcoinDA", skip_all)]
     pub async fn run_da_queue(
         self: Arc<Self>,
-        mut rx: UnboundedReceiver<TxRequestWithNotifier<TxidWrapper>>,
+        mut rx: UnboundedReceiver<TxRequestWithNotifier<TxSenderJobId>>,
         mut new_block_rx: UnboundedReceiver<u64>,
         mut shutdown: GracefulShutdown,
     ) {
@@ -207,6 +318,8 @@ impl BitcoinService {
                         };
                         queue_tx_sender_request(
                             tx_sender,
+                            self.client.clone(),
+                            self.monitoring.clone(),
                             request,
                             Duration::from_secs(POLLING_INTERVAL),
                         )
@@ -219,7 +332,38 @@ impl BitcoinService {
 
     #[instrument(level = "trace", skip_all, ret)]
     async fn get_pending_transactions(&self) -> Vec<Transaction> {
-        unimplemented!("pending transaction inspection is not implemented for tx-sender mode")
+        if self.tx_sender.is_some() {
+            let mempool = match self.client.get_raw_mempool().await {
+                Ok(mempool) => mempool,
+                Err(err) => {
+                    warn!(
+                        ?err,
+                        "Failed to fetch raw mempool while inspecting pending txs"
+                    );
+                    return Vec::new();
+                }
+            };
+
+            let mut pending_txs = Vec::with_capacity(mempool.len());
+            for txid in mempool {
+                match self.client.get_raw_transaction(&txid, None).await {
+                    Ok(tx) => pending_txs.push(tx),
+                    Err(err) => {
+                        warn!(?err, %txid, "Failed to fetch pending tx from mempool");
+                    }
+                }
+            }
+
+            return pending_txs;
+        }
+
+        self.monitoring
+            .get_monitored_txs()
+            .await
+            .into_iter()
+            .filter(|(_, tx)| matches!(tx.status, TxStatus::InMempool { .. }))
+            .map(|(_, monitored_tx)| monitored_tx.tx)
+            .collect()
     }
 
     /// A Chunk is valid if:
@@ -312,6 +456,7 @@ impl DaService for BitcoinService {
     type FilteredBlock = BitcoinBlock;
 
     type TransactionId = TxidWrapper;
+    type SubmissionId = TxSenderJobId;
 
     type Error = BitcoinServiceError;
 
@@ -742,7 +887,7 @@ impl DaService for BitcoinService {
     async fn send_transaction(
         &self,
         tx_request: DaTxRequest,
-    ) -> Result<<Self as DaService>::TransactionId> {
+    ) -> Result<<Self as DaService>::SubmissionId> {
         let queue = self.get_send_transaction_queue();
         let (tx, rx) = oneshot_channel();
         queue
@@ -754,9 +899,32 @@ impl DaService for BitcoinService {
         rx.await?.map_err(BitcoinServiceError::Other)
     }
 
+    async fn wait_for_transaction_id(
+        &self,
+        submission_id: Self::SubmissionId,
+    ) -> Result<Self::TransactionId> {
+        let Some(tx_sender) = self.tx_sender.clone() else {
+            return Err(BitcoinServiceError::Other(anyhow::anyhow!(
+                "tx-sender client is not configured"
+            )));
+        };
+
+        let txid = wait_for_tx_sender_job(
+            tx_sender,
+            self.client.clone(),
+            self.monitoring.clone(),
+            submission_id.0,
+            Duration::from_secs(POLLING_INTERVAL),
+        )
+        .await
+        .map_err(BitcoinServiceError::Other)?;
+
+        Ok(TxidWrapper(txid))
+    }
+
     fn get_send_transaction_queue(
         &self,
-    ) -> UnboundedSender<TxRequestWithNotifier<Self::TransactionId>> {
+    ) -> UnboundedSender<TxRequestWithNotifier<Self::SubmissionId>> {
         self.inscribes_queue.clone()
     }
 
@@ -891,8 +1059,12 @@ impl DaService for BitcoinService {
 }
 
 /// Wrapper around Txid to be used in DaSpec.
-#[derive(PartialEq, Eq, PartialOrd, Ord, core::hash::Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, core::hash::Hash)]
 pub struct TxidWrapper(pub(crate) Txid);
+
+/// Wrapper around tx-sender job id to be used as a submission handle.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, core::hash::Hash)]
+pub struct TxSenderJobId(pub(crate) i64);
 
 impl From<TxidWrapper> for [u8; 32] {
     fn from(val: TxidWrapper) -> Self {

@@ -34,7 +34,7 @@ pub(crate) enum TransactionKind {
 }
 
 impl TransactionKind {
-    #[cfg(any(test, feature = "testing"))]
+    #[cfg(test)]
     /// Serialize itself into bytes.
     fn to_bytes(&self) -> [u8; 2] {
         match self {

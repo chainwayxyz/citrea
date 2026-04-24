@@ -8,7 +8,7 @@ use bitcoin_da::monitoring::MonitoringService;
 use bitcoin_da::network_constants::get_network_constants;
 use bitcoin_da::rpc::create_rpc_module as create_da_rpc_module;
 use bitcoin_da::service::{
-    network_to_bitcoin_network, BitcoinService, BitcoinServiceConfig, TxidWrapper,
+    network_to_bitcoin_network, BitcoinService, BitcoinServiceConfig, TxSenderJobId,
 };
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
@@ -122,7 +122,7 @@ impl RollupBlueprint for BitcoinRollup {
         task_executor: TaskExecutor,
         network: Network,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
-        let (tx, rx) = unbounded_channel::<TxRequestWithNotifier<TxidWrapper>>();
+        let (tx, rx) = unbounded_channel::<TxRequestWithNotifier<TxSenderJobId>>();
 
         let chain_params = RollupParams {
             reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),

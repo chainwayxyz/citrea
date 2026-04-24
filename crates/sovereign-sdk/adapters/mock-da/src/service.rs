@@ -303,6 +303,7 @@ impl DaService for MockDaService {
     type Verifier = MockDaVerifier;
     type FilteredBlock = MockBlock;
     type TransactionId = MockHash;
+    type SubmissionId = MockHash;
     type Error = anyhow::Error;
 
     /// Decompress and deserialize chunks
@@ -430,7 +431,7 @@ impl DaService for MockDaService {
     async fn send_transaction(
         &self,
         tx_request: DaTxRequest,
-    ) -> Result<Self::TransactionId, Self::Error> {
+    ) -> Result<Self::SubmissionId, Self::Error> {
         let blob = match tx_request {
             DaTxRequest::ZKProof(proof) => {
                 tracing::debug!("Adding a zkproof");
@@ -453,10 +454,17 @@ impl DaService for MockDaService {
         Ok(MockHash([0; 32]))
     }
 
+    async fn wait_for_transaction_id(
+        &self,
+        submission_id: Self::SubmissionId,
+    ) -> Result<Self::TransactionId, Self::Error> {
+        Ok(submission_id)
+    }
+
     fn get_send_transaction_queue(
         &self,
-    ) -> UnboundedSender<TxRequestWithNotifier<Self::TransactionId>> {
-        let (tx, mut rx) = unbounded_channel::<TxRequestWithNotifier<Self::TransactionId>>();
+    ) -> UnboundedSender<TxRequestWithNotifier<Self::SubmissionId>> {
+        let (tx, mut rx) = unbounded_channel::<TxRequestWithNotifier<Self::SubmissionId>>();
         let this = self.clone();
         tokio::spawn(async move {
             while let Some(req) = rx.recv().await {

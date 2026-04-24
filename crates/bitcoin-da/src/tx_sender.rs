@@ -7,17 +7,21 @@ use std::time::Duration;
 
 use anyhow::anyhow;
 use bitcoin::Txid;
+use bitcoincore_rpc::{Client, RpcApi};
 use citrea_primitives::compression::compress_blob;
 use sov_rollup_interface::da::{DaTxRequest, DataOnDa};
 use sov_rollup_interface::services::da::TxRequestWithNotifier;
-use tokio::sync::oneshot;
+use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 use tx_sender_jsonrpc_client::{
-    CitreaTxRequest, JsonRpcTxSenderClient, TrackRequest, TrackResponse, TrackStatus,
+    CitreaTxRequest, CommitRevealStatus, JsonRpcTxSenderClient, TrackRequest, TrackResponse,
+    TrackStatus,
 };
 
 use crate::error::BitcoinServiceError;
-use crate::service::TxidWrapper;
+use crate::helpers::builders::TxWithId;
+use crate::monitoring::MonitoringService;
+use crate::service::TxSenderJobId;
 
 /// Convert a [`DaTxRequest`] into a [`CitreaTxRequest`] for the external tx-sender service.
 pub(crate) fn to_citrea_tx_request(
@@ -50,7 +54,9 @@ pub(crate) fn to_citrea_tx_request(
 
 pub(crate) async fn queue_tx_sender_request(
     tx_sender: JsonRpcTxSenderClient,
-    request: TxRequestWithNotifier<TxidWrapper>,
+    bitcoin_client: Arc<Client>,
+    monitoring: Arc<MonitoringService>,
+    request: TxRequestWithNotifier<TxSenderJobId>,
     poll_interval: Duration,
 ) {
     let citrea_request = match to_citrea_tx_request(&request.tx_request) {
@@ -74,10 +80,13 @@ pub(crate) async fn queue_tx_sender_request(
         }
     };
 
+    let _ = request.notify.send(Ok(TxSenderJobId(job_id)));
+
     tokio::spawn(poll_tx_sender_job(
         tx_sender,
+        bitcoin_client,
+        monitoring,
         job_id,
-        request.notify,
         poll_interval,
     ));
 }
@@ -101,43 +110,72 @@ pub(crate) enum TxSenderJobStatus {
     },
 }
 
-/// Polls the tx-sender service for job completion and resolves the oneshot channel.
+/// Polls the tx-sender service for job completion and keeps monitoring in sync.
 ///
 /// This function spawns no tasks itself — it is intended to be called from within
 /// a `tokio::spawn` block. It polls until the job reaches a terminal state
-/// (Completed or Failed), then sends the result through `result_tx`.
+/// (Completed or Failed), updating monitoring state along the way.
 ///
 /// # Arguments
 /// * `client` - The tx-sender JSON-RPC client.
 /// * `job_id` - The tx-sender job ID (insertion_id from `send_citrea_tx`) to poll.
-/// * `result_tx` - The oneshot sender to resolve once the job completes.
 /// * `poll_interval` - How often to poll the tx-sender for status updates.
 pub(crate) async fn poll_tx_sender_job(
     client: JsonRpcTxSenderClient,
+    bitcoin_client: Arc<Client>,
+    monitoring: Arc<MonitoringService>,
     job_id: i64,
-    result_tx: oneshot::Sender<Result<TxidWrapper, anyhow::Error>>,
     poll_interval: Duration,
 ) {
     info!(job_id, "Starting to poll tx-sender job status");
+
+    match wait_for_tx_sender_job(client, bitcoin_client, monitoring, job_id, poll_interval).await {
+        Ok(txid) => {
+            info!(job_id, %txid, "Tx-sender job completed");
+        }
+        Err(err) => {
+            error!(job_id, ?err, "Tx-sender job failed");
+        }
+    }
+}
+
+/// Wait for a tx-sender job to reach a terminal state and return the final reveal txid.
+pub(crate) async fn wait_for_tx_sender_job(
+    client: JsonRpcTxSenderClient,
+    bitcoin_client: Arc<Client>,
+    monitoring: Arc<MonitoringService>,
+    job_id: i64,
+    poll_interval: Duration,
+) -> Result<Txid, anyhow::Error> {
+    info!(job_id, "Waiting for tx-sender job to finalize");
 
     loop {
         let status = poll_job_status(&client, job_id).await;
 
         match status {
-            Ok(TxSenderJobStatus::Completed {
-                reveal_txid: txid, ..
-            }) => {
-                info!(job_id, %txid, "Tx-sender job completed");
-                let _ = result_tx.send(Ok(TxidWrapper(txid)));
-                return;
-            }
-            Ok(TxSenderJobStatus::Failed { error }) => {
-                error!(job_id, %error, "Tx-sender job failed");
-                let _ = result_tx.send(Err(anyhow!("Tx-sender job {job_id} failed: {error}")));
-                return;
-            }
-            Ok(TxSenderJobStatus::Pending | TxSenderJobStatus::Processing) => {
-                debug!(job_id, "Tx-sender job still in progress, polling again");
+            Ok((status, raw_status)) => {
+                if let TrackResponse::CommitReveal(commit_reveal_status) = raw_status {
+                    sync_monitoring(
+                        bitcoin_client.clone(),
+                        monitoring.clone(),
+                        &commit_reveal_status,
+                    )
+                    .await;
+                }
+
+                match status {
+                    TxSenderJobStatus::Completed {
+                        reveal_txid: txid, ..
+                    } => {
+                        return Ok(txid);
+                    }
+                    TxSenderJobStatus::Failed { error } => {
+                        return Err(anyhow!("Tx-sender job {job_id} failed: {error}"));
+                    }
+                    TxSenderJobStatus::Pending | TxSenderJobStatus::Processing => {
+                        debug!(job_id, "Tx-sender job still in progress, polling again");
+                    }
+                }
             }
             Err(e) => {
                 warn!(job_id, ?e, "Failed to poll tx-sender job status, retrying");
@@ -152,7 +190,7 @@ pub(crate) async fn poll_tx_sender_job(
 async fn poll_job_status(
     client: &JsonRpcTxSenderClient,
     job_id: i64,
-) -> Result<TxSenderJobStatus, anyhow::Error> {
+) -> Result<(TxSenderJobStatus, TrackResponse), anyhow::Error> {
     let request = TrackRequest::CommitReveal {
         insertion_id: job_id,
     };
@@ -162,7 +200,9 @@ async fn poll_job_status(
         .await
         .map_err(|e| anyhow!("track_tx RPC failed for job {job_id}: {e}"))?;
 
-    map_track_response(response, job_id)
+    let status = map_track_response(response.clone(), job_id)?;
+
+    Ok((status, response))
 }
 
 /// Map a `TrackResponse` to a `TxSenderJobStatus`.
@@ -240,6 +280,55 @@ fn extract_payload_txid_from_commit_reveal(
                 .filter_map(|reveal| reveal.submission.as_ref())
                 .find_map(|submission| submission.tx_info.txid.parse::<Txid>().ok())
         })
+}
+
+async fn sync_monitoring(
+    bitcoin_client: Arc<Client>,
+    monitoring: Arc<MonitoringService>,
+    status: &CommitRevealStatus,
+) {
+    let Some(commit_txid) = status
+        .commit_tx
+        .as_ref()
+        .and_then(|commit| commit.txid.parse::<Txid>().ok())
+    else {
+        return;
+    };
+    let Some(reveal_txid) = extract_payload_txid_from_commit_reveal(status) else {
+        return;
+    };
+
+    let commit_tx = match bitcoin_client.get_raw_transaction(&commit_txid, None).await {
+        Ok(tx) => tx,
+        Err(_) => return,
+    };
+    let reveal_tx = match bitcoin_client.get_raw_transaction(&reveal_txid, None).await {
+        Ok(tx) => tx,
+        Err(_) => return,
+    };
+
+    if let Err(err) = monitoring
+        .monitor_transaction_chain(vec![[
+            TxWithId {
+                id: commit_txid,
+                tx: commit_tx,
+            },
+            TxWithId {
+                id: reveal_txid,
+                tx: reveal_tx,
+            },
+        ]])
+        .await
+    {
+        debug!(?err, "Skipping tx-sender monitoring sync");
+    }
+
+    if let Err(err) = monitoring
+        .update_txs_status(&[commit_txid, reveal_txid])
+        .await
+    {
+        debug!(?err, "Failed to update tx-sender monitored tx statuses");
+    }
 }
 
 #[cfg(test)]
