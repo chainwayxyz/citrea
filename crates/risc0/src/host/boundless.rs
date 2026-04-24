@@ -259,7 +259,7 @@ impl BoundlessProver {
             .await
             {
                 Ok(Ok(res)) => Ok(res),
-                Ok(Err(e)) => Err(backoff::Error::transient(anyhow::Error::from(e))),
+                Ok(Err(e)) => Err(backoff::Error::transient(e)),
                 Err(_elapsed) => {
                     tracing::error!(
                         "pricing_service.get_price timed out after {:?}, retrying...",
@@ -732,7 +732,7 @@ impl BoundlessProver {
                         job_id,
                         e
                     );
-                    Err(backoff::Error::transient(anyhow::Error::from(e)))
+                    Err(backoff::Error::transient(e))
                 }
                 Err(_elapsed) => {
                     tracing::error!(
