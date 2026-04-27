@@ -62,5 +62,12 @@ ignore = [
   "RUSTSEC-2026-0047", # aws-lc-sys: PKCS7_verify signature bypass (not exposed via Rust API)
   "RUSTSEC-2026-0048", # aws-lc-sys: CRL distribution point scope check (no CRL config in project)
   "RUSTSEC-2026-0049", # rustls-webpki: CRL DP matching logic (no CRL config in project)
+  "RUSTSEC-2026-0098", # rustls-webpki: Name constraints for URI names were incorrectly accepted (we only use TLS as a client)
+  "RUSTSEC-2026-0099", # rustls-webpki: Name constraints were accepted for certificates asserting a wildcard name (we only use TLS as a client)
+  "RUSTSEC-2026-0104", # rustls-webpki: Reachable panic in certificate revocation list parsing (we only use TLS as a client)
+  # TODO: remove when boundless-market and alloy@1.0.9 is updated
+  "RUSTSEC-2026-0002", # lru: IterMut violates Stacked Borrows by invalidating internal pointer)
+  "RUSTSEC-2026-0105", # Ignore unmaintained core2
+  "RUSTSEC-2025-0161", # Ignore unmaintained libsecp256k1
 ]
 unsound = "all"
