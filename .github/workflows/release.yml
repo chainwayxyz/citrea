@@ -92,7 +92,7 @@ jobs:
         env:
           SKIP_GUEST_BUILD: 1
         run: |
-          source $HOME/.cargo/env
+          source "$HOME/.cargo/env"
           cargo build --release
 
       - name: Upload citrea osx-arm64 Binary

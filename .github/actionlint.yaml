@@ -1,0 +1,9 @@
+self-hosted-runner:
+  labels:
+    - ubicloud-standard-2
+    - ubicloud-standard-4
+    - ubicloud-standard-8
+    - ubicloud-standard-16
+    - ubicloud-standard-30
+    - ubicloud-standard-30-arm
+    - self-hosted-citrea-osx-arm64
