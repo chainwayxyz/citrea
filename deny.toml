@@ -70,3 +70,4 @@ ignore = [
   "RUSTSEC-2026-0105", # Ignore unmaintained core2
   "RUSTSEC-2025-0161", # Ignore unmaintained libsecp256k1
 ]
+unsound = "all"
