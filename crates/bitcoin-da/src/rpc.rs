@@ -6,12 +6,11 @@
 use std::sync::Arc;
 
 use bitcoin::consensus::Encodable;
-use bitcoin::{Transaction, Txid};
+use bitcoin::Txid;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use serde::{Deserialize, Serialize};
 
-use crate::helpers::parsers::parse_relevant_transaction;
 use crate::monitoring::{MonitoredTx, MonitoredTxKind, TxStatus};
 use crate::service::BitcoinService;
 
@@ -78,47 +77,6 @@ impl From<(Txid, MonitoredTx)> for MonitoredTxResponse {
     }
 }
 
-fn tx_sender_monitored_tx_kind(tx: &Transaction) -> MonitoredTxKind {
-    if parse_relevant_transaction(tx).is_ok() {
-        MonitoredTxKind::Reveal
-    } else {
-        MonitoredTxKind::Commit
-    }
-}
-
-fn tx_sender_response(
-    txid: Txid,
-    tx: &Transaction,
-    status: TxStatus,
-    with_hex: bool,
-) -> MonitoredTxResponse {
-    let base_fee = if let TxStatus::InMempool { base_fee, .. } = status {
-        Some(base_fee)
-    } else {
-        None
-    };
-
-    let hex = with_hex.then(|| {
-        let mut buf = Vec::new();
-        tx.consensus_encode(&mut buf)
-            .expect("Transaction encoding should not fail");
-        hex::encode(&buf)
-    });
-
-    MonitoredTxResponse {
-        txid,
-        vsize: tx.vsize(),
-        base_fee,
-        initial_broadcast: 0,
-        initial_height: 0,
-        prev_txid: None,
-        next_txid: None,
-        status,
-        hex,
-        kind: tx_sender_monitored_tx_kind(tx),
-    }
-}
-
 /// The interface for the Bitcoin service RPC methods.
 #[rpc(client, server, namespace = "da")]
 pub trait DaRpc {
@@ -158,19 +116,6 @@ pub struct DaRpcServerImpl {
 #[async_trait::async_trait]
 impl DaRpcServer for DaRpcServerImpl {
     async fn da_get_pending_transactions(&self) -> RpcResult<Vec<MonitoredTxResponse>> {
-        if self.da.uses_tx_sender() {
-            let mut txs = Vec::new();
-            for tx in self.da.get_pending_monitored_transactions().await {
-                let txid = tx.compute_txid();
-                let Some(status) = self.da.get_monitored_tx_status(txid).await else {
-                    continue;
-                };
-                txs.push(tx_sender_response(txid, &tx, status, false));
-            }
-
-            return Ok(txs);
-        }
-
         let txs = self
             .da
             .monitoring
@@ -188,19 +133,6 @@ impl DaRpcServer for DaRpcServerImpl {
         &self,
         with_hex: bool,
     ) -> RpcResult<Vec<MonitoredTxResponse>> {
-        if self.da.uses_tx_sender() {
-            let mut txs = Vec::new();
-            for tx in self.da.get_pending_monitored_transactions().await {
-                let txid = tx.compute_txid();
-                let Some(status) = self.da.get_monitored_tx_status(txid).await else {
-                    continue;
-                };
-                txs.push(tx_sender_response(txid, &tx, status, with_hex));
-            }
-
-            return Ok(txs);
-        }
-
         Ok(self
             .da
             .monitoring
@@ -216,17 +148,6 @@ impl DaRpcServer for DaRpcServerImpl {
         txid: Txid,
         with_hex: bool,
     ) -> RpcResult<Option<MonitoredTxResponse>> {
-        if self.da.uses_tx_sender() {
-            let Some(tx) = self.da.get_transaction(&txid).await else {
-                return Ok(None);
-            };
-            let Some(status) = self.da.get_monitored_tx_status(txid).await else {
-                return Ok(None);
-            };
-
-            return Ok(Some(tx_sender_response(txid, &tx, status, with_hex)));
-        }
-
         Ok(self
             .da
             .monitoring
@@ -240,19 +161,6 @@ impl DaRpcServer for DaRpcServerImpl {
     }
 
     async fn da_get_last_monitored_tx(&self) -> RpcResult<Option<MonitoredTxResponse>> {
-        if self.da.uses_tx_sender() {
-            let last = self.da.get_pending_monitored_transactions().await.pop();
-            let Some(tx) = last else {
-                return Ok(None);
-            };
-            let txid = tx.compute_txid();
-            let Some(status) = self.da.get_monitored_tx_status(txid).await else {
-                return Ok(None);
-            };
-
-            return Ok(Some(tx_sender_response(txid, &tx, status, false)));
-        }
-
         Ok(self.da.monitoring.get_last_tx().await.map(Into::into))
     }
 }

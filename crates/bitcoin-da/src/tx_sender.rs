@@ -14,13 +14,15 @@ use sov_rollup_interface::services::da::TxRequestWithNotifier;
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 use tx_sender_jsonrpc_client::{
-    CitreaTxRequest, CommitRevealStatus, JsonRpcTxSenderClient, TrackRequest, TrackResponse,
-    TrackStatus,
+    BitcoinTxStatus, CitreaTxRequest, CommitRevealKind, CommitRevealStatus, JsonRpcTxSenderClient,
+    TrackRequest, TrackResponse, TrackStatus,
 };
 
 use crate::error::BitcoinServiceError;
 use crate::helpers::builders::TxWithId;
-use crate::monitoring::MonitoringService;
+use crate::monitoring::{
+    MonitorError, MonitoredTxKind, MonitoringService, TxStatus as MonitoringTxStatus,
+};
 use crate::service::TxSenderJobId;
 
 /// Convert a [`DaTxRequest`] into a [`CitreaTxRequest`] for the external tx-sender service.
@@ -129,17 +131,46 @@ pub(crate) async fn poll_tx_sender_job(
 ) {
     info!(job_id, "Starting to poll tx-sender job status");
 
-    match wait_for_tx_sender_job(client, bitcoin_client, monitoring, job_id, poll_interval).await {
-        Ok(txid) => {
-            info!(job_id, %txid, "Tx-sender job completed");
+    loop {
+        match poll_job_status(&client, job_id).await {
+            Ok((status, raw_status)) => {
+                if let TrackResponse::CommitReveal(commit_reveal_status) = raw_status {
+                    sync_monitoring(
+                        bitcoin_client.clone(),
+                        monitoring.clone(),
+                        &commit_reveal_status,
+                    )
+                    .await;
+                }
+
+                match status {
+                    TxSenderJobStatus::Completed { reveal_txid } => {
+                        info!(job_id, %reveal_txid, "Tx-sender job finalized");
+                        return;
+                    }
+                    TxSenderJobStatus::Failed { error } => {
+                        error!(job_id, error, "Tx-sender job failed");
+                        return;
+                    }
+                    TxSenderJobStatus::Pending | TxSenderJobStatus::Processing => {
+                        debug!(job_id, "Tx-sender job still in progress, polling again");
+                    }
+                }
+            }
+            Err(err) => {
+                warn!(
+                    job_id,
+                    ?err,
+                    "Failed to poll tx-sender job status, retrying"
+                );
+            }
         }
-        Err(err) => {
-            error!(job_id, ?err, "Tx-sender job failed");
-        }
+
+        tokio::time::sleep(poll_interval).await;
     }
 }
 
-/// Wait for a tx-sender job to reach a terminal state and return the final reveal txid.
+/// Wait for a tx-sender job to expose the txid carrying the DA payload.
 pub(crate) async fn wait_for_tx_sender_job(
     client: JsonRpcTxSenderClient,
     bitcoin_client: Arc<Client>,
@@ -147,7 +178,7 @@ pub(crate) async fn wait_for_tx_sender_job(
     job_id: i64,
     poll_interval: Duration,
 ) -> Result<Txid, anyhow::Error> {
-    info!(job_id, "Waiting for tx-sender job to finalize");
+    info!(job_id, "Waiting for tx-sender job to expose payload txid");
 
     loop {
         let status = poll_job_status(&client, job_id).await;
@@ -161,19 +192,25 @@ pub(crate) async fn wait_for_tx_sender_job(
                         &commit_reveal_status,
                     )
                     .await;
+
+                    if let Some(txid) =
+                        extract_payload_txid_from_commit_reveal(&commit_reveal_status)
+                    {
+                        return Ok(txid);
+                    }
                 }
 
                 match status {
-                    TxSenderJobStatus::Completed {
-                        reveal_txid: txid, ..
-                    } => {
-                        return Ok(txid);
-                    }
                     TxSenderJobStatus::Failed { error } => {
                         return Err(anyhow!("Tx-sender job {job_id} failed: {error}"));
                     }
-                    TxSenderJobStatus::Pending | TxSenderJobStatus::Processing => {
-                        debug!(job_id, "Tx-sender job still in progress, polling again");
+                    TxSenderJobStatus::Completed { .. }
+                    | TxSenderJobStatus::Pending
+                    | TxSenderJobStatus::Processing => {
+                        debug!(
+                            job_id,
+                            "Tx-sender job has no payload txid yet, polling again"
+                        );
                     }
                 }
             }
@@ -269,17 +306,137 @@ fn extract_payload_txid_from_commit_reveal(
     status: &tx_sender_jsonrpc_client::CommitRevealStatus,
 ) -> Option<Txid> {
     status
-        .aggregate_commit_tx
-        .as_ref()
-        .and_then(|aggregate_commit| aggregate_commit.txid.parse::<Txid>().ok())
+        .reveals
+        .iter()
+        .find(|reveal| matches!(reveal.kind, CommitRevealKind::Aggregate))
+        .and_then(|reveal| reveal.submission.as_ref())
+        .and_then(|submission| submission.tx_info.txid.parse::<Txid>().ok())
         .or_else(|| {
             status
                 .reveals
                 .iter()
                 .rev()
+                .filter(|reveal| {
+                    !matches!(
+                        reveal.kind,
+                        CommitRevealKind::Aggregate | CommitRevealKind::Chunk
+                    )
+                })
                 .filter_map(|reveal| reveal.submission.as_ref())
                 .find_map(|submission| submission.tx_info.txid.parse::<Txid>().ok())
         })
+}
+
+#[derive(Debug, Clone)]
+struct TxSenderMonitoredTx {
+    txid: Txid,
+    kind: MonitoredTxKind,
+    tx_info: BitcoinTxStatus,
+    fee_sat_kvb: Option<u64>,
+}
+
+fn tx_sender_monitored_txs(status: &CommitRevealStatus) -> Vec<TxSenderMonitoredTx> {
+    let mut txs = Vec::new();
+
+    if let Some(commit) = &status.commit_tx {
+        if let Ok(txid) = commit.txid.parse::<Txid>() {
+            txs.push(TxSenderMonitoredTx {
+                txid,
+                kind: MonitoredTxKind::Commit,
+                tx_info: commit.clone(),
+                fee_sat_kvb: None,
+            });
+        }
+    }
+
+    txs.extend(status.reveals.iter().filter_map(|reveal| {
+        if matches!(reveal.kind, CommitRevealKind::Aggregate) {
+            return None;
+        }
+
+        reveal.submission.as_ref().and_then(|submission| {
+            submission
+                .tx_info
+                .txid
+                .parse::<Txid>()
+                .ok()
+                .map(|txid| TxSenderMonitoredTx {
+                    txid,
+                    kind: MonitoredTxKind::Reveal,
+                    tx_info: submission.tx_info.clone(),
+                    fee_sat_kvb: submission.fee_sat_kvb,
+                })
+        })
+    }));
+
+    if let Some(aggregate_commit) = &status.aggregate_commit_tx {
+        if let Ok(txid) = aggregate_commit.txid.parse::<Txid>() {
+            txs.push(TxSenderMonitoredTx {
+                txid,
+                kind: MonitoredTxKind::Commit,
+                tx_info: aggregate_commit.clone(),
+                fee_sat_kvb: None,
+            });
+        }
+    }
+
+    txs.extend(status.reveals.iter().filter_map(|reveal| {
+        if !matches!(reveal.kind, CommitRevealKind::Aggregate) {
+            return None;
+        }
+
+        reveal.submission.as_ref().and_then(|submission| {
+            submission
+                .tx_info
+                .txid
+                .parse::<Txid>()
+                .ok()
+                .map(|txid| TxSenderMonitoredTx {
+                    txid,
+                    kind: MonitoredTxKind::Reveal,
+                    tx_info: submission.tx_info.clone(),
+                    fee_sat_kvb: submission.fee_sat_kvb,
+                })
+        })
+    }));
+
+    txs
+}
+
+async fn map_tx_sender_status(
+    bitcoin_client: Arc<Client>,
+    monitoring: Arc<MonitoringService>,
+    tx: &TxSenderMonitoredTx,
+) -> Option<MonitoringTxStatus> {
+    if tx.tx_info.in_mempool {
+        return Some(MonitoringTxStatus::InMempool {
+            base_fee: tx
+                .fee_sat_kvb
+                .map(|fee_sat_kvb| fee_sat_kvb as f64 / 1000.0)
+                .unwrap_or_default(),
+            timestamp: 0,
+            height: 0,
+        });
+    }
+
+    let mined_at_height = u64::from(tx.tx_info.mined_at_height?);
+    let block_hash = bitcoin_client.get_block_hash(mined_at_height).await.ok()?;
+    let current_height = bitcoin_client.get_block_count().await.ok()?;
+    let confirmations = current_height.saturating_sub(mined_at_height) + 1;
+
+    if confirmations >= monitoring.finality_depth() {
+        Some(MonitoringTxStatus::Finalized {
+            block_hash,
+            block_height: mined_at_height,
+            confirmations,
+        })
+    } else {
+        Some(MonitoringTxStatus::Confirmed {
+            block_hash,
+            block_height: mined_at_height,
+            confirmations,
+        })
+    }
 }
 
 async fn sync_monitoring(
@@ -287,46 +444,72 @@ async fn sync_monitoring(
     monitoring: Arc<MonitoringService>,
     status: &CommitRevealStatus,
 ) {
-    let Some(commit_txid) = status
-        .commit_tx
-        .as_ref()
-        .and_then(|commit| commit.txid.parse::<Txid>().ok())
-    else {
-        return;
-    };
-    let Some(reveal_txid) = extract_payload_txid_from_commit_reveal(status) else {
-        return;
-    };
+    let mut monitored_txids = Vec::new();
+    let mut previous_txid = None;
 
-    let commit_tx = match bitcoin_client.get_raw_transaction(&commit_txid, None).await {
-        Ok(tx) => tx,
-        Err(_) => return,
-    };
-    let reveal_tx = match bitcoin_client.get_raw_transaction(&reveal_txid, None).await {
-        Ok(tx) => tx,
-        Err(_) => return,
-    };
+    for monitored_tx in tx_sender_monitored_txs(status) {
+        let txid = monitored_tx.txid;
+        let tx = match bitcoin_client.get_raw_transaction(&txid, None).await {
+            Ok(tx) => tx,
+            Err(_) => continue,
+        };
 
-    if let Err(err) = monitoring
-        .monitor_transaction_chain(vec![[
-            TxWithId {
-                id: commit_txid,
-                tx: commit_tx,
-            },
-            TxWithId {
-                id: reveal_txid,
-                tx: reveal_tx,
-            },
-        ]])
-        .await
-    {
-        debug!(?err, "Skipping tx-sender monitoring sync");
+        if monitoring.get_monitored_tx(&txid).await.is_none() {
+            let prev_txid = match previous_txid {
+                Some(prev_txid) if monitoring.get_monitored_tx(&prev_txid).await.is_some() => {
+                    Some(prev_txid)
+                }
+                _ => None,
+            };
+
+            let result = monitoring
+                .monitor_transaction(
+                    TxWithId {
+                        id: txid,
+                        tx: tx.clone(),
+                    },
+                    prev_txid,
+                    None,
+                    monitored_tx.kind,
+                )
+                .await;
+
+            match result {
+                Ok(()) | Err(MonitorError::AlreadyMonitored) => {}
+                Err(MonitorError::PrevTxNotMonitored(_)) => {
+                    if let Err(err) = monitoring
+                        .monitor_transaction(
+                            TxWithId { id: txid, tx },
+                            None,
+                            None,
+                            monitored_tx.kind,
+                        )
+                        .await
+                    {
+                        debug!(?err, %txid, "Skipping tx-sender monitoring sync");
+                    }
+                }
+                Err(err) => {
+                    debug!(?err, %txid, "Skipping tx-sender monitoring sync");
+                }
+            }
+        }
+
+        if let Some(prev_txid) = previous_txid {
+            monitoring.set_next_tx(&prev_txid, txid).await;
+        }
+
+        if let Some(status) =
+            map_tx_sender_status(bitcoin_client.clone(), monitoring.clone(), &monitored_tx).await
+        {
+            monitoring.set_tx_status(&txid, status).await;
+        }
+
+        monitored_txids.push(txid);
+        previous_txid = Some(txid);
     }
 
-    if let Err(err) = monitoring
-        .update_txs_status(&[commit_txid, reveal_txid])
-        .await
-    {
+    if let Err(err) = monitoring.update_txs_status(&monitored_txids).await {
         debug!(?err, "Failed to update tx-sender monitored tx statuses");
     }
 }
@@ -365,11 +548,15 @@ mod tests {
         }
     }
 
-    fn reveal_with_submission(txid: &str) -> RevealStatus {
+    fn reveal_with_kind_and_submission(kind: CommitRevealKind, txid: &str) -> RevealStatus {
         RevealStatus {
-            kind: CommitRevealKind::Complete,
+            kind,
             submission: Some(tx_status(txid)),
         }
+    }
+
+    fn reveal_with_submission(txid: &str) -> RevealStatus {
+        reveal_with_kind_and_submission(CommitRevealKind::Complete, txid)
     }
 
     fn reveal_without_submission() -> RevealStatus {
@@ -482,19 +669,40 @@ mod tests {
     }
 
     #[test]
-    fn extract_payload_txid_prefers_aggregate_commit() {
+    fn extract_payload_txid_does_not_return_chunk_reveal_before_aggregate() {
+        let chunk_reveal_txid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let commit_txid = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        let status = CommitRevealStatus {
+            status: TrackStatus::InProgress,
+            commit_tx: Some(btc_tx_status(commit_txid)),
+            reveals: vec![reveal_with_kind_and_submission(
+                CommitRevealKind::Chunk,
+                chunk_reveal_txid,
+            )],
+            aggregate_commit_tx: None,
+        };
+
+        assert!(extract_payload_txid_from_commit_reveal(&status).is_none());
+    }
+
+    #[test]
+    fn extract_payload_txid_prefers_aggregate_reveal_over_aggregate_commit() {
         let reveal_txid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         let agg_txid = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
         let commit_txid = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+        let agg_reveal_txid = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
         let status = CommitRevealStatus {
             status: TrackStatus::Finalized,
             commit_tx: Some(btc_tx_status(commit_txid)),
-            reveals: vec![reveal_with_submission(reveal_txid)],
+            reveals: vec![
+                reveal_with_submission(reveal_txid),
+                reveal_with_kind_and_submission(CommitRevealKind::Aggregate, agg_reveal_txid),
+            ],
             aggregate_commit_tx: Some(btc_tx_status(agg_txid)),
         };
 
         let reveal_txid = extract_payload_txid_from_commit_reveal(&status).unwrap();
-        assert_eq!(reveal_txid, agg_txid.parse::<Txid>().unwrap());
+        assert_eq!(reveal_txid, agg_reveal_txid.parse::<Txid>().unwrap());
     }
 
     #[test]
@@ -508,6 +716,47 @@ mod tests {
         };
 
         assert!(extract_payload_txid_from_commit_reveal(&status).is_none());
+    }
+
+    #[test]
+    fn tx_sender_monitored_txs_orders_commit_reveals_and_aggregate_pair() {
+        let commit_txid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let chunk_txid = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        let aggregate_commit_txid =
+            "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+        let aggregate_reveal_txid =
+            "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+        let status = CommitRevealStatus {
+            status: TrackStatus::InProgress,
+            commit_tx: Some(btc_tx_status(commit_txid)),
+            reveals: vec![
+                reveal_with_kind_and_submission(CommitRevealKind::Aggregate, aggregate_reveal_txid),
+                reveal_with_kind_and_submission(CommitRevealKind::Chunk, chunk_txid),
+            ],
+            aggregate_commit_tx: Some(btc_tx_status(aggregate_commit_txid)),
+        };
+
+        let txs = tx_sender_monitored_txs(&status)
+            .into_iter()
+            .map(|tx| (tx.txid, tx.kind))
+            .collect::<Vec<_>>();
+        let expected = vec![
+            (
+                commit_txid.parse::<Txid>().unwrap(),
+                MonitoredTxKind::Commit,
+            ),
+            (chunk_txid.parse::<Txid>().unwrap(), MonitoredTxKind::Reveal),
+            (
+                aggregate_commit_txid.parse::<Txid>().unwrap(),
+                MonitoredTxKind::Commit,
+            ),
+            (
+                aggregate_reveal_txid.parse::<Txid>().unwrap(),
+                MonitoredTxKind::Reveal,
+            ),
+        ];
+
+        assert_eq!(txs, expected);
     }
 
     #[test]

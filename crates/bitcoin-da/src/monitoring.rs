@@ -900,6 +900,20 @@ impl MonitoringService {
         }
     }
 
+    /// Set the status for a monitored transaction.
+    pub async fn set_tx_status(&self, txid: &Txid, status: TxStatus) {
+        let mut monitored_txs = self.monitored_txs.write().await;
+        if let Some(entry) = monitored_txs.get_mut(txid) {
+            entry.status = status;
+            entry.last_checked = get_timestamp();
+        }
+    }
+
+    /// Return the configured finality depth.
+    pub fn finality_depth(&self) -> u64 {
+        self.finality_depth
+    }
+
     /// Fetch and update the status of multiple transactions.
     pub async fn update_txs_status(&self, txids: &[Txid]) -> Result<()> {
         let mut monitored_txs = self.monitored_txs.write().await;

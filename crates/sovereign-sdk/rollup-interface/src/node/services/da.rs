@@ -110,7 +110,7 @@ pub trait DaService: Send + Sync + 'static {
         tx_request: DaTxRequest,
     ) -> Result<Self::SubmissionId, Self::Error>;
 
-    /// Wait until a transaction handle resolves to a final DA-layer transaction id.
+    /// Wait until a transaction handle resolves to the DA-layer transaction id.
     async fn wait_for_transaction_id(
         &self,
         submission_id: Self::SubmissionId,

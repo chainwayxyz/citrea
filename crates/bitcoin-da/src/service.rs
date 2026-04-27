@@ -129,10 +129,6 @@ pub struct BitcoinService {
 }
 
 impl BitcoinService {
-    pub(crate) fn uses_tx_sender(&self) -> bool {
-        self.tx_sender.is_some()
-    }
-
     pub(crate) async fn get_monitored_tx_status(
         &self,
         txid: Txid,
@@ -157,14 +153,6 @@ impl BitcoinService {
         }
 
         self.get_bitcoin_node_status(txid).await
-    }
-
-    pub(crate) async fn get_transaction(&self, txid: &Txid) -> Option<Transaction> {
-        self.client.get_raw_transaction(txid, None).await.ok()
-    }
-
-    pub(crate) async fn get_pending_monitored_transactions(&self) -> Vec<Transaction> {
-        self.get_pending_transactions().await
     }
 
     async fn map_tx_sender_status(
@@ -332,31 +320,6 @@ impl BitcoinService {
 
     #[instrument(level = "trace", skip_all, ret)]
     async fn get_pending_transactions(&self) -> Vec<Transaction> {
-        if self.tx_sender.is_some() {
-            let mempool = match self.client.get_raw_mempool().await {
-                Ok(mempool) => mempool,
-                Err(err) => {
-                    warn!(
-                        ?err,
-                        "Failed to fetch raw mempool while inspecting pending txs"
-                    );
-                    return Vec::new();
-                }
-            };
-
-            let mut pending_txs = Vec::with_capacity(mempool.len());
-            for txid in mempool {
-                match self.client.get_raw_transaction(&txid, None).await {
-                    Ok(tx) => pending_txs.push(tx),
-                    Err(err) => {
-                        warn!(?err, %txid, "Failed to fetch pending tx from mempool");
-                    }
-                }
-            }
-
-            return pending_txs;
-        }
-
         self.monitoring
             .get_monitored_txs()
             .await

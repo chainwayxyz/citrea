@@ -5,6 +5,7 @@ use alloy_primitives::U64;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
+use bitcoin_da::rpc::DaRpcClient;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::PartitionMode;
@@ -173,15 +174,20 @@ fn aggregate_reveal_mined_height(status: &CommitRevealStatus) -> Option<u32> {
 }
 
 fn get_reveal_txid(status: &CommitRevealStatus) -> Option<[u8; 32]> {
-    status
-        .aggregate_commit_tx
-        .as_ref()
-        .and_then(|aggregate_commit| aggregate_commit.txid.parse::<Txid>().ok())
+    aggregate_reveal(status)
+        .and_then(|reveal| reveal.submission.as_ref())
+        .and_then(|submission| submission.tx_info.txid.parse::<Txid>().ok())
         .or_else(|| {
             status
                 .reveals
                 .iter()
                 .rev()
+                .filter(|reveal| {
+                    !matches!(
+                        reveal.kind,
+                        CommitRevealKind::Aggregate | CommitRevealKind::Chunk
+                    )
+                })
                 .filter_map(|reveal| reveal.submission.as_ref())
                 .find_map(|submission| submission.tx_info.txid.parse::<Txid>().ok())
         })
@@ -213,6 +219,19 @@ async fn publish_commitment_and_wait_for_commitments(
 
     // Wait for commitment tx to be submitted to DA
     da.wait_mempool_len(2, None).await?;
+    let mempool = da.get_raw_mempool().await?;
+    let pending_txs = wait_for_pending_monitored_txs(sequencer, mempool.len()).await?;
+    assert_eq!(
+        pending_txs.len(),
+        mempool.len(),
+        "tx-sender pending transaction RPC should only expose monitored tx-sender mempool txs"
+    );
+    for tx in pending_txs {
+        assert!(
+            mempool.contains(&tx.txid),
+            "pending monitored tx should be present in Bitcoin mempool"
+        );
+    }
 
     // Finalize the DA block which contains the commitment tx
     da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -222,6 +241,34 @@ async fn publish_commitment_and_wait_for_commitments(
     let commitments = wait_for_sequencer_commitments(full_node, finalized_height, None).await?;
 
     Ok((finalized_height, commitments))
+}
+
+async fn wait_for_pending_monitored_txs(
+    sequencer: &Sequencer,
+    expected_len: usize,
+) -> Result<Vec<bitcoin_da::rpc::MonitoredTxResponse>> {
+    let started_at = Instant::now();
+
+    loop {
+        let pending_txs = sequencer
+            .client
+            .http_client()
+            .da_get_pending_transactions()
+            .await?;
+
+        if pending_txs.len() == expected_len {
+            return Ok(pending_txs);
+        }
+
+        if started_at.elapsed() >= Duration::from_secs(30) {
+            return Err(anyhow::anyhow!(
+                "timeout waiting for {expected_len} pending monitored txs, got {}",
+                pending_txs.len()
+            ));
+        }
+
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
 }
 
 async fn create_large_batch_proof(

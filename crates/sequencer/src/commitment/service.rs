@@ -232,9 +232,15 @@ where
             l2_start.0, l2_end.0, commitment_index,
         );
 
-        rx.await
+        let submission_id = rx
+            .await
             .map_err(|_| anyhow!("Commitment DA submission task dropped before responding"))?
             .map_err(|e| anyhow!("Failed to submit commitment to DA: {e}"))?;
+
+        self.da_service
+            .wait_for_transaction_id(submission_id)
+            .await
+            .map_err(|e| anyhow!("Failed to resolve commitment DA txid: {e}"))?;
 
         self.ledger_db
             .put_commitment_by_index(&commitment)
