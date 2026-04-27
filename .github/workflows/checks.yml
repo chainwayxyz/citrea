@@ -151,10 +151,9 @@ jobs:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
       - name: Install nightly toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@nightly
         with:
           toolchain: nightly-2025-09-24
-          override: true
       - name: Run cargo-udeps
         env:
           RUSTFLAGS: -A warnings
@@ -214,7 +213,7 @@ jobs:
           prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
-        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
+        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> "$GITHUB_ENV"
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
         with:
@@ -299,13 +298,13 @@ jobs:
           npx hardhat run --network citrea scripts/02_swap.js
           seqnHeight=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq -e .result.number) || (echo "Couldn't get sequencer block"; exit 1)
           nodeHeight=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq -e .result.number) || (echo "Couldn't get full node block"; exit 1)
-          echo seqnHeight: $seqnHeight
-          echo nodeHeight: $nodeHeight
+          echo "seqnHeight: $seqnHeight"
+          echo "nodeHeight: $nodeHeight"
           sleep 10
-          seqnRoot=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":['${seqnHeight}'],"id":1,"jsonrpc":"2.0"}' | jq -e .result.stateRoot) || (echo "Couldn't get sequencer state root"; exit 1)
-          nodeRoot=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":['${seqnHeight}'],"id":1,"jsonrpc":"2.0"}' | jq -e .result.stateRoot) || (echo "Couldn't get full node state root"; exit 1)
-          echo seqnRoot: $seqnRoot
-          echo nodeRoot: $nodeRoot
+          seqnRoot=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data "{\"method\":\"eth_getBlockByNumber\",\"params\":[${seqnHeight}],\"id\":1,\"jsonrpc\":\"2.0\"}" | jq -e .result.stateRoot) || (echo "Couldn't get sequencer state root"; exit 1)
+          nodeRoot=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data "{\"method\":\"eth_getBlockByNumber\",\"params\":[${seqnHeight}],\"id\":1,\"jsonrpc\":\"2.0\"}" | jq -e .result.stateRoot) || (echo "Couldn't get full node state root"; exit 1)
+          echo "seqnRoot: $seqnRoot"
+          echo "nodeRoot: $nodeRoot"
           if [ "$seqnRoot" != "$nodeRoot" ]; then
             echo "State root mismatch";
             exit 1
@@ -393,7 +392,7 @@ jobs:
           prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
-        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
+        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> "$GITHUB_ENV"
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
@@ -597,15 +596,16 @@ jobs:
       - name: Get current commit hash
         id: current-commit
         run: |
-          echo "patch-hash=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
-          echo "head-hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "patch-hash=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          echo "head-hash=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Get commit hash of the base branch
         id: base-commit
         run: |
-            BASE_REF="${{ github.event.pull_request.base.ref }}"
-            git fetch origin "$BASE_REF"
-            echo "base-hash=$(git rev-parse origin/"$BASE_REF")" >> $GITHUB_OUTPUT
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          git fetch origin "$BASE_REF"
+          base_hash=$(git rev-parse "origin/$BASE_REF")
+          echo "base-hash=$base_hash" >> "$GITHUB_OUTPUT"
 
       - name: Restore base branch test cache
         id: restore-test-cache
