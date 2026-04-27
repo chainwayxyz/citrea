@@ -63,3 +63,4 @@ ignore = [
   "RUSTSEC-2026-0048", # aws-lc-sys: CRL distribution point scope check (no CRL config in project)
   "RUSTSEC-2026-0049", # rustls-webpki: CRL DP matching logic (no CRL config in project)
 ]
+unsound = "all"
