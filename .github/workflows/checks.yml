@@ -604,7 +604,7 @@ jobs:
         run: |
           BASE_REF="${{ github.event.pull_request.base.ref }}"
           git fetch origin "$BASE_REF"
-          base_hash=$(git rev-parse "origin/$BASE_REF")
+          base_hash=$(git rev-parse origin/"$BASE_REF")
           echo "base-hash=$base_hash" >> "$GITHUB_OUTPUT"
 
       - name: Restore base branch test cache
