@@ -30,13 +30,13 @@ jobs:
           cargo build --release
 
       - name: Upload citrea linux-amd64 Binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: citrea-${{ github.ref_name }}-linux-amd64
           path: target/release/citrea
 
       - name: Upload citrea-cli linux-amd64 Binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: citrea-cli-${{ github.ref_name }}-linux-amd64
           path: target/release/citrea-cli
@@ -65,13 +65,13 @@ jobs:
           cargo build --release
 
       - name: Upload citrea linux-arm64 Binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: citrea-${{ github.ref_name }}-linux-arm64
           path: target/release/citrea
 
       - name: Upload citrea-cli linux-arm64 Binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: citrea-cli-${{ github.ref_name }}-linux-arm64
           path: target/release/citrea-cli
@@ -96,13 +96,13 @@ jobs:
           cargo build --release
 
       - name: Upload citrea osx-arm64 Binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: citrea-${{ github.ref_name }}-osx-arm64
           path: target/release/citrea
 
       - name: Upload citrea-cli osx-arm64 Binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: citrea-cli-${{ github.ref_name }}-osx-arm64
           path: target/release/citrea-cli
@@ -112,7 +112,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download linux-amd64 Binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: citrea-${{ github.ref_name }}-linux-amd64
           path: release
@@ -122,7 +122,7 @@ jobs:
           mv release/citrea release/citrea-${{ github.ref_name }}-linux-amd64
 
       - name: Download linux-arm64 Binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: citrea-${{ github.ref_name }}-linux-arm64
           path: release
@@ -132,7 +132,7 @@ jobs:
           mv release/citrea release/citrea-${{ github.ref_name }}-linux-arm64
 
       - name: Download OSX ARM64 Binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: citrea-${{ github.ref_name }}-osx-arm64
           path: release
@@ -142,7 +142,7 @@ jobs:
           mv release/citrea release/citrea-${{ github.ref_name }}-osx-arm64
 
       - name: Download citrea-cli linux-amd64 Binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: citrea-cli-${{ github.ref_name }}-linux-amd64
           path: release
@@ -153,7 +153,7 @@ jobs:
           mv release/citrea-cli release/citrea-cli-${{ github.ref_name }}-linux-amd64
 
       - name: Download citrea-cli linux-arm64 Binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: citrea-cli-${{ github.ref_name }}-linux-arm64
           path: release
@@ -163,7 +163,7 @@ jobs:
           mv release/citrea-cli release/citrea-cli-${{ github.ref_name }}-linux-arm64
 
       - name: Download citrea-cli osx-arm64 Binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: citrea-cli-${{ github.ref_name }}-osx-arm64
           path: release
@@ -173,7 +173,7 @@ jobs:
           mv release/citrea-cli release/citrea-cli-${{ github.ref_name }}-osx-arm64
 
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             release/citrea-${{ github.ref_name }}-linux-amd64
@@ -215,19 +215,19 @@ jobs:
           cp -r resources/genesis/testnet docker/full-node/genesis/
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Login to Docker Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push multi-arch image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         env:
           DOCKERHUB_REPOSITORY: citrea-full-node
         with:
