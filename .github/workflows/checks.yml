@@ -63,7 +63,7 @@ env:
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
   BITCOIN_DOCKER_IMAGE: "bitcoin/bitcoin:30.0"
-  RUST_CACHE_PREFIX: v1-rust-ubuntu-2204
+  RUST_CACHE_PREFIX: v2-rust
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -76,7 +76,7 @@ concurrency:
 jobs:
   build:
     name: build
-    runs-on: ubicloud-standard-30-ubuntu-2204
+    runs-on: ubicloud-standard-30
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
@@ -101,9 +101,9 @@ jobs:
       - name: Cache riscv-guest
         uses: ubicloud/cache@v4
         with:
-          key: build-guests-v1-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: build-guests-v2-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/riscv-guest
-          restore-keys: build-guests-v1-${{ runner.os }}-
+          restore-keys: build-guests-v2-${{ runner.os }}-
 
       - name: Build citrea
         run: make build
@@ -118,7 +118,7 @@ jobs:
 
   check:
     name: check
-    runs-on: ubicloud-standard-4-ubuntu-2204
+    runs-on: ubicloud-standard-4
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
@@ -144,17 +144,16 @@ jobs:
 
   udeps:
     name: udeps
-    runs-on: ubicloud-standard-8-ubuntu-2204
+    runs-on: ubicloud-standard-8
     timeout-minutes: 60
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
       - name: Install nightly toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@nightly
         with:
           toolchain: nightly-2025-09-24
-          override: true
       - name: Run cargo-udeps
         env:
           RUSTFLAGS: -A warnings
@@ -202,7 +201,7 @@ jobs:
   coverage:
     needs:
       - docker-setup
-    runs-on: ubicloud-standard-30-ubuntu-2204
+    runs-on: ubicloud-standard-30
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@1.88.0
@@ -214,7 +213,7 @@ jobs:
           prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
-        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
+        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> "$GITHUB_ENV"
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
         with:
@@ -240,9 +239,9 @@ jobs:
       - name: Cache riscv-guest
         uses: ubicloud/cache@v4
         with:
-          key: coverage-guests-v1-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: coverage-guests-v2-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/llvm-cov-target/riscv-guest
-          restore-keys: coverage-guests-v1-${{ runner.os }}-
+          restore-keys: coverage-guests-v2-${{ runner.os }}-
 
       - name: Run coverage
         run: make coverage
@@ -299,13 +298,13 @@ jobs:
           npx hardhat run --network citrea scripts/02_swap.js
           seqnHeight=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq -e .result.number) || (echo "Couldn't get sequencer block"; exit 1)
           nodeHeight=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq -e .result.number) || (echo "Couldn't get full node block"; exit 1)
-          echo seqnHeight: $seqnHeight
-          echo nodeHeight: $nodeHeight
+          echo "seqnHeight: $seqnHeight"
+          echo "nodeHeight: $nodeHeight"
           sleep 10
-          seqnRoot=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":['${seqnHeight}'],"id":1,"jsonrpc":"2.0"}' | jq -e .result.stateRoot) || (echo "Couldn't get sequencer state root"; exit 1)
-          nodeRoot=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":['${seqnHeight}'],"id":1,"jsonrpc":"2.0"}' | jq -e .result.stateRoot) || (echo "Couldn't get full node state root"; exit 1)
-          echo seqnRoot: $seqnRoot
-          echo nodeRoot: $nodeRoot
+          seqnRoot=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data "{\"method\":\"eth_getBlockByNumber\",\"params\":[${seqnHeight}],\"id\":1,\"jsonrpc\":\"2.0\"}" | jq -e .result.stateRoot) || (echo "Couldn't get sequencer state root"; exit 1)
+          nodeRoot=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data "{\"method\":\"eth_getBlockByNumber\",\"params\":[${seqnHeight}],\"id\":1,\"jsonrpc\":\"2.0\"}" | jq -e .result.stateRoot) || (echo "Couldn't get full node state root"; exit 1)
+          echo "seqnRoot: $seqnRoot"
+          echo "nodeRoot: $nodeRoot"
           if [ "$seqnRoot" != "$nodeRoot" ]; then
             echo "State root mismatch";
             exit 1
@@ -380,7 +379,7 @@ jobs:
     needs:
       - docker-setup
     name: nextest
-    runs-on: ubicloud-standard-30-ubuntu-2204
+    runs-on: ubicloud-standard-30
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
@@ -393,7 +392,7 @@ jobs:
           prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
-        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
+        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> "$GITHUB_ENV"
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
@@ -417,9 +416,9 @@ jobs:
       - name: Cache riscv-guest
         uses: ubicloud/cache@v4
         with:
-          key: build-guests-v1-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: build-guests-v2-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/riscv-guest
-          restore-keys: build-guests-v1-${{ runner.os }}-
+          restore-keys: build-guests-v2-${{ runner.os }}-
 
       - name: Run nextest
         run: make test
@@ -548,7 +547,7 @@ jobs:
 
   proving-stats:
     name: Proving stats
-    runs-on: ubicloud-standard-2-ubuntu-2204
+    runs-on: ubicloud-standard-2
     needs: [build, docker-setup]
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'guest-code')
     steps:
@@ -597,15 +596,16 @@ jobs:
       - name: Get current commit hash
         id: current-commit
         run: |
-          echo "patch-hash=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
-          echo "head-hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "patch-hash=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          echo "head-hash=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Get commit hash of the base branch
         id: base-commit
         run: |
-            BASE_REF="${{ github.event.pull_request.base.ref }}"
-            git fetch origin "$BASE_REF"
-            echo "base-hash=$(git rev-parse origin/"$BASE_REF")" >> $GITHUB_OUTPUT
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          git fetch origin "$BASE_REF"
+          base_hash=$(git rev-parse origin/"$BASE_REF")
+          echo "base-hash=$base_hash" >> "$GITHUB_OUTPUT"
 
       - name: Restore base branch test cache
         id: restore-test-cache

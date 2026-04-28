@@ -43,13 +43,13 @@ jobs:
       - name: Build Project
         id: build
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" -a "${{ inputs.testing }}" = "true" ] || [ "${{ github.ref }}" = "refs/heads/nightly" ]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.testing }}" == "true" || "${{ github.ref }}" == "refs/heads/nightly" ]]; then
             echo "Building with testing features"
             cargo build --features testing
-            echo "image_name=citrea-test" >> $GITHUB_OUTPUT
+            echo "image_name=citrea-test" >> "$GITHUB_OUTPUT"
           else
             cargo build
-            echo "image_name=citrea-dev" >> $GITHUB_OUTPUT
+            echo "image_name=citrea-dev" >> "$GITHUB_OUTPUT"
           fi
         env:
           REPR_GUEST_BUILD: 1
@@ -60,7 +60,7 @@ jobs:
         run: |
           cp target/debug/citrea docker/build-push/nightly/citrea
           chmod +x docker/build-push/nightly/citrea
-          cp $(which r0vm) docker/build-push/nightly/r0vm
+          cp "$(command -v r0vm)" docker/build-push/nightly/r0vm
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

@@ -19,9 +19,9 @@ jobs:
       matrix:
         include:
           - platform: linux-amd64
-            runner: ubicloud-standard-30-ubuntu-2204
+            runner: ubicloud-standard-30
           - platform: linux-arm64
-            runner: ubicloud-standard-30-arm-ubuntu-2204
+            runner: ubicloud-standard-30-arm
           - platform: osx-arm64
             runner: macos-latest
 

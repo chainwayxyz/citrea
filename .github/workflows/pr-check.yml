@@ -9,6 +9,7 @@ on:
 jobs:
   validate:
     name: Validate PR Title
+    if: github.event_name == 'pull_request'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -65,11 +66,11 @@ jobs:
       - name: Check if CHANGELOG.md was modified
         id: changelog-check
         run: |
-          git fetch origin ${{ github.base_ref }}
-          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q "^CHANGELOG.md$"; then
-            echo "modified=true" >> $GITHUB_OUTPUT
+          git fetch origin "${{ github.base_ref }}"
+          if git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -q "^CHANGELOG.md$"; then
+            echo "modified=true" >> "$GITHUB_OUTPUT"
           else
-            echo "modified=false" >> $GITHUB_OUTPUT
+            echo "modified=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Check if PR type needs changelog
@@ -79,9 +80,9 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           if [[ "$PR_TITLE" =~ ^(feat|fix|perf)(\(.*\))?:.*$ ]]; then
-            echo "needs_changelog=true" >> $GITHUB_OUTPUT
+            echo "needs_changelog=true" >> "$GITHUB_OUTPUT"
           else
-            echo "needs_changelog=false" >> $GITHUB_OUTPUT
+            echo "needs_changelog=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Comment if changelog is missing
