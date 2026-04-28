@@ -64,6 +64,7 @@ env:
   FOUNDRY_PROFILE: ci
   BITCOIN_DOCKER_IMAGE: "bitcoin/bitcoin:30.0"
   RUST_CACHE_PREFIX: v2-rust
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -151,18 +152,18 @@ jobs:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
       - name: Install nightly toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2025-09-24
+      - name: Select nightly toolchain
+        run: rustup override set nightly-2025-09-24
+      - uses: taiki-e/install-action@cargo-udeps
       - name: Run cargo-udeps
         env:
           RUSTFLAGS: -A warnings
           SKIP_GUEST_BUILD: 1
           CARGO_INCREMENTAL: 0
-        uses: aig787/cargo-udeps-action@v1
-        with:
-          version: "latest"
-          args: "--workspace --all-features --all-targets"
+        run: cargo +nightly-2025-09-24 udeps --workspace --all-features --all-targets
 
   deny:
     runs-on: ubuntu-latest
