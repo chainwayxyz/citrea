@@ -59,7 +59,7 @@ jobs:
     if: github.event_name == 'pull_request'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -87,7 +87,7 @@ jobs:
 
       - name: Comment if changelog is missing
         if: steps.changelog-check.outputs.modified == 'false' && steps.pr-type-check.outputs.needs_changelog == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const prTitle = context.payload.pull_request.title;
@@ -142,7 +142,7 @@ jobs:
 
       - name: Remove comment if changelog was added
         if: steps.changelog-check.outputs.modified == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const { data: comments } = await github.rest.issues.listComments({
@@ -174,7 +174,7 @@ jobs:
     if: github.event_name == 'issue_comment' && github.event.issue.pull_request
     steps:
       - name: Handle dismissal comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const prAuthor = context.payload.issue.user.login;
