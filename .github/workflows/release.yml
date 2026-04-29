@@ -1,187 +1,152 @@
-name: release
+name: Release
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
 
 on:
   push:
     tags:
       - "v*.*.*"
+    branches:
+      - feat/repr-build
 
 jobs:
-  linux_amd64_binary_extraction:
-    runs-on: ubicloud-standard-30
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-amd64
+            runner: ubicloud-standard-30
+          - platform: linux-arm64
+            runner: ubicloud-standard-30-arm
+          - platform: osx-arm64
+            runner: macos-latest
+
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Install Dependencies
-        run: |
-          sudo apt update && sudo apt -y install curl gcc cpp cmake clang llvm
-          sudo apt -y autoremove && sudo apt clean && sudo rm -rf /var/lib/apt/lists/*
+      - name: Compute release tag
+        id: vars
+        shell: bash
+        run: echo "release_tag=${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
 
-      - name: Install Rust
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          rustup install 1.88.0
-          rustup default 1.88.0
-
-      - name: Build Project
-        env:
-          SKIP_GUEST_BUILD: 1
-        run: |
-          cargo build --release
-
-      - name: Upload citrea linux-amd64 Binary
-        uses: actions/upload-artifact@v7
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
         with:
-          name: citrea-${{ github.ref_name }}-linux-amd64
-          path: target/release/citrea
+          install_url: https://releases.nixos.org/nix/nix-2.34.6/install
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
 
-      - name: Upload citrea-cli linux-amd64 Binary
-        uses: actions/upload-artifact@v7
-        with:
-          name: citrea-cli-${{ github.ref_name }}-linux-amd64
-          path: target/release/citrea-cli
+      - name: Build
+        run: nix build ./nix#citrea
 
-  linux_arm64_binary_extraction:
-    runs-on: ubicloud-standard-30-arm
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - name: Rebuild to verify reproducibility
+        run: nix build ./nix#citrea --rebuild
 
-      - name: Install Dependencies
+      - name: Hash binaries
+        id: hash
+        shell: bash
         run: |
-          sudo apt update && sudo apt -y install curl gcc cpp cmake clang llvm
-          sudo apt -y autoremove && sudo apt clean && sudo rm -rf /var/lib/apt/lists/*
+          set -euo pipefail
+          CITREA_HASH=$(shasum -a 256 ./result/bin/citrea | awk '{print $1}')
+          CLI_HASH=$(shasum -a 256 ./result/bin/citrea-cli | awk '{print $1}')
+          echo "citrea_hash=$CITREA_HASH" >> "$GITHUB_OUTPUT"
+          echo "cli_hash=$CLI_HASH" >> "$GITHUB_OUTPUT"
+          {
+            echo "## ${{ matrix.platform }}"
+            echo ""
+            echo "| Binary | SHA-256 |"
+            echo "|--------|---------|"
+            echo "| citrea | \`$CITREA_HASH\` |"
+            echo "| citrea-cli | \`$CLI_HASH\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Install Rust
+      - name: Collect artifacts
+        shell: bash
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          rustup install 1.88.0
-          rustup default 1.88.0
+          set -euo pipefail
+          mkdir -p artifacts
+          cp ./result/bin/citrea "artifacts/citrea-${{ steps.vars.outputs.release_tag }}-${{ matrix.platform }}"
+          cp ./result/bin/citrea-cli "artifacts/citrea-cli-${{ steps.vars.outputs.release_tag }}-${{ matrix.platform }}"
 
-      - name: Build Project
-        env:
-          SKIP_GUEST_BUILD: 1
-        run: |
-          cargo build --release
-
-      - name: Upload citrea linux-arm64 Binary
-        uses: actions/upload-artifact@v7
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: citrea-${{ github.ref_name }}-linux-arm64
-          path: target/release/citrea
+          name: release-build-${{ matrix.platform }}-${{ steps.vars.outputs.release_tag }}
+          path: artifacts/
 
-      - name: Upload citrea-cli linux-arm64 Binary
-        uses: actions/upload-artifact@v7
+      - name: Attest build provenance
+        uses: actions/attest@v4
         with:
-          name: citrea-cli-${{ github.ref_name }}-linux-arm64
-          path: target/release/citrea-cli
+          subject-path: |
+            artifacts/citrea-${{ steps.vars.outputs.release_tag }}-${{ matrix.platform }}
+            artifacts/citrea-cli-${{ steps.vars.outputs.release_tag }}-${{ matrix.platform }}
 
-  osx_arm64_binary_extraction:
-    runs-on: self-hosted-citrea-osx-arm64
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Install Rust
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          rustup install 1.88.0
-          rustup default 1.88.0
-
-      - name: Build Project
-        env:
-          SKIP_GUEST_BUILD: 1
-        run: |
-          source "$HOME/.cargo/env"
-          cargo build --release
-
-      - name: Upload citrea osx-arm64 Binary
-        uses: actions/upload-artifact@v7
-        with:
-          name: citrea-${{ github.ref_name }}-osx-arm64
-          path: target/release/citrea
-
-      - name: Upload citrea-cli osx-arm64 Binary
-        uses: actions/upload-artifact@v7
-        with:
-          name: citrea-cli-${{ github.ref_name }}-osx-arm64
-          path: target/release/citrea-cli
-
-  release:
-    needs: [ linux_amd64_binary_extraction, linux_arm64_binary_extraction, osx_arm64_binary_extraction ]
+  package:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
-      - name: Download linux-amd64 Binary
-        uses: actions/download-artifact@v8
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
         with:
-          name: citrea-${{ github.ref_name }}-linux-amd64
-          path: release
+          pattern: release-build-*-${{ github.ref_name }}
+          path: artifacts
+          merge-multiple: true
 
-      - name: rename file
+      - name: Generate SHA256SUMS.txt
+        shell: bash
         run: |
-          mv release/citrea release/citrea-${{ github.ref_name }}-linux-amd64
+          set -euo pipefail
+          (cd artifacts && shasum -a 256 \
+            "citrea-${{ github.ref_name }}-linux-amd64" \
+            "citrea-${{ github.ref_name }}-linux-arm64" \
+            "citrea-${{ github.ref_name }}-osx-arm64" \
+            "citrea-cli-${{ github.ref_name }}-linux-amd64" \
+            "citrea-cli-${{ github.ref_name }}-linux-arm64" \
+            "citrea-cli-${{ github.ref_name }}-osx-arm64" \
+            > "SHA256SUMS.txt")
 
-      - name: Download linux-arm64 Binary
-        uses: actions/download-artifact@v8
-        with:
-          name: citrea-${{ github.ref_name }}-linux-arm64
-          path: release
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
 
-      - name: rename linux-arm64 file
+      - name: Sign SHA256SUMS.txt
+        shell: bash
         run: |
-          mv release/citrea release/citrea-${{ github.ref_name }}-linux-arm64
+          set -euo pipefail
+          cosign sign-blob --yes \
+            --bundle artifacts/SHA256SUMS.txt.sigstore.json \
+            artifacts/SHA256SUMS.txt
 
-      - name: Download OSX ARM64 Binary
-        uses: actions/download-artifact@v8
-        with:
-          name: citrea-${{ github.ref_name }}-osx-arm64
-          path: release
-
-      - name: rename file
+      - name: Verify signed SHA256SUMS.txt
+        shell: bash
+        env:
+          CERTIFICATE_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/release.yml@${{ github.ref }}
         run: |
-          mv release/citrea release/citrea-${{ github.ref_name }}-osx-arm64
+          set -euo pipefail
+          cosign verify-blob artifacts/SHA256SUMS.txt \
+            --bundle artifacts/SHA256SUMS.txt.sigstore.json \
+            --certificate-identity "$CERTIFICATE_IDENTITY" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            --certificate-github-workflow-repository "${{ github.repository }}" \
+            --certificate-github-workflow-ref "${{ github.ref }}" \
+            --certificate-github-workflow-sha "${{ github.sha }}"
 
-      - name: Download citrea-cli linux-amd64 Binary
-        uses: actions/download-artifact@v8
+      - name: Upload packaged artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: citrea-cli-${{ github.ref_name }}-linux-amd64
-          path: release
+          name: release-bundle-${{ github.ref_name }}
+          path: artifacts/
 
-
-      - name: rename file
-        run: |
-          mv release/citrea-cli release/citrea-cli-${{ github.ref_name }}-linux-amd64
-
-      - name: Download citrea-cli linux-arm64 Binary
-        uses: actions/download-artifact@v8
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
         with:
-          name: citrea-cli-${{ github.ref_name }}-linux-arm64
-          path: release
-
-      - name: rename citrea-cli linux-arm64 file
-        run: |
-          mv release/citrea-cli release/citrea-cli-${{ github.ref_name }}-linux-arm64
-
-      - name: Download citrea-cli osx-arm64 Binary
-        uses: actions/download-artifact@v8
-        with:
-          name: citrea-cli-${{ github.ref_name }}-osx-arm64
-          path: release
-
-      - name: rename file
-        run: |
-          mv release/citrea-cli release/citrea-cli-${{ github.ref_name }}-osx-arm64
-
-      - name: Release
-        uses: softprops/action-gh-release@v3
-        with:
-          files: |
-            release/citrea-${{ github.ref_name }}-linux-amd64
-            release/citrea-${{ github.ref_name }}-linux-arm64
-            release/citrea-${{ github.ref_name }}-osx-arm64
-            release/citrea-cli-${{ github.ref_name }}-linux-amd64
-            release/citrea-cli-${{ github.ref_name }}-linux-arm64
-            release/citrea-cli-${{ github.ref_name }}-osx-arm64
           name: Release ${{ github.ref_name }}
           body: |
             This is the release for version ${{ github.ref_name }}.
@@ -193,22 +158,46 @@ jobs:
             - citrea-cli-${{ github.ref_name }}-linux-amd64
             - citrea-cli-${{ github.ref_name }}-linux-arm64
             - citrea-cli-${{ github.ref_name }}-osx-arm64
+            - SHA256SUMS.txt
+            - SHA256SUMS.txt.sigstore.json
+          files: |
+            artifacts/SHA256SUMS.txt
+            artifacts/SHA256SUMS.txt.sigstore.json
+            artifacts/citrea-${{ github.ref_name }}-linux-amd64
+            artifacts/citrea-${{ github.ref_name }}-linux-arm64
+            artifacts/citrea-${{ github.ref_name }}-osx-arm64
+            artifacts/citrea-cli-${{ github.ref_name }}-linux-amd64
+            artifacts/citrea-cli-${{ github.ref_name }}-linux-arm64
+            artifacts/citrea-cli-${{ github.ref_name }}-osx-arm64
 
   update-dockerhub:
+    needs: [package]
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
-    needs: [ release ]
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Download binaries and prepare Docker context
-        run: |
-          sudo apt update && sudo apt -y install wget
-          RELEASE="${{ github.ref_name }}"
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-bundle-${{ github.ref_name }}
+          path: artifacts
 
-          # Download both arch
-          wget -O docker/full-node/citrea-amd64 "https://github.com/chainwayxyz/citrea/releases/download/${RELEASE}/citrea-${RELEASE}-linux-amd64"
-          wget -O docker/full-node/citrea-arm64 "https://github.com/chainwayxyz/citrea/releases/download/${RELEASE}/citrea-${RELEASE}-linux-arm64"
+      - name: Verify binaries against signed SHA256SUMS
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd artifacts && shasum -a 256 -c SHA256SUMS.txt)
+
+      - name: Prepare Docker context
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE="${{ github.ref_name }}"
+          cp "artifacts/citrea-${RELEASE}-linux-amd64" docker/full-node/citrea-amd64
+          cp "artifacts/citrea-${RELEASE}-linux-arm64" docker/full-node/citrea-arm64
+          chmod +x docker/full-node/citrea-amd64 docker/full-node/citrea-arm64
 
           mkdir -p docker/full-node/genesis
           cp -r resources/genesis/mainnet docker/full-node/genesis/
@@ -227,7 +216,8 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push multi-arch image
-        uses: docker/build-push-action@v7
+        id: build
+        uses: docker/build-push-action@v5
         env:
           DOCKERHUB_REPOSITORY: citrea-full-node
         with:
@@ -239,6 +229,31 @@ jobs:
           tags: |
             ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:latest
             ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ github.ref_name }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
+
+      - name: Sign Docker image
+        shell: bash
+        env:
+          IMAGE_REF: ${{ vars.DOCKERHUB_USERNAME }}/citrea-full-node@${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          cosign sign --yes "${IMAGE_REF}"
+
+      - name: Verify signed Docker image
+        shell: bash
+        env:
+          IMAGE_REF: ${{ vars.DOCKERHUB_USERNAME }}/citrea-full-node@${{ steps.build.outputs.digest }}
+          CERTIFICATE_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/release.yml@${{ github.ref }}
+        run: |
+          set -euo pipefail
+          cosign verify "${IMAGE_REF}" \
+            --certificate-identity "$CERTIFICATE_IDENTITY" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            --certificate-github-workflow-repository "${{ github.repository }}" \
+            --certificate-github-workflow-ref "${{ github.ref }}" \
+            --certificate-github-workflow-sha "${{ github.sha }}"
 
       - name: Verify pushed manifest
         env:
