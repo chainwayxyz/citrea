@@ -1,4 +1,5 @@
-use std::sync::Arc;
+use std::ffi::OsString;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -155,9 +156,133 @@ async fn test_parallel_proofs_higher_than_limit() {
     assert_eq!(txs_and_proofs.len(), 4);
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn test_dropped_proof_receiver_does_not_block_future_proofs() {
+    let tmpdir = tempfile::tempdir().unwrap();
+    let da_service = Arc::new(MockDaService::new(
+        MockAddress::from([0; 32]),
+        tmpdir.path(),
+    ));
+
+    let TestProver {
+        prover_service,
+        mut vm,
+        ..
+    } = make_new_prover(1, da_service);
+
+    let first_header_hash = MockHash::from([0; 32]);
+    let (_id, rx) = start_proof(&prover_service, first_header_hash).await;
+    drop(rx);
+
+    assert!(vm.finish_next_proof());
+
+    let second_header_hash = MockHash::from([1; 32]);
+    let (_id, rx) = tokio::time::timeout(
+        Duration::from_secs(1),
+        start_proof(&prover_service, second_header_hash),
+    )
+    .await
+    .expect("dropped receiver should not keep proof slot occupied");
+
+    assert!(vm.finish_next_proof());
+    let proof = rx.await.unwrap();
+    assert_eq!(extract_output_header(&proof.proof), second_header_hash);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_new_rejects_zero_parallel_proof_limit() {
+    let tmpdir = tempfile::tempdir().unwrap();
+    let da_service = Arc::new(MockDaService::new(
+        MockAddress::from([0; 32]),
+        tmpdir.path(),
+    ));
+
+    let result = ParallelProverService::new(da_service, MockZkvm::new(), ProofGenMode::Execute, 0);
+
+    let error = result
+        .err()
+        .expect("zero parallel proof limit should return an error");
+    assert!(error
+        .to_string()
+        .contains("Prover thread pool size must be greater than 0"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_new_from_env_rejects_missing_parallel_proof_limit() {
+    let _env_lock = parallel_proof_limit_env_lock().lock().unwrap();
+    let _env_guard = ParallelProofLimitEnvGuard::set(None);
+    let tmpdir = tempfile::tempdir().unwrap();
+    let da_service = Arc::new(MockDaService::new(
+        MockAddress::from([0; 32]),
+        tmpdir.path(),
+    ));
+
+    let result =
+        ParallelProverService::new_from_env(da_service, MockZkvm::new(), ProofGenMode::Execute);
+
+    let error = result
+        .err()
+        .expect("missing PARALLEL_PROOF_LIMIT should return an error");
+    assert!(error
+        .to_string()
+        .contains("PARALLEL_PROOF_LIMIT must be set"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_new_from_env_rejects_invalid_parallel_proof_limit() {
+    let _env_lock = parallel_proof_limit_env_lock().lock().unwrap();
+    let _env_guard = ParallelProofLimitEnvGuard::set(Some("invalid"));
+    let tmpdir = tempfile::tempdir().unwrap();
+    let da_service = Arc::new(MockDaService::new(
+        MockAddress::from([0; 32]),
+        tmpdir.path(),
+    ));
+
+    let result =
+        ParallelProverService::new_from_env(da_service, MockZkvm::new(), ProofGenMode::Execute);
+
+    let error = result
+        .err()
+        .expect("invalid PARALLEL_PROOF_LIMIT should return an error");
+    assert!(error
+        .to_string()
+        .contains("PARALLEL_PROOF_LIMIT must be valid unsigned number"));
+}
+
 struct TestProver {
     prover_service: Arc<ParallelProverService<MockDaService, MockZkvm>>,
     vm: MockZkvm,
+}
+
+fn parallel_proof_limit_env_lock() -> &'static Mutex<()> {
+    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    ENV_LOCK.get_or_init(|| Mutex::new(()))
+}
+
+struct ParallelProofLimitEnvGuard {
+    original: Option<OsString>,
+}
+
+impl ParallelProofLimitEnvGuard {
+    fn set(value: Option<&str>) -> Self {
+        let original = std::env::var_os("PARALLEL_PROOF_LIMIT");
+
+        match value {
+            Some(value) => std::env::set_var("PARALLEL_PROOF_LIMIT", value),
+            None => std::env::remove_var("PARALLEL_PROOF_LIMIT"),
+        }
+
+        Self { original }
+    }
+}
+
+impl Drop for ParallelProofLimitEnvGuard {
+    fn drop(&mut self) {
+        match &self.original {
+            Some(value) => std::env::set_var("PARALLEL_PROOF_LIMIT", value),
+            None => std::env::remove_var("PARALLEL_PROOF_LIMIT"),
+        }
+    }
 }
 
 fn make_new_prover(thread_pool_size: usize, da_service: Arc<MockDaService>) -> TestProver {

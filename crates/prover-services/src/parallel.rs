@@ -30,17 +30,16 @@ where
     Da: DaService,
     Vm: ZkvmHost,
 {
-    /// Creates a new `ParallelProverService`. Panics if parallel proof limit is 0.
+    /// Creates a new `ParallelProverService`.
     pub fn new(
         da_service: Arc<Da>,
         vm: Vm,
         proof_mode: ProofGenMode,
         parallel_proof_limit: usize,
     ) -> anyhow::Result<Self> {
-        assert!(
-            parallel_proof_limit > 0,
-            "Prover thread pool size must be greater than 0"
-        );
+        if parallel_proof_limit == 0 {
+            return Err(anyhow!("Prover thread pool size must be greater than 0"));
+        }
 
         match proof_mode {
             ProofGenMode::Skip => {
@@ -72,16 +71,16 @@ where
     }
 
     /// Creates a new `ParallelProverService` with thread_pool_size retrieved from
-    /// environment variable `PARALLEL_PROOF_LIMIT`. If non-existent, will panic.
+    /// environment variable `PARALLEL_PROOF_LIMIT`.
     pub fn new_from_env(
         da_service: Arc<Da>,
         vm: Vm,
         proof_mode: ProofGenMode,
     ) -> anyhow::Result<Self> {
         let parallel_proof_limit = std::env::var("PARALLEL_PROOF_LIMIT")
-            .expect("PARALLEL_PROOF_LIMIT must be set")
+            .map_err(|_| anyhow!("PARALLEL_PROOF_LIMIT must be set"))?
             .parse::<usize>()
-            .expect("PARALLEL_PROOF_LIMIT must be valid unsigned number");
+            .map_err(|_| anyhow!("PARALLEL_PROOF_LIMIT must be valid unsigned number"))?;
 
         Self::new(da_service, vm, proof_mode, parallel_proof_limit)
     }
@@ -164,8 +163,9 @@ where
                         duration,
                         info,
                     };
-                    tx.send(proof_with_duration)
-                        .expect("Proof channel should not close");
+                    if tx.send(proof_with_duration).is_err() {
+                        debug!("Proof receiver dropped before proving job completed");
+                    }
                 }
                 Err(e) => {
                     // even if we can't send the proof to the caller, we still send notification for
