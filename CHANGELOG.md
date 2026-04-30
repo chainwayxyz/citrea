@@ -7,6 +7,7 @@
 ### Changed
 - perf: Mine reveal prefix relying on `sign_schnorr` internal randomness.([#3192](https://github.com/chainwayxyz/citrea/pull/3192))
 - fix: use deterministic boundless patch and unpin ubuntu ci.([#3216](https://github.com/chainwayxyz/citrea/pull/3216))
+- fix(batch-prover): guard against empty commitments slice in `PartitionState::new`. ([#3228](https://github.com/chainwayxyz/citrea/pull/3228))
 
 ## [v2.3.1](2026-03-31)
 
