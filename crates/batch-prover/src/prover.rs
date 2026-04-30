@@ -12,7 +12,7 @@ use citrea_common::{BatchProverConfig, ProverGuestRunConfig};
 use citrea_primitives::compression::compress_blob;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::{network_to_dev_mode, MAX_TX_BODY_SIZE, MAX_WITNESS_CACHE_SIZE};
-use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
+use citrea_stf::runtime::{CitreaRuntime, NativeContext};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use prover_services::{ParallelProverService, ProofData, ProofWithDuration};
@@ -1053,7 +1053,7 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
     let mut cache_prune_l2_heights = vec![];
 
     let mut stf =
-        StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
+        StfBlueprint::<NativeContext, Da::Spec, CitreaRuntime<NativeContext, Da::Spec>>::new();
 
     let last_l2_height = committed_l2_blocks
         .back()
@@ -1159,7 +1159,7 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
 
         // we don't care about the return here
         // we only care about the last hash witness getting filled (or not)
-        let _ = citrea_stf::verifier::get_last_l1_hash_on_contract::<DefaultContext>(
+        let _ = citrea_stf::verifier::get_last_l1_hash_on_contract::<NativeContext>(
             cumulative_state_log,
             prover_storage,
             &mut last_l1_hash_witness,

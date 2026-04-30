@@ -10,7 +10,7 @@ mod query_tests;
 use borsh::BorshDeserialize;
 use citrea_evm::{keccak256, Evm, BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS, U256};
 use sov_keys::default_signature::K256PublicKey;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{SpecId, WorkingSet};
 use sov_state::ProverStorage;
@@ -32,7 +32,7 @@ fn sc_info_helper() -> HookL2BlockInfo {
 
 // inserts single height and hash to evm
 fn setup_evm(working_set: &mut WorkingSet<ProverStorage>) {
-    let evm = Evm::<DefaultContext>::default();
+    let evm = Evm::<NativeContext>::default();
     evm.storage_set(
         &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
         &U256::ZERO,
@@ -56,7 +56,7 @@ fn setup_evm(working_set: &mut WorkingSet<ProverStorage>) {
 }
 
 fn add_another_l1_hash(working_set: &mut WorkingSet<ProverStorage>) {
-    let evm = Evm::<DefaultContext>::default();
+    let evm = Evm::<NativeContext>::default();
 
     evm.storage_set(
         &BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,

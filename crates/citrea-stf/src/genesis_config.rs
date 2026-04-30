@@ -9,7 +9,7 @@ use anyhow::Context as _;
 use citrea_evm::EvmConfig;
 use l2_block_rule_enforcer::L2BlockRuleEnforcerConfig;
 use sov_accounts::AccountConfig;
-pub use sov_modules_api::default_context::DefaultContext;
+pub use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::Context;
 use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
 use sov_rollup_interface::da::DaSpec;

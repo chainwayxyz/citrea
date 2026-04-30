@@ -16,7 +16,7 @@ use sov_keys::default_signature::K256PublicKey;
 use sov_keys::PrivateKey;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkGuest;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::hooks::{HookL2BlockInfo, L2BlockError};
 use sov_modules_api::{L2Block, SpecId, WorkingSet};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
@@ -30,7 +30,7 @@ use sov_rollup_interface::Network;
 use sov_state::{ProverStorage, Witness};
 
 type TestStfBlueprint =
-    StfBlueprint<DefaultContext, MockDaSpec, CitreaRuntime<DefaultContext, MockDaSpec>>;
+    StfBlueprint<NativeContext, MockDaSpec, CitreaRuntime<NativeContext, MockDaSpec>>;
 
 /// Helper function to extract panic message and assert it contains expected text
 fn assert_panic_message_contains(panic_payload: Box<dyn std::any::Any + Send>, expected: &str) {
@@ -58,7 +58,7 @@ macro_rules! assert_panics_with_message {
     };
 }
 
-fn generate_genesis_config() -> GenesisParams<GenesisConfig<DefaultContext, MockDaSpec>> {
+fn generate_genesis_config() -> GenesisParams<GenesisConfig<NativeContext, MockDaSpec>> {
     let accounts_config: AccountConfig =
         read_json_file("../../resources/test-data/integration-tests/accounts.json").unwrap();
 
@@ -69,7 +69,7 @@ fn generate_genesis_config() -> GenesisParams<GenesisConfig<DefaultContext, Mock
         read_json_file("../../resources/test-data/integration-tests/l2_block_rule_enforcer.json")
             .unwrap();
 
-    let genesis = GenesisConfig::<DefaultContext, MockDaSpec> {
+    let genesis = GenesisConfig::<NativeContext, MockDaSpec> {
         accounts: accounts_config,
         evm: evm_config,
         l2_block_rule_enforcer: rule_enforcer_config,

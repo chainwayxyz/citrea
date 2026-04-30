@@ -27,7 +27,7 @@ use jsonrpsee::RpcModule;
 use prover_services::{ParallelProverService, ProofGenMode};
 use reth_tasks::TaskExecutor;
 use sov_db::ledger_db::LedgerDB;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::{SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::Runtime;
@@ -77,7 +77,7 @@ impl RollupBlueprint for BitcoinRollup {
         let mut rpc_methods = RpcModule::new(());
 
         if !matches!(node_type, NodeType::LightClientProver) {
-            let methods = <CitreaRuntime<DefaultContext, Self::DaSpec>>::rpc_methods(
+            let methods = <CitreaRuntime<NativeContext, Self::DaSpec>>::rpc_methods(
                 storage,
                 ledger_db.clone(),
             );

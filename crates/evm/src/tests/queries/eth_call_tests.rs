@@ -10,7 +10,7 @@ use jsonrpsee::core::RpcResult;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use revm::primitives::U256;
 use sov_db::ledger_db::LedgerDB;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, Spec, WorkingSet};
@@ -23,7 +23,7 @@ use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{create_contract_message, get_evm, get_evm_config, get_fork_fn_latest};
 use crate::{CallMessage, Evm};
 
-type C = DefaultContext;
+type C = NativeContext;
 
 #[test]
 fn call_contract_without_value() {
@@ -764,7 +764,7 @@ fn test_call_with_block_overrides() {
     let sender_address = generate_address::<C>("sender");
     evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
     {
-        let context = DefaultContext::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
+        let context = NativeContext::new(sender_address, l2_height, SpecId::latest(), l1_fee_rate);
 
         let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
 

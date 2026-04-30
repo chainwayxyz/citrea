@@ -4,7 +4,7 @@ use citrea_risc0_adapter::guest::Risc0Guest;
 use citrea_stf::runtime::CitreaRuntime;
 use citrea_stf::verifier::StateTransitionVerifier;
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::default_context::ZkDefaultContext;
+use sov_modules_api::default_context::ZkContext;
 use sov_modules_api::fork::Fork;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_rollup_interface::zk::ZkvmGuest;
@@ -39,11 +39,8 @@ pub fn main() {
     let storage = ZkStorage::new();
     let stf = StfBlueprint::new();
 
-    let mut stf_verifier: StateTransitionVerifier<
-        ZkDefaultContext,
-        MockDaSpec,
-        CitreaRuntime<_, _>,
-    > = StateTransitionVerifier::new(stf);
+    let mut stf_verifier: StateTransitionVerifier<ZkContext, MockDaSpec, CitreaRuntime<_, _>> =
+        StateTransitionVerifier::new(stf);
 
     let out = stf_verifier.run_sequencer_commitments_in_da_slot(
         &guest,

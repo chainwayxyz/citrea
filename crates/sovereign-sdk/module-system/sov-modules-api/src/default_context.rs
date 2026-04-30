@@ -14,7 +14,7 @@ use sov_state::ZkStorage;
 
 #[cfg(feature = "native")]
 #[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-pub struct DefaultContext {
+pub struct NativeContext {
     pub sender: Address,
     pub l1_fee_rate: u128,
     pub active_spec: SpecId,
@@ -23,7 +23,7 @@ pub struct DefaultContext {
 }
 
 #[cfg(feature = "native")]
-impl Spec for DefaultContext {
+impl Spec for NativeContext {
     type Address = Address;
     type Storage = ProverStorage;
     type PrivateKey = K256PrivateKey;
@@ -32,7 +32,7 @@ impl Spec for DefaultContext {
 }
 
 #[cfg(feature = "native")]
-impl Context for DefaultContext {
+impl Context for NativeContext {
     fn sender(&self) -> &Self::Address {
         &self.sender
     }
@@ -61,7 +61,7 @@ impl Context for DefaultContext {
 
 #[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct ZkDefaultContext {
+pub struct ZkContext {
     pub sender: Address,
     pub l1_fee_rate: u128,
     pub active_spec: SpecId,
@@ -69,7 +69,7 @@ pub struct ZkDefaultContext {
     visible_height: u64,
 }
 
-impl Spec for ZkDefaultContext {
+impl Spec for ZkContext {
     type Address = Address;
     type Storage = ZkStorage;
     #[cfg(feature = "native")]
@@ -78,7 +78,7 @@ impl Spec for ZkDefaultContext {
     type Signature = K256Signature;
 }
 
-impl Context for ZkDefaultContext {
+impl Context for ZkContext {
     fn sender(&self) -> &Self::Address {
         &self.sender
     }

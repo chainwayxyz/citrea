@@ -16,7 +16,7 @@ use citrea_common::utils::is_dev_mode_enabled_via_environment;
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig, NodeType, StartVariant};
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_stf::genesis_config::GenesisPaths;
-use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
+use citrea_stf::runtime::{CitreaRuntime, NativeContext};
 use clap::Parser;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use reth_tasks::TaskManager;
@@ -111,7 +111,7 @@ async fn main() -> anyhow::Result<()> {
 #[instrument(level = "trace", skip_all, err)]
 async fn start_rollup<S, DaC>(
     network: Network,
-    runtime_genesis_paths: &<CitreaRuntime<DefaultContext, <S as RollupBlueprint>::DaSpec> as sov_modules_stf_blueprint::Runtime<DefaultContext, <S as RollupBlueprint>::DaSpec>>::GenesisPaths,
+    runtime_genesis_paths: &<CitreaRuntime<NativeContext, <S as RollupBlueprint>::DaSpec> as sov_modules_stf_blueprint::Runtime<NativeContext, <S as RollupBlueprint>::DaSpec>>::GenesisPaths,
     rollup_config_path: Option<String>,
     node_type: NodeWithConfig,
     stop_conditions: StopConditions,
@@ -119,7 +119,7 @@ async fn start_rollup<S, DaC>(
 where
     DaC: serde::de::DeserializeOwned + DebugTrait + Clone + FromEnv + Send + Sync + 'static,
     S: CitreaRollupBlueprint<DaConfig = DaC>,
-    <DefaultContext as Spec>::Storage: NativeStorage,
+    <NativeContext as Spec>::Storage: NativeStorage,
     Network: InitialValueProvider<<S as RollupBlueprint>::DaSpec>,
 {
     let rollup_config: FullNodeConfig<DaC> = match rollup_config_path {

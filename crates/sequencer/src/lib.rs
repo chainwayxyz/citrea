@@ -39,7 +39,7 @@ use anyhow::Result;
 use citrea_common::backup::BackupManager;
 pub use citrea_common::SequencerConfig;
 use citrea_common::{InitParams, RollupPublicKeys};
-use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
+use citrea_stf::runtime::{CitreaRuntime, NativeContext};
 use db_provider::DbProvider;
 use deposit_data_mempool::DepositDataMempool;
 use jsonrpsee::RpcModule;
@@ -107,9 +107,9 @@ pub fn build_services<Da>(
     sequencer_config: SequencerConfig,
     init_params: InitParams,
     native_stf: StfBlueprint<
-        DefaultContext,
+        NativeContext,
         <Da as DaService>::Spec,
-        CitreaRuntime<DefaultContext, <Da as DaService>::Spec>,
+        CitreaRuntime<NativeContext, <Da as DaService>::Spec>,
     >,
     public_keys: RollupPublicKeys,
     da_service: Arc<Da>,

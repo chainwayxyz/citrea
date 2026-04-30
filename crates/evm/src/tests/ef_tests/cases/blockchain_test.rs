@@ -10,7 +10,7 @@ use alloy_primitives::B256;
 use alloy_rlp::{Decodable, Encodable};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use reth_primitives::{Block as RethBlock, SealedBlock};
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, StateMapAccessor, StateValueAccessor, WorkingSet};
@@ -56,7 +56,7 @@ impl BlockchainTestCase {
     #[allow(clippy::too_many_arguments)]
     fn execute_transactions(
         &self,
-        evm: &mut Evm<DefaultContext>,
+        evm: &mut Evm<NativeContext>,
         txs: Vec<RlpEvmTransaction>,
         mut working_set: WorkingSet<ProverStorage>,
         storage: ProverStorage,
@@ -78,8 +78,8 @@ impl BlockchainTestCase {
 
         evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
 
-        let dummy_address = generate_address::<DefaultContext>("dummy");
-        let context = DefaultContext::new(dummy_address, l2_height, current_spec, l1_fee_rate);
+        let dummy_address = generate_address::<NativeContext>("dummy");
+        let context = NativeContext::new(dummy_address, l2_height, current_spec, l1_fee_rate);
         let _ = evm.execute_call(txs, &context, &mut working_set);
 
         evm.end_l2_block_hook(&l2_block_info, &mut working_set);

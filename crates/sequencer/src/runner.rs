@@ -21,7 +21,7 @@ use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::merkle::{compute_tx_hashes, compute_tx_merkle_root};
 use citrea_primitives::types::L2BlockHash;
-use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
+use citrea_stf::runtime::{CitreaRuntime, NativeContext};
 use parking_lot::Mutex;
 use reth_execution_types::{Chain, ExecutionOutcome};
 use reth_primitives::{Receipt, RecoveredBlock, SealedBlock};
@@ -101,7 +101,7 @@ where
     /// Sequencer configuration
     pub(crate) config: SequencerConfig,
     /// State transition function blueprint
-    pub(crate) stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
+    pub(crate) stf: StfBlueprint<NativeContext, Da::Spec, CitreaRuntime<NativeContext, Da::Spec>>,
     /// Mempool for deposit transactions
     pub(crate) deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     /// Manager for prover storage
@@ -150,7 +150,7 @@ where
         da_service: Arc<Da>,
         config: SequencerConfig,
         init_params: InitParams,
-        stf: StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
+        stf: StfBlueprint<NativeContext, Da::Spec, CitreaRuntime<NativeContext, Da::Spec>>,
         storage_manager: ProverStorageManager,
         public_keys: RollupPublicKeys,
         ledger_db: LedgerDB,
@@ -237,7 +237,7 @@ where
                 bail!("DryRun: Failed to apply begin l2 block hook: {:?}", err)
             }
 
-            let evm = citrea_evm::Evm::<DefaultContext>::default();
+            let evm = citrea_evm::Evm::<NativeContext>::default();
             let start_dry_run_system_txs = Instant::now();
             // Initially fill with system transactions if any
             let (mut all_txs, mut working_set_to_discard) = self
@@ -273,8 +273,8 @@ where
                 let call_txs = CallMessage {
                     txs: vec![rlp_tx.clone()],
                 };
-                let raw_message = <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
-                    citrea_evm::Evm<DefaultContext>,
+                let raw_message = <CitreaRuntime<NativeContext, Da::Spec> as EncodeCall<
+                    citrea_evm::Evm<NativeContext>,
                 >>::encode_call(call_txs);
 
                 let signed_tx = self.sign_tx(l2_block_info.current_spec, raw_message, nonce)?;
@@ -715,7 +715,7 @@ where
     /// Encodes and signs EVM transactions into Sov txs, and records the time taken
     fn encode_and_sign_evm_txs_into_sov_txs(
         &self,
-        working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
+        working_set: &mut WorkingSet<<NativeContext as Spec>::Storage>,
         l2_block_info: &HookL2BlockInfo,
         txs: Vec<RlpEvmTransaction>,
     ) -> anyhow::Result<(Vec<Transaction>, Vec<Vec<u8>>)> {
@@ -729,8 +729,8 @@ where
 
         if !txs.is_empty() {
             let call_txs = CallMessage { txs };
-            let raw_message = <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
-                citrea_evm::Evm<DefaultContext>,
+            let raw_message = <CitreaRuntime<NativeContext, Da::Spec> as EncodeCall<
+                citrea_evm::Evm<NativeContext>,
             >>::encode_call(call_txs);
 
             let signed_tx = self.sign_tx(l2_block_info.current_spec, raw_message, nonce)?;
@@ -1119,7 +1119,7 @@ where
         let mut last_finalized_l1_height = last_finalized_block.header().height();
         let prestate = self.storage_manager.create_final_view_storage();
         let mut working_set = WorkingSet::new(prestate.clone());
-        let evm = Evm::<DefaultContext>::default();
+        let evm = Evm::<NativeContext>::default();
         let head_l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0);
         let _spec_id = fork_from_block_number(head_l2_height).spec_id;
 
@@ -1385,9 +1385,9 @@ where
     /// The current nonce value
     pub(crate) fn get_nonce(
         &self,
-        working_set: &mut WorkingSet<<DefaultContext as Spec>::Storage>,
+        working_set: &mut WorkingSet<<NativeContext as Spec>::Storage>,
     ) -> anyhow::Result<u64> {
-        let accounts = Accounts::<DefaultContext>::default();
+        let accounts = Accounts::<NativeContext>::default();
 
         let pub_key = self.sov_tx_signer_priv_key.pub_key();
 
@@ -1524,14 +1524,14 @@ where
     fn produce_and_run_system_transactions(
         &mut self,
         l2_block_info: &HookL2BlockInfo,
-        evm: &Evm<DefaultContext>,
-        working_set_to_discard: WorkingSet<<DefaultContext as Spec>::Storage>,
+        evm: &Evm<NativeContext>,
+        working_set_to_discard: WorkingSet<<NativeContext as Spec>::Storage>,
         deposit_data: &[Deposit],
         da_blocks: Vec<Da::FilteredBlock>,
         nonce: &mut u64,
     ) -> anyhow::Result<(
         Vec<RlpEvmTransaction>,
-        WorkingSet<<DefaultContext as Spec>::Storage>,
+        WorkingSet<<NativeContext as Spec>::Storage>,
     )> {
         let mut system_events = vec![];
 
@@ -1589,13 +1589,13 @@ where
     fn process_sys_txs(
         &mut self,
         l2_block_info: &HookL2BlockInfo,
-        mut working_set_to_discard: WorkingSet<<DefaultContext as Spec>::Storage>,
+        mut working_set_to_discard: WorkingSet<<NativeContext as Spec>::Storage>,
         nonce: &mut u64,
-        evm: &Evm<DefaultContext>,
+        evm: &Evm<NativeContext>,
         system_events: Vec<SystemEvent>,
     ) -> anyhow::Result<(
         Vec<RlpEvmTransaction>,
-        WorkingSet<<DefaultContext as Spec>::Storage>,
+        WorkingSet<<NativeContext as Spec>::Storage>,
     )> {
         info!("Processing {} system transactions", system_events.len());
 
@@ -1634,8 +1634,8 @@ where
             let call_txs = CallMessage {
                 txs: vec![sys_tx_rlp.clone()],
             };
-            let raw_message = <CitreaRuntime<DefaultContext, Da::Spec> as EncodeCall<
-                citrea_evm::Evm<DefaultContext>,
+            let raw_message = <CitreaRuntime<NativeContext, Da::Spec> as EncodeCall<
+                citrea_evm::Evm<NativeContext>,
             >>::encode_call(call_txs);
 
             // Sign and increment nonce

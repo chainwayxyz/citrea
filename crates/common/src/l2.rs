@@ -12,7 +12,7 @@ use jsonrpsee::http_client::HttpClient;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_keys::default_signature::K256PublicKey;
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::{L2Block, StateDiff};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
@@ -54,7 +54,7 @@ pub async fn apply_l2_block<Da: DaService, DB: SharedLedgerOps>(
     fork_manager: &mut ForkManager<'_>,
     da_service: Arc<Da>,
     ledger_db: &DB,
-    stf: &mut StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
+    stf: &mut StfBlueprint<NativeContext, Da::Spec, CitreaRuntime<NativeContext, Da::Spec>>,
     current_l2_block_hash: L2BlockHash,
     current_state_root: StorageRootHash,
     sequencer_pub_key: &K256PublicKey,

@@ -10,7 +10,7 @@ use alloy_rpc_types::{BlockTransactions, Withdrawals};
 use alloy_rpc_types_eth::Block as AlloyRpcBlock;
 use alloy_serde::WithOtherFields;
 use citrea_evm::{Evm, EvmChainConfig};
-use citrea_stf::runtime::DefaultContext;
+use citrea_stf::runtime::NativeContext;
 use jsonrpsee::core::RpcResult;
 use reth_chainspec::{Chain, ChainInfo, ChainSpec, ChainSpecBuilder};
 use reth_db::DatabaseError;
@@ -43,9 +43,9 @@ use sov_modules_api::{Spec, StateMapAccessor, WorkingSet};
 #[derive(Clone)]
 pub struct DbProvider {
     /// The EVM instance for executing transactions
-    pub evm: Evm<DefaultContext>,
+    pub evm: Evm<NativeContext>,
     /// Storage for the sequencer state
-    pub storage: <DefaultContext as Spec>::Storage,
+    pub storage: <NativeContext as Spec>::Storage,
     /// LedgerDb
     ledger_db: LedgerDB,
 }
@@ -61,8 +61,8 @@ impl DbProvider {
     ///
     /// # Arguments
     /// * `storage` - The storage implementation to use
-    pub fn new(storage: <DefaultContext as Spec>::Storage, ledger_db: LedgerDB) -> Self {
-        let evm = Evm::<DefaultContext>::default();
+    pub fn new(storage: <NativeContext as Spec>::Storage, ledger_db: LedgerDB) -> Self {
+        let evm = Evm::<NativeContext>::default();
         Self {
             evm,
             storage,

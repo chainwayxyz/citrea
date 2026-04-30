@@ -5,7 +5,7 @@ use alloy_primitives::{address, keccak256, Address, Bytes, TxKind};
 use revm::primitives::U256;
 use secp256k1::{Keypair, XOnlyPublicKey, SECP256K1};
 use sha2::Digest;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor, WorkingSet};
@@ -21,7 +21,7 @@ use crate::tests::get_test_seq_pub_key;
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{create_contract_message, get_evm, get_evm_config, get_evm_with_spec};
 use crate::{AccountInfo, Evm, RlpEvmTransaction};
-type C = DefaultContext;
+type C = NativeContext;
 
 use super::call_tests::send_money_to_contract_message;
 use super::utils::create_contract_message_with_bytecode;
@@ -760,7 +760,7 @@ fn test_schnorr_verify() {
     }
 
     let invoke_schnorr_verify_caller =
-        |evm: &mut Evm<DefaultContext>,
+        |evm: &mut Evm<NativeContext>,
          input: Vec<u8>,
          nonce: u64,
          l2_height: u64,

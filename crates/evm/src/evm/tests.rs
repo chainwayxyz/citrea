@@ -19,7 +19,7 @@ use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::test_signer::TestSigner;
 use crate::Evm;
 
-type C = sov_modules_api::default_context::DefaultContext;
+type C = sov_modules_api::default_context::NativeContext;
 
 use crate::tests::DEFAULT_CHAIN_ID;
 

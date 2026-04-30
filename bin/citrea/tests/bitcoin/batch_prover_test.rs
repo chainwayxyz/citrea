@@ -701,7 +701,7 @@ async fn parallel_proving_test() -> Result<()> {
 //         )
 //         .unwrap();
 
-//         let address = k256_pub_key_sequencer.to_address::<<DefaultContext as Spec>::Address>();
+//         let address = k256_pub_key_sequencer.to_address::<<NativeContext as Spec>::Address>();
 
 //         // Going to ignore the first byte here because it's the call prefix
 //         // It is an enum of modules:

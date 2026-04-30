@@ -13,7 +13,7 @@ use prover_services::ParallelProverService;
 use reth_tasks::TaskExecutor;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::DaSpec;
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait};
 use sov_prover_storage_manager::{ProverStorage, ProverStorageManager};
@@ -75,21 +75,21 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     #[allow(clippy::type_complexity)]
     fn create_genesis_config(
         &self,
-        rt_genesis_paths: &<CitreaRuntime<DefaultContext, Self::DaSpec> as RuntimeTrait<
-            DefaultContext,
+        rt_genesis_paths: &<CitreaRuntime<NativeContext, Self::DaSpec> as RuntimeTrait<
+            NativeContext,
             Self::DaSpec,
         >>::GenesisPaths,
         _rollup_config: &FullNodeConfig<Self::DaConfig>,
     ) -> anyhow::Result<
         GenesisParams<
-            <CitreaRuntime<DefaultContext, Self::DaSpec> as RuntimeTrait<
-                DefaultContext,
+            <CitreaRuntime<NativeContext, Self::DaSpec> as RuntimeTrait<
+                NativeContext,
                 Self::DaSpec,
             >>::GenesisConfig,
         >,
     > {
-        let rt_genesis = <CitreaRuntime<DefaultContext, Self::DaSpec> as RuntimeTrait<
-            DefaultContext,
+        let rt_genesis = <CitreaRuntime<NativeContext, Self::DaSpec> as RuntimeTrait<
+            NativeContext,
             Self::DaSpec,
         >>::genesis_config(rt_genesis_paths)?;
 

@@ -9,7 +9,7 @@ use citrea_common::rpc::utils::internal_rpc_error;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use sov_db::ledger_db::LightClientProverLedgerOps;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::{Spec, WorkingSet};
 use sov_rollup_interface::rpc::{BatchProofMethodIdRpcResponse, LightClientProofResponse};
 use sov_state::ProverStorage;
@@ -24,7 +24,7 @@ where
     /// Database for ledger operations
     pub ledger: DB,
     /// Database for storage operations
-    pub storage: <DefaultContext as Spec>::Storage,
+    pub storage: <NativeContext as Spec>::Storage,
 }
 
 /// Creates a shared RpcContext with all required data.
@@ -34,7 +34,7 @@ where
 /// * `storage` - Database for storage operations
 pub fn create_rpc_context<DB: LightClientProverLedgerOps + Clone>(
     ledger_db: DB,
-    storage: <DefaultContext as Spec>::Storage,
+    storage: <NativeContext as Spec>::Storage,
 ) -> RpcContext<DB> {
     RpcContext {
         ledger: ledger_db,

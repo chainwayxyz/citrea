@@ -9,7 +9,7 @@ use alloy_primitives::{Address, Bytes, TxKind, B256, U256};
 use short_header_proof_provider::ShortHeaderProofProvider;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{Module, Spec, WorkingSet};
@@ -22,7 +22,7 @@ use crate::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
 use crate::tests::test_signer::TestSigner;
 use crate::{AccountData, Evm, EvmConfig, RlpEvmTransaction, PRIORITY_FEE_VAULT};
 
-type C = DefaultContext;
+type C = NativeContext;
 
 pub(crate) static GENESIS_HASH: LazyLock<B256> = LazyLock::new(|| {
     B256::from(hex!(

@@ -18,7 +18,7 @@ use base64::Engine;
 use citrea_common::rpc::utils::internal_rpc_error;
 use citrea_common::RpcConfig;
 use citrea_primitives::forks::fork_from_block_number;
-use citrea_stf::runtime::DefaultContext;
+use citrea_stf::runtime::NativeContext;
 use citrea_stf::verifier::get_last_l1_hash_on_contract;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
@@ -481,7 +481,7 @@ where
             .context
             .storage_manager
             .create_storage_for_l2_height(last_l2_block.height + 1);
-        let last_l1_hash_on_contract = get_last_l1_hash_on_contract::<DefaultContext>(
+        let last_l1_hash_on_contract = get_last_l1_hash_on_contract::<NativeContext>(
             Default::default(),
             storage,
             &mut Default::default(),
