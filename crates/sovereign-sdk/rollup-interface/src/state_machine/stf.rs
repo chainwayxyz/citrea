@@ -4,7 +4,7 @@
 //! The most important trait in this module is the [`StateTransitionFunction`], which defines the
 //! main event loop of the rollup.
 
-use super::zk::StorageRootHash;
+use super::StorageRootHash;
 use crate::RefCount;
 
 /// The configuration of a full node of the rollup which creates zk proofs.

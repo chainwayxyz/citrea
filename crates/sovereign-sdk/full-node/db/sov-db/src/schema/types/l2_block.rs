@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::block::{L2Block, L2Header, SignedL2Header};
 use sov_rollup_interface::rpc::block::{L2BlockResponse, L2HeaderResponse};
 use sov_rollup_interface::transaction::Transaction;
-use sov_rollup_interface::zk::StorageRootHash;
+use sov_rollup_interface::StorageRootHash;
 
 use super::DbHash;
 

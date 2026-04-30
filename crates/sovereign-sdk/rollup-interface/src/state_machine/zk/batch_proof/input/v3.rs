@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use crate::block::{L2Block, L2Header};
 use crate::da::SequencerCommitment;
 use crate::witness::Witness;
-use crate::zk::StorageRootHash;
+use crate::StorageRootHash;
 
 type InputV3Part2<Witness> = VecDeque<Vec<(u64, L2Block, Witness, Witness)>>;
 

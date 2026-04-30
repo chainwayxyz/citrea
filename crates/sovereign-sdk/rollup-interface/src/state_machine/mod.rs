@@ -11,6 +11,9 @@ pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+/// A cryptographic commitment to the contents of storage.
+pub type StorageRootHash = [u8; 32];
+
 /// A marker trait for general addresses.
 pub trait BasicAddress:
     Eq

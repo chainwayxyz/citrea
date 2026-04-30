@@ -2,7 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use crate::da::LatestDaState;
-use crate::zk::StorageRootHash;
+use crate::StorageRootHash;
 
 /// The output of light client proof
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]

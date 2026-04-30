@@ -53,7 +53,7 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::{L2BlockResult, StateTransitionError};
 use sov_rollup_interface::transaction::Transaction;
-use sov_rollup_interface::zk::StorageRootHash;
+use sov_rollup_interface::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use sov_state::{ProverStorage, ReadWriteLog};
 use tokio::sync::mpsc::UnboundedReceiver;
