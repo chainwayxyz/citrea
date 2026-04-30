@@ -594,7 +594,7 @@ async fn parallel_proving_test() -> Result<()> {
 //     fn light_client_prover_config() -> LightClientProverConfig {
 //         LightClientProverConfig {
 //             initial_da_height: 171,
-//             enable_recovery: false,
+//             enable_proof_session_recovery: false,
 //             ..Default::default()
 //         }
 //     }

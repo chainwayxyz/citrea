@@ -163,7 +163,7 @@ pub struct BatchProverConfig {
     /// Average number of commitments to prove
     pub proof_sampling_number: usize,
     /// If true prover will try to recover ongoing proving sessions
-    pub enable_recovery: bool,
+    pub enable_proof_session_recovery: bool,
     /// Maximum number of commitments per proof partition
     pub max_commitments_per_proof: Option<usize>,
     /// Configuration for Risc0Host
@@ -179,7 +179,7 @@ pub struct LightClientProverConfig {
     /// Average number of commitments to prove
     pub proof_sampling_number: usize,
     /// If true prover will try to recover ongoing proving sessions
-    pub enable_recovery: bool,
+    pub enable_proof_session_recovery: bool,
     /// The starting DA block to sync from
     pub initial_da_height: u64,
     /// Configuration for Risc0Host
@@ -192,7 +192,7 @@ impl Default for BatchProverConfig {
         Self {
             proving_mode: ProverGuestRunConfig::Execute,
             proof_sampling_number: 0,
-            enable_recovery: true,
+            enable_proof_session_recovery: true,
             max_commitments_per_proof: None,
             risc0_host: Default::default(),
         }
@@ -204,7 +204,7 @@ impl Default for LightClientProverConfig {
         Self {
             proving_mode: ProverGuestRunConfig::Execute,
             proof_sampling_number: 0,
-            enable_recovery: true,
+            enable_proof_session_recovery: true,
             initial_da_height: 1,
             risc0_host: Default::default(),
         }
@@ -216,7 +216,7 @@ impl FromEnv for BatchProverConfig {
         Ok(BatchProverConfig {
             proving_mode: serde_json::from_str(&format!("\"{}\"", read_env("PROVING_MODE")?))?,
             proof_sampling_number: read_env("PROOF_SAMPLING_NUMBER")?.parse()?,
-            enable_recovery: read_env("ENABLE_RECOVERY")?.parse()?,
+            enable_proof_session_recovery: read_env("ENABLE_PROOF_SESSION_RECOVERY")?.parse()?,
             max_commitments_per_proof: read_env("MAX_COMMITMENTS_PER_PROOF")
                 .ok()
                 .and_then(|val| val.parse().ok()),
@@ -230,7 +230,7 @@ impl FromEnv for LightClientProverConfig {
         Ok(LightClientProverConfig {
             proving_mode: serde_json::from_str(&format!("\"{}\"", read_env("PROVING_MODE")?))?,
             proof_sampling_number: read_env("PROOF_SAMPLING_NUMBER")?.parse()?,
-            enable_recovery: read_env("ENABLE_RECOVERY")?.parse()?,
+            enable_proof_session_recovery: read_env("ENABLE_PROOF_SESSION_RECOVERY")?.parse()?,
             initial_da_height: read_env("INITIAL_DA_HEIGHT")?.parse()?,
             risc0_host: Risc0HostConfig::from_env()?,
         })
@@ -623,7 +623,7 @@ mod tests {
         let config = r#"
             proving_mode = "skip"
             proof_sampling_number = 500
-            enable_recovery = true
+            enable_proof_session_recovery = true
         "#;
 
         let config_file = create_config_from(config);
@@ -632,7 +632,7 @@ mod tests {
         let expected = BatchProverConfig {
             proving_mode: ProverGuestRunConfig::Skip,
             proof_sampling_number: 500,
-            enable_recovery: true,
+            enable_proof_session_recovery: true,
             max_commitments_per_proof: None,
             risc0_host: Default::default(),
         };
@@ -694,14 +694,14 @@ mod tests {
     fn test_correct_prover_config_from_env() {
         std::env::set_var("PROVING_MODE", "skip");
         std::env::set_var("PROOF_SAMPLING_NUMBER", "500");
-        std::env::set_var("ENABLE_RECOVERY", "true");
+        std::env::set_var("ENABLE_PROOF_SESSION_RECOVERY", "true");
 
         let prover_config = BatchProverConfig::from_env().unwrap();
 
         let expected = BatchProverConfig {
             proving_mode: ProverGuestRunConfig::Skip,
             proof_sampling_number: 500,
-            enable_recovery: true,
+            enable_proof_session_recovery: true,
             max_commitments_per_proof: None,
             risc0_host: Default::default(),
         };
@@ -874,7 +874,7 @@ mod tests {
         let config = r#"
             proving_mode = "execute"
             proof_sampling_number = 42
-            enable_recovery = true
+            enable_proof_session_recovery = true
 
             [risc0_host]
             tx_backup_dir = "/tmp/backup"
@@ -889,7 +889,7 @@ mod tests {
         let expected = BatchProverConfig {
             proving_mode: ProverGuestRunConfig::Execute,
             proof_sampling_number: 42,
-            enable_recovery: true,
+            enable_proof_session_recovery: true,
             max_commitments_per_proof: None,
             risc0_host: Risc0HostConfig {
                 prover: Risc0ProverConfig::Local(LocalProverConfig {
@@ -906,7 +906,7 @@ mod tests {
         let config = r#"
             proving_mode = "execute"
             proof_sampling_number = 42
-            enable_recovery = true
+            enable_proof_session_recovery = true
 
             [risc0_host.prover.Bonsai]
             api_url = "http://127.0.0.1"
@@ -926,7 +926,7 @@ mod tests {
         let expected = BatchProverConfig {
             proving_mode: ProverGuestRunConfig::Execute,
             proof_sampling_number: 42,
-            enable_recovery: true,
+            enable_proof_session_recovery: true,
             max_commitments_per_proof: None,
             risc0_host,
         };
@@ -938,7 +938,7 @@ mod tests {
         let config = r#"
             proving_mode = "execute"
             proof_sampling_number = 42
-            enable_recovery = true
+            enable_proof_session_recovery = true
 
             [risc0_host.prover.Boundless.boundless]
             wallet_private_key = "abcd"
@@ -984,7 +984,7 @@ mod tests {
         let expected = BatchProverConfig {
             proving_mode: ProverGuestRunConfig::Execute,
             proof_sampling_number: 42,
-            enable_recovery: true,
+            enable_proof_session_recovery: true,
             max_commitments_per_proof: None,
             risc0_host: Risc0HostConfig {
                 prover: Risc0ProverConfig::Boundless(Box::new(boundless_prover_config)),
@@ -999,7 +999,7 @@ mod tests {
         let config = r#"
             proving_mode = "execute"
             proof_sampling_number = 42
-            enable_recovery = true
+            enable_proof_session_recovery = true
 
             [risc0_host.prover.Boundless.boundless]
             wallet_private_key = "abcd"
@@ -1039,7 +1039,7 @@ mod tests {
         let expected = BatchProverConfig {
             proving_mode: ProverGuestRunConfig::Execute,
             proof_sampling_number: 42,
-            enable_recovery: true,
+            enable_proof_session_recovery: true,
             max_commitments_per_proof: None,
             risc0_host: Risc0HostConfig {
                 prover: Risc0ProverConfig::Boundless(Box::new(boundless_prover_config)),

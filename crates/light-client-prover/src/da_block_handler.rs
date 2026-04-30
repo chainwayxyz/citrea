@@ -132,7 +132,7 @@ where
         last_l1_height_scanned: StartVariant,
         mut shutdown_signal: GracefulShutdown,
     ) {
-        // if self.prover_config.enable_recovery {
+        // if self.prover_config.enable_proof_session_recovery {
         //     if let Err(e) = self.check_and_recover_ongoing_proving_sessions().await {
         //         error!("Failed to recover ongoing proving sessions: {:?}", e);
         //     }

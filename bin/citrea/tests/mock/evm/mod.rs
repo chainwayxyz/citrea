@@ -1583,7 +1583,7 @@ async fn test_safe_finalized_tags() {
             proving_mode: citrea_common::ProverGuestRunConfig::Execute,
             // Make it impossible for proving to happen
             proof_sampling_number: 1_000_000,
-            enable_recovery: true,
+            enable_proof_session_recovery: true,
             max_commitments_per_proof: None,
             risc0_host: Risc0HostConfig::from_env().expect("Failed to load Risc0HostConfig"),
         }),

@@ -78,14 +78,14 @@ impl TestCase for LightClientProvingTest {
 
     fn batch_prover_config() -> BatchProverConfig {
         BatchProverConfig {
-            enable_recovery: false,
+            enable_proof_session_recovery: false,
             ..Default::default()
         }
     }
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
+            enable_proof_session_recovery: false,
             ..Default::default()
         }
     }
@@ -218,7 +218,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
     fn batch_prover_config() -> BatchProverConfig {
         BatchProverConfig {
-            enable_recovery: false,
+            enable_proof_session_recovery: false,
             proof_sampling_number: 99999999,
             ..Default::default()
         }
@@ -226,7 +226,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
+            enable_proof_session_recovery: false,
             initial_da_height: 171,
             ..Default::default()
         }
@@ -553,14 +553,14 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
 
     fn batch_prover_config() -> BatchProverConfig {
         BatchProverConfig {
-            enable_recovery: false,
+            enable_proof_session_recovery: false,
             ..Default::default()
         }
     }
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
+            enable_proof_session_recovery: false,
             initial_da_height: 171,
             ..Default::default()
         }
@@ -805,14 +805,14 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
 
     fn batch_prover_config() -> BatchProverConfig {
         BatchProverConfig {
-            enable_recovery: false,
+            enable_proof_session_recovery: false,
             ..Default::default()
         }
     }
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
+            enable_proof_session_recovery: false,
             initial_da_height: 171,
             ..Default::default()
         }
@@ -1209,7 +1209,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
+            enable_proof_session_recovery: false,
             initial_da_height: 171,
             ..Default::default()
         }
@@ -1469,7 +1469,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
+            enable_proof_session_recovery: false,
             initial_da_height: 171,
             ..Default::default()
         }
@@ -1847,7 +1847,7 @@ impl TestCase for UnchainedBatchProofsTest {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
+            enable_proof_session_recovery: false,
             initial_da_height: 164,
             ..Default::default()
         }
@@ -2112,7 +2112,7 @@ impl TestCase for UnknownL1HashBatchProofTest {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
+            enable_proof_session_recovery: false,
             initial_da_height: 165,
             ..Default::default()
         }
@@ -2262,7 +2262,7 @@ impl TestCase for ChainProofByCommitmentIndex {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
+            enable_proof_session_recovery: false,
             initial_da_height: 171,
             ..Default::default()
         }
@@ -2478,7 +2478,7 @@ impl TestCase for ProofWithMissingCommitment {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
+            enable_proof_session_recovery: false,
             initial_da_height: 171,
             ..Default::default()
         }
@@ -2627,7 +2627,7 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
+            enable_proof_session_recovery: false,
             initial_da_height: 164,
             ..Default::default()
         }
@@ -2946,7 +2946,7 @@ impl TestCase for ProofWithWrongPreviousCommitmentHash {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
+            enable_proof_session_recovery: false,
             initial_da_height: 164,
             ..Default::default()
         }
@@ -3477,7 +3477,7 @@ impl TestCase for UndecompressableBlobTest {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
+            enable_proof_session_recovery: false,
             initial_da_height: 171,
             ..Default::default()
         }
