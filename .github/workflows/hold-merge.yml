@@ -1,0 +1,26 @@
+name: Hold Merge
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+      - labeled
+      - unlabeled
+
+jobs:
+  hold-merge:
+    name: HOLD-MERGE label
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail when HOLD-MERGE label is present
+        if: contains(github.event.pull_request.labels.*.name, 'HOLD-MERGE')
+        run: |
+          echo "This pull request has the HOLD-MERGE label."
+          exit 1
+
+      - name: Pass when HOLD-MERGE label is absent
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'HOLD-MERGE') }}
+        run: echo "HOLD-MERGE label is absent."
