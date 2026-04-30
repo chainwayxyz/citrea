@@ -870,7 +870,7 @@ where
         // TODO: https://github.com/chainwayxyz/citrea/issues/1992
         // // connect L1 and L2 height
         // self.ledger_db.extend_l2_range_of_l1_slot(
-        //     SlotNumber(da_block.header().height()),
+        //     L1BlockNumber(da_block.header().height()),
         //     L2BlockNumber(l2_height),
         // )?;
 

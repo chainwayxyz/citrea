@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::batch_proof::StoredBatchProofOutput;
 use sov_db::schema::types::job_status::JobStatus;
-use sov_db::schema::types::{L2BlockNumber, SlotNumber};
+use sov_db::schema::types::{L1BlockNumber, L2BlockNumber};
 use sov_modules_api::{BatchProofCircuitOutputV3, SpecId, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
@@ -369,7 +369,7 @@ where
             // This might cause some duplicate commitment indices appear in l1 -> index table which is ok
             self.context
                 .ledger_db
-                .put_commitment_index_by_l1(SlotNumber(l1_height), commitment.index)
+                .put_commitment_index_by_l1(L1BlockNumber(l1_height), commitment.index)
                 .map_err(internal_rpc_error)?;
             self.context
                 .ledger_db
@@ -709,7 +709,7 @@ where
     async fn get_commitment_indices_by_l1(&self, l1_height: u64) -> RpcResult<Option<Vec<u32>>> {
         self.context
             .ledger_db
-            .get_prover_commitment_indices_by_l1(SlotNumber(l1_height))
+            .get_prover_commitment_indices_by_l1(L1BlockNumber(l1_height))
             .map_err(internal_rpc_error)
     }
 

@@ -9,7 +9,7 @@ use crate::schema::tables::{
     CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, SequencerCommitmentByIndex, SlotByHash,
     VerifiedBatchProofsBySlotNumber,
 };
-use crate::schema::types::{L2BlockNumber, SlotNumber};
+use crate::schema::types::{L1BlockNumber, L2BlockNumber};
 
 fn check_if_l2_block_pruned(ledger_db: &LedgerDB, l2_height: u64) -> Result<(), anyhow::Error> {
     let last_pruned_l2_height = ledger_db.get_last_pruned_l2_height()?;
@@ -88,7 +88,7 @@ impl LedgerRpcProvider for LedgerDB {
         &self,
         height: u64,
     ) -> Result<Option<Vec<SequencerCommitmentResponse>>, anyhow::Error> {
-        match self.db.get::<CommitmentsByNumber>(&SlotNumber(height))? {
+        match self.db.get::<CommitmentsByNumber>(&L1BlockNumber(height))? {
             Some(commitments) => Ok(Some(
                 commitments
                     .into_iter()
@@ -112,7 +112,7 @@ impl LedgerRpcProvider for LedgerDB {
     ) -> Result<Option<Vec<VerifiedBatchProofResponse>>, anyhow::Error> {
         match self
             .db
-            .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(height))?
+            .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(height))?
         {
             Some(stored_proofs) => Ok(Some(
                 stored_proofs

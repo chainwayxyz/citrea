@@ -18,8 +18,8 @@ use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
 use crate::schema::types::{
-    BonsaiSession, BoundlessSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange,
-    L2HeightStatus, SlotNumber,
+    BonsaiSession, BoundlessSession, L1BlockNumber, L2BlockNumber, L2HeightAndIndex, L2HeightRange,
+    L2HeightStatus,
 };
 
 /// Shared ledger operations
@@ -41,7 +41,7 @@ pub trait SharedLedgerOps {
     /// Records the L2 height that was created as a l2 block of an L1 height
     fn extend_l2_range_of_l1_slot(
         &self,
-        l1_height: SlotNumber,
+        l1_height: L1BlockNumber,
         l2_height: L2BlockNumber,
     ) -> Result<()>;
 
@@ -88,10 +88,10 @@ pub trait SharedLedgerOps {
     fn get_last_commitment(&self) -> anyhow::Result<Option<SequencerCommitment>>;
 
     /// Get the last scanned slot
-    fn get_last_scanned_l1_height(&self) -> Result<Option<SlotNumber>>;
+    fn get_last_scanned_l1_height(&self) -> Result<Option<L1BlockNumber>>;
 
     /// Set the last scanned slot
-    fn set_last_scanned_l1_height(&self, l1_height: SlotNumber) -> Result<()>;
+    fn set_last_scanned_l1_height(&self, l1_height: L1BlockNumber) -> Result<()>;
 
     /// Get the last pruned block number
     fn get_last_pruned_l2_height(&self) -> Result<Option<u64>>;
@@ -228,7 +228,7 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     fn delete_prover_pending_commitments(&self, indices: Vec<u32>) -> Result<()>;
 
     /// Put commitment indices found in the L1 height
-    fn put_commitment_index_by_l1(&self, l1_height: SlotNumber, index: u32) -> Result<()>;
+    fn put_commitment_index_by_l1(&self, l1_height: L1BlockNumber, index: u32) -> Result<()>;
 
     /// Inserts a new prover job with its corresponding commitment indices, marking job as running
     #[allow(clippy::ptr_arg)]
@@ -280,7 +280,7 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get commitment indices by l1 height
     fn get_prover_commitment_indices_by_l1(
         &self,
-        l1_height: SlotNumber,
+        l1_height: L1BlockNumber,
     ) -> Result<Option<Vec<u32>>>;
 
     /// Get job status (non-existent job IS RUNNING)

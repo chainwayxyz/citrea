@@ -23,7 +23,7 @@ use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::l2_block::StoredL2Block;
-use sov_db::schema::types::{L2BlockNumber, L2HeightAndIndex, L2HeightStatus, SlotNumber};
+use sov_db::schema::types::{L1BlockNumber, L2BlockNumber, L2HeightAndIndex, L2HeightStatus};
 use sov_modules_api::{DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -347,7 +347,7 @@ where
         }
 
         self.ledger_db
-            .set_last_scanned_l1_height(SlotNumber(l1_height))
+            .set_last_scanned_l1_height(L1BlockNumber(l1_height))
             .map_err(|e| anyhow!("Could not set last scanned l1 height: {e}"))?;
 
         FM.current_l1_block.set(l1_height as f64);

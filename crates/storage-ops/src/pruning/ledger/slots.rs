@@ -5,7 +5,7 @@ use sov_db::schema::tables::{
     CommitmentsByNumber, L2RangeByL1Height, LightClientProofBySlotNumber, ProofsBySlotNumber,
     ProofsBySlotNumberV2, ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber,
 };
-use sov_db::schema::types::{L2BlockNumber, SlotNumber};
+use sov_db::schema::types::{L1BlockNumber, L2BlockNumber};
 use sov_schema_db::{ScanDirection, SchemaBatch, DB};
 
 pub(crate) fn prune_slots(
@@ -78,7 +78,7 @@ pub(crate) fn prune_slots(
 fn prune_slot_by_hash(
     node_type: NodeType,
     ledger_db: &DB,
-    slot_number: SlotNumber,
+    slot_number: L1BlockNumber,
     batch: &mut SchemaBatch,
     shutdown_signal: Option<&GracefulShutdown>,
 ) -> anyhow::Result<()> {
@@ -111,7 +111,7 @@ fn prune_slot_by_hash(
 
 fn prune_verified_proofs_by_slot_number(
     ledger_db: &DB,
-    slot_number: SlotNumber,
+    slot_number: L1BlockNumber,
     batch: &mut SchemaBatch,
     shutdown_signal: Option<&GracefulShutdown>,
 ) -> anyhow::Result<()> {

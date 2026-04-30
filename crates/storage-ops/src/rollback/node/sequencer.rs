@@ -4,7 +4,7 @@ use sov_db::schema::tables::{
     CommitmentsByNumber, L2BlockByHash, L2BlockByNumber, L2RangeByL1Height,
     SequencerCommitmentByIndex, StateDiffByBlockNumber,
 };
-use sov_db::schema::types::{L2BlockNumber, SlotNumber};
+use sov_db::schema::types::{L1BlockNumber, L2BlockNumber};
 use sov_schema_db::{ScanDirection, SchemaBatch, DB};
 
 use crate::increment_table_counter;
@@ -94,16 +94,16 @@ impl SequencerLedgerRollback {
 
             let slot_height = record.key;
 
-            if slot_height <= SlotNumber(l1_target) {
+            if slot_height <= L1BlockNumber(l1_target) {
                 break;
             }
 
             let iter_end = last_deleted_slot.unwrap_or(slot_height.0);
             for i in slot_height.0..=iter_end {
-                batch.delete::<L2RangeByL1Height>(&SlotNumber(i))?;
+                batch.delete::<L2RangeByL1Height>(&L1BlockNumber(i))?;
                 increment_table_counter!("L2RangeByL1Height", rollback_result);
 
-                batch.delete::<CommitmentsByNumber>(&SlotNumber(i))?;
+                batch.delete::<CommitmentsByNumber>(&L1BlockNumber(i))?;
                 increment_table_counter!("CommitmentsByNumber", rollback_result);
             }
             last_deleted_slot = Some(slot_height.0);

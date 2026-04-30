@@ -16,7 +16,7 @@ use prover_services::{ParallelProverService, ProofData, ProofWithDuration};
 use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::light_client_proof::StoredLightClientProofOutput;
-use sov_db::schema::types::SlotNumber;
+use sov_db::schema::types::L1BlockNumber;
 use sov_modules_api::Zkvm;
 use sov_prover_storage_manager::{ProverStorage, ProverStorageManager};
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -302,7 +302,7 @@ where
         LPM.set_lcp_proving_time(proof_with_duration.duration);
 
         self.ledger_db
-            .set_last_scanned_l1_height(SlotNumber(l1_block.header().height()))
+            .set_last_scanned_l1_height(L1BlockNumber(l1_block.header().height()))
             .expect("Saving last scanned l1 height to ledger db");
 
         LPM.current_l1_block.set(l1_height as f64);

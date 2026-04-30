@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use sov_db::schema::tables::{LightClientProofBySlotNumber, ProverLastScannedSlot};
-use sov_db::schema::types::SlotNumber;
+use sov_db::schema::types::L1BlockNumber;
 use sov_schema_db::{ScanDirection, SchemaBatch, DB};
 
 use crate::increment_table_counter;
@@ -37,7 +37,7 @@ impl LightClientLedgerRollback {
 
             let slot_height = record.key;
 
-            if slot_height <= SlotNumber(l1_target) {
+            if slot_height <= L1BlockNumber(l1_target) {
                 break;
             }
 
@@ -59,7 +59,7 @@ impl LedgerNodeRollback for LightClientLedgerRollback {
 
             let _ = self
                 .ledger_db
-                .put::<ProverLastScannedSlot>(&(), &SlotNumber(l1_target));
+                .put::<ProverLastScannedSlot>(&(), &L1BlockNumber(l1_target));
         }
 
         let _ = self.ledger_db.flush();

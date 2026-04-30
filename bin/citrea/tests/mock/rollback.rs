@@ -22,7 +22,7 @@ use sov_db::schema::tables::{
     CommitmentIndicesByL1, VerifiedBatchProofsBySlotNumber, BATCH_PROVER_LEDGER_TABLES,
     FULL_NODE_LEDGER_TABLES, SEQUENCER_LEDGER_TABLES,
 };
-use sov_db::schema::types::SlotNumber;
+use sov_db::schema::types::L1BlockNumber;
 use sov_db::state_db::StateDB;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::rpc::SequencerCommitmentResponse;
@@ -686,11 +686,11 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
         instantiate_dbs(&new_full_node_db_dir, FULL_NODE_LEDGER_TABLES).unwrap();
     let ledger_db = ledger_db.inner();
     assert!(ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(7))
+        .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(7))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(9))
+        .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(9))
         .unwrap()
         .is_some());
 
@@ -780,11 +780,11 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
         instantiate_dbs(&new_full_node_db_dir, FULL_NODE_LEDGER_TABLES).unwrap();
     let fn_ledger_db = fn_ledger_db.inner();
     assert!(fn_ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(9))
+        .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(9))
         .unwrap()
         .is_some());
     assert!(fn_ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(11))
+        .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(11))
         .unwrap()
         .is_none());
 
@@ -793,11 +793,11 @@ async fn test_batch_prover_rollback() -> Result<(), anyhow::Error> {
         instantiate_dbs(&new_batch_prover_db_dir, BATCH_PROVER_LEDGER_TABLES).unwrap();
     let bp_ledger_db = bp_ledger_db.inner();
     assert!(bp_ledger_db
-        .get::<CommitmentIndicesByL1>(&SlotNumber(8))
+        .get::<CommitmentIndicesByL1>(&L1BlockNumber(8))
         .unwrap()
         .is_some());
     assert!(bp_ledger_db
-        .get::<CommitmentIndicesByL1>(&SlotNumber(10))
+        .get::<CommitmentIndicesByL1>(&L1BlockNumber(10))
         .unwrap()
         .is_none());
 

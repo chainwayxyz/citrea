@@ -23,8 +23,9 @@ use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
 use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
-    AccessoryKey, AccessoryStateValue, BonsaiSession, BoundlessSession, DbHash, JmtValue, L1Height,
-    L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber, StateKey,
+    AccessoryKey, AccessoryStateValue, BonsaiSession, BoundlessSession, DbHash, JmtValue,
+    L1BlockNumber, L1Height, L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus,
+    StateKey,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -343,12 +344,12 @@ define_table_with_seek_key_codec!(
 
 define_table_with_default_codec!(
     /// A "secondary index" for slot data by hash
-    (SlotByHash) DbHash => SlotNumber
+    (SlotByHash) DbHash => L1BlockNumber
 );
 
 define_table_with_default_codec!(
     /// The primary source for sequencer commitment data
-    (CommitmentsByNumber) SlotNumber => Vec<SequencerCommitment>
+    (CommitmentsByNumber) L1BlockNumber => Vec<SequencerCommitment>
 );
 
 define_table_with_seek_key_codec!(
@@ -363,7 +364,7 @@ define_table_with_seek_key_codec!(
 
 define_table_with_default_codec!(
     /// list of commitment indices by l1 height
-    (CommitmentIndicesByL1) SlotNumber => Vec<u32>
+    (CommitmentIndicesByL1) L1BlockNumber => Vec<u32>
 );
 
 define_table_with_default_codec!(
@@ -418,7 +419,7 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// The primary source of reverse look-up L2 height ranges for L1 heights
-    (L2RangeByL1Height) SlotNumber => L2HeightRange
+    (L2RangeByL1Height) L1BlockNumber => L2HeightRange
 );
 
 define_table_with_default_codec!(
@@ -436,7 +437,7 @@ define_table_with_seek_key_codec!(
     /// Full node also uses this table to store the last slot it scanned
     /// However, we don't rename here to avoid breaking changes on deployed nodes
     /// and prover.
-    (ProverLastScannedSlot) () => SlotNumber
+    (ProverLastScannedSlot) () => L1BlockNumber
 );
 
 define_table_without_codec!(
@@ -506,27 +507,27 @@ impl ValueCodec<StaleNodes> for () {
 
 define_table_with_default_codec!(
     /// Light client proof data by l1 height
-    (LightClientProofBySlotNumber) SlotNumber => StoredLightClientProof
+    (LightClientProofBySlotNumber) L1BlockNumber => StoredLightClientProof
 );
 
 define_table_with_seek_key_codec!(
     /// Proving session information by slot number
-    (ProvingSessionInfoBySlotNumber) SlotNumber => ProvingSessionInfo
+    (ProvingSessionInfoBySlotNumber) L1BlockNumber => ProvingSessionInfo
 );
 
 define_table_with_default_codec!(
     /// Old version of ProofsBySlotNumber
-    (ProofsBySlotNumber) SlotNumber => Vec<StoredBatchProof>
+    (ProofsBySlotNumber) L1BlockNumber => Vec<StoredBatchProof>
 );
 
 define_table_with_default_codec!(
     /// Proof data on L1 slot
-    (ProofsBySlotNumberV2) SlotNumber => Vec<StoredBatchProof>
+    (ProofsBySlotNumberV2) L1BlockNumber => Vec<StoredBatchProof>
 );
 
 define_table_with_seek_key_codec!(
     /// Proof data on L1 slot verified by full node
-    (VerifiedBatchProofsBySlotNumber) SlotNumber => Vec<StoredVerifiedProof>
+    (VerifiedBatchProofsBySlotNumber) L1BlockNumber => Vec<StoredVerifiedProof>
 );
 
 define_table_with_seek_key_codec!(

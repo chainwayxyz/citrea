@@ -5,7 +5,7 @@ use futures::future;
 use ledger::rollback_ledger;
 use native::rollback_native_db;
 use sov_db::schema::tables::ProverLastScannedSlot;
-use sov_db::schema::types::SlotNumber;
+use sov_db::schema::types::L1BlockNumber;
 use sov_db::state_db::StateDB;
 use state::rollback_state_db;
 use tracing::info;
@@ -87,7 +87,7 @@ impl Rollback {
 
                     let last_scanned_l1_height = ledger_db
                         .get::<ProverLastScannedSlot>(&())?
-                        .unwrap_or(SlotNumber(0))
+                        .unwrap_or(L1BlockNumber(0))
                         .0;
 
                     if last_scanned_l1_height < l1_target {

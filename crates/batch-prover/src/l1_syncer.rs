@@ -14,7 +14,7 @@ use citrea_common::utils::shutdown_requested;
 use citrea_common::{RollupPublicKeys, StartVariant};
 use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::SlotNumber;
+use sov_db::schema::types::L1BlockNumber;
 use sov_modules_api::DaSpec;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -211,7 +211,7 @@ where
                             .put_commitment_by_index(commitment)
                             .expect("Should store commitment");
                         self.ledger_db
-                            .put_commitment_index_by_l1(SlotNumber(l1_height), index)
+                            .put_commitment_index_by_l1(L1BlockNumber(l1_height), index)
                             .expect("Should put commitment index by l1");
                         self.ledger_db
                             .put_prover_pending_commitment(index)
@@ -222,7 +222,7 @@ where
 
             // Set last scanned l1 height
             self.ledger_db
-                .set_last_scanned_l1_height(SlotNumber(l1_height))
+                .set_last_scanned_l1_height(L1BlockNumber(l1_height))
                 .expect("Should put prover last scanned l1 height");
 
             BPM.current_l1_block.set(l1_height as f64);

@@ -18,7 +18,7 @@ use sov_db::schema::types::l2_block::{StoredL2Block, StoredTransaction};
 use sov_db::schema::types::light_client_proof::{
     StoredLatestDaState, StoredLightClientProof, StoredLightClientProofOutput,
 };
-use sov_db::schema::types::{L2BlockNumber, SlotNumber};
+use sov_db::schema::types::{L1BlockNumber, L2BlockNumber};
 use sov_db::state_db::StateDB;
 use sov_schema_db::DB;
 use sov_state::Storage;
@@ -376,7 +376,7 @@ fn prepare_slots_data(ledger_db: &DB) {
     for da_slot_height in 2u64..=20 {
         ledger_db
             .put::<L2RangeByL1Height>(
-                &SlotNumber(da_slot_height),
+                &L1BlockNumber(da_slot_height),
                 &(
                     L2BlockNumber(da_slot_height - 1),
                     L2BlockNumber(da_slot_height),
@@ -384,20 +384,20 @@ fn prepare_slots_data(ledger_db: &DB) {
             )
             .unwrap();
         ledger_db
-            .put::<CommitmentsByNumber>(&SlotNumber(da_slot_height), &vec![])
+            .put::<CommitmentsByNumber>(&L1BlockNumber(da_slot_height), &vec![])
             .unwrap();
         ledger_db
-            .put::<ProofsBySlotNumber>(&SlotNumber(da_slot_height), &vec![])
+            .put::<ProofsBySlotNumber>(&L1BlockNumber(da_slot_height), &vec![])
             .unwrap();
         ledger_db
-            .put::<ProofsBySlotNumberV2>(&SlotNumber(da_slot_height), &vec![])
+            .put::<ProofsBySlotNumberV2>(&L1BlockNumber(da_slot_height), &vec![])
             .unwrap();
         ledger_db
-            .put::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(da_slot_height), &vec![])
+            .put::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(da_slot_height), &vec![])
             .unwrap();
         ledger_db
             .put::<LightClientProofBySlotNumber>(
-                &SlotNumber(da_slot_height),
+                &L1BlockNumber(da_slot_height),
                 &StoredLightClientProof {
                     proof: vec![1; 32],
                     light_client_proof_output: StoredLightClientProofOutput {
@@ -419,85 +419,85 @@ fn prepare_slots_data(ledger_db: &DB) {
             )
             .unwrap();
         ledger_db
-            .put::<SlotByHash>(&[da_slot_height as u8; 32], &SlotNumber(da_slot_height))
+            .put::<SlotByHash>(&[da_slot_height as u8; 32], &L1BlockNumber(da_slot_height))
             .unwrap();
     }
 
     assert!(ledger_db
-        .get::<L2RangeByL1Height>(&SlotNumber(2))
+        .get::<L2RangeByL1Height>(&L1BlockNumber(2))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<L2RangeByL1Height>(&SlotNumber(10))
+        .get::<L2RangeByL1Height>(&L1BlockNumber(10))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<L2RangeByL1Height>(&SlotNumber(20))
-        .unwrap()
-        .is_some());
-
-    assert!(ledger_db
-        .get::<CommitmentsByNumber>(&SlotNumber(2))
-        .unwrap()
-        .is_some());
-    assert!(ledger_db
-        .get::<CommitmentsByNumber>(&SlotNumber(10))
-        .unwrap()
-        .is_some());
-    assert!(ledger_db
-        .get::<CommitmentsByNumber>(&SlotNumber(20))
+        .get::<L2RangeByL1Height>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 
     assert!(ledger_db
-        .get::<ProofsBySlotNumber>(&SlotNumber(2))
+        .get::<CommitmentsByNumber>(&L1BlockNumber(2))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<ProofsBySlotNumber>(&SlotNumber(10))
+        .get::<CommitmentsByNumber>(&L1BlockNumber(10))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<ProofsBySlotNumber>(&SlotNumber(20))
-        .unwrap()
-        .is_some());
-
-    assert!(ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(2))
-        .unwrap()
-        .is_some());
-    assert!(ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(10))
-        .unwrap()
-        .is_some());
-    assert!(ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(20))
+        .get::<CommitmentsByNumber>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 
     assert!(ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(2))
+        .get::<ProofsBySlotNumber>(&L1BlockNumber(2))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(10))
+        .get::<ProofsBySlotNumber>(&L1BlockNumber(10))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(20))
+        .get::<ProofsBySlotNumber>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 
     assert!(ledger_db
-        .get::<LightClientProofBySlotNumber>(&SlotNumber(2))
+        .get::<ProofsBySlotNumberV2>(&L1BlockNumber(2))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<LightClientProofBySlotNumber>(&SlotNumber(10))
+        .get::<ProofsBySlotNumberV2>(&L1BlockNumber(10))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<LightClientProofBySlotNumber>(&SlotNumber(20))
+        .get::<ProofsBySlotNumberV2>(&L1BlockNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&L1BlockNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&L1BlockNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 }
@@ -514,81 +514,81 @@ pub fn test_pruning_ledger_db_fullnode_slots() {
 
     // SHOULD NOT CHANGE
     assert!(ledger_db
-        .get::<ProofsBySlotNumber>(&SlotNumber(2))
+        .get::<ProofsBySlotNumber>(&L1BlockNumber(2))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<ProofsBySlotNumber>(&SlotNumber(10))
+        .get::<ProofsBySlotNumber>(&L1BlockNumber(10))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<ProofsBySlotNumber>(&SlotNumber(20))
-        .unwrap()
-        .is_some());
-
-    assert!(ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(2))
-        .unwrap()
-        .is_some());
-    assert!(ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(10))
-        .unwrap()
-        .is_some());
-    assert!(ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(20))
+        .get::<ProofsBySlotNumber>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 
     assert!(ledger_db
-        .get::<LightClientProofBySlotNumber>(&SlotNumber(2))
+        .get::<ProofsBySlotNumberV2>(&L1BlockNumber(2))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<LightClientProofBySlotNumber>(&SlotNumber(10))
+        .get::<ProofsBySlotNumberV2>(&L1BlockNumber(10))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<LightClientProofBySlotNumber>(&SlotNumber(20))
+        .get::<ProofsBySlotNumberV2>(&L1BlockNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&L1BlockNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&L1BlockNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<LightClientProofBySlotNumber>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 
     // SHOULD BE PRUNED UP TO 10
     assert!(ledger_db
-        .get::<L2RangeByL1Height>(&SlotNumber(2))
+        .get::<L2RangeByL1Height>(&L1BlockNumber(2))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<L2RangeByL1Height>(&SlotNumber(10))
+        .get::<L2RangeByL1Height>(&L1BlockNumber(10))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<L2RangeByL1Height>(&SlotNumber(20))
+        .get::<L2RangeByL1Height>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 
     assert!(ledger_db
-        .get::<CommitmentsByNumber>(&SlotNumber(2))
+        .get::<CommitmentsByNumber>(&L1BlockNumber(2))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<CommitmentsByNumber>(&SlotNumber(10))
+        .get::<CommitmentsByNumber>(&L1BlockNumber(10))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<CommitmentsByNumber>(&SlotNumber(20))
+        .get::<CommitmentsByNumber>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 
     assert!(ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(2))
+        .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(2))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(10))
+        .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(10))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(20))
+        .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 }
@@ -605,81 +605,81 @@ pub fn test_pruning_ledger_db_light_client_slots() {
 
     // SHOULD NOT CHANGE
     assert!(ledger_db
-        .get::<ProofsBySlotNumber>(&SlotNumber(2))
+        .get::<ProofsBySlotNumber>(&L1BlockNumber(2))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<ProofsBySlotNumber>(&SlotNumber(10))
+        .get::<ProofsBySlotNumber>(&L1BlockNumber(10))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<ProofsBySlotNumber>(&SlotNumber(20))
-        .unwrap()
-        .is_some());
-
-    assert!(ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(2))
-        .unwrap()
-        .is_some());
-    assert!(ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(10))
-        .unwrap()
-        .is_some());
-    assert!(ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(20))
+        .get::<ProofsBySlotNumber>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 
     assert!(ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(2))
+        .get::<ProofsBySlotNumberV2>(&L1BlockNumber(2))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(10))
+        .get::<ProofsBySlotNumberV2>(&L1BlockNumber(10))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(20))
+        .get::<ProofsBySlotNumberV2>(&L1BlockNumber(20))
+        .unwrap()
+        .is_some());
+
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(2))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(10))
+        .unwrap()
+        .is_some());
+    assert!(ledger_db
+        .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 
     // SHOULD BE PRUNED UP TO 10
     assert!(ledger_db
-        .get::<L2RangeByL1Height>(&SlotNumber(2))
+        .get::<L2RangeByL1Height>(&L1BlockNumber(2))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<L2RangeByL1Height>(&SlotNumber(10))
+        .get::<L2RangeByL1Height>(&L1BlockNumber(10))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<L2RangeByL1Height>(&SlotNumber(20))
+        .get::<L2RangeByL1Height>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 
     assert!(ledger_db
-        .get::<CommitmentsByNumber>(&SlotNumber(2))
+        .get::<CommitmentsByNumber>(&L1BlockNumber(2))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<CommitmentsByNumber>(&SlotNumber(10))
+        .get::<CommitmentsByNumber>(&L1BlockNumber(10))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<CommitmentsByNumber>(&SlotNumber(20))
+        .get::<CommitmentsByNumber>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 
     assert!(ledger_db
-        .get::<LightClientProofBySlotNumber>(&SlotNumber(2))
+        .get::<LightClientProofBySlotNumber>(&L1BlockNumber(2))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<LightClientProofBySlotNumber>(&SlotNumber(10))
+        .get::<LightClientProofBySlotNumber>(&L1BlockNumber(10))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<LightClientProofBySlotNumber>(&SlotNumber(20))
+        .get::<LightClientProofBySlotNumber>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 }
@@ -696,81 +696,81 @@ pub fn test_pruning_ledger_db_batch_prover_slots() {
 
     // SHOULD NOT CHANGE
     assert!(ledger_db
-        .get::<LightClientProofBySlotNumber>(&SlotNumber(2))
+        .get::<LightClientProofBySlotNumber>(&L1BlockNumber(2))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<LightClientProofBySlotNumber>(&SlotNumber(10))
+        .get::<LightClientProofBySlotNumber>(&L1BlockNumber(10))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<LightClientProofBySlotNumber>(&SlotNumber(20))
+        .get::<LightClientProofBySlotNumber>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 
     assert!(ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(2))
+        .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(2))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(10))
+        .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(10))
         .unwrap()
         .is_some());
     assert!(ledger_db
-        .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(20))
+        .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 
     // SHOULD BE PRUNED UP TO 10
     assert!(ledger_db
-        .get::<L2RangeByL1Height>(&SlotNumber(2))
+        .get::<L2RangeByL1Height>(&L1BlockNumber(2))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<L2RangeByL1Height>(&SlotNumber(10))
+        .get::<L2RangeByL1Height>(&L1BlockNumber(10))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<L2RangeByL1Height>(&SlotNumber(20))
+        .get::<L2RangeByL1Height>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 
     assert!(ledger_db
-        .get::<CommitmentsByNumber>(&SlotNumber(2))
+        .get::<CommitmentsByNumber>(&L1BlockNumber(2))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<CommitmentsByNumber>(&SlotNumber(10))
+        .get::<CommitmentsByNumber>(&L1BlockNumber(10))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<CommitmentsByNumber>(&SlotNumber(20))
+        .get::<CommitmentsByNumber>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 
     assert!(ledger_db
-        .get::<ProofsBySlotNumber>(&SlotNumber(2))
+        .get::<ProofsBySlotNumber>(&L1BlockNumber(2))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<ProofsBySlotNumber>(&SlotNumber(10))
+        .get::<ProofsBySlotNumber>(&L1BlockNumber(10))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<ProofsBySlotNumber>(&SlotNumber(20))
+        .get::<ProofsBySlotNumber>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 
     assert!(ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(2))
+        .get::<ProofsBySlotNumberV2>(&L1BlockNumber(2))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(10))
+        .get::<ProofsBySlotNumberV2>(&L1BlockNumber(10))
         .unwrap()
         .is_none());
     assert!(ledger_db
-        .get::<ProofsBySlotNumberV2>(&SlotNumber(20))
+        .get::<ProofsBySlotNumberV2>(&L1BlockNumber(20))
         .unwrap()
         .is_some());
 }

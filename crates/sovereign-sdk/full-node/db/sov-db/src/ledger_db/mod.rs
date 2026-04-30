@@ -34,8 +34,8 @@ use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
 use crate::schema::types::{
-    BonsaiSession, BoundlessSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange,
-    L2HeightStatus, SlotNumber,
+    BonsaiSession, BoundlessSession, L1BlockNumber, L2BlockNumber, L2HeightAndIndex, L2HeightRange,
+    L2HeightStatus,
 };
 
 /// Implementation of database migrator
@@ -236,7 +236,7 @@ impl SharedLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err, ret)]
     fn extend_l2_range_of_l1_slot(
         &self,
-        l1_height: SlotNumber,
+        l1_height: L1BlockNumber,
         l2_height: L2BlockNumber,
     ) -> Result<(), anyhow::Error> {
         let current_range = self.db.get::<L2RangeByL1Height>(&l1_height)?;
@@ -270,7 +270,7 @@ impl SharedLedgerOps for LedgerDB {
     /// Sets l1 height of l1 hash
     #[instrument(level = "trace", skip(self), err, ret)]
     fn set_l1_height_of_l1_hash(&self, hash: [u8; 32], height: u64) -> anyhow::Result<()> {
-        self.db.put::<SlotByHash>(&hash, &SlotNumber(height))
+        self.db.put::<SlotByHash>(&hash, &L1BlockNumber(height))
     }
 
     /// Gets l1 height of l1 hash
@@ -288,7 +288,7 @@ impl SharedLedgerOps for LedgerDB {
         commitment: SequencerCommitment,
     ) -> anyhow::Result<()> {
         // get commitments
-        let commitments = self.db.get::<CommitmentsByNumber>(&SlotNumber(height))?;
+        let commitments = self.db.get::<CommitmentsByNumber>(&L1BlockNumber(height))?;
 
         match commitments {
             // If there were other commitments, upsert
@@ -296,7 +296,7 @@ impl SharedLedgerOps for LedgerDB {
                 if !commitments.contains(&commitment) {
                     commitments.push(commitment);
                     self.db
-                        .put::<CommitmentsByNumber>(&SlotNumber(height), &commitments)
+                        .put::<CommitmentsByNumber>(&L1BlockNumber(height), &commitments)
                 } else {
                     Ok(())
                 }
@@ -304,7 +304,7 @@ impl SharedLedgerOps for LedgerDB {
             // Else insert
             None => self
                 .db
-                .put::<CommitmentsByNumber>(&SlotNumber(height), &vec![commitment]),
+                .put::<CommitmentsByNumber>(&L1BlockNumber(height), &vec![commitment]),
         }
     }
 
@@ -387,14 +387,14 @@ impl SharedLedgerOps for LedgerDB {
 
     /// Get the last scanned slot by the prover
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_last_scanned_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
+    fn get_last_scanned_l1_height(&self) -> anyhow::Result<Option<L1BlockNumber>> {
         self.db.get::<ProverLastScannedSlot>(&())
     }
 
     /// Set the last scanned slot by the prover
     /// Called by the prover.
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn set_last_scanned_l1_height(&self, l1_height: SlotNumber) -> anyhow::Result<()> {
+    fn set_last_scanned_l1_height(&self, l1_height: L1BlockNumber) -> anyhow::Result<()> {
         self.db.put::<ProverLastScannedSlot>(&(), &l1_height)
     }
 
@@ -476,8 +476,9 @@ impl LightClientProverLedgerOps for LedgerDB {
         };
 
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<LightClientProofBySlotNumber>(&SlotNumber(l1_height), &data_to_store)?;
-        schema_batch.put::<ProvingSessionInfoBySlotNumber>(&SlotNumber(l1_height), &info)?;
+        schema_batch
+            .put::<LightClientProofBySlotNumber>(&L1BlockNumber(l1_height), &data_to_store)?;
+        schema_batch.put::<ProvingSessionInfoBySlotNumber>(&L1BlockNumber(l1_height), &info)?;
 
         self.db.write_schemas(schema_batch)
     }
@@ -487,7 +488,7 @@ impl LightClientProverLedgerOps for LedgerDB {
         l1_height: u64,
     ) -> anyhow::Result<Option<StoredLightClientProof>> {
         self.db
-            .get::<LightClientProofBySlotNumber>(&SlotNumber(l1_height))
+            .get::<LightClientProofBySlotNumber>(&L1BlockNumber(l1_height))
     }
 
     fn get_proving_session_info_by_l1_height(
@@ -495,7 +496,7 @@ impl LightClientProverLedgerOps for LedgerDB {
         l1_height: u64,
     ) -> anyhow::Result<Option<ProvingSessionInfo>> {
         self.db
-            .get::<ProvingSessionInfoBySlotNumber>(&SlotNumber(l1_height))
+            .get::<ProvingSessionInfoBySlotNumber>(&L1BlockNumber(l1_height))
     }
 }
 
@@ -550,7 +551,11 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn put_commitment_index_by_l1(&self, l1_height: SlotNumber, index: u32) -> anyhow::Result<()> {
+    fn put_commitment_index_by_l1(
+        &self,
+        l1_height: L1BlockNumber,
+        index: u32,
+    ) -> anyhow::Result<()> {
         let mut indices = self
             .db
             .get::<CommitmentIndicesByL1>(&l1_height)?
@@ -723,7 +728,7 @@ impl BatchProverLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err)]
     fn get_prover_commitment_indices_by_l1(
         &self,
-        l1_height: SlotNumber,
+        l1_height: L1BlockNumber,
     ) -> anyhow::Result<Option<Vec<u32>>> {
         self.db.get::<CommitmentIndicesByL1>(&l1_height)
     }
@@ -872,7 +877,7 @@ impl NodeLedgerOps for LedgerDB {
     ) -> anyhow::Result<()> {
         let verified_proofs = self
             .db
-            .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(l1_height))?;
+            .get::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(l1_height))?;
 
         match verified_proofs {
             Some(mut verified_proofs) => {
@@ -882,12 +887,12 @@ impl NodeLedgerOps for LedgerDB {
                 };
                 verified_proofs.push(stored_verified_proof);
                 self.db.put::<VerifiedBatchProofsBySlotNumber>(
-                    &SlotNumber(l1_height),
+                    &L1BlockNumber(l1_height),
                     &verified_proofs,
                 )
             }
             None => self.db.put(
-                &SlotNumber(l1_height),
+                &L1BlockNumber(l1_height),
                 &vec![StoredVerifiedProof {
                     proof,
                     proof_output,
@@ -902,7 +907,7 @@ impl NodeLedgerOps for LedgerDB {
         &self,
         height: u64,
     ) -> anyhow::Result<Option<Vec<SequencerCommitment>>> {
-        self.db.get::<CommitmentsByNumber>(&SlotNumber(height))
+        self.db.get::<CommitmentsByNumber>(&L1BlockNumber(height))
     }
 
     fn get_highest_l2_height_for_status(

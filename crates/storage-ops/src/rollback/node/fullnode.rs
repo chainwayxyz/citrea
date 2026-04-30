@@ -6,7 +6,7 @@ use sov_db::schema::tables::{
     PendingProofs, PendingSequencerCommitments, ProverLastScannedSlot, SequencerCommitmentByIndex,
     ShortHeaderProofBySlotHash, SlotByHash, VerifiedBatchProofsBySlotNumber,
 };
-use sov_db::schema::types::{L2BlockNumber, L2HeightStatus, SlotNumber};
+use sov_db::schema::types::{L1BlockNumber, L2BlockNumber, L2HeightStatus};
 use sov_schema_db::{ScanDirection, SchemaBatch, DB};
 
 use crate::increment_table_counter;
@@ -89,13 +89,13 @@ impl FullNodeLedgerRollback {
             .get::<ProverLastScannedSlot>(&())?
             .unwrap_or_default();
         for i in l1_target + 1..=last_scanned_l1_height.0 {
-            batch.delete::<L2RangeByL1Height>(&SlotNumber(i))?;
+            batch.delete::<L2RangeByL1Height>(&L1BlockNumber(i))?;
             increment_table_counter!("L2RangeByL1Height", rollback_result);
 
-            batch.delete::<CommitmentsByNumber>(&SlotNumber(i))?;
+            batch.delete::<CommitmentsByNumber>(&L1BlockNumber(i))?;
             increment_table_counter!("CommitmentsByNumber", rollback_result);
 
-            batch.delete::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(i))?;
+            batch.delete::<VerifiedBatchProofsBySlotNumber>(&L1BlockNumber(i))?;
             increment_table_counter!("VerifiedBatchProofsBySlotNumber", rollback_result);
 
             batch.delete::<L2StatusHeights>(&(L2HeightStatus::Committed, i))?;
@@ -213,7 +213,7 @@ impl LedgerNodeRollback for FullNodeLedgerRollback {
 
             let _ = self
                 .ledger_db
-                .put::<ProverLastScannedSlot>(&(), &SlotNumber(l1_target));
+                .put::<ProverLastScannedSlot>(&(), &L1BlockNumber(l1_target));
         }
         let _ = self.ledger_db.flush();
         Ok(rollback_result)

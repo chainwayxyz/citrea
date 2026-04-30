@@ -102,7 +102,7 @@ macro_rules! u64_wrapper {
     };
 }
 
-u64_wrapper!(SlotNumber);
+u64_wrapper!(L1BlockNumber);
 u64_wrapper!(L2BlockNumber);
 
 /// Bonsai session
