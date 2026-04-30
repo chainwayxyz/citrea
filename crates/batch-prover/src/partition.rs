@@ -67,6 +67,7 @@ impl<'a> PartitionState<'a> {
         commitments: &'a [SequencerCommitment],
         ledger_db: impl BatchProverLedgerOps,
     ) -> anyhow::Result<Self> {
+        anyhow::ensure!(!commitments.is_empty(), "commitments slice must not be empty");
         let start_l2_height = if commitments[0].index == 1 {
             // If this is the first commitment ever, start from 1
             get_tangerine_activation_height_non_zero()
