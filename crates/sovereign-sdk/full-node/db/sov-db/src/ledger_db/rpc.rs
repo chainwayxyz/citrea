@@ -61,16 +61,16 @@ impl LedgerRpcProvider for LedgerDB {
         &self,
         start: u64,
         end: u64,
-    ) -> Result<Vec<Option<L2BlockResponse>>, anyhow::Error> {
+    ) -> Result<Vec<L2BlockResponse>, anyhow::Error> {
         anyhow::ensure!(start <= end, "start must be <= end");
 
         let l2_block_ids: Vec<_> = (start..=end).map(L2BlockIdentifier::Number).collect();
         let mut out = Vec::with_capacity(l2_block_ids.len());
         for l2_block_id in &l2_block_ids {
             if let Some(l2_block) = self.get_l2_block(l2_block_id)? {
-                out.push(Some(l2_block));
+                out.push(l2_block);
             } else {
-                out.push(None);
+                anyhow::bail!("L2 block {l2_block_id:?} is missing from the requested range");
             }
         }
         Ok(out)
