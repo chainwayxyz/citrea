@@ -1,4 +1,6 @@
 use std::collections::{HashMap, HashSet};
+use std::fs::OpenOptions;
+use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -15,6 +17,8 @@ use tracing::{info, warn};
 use super::utils::{get_backup_engine, restore_from_backup, validate_backup};
 use crate::backup::metadata::{self, BackupMetadata};
 use crate::NodeType;
+
+const BACKUP_LOCK_FILE_NAME: &str = ".backup.lock";
 
 /// Configuration for database backups
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,6 +73,53 @@ pub struct CreateBackupInfo {
     pub created_at: u64,
     /// Backup id
     pub backup_id: u32,
+}
+
+struct BackupPathLock {
+    path: PathBuf,
+}
+
+impl BackupPathLock {
+    fn acquire(backup_path: &Path) -> anyhow::Result<Self> {
+        std::fs::create_dir_all(backup_path)?;
+
+        let path = backup_path.join(BACKUP_LOCK_FILE_NAME);
+        match OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(mut file) => {
+                let created_at = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map_or(0, |duration| duration.as_secs());
+                let _ = writeln!(
+                    file,
+                    "pid={}\ncreated_at={}",
+                    std::process::id(),
+                    created_at
+                );
+                Ok(Self { path })
+            }
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+                bail!(
+                    "Backup operation already in progress at {}",
+                    backup_path.display()
+                )
+            }
+            Err(e) => Err(e).with_context(|| {
+                format!("Failed to create backup lock file at {}", path.display())
+            }),
+        }
+    }
+}
+
+impl Drop for BackupPathLock {
+    fn drop(&mut self) {
+        if let Err(e) = std::fs::remove_file(&self.path) {
+            warn!(
+                path = %self.path.display(),
+                error = %e,
+                "Failed to remove backup lock file"
+            );
+        }
+    }
 }
 
 impl BackupManager {
@@ -155,6 +206,8 @@ impl BackupManager {
             .as_ref()
             .or(self.base_path.as_ref())
             .context("Missing path and no backup_path found in config.")?;
+
+        let _backup_path_lock = BackupPathLock::acquire(backup_path)?;
 
         let l1_lock = self.l1_processing_lock.lock().await;
         let l2_lock = self.l2_processing_lock.lock().await;
@@ -395,6 +448,8 @@ impl BackupManager {
         if !backup_path.exists() {
             bail!("Backup directory does not exist: {:?}", backup_path);
         }
+
+        let _backup_path_lock = BackupPathLock::acquire(&backup_path)?;
 
         let start_time = Instant::now();
 
