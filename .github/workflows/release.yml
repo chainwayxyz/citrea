@@ -1,10 +1,5 @@
 name: Release
 
-permissions:
-  contents: write
-  id-token: write
-  attestations: write
-
 on:
   push:
     tags:
@@ -180,10 +175,10 @@ jobs:
             accept-flake-config = true
 
       - name: Build
-        run: nix build ./nix#citrea
+        run: nix build ./nix
 
       - name: Rebuild to verify reproducibility
-        run: nix build ./nix#citrea --rebuild
+        run: nix build ./nix
 
       - name: Collect artifacts
         shell: bash
@@ -214,11 +209,14 @@ jobs:
           name: release-build-${{ matrix.platform }}-${{ steps.vars.outputs.release_tag }}
           path: artifacts/
 
-
   verify-against-manifest:
     needs: [verify-manifest, build]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     outputs:
       sha256sums_hash: ${{ steps.expose.outputs.sha256sums_hash }}
     steps:
@@ -274,9 +272,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Normalize both files (sort, strip trailing whitespace) and diff.
-          # If maintainers and CI built the same source with the same Nix flake,
-          # every hash must match.
           sort artifacts/SHA256SUMS.txt > /tmp/ci.txt
           sort "manifest/${GITHUB_REF_NAME}.txt" > /tmp/signed.txt
 
@@ -315,11 +310,13 @@ jobs:
             artifacts/citrea-cli-${{ github.ref_name }}-linux-arm64
             artifacts/citrea-cli-${{ github.ref_name }}-osx-arm64
 
-
   package:
     needs: verify-against-manifest
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - name: Download verified bundle
         uses: actions/download-artifact@v4
@@ -341,7 +338,7 @@ jobs:
           (cd artifacts && shasum -a 256 -c SHA256SUMS.txt)
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
+        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22
 
       - name: Sign SHA256SUMS.txt
         shell: bash
@@ -394,11 +391,13 @@ jobs:
             artifacts/citrea-cli-${{ github.ref_name }}-linux-arm64
             artifacts/citrea-cli-${{ github.ref_name }}-osx-arm64
 
-
   update-dockerhub:
     needs: package
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -456,7 +455,7 @@ jobs:
             ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ github.ref_name }}
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
+        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22
 
       - name: Sign Docker image
         shell: bash
