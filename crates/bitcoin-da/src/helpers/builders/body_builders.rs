@@ -780,7 +780,7 @@ pub fn create_inscription_type_4(
     network: Network,
     reveal_tx_prefix: &[u8],
 ) -> Result<DaTxs, anyhow::Error> {
-    debug_assert!(
+    anyhow::ensure!(
         body.len() < 520,
         "The body of a serialized sequencer commitment exceeds 520 bytes"
     );
