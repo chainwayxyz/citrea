@@ -783,35 +783,59 @@ impl MonitoringService {
     }
 
     async fn handle_evicted(&self) -> Result<()> {
-        let mut txs = self.monitored_txs.write().await;
-
-        for (txid, monitored_tx) in txs.iter_mut() {
-            if let TxStatus::Evicted {
-                rebroadcast_attempts,
-                ..
-            } = &monitored_tx.status
-            {
-                if *rebroadcast_attempts < self.config.max_rebroadcast_attempts {
-                    let now = get_timestamp();
-
-                    match self.attempt_rebroadcast(txid, &monitored_tx.status).await {
-                        Ok(_) => {
-                            info!("Attempted to rebroadcast tx {txid}");
-                            monitored_tx.status = TxStatus::Evicted {
-                                last_seen: now,
-                                rebroadcast_attempts: rebroadcast_attempts + 1,
-                                last_error: None,
-                            }
-                        }
-                        Err(e) => {
-                            info!("Failed to rebroadcast tx {txid}: {e}");
-                            monitored_tx.status = TxStatus::Evicted {
-                                last_seen: now,
-                                rebroadcast_attempts: rebroadcast_attempts + 1,
-                                last_error: Some(e.to_string()),
-                            };
+        // Collect evicted txids and their current statuses without holding the write lock.
+        // Holding a tokio write lock across async RPC calls blocks all concurrent readers
+        // for the entire duration of the network requests, causing severe starvation.
+        let candidates: Vec<(Txid, TxStatus)> = {
+            let txs = self.monitored_txs.read().await;
+            txs.iter()
+                .filter_map(|(txid, monitored_tx)| {
+                    if let TxStatus::Evicted { rebroadcast_attempts, .. } = &monitored_tx.status {
+                        if *rebroadcast_attempts < self.config.max_rebroadcast_attempts {
+                            return Some((*txid, monitored_tx.status.clone()));
                         }
                     }
+                    None
+                })
+                .collect()
+        };
+
+        // Perform all async rebroadcast attempts without holding any lock.
+        let mut outcomes: Vec<(Txid, TxStatus)> = Vec::with_capacity(candidates.len());
+        for (txid, status) in &candidates {
+            let now = get_timestamp();
+            let attempts = if let TxStatus::Evicted { rebroadcast_attempts, .. } = status {
+                *rebroadcast_attempts
+            } else {
+                0
+            };
+            let new_status = match self.attempt_rebroadcast(txid, status).await {
+                Ok(_) => {
+                    info!("Attempted to rebroadcast tx {txid}");
+                    TxStatus::Evicted {
+                        last_seen: now,
+                        rebroadcast_attempts: attempts + 1,
+                        last_error: None,
+                    }
+                }
+                Err(e) => {
+                    info!("Failed to rebroadcast tx {txid}: {e}");
+                    TxStatus::Evicted {
+                        last_seen: now,
+                        rebroadcast_attempts: attempts + 1,
+                        last_error: Some(e.to_string()),
+                    }
+                }
+            };
+            outcomes.push((*txid, new_status));
+        }
+
+        // Re-acquire the write lock only to flush the status updates — no async work inside.
+        if !outcomes.is_empty() {
+            let mut txs = self.monitored_txs.write().await;
+            for (txid, new_status) in outcomes {
+                if let Some(monitored_tx) = txs.get_mut(&txid) {
+                    monitored_tx.status = new_status;
                 }
             }
         }
