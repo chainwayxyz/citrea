@@ -13,11 +13,10 @@ use tracing::debug;
 use super::helpers::load_next_commitment_index_and_start_height;
 use super::service::CommitmentRange;
 
-// Based on the test runs, brotli is able to compress the state diff 58% to 70%,
-// with an average of 66% for both empty and full blocks. This is a super safe
-// estimation of 50% compression.
+// Recent testnet observations showed worse than 50% compression in some cases,
+// so leave a larger safety margin than 2x before compression.
 /// Maximum size (in bytes) for an uncompressed transaction body to be considered safe
-const SAFE_MAX_UNCOMPRESSED_TXBODY_SIZE: usize = MAX_TX_BODY_SIZE * 2;
+const SAFE_MAX_UNCOMPRESSED_TXBODY_SIZE: usize = MAX_TX_BODY_SIZE * 3 / 2;
 
 /// Controller that manages commitment operations and maintains commitment state
 pub struct CommitmentController<Db>
