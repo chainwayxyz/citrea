@@ -183,7 +183,9 @@ pub fn parse_relevant_transaction(tx: &Transaction) -> Result<ParsedTransaction,
 
 // Returns the script from the first input of the transaction
 fn get_script(tx: &Transaction) -> Result<&Script, ParserError> {
-    tx.input[0]
+    tx.input
+        .first()
+        .ok_or(ParserError::NonTapscriptWitness)?
         .witness
         .tapscript()
         .ok_or(ParserError::NonTapscriptWitness)
