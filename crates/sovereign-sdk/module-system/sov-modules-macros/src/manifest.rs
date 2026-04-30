@@ -64,13 +64,6 @@ impl<'a> Manifest<'a> {
         #[cfg(test)]
         let mut name = "crates/sovereign-sdk/constants.test.json";
 
-        // workaround to https://github.com/dtolnay/trybuild/issues/231
-        // despite trybuild being a crate to build tests, it won't set the `test` flag. It isn't
-        // setting the `trybuild` flag properly either.
-        if env::var_os("CONSTANTS_MANIFEST_TRYBUILD").is_some() {
-            name = "crates/sovereign-sdk/constants.test.json";
-        }
-
         let constants_dir = env::var_os("CONSTANTS_MANIFEST")
             .map(PathBuf::from)
             .map(Ok)

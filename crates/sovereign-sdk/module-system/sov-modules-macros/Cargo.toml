@@ -8,16 +8,11 @@ repository = { workspace = true }
 description = "Macros for use with the Sovereign SDK module system"
 
 version = { workspace = true }
-autotests = false
 readme = "README.md"
 resolver = "2"
 
 [lib]
 proc-macro = true
-
-[[test]]
-name = "tests"
-path = "tests/all_tests.rs"
 
 [dev-dependencies]
 sov-modules-api = { path = "../sov-modules-api", features = ["native"] }
@@ -28,7 +23,6 @@ sha2 = { workspace = true }
 borsh = { workspace = true }
 jsonrpsee = { workspace = true, features = ["macros", "http-client", "server"] }
 serde = { workspace = true }
-trybuild = "1.0"
 
 [dependencies]
 jsonrpsee = { workspace = true, features = [
