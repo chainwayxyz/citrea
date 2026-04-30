@@ -1,7 +1,6 @@
 //! This module provides the Bitcoin DA verifier implementation.
 
 use crypto_bigint::{Encoding, U256};
-use itertools::Itertools;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, LatestDaState};
 use sov_rollup_interface::Network;
 
@@ -105,11 +104,15 @@ impl DaVerifier for BitcoinVerifier {
         // Optimistically assume all txs in the completeness proof are verifiable
         let mut blobs = Vec::with_capacity(completeness_proof.len());
 
-        let relevant_wtxid_iter = inclusion_proof
+        let relevant_wtxids: Vec<_> = inclusion_proof
             .wtxids
             .iter()
-            .filter(|wtxid| wtxid.starts_with(prefix));
-        for (wtxid, tx) in relevant_wtxid_iter.zip_eq(&completeness_proof) {
+            .filter(|wtxid| wtxid.starts_with(prefix))
+            .collect();
+        if relevant_wtxids.len() != completeness_proof.len() {
+            return Err(ValidationError::RelevantTxNotInProof);
+        }
+        for (wtxid, tx) in relevant_wtxids.into_iter().zip(&completeness_proof) {
             // ensure completeness proof tx matches the inclusion tx
             if &calculate_wtxid(tx) != wtxid {
                 return Err(ValidationError::RelevantTxNotInProof);
