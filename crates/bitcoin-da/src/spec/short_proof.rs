@@ -95,7 +95,11 @@ impl VerifiableShortHeaderProof for BitcoinHeaderShortProof {
                 // If post-segwit block, extract the commitment from the coinbase tx
                 // and compare with header.txs_commitment().
                 let script_pubkey = self.coinbase_tx.output[idx].script_pubkey.as_bytes();
-                let input_witness_value = self.coinbase_tx.input[0].witness.iter().next().unwrap();
+                let input_witness_value = self.coinbase_tx.input[0]
+                    .witness
+                    .iter()
+                    .next()
+                    .ok_or(ShortHeaderProofVerificationError::InvalidCoinbaseMerkleProof)?;
 
                 let mut vec_merkle = Vec::with_capacity(input_witness_value.len() + 32);
 
@@ -371,6 +375,19 @@ mod test {
                     actual: [0; 32]
                 }
             )
+
+        // segwit coinbase tx with empty witness — must return error, not panic
+        {
+            let mut proof = get_proof();
+            // Clear the witness on input[0] so .witness.iter().next() returns None
+            let mut tx = proof.coinbase_tx.deref().clone();
+            tx.input[0].witness = bitcoin::Witness::new();
+            proof.coinbase_tx = tx.into();
+
+            assert_eq!(
+                proof.verify().unwrap_err(),
+                ShortHeaderProofVerificationError::InvalidCoinbaseMerkleProof
+            );
         }
     }
 }
