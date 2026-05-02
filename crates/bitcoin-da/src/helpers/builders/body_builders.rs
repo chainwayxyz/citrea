@@ -87,7 +87,7 @@ fn mine_reveal_prefix(
     prefix: &[u8],
     label: &str,
 ) {
-    let mut iterations = 0u32;
+    let mut iterations = 0u64;
     loop {
         let reveal_wtxid = reveal_tx.compute_wtxid();
         if reveal_wtxid
