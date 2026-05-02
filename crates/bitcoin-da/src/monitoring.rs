@@ -643,18 +643,27 @@ impl MonitoringService {
 
     #[instrument(skip(self))]
     async fn check_transactions(&self) -> Result<()> {
-        let mut txs = self.monitored_txs.write().await;
+        // Snapshot txid→status pairs with a read lock so we don't hold the
+        // write lock across async RPC calls — same pattern as handle_evicted.
+        let entries: Vec<(Txid, TxStatus)> = self
+            .monitored_txs
+            .read()
+            .await
+            .iter()
+            .map(|(id, tx)| (*id, tx.status.clone()))
+            .collect();
 
-        for (txid, monitored_tx) in txs.iter_mut() {
-            match &monitored_tx.status {
+        let mut updates: Vec<(Txid, TxStatus)> = Vec::new();
+
+        for (txid, current_status) in &entries {
+            let opt_new_status: Option<TxStatus> = match current_status {
                 // Check non-finalized TXs
                 TxStatus::Queued | TxStatus::Confirmed { .. } | TxStatus::Replaced { .. } => {
-                    if let Ok(tx_result) = self.client.get_transaction(txid, None).await {
-                        let new_status = self
-                            .determine_tx_status(&tx_result, &monitored_tx.status)
-                            .await?;
-
-                        monitored_tx.status = new_status;
+                    match self.client.get_transaction(txid, None).await {
+                        Ok(tx_result) => {
+                            Some(self.determine_tx_status(&tx_result, current_status).await?)
+                        }
+                        Err(_) => None,
                     }
                 }
                 // Check evicted TXs that have already been rebroadcasted at least once
@@ -663,31 +672,39 @@ impl MonitoringService {
                     ..
                 } if *rebroadcast_attempts > 0 => {
                     let tx_result = self.client.get_transaction(txid, None).await?;
-                    let new_status = self
-                        .determine_tx_status(&tx_result, &monitored_tx.status)
-                        .await?;
-                    monitored_tx.status = new_status;
+                    Some(self.determine_tx_status(&tx_result, current_status).await?)
                 }
                 TxStatus::InMempool { height, .. } => {
                     let tx_result = self.client.get_transaction(txid, None).await?;
                     let new_status = self
-                        .determine_tx_status(&tx_result, &monitored_tx.status)
+                        .determine_tx_status(&tx_result, current_status)
                         .await?;
 
-                    // If status is still InMempool, check for how many block it has been in mempool and rebroadcast every REBROADCAST_EACH_N_BLOCK
+                    // If still InMempool, check if rebroadcast is needed
                     if let TxStatus::InMempool { .. } = new_status {
                         let current_height = self.client.get_block_count().await?;
-                        if (current_height.saturating_sub(*height)) >= REBROADCAST_EACH_N_BLOCK {
-                            self.attempt_rebroadcast(txid, &new_status).await?
+                        if current_height.saturating_sub(*height) >= REBROADCAST_EACH_N_BLOCK {
+                            self.attempt_rebroadcast(txid, &new_status).await?;
                         }
                     }
 
-                    monitored_tx.status = new_status;
+                    Some(new_status)
                 }
-                _ => {}
-            }
+                _ => None,
+            };
 
-            monitored_tx.last_checked = get_timestamp();
+            if let Some(new_status) = opt_new_status {
+                updates.push((*txid, new_status));
+            }
+        }
+
+        // Apply all updates under a single write lock
+        let mut txs = self.monitored_txs.write().await;
+        for (txid, new_status) in updates {
+            if let Some(monitored_tx) = txs.get_mut(&txid) {
+                monitored_tx.status = new_status;
+                monitored_tx.last_checked = get_timestamp();
+            }
         }
 
         Ok(())
