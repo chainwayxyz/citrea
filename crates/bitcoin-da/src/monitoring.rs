@@ -482,6 +482,10 @@ impl MonitoringService {
     ) -> Result<()> {
         let txid = tx.id;
 
+        // Fetch block height before acquiring the write lock to avoid
+        // holding the lock across async network I/O.
+        let current_height = self.client.get_block_count().await?;
+
         let mut monitored_txs = self.monitored_txs.write().await;
         if monitored_txs.contains_key(&txid) {
             return Err(MonitorError::AlreadyMonitored);
@@ -493,8 +497,6 @@ impl MonitoringService {
             };
             prev_tx.next_txid = Some(txid);
         }
-
-        let current_height = self.client.get_block_count().await?;
 
         self.total_size
             .fetch_add(tx.tx.total_size(), Ordering::SeqCst);
