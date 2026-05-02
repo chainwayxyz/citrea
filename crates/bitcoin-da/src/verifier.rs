@@ -293,7 +293,7 @@ impl DaVerifier for BitcoinVerifier {
                 self.verify_header_chain_regtest(
                     latest_da_state.unwrap_or(&LatestDaState {
                         block_hash: block_header.prev_hash().to_byte_array(),
-                        block_height: block_header.height() - 1,
+                        block_height: block_header.height().saturating_sub(1),
                         // Total work is irrelevant in regtest
                         total_work: [0; 32],
                         current_target_bits: REGTEST_CONSTANTS.max_bits,
