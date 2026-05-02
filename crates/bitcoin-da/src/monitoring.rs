@@ -381,8 +381,7 @@ impl MonitoringService {
                 .client
                 .get_transaction(&reveal_txid, None)
                 .await?
-                .transaction()
-                .unwrap();
+                .transaction()?;
 
             let reveal_wtxid = reveal_tx.compute_wtxid();
             let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
@@ -396,8 +395,7 @@ impl MonitoringService {
                     .client
                     .get_transaction(&commit_txid, None)
                     .await?
-                    .transaction()
-                    .unwrap();
+                    .transaction()?;
 
                 txs.push([
                     TxWithId {
