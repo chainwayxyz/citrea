@@ -622,19 +622,39 @@ impl MonitoringService {
     }
 
     async fn handle_reorg(&self, depth: u64) -> Result<()> {
-        let mut txs = self.monitored_txs.write().await;
-
-        for (txid, tx) in txs.iter_mut() {
-            if let TxStatus::Confirmed { confirmations, .. } = tx.status {
-                if confirmations <= depth {
-                    let tx_result = self.client.get_transaction(txid, None).await?;
-                    tx.status = self.determine_tx_status(&tx_result, &tx.status).await?;
-
-                    if let TxStatus::InMempool { .. } = tx.status {
-                        info!("Rebroadcasting tx {} {tx:?}", tx.tx.compute_txid());
-                        self.attempt_rebroadcast(txid, &tx.status).await?;
+        // Collect affected txids using a read lock to avoid holding the write
+        // lock across async RPC calls — same pattern as handle_evicted (PR #3234).
+        let affected: Vec<(Txid, TxStatus)> = self
+            .monitored_txs
+            .read()
+            .await
+            .iter()
+            .filter_map(|(txid, tx)| {
+                if let TxStatus::Confirmed { confirmations, .. } = tx.status {
+                    if confirmations <= depth {
+                        return Some((*txid, tx.status.clone()));
                     }
                 }
+                None
+            })
+            .collect();
+
+        let mut updates: Vec<(Txid, TxStatus)> = Vec::with_capacity(affected.len());
+        for (txid, current_status) in &affected {
+            let tx_result = self.client.get_transaction(txid, None).await?;
+            let new_status = self.determine_tx_status(&tx_result, current_status).await?;
+
+            if let TxStatus::InMempool { .. } = new_status {
+                info!("Rebroadcasting reorged tx {txid}");
+                self.attempt_rebroadcast(txid, &new_status).await?;
+            }
+            updates.push((*txid, new_status));
+        }
+
+        let mut txs = self.monitored_txs.write().await;
+        for (txid, new_status) in updates {
+            if let Some(tx) = txs.get_mut(&txid) {
+                tx.status = new_status;
             }
         }
 
