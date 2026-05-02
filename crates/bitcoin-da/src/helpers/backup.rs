@@ -33,7 +33,7 @@ pub(crate) fn backup_txs_to_file(
             | TransactionKind::SequencerCommitment => {
                 if txs.len() != 1 {
                     return Err(BitcoinServiceError::TransactionBackupError(format!(
-                        "Expected exactly 2 transactions for {:?}, got {}",
+                        "Expected exactly 1 transaction pair for {:?}, got {}",
                         tx.kind,
                         txs.len()
                     )));
