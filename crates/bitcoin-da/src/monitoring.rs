@@ -707,9 +707,8 @@ impl MonitoringService {
             let block_height = self
                 .client
                 .get_block_info(&block_hash)
-                .await
-                .map(|header| header.height as u64)
-                .unwrap_or(0);
+                .await?
+                .height as u64;
 
             if confirmations >= self.finality_depth {
                 TxStatus::Finalized {
