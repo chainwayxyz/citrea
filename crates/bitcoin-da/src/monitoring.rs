@@ -579,9 +579,22 @@ impl MonitoringService {
         let new_height = self.client.get_block_count().await?;
         let new_tip = self.client.get_best_block_hash().await?;
 
-        let mut chain_state = self.chain_state.write().await;
+        // Take a short read lock only to check whether the tip changed and
+        // snapshot the recent-blocks list needed for reorg detection.
+        // Releasing the lock before the RPC loop prevents blocking all readers
+        // for the duration of up to `finality_depth` round-trips.
+        let (tip_changed, recent_blocks_snapshot) = {
+            let chain_state = self.chain_state.read().await;
+            let changed = new_tip != chain_state.current_tip;
+            let snapshot = if changed {
+                chain_state.recent_blocks.clone()
+            } else {
+                vec![]
+            };
+            (changed, snapshot)
+        };
 
-        if new_tip != chain_state.current_tip {
+        if tip_changed {
             // Send new tip notification
             let _ = self.block_tx.send(new_height);
 
@@ -590,13 +603,13 @@ impl MonitoringService {
             let mut reorg_detected = false;
             let mut reorg_depth = 0;
 
+            // Perform RPC calls without holding the write lock.
             for i in 1..=self.finality_depth {
                 let height = new_height.saturating_sub(i);
                 current_hash = self.client.get_block_hash(height).await?;
                 new_blocks.push((current_hash, height));
 
-                if let Some(pos) = chain_state
-                    .recent_blocks
+                if let Some(pos) = recent_blocks_snapshot
                     .iter()
                     .position(|&(hash, _)| hash == current_hash)
                 {
@@ -613,6 +626,8 @@ impl MonitoringService {
                 self.handle_reorg(reorg_depth).await?;
             }
 
+            // Acquire the write lock only for the final state update.
+            let mut chain_state = self.chain_state.write().await;
             chain_state.current_height = new_height;
             chain_state.current_tip = new_tip;
             chain_state.recent_blocks = new_blocks;
