@@ -13,12 +13,16 @@ pub struct BitcoinMerkleTree {
 
 impl BitcoinMerkleTree {
     /// Compute merkle tree.
-    pub fn new(transactions: Vec<[u8; 32]>) -> Self {
+    pub fn new(transactions: Vec<[u8; 32]>) -> Result<Self, &'static str> {
+        if transactions.is_empty() {
+            return Err("Merkle tree cannot be built from an empty transaction list");
+        }
+
         if transactions.len() == 1 {
             // root is the coinbase txid
-            return BitcoinMerkleTree {
+            return Ok(BitcoinMerkleTree {
                 nodes: vec![transactions],
-            };
+            });
         }
 
         let mut tree = BitcoinMerkleTree {
@@ -38,11 +42,10 @@ impl BitcoinMerkleTree {
             for i in 0..(prev_level_size / 2) {
                 let l = &tree.nodes[curr_level_offset - 1][i * 2];
                 let r = &tree.nodes[curr_level_offset - 1][i * 2 + 1];
-                // Check if the pair has the same digest, if so, panic
-                assert_ne!(
-                    l, r,
-                    "Duplicate hashes in the Merkle tree, indicating mutation"
-                );
+                // Check if the pair has the same digest, if so, return an error
+                if l == r {
+                    return Err("Duplicate hashes in the Merkle tree, indicating mutation");
+                }
                 preimage[..32].copy_from_slice(l);
                 preimage[32..].copy_from_slice(r);
                 let combined_hash = calculate_double_sha256(&preimage);
@@ -67,7 +70,7 @@ impl BitcoinMerkleTree {
             // Calculate the size of the level we just created
             prev_level_size = prev_level_size.div_ceil(2); // Ceiling division to handle odd numbers
         }
-        tree
+        Ok(tree)
     }
 
     /// Returns the Merkle root
@@ -150,7 +153,7 @@ mod tests {
             let tx = [i; 32];
             transactions.push(tx);
         }
-        let tree = BitcoinMerkleTree::new(transactions.clone());
+        let tree = BitcoinMerkleTree::new(transactions.clone()).unwrap();
         let root = tree.root();
         let idx_path = tree.get_idx_path(0);
         let calculated_root =
@@ -168,7 +171,7 @@ mod tests {
             let tx = [i; 32];
             transactions.push(tx);
         }
-        let tree = BitcoinMerkleTree::new(transactions.clone());
+        let tree = BitcoinMerkleTree::new(transactions.clone()).unwrap();
         let root = tree.root();
         let idx_path = tree.get_idx_path(2);
         let calculated_root =
@@ -187,7 +190,7 @@ mod tests {
             let tx = [i; 32];
             transactions.push(tx);
         }
-        let tree = BitcoinMerkleTree::new(transactions.clone());
+        let tree = BitcoinMerkleTree::new(transactions.clone()).unwrap();
         let root = tree.root();
         let idx_path = tree.get_idx_path(4);
         let calculated_root =
@@ -200,7 +203,7 @@ mod tests {
     #[test]
     fn test_merkle_tree_single_tx() {
         let tx = [5; 32];
-        assert_eq!(BitcoinMerkleTree::new(vec![tx]).root(), tx);
+        assert_eq!(BitcoinMerkleTree::new(vec![tx]).unwrap().root(), tx);
     }
 
     #[test]
@@ -220,7 +223,7 @@ mod tests {
             .map(|tx| bitcoin::hash_types::Wtxid::from_slice(tx).unwrap());
         let bitcoin_root = bitcoin::merkle_tree::calculate_root(hashes).unwrap();
 
-        let custom_root = BitcoinMerkleTree::new(transactions).root();
+        let custom_root = BitcoinMerkleTree::new(transactions).unwrap().root();
         assert_eq!(bitcoin_root.to_byte_array(), custom_root);
     }
 
@@ -242,7 +245,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Duplicate hashes in the Merkle tree, indicating mutation")]
     fn test_merkle_duplicates_a_2361() {
         let a = [1; 32];
         let b = [2; 32];
@@ -250,11 +252,10 @@ mod tests {
         let d = [4; 32];
         let e = [5; 32];
 
-        BitcoinMerkleTree::new(vec![a, b, c, d, e, e]);
+        assert!(BitcoinMerkleTree::new(vec![a, b, c, d, e, e]).is_err());
     }
 
     #[test]
-    #[should_panic(expected = "Duplicate hashes in the Merkle tree, indicating mutation")]
     fn test_merkle_duplicates_b_2361() {
         let a = [1; 32];
         let b = [2; 32];
@@ -263,11 +264,10 @@ mod tests {
         let e = [5; 32];
         let f = [6; 32];
 
-        BitcoinMerkleTree::new(vec![a, b, c, d, e, f, e, f]);
+        assert!(BitcoinMerkleTree::new(vec![a, b, c, d, e, f, e, f]).is_err());
     }
 
     #[test]
-    #[should_panic(expected = "Duplicate hashes in the Merkle tree, indicating mutation")]
     fn test_merkle_duplicates_c_2361() {
         let a = [1; 32];
         let b = [2; 32];
@@ -276,7 +276,7 @@ mod tests {
         let e = [5; 32];
         let f = [6; 32];
 
-        BitcoinMerkleTree::new(vec![a, b, c, d, a, b, c, d, e, f]);
+        assert!(BitcoinMerkleTree::new(vec![a, b, c, d, a, b, c, d, e, f]).is_err());
     }
 
     #[test]
@@ -287,7 +287,7 @@ mod tests {
             let tx = [i; 32];
             transactions.push(tx);
         }
-        let tree = BitcoinMerkleTree::new(transactions.clone());
+        let tree = BitcoinMerkleTree::new(transactions.clone()).unwrap();
         let root = tree.root();
         let idx_path = tree.get_idx_path(0);
         let calculated_root =
