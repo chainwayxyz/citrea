@@ -218,7 +218,10 @@ impl DaVerifier for BitcoinVerifier {
                 let merkle_root =
                     merkle_tree::BitcoinMerkleTree::new(inclusion_proof.wtxids).root();
 
-                let input_witness_value = coinbase_tx.input[0]
+                let input_witness_value = coinbase_tx
+                    .input
+                    .first()
+                    .ok_or(ValidationError::InvalidBlock)?
                     .witness
                     .iter()
                     .next()
