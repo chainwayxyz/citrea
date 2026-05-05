@@ -77,7 +77,7 @@ pub const INITIAL_MAINNET_STATE: LatestDaState = LatestDaState {
     ],
 };
 
-/// Initial regtest state.
+/// Initial testnet4 state.
 pub const INITIAL_TESTNET4_STATE: LatestDaState = LatestDaState {
     block_hash: [
         177, 30, 245, 240, 148, 228, 201, 10, 169, 117, 171, 23, 153, 213, 126, 0, 82, 34, 206,
