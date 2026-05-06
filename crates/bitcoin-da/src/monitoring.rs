@@ -481,9 +481,6 @@ impl MonitoringService {
         kind: MonitoredTxKind,
     ) -> Result<()> {
         let txid = tx.id;
-
-        // Fetch block height before acquiring the write lock to avoid
-        // holding the lock across async network I/O.
         let current_height = self.client.get_block_count().await?;
 
         let mut monitored_txs = self.monitored_txs.write().await;
