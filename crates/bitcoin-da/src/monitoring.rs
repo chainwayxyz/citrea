@@ -676,9 +676,7 @@ impl MonitoringService {
                 }
                 TxStatus::InMempool { height, .. } => {
                     let tx_result = self.client.get_transaction(txid, None).await?;
-                    let new_status = self
-                        .determine_tx_status(&tx_result, current_status)
-                        .await?;
+                    let new_status = self.determine_tx_status(&tx_result, current_status).await?;
 
                     // If still InMempool, check if rebroadcast is needed
                     if let TxStatus::InMempool { .. } = new_status {
