@@ -13,9 +13,8 @@ use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_light_client_prover};
 use citrea_common::utils::is_dev_mode_enabled_via_environment;
-use citrea_common::{from_toml_path, FromEnv, FullNodeConfig, NodeType};
+use citrea_common::{from_toml_path, FromEnv, FullNodeConfig, NodeType, StartVariant};
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
-use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use clap::Parser;
@@ -316,9 +315,19 @@ where
 
             start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
+            let l1_start_variant = match ledger_db.get_last_scanned_l1_height()? {
+                Some(l1_height) => StartVariant::LastScanned(l1_height.0),
+                None => StartVariant::FromBlock(
+                    rollup_config
+                        .runner
+                        .context("Failed to start prover L1 syncer: Runner config not present")?
+                        .scan_l1_start_height,
+                ),
+            };
+
             task_executor.spawn_critical_with_graceful_shutdown_signal(
                 "ProverL1Syncer",
-                |shutdown_signal| async move { l1_syncer.run(shutdown_signal).await },
+                |shutdown_signal| async move { l1_syncer.run(l1_start_variant, shutdown_signal).await },
             );
 
             task_executor.spawn_critical_with_graceful_shutdown_signal(
@@ -381,21 +390,24 @@ where
 
             start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
-            let l1_start_height =
-                match ledger_db.get_last_scanned_l1_height()? {
-                    Some(l1_height) => l1_height.0 + 1,
-                    None => rollup_config
+            let l1_start_variant = match ledger_db.get_last_scanned_l1_height()? {
+                Some(l1_height) => StartVariant::LastScanned(l1_height.0),
+                None => StartVariant::FromBlock(
+                    rollup_config
                         .runner
                         .context(
                             "Failed to start full node L1 block handler: Runner config not present",
                         )?
                         .scan_l1_start_height,
-                };
+                ),
+            };
 
             task_executor.spawn_critical_with_graceful_shutdown_signal(
                 "FullNodeL1BlockHandler",
                 |shutdown_signal| async move {
-                    l1_block_handler.run(l1_start_height, shutdown_signal).await
+                    l1_block_handler
+                        .run(l1_start_variant, shutdown_signal)
+                        .await
                 },
             );
 
