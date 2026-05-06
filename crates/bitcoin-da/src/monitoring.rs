@@ -790,7 +790,11 @@ impl MonitoringService {
             let txs = self.monitored_txs.read().await;
             txs.iter()
                 .filter_map(|(txid, monitored_tx)| {
-                    if let TxStatus::Evicted { rebroadcast_attempts, .. } = &monitored_tx.status {
+                    if let TxStatus::Evicted {
+                        rebroadcast_attempts,
+                        ..
+                    } = &monitored_tx.status
+                    {
                         if *rebroadcast_attempts < self.config.max_rebroadcast_attempts {
                             return Some((*txid, monitored_tx.status.clone()));
                         }
@@ -804,7 +808,11 @@ impl MonitoringService {
         let mut outcomes: Vec<(Txid, TxStatus)> = Vec::with_capacity(candidates.len());
         for (txid, status) in &candidates {
             let now = get_timestamp();
-            let attempts = if let TxStatus::Evicted { rebroadcast_attempts, .. } = status {
+            let attempts = if let TxStatus::Evicted {
+                rebroadcast_attempts,
+                ..
+            } = status
+            {
                 *rebroadcast_attempts
             } else {
                 0
