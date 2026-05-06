@@ -704,11 +704,7 @@ impl MonitoringService {
                 .info
                 .blockhash
                 .ok_or(MonitorError::BlockHashNotSet)?;
-            let block_height = self
-                .client
-                .get_block_info(&block_hash)
-                .await?
-                .height as u64;
+            let block_height = self.client.get_block_info(&block_hash).await?.height as u64;
 
             if confirmations >= self.finality_depth {
                 TxStatus::Finalized {
