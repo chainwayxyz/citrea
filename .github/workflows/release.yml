@@ -1,8 +1,5 @@
 name: Release
 
-permissions:
-  contents: write
-
 on:
   push:
     tags:
@@ -12,6 +9,8 @@ jobs:
   create-draft-release:
     runs-on: ubicloud-standard-2
     environment: release-signing
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -191,6 +190,8 @@ jobs:
   package-and-publish:
     needs: build-and-publish
     runs-on: ubicloud-standard-2
+    permissions:
+      contents: write
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
