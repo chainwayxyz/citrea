@@ -278,7 +278,10 @@ pub(crate) fn validate_txs_fee_rate(
             .sum();
         let output_amount = commit_tx.output.iter().map(|tx| tx.value).sum();
 
-        if (input_amount - output_amount) < Amount::from_sat(commit_tx.vsize() as u64) {
+        let fee_paid = input_amount
+            .checked_sub(output_amount)
+            .unwrap_or(Amount::ZERO);
+        if fee_paid < Amount::from_sat(commit_tx.vsize() as u64) {
             return Err(BitcoinServiceError::FeeCalculation(fee_rate));
         }
 
@@ -295,7 +298,10 @@ pub(crate) fn validate_txs_fee_rate(
         // Add reveal utxo to utxo_map, used by chunking txs
         utxo_map.insert((tx.reveal_txid(), 0), output_amount);
 
-        if (input_amount - output_amount) < Amount::from_sat(reveal_tx.vsize() as u64) {
+        let fee_paid = input_amount
+            .checked_sub(output_amount)
+            .unwrap_or(Amount::ZERO);
+        if fee_paid < Amount::from_sat(reveal_tx.vsize() as u64) {
             return Err(BitcoinServiceError::FeeCalculation(fee_rate));
         }
     }
