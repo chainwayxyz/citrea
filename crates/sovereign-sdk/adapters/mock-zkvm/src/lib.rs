@@ -119,7 +119,7 @@ impl MockZkvm {
             let mut committed_data = self.committed_data.lock().unwrap();
             let proof = committed_data.pop_front().unwrap_or_default();
             chan.send(ProofWithJob {
-                job_id: Uuid::now_v7(),
+                job_id: Uuid::nil(),
                 proof,
                 // mock proving info
                 info: ProvingSessionInfo::Local(LocalProvingSessionInfo {
@@ -229,11 +229,6 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
         T::try_from_slice(&data.hint).map_err(Into::into)
     }
 
-    fn start_session_recovery(
-        &self,
-    ) -> Result<Vec<oneshot::Receiver<ProofWithJob>>, anyhow::Error> {
-        unimplemented!()
-    }
 }
 
 /// A mock implementing the Guest.

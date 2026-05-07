@@ -1,3 +1,2 @@
 proving_mode = "execute"
 proof_sampling_number = 0
-enable_recovery = true

@@ -13,8 +13,6 @@ use citrea_primitives::compression::compress_blob;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::{network_to_dev_mode, MAX_TX_BODY_SIZE, MAX_WITNESS_CACHE_SIZE};
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
 use prover_services::{ParallelProverService, ProofData, ProofWithDuration};
 use rand::Rng;
 use reth_tasks::shutdown::GracefulShutdown;
@@ -31,7 +29,7 @@ use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::input::v3::{BatchProofCircuitInputV3, PrevHashProof};
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
-use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
 use sov_state::Witness;
 use tokio::select;
@@ -164,8 +162,7 @@ where
     /// * `shutdown_signal` - A signal to gracefully shut down the prover service
     #[instrument(name = "BatchProver", skip_all)]
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
-        self.recover_proving_sessions(self.prover_config.enable_recovery)
-            .await;
+        self.recover_proving_sessions().await;
 
         'run_loop: loop {
             select! {
@@ -749,59 +746,10 @@ where
         });
     }
 
-    /// This function recovers proving sessions that were not completed before the node was restarted.
-    /// It retrieves all pending proving jobs from the ledger database,
-    /// starts the recovery process for each job, and waits for the proofs to be generated.
-    /// Once a proof is generated, it extracts the proof output, stores the proof in the ledger database.
-    /// This function will also recover proofs of jobs that are pending for DA submission,
-    /// and submit the recovered proofs to the DA service with them.
+    /// Recovers proofs of jobs that are pending for DA submission and resubmits them.
     #[instrument(name = "recovery", skip_all)]
-    async fn recover_proving_sessions(&self, enable_proof_session_recovery: bool) {
-        let mut proofs = if enable_proof_session_recovery {
-            // recover proving sessions
-            let proving_jobs = self
-                .prover_service
-                .start_session_recovery()
-                .expect("Failed to start proving session recovery");
-            let mut proving_jobs = proving_jobs
-                .into_iter()
-                .map(|rx| async move { rx.await.expect("Proof recovery channel closed abruptly") })
-                .collect::<FuturesUnordered<_>>();
-
-            info!("Recovering {} proving sessions", proving_jobs.len());
-
-            let mut proofs = HashMap::with_capacity(proving_jobs.len());
-            while let Some(ProofWithJob {
-                job_id,
-                proof,
-                info,
-            }) = proving_jobs.next().await
-            {
-                info!("Proving job finished {}", job_id);
-
-                let output = extract_proof_output::<Vm>(
-                    &job_id,
-                    &proof,
-                    &self.code_commitments_by_spec,
-                    self.network,
-                );
-
-                // stores proof and marks job as waiting for da
-                self.ledger_db
-                    .put_proof_by_job_id(job_id, proof.clone(), output.into(), info)
-                    .expect("Should put proof to db");
-
-                info!("Completed proving job {}", job_id);
-
-                proofs.insert(job_id, proof);
-
-                // TODO: there is a quite small chance that proving has started, but job commitment indices
-                // pending commitments haven't been updated in db, maybe we should also try to recover that?
-            }
-            proofs
-        } else {
-            HashMap::new()
-        };
+    async fn recover_proving_sessions(&self) {
+        let mut proofs = HashMap::new();
 
         // merge proofs of da submission pending jobs
         let job_ids = self

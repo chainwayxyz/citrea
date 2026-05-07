@@ -25,8 +25,7 @@ use risc0_zkvm::{
     compute_image_id, default_executor, AssumptionReceipt, Digest, ExecutorEnvBuilder,
     Groth16Receipt, InnerReceipt, Journal, MaybePruned, Receipt, ReceiptClaim,
 };
-use sov_db::ledger_db::{BoundlessLedgerOps, LedgerDB};
-use sov_db::schema::types::BoundlessSession;
+use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::zk::{
     BoundlessProvingSessionInfo, ProofWithJob, ProvingSessionInfo, ReceiptType,
 };
@@ -322,17 +321,7 @@ impl BoundlessProver {
         );
 
         // Start boundless proving session
-        let (req_id, request_expiry) = self
-            .send_request(
-                request,
-                job_id,
-                image_id,
-                journal.clone(),
-                receipt_claim.clone(),
-                receipt_type,
-                total_cycles_approx,
-            )
-            .await?;
+        let (req_id, request_expiry) = self.send_request(request, job_id, image_id).await?;
 
         let rx = self.spawn_handler(
             job_id,
@@ -507,10 +496,6 @@ impl BoundlessProver {
         request: RequestParams,
         job_id: Uuid,
         image_id: Digest,
-        journal: Journal,
-        receipt_claim: ReceiptClaim,
-        receipt_type: ReceiptType,
-        total_cycles_approx: u64,
     ) -> Result<(String, u64), ClientError> {
         // Start boundless proving session
         tracing::info!(
@@ -539,19 +524,6 @@ impl BoundlessProver {
             job_id,
             req_id
         );
-
-        let db_session = BoundlessSession {
-            request_id: req_id.clone(),
-            request_expiry,
-            image_id: image_id.into(),
-            journal_bytes: journal.bytes.to_vec(),
-            receipt_claim_bytes: borsh::to_vec(&receipt_claim).expect("should serialize"),
-            receipt_type,
-            total_cycles_approx,
-        };
-        self.ledger_db
-            .upsert_pending_boundless_session(job_id, db_session)
-            .context("Failed to upsert boundless session")?;
 
         Ok((req_id.to_string(), request_expiry))
     }
@@ -595,13 +567,6 @@ impl BoundlessProver {
                             return;
                         };
 
-                        if let Err(e) = this.ledger_db.remove_pending_boundless_session(job_id) {
-                            tracing::error!(
-                                "Failed to remove pending boundless session job: {} err={}",
-                                job_id,
-                                e
-                            );
-                        }
                         tracing::info!(
                             "Boundless proving job finished: {} | Boundless request id: {}",
                             job_id,
@@ -689,13 +654,8 @@ impl BoundlessProver {
         receipt_claim: ReceiptClaim,
         total_cycles_approx: u64,
         image_id: Digest,
-        receipt_type: ReceiptType,
+        _receipt_type: ReceiptType,
     ) -> anyhow::Result<ResubmitResult> {
-        // Remove failed job from pending boundless sessions
-        self.ledger_db
-            .remove_pending_boundless_session(job_id)
-            .expect("Failed to remove pending boundless session on error");
-
         // Get data of failed order
         // Queries first offchain, and then onchain.
         let Ok((failed_request, _signature)) = self
@@ -832,18 +792,8 @@ impl BoundlessProver {
             )
             .await;
 
-        let (new_req_id, new_exp_time) = match self
-            .send_request(
-                new_request,
-                job_id,
-                image_id,
-                journal.clone(),
-                receipt_claim.clone(),
-                receipt_type,
-                total_cycles_approx,
-            )
-            .await
-        {
+        let (new_req_id, new_exp_time) =
+            match self.send_request(new_request, job_id, image_id).await {
             Ok((req_id, exp_time)) => (req_id, exp_time),
             Err(e) => {
                 tracing::error!(
@@ -910,44 +860,6 @@ impl BoundlessProver {
         Ok(full_snark_receipt)
     }
 
-    // Starts the recovery of proving jobs from db by starting a background task, returning list of
-    /// receiver channels that return the associated job id and proof result on finish.
-    pub fn start_recovery(&self) -> anyhow::Result<Vec<oneshot::Receiver<ProofWithJob>>> {
-        let sessions = self.ledger_db.get_pending_boundless_sessions()?;
-        tracing::info!(
-            "Found {} pending boundless sessions to recover",
-            sessions.len()
-        );
-        if sessions.is_empty() {
-            tracing::info!("No pending boundless sessions to recover");
-            return Ok(vec![]);
-        }
-
-        let mut rxs = vec![];
-        for (job_id, session) in sessions {
-            tracing::info!(
-                "Recovering boundless session, job_id={} session={:?}",
-                job_id,
-                session
-            );
-
-            let rx = self.spawn_handler(
-                job_id,
-                session.receipt_type,
-                session.request_id,
-                session.image_id.into(),
-                Journal {
-                    bytes: session.journal_bytes,
-                },
-                borsh::from_slice(&session.receipt_claim_bytes)
-                    .expect("Failed to deserialize receipt claim from bytes"),
-                session.request_expiry,
-                session.total_cycles_approx,
-            );
-            rxs.push(rx);
-        }
-        Ok(rxs)
-    }
 }
 
 /// Return UNIX timestamp in seconds
