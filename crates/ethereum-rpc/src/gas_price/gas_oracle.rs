@@ -256,9 +256,8 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
     pub fn suggest_tip_cap(&self, working_set: &mut WorkingSet<C::Storage>) -> EthResult<u128> {
         let header = &self
             .provider
-            .get_block_by_number(None, None, working_set, &self.ledger_db)
-            .unwrap()
-            .unwrap()
+            .get_block_by_number(None, None, working_set, &self.ledger_db)?
+            .ok_or(EthApiError::UnknownBlockNumber)?
             .header;
 
         let mut last_price = self.last_price.lock();
