@@ -18,8 +18,7 @@ use crate::schema::types::light_client_proof::{
     StoredLightClientProof, StoredLightClientProofOutput,
 };
 use crate::schema::types::{
-    BonsaiSession, BoundlessSession, L2BlockNumber, L2HeightAndIndex, L2HeightRange,
-    L2HeightStatus, SlotNumber,
+    L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber,
 };
 
 /// Shared ledger operations
@@ -309,34 +308,6 @@ pub trait LightClientProverLedgerOps: SharedLedgerOps + Send + Sync {
         &self,
         l1_height: u64,
     ) -> anyhow::Result<Option<ProvingSessionInfo>>;
-}
-
-/// Ledger operations for the Bonsai service
-pub trait BonsaiLedgerOps: BatchProverLedgerOps + SharedLedgerOps + Send + Sync {
-    /// Gets all bonsai sessions and their associated job ids
-    fn get_pending_bonsai_sessions(&self) -> Result<Vec<(Uuid, BonsaiSession)>>;
-
-    /// Insert or update bonsai proving session
-    fn upsert_pending_bonsai_session(&self, job_id: Uuid, session: BonsaiSession) -> Result<()>;
-
-    /// Removes bonsai proving session
-    fn remove_pending_bonsai_session(&self, job_id: Uuid) -> Result<()>;
-}
-
-/// Ledger operations for the Boundless decentralized prover network
-pub trait BoundlessLedgerOps: BatchProverLedgerOps + SharedLedgerOps + Send + Sync {
-    /// Gets all boundless sessions and their associated job ids
-    fn get_pending_boundless_sessions(&self) -> Result<Vec<(Uuid, BoundlessSession)>>;
-
-    /// Insert or update boundless proving session
-    fn upsert_pending_boundless_session(
-        &self,
-        job_id: Uuid,
-        session: BoundlessSession,
-    ) -> Result<()>;
-
-    /// Removes boundless proving session
-    fn remove_pending_boundless_session(&self, job_id: Uuid) -> Result<()>;
 }
 
 /// Sequencer ledger operations

@@ -292,14 +292,12 @@ impl RollupBlueprint for BitcoinRollup {
         proving_mode: ProverGuestRunConfig,
         risc0_host_config: Risc0HostConfig,
         da_service: &Arc<Self::DaService>,
-        ledger_db: LedgerDB,
         proof_sampling_number: usize,
         is_light_client_prover: bool,
     ) -> ParallelProverService<Self::DaService, Self::Vm> {
-        let vm = Risc0Host::new(ledger_db.clone(), self.network, risc0_host_config).await;
+        let vm = Risc0Host::new(self.network, risc0_host_config).await;
         // let vm = SP1Host::new(
         //     include_bytes!("../guests/sp1/batch-prover-bitcoin/elf/zkvm-elf"),
-        //     ledger_db.clone(),
         // );
 
         let proof_mode = match proving_mode {
