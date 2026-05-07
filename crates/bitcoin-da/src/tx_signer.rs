@@ -185,14 +185,19 @@ impl TxSigner {
 
             for input in commit.input.iter() {
                 if let Some(entry) = all_tx_map.get(&input.previous_output.txid) {
+                    let vout = input.previous_output.vout as usize;
+                    let Some(txout) = entry.output.get(vout) else {
+                        return Err(BitcoinServiceError::InvalidTransaction(format!(
+                            "chunk commit input vout {vout} is out of bounds (tx has {} outputs)",
+                            entry.output.len()
+                        )));
+                    };
                     inputs.push(SignRawTransactionInput {
                         txid: input.previous_output.txid,
                         vout: input.previous_output.vout,
-                        script_pub_key: entry.output[input.previous_output.vout as usize]
-                            .script_pubkey
-                            .clone(),
+                        script_pub_key: txout.script_pubkey.clone(),
                         redeem_script: None,
-                        amount: Some(entry.output[input.previous_output.vout as usize].value),
+                        amount: Some(txout.value),
                     });
                 }
             }
@@ -228,14 +233,19 @@ impl TxSigner {
 
         for input in commit.input.iter() {
             if let Some(entry) = all_tx_map.get(&input.previous_output.txid) {
+                let vout = input.previous_output.vout as usize;
+                let Some(txout) = entry.output.get(vout) else {
+                    return Err(BitcoinServiceError::InvalidTransaction(format!(
+                        "aggregate commit input vout {vout} is out of bounds (tx has {} outputs)",
+                        entry.output.len()
+                    )));
+                };
                 inputs.push(SignRawTransactionInput {
                     txid: input.previous_output.txid,
                     vout: input.previous_output.vout,
-                    script_pub_key: entry.output[input.previous_output.vout as usize]
-                        .script_pubkey
-                        .clone(),
+                    script_pub_key: txout.script_pubkey.clone(),
                     redeem_script: None,
-                    amount: Some(entry.output[input.previous_output.vout as usize].value),
+                    amount: Some(txout.value),
                 });
             }
         }
