@@ -298,7 +298,11 @@ impl BitcoinService {
                                 .await
                             {
                                 Ok(txs) => {
-                                    let txid = txs.last().unwrap()[1].id;
+                                    let Some(last_tx_pair) = txs.last() else {
+                                        error!("send_transaction_with_fee_rate returned an empty transaction list; skipping");
+                                        break;
+                                    };
+                                    let txid = last_tx_pair[1].id;
                                     let tx_id = TxidWrapper(txid);
                                     info!(%txid, "Sent tx to BitcoinDA");
                                     let _ = request.notify.send(Ok(tx_id));
