@@ -193,10 +193,6 @@ impl BackupManager {
             }
         }
 
-        // Wait for all dbs to start backing up under lock before releasing
-        drop(l2_lock);
-        drop(l1_lock);
-
         let mut backup_id = None;
         for handle in handles {
             let result = handle.await??;
@@ -210,6 +206,11 @@ impl BackupManager {
                 anyhow::ensure!(backup_id == current_id, "Backup id mismatch");
             }
         }
+
+        // Release processing locks only after all backup tasks have fully completed,
+        // ensuring no L1/L2 modifications occur during the backup window.
+        drop(l2_lock);
+        drop(l1_lock);
 
         let backup_id = backup_id.ok_or(anyhow::anyhow!("Failed to get backup_id"))?;
         let info = CreateBackupInfo {
