@@ -1,17 +1,40 @@
 name: Release
 
-permissions:
-  contents: write
-  id-token: write
-  attestations: write
-
 on:
   push:
     tags:
       - "v*.*.*"
 
 jobs:
-  build:
+  create-draft-release:
+    runs-on: ubicloud-standard-2
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Create Draft Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          name: Release ${{ github.ref_name }}
+  
+  upload-release-signatures:
+    needs: create-draft-release
+    runs-on: ubicloud-standard-2
+    environment: release-signing
+    steps:
+      - name: Awaiting Signature Upload
+        run: echo "Please upload the signature files to the draft release, then approve this job."
+
+
+
+  build-and-verify:
+    needs: [create-draft-release, upload-release-signatures]
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -22,16 +45,9 @@ jobs:
             runner: ubicloud-standard-30-arm
           - platform: osx-arm64
             runner: macos-latest
-
-    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-
-      - name: Compute release tag
-        id: vars
-        shell: bash
-        run: echo "release_tag=${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
@@ -41,55 +57,213 @@ jobs:
             experimental-features = nix-command flakes
             accept-flake-config = true
 
+      - name: Download signatures from draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          mkdir -p sigs
+          gh release download "$TAG" \
+            -p "citrea-${TAG}-${PLATFORM}.ekrem.asc" \
+            -p "citrea-${TAG}-${PLATFORM}.esad.asc" \
+            -p "citrea-${TAG}-${PLATFORM}.emre.asc" \
+            -D sigs/
+
+          COUNT=$(ls sigs/*.asc 2>/dev/null | wc -l)
+          if [[ "$COUNT" -ne 3 ]]; then
+            echo "FAIL: Expected 3 signatures for ${PLATFORM}, found ${COUNT}."
+            exit 1
+          fi
+
+      - name: Merge signatures
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          cat sigs/citrea-${TAG}-${PLATFORM}.ekrem.asc \
+              sigs/citrea-${TAG}-${PLATFORM}.esad.asc \
+              sigs/citrea-${TAG}-${PLATFORM}.emre.asc \
+              > "citrea-${TAG}-${PLATFORM}.signatures.asc"
+
       - name: Build
         run: nix build ./nix#citrea
 
       - name: Rebuild to verify reproducibility
         run: nix build ./nix#citrea --rebuild
 
-      - name: Hash binaries
-        id: hash
-        shell: bash
+      - name: Import authorized GPG keys
         run: |
           set -euo pipefail
-          CITREA_HASH=$(shasum -a 256 ./result/bin/citrea | awk '{print $1}')
-          CLI_HASH=$(shasum -a 256 ./result/bin/citrea-cli | awk '{print $1}')
-          echo "citrea_hash=$CITREA_HASH" >> "$GITHUB_OUTPUT"
-          echo "cli_hash=$CLI_HASH" >> "$GITHUB_OUTPUT"
-          {
-            echo "## ${{ matrix.platform }}"
-            echo ""
-            echo "| Binary | SHA-256 |"
-            echo "|--------|---------|"
-            echo "| citrea | \`$CITREA_HASH\` |"
-            echo "| citrea-cli | \`$CLI_HASH\` |"
-          } >> "$GITHUB_STEP_SUMMARY"
+          AUTHORIZED_KEYS=(
+            "7F52EC9A995025E87F3AF1200C17966C01E52A9A"
+            "CFF759A7C0EF99813BD1E6EE85CCAD8803F887A0"
+            "350B725CBA2D7EC3A1AD048C00980777D2839E81"
+          )
+          MAX_RETRIES=3
+          for KEY in "${AUTHORIZED_KEYS[@]}"; do
+            for i in $(seq 1 $MAX_RETRIES); do
+              if gpg --keyserver keyserver.ubuntu.com --recv-keys "$KEY"; then
+                break
+              fi
+              if [[ "$i" -eq "$MAX_RETRIES" ]]; then
+                echo "FAIL: Could not import key $KEY"
+                exit 1
+              fi
+              sleep 5
+            done
+          done
+
+      - name: Verify merged signatures against binary
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          AUTHORIZED_KEYS=(
+            "7F52EC9A995025E87F3AF1200C17966C01E52A9A"
+            "CFF759A7C0EF99813BD1E6EE85CCAD8803F887A0"
+            "350B725CBA2D7EC3A1AD048C00980777D2839E81"
+          )
+
+          MERGED="citrea-${TAG}-${PLATFORM}.signatures.asc"
+          BINARY="./result/bin/citrea"
+
+          SIG_STATUS=$(gpg --status-fd 1 --verify "$MERGED" "$BINARY" 2>/dev/null)
+          echo "$SIG_STATUS"
+
+          if echo "$SIG_STATUS" | grep -q "BADSIG"; then
+            echo "FAIL: BAD signature detected — binary mismatch or tampering."
+            exit 1
+          fi
+
+          VALID_COUNT=0
+          declare -A SEEN_KEYS
+
+          while IFS= read -r line; do
+            if echo "$line" | grep -q "VALIDSIG"; then
+              SUBKEY_FPR=$(echo "$line" | awk '{print $3}')
+              PRIMARY_FPR=$(gpg --with-colons --list-keys "$SUBKEY_FPR" 2>/dev/null | awk -F: '$1=="fpr"{print $10; exit}')
+
+              AUTHORIZED=false
+              for AUTH_FPR in "${AUTHORIZED_KEYS[@]}"; do
+                if [[ "$PRIMARY_FPR" == "$AUTH_FPR" ]]; then
+                  AUTHORIZED=true
+                  break
+                fi
+              done
+
+              if ! $AUTHORIZED; then
+                echo "FAIL: Unauthorized key signed the binary: $PRIMARY_FPR"
+                exit 1
+              fi
+
+              if [[ -z "${SEEN_KEYS[$PRIMARY_FPR]+x}" ]]; then
+                VALID_COUNT=$((VALID_COUNT + 1))
+                SEEN_KEYS[$PRIMARY_FPR]=1
+                echo "✓ $PRIMARY_FPR"
+              else
+                echo "Duplicate from $PRIMARY_FPR — ignored."
+              fi
+            fi
+          done <<< "$SIG_STATUS"
+
+          echo "-----------------------------------"
+          echo "Authorized signatures verified: $VALID_COUNT / 3"
+
+          if [[ "$VALID_COUNT" -ne 3 ]]; then
+            echo "FAIL: All 3 authorized signers required. Got $VALID_COUNT."
+            exit 1
+          fi
+
+          echo "All signatures verified for ${PLATFORM}."
 
       - name: Collect artifacts
-        shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          cp ./result/bin/citrea "artifacts/citrea-${{ steps.vars.outputs.release_tag }}-${{ matrix.platform }}"
-          cp ./result/bin/citrea-cli "artifacts/citrea-cli-${{ steps.vars.outputs.release_tag }}-${{ matrix.platform }}"
+          cp ./result/bin/citrea     "artifacts/citrea-${TAG}-${PLATFORM}"
+          cp ./result/bin/citrea-cli "artifacts/citrea-cli-${TAG}-${PLATFORM}"
+          cp "citrea-${TAG}-${PLATFORM}.signatures.asc" artifacts/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-build-${{ matrix.platform }}-${{ steps.vars.outputs.release_tag }}
+          name: release-build-${{ matrix.platform }}-${{ github.ref_name }}
           path: artifacts/
 
-      - name: Attest build provenance
-        uses: actions/attest@v4
-        with:
-          subject-path: |
-            artifacts/citrea-${{ steps.vars.outputs.release_tag }}-${{ matrix.platform }}
-            artifacts/citrea-cli-${{ steps.vars.outputs.release_tag }}-${{ matrix.platform }}
-
-  package:
-    needs: build
-    runs-on: ubuntu-latest
+  package-and-publish:
+    needs: build-and-verify
+    runs-on: ubicloud-standard-2
+    permissions:
+      contents: write
     steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-build-*-${{ github.ref_name }}
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS
+        run: |
+          set -euo pipefail
+          TAG="${{ github.ref_name }}"
+          (cd artifacts && sha256sum \
+            "citrea-${TAG}-linux-amd64" \
+            "citrea-${TAG}-linux-arm64" \
+            "citrea-${TAG}-osx-arm64" \
+            "citrea-cli-${TAG}-linux-amd64" \
+            "citrea-cli-${TAG}-linux-arm64" \
+            "citrea-cli-${TAG}-osx-arm64" \
+            > SHA256SUMS.txt)
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          name: Release ${{ github.ref_name }} — Verified
+          body: |
+            This release has been cryptographically verified.
+            All 3 authorized maintainers independently built and signed each binary via reproducible builds.
+
+            Includes:
+            - citrea-${{ github.ref_name }}-linux-amd64
+            - citrea-${{ github.ref_name }}-linux-arm64
+            - citrea-${{ github.ref_name }}-osx-arm64
+            - citrea-cli-${{ github.ref_name }}-linux-amd64
+            - citrea-cli-${{ github.ref_name }}-linux-arm64
+            - citrea-cli-${{ github.ref_name }}-osx-arm64
+            - Per-platform merged `.signatures.asc` files
+            - SHA256SUMS.txt
+          files: |
+            artifacts/citrea-${{ github.ref_name }}-linux-amd64
+            artifacts/citrea-${{ github.ref_name }}-linux-arm64
+            artifacts/citrea-${{ github.ref_name }}-osx-arm64
+            artifacts/citrea-cli-${{ github.ref_name }}-linux-amd64
+            artifacts/citrea-cli-${{ github.ref_name }}-linux-arm64
+            artifacts/citrea-cli-${{ github.ref_name }}-osx-arm64
+            artifacts/citrea-${{ github.ref_name }}-linux-amd64.signatures.asc
+            artifacts/citrea-${{ github.ref_name }}-linux-arm64.signatures.asc
+            artifacts/citrea-${{ github.ref_name }}-osx-arm64.signatures.asc
+            artifacts/SHA256SUMS.txt
+
+  update-dockerhub:
+    needs: package-and-publish
+    runs-on: ubicloud-standard-2
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
@@ -97,97 +271,7 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Generate SHA256SUMS.txt
-        shell: bash
-        run: |
-          set -euo pipefail
-          (cd artifacts && shasum -a 256 \
-            "citrea-${{ github.ref_name }}-linux-amd64" \
-            "citrea-${{ github.ref_name }}-linux-arm64" \
-            "citrea-${{ github.ref_name }}-osx-arm64" \
-            "citrea-cli-${{ github.ref_name }}-linux-amd64" \
-            "citrea-cli-${{ github.ref_name }}-linux-arm64" \
-            "citrea-cli-${{ github.ref_name }}-osx-arm64" \
-            > "SHA256SUMS.txt")
-
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
-
-      - name: Sign SHA256SUMS.txt
-        shell: bash
-        run: |
-          set -euo pipefail
-          cosign sign-blob --yes \
-            --bundle artifacts/SHA256SUMS.txt.sigstore.json \
-            artifacts/SHA256SUMS.txt
-
-      - name: Verify signed SHA256SUMS.txt
-        shell: bash
-        env:
-          CERTIFICATE_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/release.yml@${{ github.ref }}
-        run: |
-          set -euo pipefail
-          cosign verify-blob artifacts/SHA256SUMS.txt \
-            --bundle artifacts/SHA256SUMS.txt.sigstore.json \
-            --certificate-identity "$CERTIFICATE_IDENTITY" \
-            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-            --certificate-github-workflow-repository "${{ github.repository }}" \
-            --certificate-github-workflow-ref "${{ github.ref }}" \
-            --certificate-github-workflow-sha "${{ github.sha }}"
-
-      - name: Upload packaged artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-bundle-${{ github.ref_name }}
-          path: artifacts/
-
-      - name: Attach to release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Release ${{ github.ref_name }}
-          body: |
-            This is the release for version ${{ github.ref_name }}.
-
-            It includes:
-            - citrea-${{ github.ref_name }}-linux-amd64
-            - citrea-${{ github.ref_name }}-linux-arm64
-            - citrea-${{ github.ref_name }}-osx-arm64
-            - citrea-cli-${{ github.ref_name }}-linux-amd64
-            - citrea-cli-${{ github.ref_name }}-linux-arm64
-            - citrea-cli-${{ github.ref_name }}-osx-arm64
-            - SHA256SUMS.txt
-            - SHA256SUMS.txt.sigstore.json
-          files: |
-            artifacts/SHA256SUMS.txt
-            artifacts/SHA256SUMS.txt.sigstore.json
-            artifacts/citrea-${{ github.ref_name }}-linux-amd64
-            artifacts/citrea-${{ github.ref_name }}-linux-arm64
-            artifacts/citrea-${{ github.ref_name }}-osx-arm64
-            artifacts/citrea-cli-${{ github.ref_name }}-linux-amd64
-            artifacts/citrea-cli-${{ github.ref_name }}-linux-arm64
-            artifacts/citrea-cli-${{ github.ref_name }}-osx-arm64
-
-  update-dockerhub:
-    needs: [package]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Download packaged artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: release-bundle-${{ github.ref_name }}
-          path: artifacts
-
-      - name: Verify binaries against signed SHA256SUMS
-        shell: bash
-        run: |
-          set -euo pipefail
-          (cd artifacts && shasum -a 256 -c SHA256SUMS.txt)
-
       - name: Prepare Docker context
-        shell: bash
         run: |
           set -euo pipefail
           RELEASE="${{ github.ref_name }}"
@@ -227,7 +311,7 @@ jobs:
             ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ github.ref_name }}
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
+        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22
 
       - name: Sign Docker image
         shell: bash
