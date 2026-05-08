@@ -11,9 +11,6 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
       - name: Create Draft Release
         uses: softprops/action-gh-release@v2
         with:
@@ -35,6 +32,11 @@ jobs:
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: write
+    env:
+      AUTHORIZED_KEYS: >-
+        7F52EC9A995025E87F3AF1200C17966C01E52A9A
+        CFF759A7C0EF99813BD1E6EE85CCAD8803F887A0
+        350B725CBA2D7EC3A1AD048C00980777D2839E81
     strategy:
       fail-fast: false
       matrix:
@@ -65,15 +67,17 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p sigs
-          gh release download "$TAG" \
-            -p "citrea-${TAG}-${PLATFORM}.ekrem.asc" \
-            -p "citrea-${TAG}-${PLATFORM}.esad.asc" \
-            -p "citrea-${TAG}-${PLATFORM}.emre.asc" \
-            -D sigs/
+          for BINARY in citrea citrea-cli; do
+            gh release download "$TAG" \
+              -p "${BINARY}-${TAG}-${PLATFORM}.ekrem.asc" \
+              -p "${BINARY}-${TAG}-${PLATFORM}.esad.asc" \
+              -p "${BINARY}-${TAG}-${PLATFORM}.emre.asc" \
+              -D sigs/
+          done
 
           COUNT=$(ls sigs/*.asc 2>/dev/null | wc -l)
-          if [[ "$COUNT" -ne 3 ]]; then
-            echo "FAIL: Expected 3 signatures for ${PLATFORM}, found ${COUNT}."
+          if [[ "$COUNT" -ne 6 ]]; then
+            echo "FAIL: Expected 6 signature files for ${PLATFORM} (3 per binary), found ${COUNT}."
             exit 1
           fi
 
@@ -83,10 +87,12 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          cat sigs/citrea-${TAG}-${PLATFORM}.ekrem.asc \
-              sigs/citrea-${TAG}-${PLATFORM}.esad.asc \
-              sigs/citrea-${TAG}-${PLATFORM}.emre.asc \
-              > "citrea-${TAG}-${PLATFORM}.signatures.asc"
+          for BINARY in citrea citrea-cli; do
+            cat sigs/${BINARY}-${TAG}-${PLATFORM}.ekrem.asc \
+                sigs/${BINARY}-${TAG}-${PLATFORM}.esad.asc \
+                sigs/${BINARY}-${TAG}-${PLATFORM}.emre.asc \
+                > "${BINARY}-${TAG}-${PLATFORM}.signatures.asc"
+          done
 
       - name: Build
         run: nix build ./nix#citrea
@@ -97,15 +103,11 @@ jobs:
       - name: Import authorized GPG keys
         run: |
           set -euo pipefail
-          AUTHORIZED_KEYS=(
-            "7F52EC9A995025E87F3AF1200C17966C01E52A9A"
-            "CFF759A7C0EF99813BD1E6EE85CCAD8803F887A0"
-            "350B725CBA2D7EC3A1AD048C00980777D2839E81"
-          )
+          read -r -a KEYS <<< "$AUTHORIZED_KEYS"
           MAX_RETRIES=3
-          for KEY in "${AUTHORIZED_KEYS[@]}"; do
+          for KEY in "${KEYS[@]}"; do
             for i in $(seq 1 $MAX_RETRIES); do
-              if gpg --keyserver keyserver.ubuntu.com --recv-keys "$KEY"; then
+              if gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys "$KEY"; then
                 break
               fi
               if [[ "$i" -eq "$MAX_RETRIES" ]]; then
@@ -116,70 +118,82 @@ jobs:
             done
           done
 
-      - name: Verify merged signatures against binary
+      - name: Verify merged signatures against binaries
         env:
           PLATFORM: ${{ matrix.platform }}
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          read -r -a AUTHORIZED_KEY_LIST <<< "$AUTHORIZED_KEYS"
 
-          AUTHORIZED_KEYS=(
-            "7F52EC9A995025E87F3AF1200C17966C01E52A9A"
-            "CFF759A7C0EF99813BD1E6EE85CCAD8803F887A0"
-            "350B725CBA2D7EC3A1AD048C00980777D2839E81"
-          )
+          verify_binary() {
+            local BINARY_NAME="$1"
+            local BINARY_PATH="$2"
+            local MERGED="${BINARY_NAME}-${TAG}-${PLATFORM}.signatures.asc"
 
-          MERGED="citrea-${TAG}-${PLATFORM}.signatures.asc"
-          BINARY="./result/bin/citrea"
+            echo "=== Verifying ${BINARY_NAME} ==="
 
-          SIG_STATUS=$(gpg --status-fd 1 --verify "$MERGED" "$BINARY" 2>/dev/null)
-          echo "$SIG_STATUS"
+            set +e
+            SIG_STATUS=$(gpg --status-fd 1 --verify "$MERGED" "$BINARY_PATH" 2>/dev/null)
+            GPG_EXIT=$?
+            set -e
 
-          if echo "$SIG_STATUS" | grep -q "BADSIG"; then
-            echo "FAIL: BAD signature detected — binary mismatch or tampering."
-            exit 1
-          fi
+            echo "$SIG_STATUS"
 
-          VALID_COUNT=0
-          declare -A SEEN_KEYS
-
-          while IFS= read -r line; do
-            if echo "$line" | grep -q "VALIDSIG"; then
-              SUBKEY_FPR=$(echo "$line" | awk '{print $3}')
-              PRIMARY_FPR=$(gpg --with-colons --list-keys "$SUBKEY_FPR" 2>/dev/null | awk -F: '$1=="fpr"{print $10; exit}')
-
-              AUTHORIZED=false
-              for AUTH_FPR in "${AUTHORIZED_KEYS[@]}"; do
-                if [[ "$PRIMARY_FPR" == "$AUTH_FPR" ]]; then
-                  AUTHORIZED=true
-                  break
-                fi
-              done
-
-              if ! $AUTHORIZED; then
-                echo "FAIL: Unauthorized key signed the binary: $PRIMARY_FPR"
-                exit 1
-              fi
-
-              if [[ -z "${SEEN_KEYS[$PRIMARY_FPR]+x}" ]]; then
-                VALID_COUNT=$((VALID_COUNT + 1))
-                SEEN_KEYS[$PRIMARY_FPR]=1
-                echo "✓ $PRIMARY_FPR"
-              else
-                echo "Duplicate from $PRIMARY_FPR — ignored."
-              fi
+            if [[ "$GPG_EXIT" -ne 0 ]] && ! echo "$SIG_STATUS" | grep -q "VALIDSIG"; then
+              echo "FAIL: gpg verification exited with code $GPG_EXIT and no valid signatures found for ${BINARY_NAME}."
+              exit 1
             fi
-          done <<< "$SIG_STATUS"
 
-          echo "-----------------------------------"
-          echo "Authorized signatures verified: $VALID_COUNT / 3"
+            if echo "$SIG_STATUS" | grep -q "BADSIG"; then
+              echo "FAIL: BAD signature detected for ${BINARY_NAME} — binary mismatch or tampering."
+              exit 1
+            fi
 
-          if [[ "$VALID_COUNT" -ne 3 ]]; then
-            echo "FAIL: All 3 authorized signers required. Got $VALID_COUNT."
-            exit 1
-          fi
+            local VALID_COUNT=0
+            declare -A SEEN_KEYS
 
-          echo "All signatures verified for ${PLATFORM}."
+            while IFS= read -r line; do
+              if echo "$line" | grep -q "VALIDSIG"; then
+                SUBKEY_FPR=$(echo "$line" | awk '{print $3}')
+                PRIMARY_FPR=$(gpg --with-colons --list-keys "$SUBKEY_FPR" 2>/dev/null | awk -F: '$1=="fpr"{print $10; exit}')
+
+                AUTHORIZED=false
+                for AUTH_FPR in "${AUTHORIZED_KEY_LIST[@]}"; do
+                  if [[ "$PRIMARY_FPR" == "$AUTH_FPR" ]]; then
+                    AUTHORIZED=true
+                    break
+                  fi
+                done
+
+                if ! $AUTHORIZED; then
+                  echo "FAIL: Unauthorized key signed ${BINARY_NAME}: $PRIMARY_FPR"
+                  exit 1
+                fi
+
+                if [[ -z "${SEEN_KEYS[$PRIMARY_FPR]+x}" ]]; then
+                  VALID_COUNT=$((VALID_COUNT + 1))
+                  SEEN_KEYS[$PRIMARY_FPR]=1
+                  echo "✓ $PRIMARY_FPR"
+                else
+                  echo "Duplicate from $PRIMARY_FPR — ignored."
+                fi
+              fi
+            done <<< "$SIG_STATUS"
+
+            echo "-----------------------------------"
+            echo "Authorized signatures verified: $VALID_COUNT / 3"
+
+            if [[ "$VALID_COUNT" -ne 3 ]]; then
+              echo "FAIL: All 3 authorized signers required for ${BINARY_NAME}. Got $VALID_COUNT."
+              exit 1
+            fi
+
+            echo "All signatures verified for ${BINARY_NAME} on ${PLATFORM}."
+          }
+
+          verify_binary "citrea"     "./result/bin/citrea"
+          verify_binary "citrea-cli" "./result/bin/citrea-cli"
 
       - name: Collect artifacts
         env:
@@ -190,7 +204,8 @@ jobs:
           mkdir -p artifacts
           cp ./result/bin/citrea     "artifacts/citrea-${TAG}-${PLATFORM}"
           cp ./result/bin/citrea-cli "artifacts/citrea-cli-${TAG}-${PLATFORM}"
-          cp "citrea-${TAG}-${PLATFORM}.signatures.asc" artifacts/
+          cp "citrea-${TAG}-${PLATFORM}.signatures.asc"     artifacts/
+          cp "citrea-cli-${TAG}-${PLATFORM}.signatures.asc" artifacts/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -231,7 +246,7 @@ jobs:
           name: Release ${{ github.ref_name }} — Verified
           body: |
             This release has been cryptographically verified.
-            All 3 authorized maintainers independently built and signed each binary via reproducible builds.
+            All 3 authorized maintainers independently built and signed both `citrea` and `citrea-cli` for each platform via reproducible builds.
 
             Includes:
             - citrea-${{ github.ref_name }}-linux-amd64
@@ -240,7 +255,7 @@ jobs:
             - citrea-cli-${{ github.ref_name }}-linux-amd64
             - citrea-cli-${{ github.ref_name }}-linux-arm64
             - citrea-cli-${{ github.ref_name }}-osx-arm64
-            - Per-platform merged `.signatures.asc` files
+            - Per-platform merged `.signatures.asc` files for both binaries
             - SHA256SUMS.txt
           files: |
             artifacts/citrea-${{ github.ref_name }}-linux-amd64
@@ -252,6 +267,9 @@ jobs:
             artifacts/citrea-${{ github.ref_name }}-linux-amd64.signatures.asc
             artifacts/citrea-${{ github.ref_name }}-linux-arm64.signatures.asc
             artifacts/citrea-${{ github.ref_name }}-osx-arm64.signatures.asc
+            artifacts/citrea-cli-${{ github.ref_name }}-linux-amd64.signatures.asc
+            artifacts/citrea-cli-${{ github.ref_name }}-linux-arm64.signatures.asc
+            artifacts/citrea-cli-${{ github.ref_name }}-osx-arm64.signatures.asc
             artifacts/SHA256SUMS.txt
 
   update-dockerhub:
