@@ -159,8 +159,12 @@ impl FeeService {
             .require_network(self.network)
             .map_err(|_| FeeServiceError::InvalidAddressNetwork)?;
 
+        let parent_output = parent_tx
+            .output
+            .first()
+            .ok_or(FeeServiceError::PsbtRetrievalFailure)?;
         let mut outputs = HashMap::new();
-        outputs.insert(change_address.to_string(), parent_tx.output[0].value);
+        outputs.insert(change_address.to_string(), parent_output.value);
         let options = WalletCreateFundedPsbtOptions {
             add_inputs: Some(true),
             fee_rate: Some(Amount::from_btc(fee_rate / 100_000.0)?), // sat/vB to BTC/kB
