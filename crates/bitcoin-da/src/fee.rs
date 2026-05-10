@@ -289,8 +289,16 @@ pub(crate) fn validate_txs_fee_rate(
 
         // Validate reveal
         let reveal_tx = &tx.reveal.tx;
-        let input_amount = commit_tx.output[0].value;
-        let output_amount = reveal_tx.output[0].value;
+        let input_amount = commit_tx
+            .output
+            .first()
+            .ok_or(BitcoinServiceError::FeeCalculation(fee_rate))?
+            .value;
+        let output_amount = reveal_tx
+            .output
+            .first()
+            .ok_or(BitcoinServiceError::FeeCalculation(fee_rate))?
+            .value;
 
         // Add reveal utxo to utxo_map, used by chunking txs
         utxo_map.insert((tx.reveal_txid(), 0), output_amount);
