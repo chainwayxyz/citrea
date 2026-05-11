@@ -23,7 +23,7 @@ use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
 use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
-    AccessoryKey, AccessoryStateValue, BonsaiSession, BoundlessSession, DbHash, JmtValue, L1Height,
+    AccessoryKey, AccessoryStateValue, BitcoinProofLocation, BonsaiSession, BoundlessSession, DbHash, JmtValue, L1Height,
     L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber, StateKey,
 };
 
@@ -566,8 +566,8 @@ define_table_with_seek_key_codec!(
 );
 
 define_table_with_seek_key_codec!(
-    /// Out of order proofs
-    (PendingProofs) (u32, u32) => (Proof, L1Height)
+    /// Out of order proofs - stores Bitcoin location (block height + tx index) for lazy fetching
+    (PendingProofs) (u32, u32) => (BitcoinProofLocation, L1Height)
 );
 
 #[cfg(test)]

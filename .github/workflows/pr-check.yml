@@ -12,7 +12,9 @@ jobs:
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
+      pull-requests: read
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Check PR Title
         uses: amannn/action-semantic-pull-request@v5
@@ -49,14 +51,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   check-changelog:
-    needs: validate
     permissions:
       contents: read
       pull-requests: write
       issues: write
     name: Check Changelog Entry
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Checkout code
         uses: actions/checkout@v5

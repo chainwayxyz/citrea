@@ -14,8 +14,18 @@ use tracing::{debug, error, info};
 
 use crate::cache::L1BlockCache;
 
+/// Wrapper for proofs that includes Bitcoin location for efficient storage
+#[derive(Clone)]
+pub struct ProofWithLocation {
+    pub proof: Proof,
+    /// Bitcoin block height where this proof was found
+    pub bitcoin_block_height: u64,
+    /// Transaction index within the Bitcoin block
+    pub bitcoin_tx_index: u32,
+}
+
 pub enum ProofOrCommitment {
-    Proof(Proof),
+    Proof(ProofWithLocation),
     Commitment(SequencerCommitment),
 }
 
@@ -134,11 +144,20 @@ pub async fn extract_zk_proofs_and_sequencer_commitments<Da: DaService>(
     prover_da_pub_key: &[u8],
     sequencer_da_pub_key: &[u8],
 ) -> Vec<ProofOrCommitment> {
+    let bitcoin_block_height = l1_block.header().height();
+    
     let proofs = da_service
         .extract_relevant_zk_proofs(l1_block, prover_da_pub_key)
         .await
         .into_iter()
-        .map(|(idx, proof)| (idx, ProofOrCommitment::Proof(proof)));
+        .map(|(tx_index, proof)| {
+            let proof_with_location = ProofWithLocation {
+                proof,
+                bitcoin_block_height,
+                bitcoin_tx_index: tx_index as u32,
+            };
+            (tx_index, ProofOrCommitment::Proof(proof_with_location))
+        });
 
     let commitments = da_service
         .as_ref()
