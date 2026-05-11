@@ -99,7 +99,7 @@ fn mine_reveal_prefix(
         }
 
         iterations += 1;
-        if iterations % 1000 == 0 {
+        if iterations.is_multiple_of(1000) {
             trace!(iterations, "Mining for {label} reveal tx prefix");
             if iterations > 16384 {
                 warn!("Too many iterations mining for {label} reveal tx prefix");
