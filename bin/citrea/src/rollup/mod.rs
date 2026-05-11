@@ -61,8 +61,8 @@ pub struct Storage {
 
 /// Group for initialization dependencies
 pub struct Dependencies<T: RollupBlueprint> {
-    /// The task manager
-    pub task_manager: TaskExecutor,
+    /// The task executor
+    pub task_executor: TaskExecutor,
     /// The DA service
     pub da_service: Arc<<T as RollupBlueprint>::DaService>,
     /// The channel on which L2 block number is broadcasted.
@@ -79,12 +79,12 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         require_da_wallet: bool,
         network: Network,
     ) -> Result<Dependencies<Self>> {
-        let task_manager = TaskExecutor::with_existing_handle(tokio::runtime::Handle::current())?;
+        let task_executor = TaskExecutor::with_existing_handle(tokio::runtime::Handle::current())?;
         let da_service = self
             .create_da_service(
                 rollup_config,
                 require_da_wallet,
-                task_manager.clone(),
+                task_executor.clone(),
                 network,
             )
             .await?;
@@ -97,7 +97,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         };
 
         Ok(Dependencies {
-            task_manager,
+            task_executor,
             da_service,
             l2_block_channel: (l2_block_tx, l2_block_rx),
         })

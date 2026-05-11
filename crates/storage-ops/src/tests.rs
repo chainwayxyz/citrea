@@ -32,9 +32,9 @@ use crate::pruning::{Pruner, PrunerService};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_pruning_simple_run() {
-    let task_manager = TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+    let task_executor = TaskManager::with_existing_handle(tokio::runtime::Handle::current())
         .expect("tokio runtime handle should exist in tests");
-    let task_executor = task_manager.clone();
+    let task_executor = task_executor.clone();
 
     let tmpdir = tempfile::tempdir().unwrap();
     let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
@@ -65,7 +65,7 @@ async fn test_pruning_simple_run() {
 
         sleep(Duration::from_secs(1));
 
-        task_manager.graceful_shutdown();
+        task_executor.graceful_shutdown();
     }
     tokio::time::sleep(Duration::from_secs(1)).await;
 
