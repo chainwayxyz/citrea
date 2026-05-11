@@ -151,8 +151,7 @@ reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v1.11.0", defa
 reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v1.11.0", default-features = false }
 reth-stages = { git = "https://github.com/paradigmxyz/reth", tag = "v1.11.0", default-features = false }
 
-revm = { version = "34.0.0", features = ["serde"], default-features = false }
-revm-precompile = { version = "32.0.0", default-features = false, features = ["blst", "bn"] }
+revm = { version = "34.0.0", features = ["serde", "blst", "bn"], default-features = false }
 revm-primitives = { version = "22.0.0", default-features = false }
 revm-bytecode = { version = "8.0.0", default-features = false }
 alloy-genesis = { version = "1.7.3", default-features = false }
