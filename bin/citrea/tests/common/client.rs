@@ -518,6 +518,51 @@ impl TestClient {
             .unwrap()
     }
 
+    #[allow(dead_code)]
+    pub(crate) async fn eth_get_raw_transaction_by_hash(
+        &self,
+        tx_hash: TxHash,
+        mempool_only: Option<bool>,
+    ) -> Option<Bytes> {
+        self.http_client
+            .request(
+                "eth_getRawTransactionByHash",
+                rpc_params![tx_hash, mempool_only],
+            )
+            .await
+            .unwrap()
+    }
+
+    #[allow(dead_code)]
+    pub(crate) async fn eth_get_raw_tx_by_block_hash_and_index(
+        &self,
+        block_hash: B256,
+        index: U64,
+    ) -> Option<Bytes> {
+        self.http_client
+            .request(
+                "eth_getRawTransactionByBlockHashAndIndex",
+                rpc_params![block_hash, index],
+            )
+            .await
+            .unwrap()
+    }
+
+    #[allow(dead_code)]
+    pub(crate) async fn eth_get_raw_tx_by_block_number_and_index(
+        &self,
+        block_number: BlockNumberOrTag,
+        index: U64,
+    ) -> Option<Bytes> {
+        self.http_client
+            .request(
+                "eth_getRawTransactionByBlockNumberAndIndex",
+                rpc_params![block_number, index],
+            )
+            .await
+            .unwrap()
+    }
+
     /// params is a tuple of (fromBlock, toBlock, address, topics, blockHash)
     /// any of these params are optional
     pub(crate) async fn eth_get_logs<P>(&self, params: P) -> Vec<Log>

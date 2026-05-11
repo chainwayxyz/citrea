@@ -59,6 +59,14 @@ const FALLBACK_BASE_GAS_PRICE: u128 = 1_000_000_000; // 1 gwei
 /// Duration to sleep before retrying a failed proof request in seconds
 const RETRY_RESUBMISSION_DELAY_SECS: Duration = Duration::from_secs(10);
 
+/// Per-attempt timeout for the `get_gas_price` RPC. A silent hang here would otherwise
+/// prevent `backoff` from ever observing an error and retrying.
+const GAS_PRICE_RPC_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Per-attempt timeout for the pricing service HTTP call. Same rationale: surface silent
+/// hangs as errors so `backoff` can retry.
+const PRICING_SERVICE_TIMEOUT: Duration = Duration::from_secs(30);
+
 enum ResubmitResult {
     Retry,
     Success,
@@ -246,10 +254,25 @@ impl BoundlessProver {
             bidding_start_delay,
             ..
         } = retry_backoff(exponential_backoff, || async move {
-            self.pricing_service
-                .get_price(total_cycles_approx)
-                .await
-                .map_err(backoff::Error::transient)
+            match tokio::time::timeout(
+                PRICING_SERVICE_TIMEOUT,
+                self.pricing_service.get_price(total_cycles_approx),
+            )
+            .await
+            {
+                Ok(Ok(res)) => Ok(res),
+                Ok(Err(e)) => Err(backoff::Error::transient(e)),
+                Err(_elapsed) => {
+                    tracing::error!(
+                        "pricing_service.get_price timed out after {:?}, retrying...",
+                        PRICING_SERVICE_TIMEOUT
+                    );
+                    Err(backoff::Error::transient(anyhow::anyhow!(
+                        "pricing_service.get_price timed out after {:?}",
+                        PRICING_SERVICE_TIMEOUT
+                    )))
+                }
+            }
         })
         .await
         .map_err(|e| {
@@ -258,9 +281,18 @@ impl BoundlessProver {
 
         let lock_timeout = cmp::max(lock_timeout, MIN_LOCK_TIMEOUT); // at least 200 seconds
 
+        tracing::info!(
+            "Got pricing response, building proof request for job_id={} image_id={} lock_timeout={}s timeout={}s",
+            job_id,
+            image_id,
+            lock_timeout,
+            timeout
+        );
+
         let request = self
             .build_proof_request(
                 receipt_claim.digest(),
+                image_id,
                 image_url,
                 input_url,
                 U256::from(cmp::min(
@@ -280,6 +312,12 @@ impl BoundlessProver {
                 journal.clone(),
             )
             .await;
+
+        tracing::info!(
+            "Built proof request for job_id={} image_id={}, handing off to send_request",
+            job_id,
+            image_id
+        );
 
         // Start boundless proving session
         let (req_id, request_expiry) = self
@@ -312,6 +350,7 @@ impl BoundlessProver {
     pub async fn build_proof_request(
         &self,
         receipt_claim_digest: Digest,
+        image_id: Digest,
         image_url: Url,
         input_url: Url,
         min_price_per_cycle: U256,
@@ -326,7 +365,15 @@ impl BoundlessProver {
     ) -> RequestParams {
         // Note that offer ramp up period must be less than or equal to the lock timeout)
 
+        tracing::info!(
+            "build_proof_request: entered, image_id={} total_cycles_approx={}",
+            image_id,
+            total_cycles_approx
+        );
+
         let provider = self.client.provider().clone();
+
+        tracing::info!("build_proof_request: building offer_layer_config");
 
         let offer_layer_config = OfferLayerConfigBuilder::default()
             .min_price_per_cycle(min_price_per_cycle)
@@ -341,18 +388,33 @@ impl BoundlessProver {
 
         let exponential_backoff = ExponentialBackoff::default();
 
+        tracing::info!(
+            "build_proof_request: fetching gas price via provider.get_gas_price() (per-attempt timeout={:?})",
+            GAS_PRICE_RPC_TIMEOUT
+        );
+
         let gas_price = retry_backoff(exponential_backoff, || {
             let p = provider.clone();
             async move {
-                match p.get_gas_price().await {
-                    Err(e) => {
+                match tokio::time::timeout(GAS_PRICE_RPC_TIMEOUT, p.get_gas_price()).await {
+                    Ok(Ok(price)) => Ok(price),
+                    Ok(Err(e)) => {
                         tracing::error!(
                             "Failed to get gas price from provider, retrying... err={}",
                             e
                         );
-                        Err(backoff::Error::transient(e))
+                        Err(backoff::Error::transient(anyhow::Error::from(e)))
                     }
-                    Ok(price) => Ok(price),
+                    Err(_elapsed) => {
+                        tracing::error!(
+                            "get_gas_price timed out after {:?}, retrying...",
+                            GAS_PRICE_RPC_TIMEOUT
+                        );
+                        Err(backoff::Error::transient(anyhow::anyhow!(
+                            "get_gas_price timed out after {:?}",
+                            GAS_PRICE_RPC_TIMEOUT
+                        )))
+                    }
                 }
             }
         })
@@ -365,6 +427,11 @@ impl BoundlessProver {
             );
             FALLBACK_BASE_GAS_PRICE
         });
+
+        tracing::info!(
+            "build_proof_request: gas_price={} wei, building OfferLayer and Requirements",
+            gas_price
+        );
 
         let offer_layer = OfferLayer::new(provider, offer_layer_config);
 
@@ -381,6 +448,11 @@ impl BoundlessProver {
             .estimate_gas_cost_upper_bound(&requirements, &dummy_request_id, gas_price)
             .unwrap();
 
+        tracing::info!(
+            "build_proof_request: gas_cost_estimate={}",
+            gas_cost_estimate
+        );
+
         let max_price_cycle = max_price_per_cycle * U256::from(total_cycles_approx);
 
         // https://github.com/boundless-xyz/boundless/blob/eced0f1eab1b0666ac1cd263ce815861a9558925/crates/boundless-market/src/request_builder/offer_layer.rs#L329
@@ -393,8 +465,17 @@ impl BoundlessProver {
         let ts = get_timestamp();
         let bidding_start = ts + bidding_start_delay;
 
-        self.client
+        tracing::info!(
+            "build_proof_request: min_price={} max_price={} bidding_start={}, assembling RequestParams",
+            min_price,
+            max_price,
+            bidding_start
+        );
+
+        let params = self
+            .client
             .new_request()
+            .with_image_id(image_id)
             .with_program_url(image_url)
             .unwrap()
             .with_input_url(input_url)
@@ -411,7 +492,11 @@ impl BoundlessProver {
                     .with_ramp_up_start(bidding_start),
             )
             .with_cycles(total_cycles_approx)
-            .with_journal(journal)
+            .with_journal(journal);
+
+        tracing::info!("build_proof_request: finished assembling RequestParams");
+
+        params
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -634,8 +719,14 @@ impl BoundlessProver {
         let exponential_backoff = ExponentialBackoff::default();
 
         let price_response = retry_backoff(exponential_backoff, || async move {
-            match self.pricing_service.get_price(total_cycles_approx).await {
-                Err(e) => {
+            match tokio::time::timeout(
+                PRICING_SERVICE_TIMEOUT,
+                self.pricing_service.get_price(total_cycles_approx),
+            )
+            .await
+            {
+                Ok(Ok(res)) => Ok(res),
+                Ok(Err(e)) => {
                     tracing::error!(
                         "Failed to get price from pricing service for job: {}  | err={}",
                         job_id,
@@ -643,7 +734,17 @@ impl BoundlessProver {
                     );
                     Err(backoff::Error::transient(e))
                 }
-                Ok(res) => Ok(res),
+                Err(_elapsed) => {
+                    tracing::error!(
+                        "pricing_service.get_price timed out after {:?} for job: {}, retrying...",
+                        PRICING_SERVICE_TIMEOUT,
+                        job_id
+                    );
+                    Err(backoff::Error::transient(anyhow::anyhow!(
+                        "pricing_service.get_price timed out after {:?}",
+                        PRICING_SERVICE_TIMEOUT
+                    )))
+                }
             }
         })
         .await
@@ -709,6 +810,7 @@ impl BoundlessProver {
             .build_proof_request(
                 // this now has receipt claim digest
                 receipt_claim.digest(),
+                image_id,
                 Url::parse(&failed_request.imageUrl).expect("Invalid image URL"),
                 Url::parse(
                     core::str::from_utf8(&failed_request.input.data).expect("Invalid input URL"),

@@ -2052,7 +2052,7 @@ dependencies = [
 
 [[package]]
 name = "bitcoin-da"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2068,7 +2068,7 @@ dependencies = [
  "itertools 0.13.0",
  "jsonrpsee",
  "k256",
- "lru 0.13.0",
+ "lru 0.16.3",
  "metrics",
  "metrics-derive",
  "rand 0.8.5",
@@ -2798,7 +2798,7 @@ dependencies = [
 
 [[package]]
 name = "citrea"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "alloy",
  "alloy-primitives",
@@ -2881,7 +2881,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-batch-prover"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -2929,7 +2929,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-cli"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "citrea-batch-prover",
@@ -2948,7 +2948,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-common"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -2964,7 +2964,7 @@ dependencies = [
  "hex",
  "hyper",
  "jsonrpsee",
- "lru 0.13.0",
+ "lru 0.16.3",
  "metrics",
  "reth-primitives",
  "reth-tasks",
@@ -3017,7 +3017,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-evm"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "alloy",
  "alloy-consensus",
@@ -3080,7 +3080,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-fullnode"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -3114,7 +3114,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-light-client-prover"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -3151,7 +3151,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "alloy-eips",
  "brotli",
@@ -3162,7 +3162,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-adapter"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -3191,14 +3191,14 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-batch-proof"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "risc0-build",
 ]
 
 [[package]]
 name = "citrea-risc0-light-client"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "citrea-risc0-batch-proof",
  "risc0-build",
@@ -3206,7 +3206,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-sequencer"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "alloy-eips",
  "alloy-genesis",
@@ -3266,7 +3266,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-stf"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3296,7 +3296,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-storage-ops"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "citrea-common",
@@ -4402,7 +4402,7 @@ dependencies = [
 
 [[package]]
 name = "ethereum-rpc"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "alloy-consensus",
  "alloy-network",
@@ -5915,7 +5915,7 @@ dependencies = [
 
 [[package]]
 name = "integration-tests"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -6344,7 +6344,7 @@ dependencies = [
 
 [[package]]
 name = "l2-block-rule-enforcer"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "borsh",
  "chrono",
@@ -6473,17 +6473,17 @@ dependencies = [
 
 [[package]]
 name = "librocksdb-sys"
-version = "0.16.0+8.10.0"
+version = "0.17.3+10.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce3d60bc059831dc1c83903fb45c103f75db65c5a7bf22272764d9cc683e348c"
+checksum = "cef2a00ee60fe526157c9023edab23943fae1ce2ab6f4abb2a807c1746835de9"
 dependencies = [
- "bindgen 0.69.5",
+ "bindgen 0.72.1",
  "bzip2-sys",
  "cc",
- "glob",
  "libc",
  "libz-sys",
  "lz4-sys",
+ "tikv-jemalloc-sys",
 ]
 
 [[package]]
@@ -6629,15 +6629,6 @@ name = "lru"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "234cf4f4a04dc1f57e24b96cc0cd600cf2af460d4161ac5ecdd0af8e1f3b2a38"
-dependencies = [
- "hashbrown 0.15.2",
-]
-
-[[package]]
-name = "lru"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "227748d55f2f0ab4735d87fd623798cb6b664512fe979705f829c9f81c934465"
 dependencies = [
  "hashbrown 0.15.2",
 ]
@@ -7997,7 +7988,7 @@ dependencies = [
 
 [[package]]
 name = "prover-services"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10599,9 +10590,9 @@ dependencies = [
 
 [[package]]
 name = "rocksdb"
-version = "0.22.0"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bd13e55d6d7b8cd0ea569161127567cd587676c99f4472f779a0279aa60a7a7"
+checksum = "ddb7af00d2b17dbd07d82c0063e25411959748ff03e8d4f96134c2ff41fce34f"
 dependencies = [
  "libc",
  "librocksdb-sys",
@@ -11424,7 +11415,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "short-header-proof-provider"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "borsh",
  "futures",
@@ -11568,7 +11559,7 @@ dependencies = [
 
 [[package]]
 name = "sov-accounts"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "borsh",
  "hex",
@@ -11588,7 +11579,7 @@ dependencies = [
 
 [[package]]
 name = "sov-db"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -11611,7 +11602,7 @@ dependencies = [
 
 [[package]]
 name = "sov-keys"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "borsh",
  "derive_more 1.0.0",
@@ -11628,7 +11619,7 @@ dependencies = [
 
 [[package]]
 name = "sov-ledger-rpc"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -11644,7 +11635,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-da"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11663,7 +11654,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-zkvm"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11676,7 +11667,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -11707,7 +11698,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -11733,7 +11724,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-macros"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "borsh",
  "jsonrpsee",
@@ -11751,7 +11742,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-rollup-blueprint"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11773,7 +11764,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -11793,7 +11784,7 @@ dependencies = [
 
 [[package]]
 name = "sov-prover-storage-manager"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -11807,7 +11798,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -11831,7 +11822,7 @@ dependencies = [
 
 [[package]]
 name = "sov-schema-db"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -11847,7 +11838,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -12174,6 +12165,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d050e60b33d41c19108b32cea32164033a9013fe3b46cbd4457559bfbf77afaa"
 dependencies = [
  "num_cpus",
+]
+
+[[package]]
+name = "tikv-jemalloc-sys"
+version = "0.6.1+5.3.0-1-ge13ca993e8ccb9ba9847cc330696e02839f328f7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd8aa5b2ab86a2cefa406d889139c162cbb230092f7d1d7cbc1716405d852a3b"
+dependencies = [
+ "cc",
+ "libc",
 ]
 
 [[package]]

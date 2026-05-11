@@ -168,7 +168,6 @@ where
         ledger_db.clone(),
         da_service,
         public_keys.clone(),
-        runner_config.scan_l1_start_height,
         l1_block_cache,
         backup_manager,
         l1_signal_tx,

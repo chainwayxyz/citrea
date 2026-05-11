@@ -41,7 +41,7 @@ members = [
 ]
 
 [workspace.package]
-version = "2.2.0"
+version = "2.3.1"
 edition = "2021"
 license = "GPL-3.0-only"
 authors = ["Chainway Labs <info@chainway.xyz>"]
@@ -83,7 +83,7 @@ itertools = { version = "0.13.0", default-features = false }
 jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "550a2f2" }
 jsonrpsee = { version = "0.26.0", features = ["jsonrpsee-types"] }
 k256 = { version = "0.13.4" }
-lru = "0.13"
+lru = "0.16"
 hex = { version = "0.4.3", default-features = false, features = ["alloc", "serde"] }
 log-panics = { version = "2", features = ["with-backtrace"] }
 metrics = "0.24.3"
@@ -100,8 +100,8 @@ rlimit = "0.10.2"
 rustc_version_runtime = { version = "0.3.0", default-features = false }
 rs_merkle = "1.4.2"
 reqwest = { version = "0.12.12", features = ["rustls-tls", "json", "http2"], default-features = false }
-rocksdb = { version = "0.22.0", features = ["lz4"], default-features = false }
-serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
+rocksdb = { version = "0.24.0", features = ["lz4", "jemalloc", "bindgen-runtime"], default-features = false }
+serde = { version = "=1.0.228", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1", default-features = false, features = ["alloc"] }
 sha2 = { version = "0.10.9", default-features = false, features = ["asm"] }
 schemars = { version = "0.8.16", features = ["derive"] }
