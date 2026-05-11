@@ -21,7 +21,7 @@ use crate::verifier::{MockDaSpec, MockShortHeaderProof};
 use crate::{MockBlockHeader, MockHash};
 
 const GENESIS_HEADER: MockBlockHeader = MockBlockHeader {
-    prev_hash: MockHash([0; 32]),
+    prev_hash: [0; 32],
     hash: MockHash([1; 32]),
     txs_commitment: [1; 32],
     height: 0,
@@ -207,7 +207,7 @@ impl MockDaService {
         let data_hash = hash_to_array(&blob);
         let proof_hash = hash_to_array(&zkp_proof);
         // Hash only from single blob
-        let block_hash = block_hash(height, data_hash, proof_hash, previous_block_hash.into());
+        let block_hash = block_hash(height, data_hash, proof_hash, previous_block_hash);
 
         let blob = MockBlob::new_with_zkp_proof(
             blob.to_vec(),
@@ -495,7 +495,7 @@ impl DaService for MockDaService {
     ) -> <Self::Spec as DaSpec>::ShortHeaderProof {
         MockShortHeaderProof {
             header_hash: block.header.hash.0,
-            prev_header_hash: block.header.prev_hash.0,
+            prev_header_hash: block.header.prev_hash,
             txs_commitment: block.header.txs_commitment,
             height: block.header.height,
         }

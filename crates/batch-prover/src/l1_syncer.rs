@@ -157,7 +157,7 @@ where
                 .expect("Pending l1 blocks cannot be empty");
             let start_l1_block_processing = Instant::now();
             let l1_height = l1_block.header().height();
-            let l1_hash = l1_block.header().hash().into();
+            let l1_hash = l1_block.header().hash();
 
             // Set the l1 height of the l1 hash
             self.ledger_db

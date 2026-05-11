@@ -69,7 +69,7 @@ impl BlockHashTrait for MockHash {}
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct MockBlockHeader {
     /// The hash of the previous block.
-    pub prev_hash: MockHash,
+    pub prev_hash: [u8; 32],
     /// The hash of this block.
     pub hash: MockHash,
     /// The transactions commitment of this block.
@@ -91,7 +91,7 @@ impl MockBlockHeader {
         let txs_commitment = u64_to_bytes(height + 1);
         let bits = 0;
         MockBlockHeader {
-            prev_hash: MockHash(prev_hash),
+            prev_hash,
             hash: MockHash(hash),
             txs_commitment,
             height,
@@ -120,14 +120,12 @@ impl std::fmt::Display for MockBlockHeader {
 }
 
 impl BlockHeaderTrait for MockBlockHeader {
-    type Hash = MockHash;
-
-    fn prev_hash(&self) -> Self::Hash {
+    fn prev_hash(&self) -> [u8; 32] {
         self.prev_hash
     }
 
-    fn hash(&self) -> Self::Hash {
-        self.hash
+    fn hash(&self) -> [u8; 32] {
+        self.hash.0
     }
 
     fn txs_commitment(&self) -> [u8; 32] {

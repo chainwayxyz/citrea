@@ -146,7 +146,7 @@ impl VerifiableShortHeaderProof for BitcoinHeaderShortProof {
 
         // Finally return hash, wtxid root, txid proof count, and height
         Ok(L1UpdateSystemTransactionInfo {
-            header_hash: self.header.hash().into(),
+            header_hash: self.header.hash(),
             prev_header_hash: self
                 .header
                 .inner()

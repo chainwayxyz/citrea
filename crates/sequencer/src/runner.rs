@@ -1501,7 +1501,7 @@ where
                 info!("Initializing Bitcoin Light Client with L1 block: #{} with hash {}, tx commitment {}, and coinbase depth {}. Using {:?} for bridge initialization params.", l1_block.header().height(), hex::encode(l1_block.header().txs_commitment()), hex::encode(l1_block.hash()), l1_block.header().coinbase_txid_merkle_proof_height(), bridge_init_param);
 
                 let initialize_events = create_initial_system_events(
-                    l1_block.header().hash().into(),
+                    l1_block.header().hash(),
                     l1_block.header().txs_commitment(),
                     l1_block.header().coinbase_txid_merkle_proof_height(),
                     l1_block.header().height(),
@@ -1516,7 +1516,7 @@ where
             let coinbase_depth = da_block_header.coinbase_txid_merkle_proof_height();
 
             let set_block_info_event = populate_set_block_info_event(
-                da_block_header.hash().into(),
+                da_block_header.hash(),
                 da_block_header.txs_commitment(),
                 coinbase_depth,
             );

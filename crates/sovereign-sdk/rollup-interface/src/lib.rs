@@ -24,7 +24,8 @@ pub use std::rc::Rc as RefCount;
 #[cfg(feature = "native")]
 pub use std::sync::Arc as RefCount;
 
+pub use anyhow;
+pub use digest;
 pub use network::*;
 pub use node::*;
 pub use state_machine::*;
-pub use {anyhow, digest};

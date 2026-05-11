@@ -208,7 +208,7 @@ where
     /// 3. Asserts that the state update's state root matches the one in the circuit output, and finalizes the storage.
     async fn process_l1_block(&mut self, l1_block: Da::FilteredBlock) -> anyhow::Result<()> {
         let start_l1_block_processing = Instant::now();
-        let l1_hash = l1_block.header().hash().into();
+        let l1_hash = l1_block.header().hash();
         let l1_height = l1_block.header().height();
 
         // Set the l1 height of the l1 hash
