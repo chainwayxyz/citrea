@@ -87,14 +87,16 @@ jobs:
           
           matrix_lower=$(echo "$matrix" | jq -c '[.[] | ascii_downcase]')
           
-          echo "matrix=$matrix_lower" >> $GITHUB_OUTPUT
-          echo "docker_path=$DOCKER_PATH" >> $GITHUB_OUTPUT
-          echo "docker_ctx_path=$DOCKER_CTX_PATH" >> $GITHUB_OUTPUT
-          echo "target_service=$SERVICE_LOWER_CASE" >> $GITHUB_OUTPUT
-          echo "target_network=$NETWORK_LOWER_CASE" >> $GITHUB_OUTPUT
-          echo "source_version=$SOURCE_VERSION" >> $GITHUB_OUTPUT
-          echo "source_service=$SERVICE_LOWER_CASE" >> $GITHUB_OUTPUT
-          echo "operation_stop_step=$OPERATION_STOP_STEP_LOWER_CASE" >> $GITHUB_OUTPUT
+          {
+            echo "matrix=$matrix_lower"
+            echo "docker_path=$DOCKER_PATH"
+            echo "docker_ctx_path=$DOCKER_CTX_PATH"
+            echo "target_service=$SERVICE_LOWER_CASE"
+            echo "target_network=$NETWORK_LOWER_CASE"
+            echo "source_version=$SOURCE_VERSION"
+            echo "source_service=$SERVICE_LOWER_CASE"
+            echo "operation_stop_step=$OPERATION_STOP_STEP_LOWER_CASE"
+          } >> "$GITHUB_OUTPUT"
 
   build-and-publish:
     needs: set-matrix

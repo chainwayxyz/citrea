@@ -13,6 +13,7 @@
 - [Node Types](./node-types.md)
 - [Pruning](./pruning.md)
 - [Testing](./testing-approaches.md)
+- [Reproducible Builds](./reproducible-builds.md)
 
 # Finality Related
 

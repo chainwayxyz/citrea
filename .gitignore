@@ -44,3 +44,6 @@ elf/
 
 bitcoin-testnet4/
 resources/dbs*
+
+# Nix build output symlink
+/result

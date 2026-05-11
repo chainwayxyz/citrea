@@ -1,10 +1,37 @@
 # Changelog
 ## [Unreleased]
 
+### Added
+- feat: Get raw transaction rpcs. ([#3201](https://github.com/chainwayxyz/citrea/pull/3201))
+
+### Changed
+- perf: Mine reveal prefix relying on `sign_schnorr` internal randomness.([#3192](https://github.com/chainwayxyz/citrea/pull/3192))
+- fix: use deterministic boundless patch and unpin ubuntu ci.([#3216](https://github.com/chainwayxyz/citrea/pull/3216))
+- fix(bitcoin-da): correct doc comment on `INITIAL_TESTNET4_STATE`. ([#3227](https://github.com/chainwayxyz/citrea/pull/3227))
+
+## [v2.3.1](2026-03-31)
+
+Fix version. Only provers must update.
+
+### Changed
+- fix: Set image id in request builder ([#3195](https://github.com/chainwayxyz/citrea/pull/3195))
+
+## [v2.3.0](2026-03-23)
+### Added
+- feat: Stop at height full-node arguments\
+  **New hidden node args:**\
+  `--stop-at-l1-height`: Stop the full node L1 sync after reaching this L1 height
+  `--stop-at-l2-height`: Stop the full node L2 sync after reaching this L2 height
+
+### Changed
+- fix(fullnode): avoid rewriting pending proofs on retry (reduces PendingProof retry-path rewrite amplification). ([#3176](https://github.com/chainwayxyz/citrea/pull/3176))
+- fix: set L1 fee rate to zero in `eth_estimateGas` if sender has no balance ([#3169](https://github.com/chainwayxyz/citrea/pull/3169))
+
 ## [v2.2.0](2026-03-02)
 ### Added
 - feat: Reactivate pruning. ([#3010](https://github.com/chainwayxyz/citrea/pull/3010))
 - feat: Support `eth_sendRawTransactionSync` on websocket disabled nodes. ([#3164](https://github.com/chainwayxyz/citrea/pull/3164))
+- feat: Rocksdb diff script.([#3170](https://github.com/chainwayxyz/citrea/pull/3170))
 
 ### Changed
 - refactor: Remove `dev_mode` field from local prover config to fix prover config confusion.(This change does not require no env var change because it was set with `RISC0_DEV_MODE` env var, right now dev mode is determined with `PROVING_MODE` in batch prover config) ([#3160](https://github.com/chainwayxyz/citrea/pull/3160))
@@ -13,6 +40,7 @@
 - perf: Skip re-execution of proof request in boundless([#3144](https://github.com/chainwayxyz/citrea/pull/3144))
 - perf: Mine DA transaction prefix using transaction locktime([#3111](https://github.com/chainwayxyz/citrea/pull/3111))
 - fix: Check for shutdown signal when processing blocks in L1/L2 syncers loops ([#3152](https://github.com/chainwayxyz/citrea/pull/3152))
+- perf: Set rocksdb bloom filter policy ([#3180](https://github.com/chainwayxyz/citrea/pull/3180))
 
 ## [v2.1.0](2026-02-17)
 ### Added
@@ -220,7 +248,9 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
 
-[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.2.0...HEAD
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.3.1...HEAD
+[v2.3.1]: https://github.com/chainwayxyz/citrea/compare/v2.3.0...v2.3.1
+[v2.3.0]: https://github.com/chainwayxyz/citrea/compare/v2.2.0...v2.3.0
 [v2.2.0]: https://github.com/chainwayxyz/citrea/compare/v2.1.0...v2.2.0
 [v2.1.0]: https://github.com/chainwayxyz/citrea/compare/v2.0.0...v2.1.0
 [v2.0.0]: https://github.com/chainwayxyz/citrea/compare/v1.2.2...v2.0.0

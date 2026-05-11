@@ -11,7 +11,7 @@ use sov_modules_api::WorkingSet;
 use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::task::JoinHandle;
-use tracing::warn;
+use tracing::{debug, warn};
 
 const SUBSCRIPTION_TIMEOUT: Duration = Duration::from_secs(1);
 
@@ -162,7 +162,7 @@ async fn l2_block_event_handler<C: sov_modules_api::Context>(
                 continue;
             }
             Err(RecvError::Closed) => {
-                warn!(target: "subscriptions", "l2_block_rx is closed");
+                debug!(target: "subscriptions", "l2_block_rx is closed");
                 break;
             }
             Ok(height) => height,

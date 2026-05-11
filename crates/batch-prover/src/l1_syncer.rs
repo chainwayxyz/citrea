@@ -11,7 +11,7 @@ use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, sync_l1};
 use citrea_common::utils::shutdown_requested;
-use citrea_common::RollupPublicKeys;
+use citrea_common::{RollupPublicKeys, StartVariant};
 use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::SlotNumber;
@@ -44,8 +44,6 @@ where
     da_service: Arc<Da>,
     /// Sequencer's DA public key for verifying commitments
     sequencer_da_pub_key: Vec<u8>,
-    /// The height from which to start scanning L1 blocks
-    scan_l1_start_height: u64,
     /// Cache for L1 blocks to avoid redundant fetches
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     /// Queue of pending L1 blocks to be processed
@@ -67,7 +65,6 @@ where
     /// * `ledger_db` - The database instance to store L1 block data.
     /// * `da_service` - The DA service instance to fetch L1 blocks.
     /// * `public_keys` - The public keys used for distinguishing between different rollup participants.
-    /// * `scan_l1_start_height` - The height from which to start scanning L1 blocks.
     /// * `l1_block_cache` - A cache for L1 blocks to avoid redundant fetches.
     /// * `backup_manager` - Manager for backup operations.
     /// * `l1_signal_tx` - A channel sender to signal prover module when new L1 blocks are processed.
@@ -76,7 +73,6 @@ where
         ledger_db: DB,
         da_service: Arc<Da>,
         public_keys: RollupPublicKeys,
-        scan_l1_start_height: u64,
         l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
         backup_manager: Arc<BackupManager>,
         l1_signal_tx: mpsc::Sender<()>,
@@ -85,7 +81,6 @@ where
             ledger_db,
             da_service,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
-            scan_l1_start_height,
             l1_block_cache,
             pending_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             backup_manager,
@@ -101,13 +96,12 @@ where
     /// 3. Handles any errors with exponential backoff
     /// 4. Maintains metrics about syncing progress
     #[instrument(name = "L1Syncer", skip_all)]
-    pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
-        let l1_start_height = self
-            .ledger_db
-            .get_last_scanned_l1_height()
-            .expect("Failed to get last scanned l1 height when starting l1 syncer")
-            .map(|h| h.0)
-            .unwrap_or(self.scan_l1_start_height);
+    pub async fn run(
+        mut self,
+        l1_start_variant: StartVariant,
+        mut shutdown_signal: GracefulShutdown,
+    ) {
+        let l1_start_height = l1_start_variant.start_height();
 
         let notifier = Arc::new(Notify::new());
         let l1_sync_worker = sync_l1(

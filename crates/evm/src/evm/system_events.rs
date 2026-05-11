@@ -11,6 +11,9 @@ pub const SYSTEM_SIGNER: Address = address!("deaddeaddeaddeaddeaddeaddeaddeaddea
 pub const SYSTEM_SIGNATURE: PrimitiveSignature =
     PrimitiveSignature::new(U256::ZERO, U256::ZERO, false);
 
+/// Gas limit for system transactions.
+pub const SYSTEM_TX_GAS_LIMIT: u64 = 1_000_000;
+
 /// A system event is an event that is emitted on special conditions by the EVM.
 /// There events will be transformed into Evm transactions and put in the beginning of the block.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
@@ -39,7 +42,7 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             nonce,
             chain_id,
             value: U256::ZERO,
-            gas_limit: 1_000_000u64,
+            gas_limit: SYSTEM_TX_GAS_LIMIT,
             max_fee_per_gas: u64::MAX as u128,
             ..Default::default()
         },
@@ -53,7 +56,7 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             nonce,
             chain_id,
             value: U256::ZERO,
-            gas_limit: 1_000_000u64,
+            gas_limit: SYSTEM_TX_GAS_LIMIT,
             max_fee_per_gas: u64::MAX as u128,
             ..Default::default()
         },
@@ -63,7 +66,7 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             nonce,
             chain_id,
             value: U256::ZERO,
-            gas_limit: 1_000_000u64,
+            gas_limit: SYSTEM_TX_GAS_LIMIT,
             max_fee_per_gas: u64::MAX as u128,
             ..Default::default()
         },
@@ -73,7 +76,7 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             nonce,
             chain_id,
             value: U256::ZERO,
-            gas_limit: 1_000_000u64,
+            gas_limit: SYSTEM_TX_GAS_LIMIT,
             max_fee_per_gas: u64::MAX as u128,
             ..Default::default()
         },
@@ -81,7 +84,8 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
     Transaction::Eip1559(body)
 }
 
-pub(crate) fn signed_system_transaction(
+/// Creates a single signed system transaction from a system event with the given nonce.
+pub fn signed_system_transaction(
     event: SystemEvent,
     nonce: u64,
     chain_id: u64,
