@@ -119,13 +119,13 @@ tower = { version = "0.5.2", features = ["util", "timeout"] }
 url = { version = "2.5.4" }
 
 # Risc0 dependencies
-bonsai-sdk = { version = "1.4.1" }
+bonsai-sdk = { version = "1.4.2" }
 boundless-market = { version = "1.3.3", default-features = false, features = ["s3"] }
 risc0-ethereum-contracts = { version = "3.0.1" }
 risc0-binfmt = "3.0.2"
-risc0-zkvm = { version = "3.0.4", default-features = false }
+risc0-zkvm = { version = "3.0.5", default-features = false }
 risc0-zkvm-platform = "2.2.0"
-risc0-zkp = "3.0.2"
+risc0-zkp = "3.0.4"
 risc0-circuit-rv32im = "4.0.2"
 risc0-build = "3.0.4"
 rzup = { version = "0.5.1", default-features = false }
