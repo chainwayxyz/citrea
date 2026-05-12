@@ -66,7 +66,7 @@ pub enum ProverRequest {
 /// - Tracking pending (not yet proven) commitments
 /// - Partitioning commitments into provable chunks
 /// - Creating circuit inputs for each partition
-/// - Starting proving jobs and assigning each  job their own unique job ids.
+/// - Starting proving jobs and assigning each job its own unique job id.
 /// - Tracking jobs with their job ids and update ledger db accordingly at each step.
 /// - Verifies generated proofs and submits them to the DA.
 /// - Listens to signals from L1 syncer, L2 syncer, and RPC requests to trigger proving operations.

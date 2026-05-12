@@ -1590,7 +1590,7 @@ impl TestCase for OutOfRangeProofTest {
 
         /*
          ** Test that a proof is discarded if it's starting
-         ** Send the the two first commitments in order then send the first proof. It should be processed and valid over the range commitment range [1, 2].
+         ** Send the two first commitments in order then send the first proof. It should be processed and valid over the range commitment range [1, 2].
          ** Then send third proof over range [4] (missing proof over range 3) that should be left pending.
          ** Then send second proof over range [3] that should be processed and then trigger a processing of pending third proof
          */

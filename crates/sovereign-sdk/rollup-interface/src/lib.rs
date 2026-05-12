@@ -9,7 +9,7 @@
 ///
 /// Mostly used for web3_clientVersion RPC calls and might be used for other purposes.
 #[cfg(feature = "native")]
-pub const CITREA_VERSION: &str = "v1.1.0";
+pub const CITREA_VERSION: &str = "v2.3.1";
 
 /// Fork module
 pub mod fork;
@@ -24,7 +24,8 @@ pub use std::rc::Rc as RefCount;
 #[cfg(feature = "native")]
 pub use std::sync::Arc as RefCount;
 
+pub use anyhow;
+pub use digest;
 pub use network::*;
 pub use node::*;
 pub use state_machine::*;
-pub use {anyhow, digest};

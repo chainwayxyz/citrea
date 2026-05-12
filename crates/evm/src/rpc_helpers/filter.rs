@@ -1,9 +1,7 @@
-// https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-types/src/eth/filter.rs
+// https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/filter.rs
 
 use std::collections::HashMap;
 use std::env;
-use std::iter::StepBy;
-use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -25,8 +23,6 @@ use crate::{get_filter_block_range, Evm};
 pub const DEFAULT_MAX_BLOCKS_PER_FILTER: u64 = 1_000;
 /// The maximum number of logs that can be returned in a single eth_getLogs response.
 pub const DEFAULT_MAX_LOGS_PER_RESPONSE: usize = 5_000;
-/// The maximum number of headers we read at once when handling a range filter.
-pub const DEFAULT_MAX_HEADERS_RANGE: u64 = 1_000; // with ~530bytes? per header this is ~500kb?
 /// Default value for stale filter ttl
 pub const DEFAULT_STALE_FILTER_TTL: Duration = Duration::from_secs(5 * 60);
 
@@ -48,68 +44,6 @@ pub fn get_max_logs_per_response() -> usize {
         v.parse()
             .expect("ETH_RPC_MAX_LOGS_PER_RESPONSE must be a valid usize")
     })
-}
-
-/// The maximum number of headers we read at once when handling a range filter.
-/// This value can be configured via the `ETH_RPC_MAX_HEADERS_RANGE` environment variable.
-/// If the variable is not set, it defaults to `DEFAULT_MAX_HEADERS_RANGE`.
-pub fn get_max_headers_range() -> u64 {
-    env::var("ETH_RPC_MAX_HEADERS_RANGE").map_or(DEFAULT_MAX_HEADERS_RANGE, |v| {
-        v.parse()
-            .expect("ETH_RPC_MAX_HEADERS_RANGE must be a valid u64")
-    })
-}
-
-/// An iterator that yields _inclusive_ block ranges of a given step size
-#[derive(Debug)]
-pub struct BlockRangeInclusiveIter {
-    iter: StepBy<RangeInclusive<u64>>,
-    step: u64,
-    end: u64,
-}
-
-impl BlockRangeInclusiveIter {
-    /// Creates a new iterator that yields inclusive block ranges of a specified step size.
-    ///
-    /// This iterator is useful for processing large block ranges in smaller chunks,
-    /// which helps manage memory usage and processing time.
-    ///
-    /// # Arguments
-    ///
-    /// * `range` - The inclusive range of block numbers to iterate over
-    /// * `step` - The maximum size of each sub-range (chunk)
-    ///
-    /// # Returns
-    ///
-    /// Returns an iterator that yields tuples of (start, end) block numbers,
-    /// where each sub-range has at most `step + 1` blocks.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// let iter = BlockRangeInclusiveIter::new(0..=10, 3);
-    /// // This will yield: (0, 3), (4, 7), (8, 10)
-    /// ```
-    pub fn new(range: RangeInclusive<u64>, step: u64) -> Self {
-        Self {
-            end: *range.end(),
-            iter: range.step_by(step as usize + 1),
-            step,
-        }
-    }
-}
-
-impl Iterator for BlockRangeInclusiveIter {
-    type Item = (u64, u64);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let start = self.iter.next()?;
-        let end = (start + self.step).min(self.end);
-        if start > end {
-            return None;
-        }
-        Some((start, end))
-    }
 }
 
 /// Converts a block number or tag to a block number. The conversion is done by

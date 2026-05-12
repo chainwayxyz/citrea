@@ -16,11 +16,9 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
-use bitcoin::block::Header;
-use bitcoin::consensus::Decodable;
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
-use bitcoin::{BlockHash, CompactTarget, Transaction, Txid, Wtxid};
+use bitcoin::{BlockHash, Transaction, Txid, Wtxid};
 use bitcoincore_rpc::{Client, Error as BitcoinError, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
 use citrea_common::utils::read_env;
@@ -1225,14 +1223,22 @@ impl DaService for BitcoinService {
 
     #[instrument(level = "trace", skip(self))]
     async fn get_fee_rate(&self) -> Result<u128> {
-        let sat_vb_ceil = self
+        let sat_vb = self
             .fee
             .get_fee_rate()
             .await
-            .map_err(|_| BitcoinServiceError::FeeRateError)? as u128;
+            .map_err(|_| BitcoinServiceError::FeeRateError)?;
 
         // multiply with 10^10/4 = 25*10^8 = 2_500_000_000 for BTC to CBTC conversion (decimals)
-        let multiplied_fee = sat_vb_ceil.saturating_mul(2_500_000_000);
+        // if somehow the value is out of bounds, return a default fee rate of 1 BTC/vB
+        let sat_vb = (sat_vb * 2_500_000_000f64).ceil();
+        let multiplied_fee = f64_to_u128(sat_vb).unwrap_or_else(|| {
+            warn!(
+                "Fee rate {} out of bounds, returning default fee rate of 1 CBTC/vB",
+                sat_vb
+            );
+            2_500_000_000
+        });
         Ok(multiplied_fee)
     }
 
@@ -1244,31 +1250,24 @@ impl DaService for BitcoinService {
         let hash = hash.0;
         debug!("Getting block with hash {:?}", hash);
 
-        let block = self.client.get_block_verbose(&hash).await?;
+        let block = self.client.get_block(&hash).await?;
 
-        let header: Header = Header {
-            bits: CompactTarget::from_unprefixed_hex(&block.bits)?,
-            merkle_root: block.merkleroot,
-            nonce: block.nonce,
-            prev_blockhash: block.previousblockhash.unwrap_or_else(BlockHash::all_zeros),
-            time: block.time as u32,
-            version: block.version,
+        // Safe to use `bip34_block_height` within citrea constraints:
+        // - Mainnet start height is 924022, past BIP-34 activation height of 227835.
+        // - Testnet4 started after BIP-34 activation.
+        // - Only working on finalized blocks so any invalid BIP-34 block would have been rejected by Bitcoin consensus
+        let height = match block.bip34_block_height() {
+            Ok(height) => height,
+            Err(_) => self.client.get_block_header_info(&hash).await?.height as u64,
         };
 
-        let txs = block
-            .tx
-            .iter()
-            .map(|tx| {
-                Transaction::consensus_decode(&mut &tx.hex[..])
-                    .map(|transaction| transaction.into())
-            })
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let txs = block.txdata.into_iter().map(Into::into).collect::<Vec<_>>();
         let tx_count = txs.len();
 
         let witness_root = calculate_witness_root(&txs, tx_count);
 
         Ok(BitcoinBlock {
-            header: HeaderWrapper::new(header, tx_count as u32, block.height, witness_root),
+            header: HeaderWrapper::new(block.header, tx_count as u32, height, witness_root),
             txdata: txs,
         })
     }
@@ -1418,4 +1417,20 @@ fn calculate_witness_root(txdata: &[TransactionWrapper], tx_count: usize) -> [u8
         })
         .collect();
     BitcoinMerkleTree::new(hashes).root()
+}
+
+/// Safely converts f64 to u128, returning None for invalid inputs.
+///
+/// Returns `None` if:
+/// - `x` is NaN or infinite
+/// - `x` is negative
+/// - `x` >= 2^128 (would overflow u128)
+fn f64_to_u128(x: f64) -> Option<u128> {
+    // Note: (u128::MAX as f64) rounds up to 2^128 because f64 only has 53 bits
+    // of mantissa. We use strict less-than to reject values that would overflow.
+    if x.is_finite() && x >= 0.0 && x < (u128::MAX as f64) {
+        Some(x as u128)
+    } else {
+        None
+    }
 }

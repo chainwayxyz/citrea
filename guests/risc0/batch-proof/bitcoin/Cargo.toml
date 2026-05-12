@@ -1,7 +1,8 @@
 [package]
 name = "batch-proof-bitcoin"
-version = "1.1.0"
+version = "2.3.1"
 edition = "2021"
+license = "GPL-3.0-only"
 resolver = "2"
 
 [workspace]

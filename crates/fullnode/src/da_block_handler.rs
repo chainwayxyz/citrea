@@ -8,11 +8,14 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_zk_proofs_and_sequencer_commitments, sync_l1, ProofOrCommitment};
-use citrea_common::utils::get_tangerine_activation_height_non_zero;
+use citrea_common::utils::{
+    exceeded_stop_height, get_tangerine_activation_height_non_zero, shutdown_requested,
+};
+use citrea_common::StartVariant;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::network_to_dev_mode;
 use reth_tasks::shutdown::GracefulShutdown;
@@ -43,6 +46,15 @@ enum ProcessingResult {
     Discarded,
     /// Processing deferred, waiting for dependencies
     Pending,
+}
+
+/// Origin of a proof currently being processed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ProofSource {
+    /// Proof extracted from DA blobs in the currently scanned L1 block.
+    FromL1,
+    /// Proof loaded from the pending proofs table for retry.
+    FromPendingRetry,
 }
 
 /// Handler for processing L1 blocks and their contained proofs and commitments
@@ -77,6 +89,8 @@ where
     backup_manager: Arc<BackupManager>,
     /// Citrea network the node is operating on
     network: Network,
+    /// Optional L1 height at which to stop syncing (debug/testing)
+    stop_at_l1_height: Option<u64>,
 }
 
 impl<Vm, Da, DB> L1BlockHandler<Vm, Da, DB>
@@ -95,6 +109,7 @@ where
     /// * `code_commitments_by_spec` - Map of ZKVM code commitments
     /// * `l1_block_cache` - Cache for L1 block data
     /// * `backup_manager` - Manager for backup operations
+    /// * `stop_at_l1_height` - Optional L1 height at which to stop syncing (debug/testing)
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         network: Network,
@@ -105,6 +120,7 @@ where
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
         backup_manager: Arc<BackupManager>,
+        stop_at_l1_height: Option<u64>,
     ) -> Self {
         Self {
             ledger_db,
@@ -116,6 +132,7 @@ where
             queued_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             backup_manager,
             network,
+            stop_at_l1_height,
         }
     }
 
@@ -128,11 +145,16 @@ where
     /// 4. Updates the chain state accordingly
     ///
     /// # Arguments
-    /// * `start_l1_height` - Height to start syncing from
+    /// * `l1_start_variant` - Variant indicating where to start syncing L1 blocks from
     /// * `shutdown_signal` - Signal to gracefully shut down
     #[instrument(name = "L1BlockHandler", skip_all)]
-    pub async fn run(mut self, start_l1_height: u64, mut shutdown_signal: GracefulShutdown) {
+    pub async fn run(
+        mut self,
+        l1_start_variant: StartVariant,
+        mut shutdown_signal: GracefulShutdown,
+    ) {
         let notifier = Arc::new(Notify::new());
+        let start_l1_height = l1_start_variant.start_height();
 
         let l1_sync_worker = sync_l1(
             start_l1_height,
@@ -153,7 +175,7 @@ where
                 }
                 _ = &mut l1_sync_worker => {},
                 _ = notifier.notified() => {
-                    if let Err(e) = self.process_queued_l1_blocks().await {
+                    if let Err(e) = self.process_queued_l1_blocks(&shutdown_signal).await {
                         error!("{e}");
                         return;
                     }
@@ -163,11 +185,26 @@ where
     }
 
     /// Processes L1 blocks waiting in the queue
-    async fn process_queued_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
+    async fn process_queued_l1_blocks(
+        &mut self,
+        shutdown_signal: &GracefulShutdown,
+    ) -> Result<(), anyhow::Error> {
         loop {
+            if shutdown_requested(shutdown_signal) {
+                info!("Shutting down L1BlockHandler");
+                return Ok(());
+            }
+
             let Some(l1_block) = self.queued_l1_blocks.lock().await.front().cloned() else {
                 break;
             };
+
+            if let Some(stop_height) =
+                exceeded_stop_height(l1_block.header().height(), self.stop_at_l1_height)
+            {
+                bail!("Reached target L1 height {stop_height}");
+            }
+
             self.process_l1_block(l1_block).await?;
             self.queued_l1_blocks.lock().await.pop_front();
         }
@@ -191,7 +228,7 @@ where
         let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
             Da::block_to_short_header_proof(l1_block.clone());
         self.ledger_db.put_short_header_proof_by_l1_hash(
-            &l1_block.header().hash().into(),
+            &l1_block.header().hash(),
             borsh::to_vec(&short_header_proof).expect("Should serialize short header proof"),
         )?;
 
@@ -200,7 +237,7 @@ where
 
         // Set the l1 height of the l1 hash
         self.ledger_db
-            .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)?;
+            .set_l1_height_of_l1_hash(l1_block.header().hash(), l1_height)?;
 
         let commitments_and_proofs = extract_zk_proofs_and_sequencer_commitments(
             self.da_service.clone(),
@@ -256,6 +293,7 @@ where
                             l1_block.header().height(),
                             l1_block.header().height(),
                             proof,
+                            ProofSource::FromL1,
                         )
                         .await
                     {
@@ -542,6 +580,7 @@ where
     /// * `current_l1_block_height` - Current L1 block being processed
     /// * `found_in_l1_block_height` - L1 block where proof was found
     /// * `proof` - The ZK proof to process
+    /// * `proof_source` - Whether the proof came from L1 or pending retries
     ///
     /// # Returns
     /// The processing result indicating:
@@ -553,6 +592,7 @@ where
         current_l1_block_height: u64,
         found_in_l1_block_height: u64,
         proof: Proof,
+        proof_source: ProofSource,
     ) -> Result<ProcessingResult, ProcessingError> {
         tracing::info!(
             "Processing zk proof at height: {}",
@@ -597,6 +637,7 @@ where
             batch_proof_output.initial_state_root(),
             proof,
             batch_proof_output,
+            proof_source,
         )
         .await
     }
@@ -609,6 +650,7 @@ where
     /// * `initial_state_root` - Initial state root for verification
     /// * `raw_proof` - The raw ZK proof
     /// * `batch_proof_output` - The batch proof circuit output
+    /// * `proof_source` - Whether the proof came from L1 or pending retries
     ///
     /// # Returns
     /// The processing result indicating success, discard, or pending status
@@ -619,6 +661,7 @@ where
         initial_state_root: [u8; 32],
         raw_proof: Proof,
         batch_proof_output: BatchProofCircuitOutput,
+        proof_source: ProofSource,
     ) -> Result<ProcessingResult, ProcessingError> {
         let last_l1_hash_on_bitcoin_light_client_contract =
             batch_proof_output.last_l1_hash_on_bitcoin_light_client_contract();
@@ -688,16 +731,23 @@ where
         }
 
         if proof_is_pending {
-            info!(
-                "Proof is pending for commitment index range {}-{}. Storing proof as pending.",
-                sequencer_commitment_index_range.0, sequencer_commitment_index_range.1
-            );
-            self.ledger_db.store_pending_proof(
-                sequencer_commitment_index_range.0,
-                sequencer_commitment_index_range.1,
-                raw_proof,
-                found_in_l1_block_height,
-            )?;
+            if proof_source == ProofSource::FromL1 {
+                info!(
+                    "Proof is pending for commitment index range {}-{}. Storing proof as pending.",
+                    sequencer_commitment_index_range.0, sequencer_commitment_index_range.1
+                );
+                self.ledger_db.store_pending_proof(
+                    sequencer_commitment_index_range.0,
+                    sequencer_commitment_index_range.1,
+                    raw_proof,
+                    found_in_l1_block_height,
+                )?;
+            } else {
+                info!(
+                    "Proof is pending for commitment index range {}-{}. Keeping existing pending proof without rewrite.",
+                    sequencer_commitment_index_range.0, sequencer_commitment_index_range.1
+                );
+            }
             return Ok(ProcessingResult::Pending);
         }
 
@@ -721,19 +771,29 @@ where
         }
 
         if sequencer_commitment_index_range.0 > proven_height.commitment_index + 1 {
-            info!(
+            if proof_source == ProofSource::FromL1 {
+                info!(
                     "First commitment in range is not strictly increasing. Expected index {}, got {}. Storing proof as pending for commitment range {}-{}",
                     proven_height.commitment_index + 1,
                     sequencer_commitment_index_range.0,
                     sequencer_commitment_index_range.0,
                     sequencer_commitment_index_range.1
                 );
-            self.ledger_db.store_pending_proof(
-                sequencer_commitment_index_range.0,
-                sequencer_commitment_index_range.1,
-                raw_proof,
-                found_in_l1_block_height,
-            )?;
+                self.ledger_db.store_pending_proof(
+                    sequencer_commitment_index_range.0,
+                    sequencer_commitment_index_range.1,
+                    raw_proof,
+                    found_in_l1_block_height,
+                )?;
+            } else {
+                info!(
+                    "First commitment in range is not strictly increasing. Expected index {}, got {}. Keeping existing pending proof for commitment range {}-{} without rewrite",
+                    proven_height.commitment_index + 1,
+                    sequencer_commitment_index_range.0,
+                    sequencer_commitment_index_range.0,
+                    sequencer_commitment_index_range.1
+                );
+            }
             return Ok(ProcessingResult::Pending);
         }
 
@@ -857,7 +917,12 @@ where
         for item in pending_proofs {
             let ((min_index, max_index), (proof, found_in_l1_height)) = item?.into_tuple();
             match self
-                .process_zk_proof(current_l1_block_height, found_in_l1_height, proof)
+                .process_zk_proof(
+                    current_l1_block_height,
+                    found_in_l1_height,
+                    proof,
+                    ProofSource::FromPendingRetry,
+                )
                 .await
             {
                 Err(e) => {

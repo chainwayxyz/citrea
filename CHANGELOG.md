@@ -1,8 +1,79 @@
 # Changelog
-
 ## [Unreleased]
+
 ### Added
-- fix: Initialize metrics at startup. ([#2954](https://github.com/chainwayxyz/citrea/pull/2954))
+- feat: Get raw transaction rpcs. ([#3201](https://github.com/chainwayxyz/citrea/pull/3201))
+
+### Changed
+- perf: Mine reveal prefix relying on `sign_schnorr` internal randomness.([#3192](https://github.com/chainwayxyz/citrea/pull/3192))
+- fix: use deterministic boundless patch and unpin ubuntu ci.([#3216](https://github.com/chainwayxyz/citrea/pull/3216))
+- fix(bitcoin-da): correct doc comment on `INITIAL_TESTNET4_STATE`. ([#3227](https://github.com/chainwayxyz/citrea/pull/3227))
+
+## [v2.3.1](2026-03-31)
+
+Fix version. Only provers must update.
+
+### Changed
+- fix: Set image id in request builder ([#3195](https://github.com/chainwayxyz/citrea/pull/3195))
+
+## [v2.3.0](2026-03-23)
+### Added
+- feat: Stop at height full-node arguments\
+  **New hidden node args:**\
+  `--stop-at-l1-height`: Stop the full node L1 sync after reaching this L1 height
+  `--stop-at-l2-height`: Stop the full node L2 sync after reaching this L2 height
+
+### Changed
+- fix(fullnode): avoid rewriting pending proofs on retry (reduces PendingProof retry-path rewrite amplification). ([#3176](https://github.com/chainwayxyz/citrea/pull/3176))
+- fix: set L1 fee rate to zero in `eth_estimateGas` if sender has no balance ([#3169](https://github.com/chainwayxyz/citrea/pull/3169))
+
+## [v2.2.0](2026-03-02)
+### Added
+- feat: Reactivate pruning. ([#3010](https://github.com/chainwayxyz/citrea/pull/3010))
+- feat: Support `eth_sendRawTransactionSync` on websocket disabled nodes. ([#3164](https://github.com/chainwayxyz/citrea/pull/3164))
+- feat: Rocksdb diff script.([#3170](https://github.com/chainwayxyz/citrea/pull/3170))
+
+### Changed
+- refactor: Remove `dev_mode` field from local prover config to fix prover config confusion.(This change does not require no env var change because it was set with `RISC0_DEV_MODE` env var, right now dev mode is determined with `PROVING_MODE` in batch prover config) ([#3160](https://github.com/chainwayxyz/citrea/pull/3160))
+- fix: Subscription server unordered log delivery ([#3156](https://github.com/chainwayxyz/citrea/pull/3156))
+- refactor: Use reth task manager instead of tokio spawn in sequencer services ([#3145](https://github.com/chainwayxyz/citrea/pull/3145))
+- perf: Skip re-execution of proof request in boundless([#3144](https://github.com/chainwayxyz/citrea/pull/3144))
+- perf: Mine DA transaction prefix using transaction locktime([#3111](https://github.com/chainwayxyz/citrea/pull/3111))
+- fix: Check for shutdown signal when processing blocks in L1/L2 syncers loops ([#3152](https://github.com/chainwayxyz/citrea/pull/3152))
+- perf: Set rocksdb bloom filter policy ([#3180](https://github.com/chainwayxyz/citrea/pull/3180))
+
+## [v2.1.0](2026-02-17)
+### Added
+- Add `linux/arm64` release binary and support for multi-arch (arm64/amd64) docker image. ([#3130](https://github.com/chainwayxyz/citrea/pull/3130))
+- feat: implement `eth_sendRawTransactionSync` RPC as per EIP-7966. ([#3095](https://github.com/chainwayxyz/citrea/pull/3095))\
+**New env var:**\
+  `RPC_MAX_SYNC_SEND_TIMEOUT_MS`: Maximum timeout in milliseconds for `eth_sendRawTransactionSync` (EIP-7966) (default: 20 seconds).
+
+### Changed
+- feat: Separate l1 fee rate from block update ([#3131](https://github.com/chainwayxyz/citrea/pull/3131))\
+**New env var:**\
+  `L1_FEE_RATE_UPDATE_INTERVAL_MS`: L1 fee rate update interval in milliseconds (default: 30 seconds)\
+- fix: apply state overrides before `create_txn_env` in `debug_traceCall` ([#3135](https://github.com/chainwayxyz/citrea/issues/3135))
+
+## [v2.0.0] (2026-02-05)
+### Changed
+- fix: selfdestruct behaviour ([Commit `73aa141`](https://github.com/chainwayxyz/citrea/commit/73aa14186d3e033963b6f396da11900ff33ac9ea))
+  See security advisory here: https://github.com/chainwayxyz/citrea/security/advisories/GHSA-356c-q573-6pcq
+
+## [v1.2.2] (2026-01-28)
+### Changed
+- feat: boundless uses claim digest match ([#3121](https://github.com/chainwayxyz/citrea/pull/3121))
+
+## [v1.2.1] (2026-01-27)
+### Added
+- docs: Add mainnet run guide at `docs/run-mainnet.md` ([#3119](https://github.com/chainwayxyz/citrea/pull/3119)).
+
+### Changed
+- feat: unify fullnode docker image to be usable on mainnet ([#3119](https://github.com/chainwayxyz/citrea/pull/3119)).
+
+## [v1.2.0] (2026-01-07)
+### Added
+- feat: Initialize metrics at startup. ([#2954](https://github.com/chainwayxyz/citrea/pull/2954))
 
 ### Changed
 - fix: `bitcoin::network::Testnet` vs `bitcoin::network::Testnet4` confusion in mempool.space fee retrieval ([#3087](https://github.com/chainwayxyz/citrea/pull/3087))
@@ -177,7 +248,15 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
 
-[unreleased]: https://github.com/chainwayxyz/citrea/compare/v1.1.0...HEAD
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.3.1...HEAD
+[v2.3.1]: https://github.com/chainwayxyz/citrea/compare/v2.3.0...v2.3.1
+[v2.3.0]: https://github.com/chainwayxyz/citrea/compare/v2.2.0...v2.3.0
+[v2.2.0]: https://github.com/chainwayxyz/citrea/compare/v2.1.0...v2.2.0
+[v2.1.0]: https://github.com/chainwayxyz/citrea/compare/v2.0.0...v2.1.0
+[v2.0.0]: https://github.com/chainwayxyz/citrea/compare/v1.2.2...v2.0.0
+[v1.2.2]: https://github.com/chainwayxyz/citrea/compare/v1.2.1...v1.2.2
+[v1.2.1]: https://github.com/chainwayxyz/citrea/compare/v1.2.0...v1.2.1
+[v1.2.0]: https://github.com/chainwayxyz/citrea/compare/v1.1.0...v1.2.0
 [v1.1.0]: https://github.com/chainwayxyz/citrea/compare/v1.0.2...v1.1.0
 [v1.0.2]: https://github.com/chainwayxyz/citrea/compare/v1.0.1...v1.0.2
 [v1.0.1]: https://github.com/chainwayxyz/citrea/compare/v1.0.0...v1.0.1

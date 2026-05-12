@@ -3,9 +3,9 @@
 //!
 //! There are 3 main components:
 //!
-//! 1. L1 syncer: responsible from tracking the finalized L1 blocks and extracting the sequencer commitments from them.
-//! 2. L2 syncer: responsible from tracking the L2 blocks by syncing them from the sequencer.
-//! 3. Prover: responsible from handling the proving process. It tracks the pending commitments and
+//! 1. L1 syncer: responsible for tracking the finalized L1 blocks and extracting the sequencer commitments from them.
+//! 2. L2 syncer: responsible for tracking the L2 blocks by syncing them from the sequencer.
+//! 3. Prover: responsible for handling the proving process. It tracks the pending commitments and
 //!    tries to partition them into provable chunks.
 //!
 //! L1 syncer sends signals to the Prover when it finds new L1 blocks in the L1 chain.
@@ -168,7 +168,6 @@ where
         ledger_db.clone(),
         da_service,
         public_keys.clone(),
-        runner_config.scan_l1_start_height,
         l1_block_cache,
         backup_manager,
         l1_signal_tx,

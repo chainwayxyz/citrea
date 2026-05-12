@@ -63,6 +63,8 @@ env:
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
   BITCOIN_DOCKER_IMAGE: "bitcoin/bitcoin:30.0"
+  RUST_CACHE_PREFIX: v2-rust
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -80,30 +82,34 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
         with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
           shared-key: build
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache ethereum-tests
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
+
+      - name: Cache riscv-guest
+        uses: ubicloud/cache@v4
+        with:
+          key: build-guests-v2-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          path: ${{ github.workspace }}/target/riscv-guest
+          restore-keys: build-guests-v2-${{ runner.os }}-
+
       - name: Build citrea
         run: make build
       - name: Cache binaries
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: |
             target/debug/citrea
@@ -118,23 +124,16 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt, clippy
-      - name: Install risc0
-        uses: ./.github/actions/install-risc0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check TOML
         uses: dprint/check@v2.2
-      - name: Build guests
-        run: make build-risc0
+      - name: Rust Cache
+        uses: ubicloud/rust-cache@v2
+        with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Run lint
         run: |
           if ! make lint ; then
@@ -152,30 +151,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install nightly toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2025-09-24
-          override: true
-      - name: Install risc0
-        uses: ./.github/actions/install-risc0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build guests
-        run: make build-risc0
+      - name: Select nightly toolchain
+        run: rustup override set nightly-2025-09-24
+      - uses: taiki-e/install-action@cargo-udeps
       - name: Run cargo-udeps
         env:
           RUSTFLAGS: -A warnings
           SKIP_GUEST_BUILD: 1
-        uses: aig787/cargo-udeps-action@v1
-        with:
-          version: "latest"
-          args: "--workspace --all-features --all-targets"
+          CARGO_INCREMENTAL: 0
+        run: cargo +nightly-2025-09-24 udeps --workspace --all-features --all-targets
 
   deny:
     runs-on: ubuntu-latest
@@ -186,6 +174,30 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
+      - name: Run cargo-deny (batch-proof-bitcoin)
+        if: ${{ !cancelled() }}
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check --config deny.toml
+          manifest-path: guests/risc0/batch-proof/bitcoin/Cargo.toml
+      - name: Run cargo-deny (batch-proof-mock)
+        if: ${{ !cancelled() }}
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check --config deny.toml
+          manifest-path: guests/risc0/batch-proof/mock/Cargo.toml
+      - name: Run cargo-deny (light-client-proof-bitcoin)
+        if: ${{ !cancelled() }}
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check --config deny.toml
+          manifest-path: guests/risc0/light-client-proof/bitcoin/Cargo.toml
+      - name: Run cargo-deny (light-client-proof-mock)
+        if: ${{ !cancelled() }}
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check --config deny.toml
+          manifest-path: guests/risc0/light-client-proof/mock/Cargo.toml
 
   coverage:
     needs:
@@ -198,28 +210,40 @@ jobs:
           components: llvm-tools-preview
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
+        with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
-        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
+        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> "$GITHUB_ENV"
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
+        with:
+          tool: cargo-llvm-cov@0.6.16
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache ethereum-tests
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
       - name: Restore cached Docker image
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.BITCOIN_DOCKER_IMAGE }}
       - name: Load Docker image
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
+
+      - name: Cache riscv-guest
+        uses: ubicloud/cache@v4
+        with:
+          key: coverage-guests-v2-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          path: ${{ github.workspace }}/target/llvm-cov-target/riscv-guest
+          restore-keys: coverage-guests-v2-${{ runner.os }}-
+
       - name: Run coverage
         run: make coverage
         env:
@@ -231,12 +255,12 @@ jobs:
           CITREA_CLI_E2E_TEST_BINARY: ${{ github.workspace }}/target/llvm-cov-target/debug/citrea-cli
       - name: Upload e2e test dir
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-test-dir-coverage
           path: ${{ runner.temp }}/coverage
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         with:
           fail_ci_if_error: true # optional (default = false)
           files: ./lcov.info
@@ -252,7 +276,7 @@ jobs:
         with:
           node-version: 18
       - name: Restore binaries
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: |
             target/debug/citrea
@@ -275,13 +299,13 @@ jobs:
           npx hardhat run --network citrea scripts/02_swap.js
           seqnHeight=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq -e .result.number) || (echo "Couldn't get sequencer block"; exit 1)
           nodeHeight=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq -e .result.number) || (echo "Couldn't get full node block"; exit 1)
-          echo seqnHeight: $seqnHeight
-          echo nodeHeight: $nodeHeight
+          echo "seqnHeight: $seqnHeight"
+          echo "nodeHeight: $nodeHeight"
           sleep 10
-          seqnRoot=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":['${seqnHeight}'],"id":1,"jsonrpc":"2.0"}' | jq -e .result.stateRoot) || (echo "Couldn't get sequencer state root"; exit 1)
-          nodeRoot=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":['${seqnHeight}'],"id":1,"jsonrpc":"2.0"}' | jq -e .result.stateRoot) || (echo "Couldn't get full node state root"; exit 1)
-          echo seqnRoot: $seqnRoot
-          echo nodeRoot: $nodeRoot
+          seqnRoot=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data "{\"method\":\"eth_getBlockByNumber\",\"params\":[${seqnHeight}],\"id\":1,\"jsonrpc\":\"2.0\"}" | jq -e .result.stateRoot) || (echo "Couldn't get sequencer state root"; exit 1)
+          nodeRoot=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data "{\"method\":\"eth_getBlockByNumber\",\"params\":[${seqnHeight}],\"id\":1,\"jsonrpc\":\"2.0\"}" | jq -e .result.stateRoot) || (echo "Couldn't get full node state root"; exit 1)
+          echo "seqnRoot: $seqnRoot"
+          echo "nodeRoot: $nodeRoot"
           if [ "$seqnRoot" != "$nodeRoot" ]; then
             echo "State root mismatch";
             exit 1
@@ -293,12 +317,12 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.x"
       - uses: dcarbone/install-jq-action@v2
       - name: Restore binaries
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: |
             target/debug/citrea
@@ -329,7 +353,7 @@ jobs:
         with:
           node-version: 18
       - name: Restore binaries
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: |
             target/debug/citrea
@@ -361,18 +385,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@1.88.0
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
+        with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
-        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
+        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> "$GITHUB_ENV"
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
@@ -380,18 +401,26 @@ jobs:
         # `cargo-nextest` is much faster than standard `cargo test`.
       - uses: taiki-e/install-action@nextest
       - name: Cache ethereum-tests
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
       - name: Restore cached Docker image
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.BITCOIN_DOCKER_IMAGE }}
       - name: Load Docker image
         continue-on-error: true
         run: docker load < /tmp/docker/bitcoin.tar
+
+      - name: Cache riscv-guest
+        uses: ubicloud/cache@v4
+        with:
+          key: build-guests-v2-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          path: ${{ github.workspace }}/target/riscv-guest
+          restore-keys: build-guests-v2-${{ runner.os }}-
+
       - name: Run nextest
         run: make test
         env:
@@ -403,7 +432,7 @@ jobs:
           CITREA_CLI_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea-cli
       - name: Upload e2e test dir
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-test-dir-test
           path: ${{ runner.temp }}/test
@@ -437,6 +466,7 @@ jobs:
           cd crates/evm/src/evm/system_contracts
           forge test -vvv
         id: test
+
   check_genesis_files:
     strategy:
       fail-fast: true
@@ -454,7 +484,7 @@ jobs:
           cache: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.x"
 
@@ -466,10 +496,10 @@ jobs:
     runs-on: ubicloud-standard-2
     steps:
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         continue-on-error: true
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
@@ -477,7 +507,7 @@ jobs:
 
       - name: Cache Docker images
         id: cache-docker
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         continue-on-error: true
         with:
           path: /tmp/docker
@@ -504,7 +534,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.x"
 
@@ -523,7 +553,7 @@ jobs:
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'guest-code')
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.x"
       - name: Install risc0
@@ -532,7 +562,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Restore binaries
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: |
             target/debug/citrea
@@ -546,7 +576,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Restore cached Docker image
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.BITCOIN_DOCKER_IMAGE }}
@@ -567,19 +597,20 @@ jobs:
       - name: Get current commit hash
         id: current-commit
         run: |
-          echo "patch-hash=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
-          echo "head-hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "patch-hash=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          echo "head-hash=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Get commit hash of the base branch
         id: base-commit
         run: |
-            BASE_REF="${{ github.event.pull_request.base.ref }}"
-            git fetch origin "$BASE_REF"
-            echo "base-hash=$(git rev-parse origin/"$BASE_REF")" >> $GITHUB_OUTPUT
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          git fetch origin "$BASE_REF"
+          base_hash=$(git rev-parse origin/"$BASE_REF")
+          echo "base-hash=$base_hash" >> "$GITHUB_OUTPUT"
 
       - name: Restore base branch test cache
         id: restore-test-cache
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           path: proving-stats/results/base-stats.json
           key: proving-stats-${{ steps.base-commit.outputs.base-hash }}
@@ -588,7 +619,7 @@ jobs:
       - name: Restore base build artifact
         id: restore-artifact
         if: steps.restore-test-cache.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: citrea-build-${{ steps.base-commit.outputs.base-hash }}
           path: |
@@ -616,20 +647,15 @@ jobs:
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: rui314/setup-mold@v1
 
-      - name: Install Protoc
-        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Rust cache
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: ubicloud/rust-cache@v2
         with:
-            shared-key: build
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
+          shared-key: build
       - name: Cache ethereum-tests
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
+        uses: ubicloud/cache@v4
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
@@ -664,19 +690,40 @@ jobs:
             --base-file results/base-stats.json \
             --patch-commit ${{ steps.current-commit.outputs.patch-hash }} \
             --base-commit ${{ steps.base-commit.outputs.base-hash }}
-      - name: Find Comment
-        uses: peter-evans/find-comment@v3
+      - name: Find latest proving stats comment
+        uses: peter-evans/find-comment@v4
         id: fc
         with:
           issue-number: ${{ github.event.pull_request.number }}
           comment-author: 'github-actions[bot]'
           body-includes: Proving stats report
+          direction: last
 
-      - name: Create or update comment
-        uses: peter-evans/create-or-update-comment@v4
+      - name: Check if proving stats changed
+        id: stats-changed
+        env:
+          EXISTING_BODY: ${{ steps.fc.outputs.comment-body }}
+          EXISTING_ID: ${{ steps.fc.outputs.comment-id }}
+        shell: bash
+        run: |
+          if [ -z "$EXISTING_ID" ]; then
+            echo "No previous proving stats comment found; will post a new one."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s' "$EXISTING_BODY" > /tmp/existing-stats.md
+          if diff -q --strip-trailing-cr -Z /tmp/existing-stats.md proving-stats/comment-body.md > /dev/null; then
+            echo "Proving stats unchanged from previous comment; skipping new comment."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Proving stats differ from previous comment; posting a new one."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Add new proving stats comment on change
+        if: steps.stats-changed.outputs.changed == 'true'
+        uses: peter-evans/create-or-update-comment@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
           body-path: 'proving-stats/comment-body.md'
-          edit-mode: replace
