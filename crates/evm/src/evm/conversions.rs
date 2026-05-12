@@ -156,63 +156,6 @@ fn verify_prehash_with_recovery_parity(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use k256::ecdsa::SigningKey;
-    use k256::FieldBytes;
-
-    use super::*;
-
-    #[test]
-    fn ecdsa_witness_pubkey_must_match_recovery_parity() {
-        let signing_key = SigningKey::from_slice(&[1u8; 32]).unwrap();
-        let verifying_key = *signing_key.verifying_key();
-        let prehash = [2u8; 32];
-        let (signature, recovery_id) = signing_key.sign_prehash_recoverable(&prehash).unwrap();
-
-        verify_prehash_with_recovery_parity(
-            &verifying_key,
-            &signature,
-            &prehash,
-            recovery_id.is_y_odd(),
-        )
-        .unwrap();
-
-        assert_eq!(
-            verify_prehash_with_recovery_parity(
-                &verifying_key,
-                &signature,
-                &prehash,
-                !recovery_id.is_y_odd(),
-            ),
-            Err(ConversionError::InvalidSignature)
-        );
-    }
-
-    #[test]
-    fn ecdsa_witness_pubkey_rejects_high_s_signature() {
-        let signing_key = SigningKey::from_slice(&[3u8; 32]).unwrap();
-        let verifying_key = *signing_key.verifying_key();
-        let prehash = [4u8; 32];
-        let (signature, recovery_id) = signing_key.sign_prehash_recoverable(&prehash).unwrap();
-        let high_s_signature = k256::ecdsa::Signature::from_scalars(
-            FieldBytes::from(signature.r()),
-            FieldBytes::from(-signature.s()),
-        )
-        .unwrap();
-
-        assert_eq!(
-            verify_prehash_with_recovery_parity(
-                &verifying_key,
-                &high_s_signature,
-                &prehash,
-                recovery_id.is_y_odd(),
-            ),
-            Err(ConversionError::InvalidSignature)
-        );
-    }
-}
-
 /// Convert RlpEvmTransaction to Recovered<TransactionSigned>.
 ///
 /// This function implements the ecrecover optimization pattern:
@@ -335,5 +278,62 @@ pub(crate) fn sealed_block_to_block_env(
 impl From<&CitreaReceiptWithBloom> for reth_primitives::Receipt {
     fn from(receipt: &CitreaReceiptWithBloom) -> Self {
         receipt.receipt.receipt.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use k256::ecdsa::SigningKey;
+    use k256::FieldBytes;
+
+    use super::*;
+
+    #[test]
+    fn ecdsa_witness_pubkey_must_match_recovery_parity() {
+        let signing_key = SigningKey::from_slice(&[1u8; 32]).unwrap();
+        let verifying_key = *signing_key.verifying_key();
+        let prehash = [2u8; 32];
+        let (signature, recovery_id) = signing_key.sign_prehash_recoverable(&prehash).unwrap();
+
+        verify_prehash_with_recovery_parity(
+            &verifying_key,
+            &signature,
+            &prehash,
+            recovery_id.is_y_odd(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            verify_prehash_with_recovery_parity(
+                &verifying_key,
+                &signature,
+                &prehash,
+                !recovery_id.is_y_odd(),
+            ),
+            Err(ConversionError::InvalidSignature)
+        );
+    }
+
+    #[test]
+    fn ecdsa_witness_pubkey_rejects_high_s_signature() {
+        let signing_key = SigningKey::from_slice(&[3u8; 32]).unwrap();
+        let verifying_key = *signing_key.verifying_key();
+        let prehash = [4u8; 32];
+        let (signature, recovery_id) = signing_key.sign_prehash_recoverable(&prehash).unwrap();
+        let high_s_signature = k256::ecdsa::Signature::from_scalars(
+            FieldBytes::from(signature.r()),
+            FieldBytes::from(-signature.s()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            verify_prehash_with_recovery_parity(
+                &verifying_key,
+                &high_s_signature,
+                &prehash,
+                recovery_id.is_y_odd(),
+            ),
+            Err(ConversionError::InvalidSignature)
+        );
     }
 }
