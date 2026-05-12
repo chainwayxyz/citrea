@@ -5,8 +5,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum EcrecoverProviderError {
-    #[error("No more addresses available")]
-    NoMoreAddresses,
+    #[error("No more pubkeys available")]
+    NoMorePubkeys,
 }
 
 #[cfg(feature = "native")]

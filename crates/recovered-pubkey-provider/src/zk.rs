@@ -15,12 +15,12 @@ impl RecoveredPubkeyProvider {
         }
     }
 
-    /// Get the next address
+    /// Get the next pubkey
     pub fn get_next(&self) -> Result<Secp256k1Pubkey, EcrecoverProviderError> {
         self.pubkeys
             .borrow_mut()
             .next()
-            .ok_or(EcrecoverProviderError::NoMoreAddresses)
+            .ok_or(EcrecoverProviderError::NoMorePubkeys)
     }
 }
 
