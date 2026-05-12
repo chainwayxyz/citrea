@@ -117,6 +117,102 @@ impl TryFrom<RlpEvmTransaction> for Recovered<TransactionSigned> {
     }
 }
 
+#[cfg(any(test, not(feature = "native")))]
+fn verify_prehash_with_recovery_parity(
+    verifying_key: &k256::ecdsa::VerifyingKey,
+    signature: &k256::ecdsa::Signature,
+    prehash: &[u8],
+    expected_y_parity: bool,
+) -> Result<(), ConversionError> {
+    use k256::elliptic_curve::bigint::U256 as K256U256;
+    use k256::elliptic_curve::group::prime::PrimeCurveAffine;
+    use k256::elliptic_curve::ops::{Invert, LinearCombination, Reduce};
+    use k256::elliptic_curve::point::AffineCoordinates;
+    use k256::elliptic_curve::scalar::IsHigh;
+    use k256::{FieldBytes, ProjectivePoint, Scalar};
+
+    if prehash.len() != FieldBytes::default().len() || bool::from(signature.s().is_high()) {
+        return Err(ConversionError::InvalidSignature);
+    }
+
+    let prehash = FieldBytes::from_slice(prehash);
+    let z = <Scalar as Reduce<K256U256>>::reduce_bytes(prehash);
+    let (r, s) = signature.split_scalars();
+    let s_inv = *s.invert_vartime();
+    let u1 = z * s_inv;
+    let u2 = *r * s_inv;
+    let q = ProjectivePoint::from(*verifying_key.as_affine());
+
+    let verification_point =
+        ProjectivePoint::lincomb(&ProjectivePoint::GENERATOR, &u1, &q, &u2).to_affine();
+
+    if bool::from(verification_point.is_identity())
+        || verification_point.x() != FieldBytes::from(r)
+        || bool::from(verification_point.y_is_odd()) != expected_y_parity
+    {
+        return Err(ConversionError::InvalidSignature);
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use k256::ecdsa::SigningKey;
+    use k256::FieldBytes;
+
+    use super::*;
+
+    #[test]
+    fn ecdsa_witness_pubkey_must_match_recovery_parity() {
+        let signing_key = SigningKey::from_slice(&[1u8; 32]).unwrap();
+        let verifying_key = *signing_key.verifying_key();
+        let prehash = [2u8; 32];
+        let (signature, recovery_id) = signing_key.sign_prehash_recoverable(&prehash).unwrap();
+
+        verify_prehash_with_recovery_parity(
+            &verifying_key,
+            &signature,
+            &prehash,
+            recovery_id.is_y_odd(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            verify_prehash_with_recovery_parity(
+                &verifying_key,
+                &signature,
+                &prehash,
+                !recovery_id.is_y_odd(),
+            ),
+            Err(ConversionError::InvalidSignature)
+        );
+    }
+
+    #[test]
+    fn ecdsa_witness_pubkey_rejects_high_s_signature() {
+        let signing_key = SigningKey::from_slice(&[3u8; 32]).unwrap();
+        let verifying_key = *signing_key.verifying_key();
+        let prehash = [4u8; 32];
+        let (signature, recovery_id) = signing_key.sign_prehash_recoverable(&prehash).unwrap();
+        let high_s_signature = k256::ecdsa::Signature::from_scalars(
+            FieldBytes::from(signature.r()),
+            FieldBytes::from(-signature.s()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            verify_prehash_with_recovery_parity(
+                &verifying_key,
+                &high_s_signature,
+                &prehash,
+                recovery_id.is_y_odd(),
+            ),
+            Err(ConversionError::InvalidSignature)
+        );
+    }
+}
+
 /// Convert RlpEvmTransaction to Recovered<TransactionSigned>.
 ///
 /// This function implements the ecrecover optimization pattern:
@@ -135,7 +231,6 @@ pub fn recover_raw_transaction(
     #[cfg(not(feature = "native"))]
     {
         use alloy_primitives::{keccak256, Address};
-        use k256::ecdsa::signature::hazmat::PrehashVerifier;
         use k256::ecdsa::VerifyingKey;
         use k256::elliptic_curve::sec1::ToEncodedPoint;
 
@@ -152,14 +247,16 @@ pub fn recover_raw_transaction(
         let sig = *tx.signature();
         let prehash = tx.signature_hash();
 
-        let normalized_sig = sig.normalized_s();
-        let k256_sig = normalized_sig
+        let k256_sig = sig
             .to_k256()
             .map_err(|_| ConversionError::InvalidSignature)?;
 
-        verifying_key
-            .verify_prehash(prehash.as_slice(), &k256_sig)
-            .map_err(|_| ConversionError::InvalidSignature)?;
+        verify_prehash_with_recovery_parity(
+            &verifying_key,
+            &k256_sig,
+            prehash.as_slice(),
+            sig.recid().is_y_odd(),
+        )?;
 
         // Compute address from pubkey
         let affine = verifying_key.as_ref();
