@@ -19,7 +19,6 @@ use citrea_stf::genesis_config::GenesisPaths;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use clap::Parser;
 use metrics_exporter_prometheus::PrometheusBuilder;
-use recovered_pubkey_provider::{RecoveredPubkeyProvider, RECOVERED_PUBKEY_PROVIDER};
 use reth_tasks::TaskManager;
 use short_header_proof_provider::{
     NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
@@ -236,11 +235,6 @@ where
     ))) {
         Ok(_) => tracing::debug!("Short header proof provider set"),
         Err(_) => tracing::error!("Short header proof provider already set"),
-    }
-
-    match RECOVERED_PUBKEY_PROVIDER.set(RecoveredPubkeyProvider::new()) {
-        Ok(_) => {}
-        Err(_) => panic!("recovered pubkey provider already initialized"),
     }
 
     let rpc_storage = storage_manager.create_final_view_storage();

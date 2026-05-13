@@ -1062,6 +1062,7 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
 
     let mut stf =
         StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
+    let recovered_pubkey_collection = RECOVERED_PUBKEY_PROVIDER.start_collecting()?;
 
     let last_l2_height = committed_l2_blocks
         .back()
@@ -1157,9 +1158,9 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
             short_header_proofs.push_back(serialized_shp);
         }
 
-        // Extract recoverdd pubkeys for this commitment.
+        // Extract recovered pubkeys for this commitment.
         // These pubkeys were collected during transaction recovery in recover_raw_transaction()
-        let pubkeys = RECOVERED_PUBKEY_PROVIDER.get().unwrap().take_pubkeys()?;
+        let pubkeys = recovered_pubkey_collection.take_pubkeys();
 
         all_recovered_pubkeys.push_back(pubkeys);
         state_transition_witnesses.push_back(witnesses);

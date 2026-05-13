@@ -11,10 +11,7 @@ publish = false
 resolver = "2"
 
 [dependencies]
-parking_lot = { workspace = true, optional = true }
 thiserror = { workspace = true }
 
 [features]
-native = [
-  "dep:parking_lot",
-]
+native = []

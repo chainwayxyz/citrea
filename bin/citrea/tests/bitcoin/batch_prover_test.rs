@@ -34,6 +34,9 @@ use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::Zkvm as _;
+use sov_rollup_interface::zk::batch_proof::input::v3::{
+    BatchProofCircuitInputV3Part1, BatchProofCircuitInputV3Part2,
+};
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{ProvingSessionInfo, ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
@@ -42,7 +45,7 @@ use uuid::Uuid;
 use super::get_citrea_path;
 use super::utils::wait_for_zkproofs;
 use crate::bitcoin::utils::{wait_for_prover_job, wait_for_prover_job_count};
-use crate::common::make_test_client;
+use crate::common::{make_test_client, make_test_client_from_private_key};
 
 /// This is a basic prover test showcasing spawning a bitcoin node as DA, a sequencer and a prover.
 /// It generates l2 blocks and wait until it reaches the first commitment.
@@ -1346,6 +1349,163 @@ impl TestCase for BatchProverCreateInputTest {
 #[tokio::test]
 async fn batch_prover_create_input_test() -> Result<()> {
     TestCaseRunner::new(BatchProverCreateInputTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+/// Regression test pinning that the circuit input's recovered pubkeys contain
+/// only the signers of the blocks inside the targeted commitment, regardless of
+/// what other L2 blocks the prover has applied.
+///
+/// Block 1 (signer A) is committed and finalized. The prover is restarted to
+/// drop any in-process state, then block 2 (signer B) is synced but not
+/// included in any commitment passed to `create_circuit_input`. The witness for
+/// commitment 1 must contain exactly signer A's pubkey. Re-running input
+/// creation must produce the same result, guarding against any stateful drain
+/// that would leave subsequent collections empty or stale.
+///
+/// This guards against re-introducing unconditional pubkey recording on the hot
+/// path (every `recover_raw_transaction` call), which previously caused signer
+/// B's pubkey to be appended to commitment 1's witness and would lead the guest
+/// to verify block 1's transaction against the wrong pubkey.
+struct BatchProverPubkeyCollectionIsolationTest;
+
+#[async_trait]
+impl TestCase for BatchProverPubkeyCollectionIsolationTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 1,
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            proof_sampling_number: 999_999_999_999,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let batch_prover = f.batch_prover.as_mut().unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let da = f.bitcoin_nodes.get(0).unwrap();
+
+        let first_funded_private_key =
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+        let second_funded_private_key =
+            "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+
+        let sequencer_rpc_addr = SocketAddr::new(
+            sequencer.config().rpc_bind_host().parse()?,
+            sequencer.config().rpc_bind_port(),
+        );
+        let first_signer_client =
+            make_test_client_from_private_key(sequencer_rpc_addr, first_funded_private_key).await?;
+        let second_signer_client =
+            make_test_client_from_private_key(sequencer_rpc_addr, second_funded_private_key)
+                .await?;
+
+        let _ = first_signer_client
+            .send_eth(Address::random(), None, None, None, 100)
+            .await?;
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer.wait_for_l2_height(1, None).await?;
+        batch_prover.wait_for_l2_height(1, None).await?;
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        // Restarting clears process-local pubkey state while keeping the pending
+        // commitment in the prover DB. The next synced block is intentionally not
+        // part of the proof input below.
+        batch_prover.restart(None, None).await?;
+        batch_prover.wait_for_l2_height(1, None).await?;
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        let _ = second_signer_client
+            .send_eth(Address::random(), None, None, None, 100)
+            .await?;
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer.wait_for_l2_height(2, None).await?;
+        batch_prover.wait_for_l2_height(2, None).await?;
+
+        let inputs = batch_prover
+            .client
+            .http_client()
+            .create_circuit_input(1, 1, PartitionMode::Normal)
+            .await?;
+        assert_eq!(inputs.len(), 1);
+
+        let raw_input = BASE64_STANDARD.decode(&inputs[0]).unwrap();
+        let (input_part, _): (BatchProofCircuitInputV3Part1, BatchProofCircuitInputV3Part2) =
+            borsh::from_slice(&raw_input)?;
+        assert_eq!(input_part.recovered_pubkeys.len(), 1);
+
+        let recovered_pubkeys = input_part
+            .recovered_pubkeys
+            .front()
+            .expect("must have one commitment's recovered pubkeys");
+        let first_signer_pubkey = uncompressed_pubkey_from_private_key(first_funded_private_key)?;
+
+        // Strict equality also catches a regression where signer A's pubkey
+        // is recorded more than once, which a `contains` check would miss.
+        assert_eq!(recovered_pubkeys.as_slice(), &[first_signer_pubkey]);
+
+        // Re-creating the input for the same commitment must yield the same
+        // pubkeys. A stateful drain that didn't reset between collections would
+        // surface here as an empty or stale recovered_pubkeys field.
+        let second_inputs = batch_prover
+            .client
+            .http_client()
+            .create_circuit_input(1, 1, PartitionMode::Normal)
+            .await?;
+        let raw_second_input = BASE64_STANDARD.decode(&second_inputs[0]).unwrap();
+        let (second_input_part, _): (BatchProofCircuitInputV3Part1, BatchProofCircuitInputV3Part2) =
+            borsh::from_slice(&raw_second_input)?;
+        assert_eq!(
+            second_input_part.recovered_pubkeys,
+            input_part.recovered_pubkeys
+        );
+
+        Ok(())
+    }
+}
+
+fn uncompressed_pubkey_from_private_key(private_key: &str) -> anyhow::Result<[u8; 65]> {
+    let private_key = private_key.strip_prefix("0x").unwrap_or(private_key);
+    let private_key = hex::decode(private_key)?;
+    let signing_key = k256::ecdsa::SigningKey::from_slice(&private_key)?;
+
+    Ok(signing_key
+        .verifying_key()
+        .to_encoded_point(false)
+        .as_bytes()
+        .try_into()
+        .expect("secp256k1 uncompressed pubkey must be 65 bytes"))
+}
+
+#[tokio::test]
+async fn batch_prover_pubkey_collection_isolation_test() -> Result<()> {
+    TestCaseRunner::new(BatchProverPubkeyCollectionIsolationTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await

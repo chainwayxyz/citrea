@@ -8690,7 +8690,6 @@ dependencies = [
 name = "recovered-pubkey-provider"
 version = "2.3.1"
 dependencies = [
- "parking_lot",
  "thiserror 2.0.12",
 ]
 

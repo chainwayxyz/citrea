@@ -10,6 +10,7 @@ use sov_modules_api::{SpecId as CitreaSpecId, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 use self::executor::CitreaEvm;
+use super::conversions::recover_raw_transaction;
 use super::db::EvmDb;
 use super::db_init::InitEvmDb;
 use super::executor;
@@ -58,7 +59,7 @@ fn simple_contract_execution<C: sov_modules_api::Context>(mut evm_db: EvmDb<C>) 
             .sign_default_transaction(TxKind::Create, contract.byte_code(), 1, 0)
             .unwrap();
 
-        let tx = &tx.try_into().unwrap();
+        let tx = &recover_raw_transaction(tx).unwrap();
         let block_env = BlockEnv {
             gas_limit: ETHEREUM_BLOCK_GAS_LIMIT_30M,
             ..Default::default()
@@ -76,7 +77,7 @@ fn simple_contract_execution<C: sov_modules_api::Context>(mut evm_db: EvmDb<C>) 
         let tx = dev_signer
             .sign_default_transaction(TxKind::Call(contract_address), call_data.clone(), 2, 0)
             .unwrap();
-        let tx = &tx.try_into().unwrap();
+        let tx = &recover_raw_transaction(tx).unwrap();
 
         execute_tx(
             &mut evm_db,
@@ -94,7 +95,7 @@ fn simple_contract_execution<C: sov_modules_api::Context>(mut evm_db: EvmDb<C>) 
             .sign_default_transaction(TxKind::Call(contract_address), call_data.clone(), 3, 0)
             .unwrap();
 
-        let tx = &tx.try_into().unwrap();
+        let tx = &recover_raw_transaction(tx).unwrap();
 
         let result = execute_tx(
             &mut evm_db,
@@ -116,7 +117,7 @@ fn simple_contract_execution<C: sov_modules_api::Context>(mut evm_db: EvmDb<C>) 
         let tx = dev_signer
             .sign_default_transaction(TxKind::Call(contract_address), failing_call_data, 4, 0)
             .unwrap();
-        let tx = &tx.try_into().unwrap();
+        let tx = &recover_raw_transaction(tx).unwrap();
 
         let result = execute_tx(
             &mut evm_db,

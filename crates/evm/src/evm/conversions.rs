@@ -6,6 +6,7 @@ use alloy_primitives::Bytes as RethBytes;
 use alloy_primitives::U256;
 use recovered_pubkey_provider::RECOVERED_PUBKEY_PROVIDER;
 use reth_primitives::{Recovered, TransactionSigned};
+#[cfg(feature = "native")]
 use reth_primitives_traits::SignedTransaction;
 use revm::context::{TransactTo, TxEnv};
 use revm::state::AccountInfo as ReVmAccountInfo;
@@ -103,20 +104,6 @@ impl TryFrom<RlpEvmTransaction> for TransactionSigned {
     }
 }
 
-impl TryFrom<RlpEvmTransaction> for Recovered<TransactionSigned> {
-    type Error = ConversionError;
-
-    fn try_from(evm_tx: RlpEvmTransaction) -> Result<Self, Self::Error> {
-        let tx = TransactionSigned::try_from(evm_tx)?;
-        if tx.signature() == &SYSTEM_SIGNATURE {
-            return Ok(Self::new_unchecked(tx, SYSTEM_SIGNER));
-        }
-
-        tx.try_into_recovered()
-            .map_err(|_| ConversionError::InvalidSignature)
-    }
-}
-
 #[cfg(any(test, not(feature = "native")))]
 fn verify_prehash_with_recovery_parity(
     verifying_key: &k256::ecdsa::VerifyingKey,
@@ -159,7 +146,7 @@ fn verify_prehash_with_recovery_parity(
 /// Convert RlpEvmTransaction to Recovered<TransactionSigned>.
 ///
 /// This function implements the ecrecover optimization pattern:
-/// - On native: Performs actual ecrecover and records the pubkey to be added to input
+/// - On native: Performs actual ecrecover and records the pubkey during batch-prover collection
 /// - In non native: Uses pre-computed pubkeys from input to verify and derive address
 ///
 /// Pubkeys are recorded/consumed in deterministic order (block by block, tx by tx).
@@ -212,16 +199,29 @@ pub fn recover_raw_transaction(
 
     #[cfg(feature = "native")]
     {
+        // Direct path when not collecting pubkeys
+        if !RECOVERED_PUBKEY_PROVIDER.is_collecting() {
+            return tx
+                .try_into_recovered()
+                .map_err(|_| ConversionError::InvalidSignature);
+        }
+
+        use alloy_primitives::{keccak256, Address};
+
         let sig = *tx.signature();
         let prehash = *tx.signature_hash();
-
-        let recovered = tx
-            .try_into_recovered()
-            .map_err(|_| ConversionError::InvalidSignature)?;
 
         let k256_sig = sig
             .to_k256()
             .map_err(|_| ConversionError::InvalidSignature)?;
+
+        // Reject high-s signatures to match the non-native verifier and the
+        // standard `try_into_recovered` path.
+        use k256::elliptic_curve::scalar::IsHigh;
+        if bool::from(k256_sig.s().is_high()) {
+            return Err(ConversionError::InvalidSignature);
+        }
+
         let verifying_key = k256::ecdsa::VerifyingKey::recover_from_prehash(
             prehash.as_slice(),
             &k256_sig,
@@ -229,18 +229,18 @@ pub fn recover_raw_transaction(
         )
         .map_err(|_| ConversionError::InvalidSignature)?;
 
-        let encoded = verifying_key.to_encoded_point(false).as_bytes().to_vec();
-
-        let pubkey: [u8; 65] = encoded
+        let pubkey: [u8; 65] = verifying_key
+            .to_encoded_point(false)
+            .as_bytes()
             .try_into()
             .expect("secp256k1 uncompressed pubkey must be 65 bytes");
 
-        // Record the pubkey
-        if let Some(provider) = RECOVERED_PUBKEY_PROVIDER.get() {
-            provider.record(pubkey);
-        }
+        RECOVERED_PUBKEY_PROVIDER
+            .record(pubkey)
+            .expect("collection active on this thread");
 
-        Ok(recovered)
+        let address = Address::from_slice(&keccak256(&pubkey[1..])[12..]);
+        Ok(Recovered::new_unchecked(tx, address))
     }
 }
 
@@ -348,6 +348,7 @@ mod tests {
         use alloy_eips::eip2718::Encodable2718;
         use alloy_primitives::{Address, Bytes, PrimitiveSignature, U256};
         use alloy_rpc_types::{TransactionInput, TransactionRequest};
+        use recovered_pubkey_provider::RECOVERED_PUBKEY_PROVIDER;
 
         const SECP256K1N_ORDER: U256 = U256::from_be_bytes([
             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -374,20 +375,81 @@ mod tests {
         let sig = wallet.sign_transaction_sync(&mut tx).unwrap();
 
         let envelope: TxEnvelope = tx.clone().into_signed(sig).into();
-        let mut bytes = Vec::new();
-        envelope.encode_2718(&mut bytes);
-        recover_raw_transaction(RlpEvmTransaction { rlp: bytes }).unwrap();
+        let mut valid_bytes = Vec::new();
+        envelope.encode_2718(&mut valid_bytes);
+        recover_raw_transaction(RlpEvmTransaction {
+            rlp: valid_bytes.clone(),
+        })
+        .unwrap();
 
         let high_s_sig = PrimitiveSignature::new(sig.r(), SECP256K1N_ORDER - sig.s(), !sig.v());
         let envelope: TxEnvelope = tx.into_signed(high_s_sig).into();
 
-        let mut bytes = Vec::new();
-        envelope.encode_2718(&mut bytes);
+        let mut high_s_bytes = Vec::new();
+        envelope.encode_2718(&mut high_s_bytes);
 
+        // Non-collecting path: `try_into_recovered` enforces low-s.
         assert!(matches!(
-            recover_raw_transaction(RlpEvmTransaction { rlp: bytes }),
+            recover_raw_transaction(RlpEvmTransaction {
+                rlp: high_s_bytes.clone()
+            }),
             Err(ConversionError::FailedToDecodeSignedTransaction
                 | ConversionError::InvalidSignature)
         ));
+
+        // Collecting path: explicit low-s check must reject high-s as well, so
+        // the two native paths agree on signature validity.
+        let _guard = RECOVERED_PUBKEY_PROVIDER.start_collecting().unwrap();
+        recover_raw_transaction(RlpEvmTransaction { rlp: valid_bytes }).unwrap();
+        assert!(matches!(
+            recover_raw_transaction(RlpEvmTransaction { rlp: high_s_bytes }),
+            Err(ConversionError::FailedToDecodeSignedTransaction
+                | ConversionError::InvalidSignature)
+        ));
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn native_recovery_paths_agree_on_signer() {
+        use alloy::consensus::{SignableTransaction, TxEnvelope};
+        use alloy::providers::network::TxSignerSync;
+        use alloy::signers::local::PrivateKeySigner;
+        use alloy_eips::eip2718::Encodable2718;
+        use alloy_primitives::{Address, Bytes, U256};
+        use alloy_rpc_types::{TransactionInput, TransactionRequest};
+        use recovered_pubkey_provider::RECOVERED_PUBKEY_PROVIDER;
+
+        let wallet = "dcf2cbdd171a21c480aa7f53d77f31bb102282b3ff099c78e3118b37348c72f7"
+            .parse::<PrivateKeySigner>()
+            .unwrap();
+        let mut request = TransactionRequest::default()
+            .from(wallet.address())
+            .nonce(0u64)
+            .max_priority_fee_per_gas(1)
+            .max_fee_per_gas(1)
+            .gas_limit(21_000)
+            .to(Address::repeat_byte(2))
+            .value(U256::from(1u64))
+            .input(TransactionInput::new(Bytes::new()));
+        request.chain_id = Some(1);
+
+        let typed_tx = request.build_typed_tx().unwrap();
+        let mut tx = typed_tx.eip1559().unwrap().clone();
+        let sig = wallet.sign_transaction_sync(&mut tx).unwrap();
+        let envelope: TxEnvelope = tx.into_signed(sig).into();
+        let mut bytes = Vec::new();
+        envelope.encode_2718(&mut bytes);
+
+        let non_collecting = recover_raw_transaction(RlpEvmTransaction { rlp: bytes.clone() })
+            .unwrap()
+            .signer();
+
+        let _guard = RECOVERED_PUBKEY_PROVIDER.start_collecting().unwrap();
+        let collecting = recover_raw_transaction(RlpEvmTransaction { rlp: bytes })
+            .unwrap()
+            .signer();
+
+        assert_eq!(non_collecting, wallet.address());
+        assert_eq!(collecting, non_collecting);
     }
 }

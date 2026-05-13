@@ -13,6 +13,7 @@ use alloy_consensus::TxReceipt;
 pub use alloy_primitives::{keccak256, U256};
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 pub use call::*;
+pub use evm::conversions::recover_raw_transaction;
 pub use evm::*;
 pub use genesis::*;
 #[cfg(feature = "native")]
