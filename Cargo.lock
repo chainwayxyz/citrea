@@ -3532,7 +3532,6 @@ dependencies = [
  "bincode",
  "borsh",
  "citrea-common",
- "citrea-evm",
  "citrea-primitives",
  "citrea-stf",
  "faster-hex",

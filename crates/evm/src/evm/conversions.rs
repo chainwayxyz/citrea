@@ -219,11 +219,13 @@ pub fn recover_raw_transaction(
             .try_into_recovered()
             .map_err(|_| ConversionError::InvalidSignature)?;
 
-        let normalized_sig = sig.normalized_s();
+        let k256_sig = sig
+            .to_k256()
+            .map_err(|_| ConversionError::InvalidSignature)?;
         let verifying_key = k256::ecdsa::VerifyingKey::recover_from_prehash(
             prehash.as_slice(),
-            &normalized_sig.to_k256().unwrap(),
-            normalized_sig.recid(),
+            &k256_sig,
+            sig.recid(),
         )
         .map_err(|_| ConversionError::InvalidSignature)?;
 
@@ -335,5 +337,57 @@ mod tests {
             ),
             Err(ConversionError::InvalidSignature)
         );
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn native_recovery_rejects_high_s_transaction() {
+        use alloy::consensus::{SignableTransaction, TxEnvelope};
+        use alloy::providers::network::TxSignerSync;
+        use alloy::signers::local::PrivateKeySigner;
+        use alloy_eips::eip2718::Encodable2718;
+        use alloy_primitives::{Address, Bytes, PrimitiveSignature, U256};
+        use alloy_rpc_types::{TransactionInput, TransactionRequest};
+
+        const SECP256K1N_ORDER: U256 = U256::from_be_bytes([
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+            0xFF, 0xFE, 0xBA, 0xAE, 0xDC, 0xE6, 0xAF, 0x48, 0xA0, 0x3B, 0xBF, 0xD2, 0x5E, 0x8C,
+            0xD0, 0x36, 0x41, 0x41,
+        ]);
+
+        let wallet = "dcf2cbdd171a21c480aa7f53d77f31bb102282b3ff099c78e3118b37348c72f7"
+            .parse::<PrivateKeySigner>()
+            .unwrap();
+        let mut request = TransactionRequest::default()
+            .from(wallet.address())
+            .nonce(0u64)
+            .max_priority_fee_per_gas(1)
+            .max_fee_per_gas(1)
+            .gas_limit(21_000)
+            .to(Address::repeat_byte(2))
+            .value(U256::from(1u64))
+            .input(TransactionInput::new(Bytes::new()));
+        request.chain_id = Some(1);
+
+        let typed_tx = request.build_typed_tx().unwrap();
+        let mut tx = typed_tx.eip1559().unwrap().clone();
+        let sig = wallet.sign_transaction_sync(&mut tx).unwrap();
+
+        let envelope: TxEnvelope = tx.clone().into_signed(sig).into();
+        let mut bytes = Vec::new();
+        envelope.encode_2718(&mut bytes);
+        recover_raw_transaction(RlpEvmTransaction { rlp: bytes }).unwrap();
+
+        let high_s_sig = PrimitiveSignature::new(sig.r(), SECP256K1N_ORDER - sig.s(), !sig.v());
+        let envelope: TxEnvelope = tx.into_signed(high_s_sig).into();
+
+        let mut bytes = Vec::new();
+        envelope.encode_2718(&mut bytes);
+
+        assert!(matches!(
+            recover_raw_transaction(RlpEvmTransaction { rlp: bytes }),
+            Err(ConversionError::FailedToDecodeSignedTransaction
+                | ConversionError::InvalidSignature)
+        ));
     }
 }
