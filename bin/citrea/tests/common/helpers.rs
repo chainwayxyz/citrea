@@ -162,7 +162,7 @@ pub async fn start_rollup(
 
     let Dependencies {
         da_service,
-        task_manager,
+        task_executor,
         l2_block_channel,
     } = mock_demo_rollup
         .setup_dependencies(
@@ -181,7 +181,7 @@ pub async fn start_rollup(
         Err(_) => tracing::error!("Short header proof provider already set"),
     }
 
-    let task_executor = task_manager.clone();
+    let task_executor = task_executor.clone();
 
     // I am sorry
     if let_hell_loose {
@@ -460,7 +460,7 @@ pub async fn start_rollup(
         );
     }
 
-    task_manager
+    task_executor
 }
 
 pub fn create_default_rollup_config(
