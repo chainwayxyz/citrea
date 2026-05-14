@@ -2,7 +2,7 @@
 ## [Unreleased]
 
 ## [v2.4.0](2026-04-06)
-This version updates RocksDB, underlying database of Citrea nodes. It is not yet approved for mainnet nodes, so node operators are not advised to upgrade.
+This version updates RocksDB, underlying database of Citrea nodes.
 ### Changed
 - perf: Mine reveal prefix relying on `sign_schnorr` internal randomness.([#3192](https://github.com/chainwayxyz/citrea/pull/3192))
 - chore: bump rocksdb and use jemalloc feature ([#2983](https://github.com/chainwayxyz/citrea/pull/2983))
