@@ -9,7 +9,7 @@ env:
   TARGET_PCT: 3
   COMPARISON_FILE: comparison_results.log
   USE_DOCKER: "true"
-  RUST_CACHE_PREFIX: v1-rust-ubuntu-2204
+  RUST_CACHE_PREFIX: v2-rust
 
 jobs:
   performance-comparison:
@@ -39,7 +39,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache ethereum-tests
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
@@ -54,7 +54,7 @@ jobs:
           ./resources/scripts/cycle-diff.sh check
 
       - name: Upload comparison results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: comparison-results
           path: comparison_results.log
