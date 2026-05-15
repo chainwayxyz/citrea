@@ -38,7 +38,7 @@ use l2_block_rule_enforcer::{L2BlockRuleEnforcerRpcImpl, L2BlockRuleEnforcerRpcS
 #[cfg(feature = "native")]
 use sov_accounts::{AccountsRpcImpl, AccountsRpcServer};
 #[cfg(feature = "native")]
-pub use sov_modules_api::default_context::DefaultContext;
+pub use sov_modules_api::default_context::NativeContext;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::expose_rpc;
 use sov_modules_api::macros::DefaultRuntime;

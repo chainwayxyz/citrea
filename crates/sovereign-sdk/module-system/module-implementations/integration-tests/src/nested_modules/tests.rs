@@ -1,4 +1,4 @@
-use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
+use sov_modules_api::default_context::{NativeContext, ZkContext};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{Context, ModulePrefix, StateMap, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
@@ -14,8 +14,8 @@ fn nested_module_call_test() {
 
     // Test the `native` execution.
     {
-        execute_module_logic::<DefaultContext>(&mut working_set);
-        test_state_update::<DefaultContext>(&mut working_set);
+        execute_module_logic::<NativeContext>(&mut working_set);
+        test_state_update::<NativeContext>(&mut working_set);
     }
 
     let (state_log, mut witness) = working_set.checkpoint().freeze();
@@ -27,8 +27,8 @@ fn nested_module_call_test() {
     {
         let zk_storage = ZkStorage::new();
         let working_set = &mut WorkingSet::with_witness(zk_storage, witness, Default::default());
-        execute_module_logic::<ZkDefaultContext>(working_set);
-        test_state_update::<ZkDefaultContext>(working_set);
+        execute_module_logic::<ZkContext>(working_set);
+        test_state_update::<ZkContext>(working_set);
     }
 }
 

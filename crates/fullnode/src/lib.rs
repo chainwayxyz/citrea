@@ -130,7 +130,7 @@ use da_block_handler::L1BlockHandler;
 use jsonrpsee::RpcModule;
 pub use l2_syncer::L2Syncer;
 use sov_db::ledger_db::NodeLedgerOps;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::fork::ForkManager;
 use sov_modules_api::{SpecId, Zkvm};
 use sov_modules_stf_blueprint::StfBlueprint;
@@ -201,9 +201,9 @@ pub fn build_services<DA, DB, Vm>(
     runner_config: RunnerConfig,
     init_params: InitParams,
     native_stf: StfBlueprint<
-        DefaultContext,
+        NativeContext,
         <DA as DaService>::Spec,
-        CitreaRuntime<DefaultContext, <DA as DaService>::Spec>,
+        CitreaRuntime<NativeContext, <DA as DaService>::Spec>,
     >,
     public_keys: RollupPublicKeys,
     da_service: Arc<DA>,

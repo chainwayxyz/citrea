@@ -13,7 +13,7 @@ use revm::primitives::{KECCAK_EMPTY, U256};
 use revm::state::Bytecode;
 use revm::Database;
 use secp256k1::SecretKey;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
@@ -39,7 +39,7 @@ use crate::tests::{get_test_seq_pub_key, DEFAULT_CHAIN_ID};
 use crate::{
     AccountData, EvmConfig, RlpEvmTransaction, BASE_FEE_VAULT, L1_FEE_VAULT, PRIORITY_FEE_VAULT,
 };
-type C = DefaultContext;
+type C = NativeContext;
 
 #[test]
 fn call_multiple_test() {

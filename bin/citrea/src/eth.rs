@@ -5,7 +5,7 @@ use citrea_common::RpcConfig;
 use ethereum_rpc::{EthRpcConfig, FeeHistoryCacheConfig, GasPriceOracleConfig};
 use reth_tasks::TaskExecutor;
 use sov_db::ledger_db::LedgerDB;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_rollup_interface::services::da::DaService;
 use sov_state::ProverStorage;
 use tokio::sync::broadcast;
@@ -31,7 +31,7 @@ pub fn register_ethereum<Da: DaService>(
         }
     };
 
-    let ethereum_rpc = ethereum_rpc::create_rpc_module::<DefaultContext, Da>(
+    let ethereum_rpc = ethereum_rpc::create_rpc_module::<NativeContext, Da>(
         da_service,
         eth_rpc_config,
         rpc_config,

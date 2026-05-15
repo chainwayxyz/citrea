@@ -1,10 +1,9 @@
 use jsonrpsee::core::RpcResult;
-pub use sov_modules_api::default_context::DefaultContext;
+pub use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    CallResponse, Context, Module, ModuleInfo, L2BlockModuleCallError, Spec, StateValue,
-    WorkingSet,
+    CallResponse, Context, L2BlockModuleCallError, Module, ModuleInfo, Spec, StateValue, WorkingSet,
 };
 
 #[derive(Clone)]

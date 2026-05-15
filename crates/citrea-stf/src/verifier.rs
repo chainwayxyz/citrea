@@ -1,6 +1,6 @@
 use citrea_evm::{keccak256, Evm, BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS, U256};
 use short_header_proof_provider::{ZkShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER};
-use sov_modules_api::default_context::ZkDefaultContext;
+use sov_modules_api::default_context::ZkContext;
 use sov_modules_api::fork::Fork;
 use sov_modules_api::{Context, DaSpec};
 use sov_modules_stf_blueprint::{ApplySequencerCommitmentsOutput, Runtime, StfBlueprint};
@@ -95,7 +95,7 @@ where
         let last_l1_hash = if let Some(hash) = last_queried_hash {
             hash
         } else {
-            get_last_l1_hash_on_contract::<ZkDefaultContext>(
+            get_last_l1_hash_on_contract::<ZkContext>(
                 cumulative_state_log,
                 pre_state,
                 &mut data.last_l1_hash_witness,
@@ -202,7 +202,7 @@ where
 #[cfg(test)]
 mod tests {
 
-    use sov_modules_api::default_context::DefaultContext;
+    use sov_modules_api::default_context::NativeContext;
     use sov_modules_api::WorkingSet;
     use sov_state::{ReadWriteLog, ZkStorage};
 
@@ -225,7 +225,7 @@ mod tests {
         // Call the function with mock data that will cause it to fail
         // Simulate a missing key in storage to trigger the failure
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
-        get_last_l1_hash_on_contract::<ZkDefaultContext>(
+        get_last_l1_hash_on_contract::<ZkContext>(
             ReadWriteLog::default(),
             prover_storage,
             &mut Witness::default(),
@@ -252,7 +252,7 @@ mod tests {
 
         // Call the function with mock data that will cause it to fail
         // Simulate a missing key in storage to trigger the failure
-        get_last_l1_hash_on_contract::<DefaultContext>(
+        get_last_l1_hash_on_contract::<NativeContext>(
             state_log,
             prover_storage,
             &mut Witness::default(), // witness does not matter here
@@ -280,7 +280,7 @@ mod tests {
 
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         // Call the function with mock data
-        let result = get_last_l1_hash_on_contract::<DefaultContext>(
+        let result = get_last_l1_hash_on_contract::<NativeContext>(
             state_log,
             prover_storage,
             &mut Witness::default(), // witness does not matter here
@@ -301,7 +301,7 @@ mod tests {
 
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         // Call the function with mock data
-        let result = get_last_l1_hash_on_contract::<DefaultContext>(
+        let result = get_last_l1_hash_on_contract::<NativeContext>(
             state_log,
             prover_storage,
             &mut Witness::default(), // witness does not matter here
@@ -323,7 +323,7 @@ mod tests {
 
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
         // Call the function with mock data
-        let result = get_last_l1_hash_on_contract::<DefaultContext>(
+        let result = get_last_l1_hash_on_contract::<NativeContext>(
             state_log,
             prover_storage,
             &mut Witness::default(), // witness does not matter here
@@ -347,7 +347,7 @@ mod tests {
         let final_state_root = [0u8; 32]; // Mock final state root
 
         // Shows that no cache works
-        let result = get_last_l1_hash_on_contract::<DefaultContext>(
+        let result = get_last_l1_hash_on_contract::<NativeContext>(
             ReadWriteLog::default(),
             prover_storage,
             &mut Witness::default(), // witness does not matter here
@@ -379,7 +379,7 @@ mod tests {
         ];
 
         // accumulate state reads on witness
-        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+        let _ = get_last_l1_hash_on_contract::<NativeContext>(
             ReadWriteLog::default(),
             prover_storage,
             &mut witness,
@@ -388,7 +388,7 @@ mod tests {
 
         // Call the function with witness accumulated in the previous step
         let zk_storage = ZkStorage::new();
-        let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
+        let result = get_last_l1_hash_on_contract::<ZkContext>(
             ReadWriteLog::default(),
             zk_storage,
             &mut witness,
@@ -417,7 +417,7 @@ mod tests {
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
 
         // accumulate state reads on witness
-        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+        let _ = get_last_l1_hash_on_contract::<NativeContext>(
             get_read_write_log_with_both_cached(),
             prover_storage,
             &mut witness,
@@ -426,7 +426,7 @@ mod tests {
 
         // Call the function with witness accumulated in the previous step
         let zk_storage = ZkStorage::new();
-        let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
+        let result = get_last_l1_hash_on_contract::<ZkContext>(
             get_read_write_log_with_both_cached(),
             zk_storage,
             &mut witness,
@@ -452,7 +452,7 @@ mod tests {
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
 
         // accumulate state reads on witness
-        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+        let _ = get_last_l1_hash_on_contract::<NativeContext>(
             get_read_write_log_with_height_cached(),
             prover_storage,
             &mut witness,
@@ -461,7 +461,7 @@ mod tests {
 
         // Call the function with witness accumulated in the previous step
         let zk_storage = ZkStorage::new();
-        let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
+        let result = get_last_l1_hash_on_contract::<ZkContext>(
             get_read_write_log_with_height_cached(),
             zk_storage,
             &mut witness,
@@ -487,7 +487,7 @@ mod tests {
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
 
         // accumulate state reads on witness
-        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+        let _ = get_last_l1_hash_on_contract::<NativeContext>(
             get_read_write_log_with_hash_cached(),
             prover_storage,
             &mut witness,
@@ -496,7 +496,7 @@ mod tests {
 
         // Call the function with witness accumulated in the previous step
         let zk_storage = ZkStorage::new();
-        let result = get_last_l1_hash_on_contract::<ZkDefaultContext>(
+        let result = get_last_l1_hash_on_contract::<ZkContext>(
             get_read_write_log_with_hash_cached(),
             zk_storage,
             &mut witness,
@@ -526,7 +526,7 @@ mod tests {
         let false_state_root = [0xa; 32];
 
         // accumulate state reads on witness
-        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+        let _ = get_last_l1_hash_on_contract::<NativeContext>(
             ReadWriteLog::default(),
             prover_storage,
             &mut witness,
@@ -535,7 +535,7 @@ mod tests {
 
         // Call the function with witness accumulated in the previous step
         let zk_storage = ZkStorage::new();
-        get_last_l1_hash_on_contract::<ZkDefaultContext>(
+        get_last_l1_hash_on_contract::<ZkContext>(
             ReadWriteLog::default(),
             zk_storage,
             &mut witness,
@@ -565,7 +565,7 @@ mod tests {
         ];
 
         // accumulate state reads on witness
-        let _ = get_last_l1_hash_on_contract::<DefaultContext>(
+        let _ = get_last_l1_hash_on_contract::<NativeContext>(
             ReadWriteLog::default(),
             prover_storage,
             &mut witness,
@@ -583,7 +583,7 @@ mod tests {
 
         // Call the function with witness accumulated in the previous step
         let zk_storage = ZkStorage::new();
-        get_last_l1_hash_on_contract::<ZkDefaultContext>(
+        get_last_l1_hash_on_contract::<ZkContext>(
             ReadWriteLog::default(),
             zk_storage,
             &mut witness,

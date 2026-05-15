@@ -12,7 +12,7 @@ use short_header_proof_provider::{
     ShortHeaderProofProvider, ShortHeaderProofProviderError, SHORT_HEADER_PROOF_PROVIDER,
 };
 use sov_db::ledger_db::LedgerDB;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, L2BlockModuleCallError, Module, StateVecAccessor, WorkingSet};
@@ -40,9 +40,9 @@ use crate::{
     L1_FEE_VAULT, SYSTEM_SIGNER,
 };
 
-type C = DefaultContext;
+type C = NativeContext;
 
-fn get_evm_sys_tx_test(config: &EvmConfig) -> (Evm<DefaultContext>, WorkingSet<ProverStorage>) {
+fn get_evm_sys_tx_test(config: &EvmConfig) -> (Evm<NativeContext>, WorkingSet<ProverStorage>) {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(storage.clone());
@@ -62,7 +62,7 @@ fn initial_system_txs(
     init_block_hash: [u8; 32],
     init_block_txs_commitment: [u8; 32],
     initial_coinbase_depth: u64,
-    evm: &Evm<DefaultContext>,
+    evm: &Evm<NativeContext>,
     working_set: &mut WorkingSet<ProverStorage>,
 ) -> Vec<RlpEvmTransaction> {
     let init_events = create_initial_system_events(
@@ -97,7 +97,7 @@ fn set_block_info_system_tx(
     l1_block_hash: [u8; 32],
     txs_commitment: [u8; 32],
     coinbase_depth: u64,
-    evm: &Evm<DefaultContext>,
+    evm: &Evm<NativeContext>,
     working_set: &mut WorkingSet<ProverStorage>,
 ) -> RlpEvmTransaction {
     let sys_tx =
@@ -118,7 +118,7 @@ fn set_block_info_system_tx(
 }
 
 fn get_block_hash(
-    evm: &Evm<DefaultContext>,
+    evm: &Evm<NativeContext>,
     working_set: &mut WorkingSet<ProverStorage>,
     ledger_db: &LedgerDB,
     block_number: u64,
@@ -140,7 +140,7 @@ fn get_block_hash(
 
 fn deposit_system_tx(
     deposit_data: Vec<u8>,
-    evm: &Evm<DefaultContext>,
+    evm: &Evm<NativeContext>,
     working_set: &mut WorkingSet<ProverStorage>,
 ) -> RlpEvmTransaction {
     let sys_tx = SystemEvent::BridgeDeposit(deposit_data);

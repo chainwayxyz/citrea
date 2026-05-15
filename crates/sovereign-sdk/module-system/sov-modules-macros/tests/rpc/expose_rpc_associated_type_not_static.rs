@@ -1,5 +1,5 @@
 use jsonrpsee::core::RpcResult;
-use sov_modules_api::default_context::ZkDefaultContext;
+use sov_modules_api::default_context::ZkContext;
 use sov_modules_api::macros::{expose_rpc, rpc_gen, DefaultRuntime};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
@@ -110,7 +110,7 @@ impl TestSpec for ActualSpec {
 }
 
 fn main() {
-    type C = ZkDefaultContext;
+    type C = ZkContext;
     type RT = Runtime<C, ActualSpec>;
     let storage = ZkStorage::new();
     let working_set = &mut WorkingSet::new(storage);

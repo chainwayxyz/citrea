@@ -75,7 +75,7 @@ pub struct BankGasConfig<GU: GasUnit> {
 }
 ```
 
-The `GasUnit` generic type will be defined by the runtime `Context`. For `DefaultContext`, we use `TupleGasUnit<2>` - that is, a gas unit with a two dimensions. The same setup is defined for `ZkDefaultContext`. Here is an example of a `constants.json` file, specific to the `Bank` module:
+The `GasUnit` generic type will be defined by the runtime `Context`. For `NativeContext`, we use `TupleGasUnit<2>` - that is, a gas unit with a two dimensions. The same setup is defined for `ZkContext`. Here is an example of a `constants.json` file, specific to the `Bank` module:
 
 ```json
 {
@@ -126,9 +126,9 @@ fn call(
 }
 ```
 
-On the example above, we charge the configured unit from the working set. Concretely, we will charge a unit of `[4, 19]` from both `DefaultContext` and `ZkDefaultContext`. The working set will be the responsible to perform a scalar conversion from the dimensions to a single funds value. It will perform an inner product of the loaded price, with the provided unit.
+On the example above, we charge the configured unit from the working set. Concretely, we will charge a unit of `[4, 19]` from both `NativeContext` and `ZkContext`. The working set will be the responsible to perform a scalar conversion from the dimensions to a single funds value. It will perform an inner product of the loaded price, with the provided unit.
 
-Let's assume we have a working set with the loaded price `[3, 2]`. The charged gas of the operation above will be `[3] · [4] = 3 × 4 = 12` for a single dimension context, and `[3, 2] · [4, 19] = 3 × 4 + 2 × 19 = 50` for both `DefaultContext` and `ZkDefaultContext`. This approach is intended to unlock [Dynamic Pricing](https://arxiv.org/abs/2208.07919).
+Let's assume we have a working set with the loaded price `[3, 2]`. The charged gas of the operation above will be `[3] · [4] = 3 × 4 = 12` for a single dimension context, and `[3, 2] · [4, 19] = 3 × 4 + 2 × 19 = 50` for both `NativeContext` and `ZkContext`. This approach is intended to unlock [Dynamic Pricing](https://arxiv.org/abs/2208.07919).
 
 The aforementioned `Bank` struct, with the gas configuration, will look like this:
 
@@ -241,10 +241,10 @@ which re-executes the transactions in a (more expensive) zk environment to creat
 workflow looks roughly like this:
 
 ```rust
-use sov_modules_api::DefaultContext;
+use sov_modules_api::NativeContext;
 fn main() {
     // First, execute transactions natively to generate a witness for the zkVM
-    let native_rollup_instance = my_state_transition::<DefaultContext>::new(config);
+    let native_rollup_instance = my_state_transition::<NativeContext>::new(config);
     let witness = Default::default();
     native_rollup_instance.begin_slot(witness);
     for batch in batches.cloned() {
@@ -254,7 +254,7 @@ fn main() {
 
     // Then, re-execute the state transitions in the zkVM using the witness
     let proof = MyZkvm::prove(|| {
-        let zk_rollup_instance = my_state_transition::<ZkDefaultContext>::new(config);
+        let zk_rollup_instance = my_state_transition::<ZkContext>::new(config);
         zk_rollup_instance.begin_slot(populated_witness);
         for batch in batches {
             zk_rollup_instance.apply(batch);

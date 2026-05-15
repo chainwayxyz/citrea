@@ -64,7 +64,7 @@ use sov_bank::{BankRpcImpl, BankRpcServer};
 
 #[cfg_attr(
     feature = "native",
-    expose_rpc(DefaultContext)
+    expose_rpc(NativeContext)
 )]
 #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
 #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]

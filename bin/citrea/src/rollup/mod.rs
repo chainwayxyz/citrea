@@ -16,7 +16,7 @@ use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientProverL1BlockHandler;
 use citrea_primitives::forks::get_forks;
 use citrea_sequencer::CitreaSequencer;
-use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
+use citrea_stf::runtime::{CitreaRuntime, NativeContext};
 use citrea_storage_ops::pruning::PrunerService;
 use citrea_storage_ops::rollback::Rollback;
 use jsonrpsee::RpcModule;
@@ -45,8 +45,8 @@ pub use citrea_fullnode::StopConditions;
 pub use mock::*;
 
 type GenesisParams<T> = StfGenesisParams<
-    <CitreaRuntime<DefaultContext, <T as RollupBlueprint>::DaSpec> as RuntimeTrait<
-        DefaultContext,
+    <CitreaRuntime<NativeContext, <T as RollupBlueprint>::DaSpec> as RuntimeTrait<
+        NativeContext,
         <T as RollupBlueprint>::DaSpec,
     >>::GenesisConfig,
 >;
@@ -438,11 +438,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     fn init_chain(
         &self,
         genesis_config: GenesisParams<Self>,
-        stf: &StfBlueprint<
-            DefaultContext,
-            Self::DaSpec,
-            CitreaRuntime<DefaultContext, Self::DaSpec>,
-        >,
+        stf: &StfBlueprint<NativeContext, Self::DaSpec, CitreaRuntime<NativeContext, Self::DaSpec>>,
         ledger_db: &LedgerDB,
         storage_manager: &ProverStorageManager,
     ) -> anyhow::Result<InitParams> {

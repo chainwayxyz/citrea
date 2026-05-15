@@ -18,7 +18,7 @@ use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_keys::default_signature::K256PublicKey;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
@@ -49,7 +49,7 @@ where
     /// Data availability service instance
     da_service: Arc<DA>,
     /// State transition function blueprint
-    stf: StfBlueprint<DefaultContext, DA::Spec, CitreaRuntime<DefaultContext, DA::Spec>>,
+    stf: StfBlueprint<NativeContext, DA::Spec, CitreaRuntime<NativeContext, DA::Spec>>,
     /// Manager for prover storage
     storage_manager: ProverStorageManager,
     /// Database for ledger operations
@@ -102,7 +102,7 @@ where
     pub fn new(
         runner_config: RunnerConfig,
         init_params: InitParams,
-        stf: StfBlueprint<DefaultContext, DA::Spec, CitreaRuntime<DefaultContext, DA::Spec>>,
+        stf: StfBlueprint<NativeContext, DA::Spec, CitreaRuntime<NativeContext, DA::Spec>>,
         public_keys: RollupPublicKeys,
         da_service: Arc<DA>,
         ledger_db: DB,

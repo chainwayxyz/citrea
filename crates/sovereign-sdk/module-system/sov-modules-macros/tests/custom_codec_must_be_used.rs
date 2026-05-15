@@ -1,6 +1,6 @@
 use std::panic::catch_unwind;
 
-use sov_modules_api::default_context::ZkDefaultContext;
+use sov_modules_api::default_context::ZkContext;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{Context, ModuleInfo, Spec, StateValue, WorkingSet};
 use sov_modules_core::{StateCodec, StateKeyCodec, StateValueCodec};
@@ -58,11 +58,10 @@ impl<V> StateValueCodec<V> for CustomCodec {
 
 fn main() {
     let storage: ZkStorage = ZkStorage::new();
-    let module: TestModule<ZkDefaultContext> = TestModule::default();
+    let module: TestModule<ZkContext> = TestModule::default();
 
     catch_unwind(|| {
-        let mut working_set: WorkingSet<<ZkDefaultContext as Spec>::Storage> =
-            WorkingSet::new(storage);
+        let mut working_set: WorkingSet<<ZkContext as Spec>::Storage> = WorkingSet::new(storage);
         module.state_value.set(&0u32, &mut working_set);
     })
     .unwrap_err();

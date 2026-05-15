@@ -6,7 +6,7 @@ use alloy_primitives::{Address, TxKind, B256, U256};
 use alloy_rpc_types::state::AccountOverride;
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use revm::primitives::KECCAK_EMPTY;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, WorkingSet};
@@ -22,7 +22,7 @@ use crate::tests::utils::{
 };
 use crate::{AccountData, EvmConfig};
 
-type C = DefaultContext;
+type C = NativeContext;
 
 /// Test eth_estimateGas with state overrides (storage only)
 /// This test deploys a contract properly, then compares gas estimation

@@ -2,7 +2,7 @@ use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 use sov_keys::{PrivateKey, Signature};
 use sov_modules_core::Address;
 
-use crate::default_context::DefaultContext;
+use crate::default_context::NativeContext;
 use crate::ModuleInfo;
 
 #[test]
@@ -21,7 +21,7 @@ struct Module {
 }
 
 impl crate::ModuleInfo for Module {
-    type Context = DefaultContext;
+    type Context = NativeContext;
 
     fn address(&self) -> &<Self::Context as crate::Spec>::Address {
         &self.address
@@ -51,7 +51,7 @@ fn test_sorting_modules() {
         dependencies: vec![module_a.address, module_b.address],
     };
 
-    let modules: Vec<(&dyn ModuleInfo<Context = DefaultContext>, i32)> =
+    let modules: Vec<(&dyn ModuleInfo<Context = NativeContext>, i32)> =
         vec![(&module_b, 2), (&module_c, 3), (&module_a, 1)];
 
     let sorted_modules = crate::sort_values_by_modules_dependencies(modules).unwrap();
@@ -71,7 +71,7 @@ fn test_sorting_modules_missing_module() {
         dependencies: vec![module_a_address, module_b.address],
     };
 
-    let modules: Vec<(&dyn ModuleInfo<Context = DefaultContext>, i32)> =
+    let modules: Vec<(&dyn ModuleInfo<Context = NativeContext>, i32)> =
         vec![(&module_b, 2), (&module_c, 3)];
 
     let sorted_modules = crate::sort_values_by_modules_dependencies(modules);
@@ -101,7 +101,7 @@ fn test_sorting_modules_cycle() {
         dependencies: vec![module_a.address, module_d.address],
     };
 
-    let modules: Vec<(&dyn ModuleInfo<Context = DefaultContext>, i32)> = vec![
+    let modules: Vec<(&dyn ModuleInfo<Context = NativeContext>, i32)> = vec![
         (&module_b, 2),
         (&module_d, 3),
         (&module_a, 1),
@@ -130,7 +130,7 @@ fn test_sorting_modules_duplicate() {
         dependencies: vec![],
     };
 
-    let modules: Vec<(&dyn ModuleInfo<Context = DefaultContext>, u32)> =
+    let modules: Vec<(&dyn ModuleInfo<Context = NativeContext>, u32)> =
         vec![(&module_b, 3), (&module_a, 1), (&module_a2, 2)];
 
     let sorted_modules = crate::sort_values_by_modules_dependencies(modules);

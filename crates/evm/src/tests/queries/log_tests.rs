@@ -6,7 +6,7 @@ use alloy_network::BlockResponse;
 use alloy_rpc_types::{Filter, FilterBlockOption, FilterSet};
 use reth_rpc_eth_types::EthApiError;
 use revm::primitives::{B256, U256};
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
@@ -20,7 +20,7 @@ use crate::tests::utils::{
     create_contract_message, get_evm, get_evm_config, publish_event_message,
 };
 
-type C = DefaultContext;
+type C = NativeContext;
 
 #[test]
 fn logs_for_filter_test() {

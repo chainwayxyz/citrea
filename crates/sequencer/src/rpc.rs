@@ -8,7 +8,7 @@ use alloy_rpc_types::{SyncInfo, SyncStatus as EthSyncStatus, Transaction};
 use alloy_rpc_types_txpool::TxpoolContent;
 use citrea_common::rpc::utils::internal_rpc_error;
 use citrea_evm::Evm;
-use citrea_stf::runtime::DefaultContext;
+use citrea_stf::runtime::NativeContext;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::{ErrorCode, ErrorObject};
@@ -39,7 +39,7 @@ pub struct RpcContext {
     /// Channel for sending messages to the sequencer
     pub rpc_message_tx: UnboundedSender<SequencerRpcMessage>,
     /// Storage for the sequencer state
-    pub storage: <DefaultContext as Spec>::Storage,
+    pub storage: <NativeContext as Spec>::Storage,
     /// Ledger database access
     pub ledger: LedgerDB,
     /// Whether the sequencer is running in test mode
@@ -59,7 +59,7 @@ pub fn create_rpc_context(
     mempool: Arc<CitreaMempool>,
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     rpc_message_tx: UnboundedSender<SequencerRpcMessage>,
-    storage: <DefaultContext as Spec>::Storage,
+    storage: <NativeContext as Spec>::Storage,
     ledger_db: LedgerDB,
     test_mode: bool,
 ) -> RpcContext {
@@ -283,7 +283,7 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             None => match mempool_only {
                 Some(true) => Ok(None),
                 _ => {
-                    let evm = Evm::<DefaultContext>::default();
+                    let evm = Evm::<NativeContext>::default();
                     let mut working_set = WorkingSet::new(self.context.storage.clone());
 
                     match evm.get_transaction_by_hash(hash, &mut working_set) {
@@ -313,7 +313,7 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             None => match mempool_only {
                 Some(true) => Ok(None),
                 _ => {
-                    let evm = Evm::<DefaultContext>::default();
+                    let evm = Evm::<NativeContext>::default();
                     let mut working_set = WorkingSet::new(self.context.storage.clone());
 
                     match evm.get_transaction_by_hash(hash, &mut working_set) {
@@ -333,7 +333,7 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
         let deposit_tx_size = deposit.len();
         SM.deposit_tx_size.record(deposit_tx_size as f64);
 
-        let evm = Evm::<DefaultContext>::default();
+        let evm = Evm::<NativeContext>::default();
         let mut working_set = WorkingSet::new(self.context.storage.clone());
 
         let dep_tx = self

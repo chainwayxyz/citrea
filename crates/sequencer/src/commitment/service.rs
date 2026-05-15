@@ -6,7 +6,7 @@ use anyhow::anyhow;
 use citrea_common::utils::get_tangerine_activation_height_non_zero;
 use citrea_evm::{get_last_l1_height_in_light_client, Evm};
 use citrea_primitives::types::L2BlockHash;
-use citrea_stf::runtime::DefaultContext;
+use citrea_stf::runtime::NativeContext;
 use reth_tasks::shutdown::GracefulShutdown;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -280,7 +280,7 @@ where
             working_set.set_archival_version(l2_height + 1);
 
             let l1_height = get_last_l1_height_in_light_client(
-                &Evm::<DefaultContext>::default(),
+                &Evm::<NativeContext>::default(),
                 &mut working_set,
             )
             .expect("There must be a last l1 height");

@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, Spec, SpecId, StateValueAccessor};
 
@@ -9,7 +9,7 @@ use crate::call::CallMessage;
 use crate::tests::genesis_tests::{get_l2_block_rule_enforcer, TEST_CONFIG};
 use crate::tests::setup_evm;
 
-type C = DefaultContext;
+type C = NativeContext;
 
 #[test]
 fn change_max_l2_blocks_per_l1_and_authority() {
@@ -22,7 +22,7 @@ fn change_max_l2_blocks_per_l1_and_authority() {
         max_l2_blocks_per_l1: 999,
     };
 
-    let sender_address = <DefaultContext as Spec>::Address::from_str(
+    let sender_address = <NativeContext as Spec>::Address::from_str(
         "sov1kqrxxkwkf7t7kfuegllwkzp6jc6r6h66pgkfe7pggtm0gayl756qku2u5p",
     )
     .unwrap();

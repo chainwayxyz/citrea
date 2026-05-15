@@ -7,7 +7,7 @@ use citrea_primitives::forks::{DEVNET_FORKS, MAINNET_FORKS, NIGHTLY_FORKS, TESTN
 use citrea_primitives::REVEAL_TX_PREFIX;
 use citrea_sp1::guest::SP1Guest;
 use citrea_stf::runtime::Runtime;
-use sov_modules_api::default_context::ZkDefaultContext;
+use sov_modules_api::default_context::ZkContext;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::zk::ZkvmGuest;
@@ -70,7 +70,7 @@ pub fn main() {
     let storage = ZkStorage::new();
     let stf = StfBlueprint::new();
 
-    let mut stf_verifier: StateTransitionVerifier<_, ZkDefaultContext, Runtime<_, _>> =
+    let mut stf_verifier: StateTransitionVerifier<_, ZkContext, Runtime<_, _>> =
         StateTransitionVerifier::new(
             stf,
             BitcoinVerifier::new(RollupParams {

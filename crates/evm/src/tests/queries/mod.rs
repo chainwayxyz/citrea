@@ -11,7 +11,7 @@ use std::str::FromStr;
 use alloy_primitives::{address, Bytes};
 use revm::primitives::{KECCAK_EMPTY, U256};
 use sov_db::ledger_db::LedgerDB;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, Spec, WorkingSet};
@@ -30,7 +30,7 @@ use crate::tests::utils::{
 };
 use crate::{AccountData, Evm, EvmConfig, RlpEvmTransaction};
 
-type C = DefaultContext;
+type C = NativeContext;
 type Storage = ProverStorage;
 
 /// Creates evm instance with 4 blocks (including genesis)

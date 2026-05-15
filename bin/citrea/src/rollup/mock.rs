@@ -15,7 +15,7 @@ use prover_services::{ParallelProverService, ProofGenMode};
 use reth_tasks::TaskExecutor;
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier};
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::{Spec, SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::Runtime;
@@ -47,7 +47,7 @@ impl RollupBlueprint for MockDemoRollup {
     fn create_rpc_methods(
         &self,
         _node_type: NodeType,
-        storage: <DefaultContext as Spec>::Storage,
+        storage: <NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
         _da_service: &Arc<Self::DaService>,
         backup_manager: &Arc<BackupManager>,
@@ -55,7 +55,7 @@ impl RollupBlueprint for MockDemoRollup {
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // runtime rpc.
         let mut rpc_methods =
-            <CitreaRuntime<DefaultContext, Self::DaSpec>>::rpc_methods(storage, ledger_db.clone());
+            <CitreaRuntime<NativeContext, Self::DaSpec>>::rpc_methods(storage, ledger_db.clone());
 
         // ledger rpc.
         let ledger_db_methods = sov_ledger_rpc::server::create_rpc_module::<LedgerDB>(

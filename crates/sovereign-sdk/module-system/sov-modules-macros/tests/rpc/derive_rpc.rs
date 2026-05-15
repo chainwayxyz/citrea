@@ -1,5 +1,5 @@
 use jsonrpsee::core::RpcResult;
-use sov_modules_api::default_context::ZkDefaultContext;
+use sov_modules_api::default_context::ZkContext;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::{Context, ModuleInfo, Spec, WorkingSet};
 use sov_state::ZkStorage;
@@ -55,10 +55,8 @@ struct RpcStorage<C: Context> {
     pub ledger_db: LedgerDB,
 }
 
-impl TestStructRpcImpl<ZkDefaultContext> for RpcStorage<ZkDefaultContext> {
-    fn get_working_set(
-        &self,
-    ) -> ::sov_modules_api::WorkingSet<<ZkDefaultContext as Spec>::Storage> {
+impl TestStructRpcImpl<ZkContext> for RpcStorage<ZkContext> {
+    fn get_working_set(&self) -> ::sov_modules_api::WorkingSet<<ZkContext as Spec>::Storage> {
         ::sov_modules_api::WorkingSet::new(self.storage.clone())
     }
 
@@ -69,56 +67,45 @@ impl TestStructRpcImpl<ZkDefaultContext> for RpcStorage<ZkDefaultContext> {
 
 fn main() {
     let storage = ZkStorage::new();
-    let r: RpcStorage<ZkDefaultContext> = RpcStorage {
+    let r: RpcStorage<ZkContext> = RpcStorage {
         storage: storage.clone(),
-        ledger_db: LedgerDB { },
+        ledger_db: LedgerDB {},
     };
     {
         let result =
-            <RpcStorage<ZkDefaultContext> as TestStructRpcServer<ZkDefaultContext>>::first_method(
-                &r,
-            )
-            .unwrap();
+            <RpcStorage<ZkContext> as TestStructRpcServer<ZkContext>>::first_method(&r).unwrap();
         assert_eq!(result, 11);
     }
 
     {
         let result =
-            <RpcStorage<ZkDefaultContext> as TestStructRpcServer<ZkDefaultContext>>::second_method(
-                &r, 22,
-            )
-            .unwrap();
+            <RpcStorage<ZkContext> as TestStructRpcServer<ZkContext>>::second_method(&r, 22)
+                .unwrap();
         assert_eq!(result, 22);
     }
 
     {
         let result =
-            <RpcStorage<ZkDefaultContext> as TestStructRpcServer<ZkDefaultContext>>::third_method(
-                &r, 33,
-            )
-            .unwrap();
+            <RpcStorage<ZkContext> as TestStructRpcServer<ZkContext>>::third_method(&r, 33)
+                .unwrap();
         assert_eq!(result, 33);
     }
 
     {
         let result =
-            <RpcStorage<ZkDefaultContext> as TestStructRpcServer<ZkDefaultContext>>::fourth_method(
-                &r, 44,
-            )
-            .unwrap();
+            <RpcStorage<ZkContext> as TestStructRpcServer<ZkContext>>::fourth_method(&r, 44)
+                .unwrap();
         assert_eq!(result, 44);
     }
 
     {
-        let result =
-            <RpcStorage<ZkDefaultContext> as TestStructRpcServer<ZkDefaultContext>>::health(&r)
-                .unwrap();
+        let result = <RpcStorage<ZkContext> as TestStructRpcServer<ZkContext>>::health(&r).unwrap();
         assert_eq!(result, ());
     }
 
     // {
     //     let result =
-    //         <RpcStorage<ZkDefaultContext> as TestStructRpcServer<ZkDefaultContext>>::module_address(&r)
+    //         <RpcStorage<ZkContext> as TestStructRpcServer<ZkContext>>::module_address(&r)
     //             .unwrap();
     //     assert_eq!(
     //         result,

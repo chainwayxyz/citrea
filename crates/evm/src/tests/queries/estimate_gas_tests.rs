@@ -10,7 +10,7 @@ use jsonrpsee::core::RpcResult;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use serde_json::json;
 use sov_db::ledger_db::LedgerDB;
-use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::default_context::NativeContext;
 use sov_modules_api::{Spec, WorkingSet};
 
 use crate::query::MIN_TRANSACTION_GAS;
@@ -20,7 +20,7 @@ use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::get_fork_fn_latest;
 use crate::{EstimatedDiffSize, Evm};
 
-type C = DefaultContext;
+type C = NativeContext;
 
 #[test]
 fn test_payable_contract_value() {
