@@ -25,7 +25,7 @@ impl LedgerMigration for DropPendingSessionRecoveryTables {
 
         for table in tables {
             tables_to_drop.push(table.to_string());
-            info!("Removing table '{}'", table);
+            info!("Removing table '{table}'");
         }
 
         Ok(())
