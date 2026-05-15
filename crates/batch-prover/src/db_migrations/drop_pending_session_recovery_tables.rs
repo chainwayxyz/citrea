@@ -18,7 +18,10 @@ impl LedgerMigration for DropPendingSessionRecoveryTables {
         _ledger_db: Arc<LedgerDB>,
         tables_to_drop: &mut Vec<String>,
     ) -> anyhow::Result<()> {
-        let tables = ["PendingBonsaiSessionByJobId", "PendingBoundlessSessionByJobId"];
+        let tables = [
+            "PendingBonsaiSessionByJobId",
+            "PendingBoundlessSessionByJobId",
+        ];
 
         for table in tables {
             tables_to_drop.push(table.to_string());

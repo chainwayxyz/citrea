@@ -853,7 +853,6 @@ impl BoundlessProver {
 
         Ok(full_snark_receipt)
     }
-
 }
 
 /// Return UNIX timestamp in seconds

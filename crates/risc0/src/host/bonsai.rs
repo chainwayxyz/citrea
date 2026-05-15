@@ -225,7 +225,6 @@ impl BonsaiProver {
             }
         }
     }
-
 }
 
 // Only proven assumptions that are succinct are supported by Bonsai.

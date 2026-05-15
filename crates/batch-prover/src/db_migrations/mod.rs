@@ -7,6 +7,7 @@ use std::sync::OnceLock;
 
 use sov_db::ledger_db::migrations::LedgerMigration;
 
+/// Drop session recovery tables
 mod drop_pending_session_recovery_tables;
 
 use drop_pending_session_recovery_tables::DropPendingSessionRecoveryTables;
