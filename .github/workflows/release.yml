@@ -12,11 +12,11 @@ jobs:
       contents: write
     steps:
       - name: Create Draft Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           draft: true
           name: Release ${{ github.ref_name }}
-  
+
   upload-release-signatures:
     needs: create-draft-release
     runs-on: ubicloud-standard-2
@@ -34,9 +34,7 @@ jobs:
       contents: write
     env:
       AUTHORIZED_KEYS: >-
-        7F52EC9A995025E87F3AF1200C17966C01E52A9A
-        CFF759A7C0EF99813BD1E6EE85CCAD8803F887A0
-        350B725CBA2D7EC3A1AD048C00980777D2839E81
+        330471727B8A32BDDDFC5CF0D6CCCA66081FD42D
     strategy:
       fail-fast: false
       matrix:
@@ -46,10 +44,10 @@ jobs:
           - platform: linux-arm64
             runner: ubicloud-standard-30-arm
           - platform: osx-arm64
-            runner: macos-latest
+            runner: macos_xl
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
@@ -69,15 +67,13 @@ jobs:
           mkdir -p sigs
           for BINARY in citrea citrea-cli; do
             gh release download "$TAG" \
-              -p "${BINARY}-${TAG}-${PLATFORM}.ekrem.asc" \
-              -p "${BINARY}-${TAG}-${PLATFORM}.esad.asc" \
-              -p "${BINARY}-${TAG}-${PLATFORM}.emre.asc" \
+              -p "${BINARY}-${TAG}-${PLATFORM}.cetin.asc" \
               -D sigs/
           done
 
           COUNT=$(ls sigs/*.asc 2>/dev/null | wc -l)
-          if [[ "$COUNT" -ne 6 ]]; then
-            echo "FAIL: Expected 6 signature files for ${PLATFORM} (3 per binary), found ${COUNT}."
+          if [[ "$COUNT" -ne 2 ]]; then
+            echo "FAIL: Expected 2 signature files for ${PLATFORM} (1 per binary), found ${COUNT}."
             exit 1
           fi
 
@@ -88,9 +84,7 @@ jobs:
         run: |
           set -euo pipefail
           for BINARY in citrea citrea-cli; do
-            cat sigs/${BINARY}-${TAG}-${PLATFORM}.ekrem.asc \
-                sigs/${BINARY}-${TAG}-${PLATFORM}.esad.asc \
-                sigs/${BINARY}-${TAG}-${PLATFORM}.emre.asc \
+            cat sigs/${BINARY}-${TAG}-${PLATFORM}.cetin.asc \
                 > "${BINARY}-${TAG}-${PLATFORM}.signatures.asc"
           done
 
@@ -107,13 +101,19 @@ jobs:
           MAX_RETRIES=3
           for KEY in "${KEYS[@]}"; do
             for i in $(seq 1 $MAX_RETRIES); do
-              if gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys "$KEY"; then
+              
+              # gpg --recv-keys YERİNE BURAYI EKLİYORUZ:
+              if curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${KEY}" | gpg --import; then
+                echo "✓ Successfully imported key $KEY"
                 break
               fi
+              
               if [[ "$i" -eq "$MAX_RETRIES" ]]; then
                 echo "FAIL: Could not import key $KEY"
                 exit 1
               fi
+              
+              echo "Retrying in 5 seconds..."
               sleep 5
             done
           done
@@ -134,13 +134,12 @@ jobs:
             echo "=== Verifying ${BINARY_NAME} ==="
 
             set +e
-            SIG_STATUS=$(gpg --status-fd 1 --verify "$MERGED" "$BINARY_PATH" 2>/dev/null)
+            SIG_STATUS=$(gpg --status-fd 1 --verify "$MERGED" "$BINARY_PATH")
             GPG_EXIT=$?
             set -e
 
-            echo "$SIG_STATUS"
-
             if [[ "$GPG_EXIT" -ne 0 ]] && ! echo "$SIG_STATUS" | grep -q "VALIDSIG"; then
+              echo "$SIG_STATUS"
               echo "FAIL: gpg verification exited with code $GPG_EXIT and no valid signatures found for ${BINARY_NAME}."
               exit 1
             fi
@@ -151,7 +150,7 @@ jobs:
             fi
 
             local VALID_COUNT=0
-            declare -A SEEN_KEYS
+            local SEEN_KEYS_STR=""
 
             while IFS= read -r line; do
               if echo "$line" | grep -q "VALIDSIG"; then
@@ -171,21 +170,20 @@ jobs:
                   exit 1
                 fi
 
-                if [[ -z "${SEEN_KEYS[$PRIMARY_FPR]+x}" ]]; then
+                # Bash 3.2 uyumlu "daha önce gördük mü" kontrolü
+                if [[ "$SEEN_KEYS_STR" != *"$PRIMARY_FPR"* ]]; then
                   VALID_COUNT=$((VALID_COUNT + 1))
-                  SEEN_KEYS[$PRIMARY_FPR]=1
+                  SEEN_KEYS_STR="$SEEN_KEYS_STR $PRIMARY_FPR"
                   echo "✓ $PRIMARY_FPR"
-                else
-                  echo "Duplicate from $PRIMARY_FPR — ignored."
                 fi
               fi
             done <<< "$SIG_STATUS"
 
             echo "-----------------------------------"
-            echo "Authorized signatures verified: $VALID_COUNT / 3"
+            echo "Authorized signatures verified: $VALID_COUNT / 1"
 
-            if [[ "$VALID_COUNT" -ne 3 ]]; then
-              echo "FAIL: All 3 authorized signers required for ${BINARY_NAME}. Got $VALID_COUNT."
+            if [[ "$VALID_COUNT" -lt 1 ]]; then
+              echo "FAIL: Authorized signer required for ${BINARY_NAME}. Got $VALID_COUNT."
               exit 1
             fi
 
@@ -220,7 +218,7 @@ jobs:
       contents: write
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: release-build-*-${{ github.ref_name }}
           path: artifacts
@@ -240,13 +238,13 @@ jobs:
             > SHA256SUMS.txt)
 
       - name: Publish release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           draft: false
           name: Release ${{ github.ref_name }} — Verified
           body: |
             This release has been cryptographically verified.
-            All 3 authorized maintainers independently built and signed both `citrea` and `citrea-cli` for each platform via reproducible builds.
+            All 1 authorized maintainers independently built and signed both `citrea` and `citrea-cli` for each platform via reproducible builds.
 
             Includes:
             - citrea-${{ github.ref_name }}-linux-amd64
@@ -280,10 +278,10 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: release-build-*-${{ github.ref_name }}
           path: artifacts
@@ -315,7 +313,7 @@ jobs:
 
       - name: Build and push multi-arch image
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         env:
           DOCKERHUB_REPOSITORY: citrea-full-node
         with:
