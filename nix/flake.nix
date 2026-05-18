@@ -87,9 +87,14 @@
 
           # GCC 14 promoted -Wint-conversion to an error by default, which breaks
           # the bundled jemalloc in tikv-jemalloc-sys 0.6.0 (its strerror_r call
-          # predates the XSI-compliant prototype). Demote it back to a warning;
-          # doesn't affect codegen, so reproducibility is unchanged.
-          NIX_CFLAGS_COMPILE = "-Wno-int-conversion";
+          # predates the XSI-compliant prototype). Demote it back to a warning.
+          #
+          # blst otherwise probes the build host and may compile an ADX/BMI2-only
+          # path on newer x86_64 CPUs. Force its portable dispatch path there so
+          # Nix release binaries do not depend on the runner CPU.
+          NIX_CFLAGS_COMPILE =
+            "-Wno-int-conversion"
+            + pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isx86_64 " -D__BLST_PORTABLE__";
 
           RUSTFLAGS = builtins.concatStringsSep " " [
             "--remap-path-prefix=${src}=/build/source"
