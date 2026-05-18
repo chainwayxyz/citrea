@@ -8,6 +8,9 @@
 - perf: Mine reveal prefix relying on `sign_schnorr` internal randomness.([#3192](https://github.com/chainwayxyz/citrea/pull/3192))
 - fix: use deterministic boundless patch and unpin ubuntu ci.([#3216](https://github.com/chainwayxyz/citrea/pull/3216))
 - fix(bitcoin-da): correct doc comment on `INITIAL_TESTNET4_STATE`. ([#3227](https://github.com/chainwayxyz/citrea/pull/3227))
+- refactor: remove proving session recovery ([#3288](https://github.com/chainwayxyz/citrea/pull/3288))\
+  **Removed env var:**\
+    `ENABLE_RECOVERY`
 
 ## [v2.3.1](2026-03-31)
 
