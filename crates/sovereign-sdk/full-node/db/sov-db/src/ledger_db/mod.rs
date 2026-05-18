@@ -9,7 +9,7 @@ use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::stf::StateDiff;
 use sov_rollup_interface::zk::{Proof, ProvingSessionInfo, StorageRootHash};
 use sov_schema_db::{ScanDirection, Schema, SchemaBatch, SchemaIterator, SeekKeyEncoder, DB};
-use tracing::instrument;
+use tracing::{info, instrument};
 use uuid::Uuid;
 
 use crate::rocks_db_config::RocksdbConfig;
@@ -648,6 +648,7 @@ impl BatchProverLedgerOps for LedgerDB {
             for index in &indices {
                 schema_batch.delete::<JobIdOfCommitment>(index)?;
                 schema_batch.put::<ProverPendingCommitments>(index, &())?;
+                info!("Rescheduling commitment with index {index} from job {job_id} for proving");
             }
             schema_batch.delete::<ProofByJobId>(&job_id)?;
             schema_batch.delete::<ProvingSessionInfoByJobId>(&job_id)?;
