@@ -627,6 +627,41 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
+    fn reschedule_in_flight_proving_jobs(&self) -> anyhow::Result<usize> {
+        let mut iter = self.db.iter::<CommitmentIndicesByJobId>()?;
+        iter.seek_to_first();
+
+        let mut schema_batch = SchemaBatch::new();
+        let mut rescheduled = 0;
+
+        for el in iter {
+            let (job_id, indices) = el?.into_tuple();
+
+            // A job with a stored proof is either waiting for DA submission
+            // (handled by pending L1 submission jobs) or already finalized.
+            // Only jobs with no proof are orphaned in-flight jobs whose
+            // proving task was lost on restart.
+            if self.db.get::<ProofByJobId>(&job_id)?.is_some() {
+                continue;
+            }
+
+            for index in &indices {
+                schema_batch.delete::<JobIdOfCommitment>(index)?;
+                schema_batch.put::<ProverPendingCommitments>(index, &())?;
+            }
+            schema_batch.delete::<ProofByJobId>(&job_id)?;
+            schema_batch.delete::<ProvingSessionInfoByJobId>(&job_id)?;
+            schema_batch.delete::<CommitmentIndicesByJobId>(&job_id)?;
+            schema_batch.delete::<PendingL1SubmissionJobs>(&job_id)?;
+
+            rescheduled += 1;
+        }
+
+        self.db.write_schemas(schema_batch)?;
+        Ok(rescheduled)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
     fn finalize_proving_job(&self, id: Uuid, l1_tx_id: [u8; 32]) -> anyhow::Result<()> {
         let mut stored_proof = self.db.get::<ProofByJobId>(&id)?.expect("Proof must exist");
         assert_eq!(

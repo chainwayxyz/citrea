@@ -162,6 +162,16 @@ where
     /// * `shutdown_signal` - A signal to gracefully shut down the prover service
     #[instrument(name = "BatchProver", skip_all)]
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
+        // Re-queue jobs whose proving task was lost on restart (no proof was
+        // generated). Their commitments go back to the pending queue so the
+        // normal proving loop picks them up again. Safe to do here because no
+        // proving task is running yet at startup.
+        match self.ledger_db.reschedule_in_flight_proving_jobs() {
+            Ok(0) => {}
+            Ok(count) => info!("Rescheduled {} in-flight proving job(s)", count),
+            Err(e) => error!("Failed to reschedule in-flight proving jobs: {:?}", e),
+        }
+
         self.resubmit_pending_l1_proofs().await;
 
         'run_loop: loop {

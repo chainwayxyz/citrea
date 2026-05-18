@@ -251,6 +251,13 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Deletes proving job by its id
     fn remove_proving_job_by_id(&self, id: Uuid) -> Result<()>;
 
+    /// Reschedules proving jobs whose proof was never generated (status `Proving`)
+    /// by removing the orphaned job and re-queueing its commitment indices into
+    /// the pending commitments table. Intended to be called on startup to recover
+    /// jobs whose in-process proving task was lost on restart. Returns the number
+    /// of jobs that were rescheduled.
+    fn reschedule_in_flight_proving_jobs(&self) -> Result<usize>;
+
     /// Updates job tx id and removes job from running jobs
     fn finalize_proving_job(&self, id: Uuid, l1_tx_id: [u8; 32]) -> Result<()>;
 
