@@ -25,8 +25,6 @@ jobs:
       - name: Awaiting Signature Upload
         run: echo "Please upload the signature files to the draft release, then approve this job."
 
-
-
   build-and-verify:
     needs: [create-draft-release, upload-release-signatures]
     runs-on: ${{ matrix.runner }}
@@ -34,7 +32,9 @@ jobs:
       contents: write
     env:
       AUTHORIZED_KEYS: >-
-        330471727B8A32BDDDFC5CF0D6CCCA66081FD42D
+        7F52EC9A995025E87F3AF1200C17966C01E52A9A 
+        CFF759A7C0EF99813BD1E6EE85CCAD8803F887A0 
+        350B725CBA2D7EC3A1AD048C00980777D2839E81
     strategy:
       fail-fast: false
       matrix:
@@ -44,7 +44,7 @@ jobs:
           - platform: linux-arm64
             runner: ubicloud-standard-30-arm
           - platform: osx-arm64
-            runner: macos_xl
+            runner: self-hosted-citrea-osx-arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -66,14 +66,15 @@ jobs:
           set -euo pipefail
           mkdir -p sigs
           for BINARY in citrea citrea-cli; do
+            # Fetches all matching signature files (e.g., appended with maintainer names)
             gh release download "$TAG" \
-              -p "${BINARY}-${TAG}-${PLATFORM}.cetin.asc" \
+              -p "${BINARY}-${TAG}-${PLATFORM}*.asc" \
               -D sigs/
           done
 
           COUNT=$(ls sigs/*.asc 2>/dev/null | wc -l)
-          if [[ "$COUNT" -ne 2 ]]; then
-            echo "FAIL: Expected 2 signature files for ${PLATFORM} (1 per binary), found ${COUNT}."
+          if [[ "$COUNT" -ne 6 ]]; then
+            echo "FAIL: Expected 6 signature files for ${PLATFORM} (3 per binary), found ${COUNT}."
             exit 1
           fi
 
@@ -84,15 +85,9 @@ jobs:
         run: |
           set -euo pipefail
           for BINARY in citrea citrea-cli; do
-            cat sigs/${BINARY}-${TAG}-${PLATFORM}.cetin.asc \
+            cat sigs/${BINARY}-${TAG}-${PLATFORM}*.asc \
                 > "${BINARY}-${TAG}-${PLATFORM}.signatures.asc"
           done
-
-      - name: Build
-        run: nix build ./nix#citrea
-
-      - name: Rebuild to verify reproducibility
-        run: nix build ./nix#citrea --rebuild
 
       - name: Import authorized GPG keys
         run: |
@@ -102,14 +97,18 @@ jobs:
           for KEY in "${KEYS[@]}"; do
             for i in $(seq 1 $MAX_RETRIES); do
               
-              # gpg --recv-keys YERİNE BURAYI EKLİYORUZ:
-              if curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${KEY}" | gpg --import; then
+              # Fetch the key and store it in a variable first
+              RESPONSE=$(curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${KEY}")
+              
+              # Ensure it's actually a GPG key, not an HTML error page
+              if echo "$RESPONSE" | grep -q "BEGIN PGP PUBLIC KEY BLOCK"; then
+                echo "$RESPONSE" | gpg --import
                 echo "✓ Successfully imported key $KEY"
                 break
               fi
               
               if [[ "$i" -eq "$MAX_RETRIES" ]]; then
-                echo "FAIL: Could not import key $KEY"
+                echo "FAIL: Could not download a valid key for $KEY from the keyserver"
                 exit 1
               fi
               
@@ -117,6 +116,61 @@ jobs:
               sleep 5
             done
           done
+
+      - name: Verify signature issuers (Fail-fast pre-check)
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          read -r -a AUTHORIZED_KEY_LIST <<< "$AUTHORIZED_KEYS"
+          
+          check_issuer() {
+            local SIG_FILE="$1"
+            echo "=== Checking issuers in ${SIG_FILE} ==="
+            
+            # Extract issuer key IDs
+            ISSUERS=$(gpg --list-packets "$SIG_FILE" | grep -o "issuer key ID [0-9A-Fa-f]*" | awk '{print $4}')     
+          
+            if [[ -z "$ISSUERS" ]]; then
+              echo "FAIL: Could not extract issuer key ID from $SIG_FILE. Invalid signature format."
+              exit 1
+            fi
+            
+            for ISSUER in $ISSUERS; do
+              # Added '|| true' to prevent pipefail from crashing the script on exit code 2
+              PRIMARY_FPR=$(gpg --with-colons --list-keys "$ISSUER" 2>/dev/null | awk -F: '$1=="fpr"{print $10; exit}' || true)
+              
+              if [[ -z "$PRIMARY_FPR" ]]; then
+                echo "FAIL: Signature belongs to Key ID $ISSUER, but this key is NOT in the local keyring!"
+                echo "Either the import step failed, or the release was signed by a different key."
+                exit 1
+              fi
+              
+              AUTHORIZED=false
+              for AUTH_FPR in "${AUTHORIZED_KEY_LIST[@]}"; do
+                if [[ "$PRIMARY_FPR" == "$AUTH_FPR" ]]; then
+                  AUTHORIZED=true
+                  break
+                fi
+              done
+              
+              if ! $AUTHORIZED; then
+                echo "FAIL: Unauthorized key ($PRIMARY_FPR) signed the release! Aborting build."
+                exit 1
+              fi
+              echo "✓ Pre-check passed: Issuer $ISSUER maps to authorized primary key $PRIMARY_FPR"
+            done
+          }
+          
+          check_issuer "citrea-${TAG}-${PLATFORM}.signatures.asc"
+          check_issuer "citrea-cli-${TAG}-${PLATFORM}.signatures.asc"
+
+      - name: Build
+        run: nix build ./nix#citrea
+
+      - name: Rebuild to verify reproducibility
+        run: nix build ./nix#citrea --rebuild
 
       - name: Verify merged signatures against binaries
         env:
@@ -131,7 +185,7 @@ jobs:
             local BINARY_PATH="$2"
             local MERGED="${BINARY_NAME}-${TAG}-${PLATFORM}.signatures.asc"
 
-            echo "=== Verifying ${BINARY_NAME} ==="
+            echo "=== Verifying ${BINARY_NAME} against binary content ==="
 
             set +e
             SIG_STATUS=$(gpg --status-fd 1 --verify "$MERGED" "$BINARY_PATH")
@@ -170,20 +224,19 @@ jobs:
                   exit 1
                 fi
 
-                # Bash 3.2 uyumlu "daha önce gördük mü" kontrolü
                 if [[ "$SEEN_KEYS_STR" != *"$PRIMARY_FPR"* ]]; then
                   VALID_COUNT=$((VALID_COUNT + 1))
                   SEEN_KEYS_STR="$SEEN_KEYS_STR $PRIMARY_FPR"
-                  echo "✓ $PRIMARY_FPR"
+                  echo "✓ $PRIMARY_FPR signature perfectly matches binary content"
                 fi
               fi
             done <<< "$SIG_STATUS"
 
             echo "-----------------------------------"
-            echo "Authorized signatures verified: $VALID_COUNT / 1"
+            echo "Authorized signatures verified: $VALID_COUNT / 3"
 
-            if [[ "$VALID_COUNT" -lt 1 ]]; then
-              echo "FAIL: Authorized signer required for ${BINARY_NAME}. Got $VALID_COUNT."
+            if [[ "$VALID_COUNT" -lt 3 ]]; then
+              echo "FAIL: All 3 authorized signers required for ${BINARY_NAME}. Got $VALID_COUNT."
               exit 1
             fi
 
@@ -244,7 +297,7 @@ jobs:
           name: Release ${{ github.ref_name }} — Verified
           body: |
             This release has been cryptographically verified.
-            All 1 authorized maintainers independently built and signed both `citrea` and `citrea-cli` for each platform via reproducible builds.
+            All 3 authorized maintainers independently built and signed both `citrea` and `citrea-cli` for each platform via reproducible builds.
 
             Includes:
             - citrea-${{ github.ref_name }}-linux-amd64
@@ -335,7 +388,10 @@ jobs:
           IMAGE_REF: ${{ vars.DOCKERHUB_USERNAME }}/citrea-full-node@${{ steps.build.outputs.digest }}
         run: |
           set -euo pipefail
-          cosign sign --yes "${IMAGE_REF}"
+          cosign sign --yes --recursive "${IMAGE_REF}"
+          
+          echo "Waiting for Docker Hub API to propagate the signature tag..."
+          sleep 15
 
       - name: Verify signed Docker image
         shell: bash
