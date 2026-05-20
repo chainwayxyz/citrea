@@ -69,5 +69,7 @@ ignore = [
   "RUSTSEC-2026-0002", # lru: IterMut violates Stacked Borrows by invalidating internal pointer)
   "RUSTSEC-2026-0105", # Ignore unmaintained core2
   "RUSTSEC-2025-0161", # Ignore unmaintained libsecp256k1
+  "RUSTSEC-2026-0119", # Ignore p2p related message encoding vulnerability. Bounded by reth v1.3.7 → hickory-resolver ^0.25. Used only as stub resolver for peer discovery. Remove when reth tag is bumped.
+  "RUSTSEC-2026-0118", # Vulnerable code is behind the dnssec-ring/dnssec-aws-lc-rs feature, which is not enabled in our build. Bounded by reth v1.3.7 → hickory-resolver ^0.25. Remove when reth tag is bumped.
 ]
 unsound = "all"

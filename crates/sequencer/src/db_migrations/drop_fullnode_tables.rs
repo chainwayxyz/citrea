@@ -30,7 +30,7 @@ impl LedgerMigration for DropFullnodeTables {
 
         for table in fullnode_tables_to_drop {
             tables_to_drop.push(table.to_string());
-            info!("Removing table '{}'", table);
+            info!("Removing table '{table}'");
         }
 
         Ok(())

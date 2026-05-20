@@ -7,6 +7,9 @@
 ### Changed
 - fix: use deterministic boundless patch and unpin ubuntu ci.([#3216](https://github.com/chainwayxyz/citrea/pull/3216))
 - fix(bitcoin-da): correct doc comment on `INITIAL_TESTNET4_STATE`. ([#3227](https://github.com/chainwayxyz/citrea/pull/3227))
+- refactor: remove proving session recovery ([#3288](https://github.com/chainwayxyz/citrea/pull/3288))\
+  **Removed env var:**\
+    `ENABLE_RECOVERY`
 
 ## [v2.4.0](2026-04-06)
 This version updates RocksDB, underlying database of Citrea nodes.

@@ -30,8 +30,6 @@ use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_risc0_adapter::host::Risc0Host;
 use citrea_sequencer::SequencerRpcClient;
 use risc0_zkvm::Digest;
-use sov_db::ledger_db::LedgerDB;
-use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::Zkvm as _;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
@@ -594,7 +592,6 @@ async fn parallel_proving_test() -> Result<()> {
 //     fn light_client_prover_config() -> LightClientProverConfig {
 //         LightClientProverConfig {
 //             initial_da_height: 171,
-//             enable_recovery: false,
 //             ..Default::default()
 //         }
 //     }
@@ -1268,12 +1265,10 @@ impl TestCase for BatchProverCreateInputTest {
         let code_commitment = Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID);
 
         // Instantiate Risc0Host
-        let rocksdb_config = RocksdbConfig::new(batch_prover.config.dir(), None, None);
         let network = Network::Nightly;
 
-        let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
         let risc0_config = Risc0HostConfig::from_env().expect("Failed to load risc0 config");
-        let mut risc0_host = Risc0Host::new(ledger_db, network, risc0_config).await;
+        let mut risc0_host = Risc0Host::new(network, risc0_config).await;
 
         for input in inputs {
             // Decode raw circuit input
