@@ -1,5 +1,4 @@
-use borsh::{BorshDeserialize, BorshSerialize};
-use sov_rollup_interface::zk::{Proof, ReceiptType};
+use sov_rollup_interface::zk::Proof;
 
 /// Batch proof related storage types
 pub mod batch_proof;
@@ -104,51 +103,3 @@ macro_rules! u64_wrapper {
 
 u64_wrapper!(SlotNumber);
 u64_wrapper!(L2BlockNumber);
-
-/// Bonsai session
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
-pub struct BonsaiSession {
-    /// Session kind
-    pub kind: BonsaiSessionKind,
-    /// Image id to verify this session receipt
-    pub image_id: [u8; 32],
-    /// Expected receipt type of the session
-    pub receipt_type: ReceiptType,
-}
-
-/// Type alias for stark session id
-pub type StarkSessionId = String;
-/// Type alias for snark session id
-pub type SnarkSessionId = String;
-
-/// Bonsai sessions to be recovered in case of a crash.
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
-pub enum BonsaiSessionKind {
-    /// Stark session id if the prover crashed during stark proof generation.
-    StarkSession(StarkSessionId),
-    /// Both Stark and Snark session id if the prover crashed during stark to snarkconversion.
-    SnarkSession(StarkSessionId, SnarkSessionId),
-}
-
-/// Type alias for boundless request id
-pub type BoundlessRequestId = String;
-
-/// Boundless session to be recovered in case of a crash.
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
-pub struct BoundlessSession {
-    /// Boundless request id if the prover crashed during proof generation.
-    pub request_id: BoundlessRequestId,
-    /// Image id to verify this session receipt
-    pub image_id: [u8; 32],
-    /// Expiry time of the request
-    pub request_expiry: u64,
-    /// Expected receipt type of the session
-    /// Can only be groth16 for now
-    pub receipt_type: ReceiptType,
-    /// Number of cycles used for the proof generation
-    pub total_cycles_approx: u64,
-    /// Journal extracted from execution of the proof
-    pub journal_bytes: Vec<u8>,
-    /// Receipt claim provided by the execution of the proof
-    pub receipt_claim_bytes: Vec<u8>,
-}
