@@ -26,7 +26,7 @@ use crate::circuit::accessors::BatchProofMethodIdAccessor;
 use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
 use crate::input_builder::build_circuit_input_from_l1_block;
-use crate::l1_block_state::{lcp_pre_state_version, validate_rpc_l1_height};
+use crate::l1_block_state::create_uncommittable_lcp_storage_for_l1_input;
 
 /// Context containing shared data needed for RPC method implementations
 pub struct RpcContext<Da, DB, Vm>
@@ -167,22 +167,6 @@ where
             context: Arc::new(context),
         }
     }
-
-    fn snapshot_storage_for_l1_block_input(&self, l1_height: u64) -> anyhow::Result<ProverStorage> {
-        let initial_da_height = self.context.prover_config.initial_da_height;
-        let last_scanned_l1_height = self
-            .context
-            .ledger
-            .get_last_scanned_l1_height()?
-            .map(|h| h.0);
-        validate_rpc_l1_height(initial_da_height, last_scanned_l1_height, l1_height)?;
-
-        let version = lcp_pre_state_version(initial_da_height, l1_height)?;
-        Ok(self
-            .context
-            .storage_manager
-            .create_storage_for_l2_height(version))
-    }
 }
 
 #[async_trait::async_trait]
@@ -237,9 +221,19 @@ where
 
     async fn create_circuit_input(&self, l1_height: U64) -> RpcResult<String> {
         let l1_height = l1_height.to();
-        let storage = self
-            .snapshot_storage_for_l1_block_input(l1_height)
-            .map_err(internal_rpc_error)?;
+        let last_scanned_l1_height = self
+            .context
+            .ledger
+            .get_last_scanned_l1_height()
+            .map_err(internal_rpc_error)?
+            .map(|h| h.0);
+        let storage = create_uncommittable_lcp_storage_for_l1_input(
+            &self.context.storage_manager,
+            self.context.prover_config.initial_da_height,
+            last_scanned_l1_height,
+            l1_height,
+        )
+        .map_err(internal_rpc_error)?;
 
         let l1_block = self
             .context

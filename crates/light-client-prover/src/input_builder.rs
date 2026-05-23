@@ -7,7 +7,7 @@ use citrea_primitives::forks::fork_from_block_number;
 use sov_db::ledger_db::LightClientProverLedgerOps;
 use sov_modules_api::{SpecId, Zkvm};
 use sov_prover_storage_manager::ProverStorage;
-use sov_rollup_interface::da::BlockHeaderTrait;
+use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
@@ -17,11 +17,11 @@ use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::{LightClientProofCircuit, RunL1BlockResult};
 
 /// Prepared light client circuit input and native state transition data.
-pub(crate) struct PreparedLightClientCircuitInput<Da: DaService> {
+pub(crate) struct PreparedLightClientCircuitInput<DS: DaSpec> {
     /// Spec ID used to select the light client proof circuit.
     pub(crate) spec_id: SpecId,
     /// Borsh-serializable input that can be passed to the light client circuit.
-    pub(crate) circuit_input: LightClientCircuitInput<Da::Spec>,
+    pub(crate) circuit_input: LightClientCircuitInput<DS>,
     /// JMT state root after processing the L1 block.
     pub(crate) lcp_state_root: [u8; 32],
     /// Last verified L2 height after processing the L1 block.
@@ -46,7 +46,7 @@ pub(crate) fn build_circuit_input_from_l1_block<Da, DB, Vm>(
     circuit: &LightClientProofCircuit<ProverStorage, Da::Spec, Vm>,
     l1_block: &Da::FilteredBlock,
     storage: ProverStorage,
-) -> anyhow::Result<PreparedLightClientCircuitInput<Da>>
+) -> anyhow::Result<PreparedLightClientCircuitInput<Da::Spec>>
 where
     Da: DaService,
     DB: LightClientProverLedgerOps,
