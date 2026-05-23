@@ -138,7 +138,7 @@ pub trait LightClientProverRpc {
     ///
     /// The returned string is base64-encoded Borsh bytes of `LightClientCircuitInput`.
     #[method(name = "createCircuitInput")]
-    async fn create_circuit_input(&self, l1_height: U64) -> RpcResult<String>;
+    async fn create_light_client_circuit_input(&self, l1_height: U64) -> RpcResult<String>;
 }
 
 /// Server implementation of the light client prover RPC interface
@@ -219,7 +219,7 @@ where
         Ok(method_ids)
     }
 
-    async fn create_circuit_input(&self, l1_height: U64) -> RpcResult<String> {
+    async fn create_light_client_circuit_input(&self, l1_height: U64) -> RpcResult<String> {
         let l1_height = l1_height.to();
         let last_scanned_l1_height = self
             .context
