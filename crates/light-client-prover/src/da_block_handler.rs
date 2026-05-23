@@ -11,7 +11,6 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::sync_l1;
 use citrea_common::utils::shutdown_requested;
 use citrea_common::{LightClientProverConfig, StartVariant};
-use citrea_primitives::forks::fork_from_block_number;
 use prover_services::{ParallelProverService, ProofData, ProofWithDuration};
 use reth_tasks::shutdown::GracefulShutdown;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
@@ -32,6 +31,7 @@ use tracing::{error, info, instrument};
 
 use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
+use crate::input_builder::{build_circuit_input_from_l1_block, PreparedLightClientCircuitInput};
 use crate::metrics::LIGHT_CLIENT_METRICS as LPM;
 
 /// Handler for processing L1 blocks and the relevant transactions within them.
@@ -48,7 +48,7 @@ where
     /// The Citrea network this handler is running on
     network: Network,
     /// Prover configuration
-    _prover_config: LightClientProverConfig,
+    prover_config: LightClientProverConfig,
     /// Prover service to submit proof data and handle proving sessions
     prover_service: Arc<ParallelProverService<Da, Vm>>,
     /// Manager for light client prover storage
@@ -103,7 +103,7 @@ where
     ) -> Self {
         Self {
             network,
-            _prover_config: prover_config,
+            prover_config,
             prover_service,
             storage_manager,
             ledger_db,
@@ -204,65 +204,29 @@ where
             .set_l1_height_of_l1_hash(l1_hash, l1_height)
             .expect("Setting l1 height of l1 hash in ledger db");
 
-        let (da_data, inclusion_proof, completeness_proof) =
-            self.da_service.extract_relevant_blobs_with_proof(&l1_block);
-
-        let previous_l1_height = l1_height - 1;
-        let (previous_lcp_proof, l2_last_height, previous_lcp_output) = match self
-            .ledger_db
-            .get_light_client_proof_data_by_l1_height(previous_l1_height)?
-        {
-            Some(data) => {
-                let output = LightClientCircuitOutput::from(data.light_client_proof_output);
-                (Some(data.proof), output.last_l2_height, Some(output))
-            }
-            None => {
-                // first time proving a light client proof
-                tracing::warn!(
-                    "Creating initial light client proof on L1 block #{}",
-                    l1_height
-                );
-                (None, 0, None)
-            }
-        };
-
-        let storage = self.storage_manager.create_storage_for_next_l2_height();
-
-        let result = self.circuit.run_l1_block(
+        let storage = self.storage_for_l1_block(l1_height)?;
+        let PreparedLightClientCircuitInput {
+            spec_id,
+            circuit_input,
+            lcp_state_root,
+            last_l2_height,
+            change_set,
+            last_sequencer_commitment_index,
+        } = build_circuit_input_from_l1_block::<Da, DB, Vm>(
             self.network,
+            &self.prover_config,
+            self.da_service.as_ref(),
+            &self.ledger_db,
+            &self.light_client_proof_code_commitments,
+            &self.circuit,
+            &l1_block,
             storage,
-            Default::default(),
-            da_data,
-            l1_block.header().clone(),
-            previous_lcp_output,
-            self.network.get_l2_genesis_root(),
-            self.network.initial_batch_proof_method_ids().to_vec(),
-            &self.network.batch_prover_da_public_key(),
-            &self.network.sequencer_da_public_key(),
-            &self.network.method_id_upgrade_authority_da_public_keys(),
-        );
-
-        // This is not exactly right, but works for now because we have a single elf for
-        // light client proof circuit.
-        let current_fork = fork_from_block_number(l2_last_height);
-        let light_client_proof_code_commitment = self
-            .light_client_proof_code_commitments
-            .get(&current_fork.spec_id)
-            .expect("Fork should have a guest code attached");
+        )?;
         let light_client_elf = self
             .light_client_proof_elfs
-            .get(&current_fork.spec_id)
+            .get(&spec_id)
             .expect("Fork should have a guest code attached")
             .clone();
-
-        let circuit_input = LightClientCircuitInput {
-            inclusion_proof,
-            completeness_proof,
-            da_block_header: l1_block.header().clone(),
-            light_client_proof_method_id: light_client_proof_code_commitment.clone().into(),
-            previous_light_client_proof: previous_lcp_proof,
-            witness: result.witness,
-        };
 
         let proof_with_duration = self.prove(light_client_elf, circuit_input, vec![]).await?;
         let proof = proof_with_duration.proof;
@@ -275,10 +239,10 @@ where
             circuit_output
         );
 
-        assert_eq!(circuit_output.lcp_state_root, result.lcp_state_root);
+        assert_eq!(circuit_output.lcp_state_root, lcp_state_root);
 
         // Only save after the proof is generated
-        self.storage_manager.finalize_storage(result.change_set);
+        self.storage_manager.finalize_storage(change_set);
 
         let stored_proof_output = StoredLightClientProofOutput::from(circuit_output);
 
@@ -297,9 +261,8 @@ where
 
         LPM.current_l1_block.set(l1_height as f64);
         LPM.highest_proven_index
-            .set(result.last_sequencer_commitment_index as f64);
-        LPM.highest_proven_l2_height
-            .set(result.last_l2_height as f64);
+            .set(last_sequencer_commitment_index as f64);
+        LPM.highest_proven_l2_height.set(last_l2_height as f64);
 
         LPM.set_scan_l1_block_duration(
             Instant::now()
@@ -308,6 +271,42 @@ where
         );
 
         Ok(())
+    }
+
+    /// Creates committable LCP JMT pre-state for the live next L1 block.
+    fn storage_for_l1_block(&self, l1_height: u64) -> anyhow::Result<ProverStorage> {
+        let initial_da_height = self.prover_config.initial_da_height;
+        if l1_height < initial_da_height {
+            anyhow::bail!(
+                "Cannot build light client input for L1 block #{} before initial DA height #{}",
+                l1_height,
+                initial_da_height
+            );
+        }
+
+        let Some(last_scanned_l1_height) =
+            self.ledger_db.get_last_scanned_l1_height()?.map(|h| h.0)
+        else {
+            if l1_height != initial_da_height {
+                anyhow::bail!(
+                    "Cannot build light client input for L1 block #{} before initial L1 block #{} has been processed",
+                    l1_height,
+                    initial_da_height
+                );
+            }
+
+            return Ok(self.storage_manager.create_storage_for_next_l2_height());
+        };
+
+        let expected_next_l1_height = last_scanned_l1_height + 1;
+        if l1_height != expected_next_l1_height {
+            anyhow::bail!(
+                "Live light client processing expected L1 block #{}, got #{}",
+                expected_next_l1_height,
+                l1_height
+            );
+        }
+        Ok(self.storage_manager.create_storage_for_next_l2_height())
     }
 
     /// This method submits the circuit input and ELF binary to the prover service

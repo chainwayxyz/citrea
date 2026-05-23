@@ -63,7 +63,15 @@ where
     Network: InitialValueProvider<Da::Spec>,
 {
     let rpc_storage = storage_manager.create_final_view_storage();
-    let rpc_context = rpc::create_rpc_context(ledger_db.clone(), rpc_storage);
+    let rpc_context = rpc::create_rpc_context::<Da, DB, Vm>(
+        network,
+        prover_config.clone(),
+        ledger_db.clone(),
+        rpc_storage,
+        storage_manager.clone(),
+        da_service.clone(),
+        light_client_prover_code_commitments.clone(),
+    );
     let rpc_module = rpc::register_rpc_methods(rpc_module, rpc_context)?;
 
     // Initialize metrics once at component startup
