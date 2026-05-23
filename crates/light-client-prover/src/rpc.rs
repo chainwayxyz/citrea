@@ -26,6 +26,7 @@ use crate::circuit::accessors::BatchProofMethodIdAccessor;
 use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
 use crate::input_builder::build_circuit_input_from_l1_block;
+use crate::l1_block_state::{lcp_pre_state_version, validate_rpc_l1_height};
 
 /// Context containing shared data needed for RPC method implementations
 pub struct RpcContext<Da, DB, Vm>
@@ -93,8 +94,7 @@ pub fn create_rpc_module<Da, DB, Vm>(
 where
     Da: DaService,
     DB: LightClientProverLedgerOps + Clone + Send + Sync + 'static,
-    Vm: Zkvm + Send + Sync + 'static,
-    Vm::CodeCommitment: Send + Sync,
+    Vm: Zkvm + 'static,
     Network: InitialValueProvider<Da::Spec>,
 {
     let server = LightClientProverRpcServerImpl::new(rpc_context);
@@ -109,9 +109,8 @@ pub fn register_rpc_methods<Da, DB, Vm>(
 ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError>
 where
     Da: DaService,
-    DB: LightClientProverLedgerOps + Clone + 'static,
-    Vm: Zkvm + Send + Sync + 'static,
-    Vm::CodeCommitment: Send + Sync,
+    DB: LightClientProverLedgerOps + Clone + Send + Sync + 'static,
+    Vm: Zkvm + 'static,
     Network: InitialValueProvider<Da::Spec>,
 {
     let rpc = create_rpc_module(rpc_context);
@@ -147,7 +146,7 @@ pub struct LightClientProverRpcServerImpl<Da, DB, Vm>
 where
     Da: DaService,
     DB: LightClientProverLedgerOps + Clone + Send + Sync + 'static,
-    Vm: Zkvm + Send + Sync + 'static,
+    Vm: Zkvm + 'static,
 {
     /// Context containing shared data needed for RPC method implementations
     pub context: Arc<RpcContext<Da, DB, Vm>>,
@@ -157,9 +156,7 @@ impl<Da, DB, Vm> LightClientProverRpcServerImpl<Da, DB, Vm>
 where
     Da: DaService,
     DB: LightClientProverLedgerOps + Clone + Send + Sync + 'static,
-    Vm: Zkvm + Send + Sync + 'static,
-    Vm::CodeCommitment: Send + Sync,
-    Network: InitialValueProvider<Da::Spec>,
+    Vm: Zkvm + 'static,
 {
     /// Creates a new light client prover RPC server instance
     ///
@@ -171,42 +168,20 @@ where
         }
     }
 
-    fn storage_for_l1_block(&self, l1_height: u64) -> anyhow::Result<ProverStorage> {
+    fn snapshot_storage_for_l1_block_input(&self, l1_height: u64) -> anyhow::Result<ProverStorage> {
         let initial_da_height = self.context.prover_config.initial_da_height;
-        if l1_height < initial_da_height {
-            anyhow::bail!(
-                "Cannot build light client input for L1 block #{} before initial DA height #{}",
-                l1_height,
-                initial_da_height
-            );
-        }
-
-        if let Some(last_scanned_l1_height) = self
+        let last_scanned_l1_height = self
             .context
             .ledger
             .get_last_scanned_l1_height()?
-            .map(|h| h.0)
-        {
-            let max_request_height = last_scanned_l1_height + 1;
-            if l1_height > max_request_height {
-                anyhow::bail!(
-                    "Cannot build light client input for future L1 block #{}; last scanned L1 block is #{}",
-                    l1_height,
-                    last_scanned_l1_height
-                );
-            }
-        } else if l1_height != initial_da_height {
-            anyhow::bail!(
-                "Cannot build light client input for L1 block #{} before initial L1 block #{} has been processed",
-                l1_height,
-                initial_da_height
-            );
-        }
+            .map(|h| h.0);
+        validate_rpc_l1_height(initial_da_height, last_scanned_l1_height, l1_height)?;
 
+        let version = lcp_pre_state_version(initial_da_height, l1_height)?;
         Ok(self
             .context
             .storage_manager
-            .create_storage_for_l2_height(l1_height - initial_da_height))
+            .create_storage_for_l2_height(version))
     }
 }
 
@@ -215,8 +190,7 @@ impl<Da, DB, Vm> LightClientProverRpcServer for LightClientProverRpcServerImpl<D
 where
     Da: DaService,
     DB: LightClientProverLedgerOps + Clone + Send + Sync + 'static,
-    Vm: Zkvm + Send + Sync + 'static,
-    Vm::CodeCommitment: Send + Sync,
+    Vm: Zkvm + 'static,
     Network: InitialValueProvider<Da::Spec>,
 {
     async fn get_light_client_proof_by_l1_height(
@@ -264,7 +238,7 @@ where
     async fn create_circuit_input(&self, l1_height: U64) -> RpcResult<String> {
         let l1_height = l1_height.to();
         let storage = self
-            .storage_for_l1_block(l1_height)
+            .snapshot_storage_for_l1_block_input(l1_height)
             .map_err(internal_rpc_error)?;
 
         let l1_block = self

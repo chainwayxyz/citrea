@@ -21,6 +21,8 @@ pub mod db_migrations;
 #[cfg(feature = "native")]
 mod input_builder;
 #[cfg(feature = "native")]
+mod l1_block_state;
+#[cfg(feature = "native")]
 pub mod metrics;
 #[cfg(feature = "native")]
 pub mod rpc;

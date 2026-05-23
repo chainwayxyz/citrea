@@ -32,6 +32,7 @@ use tracing::{error, info, instrument};
 use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
 use crate::input_builder::{build_circuit_input_from_l1_block, PreparedLightClientCircuitInput};
+use crate::l1_block_state::validate_live_l1_height;
 use crate::metrics::LIGHT_CLIENT_METRICS as LPM;
 
 /// Handler for processing L1 blocks and the relevant transactions within them.
@@ -204,7 +205,7 @@ where
             .set_l1_height_of_l1_hash(l1_hash, l1_height)
             .expect("Setting l1 height of l1 hash in ledger db");
 
-        let storage = self.storage_for_l1_block(l1_height)?;
+        let storage = self.committable_storage_for_live_l1_block(l1_height)?;
         let PreparedLightClientCircuitInput {
             spec_id,
             circuit_input,
@@ -274,38 +275,14 @@ where
     }
 
     /// Creates committable LCP JMT pre-state for the live next L1 block.
-    fn storage_for_l1_block(&self, l1_height: u64) -> anyhow::Result<ProverStorage> {
+    fn committable_storage_for_live_l1_block(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<ProverStorage> {
         let initial_da_height = self.prover_config.initial_da_height;
-        if l1_height < initial_da_height {
-            anyhow::bail!(
-                "Cannot build light client input for L1 block #{} before initial DA height #{}",
-                l1_height,
-                initial_da_height
-            );
-        }
+        let last_scanned_l1_height = self.ledger_db.get_last_scanned_l1_height()?.map(|h| h.0);
+        validate_live_l1_height(initial_da_height, last_scanned_l1_height, l1_height)?;
 
-        let Some(last_scanned_l1_height) =
-            self.ledger_db.get_last_scanned_l1_height()?.map(|h| h.0)
-        else {
-            if l1_height != initial_da_height {
-                anyhow::bail!(
-                    "Cannot build light client input for L1 block #{} before initial L1 block #{} has been processed",
-                    l1_height,
-                    initial_da_height
-                );
-            }
-
-            return Ok(self.storage_manager.create_storage_for_next_l2_height());
-        };
-
-        let expected_next_l1_height = last_scanned_l1_height + 1;
-        if l1_height != expected_next_l1_height {
-            anyhow::bail!(
-                "Live light client processing expected L1 block #{}, got #{}",
-                expected_next_l1_height,
-                l1_height
-            );
-        }
         Ok(self.storage_manager.create_storage_for_next_l2_height())
     }
 
