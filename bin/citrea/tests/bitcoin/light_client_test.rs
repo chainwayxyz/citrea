@@ -3789,8 +3789,6 @@ impl TestCase for LightClientCreateCircuitInputRpcTest {
         );
         assert!(circuit_input.previous_light_client_proof.is_some());
 
-        println!("{:?}", circuit_input.witness);
-
         for (invalid_l1_height, expected_error) in [
             (0, "before initial DA height"),
             (batch_proof_l1_height + 2, "future L1 block"),
@@ -3807,7 +3805,6 @@ impl TestCase for LightClientCreateCircuitInputRpcTest {
                 "Expected error containing '{expected_error}' for L1 block #{invalid_l1_height}, got: {error_msg}"
             );
         }
-        println!("test_light_client_create_circuit_input_rpc passed");
         Ok(())
     }
 }
