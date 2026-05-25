@@ -7,8 +7,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use alloy_primitives::U64;
-use base64::prelude::BASE64_STANDARD;
-use base64::Engine;
 use citrea_common::rpc::utils::internal_rpc_error;
 use citrea_common::LightClientProverConfig;
 use jsonrpsee::core::RpcResult;
@@ -17,8 +15,11 @@ use sov_db::ledger_db::LightClientProverLedgerOps;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Spec, SpecId, WorkingSet, Zkvm};
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::rpc::{BatchProofMethodIdRpcResponse, LightClientProofResponse};
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::da::BlockHeaderTrait;
+use sov_rollup_interface::rpc::{
+    BatchProofMethodIdRpcResponse, LightClientCircuitInputRpcResponse, LightClientProofResponse,
+};
+use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::Network;
 use sov_state::ProverStorage;
 
@@ -120,7 +121,7 @@ where
 
 #[rpc(client, server, namespace = "lightClientProver")]
 pub trait LightClientProverRpc {
-    /// Generate state transition data for the given L1 block height, and return the data as a borsh serialized hex string.
+    /// Get the light client proof for the given L1 block height.
     ///
     /// # Arguments
     /// * `l1_height` - The L1 block height for which to get the light client proof.
@@ -136,9 +137,13 @@ pub trait LightClientProverRpc {
 
     /// Creates the read-only light client circuit input for the given L1 block height.
     ///
-    /// The returned string is base64-encoded Borsh bytes of `LightClientCircuitInput`.
+    /// The returned response contains Borsh-serialized `LightClientCircuitInput`
+    /// bytes encoded as a 0x-prefixed hex field.
     #[method(name = "createCircuitInput")]
-    async fn create_light_client_circuit_input(&self, l1_height: U64) -> RpcResult<String>;
+    async fn create_light_client_circuit_input(
+        &self,
+        l1_height: U64,
+    ) -> RpcResult<LightClientCircuitInputRpcResponse>;
 }
 
 /// Server implementation of the light client prover RPC interface
@@ -219,7 +224,10 @@ where
         Ok(method_ids)
     }
 
-    async fn create_light_client_circuit_input(&self, l1_height: U64) -> RpcResult<String> {
+    async fn create_light_client_circuit_input(
+        &self,
+        l1_height: U64,
+    ) -> RpcResult<LightClientCircuitInputRpcResponse> {
         let l1_height = l1_height.to();
         let last_scanned_l1_height = self
             .context
@@ -255,7 +263,13 @@ where
         )
         .map_err(internal_rpc_error)?;
 
+        let l1_hash = l1_block.header().hash().into();
         let raw_input = borsh::to_vec(&prepared.circuit_input).map_err(internal_rpc_error)?;
-        Ok(BASE64_STANDARD.encode(raw_input))
+        Ok(LightClientCircuitInputRpcResponse {
+            l1_height: U64::from(l1_height),
+            l1_hash,
+            last_l2_height: U64::from(prepared.last_l2_height),
+            input: raw_input,
+        })
     }
 }

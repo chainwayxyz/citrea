@@ -3761,7 +3761,6 @@ dependencies = [
  "alloy-signer-local 0.13.0",
  "anyhow",
  "async-trait",
- "base64 0.22.1",
  "bitcoin-da",
  "borsh",
  "citrea-common",
