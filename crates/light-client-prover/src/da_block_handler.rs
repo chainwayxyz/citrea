@@ -31,7 +31,7 @@ use tracing::{error, info, instrument};
 
 use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
-use crate::input_builder::{build_circuit_input_from_l1_block, PreparedLightClientCircuitInput};
+use crate::input_builder::{LightClientInputBuilder, PreparedLightClientCircuitInput};
 use crate::l1_block_state::create_committable_lcp_storage_for_live_l1_block;
 use crate::metrics::LIGHT_CLIENT_METRICS as LPM;
 
@@ -212,6 +212,14 @@ where
             last_scanned_l1_height,
             l1_height,
         )?;
+        let input_builder = LightClientInputBuilder {
+            network: self.network,
+            prover_config: &self.prover_config,
+            da_service: self.da_service.as_ref(),
+            ledger_db: &self.ledger_db,
+            code_commitments: &self.light_client_proof_code_commitments,
+            circuit: &self.circuit,
+        };
         let PreparedLightClientCircuitInput {
             spec_id,
             circuit_input,
@@ -219,16 +227,7 @@ where
             last_l2_height,
             change_set,
             last_sequencer_commitment_index,
-        } = build_circuit_input_from_l1_block::<Da, DB, Vm>(
-            self.network,
-            &self.prover_config,
-            self.da_service.as_ref(),
-            &self.ledger_db,
-            &self.light_client_proof_code_commitments,
-            &self.circuit,
-            &l1_block,
-            storage,
-        )?;
+        } = input_builder.build_from_l1_block(&l1_block, storage)?;
         let light_client_elf = self
             .light_client_proof_elfs
             .get(&spec_id)

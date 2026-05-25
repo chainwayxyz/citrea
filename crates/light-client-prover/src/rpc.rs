@@ -26,7 +26,7 @@ use sov_state::ProverStorage;
 use crate::circuit::accessors::BatchProofMethodIdAccessor;
 use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
-use crate::input_builder::build_circuit_input_from_l1_block;
+use crate::input_builder::LightClientInputBuilder;
 use crate::l1_block_state::create_uncommittable_lcp_storage_for_l1_input;
 
 /// Context containing shared data needed for RPC method implementations
@@ -251,17 +251,17 @@ where
             .map_err(internal_rpc_error)?;
 
         let circuit = LightClientProofCircuit::<ProverStorage, Da::Spec, Vm>::new();
-        let prepared = build_circuit_input_from_l1_block::<Da, DB, Vm>(
-            self.context.network,
-            &self.context.prover_config,
-            self.context.da_service.as_ref(),
-            &self.context.ledger,
-            &self.context.code_commitments,
-            &circuit,
-            &l1_block,
-            storage,
-        )
-        .map_err(internal_rpc_error)?;
+        let input_builder = LightClientInputBuilder {
+            network: self.context.network,
+            prover_config: &self.context.prover_config,
+            da_service: self.context.da_service.as_ref(),
+            ledger_db: &self.context.ledger,
+            code_commitments: &self.context.code_commitments,
+            circuit: &circuit,
+        };
+        let prepared = input_builder
+            .build_from_l1_block(&l1_block, storage)
+            .map_err(internal_rpc_error)?;
 
         let l1_hash = l1_block.header().hash().into();
         let raw_input = borsh::to_vec(&prepared.circuit_input).map_err(internal_rpc_error)?;
