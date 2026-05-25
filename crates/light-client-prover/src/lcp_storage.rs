@@ -2,12 +2,37 @@
 
 use sov_prover_storage_manager::{ProverStorage, ProverStorageManager};
 
+/// Creates committable LCP JMT storage for the next live L1 block.
+pub(crate) fn create_committable_lcp_storage_for_live_l1_block(
+    storage_manager: &ProverStorageManager,
+    initial_da_height: u64,
+    last_scanned_l1_height: Option<u64>,
+    l1_height: u64,
+) -> anyhow::Result<ProverStorage> {
+    validate_live_l1_height(initial_da_height, last_scanned_l1_height, l1_height)?;
+
+    Ok(storage_manager.create_storage_for_next_l2_height())
+}
+
+/// Creates uncommittable LCP JMT storage for read-only RPC input generation.
+pub(crate) fn create_uncommittable_lcp_storage_for_l1_input(
+    storage_manager: &ProverStorageManager,
+    initial_da_height: u64,
+    last_scanned_l1_height: Option<u64>,
+    l1_height: u64,
+) -> anyhow::Result<ProverStorage> {
+    validate_rpc_l1_height(initial_da_height, last_scanned_l1_height, l1_height)?;
+
+    let version = lcp_pre_state_version(initial_da_height, l1_height)?;
+    Ok(storage_manager.create_storage_for_l2_height(version))
+}
+
 /// Returns the LCP JMT pre-state version required to process `l1_height`.
 ///
 /// The light-client prover commits one JMT version per processed L1 block. Therefore
 /// the initial DA block starts from version 0, and each following L1 block starts
 /// from the version committed by the previous L1 block.
-pub(crate) fn lcp_pre_state_version(initial_da_height: u64, l1_height: u64) -> anyhow::Result<u64> {
+fn lcp_pre_state_version(initial_da_height: u64, l1_height: u64) -> anyhow::Result<u64> {
     ensure_l1_height_at_or_after_initial_da_height(initial_da_height, l1_height)?;
 
     Ok(l1_height - initial_da_height)
@@ -30,7 +55,7 @@ fn ensure_l1_height_at_or_after_initial_da_height(
 }
 
 /// Validates that `l1_height` is the next L1 block expected by live proving.
-pub(crate) fn validate_live_l1_height(
+fn validate_live_l1_height(
     initial_da_height: u64,
     last_scanned_l1_height: Option<u64>,
     l1_height: u64,
@@ -62,7 +87,7 @@ pub(crate) fn validate_live_l1_height(
 }
 
 /// Validates that `l1_height` can be used to build a read-only RPC input.
-pub(crate) fn validate_rpc_l1_height(
+fn validate_rpc_l1_height(
     initial_da_height: u64,
     last_scanned_l1_height: Option<u64>,
     l1_height: u64,
@@ -87,29 +112,4 @@ pub(crate) fn validate_rpc_l1_height(
     }
 
     Ok(())
-}
-
-/// Creates committable LCP JMT storage for the next live L1 block.
-pub(crate) fn create_committable_lcp_storage_for_live_l1_block(
-    storage_manager: &ProverStorageManager,
-    initial_da_height: u64,
-    last_scanned_l1_height: Option<u64>,
-    l1_height: u64,
-) -> anyhow::Result<ProverStorage> {
-    validate_live_l1_height(initial_da_height, last_scanned_l1_height, l1_height)?;
-
-    Ok(storage_manager.create_storage_for_next_l2_height())
-}
-
-/// Creates uncommittable LCP JMT storage for read-only RPC input generation.
-pub(crate) fn create_uncommittable_lcp_storage_for_l1_input(
-    storage_manager: &ProverStorageManager,
-    initial_da_height: u64,
-    last_scanned_l1_height: Option<u64>,
-    l1_height: u64,
-) -> anyhow::Result<ProverStorage> {
-    validate_rpc_l1_height(initial_da_height, last_scanned_l1_height, l1_height)?;
-
-    let version = lcp_pre_state_version(initial_da_height, l1_height)?;
-    Ok(storage_manager.create_storage_for_l2_height(version))
 }

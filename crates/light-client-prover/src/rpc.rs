@@ -27,7 +27,7 @@ use crate::circuit::accessors::BatchProofMethodIdAccessor;
 use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
 use crate::input_builder::LightClientInputBuilder;
-use crate::l1_block_state::create_uncommittable_lcp_storage_for_l1_input;
+use crate::lcp_storage::create_uncommittable_lcp_storage_for_l1_input;
 
 /// Context containing shared data needed for RPC method implementations
 pub struct RpcContext<Da, DB, Vm>

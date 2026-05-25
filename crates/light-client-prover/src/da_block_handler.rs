@@ -32,7 +32,7 @@ use tracing::{error, info, instrument};
 use crate::circuit::initial_values::InitialValueProvider;
 use crate::circuit::LightClientProofCircuit;
 use crate::input_builder::{LightClientInputBuilder, PreparedLightClientCircuitInput};
-use crate::l1_block_state::create_committable_lcp_storage_for_live_l1_block;
+use crate::lcp_storage::create_committable_lcp_storage_for_live_l1_block;
 use crate::metrics::LIGHT_CLIENT_METRICS as LPM;
 
 /// Handler for processing L1 blocks and the relevant transactions within them.
