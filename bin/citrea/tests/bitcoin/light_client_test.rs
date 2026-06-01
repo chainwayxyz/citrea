@@ -3768,10 +3768,6 @@ impl TestCase for LightClientCreateCircuitInputRpcTest {
             .to_byte_array();
         assert_eq!(input_response.l1_height.to::<u64>(), batch_proof_l1_height);
         assert_eq!(input_response.l1_hash, expected_l1_hash);
-        assert_eq!(
-            input_response.last_l2_height.to::<u64>(),
-            max_l2_blocks_per_commitment
-        );
         assert!(!input_response.input.is_empty());
 
         let circuit_input =

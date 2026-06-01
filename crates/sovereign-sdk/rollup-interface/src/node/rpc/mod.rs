@@ -156,8 +156,6 @@ pub struct LightClientCircuitInputRpcResponse {
     /// L1 block hash used to build the input.
     #[serde(with = "utils::rpc_hex")]
     pub l1_hash: [u8; 32],
-    /// Last L2 block height verified by the input.
-    pub last_l2_height: U64,
     /// Borsh-serialized light client circuit input.
     #[serde(with = "utils::rpc_hex")]
     pub input: Vec<u8>,

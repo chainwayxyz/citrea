@@ -268,7 +268,6 @@ where
         Ok(LightClientCircuitInputRpcResponse {
             l1_height: U64::from(l1_height),
             l1_hash,
-            last_l2_height: U64::from(prepared.last_l2_height),
             input: raw_input,
         })
     }
