@@ -51,6 +51,7 @@ where
     Vm: Zkvm,
     Network: InitialValueProvider<Da::Spec>,
 {
+    /// Creates a builder for the given network with a reusable native circuit runner.
     pub(crate) fn new(network: Network) -> Self {
         Self {
             network,
