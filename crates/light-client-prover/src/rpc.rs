@@ -25,7 +25,6 @@ use sov_state::ProverStorage;
 
 use crate::circuit::accessors::BatchProofMethodIdAccessor;
 use crate::circuit::initial_values::InitialValueProvider;
-use crate::circuit::LightClientProofCircuit;
 use crate::input_builder::LightClientInputBuilder;
 use crate::lcp_storage::create_uncommittable_lcp_storage_for_l1_input;
 
@@ -35,6 +34,7 @@ where
     Da: DaService,
     DB: LightClientProverLedgerOps + Clone,
     Vm: Zkvm,
+    Network: InitialValueProvider<Da::Spec>,
 {
     /// The Citrea network this light client prover is running on.
     pub network: Network,
@@ -70,6 +70,7 @@ where
     Da: DaService,
     DB: LightClientProverLedgerOps + Clone,
     Vm: Zkvm,
+    Network: InitialValueProvider<Da::Spec>,
 {
     RpcContext {
         network,
@@ -152,9 +153,12 @@ where
     Da: DaService,
     DB: LightClientProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: Zkvm + 'static,
+    Network: InitialValueProvider<Da::Spec>,
 {
     /// Context containing shared data needed for RPC method implementations
     pub context: Arc<RpcContext<Da, DB, Vm>>,
+    /// Builds light client circuit inputs for RPC requests.
+    input_builder: LightClientInputBuilder<Da, Vm>,
 }
 
 impl<Da, DB, Vm> LightClientProverRpcServerImpl<Da, DB, Vm>
@@ -162,14 +166,18 @@ where
     Da: DaService,
     DB: LightClientProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: Zkvm + 'static,
+    Network: InitialValueProvider<Da::Spec>,
 {
     /// Creates a new light client prover RPC server instance
     ///
     /// # Arguments
     /// * `context` - Context containing shared data for RPC methods
     pub fn new(context: RpcContext<Da, DB, Vm>) -> Self {
+        let input_builder = LightClientInputBuilder::new(context.network);
+
         Self {
             context: Arc::new(context),
+            input_builder,
         }
     }
 }
@@ -250,17 +258,16 @@ where
             .await
             .map_err(internal_rpc_error)?;
 
-        let circuit = LightClientProofCircuit::<ProverStorage, Da::Spec, Vm>::new();
-        let input_builder = LightClientInputBuilder {
-            network: self.context.network,
-            prover_config: &self.context.prover_config,
-            da_service: self.context.da_service.as_ref(),
-            ledger_db: &self.context.ledger,
-            code_commitments: &self.context.code_commitments,
-            circuit: &circuit,
-        };
-        let prepared = input_builder
-            .build_from_l1_block(&l1_block, storage)
+        let prepared = self
+            .input_builder
+            .build_from_l1_block(
+                &l1_block,
+                storage,
+                &self.context.prover_config,
+                self.context.da_service.as_ref(),
+                &self.context.ledger,
+                &self.context.code_commitments,
+            )
             .map_err(internal_rpc_error)?;
 
         let l1_hash = l1_block.header().hash().into();

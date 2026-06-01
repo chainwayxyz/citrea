@@ -33,34 +33,31 @@ pub(crate) struct PreparedLightClientCircuitInput<DS: DaSpec> {
 }
 
 /// Builds light client circuit inputs from fetched L1 blocks.
-pub(crate) struct LightClientInputBuilder<'a, Da, DB, Vm>
+pub(crate) struct LightClientInputBuilder<Da, Vm>
 where
     Da: DaService,
-    DB: LightClientProverLedgerOps,
     Vm: Zkvm,
     Network: InitialValueProvider<Da::Spec>,
 {
     /// The Citrea network this input is built for.
     pub(crate) network: Network,
-    /// Light client prover configuration.
-    pub(crate) prover_config: &'a LightClientProverConfig,
-    /// Data availability service used to extract relevant blobs and proofs.
-    pub(crate) da_service: &'a Da,
-    /// Ledger DB used to fetch the previous light client proof.
-    pub(crate) ledger_db: &'a DB,
-    /// Code commitments for light client proof circuits by spec ID.
-    pub(crate) code_commitments: &'a HashMap<SpecId, Vm::CodeCommitment>,
     /// Native light client circuit runner used to produce witness data.
-    pub(crate) circuit: &'a LightClientProofCircuit<ProverStorage, Da::Spec, Vm>,
+    pub(crate) circuit: LightClientProofCircuit<ProverStorage, Da::Spec, Vm>,
 }
 
-impl<Da, DB, Vm> LightClientInputBuilder<'_, Da, DB, Vm>
+impl<Da, Vm> LightClientInputBuilder<Da, Vm>
 where
     Da: DaService,
-    DB: LightClientProverLedgerOps,
     Vm: Zkvm,
     Network: InitialValueProvider<Da::Spec>,
 {
+    pub(crate) fn new(network: Network) -> Self {
+        Self {
+            network,
+            circuit: LightClientProofCircuit::new(),
+        }
+    }
+
     /// Builds the light client circuit input for an already fetched L1 block.
     ///
     /// The caller owns the returned state transition data and must only finalize its change set
@@ -69,22 +66,25 @@ where
         &self,
         l1_block: &Da::FilteredBlock,
         storage: ProverStorage,
+        prover_config: &LightClientProverConfig,
+        da_service: &Da,
+        ledger_db: &impl LightClientProverLedgerOps,
+        code_commitments: &HashMap<SpecId, Vm::CodeCommitment>,
     ) -> anyhow::Result<PreparedLightClientCircuitInput<Da::Spec>> {
         let l1_height = l1_block.header().height();
 
         let (da_data, inclusion_proof, completeness_proof) =
-            self.da_service.extract_relevant_blobs_with_proof(l1_block);
+            da_service.extract_relevant_blobs_with_proof(l1_block);
 
         let previous_l1_height = l1_height.saturating_sub(1);
-        let (previous_lcp_proof, l2_last_height, previous_lcp_output) = match self
-            .ledger_db
+        let (previous_lcp_proof, l2_last_height, previous_lcp_output) = match ledger_db
             .get_light_client_proof_data_by_l1_height(previous_l1_height)?
         {
             Some(data) => {
                 let output = LightClientCircuitOutput::from(data.light_client_proof_output);
                 (Some(data.proof), output.last_l2_height, Some(output))
             }
-            None if l1_height == self.prover_config.initial_da_height => {
+            None if l1_height == prover_config.initial_da_height => {
                 // first time proving a light client proof
                 tracing::warn!(
                     "Creating initial light client proof on L1 block #{}",
@@ -123,10 +123,9 @@ where
         );
 
         let current_fork = fork_from_block_number(l2_last_height);
-        let light_client_proof_code_commitment =
-            self.code_commitments
-                .get(&current_fork.spec_id)
-                .ok_or_else(|| anyhow::anyhow!("Fork should have a guest code attached"))?;
+        let light_client_proof_code_commitment = code_commitments
+            .get(&current_fork.spec_id)
+            .ok_or_else(|| anyhow::anyhow!("Fork should have a guest code attached"))?;
 
         let circuit_input = LightClientCircuitInput {
             inclusion_proof,

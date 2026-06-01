@@ -17,7 +17,7 @@ use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::light_client_proof::StoredLightClientProofOutput;
 use sov_db::schema::types::SlotNumber;
 use sov_modules_api::Zkvm;
-use sov_prover_storage_manager::{ProverStorage, ProverStorageManager};
+use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
@@ -30,7 +30,6 @@ use tokio::sync::{Mutex, Notify};
 use tracing::{error, info, instrument};
 
 use crate::circuit::initial_values::InitialValueProvider;
-use crate::circuit::LightClientProofCircuit;
 use crate::input_builder::{LightClientInputBuilder, PreparedLightClientCircuitInput};
 use crate::lcp_storage::create_committable_lcp_storage_for_live_l1_block;
 use crate::metrics::LIGHT_CLIENT_METRICS as LPM;
@@ -46,8 +45,6 @@ where
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
     Network: InitialValueProvider<Da::Spec>,
 {
-    /// The Citrea network this handler is running on
-    network: Network,
     /// Prover configuration
     prover_config: LightClientProverConfig,
     /// Prover service to submit proof data and handle proving sessions
@@ -68,8 +65,8 @@ where
     queued_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
     /// Manager for backup operations
     backup_manager: Arc<BackupManager>,
-    /// Light client proof circuit logic
-    circuit: LightClientProofCircuit<ProverStorage, Da::Spec, Vm>,
+    /// Builds light client circuit inputs for L1 blocks.
+    input_builder: LightClientInputBuilder<Da, Vm>,
 }
 
 impl<Vm, Da, DB> L1BlockHandler<Vm, Da, DB>
@@ -102,8 +99,9 @@ where
         light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
         backup_manager: Arc<BackupManager>,
     ) -> Self {
+        let input_builder = LightClientInputBuilder::new(network);
+
         Self {
-            network,
             prover_config,
             prover_service,
             storage_manager,
@@ -114,7 +112,7 @@ where
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             queued_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             backup_manager,
-            circuit: LightClientProofCircuit::new(),
+            input_builder,
         }
     }
 
@@ -212,14 +210,6 @@ where
             last_scanned_l1_height,
             l1_height,
         )?;
-        let input_builder = LightClientInputBuilder {
-            network: self.network,
-            prover_config: &self.prover_config,
-            da_service: self.da_service.as_ref(),
-            ledger_db: &self.ledger_db,
-            code_commitments: &self.light_client_proof_code_commitments,
-            circuit: &self.circuit,
-        };
         let PreparedLightClientCircuitInput {
             spec_id,
             circuit_input,
@@ -227,7 +217,14 @@ where
             last_l2_height,
             change_set,
             last_sequencer_commitment_index,
-        } = input_builder.build_from_l1_block(&l1_block, storage)?;
+        } = self.input_builder.build_from_l1_block(
+            &l1_block,
+            storage,
+            &self.prover_config,
+            self.da_service.as_ref(),
+            &self.ledger_db,
+            &self.light_client_proof_code_commitments,
+        )?;
         let light_client_elf = self
             .light_client_proof_elfs
             .get(&spec_id)
