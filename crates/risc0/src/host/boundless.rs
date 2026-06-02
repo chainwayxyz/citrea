@@ -345,7 +345,7 @@ impl BoundlessProver {
         lock_timeout: u64,
         timeout: u64,
         ramp_up_period: u64,
-        lock_stake: u64,
+        lock_stake: U256,
         bidding_start_delay: u64,
         total_cycles_approx: u64,
         journal: Journal,
@@ -368,7 +368,7 @@ impl BoundlessProver {
             .lock_timeout(lock_timeout as u32)
             .timeout(timeout as u32)
             .ramp_up_period(ramp_up_period as u32)
-            .lock_collateral(U256::from(lock_stake))
+            .lock_collateral(lock_stake)
             .bidding_start_delay(bidding_start_delay)
             .build()
             .expect("Failed to build offer layer config");
@@ -475,7 +475,7 @@ impl BoundlessProver {
                     .with_lock_timeout(lock_timeout as u32)
                     .with_timeout(timeout as u32)
                     .with_ramp_up_period(ramp_up_period as u32)
-                    .with_lock_collateral(U256::from(lock_stake))
+                    .with_lock_collateral(lock_stake)
                     .with_ramp_up_start(bidding_start),
             )
             .with_cycles(total_cycles_approx)

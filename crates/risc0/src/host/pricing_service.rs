@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
+use boundless_market::alloy::primitives::U256;
 use citrea_common::PricingServiceConfig;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -13,7 +14,7 @@ pub struct PriceResponse {
     pub max_price_wei_per_cycle: u64,
     pub lock_timeout: u64,
     pub max_possible_price_wei_per_cycle: u64,
-    pub lock_stake: u64,
+    pub lock_stake: U256,
     pub ramp_up_period: u64,
     pub timeout: u64,
     pub bidding_start_delay: u64,
