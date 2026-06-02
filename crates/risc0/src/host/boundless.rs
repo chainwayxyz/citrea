@@ -293,14 +293,8 @@ impl BoundlessProver {
                 image_id,
                 image_url,
                 input_url,
-                U256::from(cmp::min(
-                    min_price_wei_per_cycle,
-                    max_possible_price_wei_per_cycle,
-                )),
-                U256::from(cmp::min(
-                    max_price_wei_per_cycle,
-                    max_possible_price_wei_per_cycle,
-                )),
+                cmp::min(min_price_wei_per_cycle, max_possible_price_wei_per_cycle),
+                cmp::min(max_price_wei_per_cycle, max_possible_price_wei_per_cycle),
                 lock_timeout,
                 timeout,
                 ramp_up_period,
@@ -753,10 +747,10 @@ impl BoundlessProver {
                 let min_price_per_cycle = min_price_per_cycle
                     .saturating_mul(U256::from(MIN_PRICE_INCREASE_MULTIPLIER))
                     .div_ceil(U256::from(MIN_PRICE_INCREASE_DIVISOR))
-                    .min(U256::from(max_possible_price_wei_per_cycle));
+                    .min(max_possible_price_wei_per_cycle);
                 let max_price_per_cycle = max_price_per_cycle
                     .saturating_mul(U256::from(MAX_PRICE_INCREASE_RATIO))
-                    .min(U256::from(max_possible_price_wei_per_cycle));
+                    .min(max_possible_price_wei_per_cycle);
                 (min_price_per_cycle, max_price_per_cycle, lock_timeout)
             }
         };

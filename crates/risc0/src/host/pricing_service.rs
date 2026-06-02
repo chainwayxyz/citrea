@@ -10,10 +10,10 @@ use tracing::info;
 /// Response structure for the pricing API
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PriceResponse {
-    pub min_price_wei_per_cycle: u64,
-    pub max_price_wei_per_cycle: u64,
+    pub min_price_wei_per_cycle: U256,
+    pub max_price_wei_per_cycle: U256,
     pub lock_timeout: u64,
-    pub max_possible_price_wei_per_cycle: u64,
+    pub max_possible_price_wei_per_cycle: U256,
     pub lock_stake: U256,
     pub ramp_up_period: u64,
     pub timeout: u64,
