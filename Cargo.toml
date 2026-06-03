@@ -41,7 +41,7 @@ members = [
 ]
 
 [workspace.package]
-version = "2.3.1"
+version = "2.4.0"
 edition = "2021"
 license = "GPL-3.0-only"
 authors = ["Chainway Labs <info@chainway.xyz>"]
@@ -83,7 +83,7 @@ itertools = { version = "0.13.0", default-features = false }
 jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "550a2f2" }
 jsonrpsee = { version = "0.24.8", features = ["jsonrpsee-types"] }
 k256 = { version = "0.13.4" }
-lru = "0.13"
+lru = "0.16"
 hex = { version = "0.4.3", default-features = false, features = ["alloc", "serde"] }
 log-panics = { version = "2", features = ["with-backtrace"] }
 metrics = "0.24.3"
@@ -120,7 +120,7 @@ url = { version = "2.5.4" }
 
 # Risc0 dependencies
 bonsai-sdk = { version = "1.4.1" }
-boundless-market = { version = "1.0.0", default-features = false }
+boundless-market = { version = "=1.0.1", default-features = false }
 risc0-ethereum-contracts = { version = "3.0.1" }
 risc0-binfmt = "3.0.2"
 risc0-zkvm = { version = "3.0.3", default-features = false }

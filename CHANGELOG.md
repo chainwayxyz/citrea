@@ -3,12 +3,23 @@
 
 ### Added
 - feat: Get raw transaction rpcs. ([#3201](https://github.com/chainwayxyz/citrea/pull/3201))
+- feat: add `lightClientProver_createCircuitInput` RPC to return serialized light client circuit input by L1 height ([#3290](https://github.com/chainwayxyz/citrea/pull/3290))
 
 ### Changed
+- fix: use deterministic boundless patch and unpin ubuntu ci.([#3216](https://github.com/chainwayxyz/citrea/pull/3216))
+- fix(bitcoin-da): correct doc comment on `INITIAL_TESTNET4_STATE`. ([#3227](https://github.com/chainwayxyz/citrea/pull/3227))
+- refactor: remove proving session recovery ([#3288](https://github.com/chainwayxyz/citrea/pull/3288))\
+  **Removed env var:**\
+    `ENABLE_RECOVERY`
+- fix: Use price related fields in Boundless pricing client as U256. ([#3291](https://github.com/chainwayxyz/citrea/pull/3291))
+
+## [v2.4.0](2026-04-06)
+This version updates RocksDB, underlying database of Citrea nodes.
+### Changed
 - perf: Mine reveal prefix relying on `sign_schnorr` internal randomness.([#3192](https://github.com/chainwayxyz/citrea/pull/3192))
+- chore: bump rocksdb and use jemalloc feature ([#2983](https://github.com/chainwayxyz/citrea/pull/2983))
 
 ## [v2.3.1](2026-03-31)
-
 Fix version. Only provers must update.
 
 ### Changed
@@ -246,7 +257,8 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
 
-[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.3.1...HEAD
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.4.0...HEAD
+[v2.4.0]: https://github.com/chainwayxyz/citrea/compare/v2.3.1...v2.4.0
 [v2.3.1]: https://github.com/chainwayxyz/citrea/compare/v2.3.0...v2.3.1
 [v2.3.0]: https://github.com/chainwayxyz/citrea/compare/v2.2.0...v2.3.0
 [v2.2.0]: https://github.com/chainwayxyz/citrea/compare/v2.1.0...v2.2.0

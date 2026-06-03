@@ -1,6 +1,5 @@
 use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
-use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use sp1_sdk::network_v2::proto::network::ProofMode;
 use sp1_sdk::provers::ProverType;
@@ -24,7 +23,6 @@ pub struct SP1Host {
     proving_key: SP1ProvingKey,
     verifying_key: SP1VerifyingKey,
     input_buf: Vec<u8>,
-    ledger_db: LedgerDB,
 }
 
 impl SP1Host {
@@ -33,7 +31,7 @@ impl SP1Host {
     /// Possible values are `local`, `mock`, `network`.
     /// If set value is `network`, `SP1_PRIVATE_KEY` environment variable
     /// must also be set. Default is `local`
-    pub fn new(elf: &'static [u8], ledger_db: LedgerDB) -> Self {
+    pub fn new(elf: &'static [u8]) -> Self {
         let (proving_key, verifying_key) = CLIENT.setup(elf);
 
         Self {
@@ -41,7 +39,6 @@ impl SP1Host {
             proving_key,
             verifying_key,
             input_buf: vec![],
-            ledger_db,
         }
     }
 
@@ -67,8 +64,6 @@ impl SP1Host {
     }
 
     fn generate_proof(&self, stdin: SP1Stdin) -> anyhow::Result<SP1ProofWithPublicValues> {
-        // If prover is Succinct prover, we have to save the
-        // sessions to ledger db
         if self.is_succinct_prover() {
             // Recreate the NetworkProver due to the SP1 implementing
             // it as a trait, but we need concrete type's methods
@@ -77,17 +72,8 @@ impl SP1Host {
             // Request for proof from Succinct
             let request_id =
                 block_on(prover.request_proof(self.elf, stdin, ProofMode::Groth16, None))?;
-            // Save pending request id to db
-            self.ledger_db
-                .add_pending_proving_session(request_id.clone())?;
 
             let proof = self.wait_succinct_proof(&prover, &request_id)?;
-
-            // Remove pending request id from db, but do not abort if failed. We optimistically hope
-            // that on the next restart we will see that it is finished and remove.
-            if let Err(err) = self.ledger_db.remove_pending_proving_session(request_id) {
-                tracing::error!("Failed to remove pending proving session: {}", err);
-            }
 
             Ok(proof)
         } else {
@@ -146,34 +132,6 @@ impl ZkvmHost for SP1Host {
         };
 
         Ok(BorshDeserialize::try_from_slice(public_values.as_slice())?)
-    }
-
-    fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {
-        // We can only recover if prover is configured to be Succinct
-        if !self.is_succinct_prover() {
-            return Ok(vec![]);
-        }
-
-        let request_ids = self.ledger_db.get_pending_proving_sessions()?;
-        tracing::info!("Recovering {} Succinct sessions", request_ids.len());
-
-        let prover = NetworkProverV2::new();
-        let mut proofs = Vec::new();
-        for request_id in request_ids {
-            tracing::info!("Recovering Succinct session: {:?}", request_id);
-
-            let proof_with_public_values = self.wait_succinct_proof(&prover, &request_id)?;
-
-            CLIENT.verify(&proof_with_public_values, &self.verifying_key)?;
-            info!("Successfully verified the proof");
-
-            let data = bincode::serialize(&proof_with_public_values)
-                .expect("SP1 zk proof serialization must not fail");
-
-            proofs.push(Proof::Full(data));
-        }
-
-        Ok(proofs)
     }
 }
 

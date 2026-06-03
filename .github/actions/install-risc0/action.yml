@@ -11,7 +11,7 @@ runs:
   steps:
     - name: Cache risc0 toolchain
       id: cache-risc0
-      uses: ubicloud/cache@v4
+      uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
       with:
         path: ~/.risc0
         key: risc0-${{ runner.os }}-cargo-risczero-3.0.3-r0vm-3.0.3-rust-1.88.0

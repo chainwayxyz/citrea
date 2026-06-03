@@ -228,12 +228,6 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
 
         T::try_from_slice(&data.hint).map_err(Into::into)
     }
-
-    fn start_session_recovery(
-        &self,
-    ) -> Result<Vec<oneshot::Receiver<ProofWithJob>>, anyhow::Error> {
-        unimplemented!()
-    }
 }
 
 /// A mock implementing the Guest.

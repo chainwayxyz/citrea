@@ -2,7 +2,7 @@
 //! This module implements the `Prover` struct which handles batch proving operations
 //! It manages proving jobs, partitions commitments, creates circuit inputs, and interacts with the DA service.
 
-use std::collections::{hash_map, HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -13,8 +13,6 @@ use citrea_primitives::compression::compress_blob;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::{network_to_dev_mode, MAX_TX_BODY_SIZE, MAX_WITNESS_CACHE_SIZE};
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
 use prover_services::{ParallelProverService, ProofData, ProofWithDuration};
 use rand::Rng;
 use reth_tasks::shutdown::GracefulShutdown;
@@ -31,7 +29,7 @@ use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::input::v3::{BatchProofCircuitInputV3, PrevHashProof};
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
-use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
 use sov_state::Witness;
 use tokio::select;
@@ -164,8 +162,17 @@ where
     /// * `shutdown_signal` - A signal to gracefully shut down the prover service
     #[instrument(name = "BatchProver", skip_all)]
     pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
-        self.recover_proving_sessions(self.prover_config.enable_recovery)
-            .await;
+        // Re-queue jobs whose proving task was lost on restart (no proof was
+        // generated). Their commitments go back to the pending queue so the
+        // normal proving loop picks them up again. Safe to do here because no
+        // proving task is running yet at startup.
+        match self.ledger_db.reschedule_in_flight_proving_jobs() {
+            Ok(0) => {}
+            Ok(count) => info!("Rescheduled {} in-flight proving job(s)", count),
+            Err(e) => error!("Failed to reschedule in-flight proving jobs: {:?}", e),
+        }
+
+        self.resubmit_pending_l1_proofs().await;
 
         'run_loop: loop {
             select! {
@@ -757,89 +764,32 @@ where
         });
     }
 
-    /// This function recovers proving sessions that were not completed before the node was restarted.
-    /// It retrieves all pending proving jobs from the ledger database,
-    /// starts the recovery process for each job, and waits for the proofs to be generated.
-    /// Once a proof is generated, it extracts the proof output, stores the proof in the ledger database.
-    /// This function will also recover proofs of jobs that are pending for DA submission,
-    /// and submit the recovered proofs to the DA service with them.
-    #[instrument(name = "recovery", skip_all)]
-    async fn recover_proving_sessions(&self, enable_proof_session_recovery: bool) {
-        let mut proofs = if enable_proof_session_recovery {
-            // recover proving sessions
-            let proving_jobs = self
-                .prover_service
-                .start_session_recovery()
-                .expect("Failed to start proving session recovery");
-            let mut proving_jobs = proving_jobs
-                .into_iter()
-                .map(|rx| async move { rx.await.expect("Proof recovery channel closed abruptly") })
-                .collect::<FuturesUnordered<_>>();
-
-            info!("Recovering {} proving sessions", proving_jobs.len());
-
-            let mut proofs = HashMap::with_capacity(proving_jobs.len());
-            while let Some(ProofWithJob {
-                job_id,
-                proof,
-                info,
-            }) = proving_jobs.next().await
-            {
-                info!("Proving job finished {}", job_id);
-
-                let output = extract_proof_output::<Vm>(
-                    &job_id,
-                    &proof,
-                    &self.code_commitments_by_spec,
-                    self.network,
-                );
-
-                // stores proof and marks job as waiting for da
-                self.ledger_db
-                    .put_proof_by_job_id(job_id, proof.clone(), output.into(), info)
-                    .expect("Should put proof to db");
-
-                info!("Completed proving job {}", job_id);
-
-                proofs.insert(job_id, proof);
-
-                // TODO: there is a quite small chance that proving has started, but job commitment indices
-                // pending commitments haven't been updated in db, maybe we should also try to recover that?
-            }
-            proofs
-        } else {
-            HashMap::new()
-        };
-
-        // merge proofs of da submission pending jobs
+    /// Resubmits proofs for jobs that finished proving but did not get submitted to DA before
+    /// the node was restarted.
+    #[instrument(name = "resubmit_pending_l1_proofs", skip_all)]
+    async fn resubmit_pending_l1_proofs(&self) {
         let job_ids = self
             .ledger_db
             .get_pending_l1_submission_jobs()
             .expect("Should get pending l1 jobs");
-        for job_id in job_ids {
-            if let hash_map::Entry::Vacant(entry) = proofs.entry(job_id) {
-                let stored_proof = self
-                    .ledger_db
-                    .get_proof_by_job_id(job_id)
-                    .expect("Should get proof by job id")
-                    .expect("Proof of job must exist");
-                assert_eq!(
-                    stored_proof.l1_tx_id, None,
-                    "Got pending l1 submission job which contains l1 tx id"
-                );
-                entry.insert(stored_proof.proof);
-            }
-        }
 
-        // submit all proofs to da
-        for (job_id, proof) in proofs {
+        for job_id in job_ids {
+            let stored_proof = self
+                .ledger_db
+                .get_proof_by_job_id(job_id)
+                .expect("Should get proof by job id")
+                .expect("Proof of job must exist");
+            assert_eq!(
+                stored_proof.l1_tx_id, None,
+                "Got pending l1 submission job which contains l1 tx id"
+            );
+
             let prover_service = self.prover_service.clone();
             let ledger_db = self.ledger_db.clone();
             info!("Submitting recovered proof for job {}", job_id);
-            // submit in the background
             tokio::spawn(async move {
                 let tx_id = prover_service
-                    .submit_proof(proof, job_id)
+                    .submit_proof(stored_proof.proof, job_id)
                     .await
                     .expect("Failed to submit transaction");
                 let tx_id = prover_service
@@ -848,7 +798,6 @@ where
                     .expect("Failed to resolve recovered proof tx id");
                 info!("Recovered Job {} proof sent to DA", job_id);
 
-                // stores tx id and removes job from pending da submission
                 ledger_db
                     .finalize_proving_job(job_id, tx_id.into())
                     .expect("Should update proving job tx id");

@@ -63,6 +63,8 @@ env:
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
   BITCOIN_DOCKER_IMAGE: "bitcoin/bitcoin:30.0"
+  RUST_CACHE_PREFIX: v2-rust
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -78,35 +80,36 @@ jobs:
     runs-on: ubicloud-standard-30
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5
-      - uses: rui314/setup-mold@v1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444 # v1
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
       - name: Rust Cache
-        uses: ubicloud/rust-cache@v2
+        uses: ubicloud/rust-cache@65b3ff06b9bcc69d88c25e212f1ae3d14a0953c3 # v2.7.5
         with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
           shared-key: build
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache ethereum-tests
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
 
       - name: Cache riscv-guest
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         with:
-          key: build-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: build-guests-v2-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/riscv-guest
-          restore-keys: build-guests-v0-${{ runner.os }}-
+          restore-keys: build-guests-v2-${{ runner.os }}-
 
       - name: Build citrea
         run: make build
       - name: Cache binaries
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         with:
           path: |
             target/debug/citrea
@@ -119,16 +122,18 @@ jobs:
     runs-on: ubicloud-standard-4
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5
-      - uses: rui314/setup-mold@v1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444 # v1
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt, clippy
       - name: Check TOML
-        uses: dprint/check@v2.2
+        uses: dprint/check@9cb3a2b17a8e606d37aae341e49df3654933fc23 # v2.3
       - name: Rust Cache
-        uses: ubicloud/rust-cache@v2
+        uses: ubicloud/rust-cache@65b3ff06b9bcc69d88c25e212f1ae3d14a0953c3 # v2.7.5
+        with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Run lint
         run: |
           if ! make lint ; then
@@ -144,53 +149,52 @@ jobs:
     timeout-minutes: 60
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v5
-      - uses: rui314/setup-mold@v1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444 # v1
       - name: Install nightly toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2025-09-24
-          override: true
+      - name: Select nightly toolchain
+        run: rustup override set nightly-2025-09-24
+      - uses: taiki-e/install-action@cargo-udeps
       - name: Run cargo-udeps
         env:
           RUSTFLAGS: -A warnings
           SKIP_GUEST_BUILD: 1
           CARGO_INCREMENTAL: 0
-        uses: aig787/cargo-udeps-action@v1
-        with:
-          version: "latest"
-          args: "--workspace --all-features --all-targets"
+        run: cargo +nightly-2025-09-24 udeps --workspace --all-features --all-targets
 
   deny:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Run cargo-deny
-        uses: EmbarkStudios/cargo-deny-action@v2
+        uses: EmbarkStudios/cargo-deny-action@6c8f9facfa5047ec02d8485b6bf52b587b7777d1 # v2.0.18
         with:
           command: check
       - name: Run cargo-deny (batch-proof-bitcoin)
         if: ${{ !cancelled() }}
-        uses: EmbarkStudios/cargo-deny-action@v2
+        uses: EmbarkStudios/cargo-deny-action@6c8f9facfa5047ec02d8485b6bf52b587b7777d1 # v2.0.18
         with:
           command: check --config deny.toml
           manifest-path: guests/risc0/batch-proof/bitcoin/Cargo.toml
       - name: Run cargo-deny (batch-proof-mock)
         if: ${{ !cancelled() }}
-        uses: EmbarkStudios/cargo-deny-action@v2
+        uses: EmbarkStudios/cargo-deny-action@6c8f9facfa5047ec02d8485b6bf52b587b7777d1 # v2.0.18
         with:
           command: check --config deny.toml
           manifest-path: guests/risc0/batch-proof/mock/Cargo.toml
       - name: Run cargo-deny (light-client-proof-bitcoin)
         if: ${{ !cancelled() }}
-        uses: EmbarkStudios/cargo-deny-action@v2
+        uses: EmbarkStudios/cargo-deny-action@6c8f9facfa5047ec02d8485b6bf52b587b7777d1 # v2.0.18
         with:
           command: check --config deny.toml
           manifest-path: guests/risc0/light-client-proof/bitcoin/Cargo.toml
       - name: Run cargo-deny (light-client-proof-mock)
         if: ${{ !cancelled() }}
-        uses: EmbarkStudios/cargo-deny-action@v2
+        uses: EmbarkStudios/cargo-deny-action@6c8f9facfa5047ec02d8485b6bf52b587b7777d1 # v2.0.18
         with:
           command: check --config deny.toml
           manifest-path: guests/risc0/light-client-proof/mock/Cargo.toml
@@ -200,15 +204,17 @@ jobs:
       - docker-setup
     runs-on: ubicloud-standard-30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: dtolnay/rust-toolchain@1.88.0
         with:
           components: llvm-tools-preview
       - name: Rust Cache
-        uses: ubicloud/rust-cache@v2
+        uses: ubicloud/rust-cache@65b3ff06b9bcc69d88c25e212f1ae3d14a0953c3 # v2.7.5
+        with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
-        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
+        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> "$GITHUB_ENV"
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
         with:
@@ -218,12 +224,12 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache ethereum-tests
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
       - name: Restore cached Docker image
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         with:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.BITCOIN_DOCKER_IMAGE }}
@@ -232,11 +238,11 @@ jobs:
         run: docker load < /tmp/docker/bitcoin.tar
 
       - name: Cache riscv-guest
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         with:
-          key: coverage-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: coverage-guests-v2-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/llvm-cov-target/riscv-guest
-          restore-keys: coverage-guests-v0-${{ runner.os }}-
+          restore-keys: coverage-guests-v2-${{ runner.os }}-
 
       - name: Run coverage
         run: make coverage
@@ -249,12 +255,12 @@ jobs:
           CITREA_CLI_E2E_TEST_BINARY: ${{ github.workspace }}/target/llvm-cov-target/debug/citrea-cli
       - name: Upload e2e test dir
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-test-dir-coverage
           path: ${{ runner.temp }}/coverage
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
         with:
           fail_ci_if_error: true # optional (default = false)
           files: ./lcov.info
@@ -265,12 +271,12 @@ jobs:
     needs: build
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 18
       - name: Restore binaries
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         with:
           path: |
             target/debug/citrea
@@ -293,13 +299,13 @@ jobs:
           npx hardhat run --network citrea scripts/02_swap.js
           seqnHeight=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq -e .result.number) || (echo "Couldn't get sequencer block"; exit 1)
           nodeHeight=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":["latest"],"id":1,"jsonrpc":"2.0"}' | jq -e .result.number) || (echo "Couldn't get full node block"; exit 1)
-          echo seqnHeight: $seqnHeight
-          echo nodeHeight: $nodeHeight
+          echo "seqnHeight: $seqnHeight"
+          echo "nodeHeight: $nodeHeight"
           sleep 10
-          seqnRoot=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":['${seqnHeight}'],"id":1,"jsonrpc":"2.0"}' | jq -e .result.stateRoot) || (echo "Couldn't get sequencer state root"; exit 1)
-          nodeRoot=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data '{"method":"eth_getBlockByNumber","params":['${seqnHeight}'],"id":1,"jsonrpc":"2.0"}' | jq -e .result.stateRoot) || (echo "Couldn't get full node state root"; exit 1)
-          echo seqnRoot: $seqnRoot
-          echo nodeRoot: $nodeRoot
+          seqnRoot=$(curl -s 0.0.0.0:12345/ -H "Content-Type: application/json" --data "{\"method\":\"eth_getBlockByNumber\",\"params\":[${seqnHeight}],\"id\":1,\"jsonrpc\":\"2.0\"}" | jq -e .result.stateRoot) || (echo "Couldn't get sequencer state root"; exit 1)
+          nodeRoot=$(curl -s 0.0.0.0:12346/ -H "Content-Type: application/json" --data "{\"method\":\"eth_getBlockByNumber\",\"params\":[${seqnHeight}],\"id\":1,\"jsonrpc\":\"2.0\"}" | jq -e .result.stateRoot) || (echo "Couldn't get full node state root"; exit 1)
+          echo "seqnRoot: $seqnRoot"
+          echo "nodeRoot: $nodeRoot"
           if [ "$seqnRoot" != "$nodeRoot" ]; then
             echo "State root mismatch";
             exit 1
@@ -310,13 +316,13 @@ jobs:
     needs: build
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.x"
-      - uses: dcarbone/install-jq-action@v2
+      - uses: dcarbone/install-jq-action@b7ef57d46ece78760b4019dbc4080a1ba2a40b45 # v3.2.0
       - name: Restore binaries
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         with:
           path: |
             target/debug/citrea
@@ -342,12 +348,12 @@ jobs:
     needs: build
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 18
       - name: Restore binaries
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         with:
           path: |
             target/debug/citrea
@@ -377,15 +383,17 @@ jobs:
     runs-on: ubicloud-standard-30
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5
-      - uses: rui314/setup-mold@v1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444 # v1
       - name: Toolchain
         uses: dtolnay/rust-toolchain@1.88.0
       - name: Rust Cache
-        uses: ubicloud/rust-cache@v2
+        uses: ubicloud/rust-cache@65b3ff06b9bcc69d88c25e212f1ae3d14a0953c3 # v2.7.5
+        with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Setup env
         if: ${{ github.event.inputs.RUST_LOG != '' }}
-        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
+        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> "$GITHUB_ENV"
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
@@ -393,12 +401,12 @@ jobs:
         # `cargo-nextest` is much faster than standard `cargo test`.
       - uses: taiki-e/install-action@nextest
       - name: Cache ethereum-tests
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
       - name: Restore cached Docker image
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         with:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.BITCOIN_DOCKER_IMAGE }}
@@ -407,11 +415,11 @@ jobs:
         run: docker load < /tmp/docker/bitcoin.tar
 
       - name: Cache riscv-guest
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         with:
-          key: build-guests-v0-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: build-guests-v2-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           path: ${{ github.workspace }}/target/riscv-guest
-          restore-keys: build-guests-v0-${{ runner.os }}-
+          restore-keys: build-guests-v2-${{ runner.os }}-
 
       - name: Run nextest
         run: make test
@@ -424,7 +432,7 @@ jobs:
           CITREA_CLI_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea-cli
       - name: Upload e2e test dir
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-test-dir-test
           path: ${{ runner.temp }}/test
@@ -436,12 +444,12 @@ jobs:
     runs-on: ubicloud-standard-2
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1.8.0
         with:
           cache: false
           version: "v1.3.6"
@@ -458,6 +466,7 @@ jobs:
           cd crates/evm/src/evm/system_contracts
           forge test -vvv
         id: test
+
   check_genesis_files:
     strategy:
       fail-fast: true
@@ -465,17 +474,17 @@ jobs:
     runs-on: ubicloud-standard-2
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1.8.0
         with:
           cache: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.x"
 
@@ -487,10 +496,10 @@ jobs:
     runs-on: ubicloud-standard-2
     steps:
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         continue-on-error: true
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
@@ -498,7 +507,7 @@ jobs:
 
       - name: Cache Docker images
         id: cache-docker
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         continue-on-error: true
         with:
           path: /tmp/docker
@@ -522,10 +531,10 @@ jobs:
     name: codespell
     runs-on: ubicloud-standard-2
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.x"
 
@@ -543,8 +552,8 @@ jobs:
     needs: [build, docker-setup]
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'guest-code')
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.x"
       - name: Install risc0
@@ -553,7 +562,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Restore binaries
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         with:
           path: |
             target/debug/citrea
@@ -567,7 +576,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Restore cached Docker image
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         with:
           path: /tmp/docker
           key: ${{ runner.os }}-docker-${{ env.BITCOIN_DOCKER_IMAGE }}
@@ -588,19 +597,20 @@ jobs:
       - name: Get current commit hash
         id: current-commit
         run: |
-          echo "patch-hash=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
-          echo "head-hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "patch-hash=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          echo "head-hash=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Get commit hash of the base branch
         id: base-commit
         run: |
-            BASE_REF="${{ github.event.pull_request.base.ref }}"
-            git fetch origin "$BASE_REF"
-            echo "base-hash=$(git rev-parse origin/"$BASE_REF")" >> $GITHUB_OUTPUT
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          git fetch origin "$BASE_REF"
+          base_hash=$(git rev-parse origin/"$BASE_REF")
+          echo "base-hash=$base_hash" >> "$GITHUB_OUTPUT"
 
       - name: Restore base branch test cache
         id: restore-test-cache
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         with:
           path: proving-stats/results/base-stats.json
           key: proving-stats-${{ steps.base-commit.outputs.base-hash }}
@@ -609,7 +619,7 @@ jobs:
       - name: Restore base build artifact
         id: restore-artifact
         if: steps.restore-test-cache.outputs.cache-hit != 'true'
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         with:
           key: citrea-build-${{ steps.base-commit.outputs.base-hash }}
           path: |
@@ -635,16 +645,17 @@ jobs:
 
       - name: Setup mold linker
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
-        uses: rui314/setup-mold@v1
+        uses: rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444 # v1
 
       - name: Rust cache
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
-        uses: ubicloud/rust-cache@v2
+        uses: ubicloud/rust-cache@65b3ff06b9bcc69d88c25e212f1ae3d14a0953c3 # v2.7.5
         with:
-            shared-key: build
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
+          shared-key: build
       - name: Cache ethereum-tests
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
-        uses: ubicloud/cache@v4
+        uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
@@ -679,19 +690,40 @@ jobs:
             --base-file results/base-stats.json \
             --patch-commit ${{ steps.current-commit.outputs.patch-hash }} \
             --base-commit ${{ steps.base-commit.outputs.base-hash }}
-      - name: Find Comment
-        uses: peter-evans/find-comment@v3
+      - name: Find latest proving stats comment
+        uses: peter-evans/find-comment@b30e6a3c0ed37e7c023ccd3f1db5c6c0b0c23aad # v4.0.0
         id: fc
         with:
           issue-number: ${{ github.event.pull_request.number }}
           comment-author: 'github-actions[bot]'
           body-includes: Proving stats report
+          direction: last
 
-      - name: Create or update comment
-        uses: peter-evans/create-or-update-comment@v4
+      - name: Check if proving stats changed
+        id: stats-changed
+        env:
+          EXISTING_BODY: ${{ steps.fc.outputs.comment-body }}
+          EXISTING_ID: ${{ steps.fc.outputs.comment-id }}
+        shell: bash
+        run: |
+          if [ -z "$EXISTING_ID" ]; then
+            echo "No previous proving stats comment found; will post a new one."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s' "$EXISTING_BODY" > /tmp/existing-stats.md
+          if diff -q --strip-trailing-cr -Z /tmp/existing-stats.md proving-stats/comment-body.md > /dev/null; then
+            echo "Proving stats unchanged from previous comment; skipping new comment."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Proving stats differ from previous comment; posting a new one."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Add new proving stats comment on change
+        if: steps.stats-changed.outputs.changed == 'true'
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
           body-path: 'proving-stats/comment-body.md'
-          edit-mode: replace

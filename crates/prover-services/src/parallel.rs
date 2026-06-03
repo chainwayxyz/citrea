@@ -245,12 +245,6 @@ where
         }
         Ok(tx_and_proof)
     }
-
-    /// Starts a session recovery.
-    pub fn start_session_recovery(&self) -> anyhow::Result<Vec<oneshot::Receiver<ProofWithJob>>> {
-        let vm = self.vm.clone();
-        vm.start_session_recovery()
-    }
 }
 
 /// Runs the zkVM proving session. Decides on whether to produce a real proof or a fake proof based on the proof mode.
