@@ -3,6 +3,7 @@
 
 ### Added
 - feat: Get raw transaction rpcs. ([#3201](https://github.com/chainwayxyz/citrea/pull/3201))
+- feat: add `lightClientProver_createCircuitInput` RPC to return serialized light client circuit input by L1 height ([#3290](https://github.com/chainwayxyz/citrea/pull/3290))
 
 ### Changed
 - fix: use deterministic boundless patch and unpin ubuntu ci.([#3216](https://github.com/chainwayxyz/citrea/pull/3216))
