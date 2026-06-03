@@ -10,6 +10,7 @@
 - refactor: remove proving session recovery ([#3288](https://github.com/chainwayxyz/citrea/pull/3288))\
   **Removed env var:**\
     `ENABLE_RECOVERY`
+- fix: Use price related fields in Boundless pricing client as U256. ([#3291](https://github.com/chainwayxyz/citrea/pull/3291))
 
 ## [v2.4.0](2026-04-06)
 This version updates RocksDB, underlying database of Citrea nodes.
