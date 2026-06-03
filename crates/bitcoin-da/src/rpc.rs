@@ -116,6 +116,12 @@ pub struct DaRpcServerImpl {
 #[async_trait::async_trait]
 impl DaRpcServer for DaRpcServerImpl {
     async fn da_get_pending_transactions(&self) -> RpcResult<Vec<MonitoredTxResponse>> {
+        // Reflect txs the tx-sender has broadcast on our behalf that monitoring
+        // hasn't observed yet, without waiting for a tx-sender poll cycle.
+        if let Err(e) = self.da.monitoring.sync_pending_from_wallet().await {
+            tracing::debug!("Failed to sync pending transactions from wallet: {e}");
+        }
+
         let txs = self
             .da
             .monitoring

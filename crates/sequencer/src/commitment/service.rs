@@ -164,9 +164,18 @@ where
                             .expect("Commit check tokio blocking task failed")
                             .expect("Commitment criteria check failed")
                         {
-                            self.commit(index, commitment_range.clone())
-                                .await
-                                .expect("Failed to submit commitment");
+                            if let Err(e) = self.commit(index, commitment_range.clone()).await {
+                                // A closed DA submission queue means the DA service has shut
+                                // down (node is stopping); halt commitment production gracefully
+                                // instead of panicking on the in-flight submission.
+                                if self.da_service.get_send_transaction_queue().is_closed() {
+                                    info!(
+                                        "CommitmentService: DA service stopped, halting commitment production"
+                                    );
+                                    return;
+                                }
+                                panic!("Failed to submit commitment: {e}");
+                            }
 
                             record_commitment_process_duration_metrics(
                                 start_commitment_processing,

@@ -362,17 +362,70 @@ impl MonitoringService {
         Ok(())
     }
 
-    // Restore TX chain from utxos using list_unspent in range [0..self.finality_depth] confirmations
+    // Restore TX chain from utxos using list_unspent in range [1..self.finality_depth] confirmations
     async fn restore_from_utxos(&self) -> Result<()> {
+        // `None` min confirmations defaults to 1, restoring only mined (confirmed) txs.
+        let txs = self
+            .collect_relevant_tx_pairs(None, self.finality_depth as usize)
+            .await?;
+
+        tracing::trace!("[restore_from_utxos] {txs:?}");
+
+        self.monitor_transaction_chain(txs).await?;
+        self.check_transactions().await
+    }
+
+    /// Discover relevant commit/reveal transactions currently in the wallet —
+    /// including unconfirmed (mempool) ones — and register any not yet monitored.
+    ///
+    /// In tx-sender mode the transactions carrying our DA payloads are built and
+    /// broadcast by the external tx-sender (which shares this wallet), so they
+    /// only enter local monitoring once observed. Polling the tx-sender races the
+    /// broadcast; scanning the wallet here lets callers (e.g. the pending-tx RPC
+    /// and the sequencer's pending-commitment check) reflect mempool state
+    /// immediately, without waiting for a poll cycle.
+    pub async fn sync_pending_from_wallet(&self) -> Result<()> {
+        // `Some(0)` min confirmations includes mempool (0-conf) txs.
+        let pairs = self
+            .collect_relevant_tx_pairs(Some(0), self.finality_depth as usize)
+            .await?;
+
+        let new_pairs = {
+            let monitored = self.monitored_txs.read().await;
+            pairs
+                .into_iter()
+                .filter(|[_commit, reveal]| !monitored.contains_key(&reveal.id))
+                .collect::<Vec<_>>()
+        };
+
+        for pair in new_pairs {
+            // Tolerate races where a pair was registered concurrently (e.g. by the
+            // tx-sender poll loop) between the filter above and this insertion.
+            match self.monitor_transaction_chain(vec![pair]).await {
+                Ok(()) | Err(MonitorError::AlreadyMonitored) => {}
+                Err(e) => return Err(e),
+            }
+        }
+
+        self.check_transactions().await
+    }
+
+    /// Collect relevant commit/reveal transaction pairs from the wallet's unspent
+    /// outputs within the given confirmation range.
+    async fn collect_relevant_tx_pairs(
+        &self,
+        min_conf: Option<usize>,
+        max_conf: usize,
+    ) -> Result<Vec<[TxWithId; 2]>> {
         let mut unspent = self
             .client
-            .list_unspent(None, Some(self.finality_depth as usize), None, None, None)
+            .list_unspent(min_conf, Some(max_conf), None, None, None)
             .await?;
 
         unspent.sort_unstable_by_key(|utxo| {
             utxo.ancestor_count.unwrap_or(0) as i64 - utxo.confirmations as i64 - utxo.vout as i64
         });
-        tracing::trace!("[restore_from_utxos] {unspent:?}");
+        tracing::trace!("[collect_relevant_tx_pairs] {unspent:?}");
 
         let mut txs = Vec::new();
         for tx in &unspent {
@@ -412,10 +465,7 @@ impl MonitoringService {
             }
         }
 
-        tracing::trace!("[restore_from_utxos] {txs:?}");
-
-        self.monitor_transaction_chain(txs).await?;
-        self.check_transactions().await
+        Ok(txs)
     }
 
     /// Run monitoring to keep track of TX status and chain re-orgs

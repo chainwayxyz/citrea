@@ -54,6 +54,15 @@ pub(crate) type Result<T> = std::result::Result<T, BitcoinServiceError>;
 
 const POLLING_INTERVAL: u64 = 10; // seconds
 
+/// How often we poll the external tx-sender for job status.
+///
+/// This drives how quickly the local monitoring state is synced with the
+/// transactions the tx-sender builds and broadcasts on our behalf. The
+/// tx-sender itself advances its jobs on a ~1s cadence, so we poll at the same
+/// rate to keep monitoring (pending transactions, tx status) responsive instead
+/// of lagging by up to a full block-polling interval.
+const TX_SENDER_POLL_INTERVAL: u64 = 1; // seconds
+
 /// Map sov Network to Bitcoin Network.
 pub fn network_to_bitcoin_network(network: &Network) -> bitcoin::Network {
     match network {
@@ -309,7 +318,7 @@ impl BitcoinService {
                             self.client.clone(),
                             self.monitoring.clone(),
                             request,
-                            Duration::from_secs(POLLING_INTERVAL),
+                            Duration::from_secs(TX_SENDER_POLL_INTERVAL),
                         )
                         .await;
                     }
@@ -320,6 +329,13 @@ impl BitcoinService {
 
     #[instrument(level = "trace", skip_all, ret)]
     async fn get_pending_transactions(&self) -> Vec<Transaction> {
+        // Discover any relevant txs the tx-sender has broadcast on our behalf but
+        // that monitoring hasn't observed yet, so the pending view reflects the
+        // mempool without waiting for a tx-sender poll cycle.
+        if let Err(e) = self.monitoring.sync_pending_from_wallet().await {
+            debug!("Failed to sync pending transactions from wallet: {e}");
+        }
+
         self.monitoring
             .get_monitored_txs()
             .await
@@ -877,7 +893,7 @@ impl DaService for BitcoinService {
             self.client.clone(),
             self.monitoring.clone(),
             submission_id.0,
-            Duration::from_secs(POLLING_INTERVAL),
+            Duration::from_secs(TX_SENDER_POLL_INTERVAL),
         )
         .await
         .map_err(BitcoinServiceError::Other)?;
