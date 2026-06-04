@@ -147,6 +147,20 @@ pub struct LightClientProofResponse {
     pub info: Option<ProvingSessionInfo>,
 }
 
+/// The response to a JSON-RPC request for creating a light client circuit input.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LightClientCircuitInputRpcResponse {
+    /// L1 block height used to build the input.
+    pub l1_height: U64,
+    /// L1 block hash used to build the input.
+    #[serde(with = "utils::rpc_hex")]
+    pub l1_hash: [u8; 32],
+    /// Borsh-serialized light client circuit input.
+    #[serde(with = "utils::rpc_hex")]
+    pub input: Vec<u8>,
+}
+
 /// The response to JSON-RPC request for querying proving job
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobRpcResponse {

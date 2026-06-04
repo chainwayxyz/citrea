@@ -348,7 +348,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
                 prover_config.proving_mode,
                 prover_config.risc0_host.clone(),
                 &da_service,
-                ledger_db.clone(),
                 prover_config.proof_sampling_number,
                 false,
             )
@@ -403,7 +402,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
                 prover_config.proving_mode,
                 prover_config.risc0_host.clone(),
                 &da_service,
-                ledger_db.clone(),
                 prover_config.proof_sampling_number,
                 true,
             )

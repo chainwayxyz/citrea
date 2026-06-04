@@ -23,8 +23,8 @@ use super::types::batch_proof::{StoredBatchProof, StoredVerifiedProof};
 use super::types::l2_block::StoredL2Block;
 use super::types::light_client_proof::StoredLightClientProof;
 use super::types::{
-    AccessoryKey, AccessoryStateValue, BonsaiSession, BoundlessSession, DbHash, JmtValue, L1Height,
-    L2BlockNumber, L2HeightAndIndex, L2HeightRange, L2HeightStatus, SlotNumber, StateKey,
+    AccessoryKey, AccessoryStateValue, DbHash, JmtValue, L1Height, L2BlockNumber, L2HeightAndIndex,
+    L2HeightRange, L2HeightStatus, SlotNumber, StateKey,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -101,9 +101,7 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
     L2BlockByNumber::table_name(),
     L2GenesisStateRoot::table_name(),
     LastPrunedBlock::table_name(),
-    PendingBonsaiSessionByJobId::table_name(),
     PendingL1SubmissionJobs::table_name(),
-    PendingBoundlessSessionByJobId::table_name(),
     ProofByJobId::table_name(),
     ProvingSessionInfoByJobId::table_name(),
     ProverLastScannedSlot::table_name(),
@@ -125,8 +123,6 @@ pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
 pub const LIGHT_CLIENT_PROVER_LEDGER_TABLES: &[&str] = &[
     // Don't know if this will be needed
     CommitmentMerkleRoots::table_name(),
-    PendingBonsaiSessionByJobId::table_name(),
-    PendingBoundlessSessionByJobId::table_name(),
     ExecutedMigrations::table_name(),
     LightClientProofBySlotNumber::table_name(),
     ProverLastScannedSlot::table_name(),
@@ -159,10 +155,8 @@ pub const LEDGER_TABLES: &[&str] = &[
     LastPrunedBlock::table_name(),
     LightClientProofBySlotNumber::table_name(),
     MempoolTxs::table_name(),
-    PendingBonsaiSessionByJobId::table_name(),
     PendingL1SubmissionJobs::table_name(),
     PendingProofs::table_name(),
-    PendingProvingSessions::table_name(),
     PendingSequencerCommitments::table_name(),
     ProofByJobId::table_name(),
     ProvingSessionInfoByJobId::table_name(),
@@ -171,7 +165,6 @@ pub const LEDGER_TABLES: &[&str] = &[
     ProofsBySlotNumberV2::table_name(),
     ProverLastScannedSlot::table_name(),
     ProverPendingCommitments::table_name(),
-    PendingBoundlessSessionByJobId::table_name(),
     ProverStateDiffs::table_name(),
     SequencerCommitmentByIndex::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
@@ -398,16 +391,6 @@ define_table_with_default_codec!(
     (PendingL1SubmissionJobs) Uuid => ()
 );
 
-define_table_with_seek_key_codec!(
-    /// Pending Bonsai proving sessions by job id
-    (PendingBonsaiSessionByJobId) Uuid => BonsaiSession
-);
-
-define_table_with_seek_key_codec!(
-    /// Pending Boundless proving sessions by job id
-    (PendingBoundlessSessionByJobId) Uuid => BoundlessSession
-);
-
 define_table_with_default_codec!(
     /// A "secondary index" for l2 block data by hash
     (L2BlockByHash) DbHash => L2BlockNumber
@@ -529,12 +512,6 @@ define_table_with_default_codec!(
 define_table_with_seek_key_codec!(
     /// Proof data on L1 slot verified by full node
     (VerifiedBatchProofsBySlotNumber) SlotNumber => Vec<StoredVerifiedProof>
-);
-
-define_table_with_seek_key_codec!(
-    /// Proving service uses this table to store pending proving sessions
-    /// If a session id is completed, remove it
-    (PendingProvingSessions) Vec<u8> => ()
 );
 
 define_table_with_default_codec!(

@@ -135,10 +135,6 @@ pub trait ZkvmHost: Zkvm + Clone + Send {
     /// Extracts public input and receipt from the proof.
     fn extract_output<T: BorshDeserialize>(proof: &Proof) -> Result<T, Self::Error>;
 
-    /// Host recovers pending proving sessions and returns proving results
-    fn start_session_recovery(&self)
-        -> Result<Vec<oneshot::Receiver<ProofWithJob>>, anyhow::Error>;
-
     /// Host adds an assumption to the proving session
     /// Assumptions are used for recursive proving
     fn add_assumption(&mut self, receipt_buf: Vec<u8>);

@@ -5,6 +5,7 @@ use alloy_consensus::{
     Block as AlloyConsensusBlock, BlockBody, Header as AlloyConsensusHeader,
     Transaction as AlloyTransaction, TxReceipt, EMPTY_OMMER_ROOT_HASH,
 };
+use alloy_eips::eip2718::Encodable2718;
 use alloy_eips::eip2930::AccessListWithGasUsed;
 use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_eips::{BlockId, BlockNumHash, BlockNumberOrTag};
@@ -496,6 +497,41 @@ impl<C: sov_modules_api::Context> Evm<C> {
         Ok(Some(transaction))
     }
 
+    /// Handler for: `eth_getRawTransactionByBlockHashAndIndex`
+    #[rpc_method(name = "eth_getRawTransactionByBlockHashAndIndex")]
+    pub fn get_raw_transaction_by_block_hash_and_index(
+        &self,
+        block_hash: B256,
+        index: U64,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> RpcResult<Option<Bytes>> {
+        let mut accessory_state = working_set.accessory_state();
+
+        let block_number = match self.block_hashes.get(&block_hash, &mut accessory_state) {
+            Some(block_number) => block_number,
+            None => return Ok(None),
+        };
+
+        let block = self
+            .blocks
+            .get(block_number as usize, &mut accessory_state)
+            .expect("Block must be set");
+
+        match check_tx_range(&block.transactions, index) {
+            Some(_) => (),
+            None => return Ok(None),
+        }
+
+        let tx_number = block.transactions.start + index.to::<u64>();
+
+        let tx = self
+            .transactions
+            .get(tx_number as usize, &mut accessory_state)
+            .expect("Transaction must be set");
+
+        Ok(Some(tx.signed_transaction.encoded_2718().into()))
+    }
+
     /// Handler for: `eth_getTransactionByBlockNumberAndIndex`
     #[rpc_method(name = "eth_getTransactionByBlockNumberAndIndex")]
     pub fn get_transaction_by_block_number_and_index(
@@ -542,6 +578,37 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .expect("EthTxBuilder fill can't fail");
 
         Ok(Some(transaction))
+    }
+
+    /// Handler for: `eth_getRawTransactionByBlockNumberAndIndex`
+    #[rpc_method(name = "eth_getRawTransactionByBlockNumberAndIndex")]
+    pub fn get_raw_transaction_by_block_number_and_index(
+        &self,
+        block_number: BlockNumberOrTag,
+        index: U64,
+        working_set: &mut WorkingSet<C::Storage>,
+        ledger_db: &crate::LedgerDB,
+    ) -> RpcResult<Option<Bytes>> {
+        let block =
+            match self.get_sealed_block_by_number(Some(block_number), working_set, ledger_db) {
+                Ok(Some(block)) => block,
+                Ok(None) => return Ok(None),
+                Err(err) => return Err(err.into()),
+            };
+
+        match check_tx_range(&block.transactions, index) {
+            Some(_) => (),
+            None => return Ok(None),
+        }
+
+        let tx_number = block.transactions.start + index.to::<u64>();
+
+        let tx = self
+            .transactions
+            .get(tx_number as usize, &mut working_set.accessory_state())
+            .expect("Transaction must be set");
+
+        Ok(Some(tx.signed_transaction.encoded_2718().into()))
     }
 
     /// Handler for: `eth_getTransactionReceipt`

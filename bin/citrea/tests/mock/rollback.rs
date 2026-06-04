@@ -144,7 +144,6 @@ async fn start_batch_prover(
         Some(BatchProverConfig {
             proving_mode: citrea_common::ProverGuestRunConfig::Execute,
             proof_sampling_number: 0,
-            enable_recovery: true,
             max_commitments_per_proof: None,
             risc0_host: Risc0HostConfig::from_env().expect("Failed to load Risc0HostConfig"),
         }),
