@@ -46,13 +46,12 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tracing::{info, warn};
 
+use super::metrics::SEQUENCER_METRICS as SM;
 use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::types::SequencerRpcMessage;
 use crate::CitreaSequencer;
-
-use super::metrics::SEQUENCER_METRICS as SM;
 
 /// Maximum time to wait for the listen-mode syncers to stop before a listen->producer conversion
 /// proceeds anyway. Bounds the conversion so a misbehaving syncer can never hang it indefinitely.
@@ -140,7 +139,8 @@ fn build_producer<Da: DaService>(parts: ProducerParts<Da>) -> anyhow::Result<Cit
     let mut fork_manager = ForkManager::new(get_forks(), current_l2_height);
     fork_manager.register_handler(Box::new(parts.ledger_db.clone()));
 
-    let native_stf = StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
+    let native_stf =
+        StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
     let init_params = read_init_params_from_db(&parts.ledger_db, &parts.storage_manager)?;
 
     CitreaSequencer::new(

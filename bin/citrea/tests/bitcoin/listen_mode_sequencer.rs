@@ -840,7 +840,9 @@ impl TestCase for ReadOnlySequencerRpcToggleTest {
         // producing instead of as a follower.
         let mut producer_config = readonly_sequencer.config.clone();
         producer_config.node.listen_mode_config = None;
-        readonly_sequencer.start(Some(producer_config), None).await?;
+        readonly_sequencer
+            .start(Some(producer_config), None)
+            .await?;
         sleep(std::time::Duration::from_secs(2)).await;
         full_node.start(None, None).await?;
         sleep(std::time::Duration::from_secs(2)).await;

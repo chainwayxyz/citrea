@@ -456,8 +456,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         if ledger_db.get_head_l2_block()?.is_some() {
             // At least one l2 block was processed: derive params from the persisted state.
-            let init_params =
-                citrea_common::read_init_params_from_db(ledger_db, storage_manager)?;
+            let init_params = citrea_common::read_init_params_from_db(ledger_db, storage_manager)?;
             info!(
                 "Initialize node. State root: 0x{}. Last l2 block hash: 0x{}.",
                 hex::encode(init_params.prev_state_root),

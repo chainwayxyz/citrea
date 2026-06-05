@@ -88,7 +88,9 @@ async fn main_sequencer_reachable(url: &str) -> bool {
             .await
         {
             Ok(_) => return true,
-            Err(e) => debug!("Main sequencer probe {attempt}/{MAIN_SEQUENCER_PROBE_ATTEMPTS} failed: {e}"),
+            Err(e) => {
+                debug!("Main sequencer probe {attempt}/{MAIN_SEQUENCER_PROBE_ATTEMPTS} failed: {e}")
+            }
         }
         if attempt < MAIN_SEQUENCER_PROBE_ATTEMPTS {
             tokio::time::sleep(MAIN_SEQUENCER_PROBE_INTERVAL).await;
