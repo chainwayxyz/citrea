@@ -69,26 +69,41 @@ where
     }
 
     /// Runs the subscription task for mempool transaction updates
-    pub async fn run_subscription_task(&self, shutdown_signal: GracefulShutdown) {
+    pub async fn run_subscription_task(&self, mut shutdown_signal: GracefulShutdown) {
         loop {
-            let exponential_backoff = ExponentialBackoff::default();
-            let _ = retry_backoff(exponential_backoff, || async {
-                subscribe_to_mempool_transaction_updates(
-                    &self.sequencer_ws_endpoint,
-                    self.transactions_buffer.clone(),
-                    self.transactions_to_remove_buffer.clone(),
-                    shutdown_signal.clone(),
-                )
-                .await
-                .map_err(|e| {
-                    error!("Subscription error: {}", e);
-                    backoff::Error::Transient {
-                        err: e,
-                        retry_after: None,
-                    }
-                })
-            })
-            .await;
+            // `inner_shutdown` is used by the subscription itself; the original `shutdown_signal`
+            // breaks the retry loop on shutdown. This matters because when the sequencer is gone the
+            // WS connect fails *before* the inner shutdown check is reached, so without this guard
+            // the retry loop would spin forever and never observe shutdown (which in turn would
+            // block a listen->producer conversion from completing).
+            let inner_shutdown = shutdown_signal.clone();
+            tokio::select! {
+                biased;
+                _ = &mut shutdown_signal => {
+                    info!("Shutting down mempool subscription task");
+                    return;
+                }
+                _ = async {
+                    let exponential_backoff = ExponentialBackoff::default();
+                    let _ = retry_backoff(exponential_backoff, || async {
+                        subscribe_to_mempool_transaction_updates(
+                            &self.sequencer_ws_endpoint,
+                            self.transactions_buffer.clone(),
+                            self.transactions_to_remove_buffer.clone(),
+                            inner_shutdown.clone(),
+                        )
+                        .await
+                        .map_err(|e| {
+                            error!("Subscription error: {}", e);
+                            backoff::Error::Transient {
+                                err: e,
+                                retry_after: None,
+                            }
+                        })
+                    })
+                    .await;
+                } => {}
+            }
         }
     }
 
