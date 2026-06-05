@@ -833,6 +833,7 @@ fn test_queries_with_forks() {
         .eth_estimate_diff_size_inner(
             tx_req_contract_call.clone(),
             None,
+            None,
             &mut working_set,
             &ledger_db,
             fork_fn,
