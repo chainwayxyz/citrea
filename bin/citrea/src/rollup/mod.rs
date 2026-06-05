@@ -454,29 +454,22 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     ) -> anyhow::Result<InitParams> {
         let prover_storage = storage_manager.create_storage_for_next_l2_height();
 
-        if let Some((number, l2_block)) = ledger_db.get_head_l2_block()? {
-            // At least one l2 block was processed
+        if ledger_db.get_head_l2_block()?.is_some() {
+            // At least one l2 block was processed: derive params from the persisted state.
+            let init_params =
+                citrea_common::read_init_params_from_db(ledger_db, storage_manager)?;
             info!(
-                "Initialize node at L2 height #{}. State root: 0x{}. Last l2 block hash: 0x{}.",
-                number.0,
-                hex::encode(prover_storage.get_root_hash(number.0 + 1)?),
-                hex::encode(l2_block.hash)
+                "Initialize node. State root: 0x{}. Last l2 block hash: 0x{}.",
+                hex::encode(init_params.prev_state_root),
+                hex::encode(init_params.prev_l2_block_hash)
             );
-
-            return Ok(InitParams {
-                prev_state_root: prover_storage.get_root_hash(number.0 + 1)?,
-                prev_l2_block_hash: l2_block.hash,
-            });
+            return Ok(init_params);
         }
 
-        let genesis_root = prover_storage.get_root_hash(1);
-        if let Ok(prev_state_root) = genesis_root {
+        if prover_storage.get_root_hash(1).is_ok() {
             // Chain was initialized but no L2 blocks were processed
             debug!("Chain is already initialized. Skipping initialization.");
-            return Ok(InitParams {
-                prev_state_root,
-                prev_l2_block_hash: [0; 32],
-            });
+            return citrea_common::read_init_params_from_db(ledger_db, storage_manager);
         }
 
         info!("No history detected. Initializing chain...",);

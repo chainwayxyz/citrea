@@ -33,6 +33,7 @@
 //! Transition Function's inner workings, allowing it to preview transaction results before
 //! finalizing L2 blocks.
 
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -47,7 +48,7 @@ use deposit_data_mempool::DepositDataMempool;
 use jsonrpsee::RpcModule;
 use listen_mode::l1_syncer::L1Syncer;
 use listen_mode::mempool_syncer::MempoolSyncer;
-use listen_mode::ListenModeSequencer;
+use listen_mode::{ListenModeSequencer, ProducerParts};
 use mempool::CitreaMempool;
 use parking_lot::Mutex;
 use reth_provider::CanonStateNotification;
@@ -178,6 +179,24 @@ where
         task_executor.spawn_critical("mempool-maintenance", maintenance_future);
     }
 
+    // In listen mode, expose a conversion handle so the RPC layer can promote this node to a
+    // producer at runtime (after verifying the main sequencer is unreachable).
+    let conversion = if is_listen_mode {
+        let sequencer_url = sequencer_config
+            .listen_mode_config
+            .as_ref()
+            .expect("Listen Mode Config must be set in listen mode")
+            .sequencer_client_url
+            .clone();
+        Some(rpc::ConversionHandle {
+            sequencer_url,
+            convert_tx: rpc_message_tx.clone(),
+            started: Arc::new(AtomicBool::new(false)),
+        })
+    } else {
+        None
+    };
+
     let rpc_storage = storage_manager.create_final_view_storage();
     let rpc_context = rpc::create_rpc_context(
         mempool.clone(),
@@ -189,6 +208,7 @@ where
         l2_block_tx.subscribe(),
         mempool_transaction_tx.clone(),
         mempool_transaction_tx.subscribe(),
+        conversion,
     );
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
 
@@ -201,6 +221,30 @@ where
             .listen_mode_config
             .clone()
             .expect("Listen Mode Config must be set in listen mode");
+
+        // Producer configuration used if/when this node is promoted to producer: identical config
+        // but no longer in listen mode.
+        let mut producer_config = sequencer_config.clone();
+        producer_config.listen_mode_config = None;
+
+        // Capture everything needed to build a producer at conversion time, before the syncers
+        // below consume the originals.
+        let producer_parts = ProducerParts {
+            da_service: da_service.clone(),
+            config: producer_config,
+            public_keys: public_keys.clone(),
+            storage_manager: storage_manager.clone(),
+            ledger_db: ledger_db.clone(),
+            db_provider,
+            mempool: mempool.clone(),
+            deposit_mempool: deposit_mempool.clone(),
+            l2_block_tx: l2_block_tx.clone(),
+            mempool_transaction_tx: mempool_transaction_tx.clone(),
+            backup_manager: backup_manager.clone(),
+            rpc_message_rx,
+            canon_state_tx,
+            task_executor,
+        };
 
         let l2_syncer = L2Syncer::new(
             listen_mode_config.sequencer_client_url.clone(),
@@ -244,8 +288,8 @@ where
             l2_syncer,
             l1_syncer,
             mempool_syncer,
-            task_executor,
             ledger_db.clone(),
+            producer_parts,
         );
         Ok((SequencerType::ListenMode(listen_mode_sequencer), rpc_module))
     } else {

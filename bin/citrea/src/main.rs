@@ -301,9 +301,14 @@ where
                     info!("Starting listen mode sequencer");
                     start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
-                    if let Err(e) = listen_mode_sequencer.run().await {
-                        error!("Error: {}", e);
-                    }
+                    task_executor.spawn_critical_with_graceful_shutdown_signal(
+                        "listen_mode_sequencer",
+                        |shutdown_signal| async move {
+                            if let Err(e) = listen_mode_sequencer.run(shutdown_signal).await {
+                                error!("Error: {}", e);
+                            }
+                        },
+                    );
                 }
                 (SequencerType::Normal(mut sequencer), rpc_module) => {
                     info!("Starting sequencer");

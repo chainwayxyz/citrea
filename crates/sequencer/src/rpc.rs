@@ -1,6 +1,6 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use alloy_eips::eip2718::Encodable2718;
 use alloy_eips::BlockId;
@@ -10,10 +10,12 @@ use alloy_rpc_types_txpool::TxpoolContent;
 use citrea_common::rpc::utils::internal_rpc_error;
 use citrea_evm::Evm;
 use citrea_stf::runtime::DefaultContext;
+use jsonrpsee::core::client::ClientT;
 use jsonrpsee::core::{RpcResult, SubscriptionResult};
+use jsonrpsee::http_client::HttpClientBuilder;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::{ErrorCode, ErrorObject};
-use jsonrpsee::{PendingSubscriptionSink, SubscriptionSink};
+use jsonrpsee::{rpc_params, PendingSubscriptionSink, SubscriptionSink};
 use parking_lot::Mutex;
 use reth_rpc::eth::EthTxBuilder;
 use reth_rpc_eth_types::error::EthApiError;
@@ -43,6 +45,59 @@ enum BlockReceiveResult {
     ChannelClosed,
 }
 
+/// Handle that allows the RPC layer to promote a listen-mode sequencer into a block-producing
+/// sequencer at runtime. Only populated when the node is started in listen mode.
+#[derive(Clone)]
+pub struct ConversionHandle {
+    /// HTTP URL of the main sequencer this listen-mode node is following. Used to verify the main
+    /// sequencer is unreachable before promoting (so we don't end up with two producers).
+    pub sequencer_url: String,
+    /// Channel used to signal the listen-mode orchestrator to convert to producer.
+    pub convert_tx: UnboundedSender<SequencerRpcMessage>,
+    /// Guards against concurrent / repeated conversion attempts.
+    pub started: Arc<AtomicBool>,
+}
+
+/// Number of times the main sequencer is probed before it is considered unreachable.
+const MAIN_SEQUENCER_PROBE_ATTEMPTS: u32 = 5;
+/// Delay between consecutive main sequencer probes.
+const MAIN_SEQUENCER_PROBE_INTERVAL: Duration = Duration::from_secs(2);
+/// Per-probe request timeout when checking the main sequencer.
+const MAIN_SEQUENCER_PROBE_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// Probes the main sequencer's RPC endpoint and returns `true` if it responds to **any** of the
+/// probe attempts. Used to make sure the main sequencer is truly gone before a listen-mode node
+/// promotes itself to producer. Requiring a single success (rather than a single failure) to call
+/// it "reachable" makes the failover conservative: a transient blip will not falsely promote a
+/// backup while the main sequencer is alive.
+async fn main_sequencer_reachable(url: &str) -> bool {
+    let client = match HttpClientBuilder::default()
+        .request_timeout(MAIN_SEQUENCER_PROBE_TIMEOUT)
+        .build(url)
+    {
+        Ok(client) => client,
+        Err(e) => {
+            error!("Could not build probe client for {url}: {e}");
+            return false;
+        }
+    };
+
+    for attempt in 1..=MAIN_SEQUENCER_PROBE_ATTEMPTS {
+        match client
+            .request::<U256, _>("eth_blockNumber", rpc_params![])
+            .await
+        {
+            Ok(_) => return true,
+            Err(e) => debug!("Main sequencer probe {attempt}/{MAIN_SEQUENCER_PROBE_ATTEMPTS} failed: {e}"),
+        }
+        if attempt < MAIN_SEQUENCER_PROBE_ATTEMPTS {
+            tokio::time::sleep(MAIN_SEQUENCER_PROBE_INTERVAL).await;
+        }
+    }
+
+    false
+}
+
 /// RPC context containing all the shared data needed for RPC method implementations
 pub struct RpcContext {
     /// The transaction mempool
@@ -63,6 +118,8 @@ pub struct RpcContext {
     pub mempool_transaction_tx: broadcast::Sender<MempoolTransactionSignal>,
     /// Broadcast receiver for mempool transaction notifications
     pub mempool_transaction_rx: broadcast::Receiver<MempoolTransactionSignal>,
+    /// Handle for converting a listen-mode sequencer into a producer. `None` in producer mode.
+    pub conversion: Option<ConversionHandle>,
 }
 
 /// Creates a shared RpcContext with all required data.
@@ -86,6 +143,7 @@ pub fn create_rpc_context(
     l2_block_rx: broadcast::Receiver<u64>,
     mempool_transaction_tx: broadcast::Sender<MempoolTransactionSignal>,
     mempool_transaction_rx: broadcast::Receiver<MempoolTransactionSignal>,
+    conversion: Option<ConversionHandle>,
 ) -> RpcContext {
     RpcContext {
         mempool,
@@ -97,6 +155,7 @@ pub fn create_rpc_context(
         l2_block_rx,
         mempool_transaction_tx,
         mempool_transaction_rx,
+        conversion,
     }
 }
 
@@ -206,6 +265,15 @@ pub trait SequencerRpc {
     /// Resume sequencer commitments
     #[method(name = "citrea_resumeCommitments")]
     async fn resume_commitments(&self) -> RpcResult<()>;
+
+    /// Promotes a listen-mode sequencer into a block-producing sequencer at runtime.
+    ///
+    /// This is only valid on a node started in listen mode. Before promoting, the node verifies
+    /// that the main sequencer it is following is unreachable (so two producers do not run at
+    /// once). On success the node stops its listen-mode syncers and starts producing blocks from
+    /// the state it has already synced.
+    #[method(name = "citrea_convertToProducer")]
+    async fn convert_to_producer(&self) -> RpcResult<()>;
 
     /// Subscribe to Citrea events
     #[subscription(name = "citrea_subscribe" => "citrea_subscription", unsubscribe = "citrea_unsubscribe", item = L2BlockResponse)]
@@ -464,6 +532,60 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             .map_err(|e| {
                 internal_rpc_error(format!("Could not send resume commitments signal: {e}"))
             })
+    }
+
+    /// Promote a listen-mode sequencer into a block-producing sequencer.
+    async fn convert_to_producer(&self) -> RpcResult<()> {
+        debug!("Sequencer: citrea_convertToProducer");
+
+        let conversion = self.context.conversion.as_ref().ok_or_else(|| {
+            internal_rpc_error(
+                "Sequencer is not running in listen mode; cannot convert to producer".to_string(),
+            )
+        })?;
+
+        // Guard against concurrent or repeated conversion attempts.
+        if conversion.started.swap(true, Ordering::SeqCst) {
+            return Err(internal_rpc_error(
+                "Conversion to producer is already in progress".to_string(),
+            ));
+        }
+
+        // Make sure the main sequencer is actually gone before promoting, otherwise we would end up
+        // with two producers writing the same chain.
+        if main_sequencer_reachable(&conversion.sequencer_url).await {
+            conversion.started.store(false, Ordering::SeqCst);
+            return Err(internal_rpc_error(
+                "Main sequencer is still reachable; aborting conversion to producer".to_string(),
+            ));
+        }
+
+        let (ack_tx, ack_rx) = tokio::sync::oneshot::channel();
+        if let Err(e) = conversion
+            .convert_tx
+            .send(SequencerRpcMessage::ConvertToProducer { ack: ack_tx })
+        {
+            conversion.started.store(false, Ordering::SeqCst);
+            return Err(internal_rpc_error(format!(
+                "Could not send convert-to-producer signal: {e}"
+            )));
+        }
+
+        match ack_rx.await {
+            Ok(Ok(())) => {
+                debug!("Sequencer: conversion to producer accepted");
+                Ok(())
+            }
+            Ok(Err(reason)) => {
+                conversion.started.store(false, Ordering::SeqCst);
+                Err(internal_rpc_error(format!(
+                    "Conversion to producer failed: {reason}"
+                )))
+            }
+            Err(e) => Err(internal_rpc_error(format!(
+                "Conversion to producer ack channel closed: {e}"
+            ))),
+        }
     }
 
     /// Subscribe to Citrea events
