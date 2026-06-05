@@ -54,6 +54,10 @@ use crate::CitreaSequencer;
 
 use super::metrics::SEQUENCER_METRICS as SM;
 
+/// Maximum time to wait for the listen-mode syncers to stop before a listen->producer conversion
+/// proceeds anyway. Bounds the conversion so a misbehaving syncer can never hang it indefinitely.
+const SYNCER_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(30);
+
 /// Module for syncing and storing sequencer commitments extracted from L1 blocks.
 pub(crate) mod l1_syncer;
 /// Module containing mempool synchronization functionality for listen mode sequencer
@@ -281,7 +285,10 @@ where
                 _ = &mut shutdown_signal => {
                     info!("Shutting down listen mode sequencer");
                     if let Some(manager) = syncer_manager.take() {
-                        let _ = tokio::task::spawn_blocking(move || manager.graceful_shutdown()).await;
+                        let _ = tokio::task::spawn_blocking(move || {
+                            manager.graceful_shutdown_with_timeout(SYNCER_SHUTDOWN_TIMEOUT)
+                        })
+                        .await;
                     }
                     return Ok(());
                 }
@@ -291,15 +298,24 @@ where
                             info!("Listen mode sequencer: received convert-to-producer signal");
 
                             // Stop the syncers and wait for them to fully drain so the producer
-                            // starts from the final head state with no competing writer.
+                            // starts from the final head state with no competing writer. Bounded by
+                            // a timeout so a syncer that fails to stop can never hang the conversion.
                             if let Some(manager) = syncer_manager.take() {
-                                if let Err(e) =
-                                    tokio::task::spawn_blocking(move || manager.graceful_shutdown())
-                                        .await
+                                match tokio::task::spawn_blocking(move || {
+                                    manager.graceful_shutdown_with_timeout(SYNCER_SHUTDOWN_TIMEOUT)
+                                })
+                                .await
                                 {
-                                    let msg = format!("failed to stop listen-mode syncers: {e}");
-                                    let _ = ack.send(Err(msg.clone()));
-                                    return Err(anyhow::anyhow!(msg));
+                                    Ok(true) => {}
+                                    Ok(false) => warn!(
+                                        "Listen mode sequencer: syncers did not stop within timeout; \
+                                         proceeding with conversion"
+                                    ),
+                                    Err(e) => {
+                                        let msg = format!("failed to stop listen-mode syncers: {e}");
+                                        let _ = ack.send(Err(msg.clone()));
+                                        return Err(anyhow::anyhow!(msg));
+                                    }
                                 }
                             }
 
