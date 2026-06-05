@@ -1268,6 +1268,13 @@ where
                                 info!("Sequencer: Resumed commitments via RPC");
                             }
                         },
+                        Some(SequencerRpcMessage::ConvertToProducer { ack }) => {
+                            // This sequencer is already producing blocks. Conversion is only valid
+                            // for a listen-mode sequencer, so reject it here.
+                            let _ = ack.send(Err(
+                                "Sequencer is already running in producer mode".to_string(),
+                            ));
+                        },
                         None => {
                             // Channel closed
                             warn!("RPC message channel closed");
