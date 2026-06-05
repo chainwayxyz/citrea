@@ -102,6 +102,7 @@ fn test_tx_request_fields_gas_fork1() {
     let contract_diff_size = evm.eth_estimate_diff_size_inner(
         tx_req_contract_call.clone(),
         Some(BlockNumberOrTag::Latest),
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
@@ -120,6 +121,7 @@ fn test_tx_request_fields_gas_fork1() {
     let contract_diff_size = evm.eth_estimate_diff_size_inner(
         tx_req_no_gas.clone(),
         Some(BlockNumberOrTag::Latest),
+        None,
         &mut working_set,
         &ledger_db,
         get_fork_fn_latest(),
