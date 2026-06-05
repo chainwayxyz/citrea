@@ -688,7 +688,9 @@ impl TestCase for ReadOnlySequencerRpcToggleTest {
             .await
             .expect_err("a second conversion should fail");
         assert!(
-            err.to_string().to_lowercase().contains("already in progress"),
+            err.to_string()
+                .to_lowercase()
+                .contains("already in progress"),
             "expected an 'already in progress' error, got: {err}"
         );
 
