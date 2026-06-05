@@ -634,6 +634,33 @@ impl TestCase for ReadOnlySequencerRpcToggleTest {
         // Expect sequencer to send commitment
         da.wait_mempool_len(2, None).await?;
 
+        // Edge case: converting a sequencer that is already a producer (not in listen mode) must be
+        // rejected.
+        let err = sequencer
+            .client
+            .http_client()
+            .convert_to_producer()
+            .await
+            .expect_err("converting a producer sequencer should fail");
+        assert!(
+            err.to_string().to_lowercase().contains("listen mode"),
+            "expected a 'not in listen mode' error, got: {err}"
+        );
+
+        // Edge case: converting the read-only sequencer while the main sequencer is still reachable
+        // must be rejected (split-brain guard). It must also leave the node convertible later, which
+        // the real conversion below verifies.
+        let err = readonly_sequencer
+            .client
+            .http_client()
+            .convert_to_producer()
+            .await
+            .expect_err("converting while the main sequencer is alive should fail");
+        assert!(
+            err.to_string().to_lowercase().contains("reachable"),
+            "expected a 'main sequencer still reachable' error, got: {err}"
+        );
+
         // While the commitment is still in mempool, shut down the main sequencer and full node, then
         // toggle the read-only sequencer to producer in-process via RPC (no restart).
         sequencer.wait_until_stopped().await?;
@@ -651,6 +678,19 @@ impl TestCase for ReadOnlySequencerRpcToggleTest {
             .await?;
 
         sleep(std::time::Duration::from_secs(2)).await;
+
+        // Edge case: calling convert again on the now-producer node is rejected by the idempotency
+        // guard rather than starting a second conversion.
+        let err = readonly_sequencer
+            .client
+            .http_client()
+            .convert_to_producer()
+            .await
+            .expect_err("a second conversion should fail");
+        assert!(
+            err.to_string().to_lowercase().contains("already in progress"),
+            "expected an 'already in progress' error, got: {err}"
+        );
 
         let readonly_sequencer_test_client = make_test_client(SocketAddr::new(
             readonly_sequencer.config.rollup.rpc.bind_host.parse()?,
