@@ -319,6 +319,7 @@ impl BitcoinService {
                             self.monitoring.clone(),
                             request,
                             Duration::from_secs(TX_SENDER_POLL_INTERVAL),
+                            &mut shutdown,
                         )
                         .await;
                     }

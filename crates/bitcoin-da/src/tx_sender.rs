@@ -3,15 +3,17 @@
 //! This module provides types and utilities for communicating with the external
 //! tx-sender service, including job status polling.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::anyhow;
 use bitcoin::Txid;
 use bitcoincore_rpc::{Client, RpcApi};
 use citrea_primitives::compression::compress_blob;
+use reth_tasks::shutdown::GracefulShutdown;
 use sov_rollup_interface::da::{DaTxRequest, DataOnDa};
 use sov_rollup_interface::services::da::TxRequestWithNotifier;
-use std::sync::Arc;
+use tokio::select;
 use tracing::{debug, error, info, warn};
 use tx_sender_jsonrpc_client::{
     BitcoinTxStatus, CitreaTxRequest, CommitRevealKind, CommitRevealStatus, JsonRpcTxSenderClient,
@@ -54,12 +56,18 @@ pub(crate) fn to_citrea_tx_request(
     }
 }
 
+/// Initial delay between `send_citrea_tx` retries when the tx-sender is unavailable.
+const SEND_RETRY_BACKOFF_START: Duration = Duration::from_secs(1);
+/// Maximum delay between `send_citrea_tx` retries (exponential backoff cap).
+const SEND_RETRY_BACKOFF_MAX: Duration = Duration::from_secs(30);
+
 pub(crate) async fn queue_tx_sender_request(
     tx_sender: JsonRpcTxSenderClient,
     bitcoin_client: Arc<Client>,
     monitoring: Arc<MonitoringService>,
     request: TxRequestWithNotifier<TxSenderJobId>,
     poll_interval: Duration,
+    shutdown: &mut GracefulShutdown,
 ) {
     let citrea_request = match to_citrea_tx_request(&request.tx_request) {
         Ok(citrea_request) => citrea_request,
@@ -69,15 +77,26 @@ pub(crate) async fn queue_tx_sender_request(
         }
     };
 
+    let mut backoff = SEND_RETRY_BACKOFF_START;
     let job_id = loop {
-        match tx_sender.send_citrea_tx(citrea_request.clone()).await {
-            Ok(job_id) => {
-                info!(job_id, "Sent DA tx request to tx-sender");
-                break job_id;
+        select! {
+            biased;
+            _ = &mut *shutdown => {
+                let _ = request.notify.send(Err(anyhow!(
+                    "DA queue shutting down before tx-sender accepted the request"
+                )));
+                return;
             }
-            Err(e) => {
-                error!(?e, "Failed to send tx to tx-sender. Retrying...");
-                tokio::time::sleep(Duration::from_secs(1)).await;
+            res = tx_sender.send_citrea_tx(citrea_request.clone()) => match res {
+                Ok(job_id) => {
+                    info!(job_id, "Sent DA tx request to tx-sender");
+                    break job_id;
+                }
+                Err(e) => {
+                    error!(?e, ?backoff, "Failed to send tx to tx-sender. Retrying...");
+                    tokio::time::sleep(backoff).await;
+                    backoff = (backoff * 2).min(SEND_RETRY_BACKOFF_MAX);
+                }
             }
         }
     };
@@ -185,28 +204,21 @@ pub(crate) async fn wait_for_tx_sender_job(
 
         match status {
             Ok((status, raw_status)) => {
-                if let TrackResponse::CommitReveal(commit_reveal_status) = raw_status {
+                if let TrackResponse::CommitReveal(commit_reveal_status) = &raw_status {
                     sync_monitoring(
                         bitcoin_client.clone(),
                         monitoring.clone(),
-                        &commit_reveal_status,
+                        commit_reveal_status,
                     )
                     .await;
-
-                    if let Some(txid) =
-                        extract_payload_txid_from_commit_reveal(&commit_reveal_status)
-                    {
-                        return Ok(txid);
-                    }
                 }
 
-                match status {
-                    TxSenderJobStatus::Failed { error } => {
+                match resolve_wait_outcome(&status, &raw_status) {
+                    Some(Ok(txid)) => return Ok(txid),
+                    Some(Err(error)) => {
                         return Err(anyhow!("Tx-sender job {job_id} failed: {error}"));
                     }
-                    TxSenderJobStatus::Completed { .. }
-                    | TxSenderJobStatus::Pending
-                    | TxSenderJobStatus::Processing => {
+                    None => {
                         debug!(
                             job_id,
                             "Tx-sender job has no payload txid yet, polling again"
@@ -221,6 +233,28 @@ pub(crate) async fn wait_for_tx_sender_job(
 
         tokio::time::sleep(poll_interval).await;
     }
+}
+
+/// Decide the outcome of a single `wait_for_tx_sender_job` poll.
+///
+/// Terminal failure takes precedence over an extractable payload txid: a cancelled job
+/// may still carry a reveal submission with a txid, but that DA submission has failed and
+/// must never be reported as success. Returns `None` while the job is still in progress.
+fn resolve_wait_outcome(
+    status: &TxSenderJobStatus,
+    raw_status: &TrackResponse,
+) -> Option<Result<Txid, String>> {
+    if let TxSenderJobStatus::Failed { error } = status {
+        return Some(Err(error.clone()));
+    }
+
+    if let TrackResponse::CommitReveal(commit_reveal_status) = raw_status {
+        if let Some(txid) = extract_payload_txid_from_commit_reveal(commit_reveal_status) {
+            return Some(Ok(txid));
+        }
+    }
+
+    None
 }
 
 /// Query the tx-sender service for the status of a given job via the `track_tx` RPC.
@@ -866,6 +900,57 @@ mod tests {
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("Expected CommitReveal"));
         assert!(err_msg.contains("7"));
+    }
+
+    #[test]
+    fn resolve_wait_outcome_prefers_failure_over_existing_reveal_txid() {
+        // A cancelled job (mapped to Failed) that still carries a reveal submission with
+        // a txid must be reported as a failure, never as a successful DA submission.
+        let reveal_txid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let raw_status = TrackResponse::CommitReveal(CommitRevealStatus {
+            status: TrackStatus::Cancelled,
+            commit_tx: None,
+            reveals: vec![reveal_with_submission(reveal_txid)],
+            aggregate_commit_tx: None,
+        });
+        let status = TxSenderJobStatus::Failed {
+            error: "Commit-reveal job 1 was cancelled".to_string(),
+        };
+
+        match resolve_wait_outcome(&status, &raw_status) {
+            Some(Err(error)) => assert!(error.contains("cancelled")),
+            other => panic!("Expected Some(Err(..)), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn resolve_wait_outcome_returns_txid_when_in_progress() {
+        let reveal_txid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let raw_status = TrackResponse::CommitReveal(CommitRevealStatus {
+            status: TrackStatus::Mined,
+            commit_tx: None,
+            reveals: vec![reveal_with_submission(reveal_txid)],
+            aggregate_commit_tx: None,
+        });
+        let status = TxSenderJobStatus::Processing;
+
+        match resolve_wait_outcome(&status, &raw_status) {
+            Some(Ok(txid)) => assert_eq!(txid, reveal_txid.parse::<Txid>().unwrap()),
+            other => panic!("Expected Some(Ok(..)), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn resolve_wait_outcome_pending_without_txid_is_none() {
+        let raw_status = TrackResponse::CommitReveal(CommitRevealStatus {
+            status: TrackStatus::Pending,
+            commit_tx: None,
+            reveals: vec![],
+            aggregate_commit_tx: None,
+        });
+        let status = TxSenderJobStatus::Pending;
+
+        assert!(resolve_wait_outcome(&status, &raw_status).is_none());
     }
 
     #[test]

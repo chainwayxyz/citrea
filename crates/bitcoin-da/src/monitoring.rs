@@ -399,12 +399,7 @@ impl MonitoringService {
         };
 
         for pair in new_pairs {
-            // Tolerate races where a pair was registered concurrently (e.g. by the
-            // tx-sender poll loop) between the filter above and this insertion.
-            match self.monitor_transaction_chain(vec![pair]).await {
-                Ok(()) | Err(MonitorError::AlreadyMonitored) => {}
-                Err(e) => return Err(e),
-            }
+            self.monitor_transaction_chain(vec![pair]).await?;
         }
 
         self.check_transactions().await
@@ -509,11 +504,22 @@ impl MonitoringService {
         for [commit, reveal] in txs {
             let next_id = reveal.id;
             let prev_id = commit.id;
-            self.monitor_transaction(commit, last_tx, Some(next_id), MonitoredTxKind::Commit)
-                .await?;
 
-            self.monitor_transaction(reveal, Some(prev_id), None, MonitoredTxKind::Reveal)
-                .await?;
+            match self
+                .monitor_transaction(commit, last_tx, Some(next_id), MonitoredTxKind::Commit)
+                .await
+            {
+                Ok(()) | Err(MonitorError::AlreadyMonitored) => {}
+                Err(e) => return Err(e),
+            }
+
+            match self
+                .monitor_transaction(reveal, Some(prev_id), None, MonitoredTxKind::Reveal)
+                .await
+            {
+                Ok(()) | Err(MonitorError::AlreadyMonitored) => {}
+                Err(e) => return Err(e),
+            }
 
             last_tx = Some(next_id)
         }
