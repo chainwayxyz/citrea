@@ -224,6 +224,7 @@ pub(crate) async fn test_send_complete_transaction_with_fee_rate<C: RpcApi + Syn
     broadcast_complete_transactions(client, commit, reveal).await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn create_inscription_type_0(
     body: Vec<u8>,
     da_private_key: &SecretKey,
@@ -247,6 +248,7 @@ pub(crate) fn create_inscription_type_0(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn create_signed_inscription_type_0_or_4(
     body: Vec<u8>,
     kind: TransactionKind,
@@ -277,6 +279,7 @@ fn create_signed_inscription_type_0_or_4(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn create_unsigned_chunk_inscription(
     body: Vec<u8>,
     da_private_key: &SecretKey,
@@ -389,6 +392,7 @@ fn create_complete_inscription_with_script(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn create_inscription_type_1(
     chunks: Vec<Vec<u8>>,
     da_private_key: &SecretKey,
@@ -761,6 +765,7 @@ fn build_commit_transaction(
     Ok((tx, leftover_utxos))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_reveal_transaction(
     input_utxo: TxOut,
     input_txid: Txid,

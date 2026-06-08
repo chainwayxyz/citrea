@@ -3146,7 +3146,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
 
         assert_eq!(txs.len(), 6);
 
-        let tx_ids_in_order = vec![txs[0], txs[2], txs[4], txs[1], txs[3], txs[5]];
+        let tx_ids_in_order = [txs[0], txs[2], txs[4], txs[1], txs[3], txs[5]];
 
         let addr = da
             .get_new_address(None, None)
@@ -3225,7 +3225,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
 
         assert_eq!(txs.len(), 6);
 
-        let tx_ids_in_wrong_order = vec![txs[0], txs[2], txs[4], txs[1], txs[5], txs[3]];
+        let tx_ids_in_wrong_order = [txs[0], txs[2], txs[4], txs[1], txs[5], txs[3]];
 
         let addr = da
             .get_new_address(None, None)
@@ -3316,7 +3316,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
 
         assert_eq!(txs.len(), 6);
 
-        let commits_and_first_chunk = vec![txs[0], txs[2], txs[4], txs[1]];
+        let commits_and_first_chunk = [txs[0], txs[2], txs[4], txs[1]];
 
         // First chunk in block n
         da.generate_block(
@@ -3402,7 +3402,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
 
         assert_eq!(txs.len(), 6);
 
-        let commits_and_first_chunk = vec![txs[0], txs[2], txs[4], txs[1]];
+        let commits_and_first_chunk = [txs[0], txs[2], txs[4], txs[1]];
 
         // First chunk in block n
         da.generate_block(
