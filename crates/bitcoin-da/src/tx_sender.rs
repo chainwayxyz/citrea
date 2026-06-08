@@ -109,6 +109,7 @@ pub(crate) async fn queue_tx_sender_request(
         monitoring,
         job_id,
         poll_interval,
+        shutdown.clone(),
     ));
 }
 
@@ -147,11 +148,21 @@ pub(crate) async fn poll_tx_sender_job(
     monitoring: Arc<MonitoringService>,
     job_id: i64,
     poll_interval: Duration,
+    mut shutdown: GracefulShutdown,
 ) {
     info!(job_id, "Starting to poll tx-sender job status");
 
     loop {
-        match poll_job_status(&client, job_id).await {
+        let poll_result = select! {
+            biased;
+            _ = &mut shutdown => {
+                debug!(job_id, "Stopping tx-sender job status polling due to shutdown");
+                return;
+            }
+            poll_result = poll_job_status(&client, job_id) => poll_result,
+        };
+
+        match poll_result {
             Ok((status, raw_status)) => {
                 if let TrackResponse::CommitReveal(commit_reveal_status) = raw_status {
                     sync_monitoring(
@@ -179,13 +190,20 @@ pub(crate) async fn poll_tx_sender_job(
             Err(err) => {
                 warn!(
                     job_id,
-                    ?err,
+                    error = %err,
                     "Failed to poll tx-sender job status, retrying"
                 );
             }
         }
 
-        tokio::time::sleep(poll_interval).await;
+        select! {
+            biased;
+            _ = &mut shutdown => {
+                debug!(job_id, "Stopping tx-sender job status polling due to shutdown");
+                return;
+            }
+            _ = tokio::time::sleep(poll_interval) => {}
+        }
     }
 }
 
@@ -227,7 +245,11 @@ pub(crate) async fn wait_for_tx_sender_job(
                 }
             }
             Err(e) => {
-                warn!(job_id, ?e, "Failed to poll tx-sender job status, retrying");
+                warn!(
+                    job_id,
+                    error = %e,
+                    "Failed to poll tx-sender job status, retrying"
+                );
             }
         }
 
