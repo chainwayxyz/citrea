@@ -206,6 +206,179 @@ fn test_eth_estimate_gas_with_balance_override() {
     );
 }
 
+/// Test eth_estimateDiffSize with state overrides (storage only)
+#[test]
+fn test_eth_estimate_diff_size_with_state_override() {
+    let signer: TestSigner = TestSigner::new_default();
+
+    let config = EvmConfig {
+        data: vec![AccountData {
+            address: signer.address(),
+            balance: U256::from_str("100000000000000000000").unwrap(),
+            code_hash: KECCAK_EMPTY,
+            code: alloy_primitives::Bytes::default(),
+            nonce: 0,
+            storage: Default::default(),
+        }],
+        ..Default::default()
+    };
+
+    let (mut evm, mut working_set, prover_storage, ledger_db) = get_evm_with_storage(&config);
+
+    let l1_fee_rate = 1;
+    let l2_height = 1;
+
+    let l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [0u8; 32],
+        current_spec: SovSpecId::latest(),
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::latest(), l1_fee_rate);
+
+        let contract = SimpleStorageContract::default();
+        let transactions = vec![create_contract_transaction(&signer, 0, contract)];
+
+        evm.call(
+            CallMessage { txs: transactions },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+
+    let contract_address = signer.address().create(0);
+
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[2u8; 32], &mut working_set.accessory_state());
+
+    commit(working_set, prover_storage.clone());
+
+    let mut working_set = WorkingSet::new(prover_storage);
+    let contract = SimpleStorageContract::default();
+    let input_data = contract.set_call_data(5);
+
+    let tx_req = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(contract_address)),
+        gas: Some(100_000),
+        gas_price: Some(100_000_000),
+        input: TransactionInput::new(input_data.into()),
+        ..Default::default()
+    };
+
+    let diff_size_without_override = evm
+        .eth_estimate_diff_size_inner(
+            tx_req.clone(),
+            Some(BlockNumberOrTag::Latest),
+            None,
+            &mut working_set,
+            &ledger_db,
+            get_fork_fn_latest(),
+        )
+        .unwrap();
+
+    let mut state_override_with_storage = AddressMap::default();
+    let storage: B256HashMap<B256> =
+        vec![(B256::ZERO, B256::from(U256::from(100).to_be_bytes::<32>()))]
+            .into_iter()
+            .collect();
+
+    state_override_with_storage.insert(
+        contract_address,
+        AccountOverride {
+            state_diff: Some(storage),
+            ..Default::default()
+        },
+    );
+
+    let diff_size_with_override = evm
+        .eth_estimate_diff_size_inner(
+            tx_req,
+            Some(BlockNumberOrTag::Latest),
+            Some(state_override_with_storage),
+            &mut working_set,
+            &ledger_db,
+            get_fork_fn_latest(),
+        )
+        .unwrap();
+
+    assert_ne!(
+        diff_size_without_override, diff_size_with_override,
+        "Diff size estimates should differ with storage overrides"
+    );
+
+    // Writing to non-empty storage is cheaper (update vs. init)
+    assert!(
+        diff_size_with_override.gas < diff_size_without_override.gas,
+        "Gas with storage override should be less"
+    );
+}
+
+/// Test eth_estimateDiffSize with balance override
+#[test]
+fn test_eth_estimate_diff_size_with_balance_override() {
+    let (evm, mut working_set, signer, ledger_db) =
+        init_evm_single_block(sov_modules_api::SpecId::latest());
+
+    let large_value = U256::from_str("999999999999999999999999999999").unwrap();
+
+    let tx_req = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(
+            Address::from_str("0x1111111111111111111111111111111111111111").unwrap(),
+        )),
+        value: Some(large_value),
+        gas: Some(100_000),
+        gas_price: Some(1_000_000_000),
+        ..Default::default()
+    };
+
+    let result_without_override = evm.eth_estimate_diff_size_inner(
+        tx_req.clone(),
+        Some(BlockNumberOrTag::Latest),
+        None,
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+    );
+
+    assert!(
+        result_without_override.is_err(),
+        "Should fail with insufficient funds"
+    );
+
+    let mut state_override = AddressMap::default();
+    state_override.insert(
+        signer.address(),
+        AccountOverride {
+            balance: Some(U256::from_str("2000000000000000000000000000000").unwrap()),
+            ..Default::default()
+        },
+    );
+
+    let result_with_override = evm.eth_estimate_diff_size_inner(
+        tx_req,
+        Some(BlockNumberOrTag::Latest),
+        Some(state_override),
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+    );
+
+    assert!(
+        result_with_override.is_ok(),
+        "Balance override should make transaction succeed, but got error: {:?}",
+        result_with_override.unwrap_err()
+    );
+}
+
 /// Test eth_createAccessList with state overrides
 #[test]
 fn test_create_access_list_with_override() {
