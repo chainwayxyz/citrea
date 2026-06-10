@@ -669,7 +669,8 @@ where
         if let Some(l1_height) = last_da_block_height {
             *last_used_l1_height = l1_height;
             self.ledger_db
-                .set_last_scanned_l1_height(SlotNumber(l1_height))?;
+                .set_last_scanned_l1_height(SlotNumber(l1_height))
+                .expect("Should update last scanned l1 height on ledger db");
         }
 
         Ok(l2_height)
