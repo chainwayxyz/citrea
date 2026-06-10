@@ -152,6 +152,10 @@ impl TestCase for BackupSequencerTest {
         assert_eq!(backup_info.backup_path, backup_path);
         assert_eq!(backup_info.l2_block_height.unwrap(), start_height);
 
+        // Sequencer backups now also record the last scanned L1 height.
+        let scanned_l1_height = sequencer.client.ledger_get_last_scanned_l1_height().await?;
+        assert_eq!(backup_info.l1_block_height.unwrap_or(0), scanned_l1_height);
+
         let validation = validate_backup(&client, Some(&backup_path)).await?;
         assert!(validation.is_valid);
         assert_eq!(validation.backup_path, backup_path);
@@ -293,11 +297,21 @@ impl TestCase for BackupSequencerTest {
         let rolled_back_height = sequencer.client.ledger_get_head_l2_block_height().await?;
         assert_eq!(rolled_back_height, start_height);
 
+        // Rolling back the sequencer also resets its last scanned L1 height.
+        let rolled_back_l1_height = sequencer.client.ledger_get_last_scanned_l1_height().await?;
+        assert_eq!(rolled_back_l1_height, rollback_target_l1);
+
         let post_rollback_backup_path = sequencer.config.base.dir.join("post_rollback_backup");
         let post_rollback_backup = create_backup(&client, Some(&post_rollback_backup_path)).await?;
 
         let post_rollback_backup_height = post_rollback_backup.l2_block_height.unwrap();
         assert_eq!(post_rollback_backup_height, rolled_back_height);
+
+        // The post-rollback backup reports the reset last scanned L1 height.
+        assert_eq!(
+            post_rollback_backup.l1_block_height.unwrap(),
+            rollback_target_l1
+        );
 
         for _ in 0..block_to_generate {
             sequencer.client.send_publish_batch_request().await?;
