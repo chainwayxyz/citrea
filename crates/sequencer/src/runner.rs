@@ -668,6 +668,7 @@ where
         // Update last used l1 height if this is a new da block
         if let Some(l1_height) = last_da_block_height {
             *last_used_l1_height = l1_height;
+            // On the full node, "last scanned" means the L1 monitor processed that block. On the sequencer, it now means "last L1 block folded into an L2 block"
             self.ledger_db
                 .set_last_scanned_l1_height(SlotNumber(l1_height))
                 .expect("Should update last scanned l1 height on ledger db");
