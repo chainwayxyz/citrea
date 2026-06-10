@@ -38,7 +38,7 @@ use revm::state::AccountInfo as ReVmAccountInfo;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps, SharedLedgerOps};
-use sov_db::schema::types::L2BlockNumber;
+use sov_db::schema::types::{L2BlockNumber, SlotNumber};
 use sov_keys::default_signature::k256_private_key::K256PrivateKey;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::{
@@ -668,6 +668,8 @@ where
         // Update last used l1 height if this is a new da block
         if let Some(l1_height) = last_da_block_height {
             *last_used_l1_height = l1_height;
+            self.ledger_db
+                .set_last_scanned_l1_height(SlotNumber(l1_height))?;
         }
 
         Ok(l2_height)

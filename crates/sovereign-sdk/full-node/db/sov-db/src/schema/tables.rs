@@ -50,6 +50,7 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     L2RangeByL1Height::table_name(),
     LastPrunedBlock::table_name(),
     MempoolTxs::table_name(),
+    ProverLastScannedSlot::table_name(),
     SequencerCommitmentByIndex::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
     StateDiffByBlockNumber::table_name(),
