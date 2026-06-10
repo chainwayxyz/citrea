@@ -1,6 +1,9 @@
 # Changelog
 ## [Unreleased]
 
+### Added
+- feat: support get last scanned l1 height in sequencer rpc ([#3298](https://github.com/chainwayxyz/citrea/pull/3298))
+
 ## [v2.5.0](2026-06-04)
 ### Added
 - feat: Get raw transaction rpcs. ([#3201](https://github.com/chainwayxyz/citrea/pull/3201))
