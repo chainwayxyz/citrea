@@ -36,12 +36,6 @@ use sov_rollup_interface::Network;
 use tokio::time::sleep;
 use uuid::Uuid;
 
-pub enum DaServiceKeyKind {
-    Sequencer,
-    BatchProver,
-    Other(String),
-}
-
 pub const BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS: [&str; 5] = [
     "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077",
     "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9076",
@@ -72,7 +66,6 @@ pub async fn get_default_service(
         task_executor,
         bitcoin_config,
         rollup_config,
-        DaServiceKeyKind::Sequencer,
         REVEAL_TX_PREFIX.to_vec(),
         None,
     )
@@ -84,15 +77,7 @@ pub async fn spawn_bitcoin_da_sequencer_service(
     bitcoin_config: &BitcoinConfig,
     rollup_config: &RollupConfig,
 ) -> Arc<BitcoinService> {
-    spawn_bitcoin_da_service(
-        task_executor,
-        bitcoin_config,
-        rollup_config,
-        DaServiceKeyKind::Sequencer,
-        REVEAL_TX_PREFIX.to_vec(),
-        None,
-    )
-    .await
+    get_default_service(task_executor, bitcoin_config, rollup_config).await
 }
 
 pub async fn spawn_bitcoin_da_prover_service(
@@ -100,30 +85,16 @@ pub async fn spawn_bitcoin_da_prover_service(
     bitcoin_config: &BitcoinConfig,
     rollup_config: &RollupConfig,
 ) -> Arc<BitcoinService> {
-    spawn_bitcoin_da_service(
-        task_executor,
-        bitcoin_config,
-        rollup_config,
-        DaServiceKeyKind::BatchProver,
-        REVEAL_TX_PREFIX.to_vec(),
-        None,
-    )
-    .await
+    get_default_service(task_executor, bitcoin_config, rollup_config).await
 }
 
 pub async fn spawn_bitcoin_da_service(
     task_executor: &TaskExecutor,
     bitcoin_config: &BitcoinConfig,
     rollup_config: &RollupConfig,
-    kind: DaServiceKeyKind,
     reveal_tx_prefix: Vec<u8>,
     wallet: Option<String>,
 ) -> Arc<BitcoinService> {
-    let _da_private_key = match kind {
-        DaServiceKeyKind::Sequencer => SEQUENCER_DA_PRIVATE_KEY.to_string(),
-        DaServiceKeyKind::BatchProver => PROVER_DA_PRIVATE_KEY.to_string(),
-        DaServiceKeyKind::Other(ref key) => key.clone(),
-    };
     let wallet = wallet.unwrap_or(NodeKind::Bitcoin.to_string());
     let da_config = BitcoinServiceConfig {
         node_url: format!(
@@ -187,7 +158,6 @@ pub async fn spawn_bitcoin_da_service(
             &da_config,
             chain_params,
             client,
-            network,
             network_constants,
             monitoring_service,
             fee_service,
@@ -401,15 +371,15 @@ async fn finalize_funds(da_node: &BitcoinNode) {
 /// with all mock transactions in it, and returns the block, valid commitments and proofs.
 /// Transactions also contain invalid commitment and zk proof transactions.
 ///
-/// In total it generates 28 transactions.
-/// - Valid commitments: 3 (6 txs)
-/// - Valid complete proofs: 2 (4 txs)
-/// - Valid chunked proofs: 1 with 2 chunks (6 txs) + 1 with 3 chunks (8 txs)
-/// - Valid method id txs: 2 (4 txs)
-/// - Invalid commitment with wrong public key: 1 (2 txs)
-/// - Invalid commitment with wrong prefix: 1 (2 txs)
+/// Submitted requests:
+/// - Valid commitments: 3
+/// - Valid complete proofs: 2
+/// - Valid chunked proofs: 2 (one spanning 2 chunks, one spanning 3)
+/// - Valid method id txs: 2
+/// - Invalid commitments sent from the wrong-key and wrong-prefix services: 2
 ///
-/// With coinbase transaction, returned block has total of 33 transactions.
+/// The exact number of Bitcoin transactions these produce is determined by the
+/// tx-sender; the mempool/block assertions below pin the expected totals.
 pub async fn generate_mock_txs(
     da_service: &BitcoinService,
     da_node: &BitcoinNode,
@@ -430,7 +400,6 @@ pub async fn generate_mock_txs(
         task_executor,
         &da_node.config,
         rollup_config,
-        DaServiceKeyKind::Sequencer,
         vec![6],
         Some(wrong_prefix_wallet.display().to_string()),
     )
@@ -443,9 +412,6 @@ pub async fn generate_mock_txs(
         task_executor,
         &da_node.config,
         rollup_config,
-        DaServiceKeyKind::Other(
-            "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(),
-        ),
         REVEAL_TX_PREFIX.to_vec(),
         Some(wrong_key_wallet.display().to_string()),
     )

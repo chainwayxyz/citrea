@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
+use anyhow::anyhow;
 use async_trait::async_trait;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
@@ -30,6 +31,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, instrument, trace, warn};
+use tx_sender_jsonrpc_client::{JsonRpcTxSenderClient, TrackRequest, TrackResponse};
 
 use crate::error::BitcoinServiceError;
 use crate::fee::FeeService;
@@ -127,8 +129,6 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
 #[derive(Debug)]
 pub struct BitcoinService {
     client: Arc<Client>,
-    #[allow(dead_code)]
-    pub(crate) network: bitcoin::Network,
     network_constants: NetworkConstants,
     pub(crate) reveal_tx_prefix: Vec<u8>,
     inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxSenderJobId>>,
@@ -136,27 +136,24 @@ pub struct BitcoinService {
     pub monitoring: Arc<MonitoringService>,
     fee: FeeService,
     l1_block_hash_to_height: Arc<Mutex<LruCache<BlockHash, usize>>>,
-    tx_sender: Option<tx_sender_jsonrpc_client::JsonRpcTxSenderClient>,
+    tx_sender: Option<JsonRpcTxSenderClient>,
 }
 
 impl BitcoinService {
-    pub(crate) async fn get_monitored_tx_status(
-        &self,
-        txid: Txid,
-    ) -> Option<crate::monitoring::TxStatus> {
+    pub(crate) async fn get_monitored_tx_status(&self, txid: Txid) -> Option<TxStatus> {
         if let Some(status) = self.monitoring.get_tx_status(&txid).await {
             return Some(status);
         }
 
-        if let Some(tx_sender) = self.tx_sender.clone() {
+        if let Some(tx_sender) = &self.tx_sender {
             let response = tx_sender
-                .track_tx(tx_sender_jsonrpc_client::TrackRequest::ByTxid {
+                .track_tx(TrackRequest::ByTxid {
                     txid: txid.to_string(),
                 })
                 .await
                 .ok();
 
-            if let Some(tx_sender_jsonrpc_client::TrackResponse::Transaction(status)) = response {
+            if let Some(TrackResponse::Transaction(status)) = response {
                 if let Some(status) = bitcoin_status_to_monitoring(
                     &self.client,
                     self.network_constants.finality_depth,
@@ -173,9 +170,9 @@ impl BitcoinService {
         self.get_bitcoin_node_status(txid).await
     }
 
-    async fn get_bitcoin_node_status(&self, txid: Txid) -> Option<crate::monitoring::TxStatus> {
+    async fn get_bitcoin_node_status(&self, txid: Txid) -> Option<TxStatus> {
         if let Ok(entry) = self.client.get_mempool_entry(&txid).await {
-            return Some(crate::monitoring::TxStatus::InMempool {
+            return Some(TxStatus::InMempool {
                 base_fee: entry.fees.base.to_sat() as f64 / entry.vsize as f64,
                 timestamp: entry.time,
                 height: entry.height,
@@ -197,13 +194,13 @@ impl BitcoinService {
             .height as u64;
 
         if confirmations >= self.network_constants.finality_depth {
-            Some(crate::monitoring::TxStatus::Finalized {
+            Some(TxStatus::Finalized {
                 block_hash,
                 block_height,
                 confirmations,
             })
         } else {
-            Some(crate::monitoring::TxStatus::Confirmed {
+            Some(TxStatus::Confirmed {
                 block_hash,
                 block_height,
                 confirmations,
@@ -217,32 +214,26 @@ impl BitcoinService {
         config: &BitcoinServiceConfig,
         chain_params: RollupParams,
         client: Arc<Client>,
-        network: bitcoin::Network,
         network_constants: NetworkConstants,
         monitoring: Arc<MonitoringService>,
         fee_service: FeeService,
-        require_wallet_check: bool,
+        requires_tx_sender: bool,
         inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxSenderJobId>>,
     ) -> Result<Self> {
-        let tx_sender = match (require_wallet_check, config.tx_sender_url.as_deref()) {
+        let tx_sender = match (requires_tx_sender, config.tx_sender_url.as_deref()) {
             (true, Some(url)) => {
                 info!("Initializing external tx-sender client at {url}");
                 Some(
-                    tx_sender_jsonrpc_client::JsonRpcTxSenderClient::new(url)
-                        .map_err(|e| BitcoinServiceError::Other(anyhow::anyhow!(e)))?,
+                    JsonRpcTxSenderClient::new(url)
+                        .map_err(|e| BitcoinServiceError::Other(anyhow!(e)))?,
                 )
             }
-            (true, None) => {
-                return Err(BitcoinServiceError::Other(anyhow::anyhow!(
-                    "TX_SENDER_URL is required when wallet checks are enabled"
-                )));
-            }
+            (true, None) => return Err(BitcoinServiceError::TxSenderNotConfigured),
             (false, _) => None,
         };
 
         Ok(Self {
-            client: client.clone(),
-            network,
+            client,
             network_constants,
             reveal_tx_prefix: chain_params.reveal_tx_prefix,
             inscribes_queue,
@@ -282,8 +273,8 @@ impl BitcoinService {
                         trace!("A new request is received");
                         let Some(tx_sender) = self.tx_sender.clone() else {
                             error!("DA queue received a request without an initialized tx-sender client");
-                            let _ = request.notify.send(Err(anyhow::anyhow!(
-                                "tx-sender client is not configured"
+                            let _ = request.notify.send(Err(anyhow!(
+                                BitcoinServiceError::TxSenderNotConfigured
                             )));
                             continue;
                         };
@@ -858,9 +849,7 @@ impl DaService for BitcoinService {
         submission_id: Self::SubmissionId,
     ) -> Result<Self::TransactionId> {
         let Some(tx_sender) = self.tx_sender.clone() else {
-            return Err(BitcoinServiceError::Other(anyhow::anyhow!(
-                "tx-sender client is not configured"
-            )));
+            return Err(BitcoinServiceError::TxSenderNotConfigured);
         };
 
         let txid = wait_for_tx_sender_job(

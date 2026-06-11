@@ -48,7 +48,7 @@ use super::{get_citrea_path, tx_builder};
 use crate::bitcoin::utils::{
     create_valid_signatures, generate_initial_pub_keys_with_signers_from_pks,
     spawn_bitcoin_da_prover_service, spawn_bitcoin_da_sequencer_service, spawn_bitcoin_da_service,
-    wait_for_prover_job, wait_for_prover_job_with_l1_tx_id, wait_for_zkproofs, DaServiceKeyKind,
+    wait_for_prover_job, wait_for_prover_job_with_l1_tx_id, wait_for_zkproofs,
     BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS,
 };
 
@@ -586,10 +586,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             &self.task_manager.executor(),
             &da.config,
             &sequencer.config.rollup,
-            // Method id sender private key, can be any sender
-            DaServiceKeyKind::Other(
-                "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077".to_string(),
-            ),
             REVEAL_TX_PREFIX.to_vec(),
             None,
         )
@@ -832,10 +828,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
             &self.task_manager.executor(),
             &da.config,
             &sequencer.config.rollup,
-            // Method id sender private key, can be any sender
-            DaServiceKeyKind::Other(
-                "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077".to_string(),
-            ),
             REVEAL_TX_PREFIX.to_vec(),
             None,
         )

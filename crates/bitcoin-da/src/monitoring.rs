@@ -398,10 +398,7 @@ impl MonitoringService {
                 .collect::<Vec<_>>()
         };
 
-        for pair in new_pairs {
-            self.monitor_transaction_chain(vec![pair]).await?;
-        }
-
+        self.monitor_transaction_chain(new_pairs).await?;
         self.check_transactions().await
     }
 

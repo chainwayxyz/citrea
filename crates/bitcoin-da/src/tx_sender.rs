@@ -132,16 +132,11 @@ pub(crate) enum TxSenderJobStatus {
     },
 }
 
-/// Polls the tx-sender service for job completion and keeps monitoring in sync.
+/// Polls the tx-sender service until the job reaches a terminal state (Completed or
+/// Failed), keeping local monitoring in sync with the txs reported along the way.
 ///
 /// This function spawns no tasks itself — it is intended to be called from within
-/// a `tokio::spawn` block. It polls until the job reaches a terminal state
-/// (Completed or Failed), updating monitoring state along the way.
-///
-/// # Arguments
-/// * `client` - The tx-sender JSON-RPC client.
-/// * `job_id` - The tx-sender job ID (insertion_id from `send_citrea_tx`) to poll.
-/// * `poll_interval` - How often to poll the tx-sender for status updates.
+/// a `tokio::spawn` block.
 pub(crate) async fn poll_tx_sender_job(
     client: JsonRpcTxSenderClient,
     bitcoin_client: Arc<Client>,
@@ -159,34 +154,23 @@ pub(crate) async fn poll_tx_sender_job(
                 debug!(job_id, "Stopping tx-sender job status polling due to shutdown");
                 return;
             }
-            poll_result = poll_job_status(&client, job_id) => poll_result,
+            poll_result = poll_and_sync(&client, &bitcoin_client, &monitoring, job_id) => poll_result,
         };
 
         match poll_result {
-            Ok((status, raw_status)) => {
-                if let TrackResponse::CommitReveal(commit_reveal_status) = raw_status {
-                    sync_monitoring(
-                        bitcoin_client.clone(),
-                        monitoring.clone(),
-                        &commit_reveal_status,
-                    )
-                    .await;
+            Ok((status, _)) => match status {
+                TxSenderJobStatus::Completed { reveal_txid } => {
+                    info!(job_id, %reveal_txid, "Tx-sender job finalized");
+                    return;
                 }
-
-                match status {
-                    TxSenderJobStatus::Completed { reveal_txid } => {
-                        info!(job_id, %reveal_txid, "Tx-sender job finalized");
-                        return;
-                    }
-                    TxSenderJobStatus::Failed { error } => {
-                        error!(job_id, error, "Tx-sender job failed");
-                        return;
-                    }
-                    TxSenderJobStatus::Pending | TxSenderJobStatus::Processing => {
-                        debug!(job_id, "Tx-sender job still in progress, polling again");
-                    }
+                TxSenderJobStatus::Failed { error } => {
+                    error!(job_id, error, "Tx-sender job failed");
+                    return;
                 }
-            }
+                TxSenderJobStatus::Pending | TxSenderJobStatus::Processing => {
+                    debug!(job_id, "Tx-sender job still in progress, polling again");
+                }
+            },
             Err(err) => {
                 warn!(
                     job_id,
@@ -218,32 +202,19 @@ pub(crate) async fn wait_for_tx_sender_job(
     info!(job_id, "Waiting for tx-sender job to expose payload txid");
 
     loop {
-        let status = poll_job_status(&client, job_id).await;
-
-        match status {
-            Ok((status, raw_status)) => {
-                if let TrackResponse::CommitReveal(commit_reveal_status) = &raw_status {
-                    sync_monitoring(
-                        bitcoin_client.clone(),
-                        monitoring.clone(),
-                        commit_reveal_status,
-                    )
-                    .await;
+        match poll_and_sync(&client, &bitcoin_client, &monitoring, job_id).await {
+            Ok((status, raw_status)) => match resolve_wait_outcome(&status, &raw_status) {
+                Some(Ok(txid)) => return Ok(txid),
+                Some(Err(error)) => {
+                    return Err(anyhow!("Tx-sender job {job_id} failed: {error}"));
                 }
-
-                match resolve_wait_outcome(&status, &raw_status) {
-                    Some(Ok(txid)) => return Ok(txid),
-                    Some(Err(error)) => {
-                        return Err(anyhow!("Tx-sender job {job_id} failed: {error}"));
-                    }
-                    None => {
-                        debug!(
-                            job_id,
-                            "Tx-sender job has no payload txid yet, polling again"
-                        );
-                    }
+                None => {
+                    debug!(
+                        job_id,
+                        "Tx-sender job has no payload txid yet, polling again"
+                    );
                 }
-            }
+            },
             Err(e) => {
                 warn!(
                     job_id,
@@ -255,6 +226,28 @@ pub(crate) async fn wait_for_tx_sender_job(
 
         tokio::time::sleep(poll_interval).await;
     }
+}
+
+/// Poll the tx-sender once for the job status and sync local monitoring with the
+/// commit/reveal transactions it reports.
+async fn poll_and_sync(
+    client: &JsonRpcTxSenderClient,
+    bitcoin_client: &Arc<Client>,
+    monitoring: &Arc<MonitoringService>,
+    job_id: i64,
+) -> Result<(TxSenderJobStatus, TrackResponse), anyhow::Error> {
+    let (status, raw_status) = poll_job_status(client, job_id).await?;
+
+    if let TrackResponse::CommitReveal(commit_reveal_status) = &raw_status {
+        sync_monitoring(
+            bitcoin_client.clone(),
+            monitoring.clone(),
+            commit_reveal_status,
+        )
+        .await;
+    }
+
+    Ok((status, raw_status))
 }
 
 /// Decide the outcome of a single `wait_for_tx_sender_job` poll.
@@ -293,21 +286,21 @@ async fn poll_job_status(
         .await
         .map_err(|e| anyhow!("track_tx RPC failed for job {job_id}: {e}"))?;
 
-    let status = map_track_response(response.clone(), job_id)?;
+    let status = map_track_response(&response, job_id)?;
 
     Ok((status, response))
 }
 
 /// Map a `TrackResponse` to a `TxSenderJobStatus`.
 fn map_track_response(
-    response: TrackResponse,
+    response: &TrackResponse,
     job_id: i64,
 ) -> Result<TxSenderJobStatus, anyhow::Error> {
     match response {
         TrackResponse::CommitReveal(status) => match status.status {
             TrackStatus::Finalized => {
                 let reveal_txid =
-                    extract_payload_txid_from_commit_reveal(&status).ok_or_else(|| {
+                    extract_payload_txid_from_commit_reveal(status).ok_or_else(|| {
                         anyhow!("Commit-reveal job {job_id} finalized without a reveal txid")
                     })?;
                 Ok(TxSenderJobStatus::Completed { reveal_txid })
@@ -325,9 +318,7 @@ fn map_track_response(
     }
 }
 
-fn extract_payload_txid_from_commit_reveal(
-    status: &tx_sender_jsonrpc_client::CommitRevealStatus,
-) -> Option<Txid> {
+fn extract_payload_txid_from_commit_reveal(status: &CommitRevealStatus) -> Option<Txid> {
     status
         .reveals
         .iter()
@@ -464,44 +455,32 @@ async fn sync_monitoring(
             Err(_) => continue,
         };
 
-        if monitoring.get_monitored_tx(&txid).await.is_none() {
-            let prev_txid = match previous_txid {
-                Some(prev_txid) if monitoring.get_monitored_tx(&prev_txid).await.is_some() => {
-                    Some(prev_txid)
-                }
-                _ => None,
-            };
+        let result = monitoring
+            .monitor_transaction(
+                TxWithId {
+                    id: txid,
+                    tx: tx.clone(),
+                },
+                previous_txid,
+                None,
+                monitored_tx.kind,
+            )
+            .await;
 
-            let result = monitoring
-                .monitor_transaction(
-                    TxWithId {
-                        id: txid,
-                        tx: tx.clone(),
-                    },
-                    prev_txid,
-                    None,
-                    monitored_tx.kind,
-                )
-                .await;
-
-            match result {
-                Ok(()) | Err(MonitorError::AlreadyMonitored) => {}
-                Err(MonitorError::PrevTxNotMonitored(_)) => {
-                    if let Err(err) = monitoring
-                        .monitor_transaction(
-                            TxWithId { id: txid, tx },
-                            None,
-                            None,
-                            monitored_tx.kind,
-                        )
-                        .await
-                    {
-                        debug!(?err, %txid, "Skipping tx-sender monitoring sync");
-                    }
-                }
-                Err(err) => {
+        match result {
+            Ok(()) | Err(MonitorError::AlreadyMonitored) => {}
+            // The previous tx may not have entered monitoring (e.g. pruned or its
+            // wallet fetch failed); monitor this one unchained instead.
+            Err(MonitorError::PrevTxNotMonitored(_)) => {
+                if let Err(err) = monitoring
+                    .monitor_transaction(TxWithId { id: txid, tx }, None, None, monitored_tx.kind)
+                    .await
+                {
                     debug!(?err, %txid, "Skipping tx-sender monitoring sync");
                 }
+            }
+            Err(err) => {
+                debug!(?err, %txid, "Skipping tx-sender monitoring sync");
             }
         }
 
@@ -693,7 +672,7 @@ mod tests {
             aggregate_commit_tx: None,
         });
 
-        let result = map_track_response(response, 42).unwrap();
+        let result = map_track_response(&response, 42).unwrap();
         match result {
             TxSenderJobStatus::Completed { reveal_txid } => {
                 assert_eq!(reveal_txid, txid_hex.parse::<Txid>().unwrap());
@@ -713,7 +692,7 @@ mod tests {
             aggregate_commit_tx: None,
         });
 
-        let result = map_track_response(response, 42);
+        let result = map_track_response(&response, 42);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -730,7 +709,7 @@ mod tests {
             aggregate_commit_tx: None,
         });
 
-        let result = map_track_response(response, 99).unwrap();
+        let result = map_track_response(&response, 99).unwrap();
         match result {
             TxSenderJobStatus::Failed { error } => {
                 assert!(error.contains("99"));
@@ -749,7 +728,7 @@ mod tests {
             aggregate_commit_tx: None,
         });
 
-        let result = map_track_response(response, 1).unwrap();
+        let result = map_track_response(&response, 1).unwrap();
         assert!(matches!(result, TxSenderJobStatus::Pending));
     }
 
@@ -762,7 +741,7 @@ mod tests {
             aggregate_commit_tx: None,
         });
 
-        let result = map_track_response(response, 1).unwrap();
+        let result = map_track_response(&response, 1).unwrap();
         assert!(matches!(result, TxSenderJobStatus::Processing));
     }
 
@@ -775,7 +754,7 @@ mod tests {
             aggregate_commit_tx: None,
         });
 
-        let result = map_track_response(response, 1).unwrap();
+        let result = map_track_response(&response, 1).unwrap();
         assert!(matches!(result, TxSenderJobStatus::Processing));
     }
 
@@ -785,7 +764,7 @@ mod tests {
             "0000000000000000000000000000000000000000000000000000000000000000",
         ));
 
-        let result = map_track_response(response, 7);
+        let result = map_track_response(&response, 7);
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("Expected CommitReveal"));

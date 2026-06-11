@@ -164,7 +164,6 @@ impl RollupBlueprint for BitcoinRollup {
                 da_config,
                 chain_params,
                 client.clone(),
-                network,
                 network_constants,
                 monitoring_service,
                 fee_service,

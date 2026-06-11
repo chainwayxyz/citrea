@@ -111,6 +111,7 @@ rustc_version_runtime = { workspace = true }
 # bitcoin-e2e dependencies
 bitcoin.workspace = true
 citrea-e2e = { workspace = true }
+secp256k1 = { version = "0.29", features = ["rand-std", "std", "global-context"] }
 
 [build-dependencies]
 sp1-helper = { version = "3.0.0", default-features = false }

@@ -59,6 +59,9 @@ pub enum BitcoinServiceError {
     /// Fee service operation failure.
     #[error("Fee service error: {0}")]
     FeeServiceError(#[from] FeeServiceError),
+    /// The external tx-sender client is not configured.
+    #[error("tx-sender client is not configured (tx_sender_url is required for nodes that submit to DA)")]
+    TxSenderNotConfigured,
     /// Other error.
     #[error(transparent)]
     Other(anyhow::Error),

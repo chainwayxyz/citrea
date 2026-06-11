@@ -56,9 +56,6 @@ pub mod service;
 pub mod monitoring;
 
 #[cfg(feature = "native")]
-pub mod metrics;
-
-#[cfg(feature = "native")]
 pub mod error;
 #[cfg(feature = "native")]
 pub mod fee;
