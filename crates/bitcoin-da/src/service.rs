@@ -45,7 +45,9 @@ use crate::spec::proof::InclusionMultiProof;
 use crate::spec::short_proof::BitcoinHeaderShortProof;
 use crate::spec::transaction::TransactionWrapper;
 use crate::spec::{BitcoinSpec, RollupParams};
-use crate::tx_sender::{queue_tx_sender_request, wait_for_tx_sender_job};
+use crate::tx_sender::{
+    bitcoin_status_to_monitoring, queue_tx_sender_request, wait_for_tx_sender_job,
+};
 use crate::verifier::{
     BitcoinVerifier, MINIMUM_WITNESS_COMMITMENT_SIZE, WITNESS_COMMITMENT_PREFIX,
 };
@@ -155,48 +157,20 @@ impl BitcoinService {
                 .ok();
 
             if let Some(tx_sender_jsonrpc_client::TrackResponse::Transaction(status)) = response {
-                if let Some(status) = self.map_tx_sender_status(status).await {
+                if let Some(status) = bitcoin_status_to_monitoring(
+                    &self.client,
+                    self.network_constants.finality_depth,
+                    &status.tx_info,
+                    status.fee_sat_kvb,
+                )
+                .await
+                {
                     return Some(status);
                 }
             }
         }
 
         self.get_bitcoin_node_status(txid).await
-    }
-
-    async fn map_tx_sender_status(
-        &self,
-        status: tx_sender_jsonrpc_client::TxStatus,
-    ) -> Option<crate::monitoring::TxStatus> {
-        if status.tx_info.in_mempool {
-            return Some(crate::monitoring::TxStatus::InMempool {
-                base_fee: status
-                    .fee_sat_kvb
-                    .map(|fee_sat_kvb| fee_sat_kvb as f64 / 1000.0)
-                    .unwrap_or_default(),
-                timestamp: 0,
-                height: 0,
-            });
-        }
-
-        let mined_at_height = u64::from(status.tx_info.mined_at_height?);
-        let block_hash = self.client.get_block_hash(mined_at_height).await.ok()?;
-        let current_height = self.client.get_block_count().await.ok()?;
-        let confirmations = current_height.saturating_sub(mined_at_height) + 1;
-
-        if confirmations >= self.network_constants.finality_depth {
-            Some(crate::monitoring::TxStatus::Finalized {
-                block_hash,
-                block_height: mined_at_height,
-                confirmations,
-            })
-        } else {
-            Some(crate::monitoring::TxStatus::Confirmed {
-                block_hash,
-                block_height: mined_at_height,
-                confirmations,
-            })
-        }
     }
 
     async fn get_bitcoin_node_status(&self, txid: Txid) -> Option<crate::monitoring::TxStatus> {
