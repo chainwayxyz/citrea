@@ -668,10 +668,18 @@ where
         // Update last used l1 height if this is a new da block
         if let Some(l1_height) = last_da_block_height {
             *last_used_l1_height = l1_height;
-            // On the full node, "last scanned" means the L1 monitor processed that block. On the sequencer, it now means "last L1 block folded into an L2 block"
-            self.ledger_db
+            // On the full node, "last scanned" means the L1 monitor processed that
+            // block; on the sequencer it means "last L1 block folded into an L2 block".
+            // This persisted height is informational only the sequencer recovers `last_used_l1_height`
+            // from the light client contract on restart.
+            // The L2 block is already committed at this point, so a
+            // failure here must not panic a successful block production.
+            if let Err(e) = self
+                .ledger_db
                 .set_last_scanned_l1_height(SlotNumber(l1_height))
-                .expect("Should update last scanned l1 height on ledger db");
+            {
+                error!("Failed to persist last scanned L1 height {l1_height}: {e}");
+            }
         }
 
         Ok(l2_height)
