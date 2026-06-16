@@ -169,6 +169,7 @@ jobs:
 
   update-dockerhub:
     needs: [package]
+    if: ${{ !contains(github.ref_name, '.rc-') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
