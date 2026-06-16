@@ -1,10 +1,12 @@
 # Changelog
 ## [Unreleased]
 
+## [v2.6.0](2026-06-16)
 ### Added
 - feat: support get last scanned l1 height in sequencer rpc ([#3298](https://github.com/chainwayxyz/citrea/pull/3298))
 
 ## [v2.5.0](2026-06-04)
+Due to a bug in the build system, this version is unusable. Please skip this version and use `v2.6.0` instead.
 ### Added
 - feat: Get raw transaction rpcs. ([#3201](https://github.com/chainwayxyz/citrea/pull/3201))
 - feat: add `lightClientProver_createCircuitInput` RPC to return serialized light client circuit input by L1 height ([#3290](https://github.com/chainwayxyz/citrea/pull/3290))
@@ -262,7 +264,8 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
 
-[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.5.0...HEAD
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.6.0...HEAD
+[v2.6.0]: https://github.com/chainwayxyz/citrea/compare/v2.6.0...HEAD
 [v2.5.0]: https://github.com/chainwayxyz/citrea/compare/v2.4.0...v2.5.0
 [v2.4.0]: https://github.com/chainwayxyz/citrea/compare/v2.3.1...v2.4.0
 [v2.3.1]: https://github.com/chainwayxyz/citrea/compare/v2.3.0...v2.3.1
