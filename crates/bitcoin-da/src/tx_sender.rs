@@ -4,7 +4,7 @@
 //! tx-sender service, including job status polling.
 
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::anyhow;
 use bitcoin::Txid;
@@ -23,7 +23,8 @@ use tx_sender_jsonrpc_client::{
 use crate::error::BitcoinServiceError;
 use crate::helpers::builders::TxWithId;
 use crate::monitoring::{
-    MonitorError, MonitoredTxKind, MonitoringService, TxStatus as MonitoringTxStatus,
+    mempool_entry_base_fee, MonitorError, MonitoredTxKind, MonitoringService,
+    TxStatus as MonitoringTxStatus,
 };
 use crate::service::TxSenderJobId;
 
@@ -60,6 +61,13 @@ pub(crate) fn to_citrea_tx_request(
 const SEND_RETRY_BACKOFF_START: Duration = Duration::from_secs(1);
 /// Maximum delay between `send_citrea_tx` retries (exponential backoff cap).
 const SEND_RETRY_BACKOFF_MAX: Duration = Duration::from_secs(30);
+/// Maximum consecutive `track_tx` failures before the waiter gives control back
+/// to the caller. Callers can then retry the whole submission path without
+/// hanging forever on an unavailable tx-sender service.
+const MAX_CONSECUTIVE_TRACK_ERRORS: u32 = 60;
+/// Per-RPC timeout for tx-sender tracking calls. This prevents a single hung
+/// HTTP request from pinning a waiter forever.
+const TRACK_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub(crate) async fn queue_tx_sender_request(
     tx_sender: JsonRpcTxSenderClient,
@@ -154,7 +162,7 @@ pub(crate) async fn poll_tx_sender_job(
                 debug!(job_id, "Stopping tx-sender job status polling due to shutdown");
                 return;
             }
-            poll_result = poll_and_sync(&client, &bitcoin_client, &monitoring, job_id) => poll_result,
+            poll_result = poll_and_sync_with_timeout(&client, &bitcoin_client, &monitoring, job_id) => poll_result,
         };
 
         match poll_result {
@@ -198,29 +206,47 @@ pub(crate) async fn wait_for_tx_sender_job(
     monitoring: Arc<MonitoringService>,
     job_id: i64,
     poll_interval: Duration,
+    max_wait: Duration,
 ) -> Result<Txid, anyhow::Error> {
-    info!(job_id, "Waiting for tx-sender job to expose payload txid");
+    info!(job_id, "Waiting for tx-sender job to finalize");
 
+    let started_at = Instant::now();
+    let mut consecutive_track_errors = 0u32;
     loop {
-        match poll_and_sync(&client, &bitcoin_client, &monitoring, job_id).await {
-            Ok((status, raw_status)) => match resolve_wait_outcome(&status, &raw_status) {
-                Some(Ok(txid)) => return Ok(txid),
-                Some(Err(error)) => {
-                    return Err(anyhow!("Tx-sender job {job_id} failed: {error}"));
+        if started_at.elapsed() >= max_wait {
+            return Err(anyhow!(
+                "Timed out waiting for tx-sender job {job_id} to finalize after {:?}",
+                max_wait
+            ));
+        }
+
+        match poll_and_sync_with_timeout(&client, &bitcoin_client, &monitoring, job_id).await {
+            Ok((status, raw_status)) => {
+                consecutive_track_errors = 0;
+                match resolve_wait_outcome(&status, &raw_status) {
+                    Some(Ok(txid)) => return Ok(txid),
+                    Some(Err(error)) => {
+                        return Err(anyhow!("Tx-sender job {job_id} failed: {error}"));
+                    }
+                    None => {
+                        debug!(job_id, "Tx-sender job has not finalized yet, polling again");
+                    }
                 }
-                None => {
-                    debug!(
-                        job_id,
-                        "Tx-sender job has no payload txid yet, polling again"
-                    );
-                }
-            },
+            }
             Err(e) => {
+                consecutive_track_errors = consecutive_track_errors.saturating_add(1);
                 warn!(
                     job_id,
+                    consecutive_track_errors,
                     error = %e,
                     "Failed to poll tx-sender job status, retrying"
                 );
+
+                if consecutive_track_errors >= MAX_CONSECUTIVE_TRACK_ERRORS {
+                    return Err(anyhow!(
+                        "track_tx failed {consecutive_track_errors} consecutive times for tx-sender job {job_id}; last error: {e}"
+                    ));
+                }
             }
         }
 
@@ -250,26 +276,44 @@ async fn poll_and_sync(
     Ok((status, raw_status))
 }
 
+async fn poll_and_sync_with_timeout(
+    client: &JsonRpcTxSenderClient,
+    bitcoin_client: &Arc<Client>,
+    monitoring: &Arc<MonitoringService>,
+    job_id: i64,
+) -> Result<(TxSenderJobStatus, TrackResponse), anyhow::Error> {
+    tokio::time::timeout(
+        TRACK_REQUEST_TIMEOUT,
+        poll_and_sync(client, bitcoin_client, monitoring, job_id),
+    )
+    .await
+    .map_err(|_| {
+        anyhow!("track_tx RPC timed out for job {job_id} after {TRACK_REQUEST_TIMEOUT:?}")
+    })?
+}
+
 /// Decide the outcome of a single `wait_for_tx_sender_job` poll.
 ///
 /// Terminal failure takes precedence over an extractable payload txid: a cancelled job
 /// may still carry a reveal submission with a txid, but that DA submission has failed and
-/// must never be reported as success. Returns `None` while the job is still in progress.
+/// must never be reported as success. Returns `None` while the job is still in progress
+/// or mined but not finalized.
 fn resolve_wait_outcome(
     status: &TxSenderJobStatus,
     raw_status: &TrackResponse,
 ) -> Option<Result<Txid, String>> {
-    if let TxSenderJobStatus::Failed { error } = status {
-        return Some(Err(error.clone()));
-    }
-
-    if let TrackResponse::CommitReveal(commit_reveal_status) = raw_status {
-        if let Some(txid) = extract_payload_txid_from_commit_reveal(commit_reveal_status) {
-            return Some(Ok(txid));
+    match status {
+        TxSenderJobStatus::Completed { reveal_txid } => Some(Ok(*reveal_txid)),
+        TxSenderJobStatus::Failed { error } => Some(Err(error.clone())),
+        TxSenderJobStatus::Pending | TxSenderJobStatus::Processing => {
+            if let TrackResponse::CommitReveal(commit_reveal_status) = raw_status {
+                if extract_payload_txid_from_commit_reveal(commit_reveal_status).is_some() {
+                    debug!("Tx-sender job exposed a reveal txid before finality");
+                }
+            }
+            None
         }
     }
-
-    None
 }
 
 /// Query the tx-sender service for the status of a given job via the `track_tx` RPC.
@@ -411,12 +455,28 @@ pub(crate) async fn bitcoin_status_to_monitoring(
     fee_sat_kvb: Option<u64>,
 ) -> Option<MonitoringTxStatus> {
     if tx_info.in_mempool {
+        let txid = tx_info.txid.parse::<Txid>().ok()?;
+        if let Ok(entry) = bitcoin_client.get_mempool_entry(&txid).await {
+            return Some(MonitoringTxStatus::InMempool {
+                base_fee: mempool_entry_base_fee(&entry)?,
+                timestamp: entry.time,
+                height: entry.height,
+            });
+        }
+
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .ok()
+            .map(|duration| duration.as_secs())
+            .unwrap_or_default();
+        let height = bitcoin_client.get_block_count().await.unwrap_or_default();
+
         return Some(MonitoringTxStatus::InMempool {
             base_fee: fee_sat_kvb
                 .map(|fee_sat_kvb| fee_sat_kvb as f64 / 1000.0)
                 .unwrap_or_default(),
-            timestamp: 0,
-            height: 0,
+            timestamp,
+            height,
         });
     }
 
@@ -445,14 +505,34 @@ async fn sync_monitoring(
     monitoring: Arc<MonitoringService>,
     status: &CommitRevealStatus,
 ) {
-    let mut monitored_txids = Vec::new();
     let mut previous_txid = None;
 
     for monitored_tx in tx_sender_monitored_txs(status) {
         let txid = monitored_tx.txid;
         let tx = match bitcoin_client.get_raw_transaction(&txid, None).await {
             Ok(tx) => tx,
-            Err(_) => continue,
+            Err(raw_err) => match bitcoin_client.get_transaction(&txid, None).await {
+                Ok(tx_result) => match tx_result.transaction() {
+                    Ok(tx) => tx,
+                    Err(decode_err) => {
+                        debug!(
+                            %txid,
+                            error = %decode_err,
+                            "Skipping tx-sender monitoring sync; wallet transaction failed to decode"
+                        );
+                        continue;
+                    }
+                },
+                Err(wallet_err) => {
+                    debug!(
+                        %txid,
+                        raw_error = %raw_err,
+                        wallet_error = %wallet_err,
+                        "Skipping tx-sender monitoring sync; transaction not available from node"
+                    );
+                    continue;
+                }
+            },
         };
 
         let result = monitoring
@@ -499,12 +579,7 @@ async fn sync_monitoring(
             monitoring.set_tx_status(&txid, status).await;
         }
 
-        monitored_txids.push(txid);
         previous_txid = Some(txid);
-    }
-
-    if let Err(err) = monitoring.update_txs_status(&monitored_txids).await {
-        debug!(?err, "Failed to update tx-sender monitored tx statuses");
     }
 }
 
@@ -793,7 +868,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_wait_outcome_returns_txid_when_in_progress() {
+    fn resolve_wait_outcome_waits_for_finalized_status() {
         let reveal_txid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         let raw_status = TrackResponse::CommitReveal(CommitRevealStatus {
             status: TrackStatus::Mined,
@@ -803,8 +878,23 @@ mod tests {
         });
         let status = TxSenderJobStatus::Processing;
 
+        assert!(resolve_wait_outcome(&status, &raw_status).is_none());
+    }
+
+    #[test]
+    fn resolve_wait_outcome_returns_txid_when_completed() {
+        let reveal_txid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let raw_status = TrackResponse::CommitReveal(CommitRevealStatus {
+            status: TrackStatus::Finalized,
+            commit_tx: None,
+            reveals: vec![reveal_with_submission(reveal_txid)],
+            aggregate_commit_tx: None,
+        });
+        let reveal_txid = reveal_txid.parse::<Txid>().unwrap();
+        let status = TxSenderJobStatus::Completed { reveal_txid };
+
         match resolve_wait_outcome(&status, &raw_status) {
-            Some(Ok(txid)) => assert_eq!(txid, reveal_txid.parse::<Txid>().unwrap()),
+            Some(Ok(txid)) => assert_eq!(txid, reveal_txid),
             other => panic!("Expected Some(Ok(..)), got {other:?}"),
         }
     }

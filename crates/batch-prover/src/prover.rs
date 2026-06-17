@@ -4,7 +4,7 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use anyhow::Context;
 use citrea_common::utils::{get_tangerine_activation_height_non_zero, merge_state_diffs};
@@ -41,6 +41,9 @@ use uuid::Uuid;
 
 use crate::metrics::BATCH_PROVER_METRICS;
 use crate::partition::{Partition, PartitionMode, PartitionReason, PartitionState};
+
+const PROOF_DA_SUBMISSION_RETRY_BACKOFF_START: Duration = Duration::from_secs(5);
+const PROOF_DA_SUBMISSION_RETRY_BACKOFF_MAX: Duration = Duration::from_secs(60);
 
 /// Request types for the Prover service.
 /// These requests can be sent from the RPC interface to control the proving process.
@@ -744,21 +747,14 @@ where
 
                 // submit the proof to the DA service in the background
                 tokio::spawn(async move {
-                    let tx_id = prover_service
-                        .submit_proof(proof, job_id)
-                        .await
-                        .expect("Failed to submit proof");
-                    let tx_id = prover_service
-                        .wait_for_transaction_id(tx_id)
-                        .await
-                        .expect("Failed to resolve proof tx id");
-
-                    info!("Job {} proof sent to DA", job_id);
-
-                    // stores tx id and removes job from pending da submission
-                    ledger_db
-                        .finalize_proving_job(job_id, tx_id.into())
-                        .expect("Should update proving job tx id");
+                    Self::submit_proof_to_da_until_finalized(
+                        prover_service,
+                        ledger_db,
+                        proof,
+                        job_id,
+                        false,
+                    )
+                    .await;
                 });
             }
         });
@@ -788,21 +784,79 @@ where
             let ledger_db = self.ledger_db.clone();
             info!("Submitting recovered proof for job {}", job_id);
             tokio::spawn(async move {
-                let tx_id = prover_service
-                    .submit_proof(stored_proof.proof, job_id)
-                    .await
-                    .expect("Failed to submit transaction");
-                let tx_id = prover_service
-                    .wait_for_transaction_id(tx_id)
-                    .await
-                    .expect("Failed to resolve recovered proof tx id");
-                info!("Recovered Job {} proof sent to DA", job_id);
-
-                ledger_db
-                    .finalize_proving_job(job_id, tx_id.into())
-                    .expect("Should update proving job tx id");
-                info!("Finalized recovered proving job: {}", job_id);
+                Self::submit_proof_to_da_until_finalized(
+                    prover_service,
+                    ledger_db,
+                    stored_proof.proof,
+                    job_id,
+                    true,
+                )
+                .await;
             });
+        }
+    }
+
+    async fn submit_proof_to_da_until_finalized(
+        prover_service: Arc<ParallelProverService<Da, Vm>>,
+        ledger_db: DB,
+        proof: Proof,
+        job_id: Uuid,
+        recovered: bool,
+    ) {
+        let mut backoff = PROOF_DA_SUBMISSION_RETRY_BACKOFF_START;
+
+        loop {
+            let submission_id = match prover_service.submit_proof(proof.clone(), job_id).await {
+                Ok(submission_id) => submission_id,
+                Err(e) => {
+                    error!(
+                        %job_id,
+                        recovered,
+                        retry_in_secs = backoff.as_secs(),
+                        "Failed to submit proof to DA: {e}. Retrying"
+                    );
+                    tokio::time::sleep(backoff).await;
+                    backoff = (backoff * 2).min(PROOF_DA_SUBMISSION_RETRY_BACKOFF_MAX);
+                    continue;
+                }
+            };
+
+            let tx_id = match prover_service.wait_for_transaction_id(submission_id).await {
+                Ok(tx_id) => tx_id,
+                Err(e) => {
+                    error!(
+                        %job_id,
+                        recovered,
+                        retry_in_secs = backoff.as_secs(),
+                        "Failed to resolve proof DA txid: {e}. Retrying submission"
+                    );
+                    tokio::time::sleep(backoff).await;
+                    backoff = (backoff * 2).min(PROOF_DA_SUBMISSION_RETRY_BACKOFF_MAX);
+                    continue;
+                }
+            };
+
+            info!(%job_id, recovered, "Proof sent to DA and finalized");
+            let tx_id = tx_id.into();
+
+            loop {
+                match ledger_db.finalize_proving_job(job_id, tx_id) {
+                    Ok(()) => {
+                        info!(%job_id, recovered, "Finalized proving job");
+                        return;
+                    }
+                    Err(e) => {
+                        error!(
+                            %job_id,
+                            recovered,
+                            retry_in_secs = backoff.as_secs(),
+                            "Failed to finalize proving job in ledger DB: {e}. Retrying"
+                        );
+                        tokio::time::sleep(backoff).await;
+                        backoff = (backoff * 2).min(PROOF_DA_SUBMISSION_RETRY_BACKOFF_MAX);
+                    }
+                }
+            }
         }
     }
 

@@ -38,7 +38,7 @@ use crate::fee::FeeService;
 use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
-use crate::monitoring::{MonitoringConfig, MonitoringService, TxStatus};
+use crate::monitoring::{mempool_entry_base_fee, MonitoringConfig, MonitoringService, TxStatus};
 use crate::network_constants::NetworkConstants;
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
@@ -66,6 +66,10 @@ const POLLING_INTERVAL: u64 = 10; // seconds
 /// rate to keep monitoring (pending transactions, tx status) responsive instead
 /// of lagging by up to a full block-polling interval.
 const TX_SENDER_POLL_INTERVAL: u64 = 1; // seconds
+/// Minimum wall-clock time to wait for a tx-sender job to reach finality.
+const TX_SENDER_MIN_WAIT_TIMEOUT_SECS: u64 = 60 * 60;
+/// Conservative per-finality-block allowance for Bitcoin block production.
+const TX_SENDER_WAIT_TIMEOUT_PER_FINALITY_BLOCK_SECS: u64 = 20 * 60;
 
 /// Map sov Network to Bitcoin Network.
 pub fn network_to_bitcoin_network(network: &Network) -> bitcoin::Network {
@@ -173,7 +177,7 @@ impl BitcoinService {
     async fn get_bitcoin_node_status(&self, txid: Txid) -> Option<TxStatus> {
         if let Ok(entry) = self.client.get_mempool_entry(&txid).await {
             return Some(TxStatus::InMempool {
-                base_fee: entry.fees.base.to_sat() as f64 / entry.vsize as f64,
+                base_fee: mempool_entry_base_fee(&entry)?,
                 timestamp: entry.time,
                 height: entry.height,
             });
@@ -858,6 +862,7 @@ impl DaService for BitcoinService {
             self.monitoring.clone(),
             submission_id.0,
             Duration::from_secs(TX_SENDER_POLL_INTERVAL),
+            self.tx_sender_wait_timeout(),
         )
         .await
         .map_err(BitcoinServiceError::Other)?;
@@ -998,6 +1003,16 @@ impl DaService for BitcoinService {
             }
         }
         sequencer_commitments
+    }
+}
+
+impl BitcoinService {
+    fn tx_sender_wait_timeout(&self) -> Duration {
+        let finality_timeout = self
+            .network_constants
+            .finality_depth
+            .saturating_mul(TX_SENDER_WAIT_TIMEOUT_PER_FINALITY_BLOCK_SECS);
+        Duration::from_secs(finality_timeout.max(TX_SENDER_MIN_WAIT_TIMEOUT_SECS))
     }
 }
 

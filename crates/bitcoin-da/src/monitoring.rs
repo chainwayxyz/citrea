@@ -9,7 +9,7 @@ use anyhow::anyhow;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::hashes::Hash;
 use bitcoin::{Address, BlockHash, Transaction, Txid};
-use bitcoincore_rpc::json::GetTransactionResult;
+use bitcoincore_rpc::json::{GetMempoolEntryResult, GetTransactionResult};
 use bitcoincore_rpc::{Client, RpcApi};
 use citrea_common::utils::read_env;
 use citrea_common::FromEnv;
@@ -31,6 +31,15 @@ type BlockHeight = u64;
 type Result<T> = std::result::Result<T, MonitorError>;
 
 const REBROADCAST_EACH_N_BLOCK: u64 = 1;
+
+/// Convert a bitcoind mempool entry fee into sat/vbyte.
+pub(crate) fn mempool_entry_base_fee(entry: &GetMempoolEntryResult) -> Option<f64> {
+    if entry.vsize == 0 {
+        return None;
+    }
+
+    Some(entry.fees.base.to_sat() as f64 / entry.vsize as f64)
+}
 
 /// Return UNIX timestamp in seconds
 fn get_timestamp() -> u64 {
@@ -780,7 +789,12 @@ impl MonitoringService {
         } else {
             match self.client.get_mempool_entry(&tx_result.info.txid).await {
                 Ok(entry) => {
-                    let base_fee = entry.fees.base.to_sat() as f64;
+                    let base_fee = mempool_entry_base_fee(&entry).ok_or_else(|| {
+                        anyhow!(
+                            "Mempool entry for tx {} has zero vsize",
+                            tx_result.info.txid
+                        )
+                    })?;
                     TxStatus::InMempool {
                         base_fee,
                         timestamp: get_timestamp(),
@@ -957,6 +971,18 @@ impl MonitoringService {
     pub async fn set_tx_status(&self, txid: &Txid, status: TxStatus) {
         let mut monitored_txs = self.monitored_txs.write().await;
         if let Some(entry) = monitored_txs.get_mut(txid) {
+            if matches!(entry.status, TxStatus::Finalized { .. })
+                && !matches!(status, TxStatus::Finalized { .. })
+            {
+                return;
+            }
+
+            if matches!(entry.status, TxStatus::Confirmed { .. })
+                && matches!(status, TxStatus::InMempool { .. })
+            {
+                return;
+            }
+
             entry.status = status;
             entry.last_checked = get_timestamp();
         }
