@@ -1,0 +1,46 @@
+name: macOS Release Build Test
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: ["ci/release-macos-xlarge-runner"]
+
+jobs:
+  build:
+    name: macOS release build (xlarge)
+    runs-on: macos-latest-xlarge
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31.10.6
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.34.6/install
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Build
+        run: nix build ./nix#citrea
+
+      - name: Rebuild to verify reproducibility
+        run: nix build ./nix#citrea --rebuild
+
+      - name: Hash binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          CITREA_HASH=$(shasum -a 256 ./result/bin/citrea | awk '{print $1}')
+          CLI_HASH=$(shasum -a 256 ./result/bin/citrea-cli | awk '{print $1}')
+          {
+            echo "## osx-arm64"
+            echo ""
+            echo "| Binary | SHA-256 |"
+            echo "|--------|---------|"
+            echo "| citrea | \`$CITREA_HASH\` |"
+            echo "| citrea-cli | \`$CLI_HASH\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
