@@ -45,6 +45,7 @@ use uuid::Uuid;
 use crate::metrics::BATCH_PROVER_METRICS;
 use crate::partition::{Partition, PartitionMode, PartitionReason, PartitionState};
 
+/// Uncompressed secp256k1 public key bytes recovered from an EVM transaction.
 type Secp256k1Pubkey = [u8; 65];
 
 /// Request types for the Prover service.
