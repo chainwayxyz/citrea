@@ -86,7 +86,6 @@ walkdir = "2.3.3"
 [features]
 default = []
 native = [
-  "recovered-pubkey-provider/native",
   "dep:sov-db",
   "sov-state/native",
   "sov-modules-api/native",

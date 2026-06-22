@@ -4,6 +4,9 @@ use alloy_eips::eip2718::Decodable2718;
 use alloy_primitives::Bytes as RethBytes;
 #[cfg(feature = "native")]
 use alloy_primitives::U256;
+#[cfg(feature = "native")]
+use recovered_pubkey_provider::Secp256k1Pubkey;
+#[cfg(not(feature = "native"))]
 use recovered_pubkey_provider::RECOVERED_PUBKEY_PROVIDER;
 use reth_primitives::{Recovered, TransactionSigned};
 #[cfg(feature = "native")]
@@ -146,10 +149,12 @@ fn verify_prehash_with_recovery_parity(
 /// Convert RlpEvmTransaction to Recovered<TransactionSigned>.
 ///
 /// This function implements the ecrecover optimization pattern:
-/// - On native: Performs actual ecrecover and records the pubkey during batch-prover collection
-/// - In non native: Uses pre-computed pubkeys from input to verify and derive address
+/// - On native: Performs the standard ecrecover.
+/// - In non native: Uses pre-computed pubkeys from input to verify and derive address.
 ///
-/// Pubkeys are recorded/consumed in deterministic order (block by block, tx by tx).
+/// In the circuit, pubkeys are consumed in deterministic order (block by block,
+/// tx by tx). The batch prover collects those same pubkeys out of band via
+/// [`recover_pubkey`], replaying transactions in the same order.
 pub fn recover_raw_transaction(
     evm_tx: RlpEvmTransaction,
 ) -> Result<Recovered<TransactionSigned>, ConversionError> {
@@ -199,49 +204,57 @@ pub fn recover_raw_transaction(
 
     #[cfg(feature = "native")]
     {
-        // Direct path when not collecting pubkeys
-        if !RECOVERED_PUBKEY_PROVIDER.is_collecting() {
-            return tx
-                .try_into_recovered()
-                .map_err(|_| ConversionError::InvalidSignature);
-        }
+        tx.try_into_recovered()
+            .map_err(|_| ConversionError::InvalidSignature)
+    }
+}
 
-        use alloy_primitives::{keccak256, Address};
+/// Recover the uncompressed secp256k1 pubkey for a user transaction.
+///
+/// Returns `None` for system transactions, which carry the sentinel system
+/// signature and are not ecrecovered (they consume no pubkey in the circuit).
+///
+/// The batch prover uses this to collect the pubkeys handed to the batch-proof
+/// circuit as witness data. It must be called in the same deterministic order
+/// the circuit consumes them (block by block, tx by tx). The low-s rejection
+/// here mirrors both the non-native verifier and the standard
+/// `try_into_recovered` path so the collected pubkey always matches the one the
+/// circuit verifies.
+#[cfg(feature = "native")]
+pub fn recover_pubkey(
+    evm_tx: RlpEvmTransaction,
+) -> Result<Option<Secp256k1Pubkey>, ConversionError> {
+    use k256::elliptic_curve::scalar::IsHigh;
 
-        let sig = *tx.signature();
-        let prehash = *tx.signature_hash();
+    let tx = TransactionSigned::try_from(evm_tx)?;
+    if tx.signature() == &SYSTEM_SIGNATURE {
+        return Ok(None);
+    }
 
-        let k256_sig = sig
-            .to_k256()
-            .map_err(|_| ConversionError::InvalidSignature)?;
+    let sig = *tx.signature();
+    let prehash = *tx.signature_hash();
 
-        // Reject high-s signatures to match the non-native verifier and the
-        // standard `try_into_recovered` path.
-        use k256::elliptic_curve::scalar::IsHigh;
-        if bool::from(k256_sig.s().is_high()) {
-            return Err(ConversionError::InvalidSignature);
-        }
-
-        let verifying_key = k256::ecdsa::VerifyingKey::recover_from_prehash(
-            prehash.as_slice(),
-            &k256_sig,
-            sig.recid(),
-        )
+    let k256_sig = sig
+        .to_k256()
         .map_err(|_| ConversionError::InvalidSignature)?;
 
-        let pubkey: [u8; 65] = verifying_key
-            .to_encoded_point(false)
-            .as_bytes()
-            .try_into()
-            .expect("secp256k1 uncompressed pubkey must be 65 bytes");
-
-        RECOVERED_PUBKEY_PROVIDER
-            .record(pubkey)
-            .expect("collection active on this thread");
-
-        let address = Address::from_slice(&keccak256(&pubkey[1..])[12..]);
-        Ok(Recovered::new_unchecked(tx, address))
+    // Reject high-s signatures to match the non-native verifier and the
+    // standard `try_into_recovered` path.
+    if bool::from(k256_sig.s().is_high()) {
+        return Err(ConversionError::InvalidSignature);
     }
+
+    let verifying_key =
+        k256::ecdsa::VerifyingKey::recover_from_prehash(prehash.as_slice(), &k256_sig, sig.recid())
+            .map_err(|_| ConversionError::InvalidSignature)?;
+
+    let pubkey: Secp256k1Pubkey = verifying_key
+        .to_encoded_point(false)
+        .as_bytes()
+        .try_into()
+        .expect("secp256k1 uncompressed pubkey must be 65 bytes");
+
+    Ok(Some(pubkey))
 }
 
 impl From<TransactionSignedAndRecovered> for Recovered<TransactionSigned> {
@@ -348,7 +361,6 @@ mod tests {
         use alloy_eips::eip2718::Encodable2718;
         use alloy_primitives::{Address, Bytes, PrimitiveSignature, U256};
         use alloy_rpc_types::{TransactionInput, TransactionRequest};
-        use recovered_pubkey_provider::RECOVERED_PUBKEY_PROVIDER;
 
         const SECP256K1N_ORDER: U256 = U256::from_be_bytes([
             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -388,7 +400,7 @@ mod tests {
         let mut high_s_bytes = Vec::new();
         envelope.encode_2718(&mut high_s_bytes);
 
-        // Non-collecting path: `try_into_recovered` enforces low-s.
+        // `recover_raw_transaction`: `try_into_recovered` enforces low-s.
         assert!(matches!(
             recover_raw_transaction(RlpEvmTransaction {
                 rlp: high_s_bytes.clone()
@@ -397,12 +409,13 @@ mod tests {
                 | ConversionError::InvalidSignature)
         ));
 
-        // Collecting path: explicit low-s check must reject high-s as well, so
-        // the two native paths agree on signature validity.
-        let _guard = RECOVERED_PUBKEY_PROVIDER.start_collecting().unwrap();
-        recover_raw_transaction(RlpEvmTransaction { rlp: valid_bytes }).unwrap();
+        // `recover_pubkey` (the batch prover's second pass) applies an explicit
+        // low-s check so it agrees with `recover_raw_transaction`.
+        recover_pubkey(RlpEvmTransaction { rlp: valid_bytes })
+            .unwrap()
+            .expect("user tx must yield a pubkey");
         assert!(matches!(
-            recover_raw_transaction(RlpEvmTransaction { rlp: high_s_bytes }),
+            recover_pubkey(RlpEvmTransaction { rlp: high_s_bytes }),
             Err(ConversionError::FailedToDecodeSignedTransaction
                 | ConversionError::InvalidSignature)
         ));
@@ -415,9 +428,8 @@ mod tests {
         use alloy::providers::network::TxSignerSync;
         use alloy::signers::local::PrivateKeySigner;
         use alloy_eips::eip2718::Encodable2718;
-        use alloy_primitives::{Address, Bytes, U256};
+        use alloy_primitives::{keccak256, Address, Bytes, U256};
         use alloy_rpc_types::{TransactionInput, TransactionRequest};
-        use recovered_pubkey_provider::RECOVERED_PUBKEY_PROVIDER;
 
         let wallet = "dcf2cbdd171a21c480aa7f53d77f31bb102282b3ff099c78e3118b37348c72f7"
             .parse::<PrivateKeySigner>()
@@ -440,16 +452,16 @@ mod tests {
         let mut bytes = Vec::new();
         envelope.encode_2718(&mut bytes);
 
-        let non_collecting = recover_raw_transaction(RlpEvmTransaction { rlp: bytes.clone() })
+        let recovered = recover_raw_transaction(RlpEvmTransaction { rlp: bytes.clone() })
             .unwrap()
             .signer();
+        assert_eq!(recovered, wallet.address());
 
-        let _guard = RECOVERED_PUBKEY_PROVIDER.start_collecting().unwrap();
-        let collecting = recover_raw_transaction(RlpEvmTransaction { rlp: bytes })
+        // The second-pass pubkey recovery must derive the same signer.
+        let pubkey = recover_pubkey(RlpEvmTransaction { rlp: bytes })
             .unwrap()
-            .signer();
-
-        assert_eq!(non_collecting, wallet.address());
-        assert_eq!(collecting, non_collecting);
+            .expect("user tx must yield a pubkey");
+        let address = Address::from_slice(&keccak256(&pubkey[1..])[12..]);
+        assert_eq!(address, wallet.address());
     }
 }

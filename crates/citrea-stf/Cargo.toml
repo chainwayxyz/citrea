@@ -51,7 +51,6 @@ sov-state = { path = "../sovereign-sdk/module-system/sov-state", features = ["na
 default = []
 native = [
   "short-header-proof-provider/native",
-  "recovered-pubkey-provider/native",
   "dep:sov-db",
   "sov-accounts/native",
   "sov-modules-api/native",

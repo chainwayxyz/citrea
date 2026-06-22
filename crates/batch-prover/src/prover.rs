@@ -9,15 +9,15 @@ use std::time::Instant;
 use anyhow::Context;
 use citrea_common::utils::{get_tangerine_activation_height_non_zero, merge_state_diffs};
 use citrea_common::{BatchProverConfig, ProverGuestRunConfig};
+use citrea_evm::recover_pubkey;
 use citrea_primitives::compression::compress_blob;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_primitives::{network_to_dev_mode, MAX_TX_BODY_SIZE, MAX_WITNESS_CACHE_SIZE};
-use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
+use citrea_stf::runtime::{CitreaRuntime, CitreaRuntimeCall, DefaultContext};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use prover_services::{ParallelProverService, ProofData, ProofWithDuration};
 use rand::Rng;
-use recovered_pubkey_provider::{Secp256k1Pubkey, RECOVERED_PUBKEY_PROVIDER};
 use reth_tasks::shutdown::GracefulShutdown;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -25,7 +25,7 @@ use short_header_proof_provider::SHORT_HEADER_PROOF_PROVIDER;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::L2BlockNumber;
 use sov_keys::default_signature::K256PublicKey;
-use sov_modules_api::{L2Block, SpecId, StateDiff, Zkvm};
+use sov_modules_api::{DaSpec, DispatchCall, L2Block, SpecId, StateDiff, Zkvm};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::SequencerCommitment;
@@ -44,6 +44,8 @@ use uuid::Uuid;
 
 use crate::metrics::BATCH_PROVER_METRICS;
 use crate::partition::{Partition, PartitionMode, PartitionReason, PartitionState};
+
+type Secp256k1Pubkey = [u8; 65];
 
 /// Request types for the Prover service.
 /// These requests can be sent from the RPC interface to control the proving process.
@@ -1062,7 +1064,6 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
 
     let mut stf =
         StfBlueprint::<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>::new();
-    let recovered_pubkey_collection = RECOVERED_PUBKEY_PROVIDER.start_collecting()?;
 
     let last_l2_height = committed_l2_blocks
         .back()
@@ -1158,9 +1159,9 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
             short_header_proofs.push_back(serialized_shp);
         }
 
-        // Extract recovered pubkeys for this commitment.
-        // These pubkeys were collected during transaction recovery in recover_raw_transaction()
-        let pubkeys = recovered_pubkey_collection.take_pubkeys();
+        // Recompute witness pubkeys in the order the circuit consumes them.
+        // Missing pubkeys or consumed-order drift fail during proving.
+        let pubkeys = collect_recovered_pubkeys::<Da::Spec>(l2_blocks_in_commitment)?;
 
         all_recovered_pubkeys.push_back(pubkeys);
         state_transition_witnesses.push_back(witnesses);
@@ -1190,6 +1191,36 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
         last_l1_hash_witness,
         all_recovered_pubkeys,
     ))
+}
+
+/// Recover witness pubkeys in circuit consumption order: block, sov-tx, EVM tx.
+/// System transactions consume no witness pubkey.
+fn collect_recovered_pubkeys<Da: DaSpec>(
+    l2_blocks: &[L2Block],
+) -> anyhow::Result<Vec<Secp256k1Pubkey>> {
+    let mut pubkeys = Vec::new();
+
+    for l2_block in l2_blocks {
+        for tx in &l2_block.txs {
+            let call = CitreaRuntime::<DefaultContext, Da>::decode_call(tx.runtime_msg())
+                .context("Failed to decode runtime call while collecting recovered pubkeys")?;
+
+            let CitreaRuntimeCall::evm(call_message) = call else {
+                continue;
+            };
+
+            for evm_tx in call_message.txs {
+                let pubkey = recover_pubkey(evm_tx).map_err(|e| {
+                    anyhow::anyhow!("Failed to recover pubkey while collecting: {e:?}")
+                })?;
+                if let Some(pubkey) = pubkey {
+                    pubkeys.push(pubkey);
+                }
+            }
+        }
+    }
+
+    Ok(pubkeys)
 }
 
 /// Given a previous sequencer commitment, this function will generate a `PrevHashProof`.

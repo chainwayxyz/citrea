@@ -12,6 +12,3 @@ resolver = "2"
 
 [dependencies]
 thiserror = { workspace = true }
-
-[features]
-native = []
