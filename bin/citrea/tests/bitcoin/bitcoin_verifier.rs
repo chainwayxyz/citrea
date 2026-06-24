@@ -91,10 +91,7 @@ struct BitcoinVerifierTest {
 impl TestCase for BitcoinVerifierTest {
     fn test_config() -> TestCaseConfig {
         // Only run bitcoin regtest
-        TestCaseConfig {
-            with_sequencer: false,
-            ..Default::default()
-        }
+        TestCaseConfig::default()
     }
 
     fn bitcoin_config() -> BitcoinConfig {
@@ -114,9 +111,11 @@ impl TestCase for BitcoinVerifierTest {
         let task_executor = self.task_manager.executor();
 
         let da_node = f.bitcoin_nodes.get(0).unwrap();
+        let rollup_config = &f.ctx.config.sequencer[0].rollup;
 
-        let service = get_default_service(&task_executor, &da_node.config).await;
-        let (block, _, _, _) = generate_mock_txs(&service, da_node, &task_executor).await;
+        let service = get_default_service(&task_executor, &da_node.config, rollup_config).await;
+        let (block, _, _, _) =
+            generate_mock_txs(&service, da_node, &task_executor, rollup_config).await;
 
         let (mut txs, inclusion_proof, completeness_proof) =
             service.extract_relevant_blobs_with_proof(&block);
@@ -307,7 +306,15 @@ impl TestCase for BitcoinVerifierTest {
 
             let mut ip = inclusion_proof.clone();
 
-            ip.wtxids[1] = [16; 32];
+            let non_relevant_tx_idx = ip
+                .wtxids
+                .iter()
+                .enumerate()
+                .find_map(|(idx, wtxid)| {
+                    (idx != 0 && !wtxid.starts_with(REVEAL_TX_PREFIX)).then_some(idx)
+                })
+                .expect("mock block must contain a non-relevant non-coinbase tx");
+            ip.wtxids[non_relevant_tx_idx] = [16; 32];
             assert_eq!(
                 verifier.verify_transactions(&block.header, ip, completeness_proof.clone(),),
                 Err(ValidationError::IncorrectWitnessCommitment),

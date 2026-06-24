@@ -53,13 +53,7 @@ pub mod spec;
 pub mod service;
 
 #[cfg(feature = "native")]
-pub mod tx_signer;
-
-#[cfg(feature = "native")]
 pub mod monitoring;
-
-#[cfg(feature = "native")]
-pub mod metrics;
 
 #[cfg(feature = "native")]
 pub mod error;
@@ -70,10 +64,7 @@ pub mod fee;
 pub mod rpc;
 
 #[cfg(feature = "native")]
-pub mod utxo_manager;
-
-#[cfg(feature = "testing")]
-pub mod test_utils;
+pub mod tx_sender;
 
 pub mod network_constants;
 
@@ -82,7 +73,3 @@ pub mod verifier;
 #[cfg(feature = "native")]
 /// The minimal dust value output in reveal txs.
 pub const REVEAL_OUTPUT_AMOUNT: u64 = 546;
-
-#[cfg(feature = "native")]
-/// This is added to reveal output in order to bruteforce nonces for wtxid prefixes.
-const REVEAL_OUTPUT_THRESHOLD: u64 = 2000;

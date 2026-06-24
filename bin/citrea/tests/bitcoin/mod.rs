@@ -14,8 +14,6 @@ pub mod backup;
 pub mod bitcoin_service;
 pub mod bitcoin_test;
 pub mod bitcoin_verifier;
-#[cfg(feature = "testing")]
-pub mod da_queue;
 pub mod fork;
 #[cfg(feature = "testing")]
 pub mod full_node;
@@ -24,9 +22,9 @@ pub mod sequencer_commitments;
 pub mod sequencer_test;
 pub mod syncing;
 pub mod tangerine_related;
-pub mod taproot_key_spend;
-pub mod tx_chain;
+mod tx_builder;
 pub mod tx_propagation;
+pub mod tx_sender;
 
 pub(super) fn get_citrea_path() -> PathBuf {
     std::env::var("CITREA_E2E_TEST_BINARY").map_or_else(

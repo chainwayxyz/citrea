@@ -3,14 +3,13 @@ use std::time::Duration;
 use alloy_primitives::{U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
-use bitcoin::Txid;
-use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
 use bitcoincore_rpc::RpcApi;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::{
     BatchProverConfig, BitcoinConfig, LightClientProverConfig, SequencerConfig, TestCaseConfig,
 };
 use citrea_e2e::framework::TestFramework;
+use citrea_e2e::node::NodeKind;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
@@ -24,14 +23,15 @@ use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::BatchProofCircuitOutputV3;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
+use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
 use tokio::time::sleep;
 
 use super::light_client_test::{create_random_state_diff, TEN_MINS};
-use super::{get_citrea_cli_path, get_citrea_path};
+use super::{get_citrea_cli_path, get_citrea_path, tx_builder};
 use crate::bitcoin::utils::{
     spawn_bitcoin_da_prover_service, spawn_bitcoin_da_sequencer_service, wait_for_prover_job,
-    wait_for_prover_job_count, wait_for_zkproofs,
+    wait_for_prover_job_count, wait_for_zkproofs, PROVER_DA_PRIVATE_KEY, SEQUENCER_DA_PRIVATE_KEY,
 };
 
 fn calculate_merkle_root(blocks: &[Option<L2BlockResponse>]) -> [u8; 32] {
@@ -55,6 +55,14 @@ impl TestCase for PreStateRootMismatchTest {
         TestCaseConfig {
             with_full_node: true,
             with_sequencer: true,
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            proof_sampling_number: 999_999_999_999,
             ..Default::default()
         }
     }
@@ -70,15 +78,9 @@ impl TestCase for PreStateRootMismatchTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_executor = self.task_manager.executor();
-
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
-
-        let prover_da_service =
-            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
-                .await;
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
@@ -128,11 +130,15 @@ impl TestCase for PreStateRootMismatchTest {
             None,
         );
 
-        // Send the first proof
-        prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof), 1.0)
-            .await
-            .unwrap();
+        // Send the first proof directly so the test controls exactly which
+        // crafted proof lands on DA.
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::ZKProof(proof),
+            PROVER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -188,11 +194,13 @@ impl TestCase for PreStateRootMismatchTest {
             Some(commitment1.serialize_and_calculate_sha_256()),
         );
 
-        // Send the invalid proof
-        prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(invalid_proof), 1.0)
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::ZKProof(invalid_proof),
+            PROVER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -259,6 +267,7 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
             with_full_node: true,
+            with_batch_prover: true,
             ..Default::default()
         }
     }
@@ -266,6 +275,13 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
     fn bitcoin_config() -> BitcoinConfig {
         BitcoinConfig {
             extra_args: vec!["-persistmempool=0", "-walletbroadcast=0"],
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            proof_sampling_number: 999_999_999_999,
             ..Default::default()
         }
     }
@@ -281,18 +297,9 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_executor = self.task_manager.executor();
-
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
-
-        let prover_da_service =
-            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
-                .await;
-        let sequencer_da_service =
-            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
-                .await;
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
@@ -301,6 +308,13 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
         }
 
         da.wait_mempool_len(2, None).await?;
+
+        if let Some(tx_sender) = f.tx_senders.get_mut(&NodeKind::Sequencer) {
+            tx_sender.wait_until_stopped().await?;
+        }
+        if let Some(tx_sender) = f.tx_senders.get_mut(&NodeKind::BatchProver) {
+            tx_sender.wait_until_stopped().await?;
+        }
 
         da.restart(None, None).await?;
         assert_eq!(da.get_raw_mempool().await?.len(), 0);
@@ -326,13 +340,13 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
         };
 
         // Send the `correct_commitment` so it's stored and will trigger the pre-hash mismatch against `wrong_commitment`
-        sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(correct_commitment.clone()),
-                1.0,
-            )
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(correct_commitment.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -383,10 +397,13 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
             vec![wrong_commitment_state_root],
             None,
         );
-        prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(fake_proof), 1.0)
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::ZKProof(fake_proof),
+            PROVER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -460,9 +477,12 @@ impl TestCase for PendingCommitmentHaltingErrorTest {
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        let bitcoin_da_service =
-            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
-                .await;
+        let bitcoin_da_service = spawn_bitcoin_da_sequencer_service(
+            &task_executor,
+            &da.config,
+            &sequencer.config.rollup,
+        )
+        .await;
 
         // This should cause a halting error as merkle root doesn't match the expected root from known L2 blocks
         // Send it first then generate block so that it's pending then causes a mismatch
@@ -473,10 +493,9 @@ impl TestCase for PendingCommitmentHaltingErrorTest {
         };
 
         bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(wrong_merkle_root_commitment.clone()),
-                1.0,
-            )
+            .send_transaction(DaTxRequest::SequencerCommitment(
+                wrong_merkle_root_commitment.clone(),
+            ))
             .await
             .unwrap();
 
@@ -875,17 +894,11 @@ impl TestCase for OutOfOrderCommitmentsTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_executor = self.task_manager.executor();
-
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
-
-        let bitcoin_da_service =
-            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
-                .await;
 
         for _ in 0..max_l2_blocks_per_commitment * 2 {
             sequencer.client.send_publish_batch_request().await?;
@@ -930,19 +943,23 @@ impl TestCase for OutOfOrderCommitmentsTest {
             index: 0,
         };
 
+        if let Some(tx_sender) = f.tx_senders.get_mut(&NodeKind::Sequencer) {
+            tx_sender.wait_until_stopped().await?;
+        }
+
         // Restart and remove txs from mempool
         da.restart(None, None).await?;
         let mempool = da.get_raw_mempool().await?;
         assert_eq!(mempool.len(), 0, "Mempool should be empty after restart");
 
         // Send the zero index commitment first, should be ignored
-        bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(zero_index_commitment.clone()),
-                1.0,
-            )
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(zero_index_commitment.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(2, None).await?;
 
@@ -962,13 +979,13 @@ impl TestCase for OutOfOrderCommitmentsTest {
         assert!(committed_height.is_none());
 
         // Send the second commitment first
-        bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(second_commitment.clone()),
-                1.0,
-            )
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(second_commitment.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(2, None).await?;
 
@@ -989,13 +1006,13 @@ impl TestCase for OutOfOrderCommitmentsTest {
         assert!(committed_height.is_none());
 
         // Send the first commitment
-        bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(first_commitment.clone()),
-                1.0,
-            )
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(first_commitment.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(2, None).await?;
 
@@ -1076,9 +1093,12 @@ impl TestCase for ConflictingCommitmentsTest {
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
 
-        let bitcoin_da_service =
-            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
-                .await;
+        let bitcoin_da_service = spawn_bitcoin_da_sequencer_service(
+            &task_executor,
+            &da.config,
+            &sequencer.config.rollup,
+        )
+        .await;
 
         for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -1086,13 +1106,22 @@ impl TestCase for ConflictingCommitmentsTest {
 
         da.wait_mempool_len(2, None).await?;
 
-        // Restart and remove txs from mempool
+        // Restart and remove txs from mempool. Keep the sequencer tx-sender
+        // down while bitcoind comes back up so it cannot immediately
+        // rebroadcast the pending commitment that this test intentionally
+        // clears from the mempool.
+        if let Some(tx_sender) = f.tx_senders.get_mut(&NodeKind::Sequencer) {
+            tx_sender.wait_until_stopped().await?;
+        }
         da.restart(None, None).await?;
         assert_eq!(
             da.get_raw_mempool().await?.len(),
             0,
             "Mempool should be empty"
         );
+        if let Some(tx_sender) = f.tx_senders.get_mut(&NodeKind::Sequencer) {
+            tx_sender.start(None, None).await?;
+        }
 
         let range1 = sequencer
             .client
@@ -1123,10 +1152,7 @@ impl TestCase for ConflictingCommitmentsTest {
 
         // Send commitment A
         bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment_a.clone()),
-                1.0,
-            )
+            .send_transaction(DaTxRequest::SequencerCommitment(commitment_a.clone()))
             .await
             .unwrap();
 
@@ -1148,10 +1174,9 @@ impl TestCase for ConflictingCommitmentsTest {
 
         // Send conflicting commitment with different merkle root, should be ignored
         bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(conflicting_commitment_different_root.clone()),
-                1.0,
-            )
+            .send_transaction(DaTxRequest::SequencerCommitment(
+                conflicting_commitment_different_root.clone(),
+            ))
             .await
             .unwrap();
 
@@ -1174,10 +1199,7 @@ impl TestCase for ConflictingCommitmentsTest {
 
         // Send conflicting commitment B
         bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment_b.clone()),
-                1.0,
-            )
+            .send_transaction(DaTxRequest::SequencerCommitment(commitment_b.clone()))
             .await
             .unwrap();
 
@@ -1222,14 +1244,14 @@ impl TestCase for ConflictingCommitmentsTest {
 
         // Send commitment C that follows A
         bitcoin_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment_c.clone()),
-                1.0,
-            )
+            .send_transaction(DaTxRequest::SequencerCommitment(commitment_c.clone()))
             .await
             .unwrap();
 
-        da.wait_mempool_len(4, None).await?;
+        // The sequencer has already queued the same valid commitment through tx-sender.
+        // A duplicate manual submission may resolve to the existing request instead of
+        // creating a second visible commit/reveal pair.
+        da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let l1_height_c = da.get_finalized_height(None).await?;
         full_node.wait_for_l1_height(l1_height_c, None).await?;
@@ -1274,6 +1296,7 @@ impl TestCase for OutOfRangeProofTest {
             with_sequencer: true,
             with_light_client_prover: true,
             with_citrea_cli: true,
+            with_batch_prover: true,
             ..Default::default()
         }
     }
@@ -1304,8 +1327,6 @@ impl TestCase for OutOfRangeProofTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_executor = self.task_manager.executor();
-
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
         let light_client_prover = f.light_client_prover.as_mut().unwrap();
@@ -1316,14 +1337,6 @@ impl TestCase for OutOfRangeProofTest {
         light_client_prover.wait_until_stopped().await?;
 
         let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
-
-        let prover_da_service =
-            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
-                .await;
-
-        let sequencer_da_service =
-            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
-                .await;
 
         let genesis_state_root = full_node
             .client
@@ -1429,6 +1442,13 @@ impl TestCase for OutOfRangeProofTest {
             index: 4,
         };
 
+        if let Some(tx_sender) = f.tx_senders.get_mut(&NodeKind::Sequencer) {
+            tx_sender.wait_until_stopped().await?;
+        }
+        if let Some(tx_sender) = f.tx_senders.get_mut(&NodeKind::BatchProver) {
+            tx_sender.wait_until_stopped().await?;
+        }
+
         /*
          ** Test that a proof is discarded if it's over a range of sequencer commitment that hasn't been processed yet
          ** Send proof first then the two commitments in order.
@@ -1501,10 +1521,13 @@ impl TestCase for OutOfRangeProofTest {
         );
 
         // Send the proof first. It should be discard as none of its commitments exist
-        prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof1.clone()), 1.0)
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::ZKProof(proof1.clone()),
+            PROVER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -1522,13 +1545,13 @@ impl TestCase for OutOfRangeProofTest {
             "No proof should be processed without commitments"
         );
 
-        sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment1.clone()),
-                1.0,
-            )
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(commitment1.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -1554,13 +1577,13 @@ impl TestCase for OutOfRangeProofTest {
             .await?;
         assert!(proven_height.is_none(), "Proof should have been discarded");
 
-        sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment2.clone()),
-                1.0,
-            )
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(commitment2.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -1630,21 +1653,21 @@ impl TestCase for OutOfRangeProofTest {
 
         full_node.start(None, None).await?;
 
-        sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment1.clone()),
-                1.0,
-            )
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(commitment1.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
-        sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment2.clone()),
-                1.0,
-            )
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(commitment2.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(4, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -1664,10 +1687,13 @@ impl TestCase for OutOfRangeProofTest {
         assert_eq!(committed_height.commitment_index, 2);
 
         // Send the proof first. It should be processed as its commitments exist
-        prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof1), 1.0)
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::ZKProof(proof1),
+            PROVER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -1686,21 +1712,21 @@ impl TestCase for OutOfRangeProofTest {
         assert_eq!(proven_height.commitment_index, 2);
 
         // Send commitments for proof 2 and proof 3
-        sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment3.clone()),
-                1.0,
-            )
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(commitment3.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
-        sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment4.clone()),
-                1.0,
-            )
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(commitment4.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(4, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -1749,10 +1775,13 @@ impl TestCase for OutOfRangeProofTest {
             Some(commitment3.serialize_and_calculate_sha_256()),
         );
         // Send the third proof first. It should be set as pending as its commitments exist but it's starting commitment index is not proven proof last commitment index + 1
-        prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof3), 1.0)
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::ZKProof(proof3),
+            PROVER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -1807,10 +1836,13 @@ impl TestCase for OutOfRangeProofTest {
         );
 
         // Now send the second proof. It should be processed and trigger a processing of pending proof3
-        prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof2), 1.0)
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::ZKProof(proof2),
+            PROVER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -1874,6 +1906,7 @@ impl TestCase for OverlappingProofRangesTest {
             with_sequencer: true,
             with_light_client_prover: true,
             with_citrea_cli: true,
+            with_batch_prover: true,
             ..Default::default()
         }
     }
@@ -1903,21 +1936,11 @@ impl TestCase for OverlappingProofRangesTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_executor = self.task_manager.executor();
-
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
         let light_client_prover = f.light_client_prover.as_mut().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
         let citrea_cli = f.citrea_cli.as_ref().unwrap();
-
-        let sequencer_da_service =
-            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
-                .await;
-
-        let prover_da_service =
-            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
-                .await;
 
         let finalized_height = da.get_finalized_height(None).await?;
 
@@ -2000,6 +2023,13 @@ impl TestCase for OverlappingProofRangesTest {
             index: 3,
         };
 
+        if let Some(tx_sender) = f.tx_senders.get_mut(&NodeKind::Sequencer) {
+            tx_sender.wait_until_stopped().await?;
+        }
+        if let Some(tx_sender) = f.tx_senders.get_mut(&NodeKind::BatchProver) {
+            tx_sender.wait_until_stopped().await?;
+        }
+
         // Rollback Bitcoin to initial height
         let initial_height_hash = da.get_block_hash(f.initial_da_height + 1).await?;
         da.invalidate_block(&initial_height_hash).await?;
@@ -2034,13 +2064,13 @@ impl TestCase for OverlappingProofRangesTest {
 
         full_node.start(None, None).await?;
 
-        sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment1.clone()),
-                1.0,
-            )
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(commitment1.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -2068,26 +2098,25 @@ impl TestCase for OverlappingProofRangesTest {
             .header
             .state_root;
 
-        sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment2.clone()),
-                1.0,
-            )
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(commitment2.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
-        sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment3.clone()),
-                1.0,
-            )
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(commitment3.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
-        da.wait_mempool_len(6, None).await?;
 
         let range4 = sequencer
             .client
@@ -2105,6 +2134,19 @@ impl TestCase for OverlappingProofRangesTest {
             index: 4,
         };
 
+        full_node
+            .wait_for_l2_height(max_l2_blocks_per_commitment * 4, None)
+            .await?;
+
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(commitment4.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
+
+        da.wait_mempool_len(6, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
         full_node
@@ -2182,37 +2224,37 @@ impl TestCase for OverlappingProofRangesTest {
         full_node.start(None, None).await?;
 
         // Send all 4 commitments in order
-        sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment1.clone()),
-                1.0,
-            )
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(commitment1.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
-        sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment2.clone()),
-                1.0,
-            )
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(commitment2.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
-        sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment3.clone()),
-                1.0,
-            )
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(commitment3.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
-        sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment4.clone()),
-                1.0,
-            )
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::SequencerCommitment(commitment4.clone()),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(8, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -2254,10 +2296,13 @@ impl TestCase for OverlappingProofRangesTest {
         );
 
         // Send proof_a over commitments [1,2,3]
-        prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_a.clone()), 1.0)
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::ZKProof(proof_a.clone()),
+            PROVER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -2340,10 +2385,13 @@ impl TestCase for OverlappingProofRangesTest {
         );
 
         // Send proof_b with overlapping range of [2,3,4]
-        prover_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_b.clone()), 1.0)
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::ZKProof(proof_b.clone()),
+            PROVER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
 
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -2488,9 +2536,12 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         let full_node = f.full_node.as_mut().unwrap();
         let light_client_prover = f.light_client_prover.as_mut().unwrap();
 
-        let sequencer_da_service =
-            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
-                .await;
+        let sequencer_da_service = spawn_bitcoin_da_sequencer_service(
+            &task_executor,
+            &da.config,
+            &sequencer.config.rollup,
+        )
+        .await;
 
         let sequencer_client = sequencer.client.clone();
 
@@ -2546,10 +2597,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         };
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment_1.clone()),
-                1.0,
-            )
+            .send_transaction(DaTxRequest::SequencerCommitment(commitment_1.clone()))
             .await
             .unwrap();
 
@@ -2592,10 +2640,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         /*------- */
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment_2.clone()),
-                1.0,
-            )
+            .send_transaction(DaTxRequest::SequencerCommitment(commitment_2.clone()))
             .await
             .unwrap();
 
@@ -2637,10 +2682,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         /*------- */
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(commitment_3.clone()),
-                1.0,
-            )
+            .send_transaction(DaTxRequest::SequencerCommitment(commitment_3.clone()))
             .await
             .unwrap();
 
@@ -2926,13 +2968,16 @@ impl TestCase for FullNodeLcpChunkProofTest {
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
-        let _batch_prover = f.batch_prover.as_mut().unwrap();
+        let batch_prover = f.batch_prover.as_mut().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
         let light_client_prover = f.light_client_prover.as_mut().unwrap();
 
-        let batch_prover_da_service =
-            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
-                .await;
+        let _batch_prover_da_service = spawn_bitcoin_da_prover_service(
+            &task_executor,
+            &da.config,
+            &batch_prover.config.rollup,
+        )
+        .await;
 
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
@@ -3088,52 +3133,20 @@ impl TestCase for FullNodeLcpChunkProofTest {
                 None,
             );
 
-        let _ = batch_prover_da_service
-            .test_send_separate_chunk_transaction_with_fee_rate(
-                DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
-                1.0,
-            )
-            .await
-            .unwrap();
+        let txs = tx_builder::test_send_separate_chunk_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
+            1.0,
+        )
+        .await
+        .unwrap();
 
         // In total 2 chunks 1 aggregate with all of them having reveal and commit txs we should have 6 txs in mempool
         da.wait_mempool_len(6, Some(TEN_MINS)).await?;
 
-        let txs = da.get_raw_mempool().await?;
         assert_eq!(txs.len(), 6);
 
-        let mut reveals = vec![Txid::all_zeros(), Txid::all_zeros(), Txid::all_zeros()];
-
-        let mut commits = Vec::with_capacity(3);
-
-        for txid in txs {
-            let tx = da
-                .get_transaction(&txid, None)
-                .await?
-                .transaction()
-                .unwrap();
-
-            let parsed = parse_relevant_transaction(&tx);
-            match parsed {
-                Ok(ParsedTransaction::Aggregate(_)) => {
-                    // Make sure the aggregate tx is the last one
-                    reveals[2] = txid;
-                }
-                Ok(ParsedTransaction::Chunk(_)) => {
-                    if reveals[0] == Txid::all_zeros() {
-                        reveals[0] = txid;
-                    } else if reveals[1] == Txid::all_zeros() {
-                        reveals[1] = txid;
-                    }
-                }
-                Err(_) => commits.push(txid),
-                _ => {}
-            }
-        }
-
-        // Make sure commits are before reveals
-        commits.extend(reveals);
-        let tx_ids_in_order = commits.clone();
+        let tx_ids_in_order = [txs[0], txs[2], txs[4], txs[1], txs[3], txs[5]];
 
         let addr = da
             .get_new_address(None, None)
@@ -3199,53 +3212,20 @@ impl TestCase for FullNodeLcpChunkProofTest {
                 Some(commitment_2.serialize_and_calculate_sha_256()),
             );
 
-        let _ = batch_prover_da_service
-            .test_send_separate_chunk_transaction_with_fee_rate(
-                DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
-                1.0,
-            )
-            .await
-            .unwrap();
+        let txs = tx_builder::test_send_separate_chunk_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
+            1.0,
+        )
+        .await
+        .unwrap();
 
         // In total 2 chunks 1 aggregate with all of them having reveal and commit txs we should have 6 txs in mempool
         da.wait_mempool_len(6, Some(TEN_MINS)).await?;
 
-        let txs = da.get_raw_mempool().await?;
         assert_eq!(txs.len(), 6);
 
-        let mut reveals = vec![Txid::all_zeros(), Txid::all_zeros(), Txid::all_zeros()];
-
-        let mut commits = Vec::with_capacity(3);
-
-        for txid in txs {
-            let tx = da
-                .get_transaction(&txid, None)
-                .await?
-                .transaction()
-                .unwrap();
-
-            let parsed = parse_relevant_transaction(&tx);
-            match parsed {
-                Ok(ParsedTransaction::Aggregate(_)) => {
-                    // Make sure the aggregate tx is the last one
-                    reveals[1] = txid;
-                }
-                Ok(ParsedTransaction::Chunk(_)) => {
-                    if reveals[0] == Txid::all_zeros() {
-                        reveals[0] = txid;
-                        // Put one reveal in wrong order (after aggregate)
-                    } else if reveals[2] == Txid::all_zeros() {
-                        reveals[2] = txid;
-                    }
-                }
-                Err(_) => commits.push(txid),
-                _ => {}
-            }
-        }
-
-        // Make sure commits are before reveals
-        commits.extend(reveals);
-        let tx_ids_in_wrong_order = commits.clone();
+        let tx_ids_in_wrong_order = [txs[0], txs[2], txs[4], txs[1], txs[5], txs[3]];
 
         let addr = da
             .get_new_address(None, None)
@@ -3323,52 +3303,20 @@ impl TestCase for FullNodeLcpChunkProofTest {
                 Some(commitment_2.serialize_and_calculate_sha_256()),
             );
 
-        let _ = batch_prover_da_service
-            .test_send_separate_chunk_transaction_with_fee_rate(
-                DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
-                1.0,
-            )
-            .await
-            .unwrap();
+        let txs = tx_builder::test_send_separate_chunk_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
+            1.0,
+        )
+        .await
+        .unwrap();
 
         // In total 2 chunks 1 aggregate with all of them having reveal and commit txs we should have 6 txs in mempool
         da.wait_mempool_len(6, Some(TEN_MINS)).await?;
 
-        let txs = da.get_raw_mempool().await?;
         assert_eq!(txs.len(), 6);
 
-        let mut reveals = [Txid::all_zeros(), Txid::all_zeros(), Txid::all_zeros()];
-
-        let mut commits = Vec::with_capacity(3);
-
-        for txid in txs {
-            let tx = da
-                .get_transaction(&txid, None)
-                .await?
-                .transaction()
-                .unwrap();
-
-            let parsed = parse_relevant_transaction(&tx);
-            match parsed {
-                Ok(ParsedTransaction::Aggregate(_)) => {
-                    // Make sure the aggregate tx is the last one
-                    reveals[2] = txid;
-                }
-                Ok(ParsedTransaction::Chunk(_)) => {
-                    // all chunks come before the aggregate
-                    if reveals[0] == Txid::all_zeros() {
-                        reveals[0] = txid;
-                    } else if reveals[1] == Txid::all_zeros() {
-                        reveals[1] = txid;
-                    }
-                }
-                Err(_) => commits.push(txid),
-                _ => {}
-            }
-        }
-
-        commits.push(reveals[0]);
-        let commits_and_first_chunk = commits.clone();
+        let commits_and_first_chunk = [txs[0], txs[2], txs[4], txs[1]];
 
         // First chunk in block n
         da.generate_block(
@@ -3381,11 +3329,11 @@ impl TestCase for FullNodeLcpChunkProofTest {
         .await?;
 
         // Second chunk in block n+1
-        da.generate_block(addr.clone(), vec![reveals[1].to_string()])
+        da.generate_block(addr.clone(), vec![txs[3].to_string()])
             .await?;
 
         // Aggregate in block n+2
-        da.generate_block(addr.clone(), vec![reveals[2].to_string()])
+        da.generate_block(addr.clone(), vec![txs[5].to_string()])
             .await?;
 
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -3441,52 +3389,20 @@ impl TestCase for FullNodeLcpChunkProofTest {
                 Some(commitment_4.serialize_and_calculate_sha_256()),
             );
 
-        let _ = batch_prover_da_service
-            .test_send_separate_chunk_transaction_with_fee_rate(
-                DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
-                1.0,
-            )
-            .await
-            .unwrap();
+        let txs = tx_builder::test_send_separate_chunk_transaction_with_fee_rate(
+            &*da,
+            DaTxRequest::ZKProof(verifiable_60kb_batch_proof),
+            1.0,
+        )
+        .await
+        .unwrap();
 
         // In total 2 chunks 1 aggregate with all of them having reveal and commit txs we should have 6 txs in mempool
         da.wait_mempool_len(6, Some(TEN_MINS)).await?;
 
-        let txs = da.get_raw_mempool().await?;
         assert_eq!(txs.len(), 6);
 
-        let mut reveals = [Txid::all_zeros(), Txid::all_zeros(), Txid::all_zeros()];
-
-        let mut commits = Vec::with_capacity(3);
-
-        for txid in txs {
-            let tx = da
-                .get_transaction(&txid, None)
-                .await?
-                .transaction()
-                .unwrap();
-
-            let parsed = parse_relevant_transaction(&tx);
-            match parsed {
-                Ok(ParsedTransaction::Aggregate(_)) => {
-                    // Make sure the aggregate tx is in the middle
-                    reveals[1] = txid;
-                }
-                Ok(ParsedTransaction::Chunk(_)) => {
-                    // all chunks come before the aggregate
-                    if reveals[0] == Txid::all_zeros() {
-                        reveals[0] = txid;
-                    } else if reveals[2] == Txid::all_zeros() {
-                        reveals[2] = txid;
-                    }
-                }
-                Err(_) => commits.push(txid),
-                _ => {}
-            }
-        }
-
-        commits.push(reveals[0]);
-        let commits_and_first_chunk = commits.clone();
+        let commits_and_first_chunk = [txs[0], txs[2], txs[4], txs[1]];
 
         // First chunk in block n
         da.generate_block(
@@ -3499,11 +3415,11 @@ impl TestCase for FullNodeLcpChunkProofTest {
         .await?;
 
         // Secondly aggregate in block n+1
-        da.generate_block(addr.clone(), vec![reveals[1].to_string()])
+        da.generate_block(addr.clone(), vec![txs[5].to_string()])
             .await?;
 
         // Finally last chunk in block n+2
-        da.generate_block(addr.clone(), vec![reveals[2].to_string()])
+        da.generate_block(addr.clone(), vec![txs[3].to_string()])
             .await?;
 
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
@@ -3620,15 +3536,15 @@ impl TestCase for FullNodeL1SyncHaltOnMerkleRootMismatch {
             merkle_root,
         };
         let task_executor = self.task_manager.executor();
-        let sequencer_da_service =
-            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
-                .await;
+        let sequencer_da_service = spawn_bitcoin_da_sequencer_service(
+            &task_executor,
+            &da.config,
+            &sequencer.config.rollup,
+        )
+        .await;
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(correct_commitment),
-                1.0,
-            )
+            .send_transaction(DaTxRequest::SequencerCommitment(correct_commitment))
             .await
             .unwrap();
 
@@ -3653,10 +3569,9 @@ impl TestCase for FullNodeL1SyncHaltOnMerkleRootMismatch {
         };
 
         sequencer_da_service
-            .send_transaction_with_fee_rate(
-                DaTxRequest::SequencerCommitment(wrong_merkle_root_commitment),
-                1.0,
-            )
+            .send_transaction(DaTxRequest::SequencerCommitment(
+                wrong_merkle_root_commitment,
+            ))
             .await
             .unwrap();
         da.wait_mempool_len(2, None).await?;

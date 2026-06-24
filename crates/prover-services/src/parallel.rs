@@ -206,13 +206,13 @@ where
         Ok(permit)
     }
 
-    /// Submits the zk proof to the DA service, returning transaction id.
+    #[allow(clippy::type_complexity)]
     #[instrument(name = "ParallelProverService", skip_all, fields(job_id = _job_id.to_string()))]
     pub async fn submit_proof(
         &self,
         proof: Proof,
         _job_id: Uuid,
-    ) -> anyhow::Result<<Da as DaService>::TransactionId> {
+    ) -> anyhow::Result<<Da as DaService>::SubmissionId> {
         let tx_request = DaTxRequest::ZKProof(proof);
         info!("Submitting proof to DA service");
         self.da_service
@@ -221,16 +221,27 @@ where
             .map_err(|e| anyhow::anyhow!(e))
     }
 
+    #[instrument(name = "ParallelProverService", skip_all)]
+    pub async fn wait_for_transaction_id(
+        &self,
+        submission_id: <Da as DaService>::SubmissionId,
+    ) -> anyhow::Result<<Da as DaService>::TransactionId> {
+        self.da_service
+            .wait_for_transaction_id(submission_id)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+
     // Only used in tests
     pub async fn submit_proofs(
         &self,
         proofs: Vec<Proof>,
-    ) -> anyhow::Result<Vec<(<Da as DaService>::TransactionId, Proof)>> {
+    ) -> anyhow::Result<Vec<(<Da as DaService>::SubmissionId, Proof)>> {
         let mut tx_and_proof = Vec::with_capacity(proofs.len());
         let job_id = Uuid::nil();
         for proof in proofs {
-            let tx_id = self.submit_proof(proof.clone(), job_id).await?;
-            tx_and_proof.push((tx_id, proof));
+            let submission_id = self.submit_proof(proof.clone(), job_id).await?;
+            tx_and_proof.push((submission_id, proof));
         }
         Ok(tx_and_proof)
     }

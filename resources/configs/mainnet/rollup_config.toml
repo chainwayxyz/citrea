@@ -11,8 +11,6 @@ node_url = "http://0.0.0.0:8332"
 node_username = "citrea"
 node_password = "citrea"
 
-tx_backup_dir = ""
-
 [storage]
 # Path to the rollup's data directory
 path = "resources/dbs"

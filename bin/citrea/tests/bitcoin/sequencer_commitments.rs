@@ -4,7 +4,7 @@ use alloy_primitives::{U32, U64};
 use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
-use bitcoincore_rpc::RpcApi;
+use bitcoincore_rpc::{Auth, Client, RpcApi};
 use borsh::BorshDeserialize;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
@@ -24,9 +24,27 @@ use sov_rollup_interface::da::{BlobReaderTrait, DaTxRequest, DataOnDa, Sequencer
 use sov_rollup_interface::rpc::SequencerCommitmentResponse;
 use tokio::time::sleep;
 
-use super::get_citrea_path;
+use super::{get_citrea_path, tx_builder};
 use crate::bitcoin::get_relevant_seqcoms_from_txs;
-use crate::bitcoin::utils::spawn_bitcoin_da_with_wallet;
+use crate::bitcoin::utils::SEQUENCER_DA_PRIVATE_KEY;
+
+/// Build an RPC client bound to the sequencer's bitcoin wallet on the DA node.
+///
+/// The sequencer (via its tx-sender) uses the `sequencer` wallet for DA
+/// transactions, so tests that need to simulate sequencer-originated DA txs must
+/// broadcast through this wallet for the sequencer to later discover them.
+async fn sequencer_wallet_client(da: &BitcoinNode) -> Result<Client> {
+    let client = Client::new(
+        &format!(
+            "http://127.0.0.1:{}/wallet/{}",
+            da.config.rpc_port,
+            NodeKind::Sequencer
+        ),
+        Auth::UserPass(da.config.rpc_user.clone(), da.config.rpc_password.clone()),
+    )
+    .await?;
+    Ok(client)
+}
 
 pub async fn wait_for_sequencer_commitments(
     full_node: &FullNode,
@@ -348,12 +366,11 @@ impl TestCase for SequencerCommitmentsFromDaTest {
         let sequencer = f.sequencer.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
-        let da_service = spawn_bitcoin_da_with_wallet(
-            &self.task_manager.executor(),
-            &da.config,
-            NodeKind::Sequencer.to_string(),
-        )
-        .await;
+        // Send the simulated "already submitted" commitments from the sequencer's
+        // own wallet (the one its tx-sender uses), so that on restart the sequencer
+        // discovers the still-pending commitment in its wallet mempool — mirroring a
+        // real recovery where the commitments would have been broadcast by itself.
+        let seq_da_client = sequencer_wallet_client(da).await?;
 
         // publish blocks, no commitments should be sent
         sequencer.client.http_client().halt_commitments().await?;
@@ -362,6 +379,9 @@ impl TestCase for SequencerCommitmentsFromDaTest {
         }
         sequencer.wait_for_l2_height(40, None).await?;
         sequencer.wait_until_stopped().await?;
+        if let Some(tx_sender) = f.tx_senders.get_mut(&NodeKind::Sequencer) {
+            tx_sender.wait_until_stopped().await?;
+        }
 
         // Send commitment with index 1 to DA
         let commitment = SequencerCommitment {
@@ -369,10 +389,13 @@ impl TestCase for SequencerCommitmentsFromDaTest {
             l2_end_block_number: 15,
             index: 1,
         };
-        da_service
-            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment), 1.0)
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &seq_da_client,
+            DaTxRequest::SequencerCommitment(commitment),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
         da.wait_mempool_len(2, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
 
@@ -382,11 +405,18 @@ impl TestCase for SequencerCommitmentsFromDaTest {
             l2_end_block_number: 25,
             index: 2,
         };
-        da_service
-            .send_transaction_with_fee_rate(DaTxRequest::SequencerCommitment(commitment), 1.0)
-            .await
-            .unwrap();
+        tx_builder::test_send_complete_transaction_with_fee_rate(
+            &seq_da_client,
+            DaTxRequest::SequencerCommitment(commitment),
+            SEQUENCER_DA_PRIVATE_KEY,
+            1.0,
+        )
+        .await?;
+        da.wait_mempool_len(2, None).await?;
         // Restart sequencer, it should fetch commitment with index 1 and 2
+        if let Some(tx_sender) = f.tx_senders.get_mut(&NodeKind::Sequencer) {
+            tx_sender.start(None, None).await?;
+        }
         sequencer.restart(None, None).await?;
         // Sequencer should submit the next commitment with index 3
         da.wait_mempool_len(4, None).await?;
@@ -413,13 +443,27 @@ impl TestCase for SequencerCommitmentsFromDaTest {
         assert_eq!(comm_2.l2_end_block_number, U64::from(25));
         assert_eq!(comm_2.merkle_root, [2; 32]);
 
-        // Check if sequencer submitted commitment 3 for blocks 26-35
-        let comm_3 = sequencer
-            .client
-            .http_client()
-            .get_sequencer_commitment_by_index(U32::from(3))
-            .await?
-            .unwrap();
+        // Check if sequencer submitted commitment 3 for blocks 26-35.
+        // The sequencer records a commitment in its DB only after the tx-sender
+        // exposes the reveal txid, which lands slightly after the tx hits the
+        // mempool, so poll until it is stored rather than reading once.
+        let comm_3 = {
+            let start = Instant::now();
+            loop {
+                if let Some(commitment) = sequencer
+                    .client
+                    .http_client()
+                    .get_sequencer_commitment_by_index(U32::from(3))
+                    .await?
+                {
+                    break commitment;
+                }
+                if start.elapsed() > Duration::from_secs(30) {
+                    bail!("Sequencer did not store commitment 3 in time");
+                }
+                sleep(Duration::from_millis(200)).await;
+            }
+        };
         assert_eq!(comm_3.index, U32::from(3));
         assert_eq!(comm_3.l2_end_block_number, U64::from(35));
 

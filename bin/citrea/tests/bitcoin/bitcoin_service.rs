@@ -29,10 +29,7 @@ struct BitcoinServiceTest {
 impl TestCase for BitcoinServiceTest {
     fn test_config() -> TestCaseConfig {
         // Only run bitcoin regtest
-        TestCaseConfig {
-            with_sequencer: false,
-            ..Default::default()
-        }
+        TestCaseConfig::default()
     }
 
     fn bitcoin_config() -> BitcoinConfig {
@@ -52,15 +49,16 @@ impl TestCase for BitcoinServiceTest {
         let task_executor = self.task_manager.executor();
 
         let da_node = f.bitcoin_nodes.get(0).unwrap();
+        let rollup_config = &f.ctx.config.sequencer[0].rollup;
 
-        let service = get_default_service(&task_executor, &da_node.config).await;
+        let service = get_default_service(&task_executor, &da_node.config, rollup_config).await;
         let verifier = BitcoinVerifier::new(RollupParams {
             reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
             network: Network::Nightly,
         });
 
         let (block, block_commitments, block_proofs, _) =
-            generate_mock_txs(&service, da_node, &task_executor).await;
+            generate_mock_txs(&service, da_node, &task_executor, rollup_config).await;
         let block_wtxids = block
             .txdata
             .iter()
@@ -73,16 +71,16 @@ impl TestCase for BitcoinServiceTest {
         {
             let (mut txs, inclusion_proof, completeness_proof) =
                 service.extract_relevant_blobs_with_proof(&block);
-            assert_eq!(inclusion_proof.wtxids.len(), 33);
+            assert_eq!(inclusion_proof.wtxids.len(), block_wtxids.len());
             assert_eq!(inclusion_proof.wtxids[1..], block_wtxids[1..]);
-            // 2 complete, 2 aggregate proofs with 2 chunks for the first and 3 chunks for the second agg, and 2 method id txs
-            // 4 sequencer commitments
-            assert_eq!(txs.len(), 15);
+            // Tx-sender writes one commit/reveal pair per DA request in this setup:
+            // 4 batch proofs, 3 sequencer commitments, and 2 method id updates.
+            assert_eq!(txs.len(), 9);
             // it is >= due to the probability that one of commit transactions ended up
             // with the prefix by chance (reveals are guaranteed to have a certain prefix)
             assert!(
-                completeness_proof.len() >= 15,
-                "expected completeness proof to have at least 6 txs, it has {}",
+                completeness_proof.len() >= 9,
+                "expected completeness proof to have at least 9 txs, it has {}",
                 completeness_proof.len()
             );
 
@@ -90,13 +88,7 @@ impl TestCase for BitcoinServiceTest {
                 t.full_data();
             });
 
-            // Since only one of the transactions has a malformed sender, we have to find the
-            // tx that is not malformed, and get its public key
-            pubkey = if txs[0].sender() == txs[1].sender() || txs[0].sender() == txs[2].sender() {
-                txs[0].sender()
-            } else {
-                txs[1].sender()
-            };
+            pubkey = txs[0].sender();
 
             // Ensure that the produced outputs are verifiable by the verifier
             assert_eq!(
@@ -107,22 +99,28 @@ impl TestCase for BitcoinServiceTest {
 
         // Extract relevant sequencer commitments
         {
-            let commitments: Vec<_> = service
+            let mut commitments: Vec<_> = service
                 .extract_relevant_sequencer_commitments(&block, pubkey.as_ref())
                 .into_iter()
                 .map(|(_, commitment)| commitment)
                 .collect();
+            commitments.sort_by_key(|commitment| commitment.index);
+            let mut block_commitments = block_commitments.clone();
+            block_commitments.sort_by_key(|commitment| commitment.index);
             assert_eq!(commitments, block_commitments);
         }
 
         // Extract relevant zk proofs
         {
-            let proofs: Vec<_> = service
+            let mut proofs: Vec<_> = service
                 .extract_relevant_zk_proofs(&block, pubkey.as_ref())
                 .await
                 .into_iter()
                 .map(|(_, proof)| proof)
                 .collect();
+            proofs.sort();
+            let mut block_proofs = block_proofs.clone();
+            block_proofs.sort();
             assert_eq!(proofs, block_proofs);
         }
 
@@ -131,21 +129,11 @@ impl TestCase for BitcoinServiceTest {
             let secret = SecretKey::from_str(SEQUENCER_DA_PRIVATE_KEY).unwrap();
             let da_pubkey = secret.keypair(&secp).public_key().serialize().to_vec();
 
-            let wrong_secret = SecretKey::from_str(
-                "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263",
-            )
-            .unwrap();
-            let wrong_pubkey = wrong_secret
-                .keypair(&secp)
-                .public_key()
-                .serialize()
-                .to_vec();
-
             let txs = get_relevant_seqcoms_from_txs(
                 block.txdata.iter().map(|tx| tx.deref().clone()).collect(),
                 REVEAL_TX_PREFIX,
             );
-            assert_eq!(txs.len(), 4);
+            assert_eq!(txs.len(), 3);
 
             // Count the number of transactions occurring per public key
             let tx_count_of_pubkey = txs.into_iter().fold(HashMap::new(), |mut acc, tx| {
@@ -154,8 +142,6 @@ impl TestCase for BitcoinServiceTest {
             });
             // 3 valid sequencer commitments
             assert_eq!(tx_count_of_pubkey.get(&da_pubkey).unwrap(), &3);
-            // 1 invalid sequencer commitment due to different key
-            assert_eq!(tx_count_of_pubkey.get(&wrong_pubkey).unwrap(), &1);
         }
 
         Ok(())

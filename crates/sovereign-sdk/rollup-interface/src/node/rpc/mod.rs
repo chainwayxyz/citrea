@@ -168,8 +168,9 @@ pub struct JobRpcResponse {
     pub id: Uuid,
     /// Commitments being proven in the job
     pub commitments: Vec<SequencerCommitmentResponse>,
-    /// Proof result of the job. If proof is None, job still continues,
-    /// and if it is Some but l1_tx_id is 0-value, it is being submitted to L1.
+    /// Proof result of the job. If proof is None, the job is still running.
+    /// If it is Some but `l1_tx_id` is None, the proof is waiting on DA submission
+    /// or on the final L1 txid to be resolved.
     pub proof: Option<BatchProofResponse>,
 }
 

@@ -11,8 +11,6 @@ node_url = "http://0.0.0.0:18443"
 node_username = "citrea"
 node_password = "citrea"
 
-tx_backup_dir = ""
-
 [storage]
 # make sure the following path relative to the directory in which you're
 # running citrea exists.

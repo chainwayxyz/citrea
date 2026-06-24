@@ -49,6 +49,9 @@ test-nocapture: ## Runs test suite with output from tests printed
 test: $(EF_TESTS_DIR) ## Runs test suite using nextest
 	PARALLEL_PROOF_LIMIT=1 cargo nextest run -j20 --locked --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
+test-infra-reset: ## Removes the shared e2e postgres container
+	docker rm -f citrea-e2e-shared-postgres 2>/dev/null || true
+
 coverage: $(EF_TESTS_DIR) ## Coverage in lcov format
 	CITREA_CLI_E2E_TEST_BINARY=$(CURDIR)/target/llvm-cov-target/debug/citrea-cli \
 	CITREA_E2E_TEST_BINARY=$(CURDIR)/target/llvm-cov-target/debug/citrea \

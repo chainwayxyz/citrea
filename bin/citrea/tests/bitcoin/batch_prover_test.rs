@@ -1,3 +1,4 @@
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -7,16 +8,19 @@ use alloy::network::TxSigner;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 use alloy_primitives::{Address, Bytes, TxKind, U256, U32, U64};
+use anyhow::{bail, Context};
 use async_trait::async_trait;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bitcoin::hashes::Hash;
+use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
 use bitcoincore_rpc::RpcApi;
+use borsh::BorshDeserialize;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::PartitionMode;
 use citrea_common::config::risc0::Risc0HostConfig;
 use citrea_common::FromEnv;
-use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
+use citrea_e2e::bitcoin::{BitcoinNode, DEFAULT_FINALITY_DEPTH};
 use citrea_e2e::config::{
     BatchProverConfig, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig,
     SequencerMempoolConfig, TestCaseConfig, TestCaseEnv,
@@ -32,6 +36,7 @@ use citrea_sequencer::SequencerRpcClient;
 use risc0_zkvm::Digest;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::Zkvm as _;
+use sov_rollup_interface::da::DataOnDa;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{ProvingSessionInfo, ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
@@ -39,7 +44,9 @@ use uuid::Uuid;
 
 use super::get_citrea_path;
 use super::utils::wait_for_zkproofs;
-use crate::bitcoin::utils::{wait_for_prover_job, wait_for_prover_job_count};
+use crate::bitcoin::utils::{
+    wait_for_prover_job, wait_for_prover_job_count, wait_for_prover_job_with_l1_tx_id,
+};
 use crate::common::make_test_client;
 
 /// This is a basic prover test showcasing spawning a bitcoin node as DA, a sequencer and a prover.
@@ -813,6 +820,64 @@ async fn parallel_proving_test() -> Result<()> {
 
 struct L1HashOutputTest;
 
+async fn ordered_sequencer_commitment_mempool_txs(
+    da: &BitcoinNode,
+    indices: &[u32],
+) -> Result<Vec<String>> {
+    let txids = da.get_raw_mempool().await?;
+    let mut mempool_txs = HashMap::with_capacity(txids.len());
+
+    for txid in txids {
+        let tx = da.get_raw_transaction(&txid, None).await?;
+        mempool_txs.insert(txid, tx);
+    }
+
+    let mut txs_by_commitment_index = BTreeMap::new();
+    for (reveal_txid, tx) in &mempool_txs {
+        let Ok(ParsedTransaction::SequencerCommitment(seq_comm)) = parse_relevant_transaction(tx)
+        else {
+            continue;
+        };
+
+        if seq_comm.get_sig_verified_hash().is_none() {
+            continue;
+        }
+
+        let DataOnDa::SequencerCommitment(commitment) = DataOnDa::try_from_slice(seq_comm.body())?
+        else {
+            continue;
+        };
+
+        let commit_txid = tx
+            .input
+            .first()
+            .context("sequencer commitment reveal tx has no commit input")?
+            .previous_output
+            .txid;
+
+        if !mempool_txs.contains_key(&commit_txid) {
+            bail!(
+                "commit tx {commit_txid} for commitment {} is not in mempool",
+                commitment.index
+            );
+        }
+
+        txs_by_commitment_index.insert(commitment.index, (commit_txid, *reveal_txid));
+    }
+
+    let mut ordered_txs = Vec::with_capacity(indices.len() * 2);
+    for index in indices {
+        let (commit_txid, reveal_txid) = txs_by_commitment_index
+            .get(index)
+            .with_context(|| format!("missing sequencer commitment {index} in mempool"))?;
+
+        ordered_txs.push(commit_txid.to_string());
+        ordered_txs.push(reveal_txid.to_string());
+    }
+
+    Ok(ordered_txs)
+}
+
 #[async_trait]
 impl TestCase for L1HashOutputTest {
     fn test_config() -> TestCaseConfig {
@@ -890,18 +955,28 @@ impl TestCase for L1HashOutputTest {
             l1_hash
         );
 
+        // Tx-sender resolves the submitted proof transaction only after finality. Clear the
+        // first proof from the mempool before the next phase starts counting commitment txs.
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        wait_for_prover_job_with_l1_tx_id(batch_prover, job_id, None)
+            .await
+            .unwrap();
+
         // part 2
         for _ in 0..26 {
             sequencer.client.send_publish_batch_request().await?;
         }
 
-        da.wait_mempool_len(6, None).await?;
+        // Part 1 leaves one L2 block outside the first commitment, so these
+        // requests produce two complete commitments under the tx-sender flow.
+        da.wait_mempool_len(4, None).await?;
 
         for _ in 0..13 {
             sequencer.client.send_publish_batch_request().await?;
         }
 
-        da.wait_mempool_len(8, None).await?;
+        da.wait_mempool_len(6, None).await?;
 
         let temp_addr = da
             .get_new_address(None, None)
@@ -909,9 +984,8 @@ impl TestCase for L1HashOutputTest {
             .assume_checked()
             .to_string();
 
-        let txs = da.get_raw_mempool().await?;
-
-        let commitments_with_l1_update = txs[0..4].iter().map(|txid| txid.to_string()).collect();
+        let commitments_with_l1_update =
+            ordered_sequencer_commitment_mempool_txs(da, &[2, 3]).await?;
 
         // First, finalize the commitments with l1 update
         da.generate_block(temp_addr, commitments_with_l1_update)
@@ -1087,17 +1161,14 @@ impl TestCase for SubmitFakeProofRpcTest {
             .unwrap();
 
         // first, submit index 4
-        batch_prover
-            .client
-            .http_client()
-            .submit_fake_proof(4, 4)
-            .await
-            .unwrap();
+        let client = batch_prover.client.http_client().clone();
+        let fake_proof_handle = tokio::spawn(async move { client.submit_fake_proof(4, 4).await });
 
         // wait for 1 proof txs to hit DA
         da.wait_mempool_len(2, None).await.unwrap();
         // finalize 1 proof
         da.generate(DEFAULT_FINALITY_DEPTH).await.unwrap();
+        fake_proof_handle.await.unwrap().unwrap();
 
         let finalized_height = da.get_finalized_height(None).await.unwrap();
         // ensure light client processed the proof
@@ -1118,17 +1189,14 @@ impl TestCase for SubmitFakeProofRpcTest {
         assert_eq!(lcp_output.last_l2_height.to::<u32>(), 5);
 
         // second, submit indices 2-3
-        batch_prover
-            .client
-            .http_client()
-            .submit_fake_proof(2, 3)
-            .await
-            .unwrap();
+        let client = batch_prover.client.http_client().clone();
+        let fake_proof_handle = tokio::spawn(async move { client.submit_fake_proof(2, 3).await });
 
         // wait for 1 proof txs to hit DA
         da.wait_mempool_len(2, None).await.unwrap();
         // finalize 1 proof
         da.generate(DEFAULT_FINALITY_DEPTH).await.unwrap();
+        fake_proof_handle.await.unwrap().unwrap();
 
         let finalized_height = da.get_finalized_height(None).await.unwrap();
         // ensure light client processed the proof
@@ -1194,13 +1262,21 @@ impl TestCase for SubmitFakeProofRpcTest {
         assert_eq!(job_response.commitments[0].index.to::<u32>(), 5);
         let zkvm_prove_output = job_response.proof.unwrap().proof_output;
 
-        // also submit fake proof of commitment index 5 through rpc
-        let fake_proof_response = batch_prover
-            .client
-            .http_client()
-            .submit_fake_proof(5, 5)
+        // Let the regular proof submission finish before sending the fake proof.
+        // The tx-sender serializes concurrent DA submissions through the same wallet/db,
+        // and the RPC client can time out if a duplicate proof is queued behind it.
+        da.wait_mempool_len(2, None).await.unwrap();
+        da.generate(DEFAULT_FINALITY_DEPTH).await.unwrap();
+        let _ = wait_for_prover_job_with_l1_tx_id(batch_prover, job_id, None)
             .await
             .unwrap();
+
+        // also submit fake proof of commitment index 5 through rpc
+        let client = batch_prover.client.http_client().clone();
+        let fake_proof_handle = tokio::spawn(async move { client.submit_fake_proof(5, 5).await });
+        da.wait_mempool_len(2, None).await.unwrap();
+        da.generate(DEFAULT_FINALITY_DEPTH).await.unwrap();
+        let fake_proof_response = fake_proof_handle.await.unwrap().unwrap();
         // assert that fake proof response has null info field
         assert!(fake_proof_response.info.is_none());
 

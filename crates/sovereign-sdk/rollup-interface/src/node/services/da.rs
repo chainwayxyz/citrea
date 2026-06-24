@@ -13,7 +13,7 @@ use crate::da::{DaSpec, DaTxRequest, DaVerifier, SequencerCommitment};
 #[cfg(feature = "native")]
 use crate::zk::Proof;
 
-/// This type represents a queued request to send_transaction
+/// This type represents a queued DA submission request.
 #[cfg(feature = "native")]
 pub struct TxRequestWithNotifier<TxID> {
     /// Data to send.
@@ -41,6 +41,9 @@ pub trait DaService: Send + Sync + 'static {
 
     /// A transaction ID, used to identify the transaction in the DA layer.
     type TransactionId: Send + PartialEq + Eq + PartialOrd + Ord + core::hash::Hash + Into<[u8; 32]>;
+
+    /// A submission handle returned immediately after the DA backend accepts a request.
+    type SubmissionId: Send;
 
     /// The error type for fallible methods.
     type Error: core::fmt::Debug + Send + Sync + core::fmt::Display;
@@ -101,18 +104,26 @@ pub trait DaService: Send + Sync + 'static {
     /// Decompress chunks.
     fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error>;
 
-    /// Send a transaction directly to the DA layer.
-    /// blob is the serialized and signed transaction.
-    /// Returns nothing if the transaction was successfully sent.
+    /// Submit a transaction request to the DA service backend.
     async fn send_transaction(
         &self,
         tx_request: DaTxRequest,
+    ) -> Result<Self::SubmissionId, Self::Error>;
+
+    /// Wait until a transaction handle resolves to the DA-layer transaction id.
+    ///
+    /// This should resolve once the DA transaction id is known/submitted by the
+    /// backend. It must not wait for DA finality; confirmation/finality tracking
+    /// is handled separately by DA monitoring.
+    async fn wait_for_transaction_id(
+        &self,
+        submission_id: Self::SubmissionId,
     ) -> Result<Self::TransactionId, Self::Error>;
 
-    /// A tx part of the queue to send transactions in order
+    /// Queue used by DA implementations that serialize transaction submissions.
     fn get_send_transaction_queue(
         &self,
-    ) -> UnboundedSender<TxRequestWithNotifier<Self::TransactionId>> {
+    ) -> UnboundedSender<TxRequestWithNotifier<Self::SubmissionId>> {
         unimplemented!()
     }
 

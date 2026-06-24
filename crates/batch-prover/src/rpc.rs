@@ -225,8 +225,9 @@ pub trait BatchProverRpc {
         mode: PartitionMode,
     ) -> RpcResult<Vec<String>>;
 
-    /// Get job details by job id. If proof is null, it means job is still being proven,
-    /// if proof exists but l1_tx_id is 0, it means job is being submitted to L1.
+    /// Get job details by job id. If proof is null, the job is still being proven.
+    /// If proof exists and `l1_tx_id` is null, the proof is waiting for DA submission
+    /// or for the final L1 txid to be resolved.
     ///
     /// # Arguments
     /// * `job_id` - The unique identifier of the proving job to retrieve.
@@ -311,6 +312,7 @@ pub trait BatchProverRpc {
 pub struct BatchProverRpcServerImpl<Da, DB, Vm>
 where
     Da: DaService,
+    Da::TransactionId: Into<[u8; 32]>,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: Zkvm + 'static,
 {
@@ -517,15 +519,21 @@ where
         let receipt = InnerReceipt::Fake(fake_receipt);
         let proof = bincode::serialize(&receipt).expect("Receipt serialization cannot fail");
 
-        let tx_id = self
+        let submission_id = self
             .context
             .da_service
             .send_transaction(DaTxRequest::ZKProof(proof.clone()))
             .await
             .map_err(internal_rpc_error)?;
+        let l1_tx_id = self
+            .context
+            .da_service
+            .wait_for_transaction_id(submission_id)
+            .await
+            .map_err(internal_rpc_error)?;
 
         Ok(BatchProofResponse {
-            l1_tx_id: Some(tx_id.into()),
+            l1_tx_id: Some(l1_tx_id.into()),
             proof,
             proof_output: StoredBatchProofOutput::from(output).into(),
             info: None,

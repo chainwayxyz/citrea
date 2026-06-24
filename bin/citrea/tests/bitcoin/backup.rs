@@ -20,7 +20,10 @@ use jsonrpsee::rpc_params;
 use sov_ledger_rpc::LedgerRpcClient;
 
 use super::{get_citrea_cli_path, get_citrea_path};
-use crate::bitcoin::utils::{wait_for_prover_job, wait_for_prover_job_count, wait_for_zkproofs};
+use crate::bitcoin::utils::{
+    wait_for_prover_job, wait_for_prover_job_count, wait_for_prover_job_with_l1_tx_id,
+    wait_for_zkproofs,
+};
 
 const API_KEY: &str = "12345";
 
@@ -798,7 +801,8 @@ impl TestCase for BackupBatchProverTest {
         let restored_job_ids = wait_for_prover_job_count(batch_prover, 2, None).await?;
         assert_eq!(restored_job_ids.len(), 2);
         let restored_job_id = restored_job_ids[0];
-        let restored_response = wait_for_prover_job(batch_prover, restored_job_id, None).await?;
+        let restored_response =
+            wait_for_prover_job_with_l1_tx_id(batch_prover, restored_job_id, None).await?;
         let restored_proof = restored_response.proof.unwrap();
 
         assert_eq!(
@@ -809,21 +813,6 @@ impl TestCase for BackupBatchProverTest {
             restored_proof.proof_output.last_l2_height,
             second_proof.proof_output.last_l2_height
         );
-
-        da.wait_mempool_len(2, None).await?;
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-        let restored_proof_l1_height = da.get_finalized_height(None).await?;
-
-        full_node
-            .wait_for_l1_height(restored_proof_l1_height, None)
-            .await?;
-        let proofs = full_node
-            .client
-            .http_client()
-            .get_verified_batch_proofs_by_slot_height(U64::from(restored_proof_l1_height))
-            .await?;
-        // Proof should have been skipped as duplicate by fullnode
-        assert!(proofs.is_none());
 
         batch_prover.wait_until_stopped().await?;
 
@@ -882,7 +871,10 @@ impl TestCase for BackupBatchProverTest {
         for _ in 0..max_l2_blocks_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
-        da.wait_mempool_len(2, None).await?;
+        // The rollback proof duplicates an already-finalized proof, so tx-sender can resolve it
+        // without placing a new proof transaction in the mempool. Only the new commitment is
+        // required here before finalizing the third commitment.
+        da.wait_mempool_len(1, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let third_commitment_l1_height = da.get_finalized_height(None).await?;
 

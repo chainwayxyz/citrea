@@ -8,8 +8,6 @@ use bitcoin::Transaction;
 use sha2::{Digest, Sha256};
 
 #[cfg(feature = "native")]
-pub mod backup;
-#[cfg(feature = "native")]
 pub mod builders;
 
 pub mod merkle_tree;
@@ -36,7 +34,7 @@ pub(crate) enum TransactionKind {
 }
 
 impl TransactionKind {
-    #[cfg(feature = "native")]
+    #[cfg(test)]
     /// Serialize itself into bytes.
     fn to_bytes(&self) -> [u8; 2] {
         match self {

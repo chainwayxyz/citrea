@@ -13,11 +13,10 @@ use bitcoin_da::network_constants::get_network_constants;
 use bitcoin_da::service::{network_to_bitcoin_network, BitcoinService, BitcoinServiceConfig};
 use bitcoin_da::spec::block::BitcoinBlock;
 use bitcoin_da::spec::RollupParams;
-use bitcoin_da::utxo_manager::UtxoSelectionMode;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_e2e::bitcoin::BitcoinNode;
-use citrea_e2e::config::BitcoinConfig;
+use citrea_e2e::config::{BitcoinConfig, RollupConfig};
 use citrea_e2e::node::{BatchProver, FullNode, NodeKind};
 use citrea_e2e::traits::NodeT;
 use citrea_light_client_prover::circuit::{
@@ -37,12 +36,6 @@ use sov_rollup_interface::Network;
 use tokio::time::sleep;
 use uuid::Uuid;
 
-pub enum DaServiceKeyKind {
-    Sequencer,
-    BatchProver,
-    Other(String),
-}
-
 pub const BATCH_PROOF_METHOD_ID_UPDATE_AUTHORITY_TEST_PRIVATE_KEYS: [&str; 5] = [
     "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9077",
     "79122E48DF1A002FB6584B2E94D0D50F95037416C82DAF280F21CD67D17D9076",
@@ -56,130 +49,60 @@ pub const SEQUENCER_DA_PRIVATE_KEY: &str =
 pub const PROVER_DA_PRIVATE_KEY: &str =
     "56D08C2DDE7F412F80EC99A0A328F76688C904BD4D1435281EFC9270EC8C8707";
 
-fn get_workspace_root() -> PathBuf {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    manifest_dir
-        .ancestors()
-        .nth(2)
-        .expect("Failed to find workspace root")
-        .to_path_buf()
-}
-
-fn get_tx_backup_dir() -> PathBuf {
-    get_workspace_root()
-        .join("resources")
-        .join("bitcoin")
-        .join("inscription_txs")
-        .to_path_buf()
+fn tx_sender_url(rollup_config: &RollupConfig) -> String {
+    rollup_config
+        .da
+        .tx_sender_url
+        .clone()
+        .expect("tx_sender_url must be configured")
 }
 
 pub async fn get_default_service(
     task_executor: &TaskExecutor,
-    config: &BitcoinConfig,
+    bitcoin_config: &BitcoinConfig,
+    rollup_config: &RollupConfig,
 ) -> Arc<BitcoinService> {
     spawn_bitcoin_da_service(
         task_executor,
-        config,
-        get_tx_backup_dir(),
-        DaServiceKeyKind::Sequencer,
+        bitcoin_config,
+        rollup_config,
         REVEAL_TX_PREFIX.to_vec(),
         None,
-        None,
-    )
-    .await
-}
-
-pub async fn spawn_bitcoin_da_with_wallet(
-    task_executor: &TaskExecutor,
-    config: &BitcoinConfig,
-    wallet: String,
-) -> Arc<BitcoinService> {
-    spawn_bitcoin_da_service(
-        task_executor,
-        config,
-        get_tx_backup_dir(),
-        DaServiceKeyKind::Sequencer,
-        REVEAL_TX_PREFIX.to_vec(),
-        None,
-        Some(wallet),
     )
     .await
 }
 
 pub async fn spawn_bitcoin_da_sequencer_service(
     task_executor: &TaskExecutor,
-    config: &BitcoinConfig,
-    dir: PathBuf,
+    bitcoin_config: &BitcoinConfig,
+    rollup_config: &RollupConfig,
 ) -> Arc<BitcoinService> {
-    spawn_bitcoin_da_service(
-        task_executor,
-        config,
-        dir,
-        DaServiceKeyKind::Sequencer,
-        REVEAL_TX_PREFIX.to_vec(),
-        None,
-        None,
-    )
-    .await
+    get_default_service(task_executor, bitcoin_config, rollup_config).await
 }
 
 pub async fn spawn_bitcoin_da_prover_service(
     task_executor: &TaskExecutor,
-    config: &BitcoinConfig,
-    dir: PathBuf,
+    bitcoin_config: &BitcoinConfig,
+    rollup_config: &RollupConfig,
 ) -> Arc<BitcoinService> {
-    spawn_bitcoin_da_service(
-        task_executor,
-        config,
-        dir,
-        DaServiceKeyKind::BatchProver,
-        REVEAL_TX_PREFIX.to_vec(),
-        None,
-        None,
-    )
-    .await
-}
-
-#[cfg(feature = "testing")]
-pub async fn spawn_bitcoin_da_prover_service_with_utxo_selection_mode(
-    task_executor: &TaskExecutor,
-    config: &BitcoinConfig,
-    dir: PathBuf,
-    utxo_selection_mode: UtxoSelectionMode,
-) -> Arc<BitcoinService> {
-    spawn_bitcoin_da_service(
-        task_executor,
-        config,
-        dir,
-        DaServiceKeyKind::BatchProver,
-        REVEAL_TX_PREFIX.to_vec(),
-        Some(utxo_selection_mode),
-        None,
-    )
-    .await
+    get_default_service(task_executor, bitcoin_config, rollup_config).await
 }
 
 pub async fn spawn_bitcoin_da_service(
     task_executor: &TaskExecutor,
-    da_config: &BitcoinConfig,
-    test_dir: PathBuf,
-    kind: DaServiceKeyKind,
+    bitcoin_config: &BitcoinConfig,
+    rollup_config: &RollupConfig,
     reveal_tx_prefix: Vec<u8>,
-    utxo_selection_mode: Option<UtxoSelectionMode>,
     wallet: Option<String>,
 ) -> Arc<BitcoinService> {
-    let da_private_key = match kind {
-        DaServiceKeyKind::Sequencer => SEQUENCER_DA_PRIVATE_KEY.to_string(),
-        DaServiceKeyKind::BatchProver => PROVER_DA_PRIVATE_KEY.to_string(),
-        DaServiceKeyKind::Other(key) => key,
-    };
     let wallet = wallet.unwrap_or(NodeKind::Bitcoin.to_string());
     let da_config = BitcoinServiceConfig {
-        node_url: format!("http://127.0.0.1:{}/wallet/{}", da_config.rpc_port, wallet),
-        node_username: da_config.rpc_user.clone(),
-        node_password: da_config.rpc_password.clone(),
-        da_private_key: Some(da_private_key),
-        tx_backup_dir: test_dir.join("tx_backup_dir").display().to_string(),
+        node_url: format!(
+            "http://127.0.0.1:{}/wallet/{}",
+            bitcoin_config.rpc_port, wallet
+        ),
+        node_username: bitcoin_config.rpc_user.clone(),
+        node_password: bitcoin_config.rpc_password.clone(),
         monitoring: Some(MonitoringConfig {
             check_interval: 1,
             history_limit: 1_000,
@@ -188,9 +111,9 @@ pub async fn spawn_bitcoin_da_service(
             rebroadcast_delay: 1,
         }),
         mempool_space_url: None,
-        utxo_selection_mode,
         rpc_timeout_secs: None,
         rpc_connect_timeout_secs: None,
+        tx_sender_url: Some(tx_sender_url(rollup_config)),
     };
 
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -235,7 +158,6 @@ pub async fn spawn_bitcoin_da_service(
             &da_config,
             chain_params,
             client,
-            network,
             network_constants,
             monitoring_service,
             fee_service,
@@ -285,8 +207,37 @@ pub async fn wait_for_zkproofs(
     }
 }
 
-/// Wait for prover job to finish.
+/// Wait for prover job to produce a proof.
 pub async fn wait_for_prover_job(
+    batch_prover: &BatchProver,
+    job_id: Uuid,
+    timeout: Option<Duration>,
+) -> anyhow::Result<JobRpcResponse> {
+    let start = Instant::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(300));
+    loop {
+        let response = batch_prover
+            .client
+            .http_client()
+            .get_proving_job(job_id, Some(true))
+            .await?;
+        if let Some(response) = response {
+            if response.proof.is_some() {
+                return Ok(response);
+            }
+        }
+
+        let now = Instant::now();
+        if start + timeout <= now {
+            bail!("Timeout. Failed to get prover job {}", job_id);
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+}
+
+/// Wait for prover job to have a finalized L1 transaction id.
+pub async fn wait_for_prover_job_with_l1_tx_id(
     batch_prover: &BatchProver,
     job_id: Uuid,
     timeout: Option<Duration>,
@@ -309,7 +260,10 @@ pub async fn wait_for_prover_job(
 
         let now = Instant::now();
         if start + timeout <= now {
-            bail!("Timeout. Failed to get prover job {}", job_id);
+            bail!(
+                "Timeout. Failed to get finalized l1 tx id for prover job {}",
+                job_id
+            );
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -417,19 +371,20 @@ async fn finalize_funds(da_node: &BitcoinNode) {
 /// with all mock transactions in it, and returns the block, valid commitments and proofs.
 /// Transactions also contain invalid commitment and zk proof transactions.
 ///
-/// In total it generates 28 transactions.
-/// - Valid commitments: 3 (6 txs)
-/// - Valid complete proofs: 2 (4 txs)
-/// - Valid chunked proofs: 1 with 2 chunks (6 txs) + 1 with 3 chunks (8 txs)
-/// - Valid method id txs: 2 (4 txs)
-/// - Invalid commitment with wrong public key: 1 (2 txs)
-/// - Invalid commitment with wrong prefix: 1 (2 txs)
+/// Submitted requests:
+/// - Valid commitments: 3
+/// - Valid complete proofs: 2
+/// - Valid chunked proofs: 2 (one spanning 2 chunks, one spanning 3)
+/// - Valid method id txs: 2
+/// - Invalid commitments sent from the wrong-key and wrong-prefix services: 2
 ///
-/// With coinbase transaction, returned block has total of 33 transactions.
+/// The exact number of Bitcoin transactions these produce is determined by the
+/// tx-sender; the mempool/block assertions below pin the expected totals.
 pub async fn generate_mock_txs(
     da_service: &BitcoinService,
     da_node: &BitcoinNode,
     task_executor: &TaskExecutor,
+    rollup_config: &RollupConfig,
 ) -> (
     BitcoinBlock,
     Vec<SequencerCommitment>,
@@ -444,11 +399,9 @@ pub async fn generate_mock_txs(
     let wrong_prefix_da_service = spawn_bitcoin_da_service(
         task_executor,
         &da_node.config,
-        wrong_prefix_wallet,
-        DaServiceKeyKind::Sequencer,
+        rollup_config,
         vec![6],
-        None,
-        None,
+        Some(wrong_prefix_wallet.display().to_string()),
     )
     .await;
 
@@ -458,13 +411,9 @@ pub async fn generate_mock_txs(
     let wrong_key_da_service = spawn_bitcoin_da_service(
         task_executor,
         &da_node.config,
-        wrong_key_wallet,
-        DaServiceKeyKind::Other(
-            "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(),
-        ),
+        rollup_config,
         REVEAL_TX_PREFIX.to_vec(),
-        None,
-        None,
+        Some(wrong_key_wallet.display().to_string()),
     )
     .await;
 
@@ -623,6 +572,13 @@ pub async fn generate_mock_txs(
         .await
         .expect("Failed to send transaction");
 
+    // Tx-sender accepts submissions before it has broadcast every underlying
+    // Bitcoin transaction. Wait until all mock DA txs are visible before mining.
+    da_node
+        .wait_mempool_len(18, Some(Duration::from_secs(120)))
+        .await
+        .unwrap();
+
     // Write all txs to a block
     let block_hash = da_node.generate(1).await.unwrap()[0];
 
@@ -630,7 +586,7 @@ pub async fn generate_mock_txs(
         .get_block_by_hash(block_hash.into())
         .await
         .unwrap();
-    assert_eq!(block.txdata.len(), 33);
+    assert_eq!(block.txdata.len(), 19);
 
     (block, valid_commitments, valid_proofs, valid_method_ids)
 }

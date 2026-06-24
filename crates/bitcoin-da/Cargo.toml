@@ -21,23 +21,20 @@ backoff = { workspace = true, optional = true }
 bitcoin = { workspace = true }
 borsh = { workspace = true }
 crypto-bigint = { workspace = true }
-futures = { workspace = true, optional = true }
 hex = { workspace = true, features = ["serde"] }
 itertools = { workspace = true }
 jsonrpsee = { workspace = true, optional = true }
 k256 = { workspace = true }
 lru = { workspace = true, optional = true }
-metrics = { workspace = true, optional = true }
-metrics-derive = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 reth-tasks = { workspace = true, optional = true }
-secp256k1 = { version = "0.29", optional = true, features = ["rand-std", "std", "global-context"] }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true, features = ["raw_value"] }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"], optional = true }
 tracing = { workspace = true, optional = true }
+tx-sender-jsonrpc-client = { workspace = true, optional = true }
 
 bitcoincore-rpc = { workspace = true, optional = true }
 
@@ -49,11 +46,8 @@ default = []
 native = [
   "dep:async-trait",
   "dep:backoff",
-  "dep:futures",
   "dep:lru",
   "dep:tokio",
-  "dep:metrics",
-  "dep:metrics-derive",
   "dep:reth-tasks",
   "dep:tracing",
   "dep:serde_json",
@@ -62,7 +56,7 @@ native = [
   "dep:bitcoincore-rpc",
   "dep:reqwest",
   "dep:jsonrpsee",
-  "dep:secp256k1",
+  "dep:tx-sender-jsonrpc-client",
 ]
 testing = []
 

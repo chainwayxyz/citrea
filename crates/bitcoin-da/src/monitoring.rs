@@ -9,7 +9,7 @@ use anyhow::anyhow;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::hashes::Hash;
 use bitcoin::{Address, BlockHash, Transaction, Txid};
-use bitcoincore_rpc::json::GetTransactionResult;
+use bitcoincore_rpc::json::{GetMempoolEntryResult, GetTransactionResult};
 use bitcoincore_rpc::{Client, RpcApi};
 use citrea_common::utils::read_env;
 use citrea_common::FromEnv;
@@ -31,6 +31,15 @@ type BlockHeight = u64;
 type Result<T> = std::result::Result<T, MonitorError>;
 
 const REBROADCAST_EACH_N_BLOCK: u64 = 1;
+
+/// Convert a bitcoind mempool entry fee into sat/vbyte.
+pub(crate) fn mempool_entry_base_fee(entry: &GetMempoolEntryResult) -> Option<f64> {
+    if entry.vsize == 0 {
+        return None;
+    }
+
+    Some(entry.fees.base.to_sat() as f64 / entry.vsize as f64)
+}
 
 /// Return UNIX timestamp in seconds
 fn get_timestamp() -> u64 {
@@ -362,17 +371,62 @@ impl MonitoringService {
         Ok(())
     }
 
-    // Restore TX chain from utxos using list_unspent in range [0..self.finality_depth] confirmations
+    // Restore TX chain from utxos using list_unspent in range [1..self.finality_depth] confirmations
     async fn restore_from_utxos(&self) -> Result<()> {
+        // `None` min confirmations defaults to 1, restoring only mined (confirmed) txs.
+        let txs = self
+            .collect_relevant_tx_pairs(None, self.finality_depth as usize)
+            .await?;
+
+        tracing::trace!("[restore_from_utxos] {txs:?}");
+
+        self.monitor_transaction_chain(txs).await?;
+        self.check_transactions().await
+    }
+
+    /// Discover relevant commit/reveal transactions currently in the wallet —
+    /// including unconfirmed (mempool) ones — and register any not yet monitored.
+    ///
+    /// In tx-sender mode the transactions carrying our DA payloads are built and
+    /// broadcast by the external tx-sender (which shares this wallet), so they
+    /// only enter local monitoring once observed. Polling the tx-sender races the
+    /// broadcast; scanning the wallet here lets callers (e.g. the pending-tx RPC
+    /// and the sequencer's pending-commitment check) reflect mempool state
+    /// immediately, without waiting for a poll cycle.
+    pub async fn sync_pending_from_wallet(&self) -> Result<()> {
+        // `Some(0)` min confirmations includes mempool (0-conf) txs.
+        let pairs = self
+            .collect_relevant_tx_pairs(Some(0), self.finality_depth as usize)
+            .await?;
+
+        let new_pairs = {
+            let monitored = self.monitored_txs.read().await;
+            pairs
+                .into_iter()
+                .filter(|[_commit, reveal]| !monitored.contains_key(&reveal.id))
+                .collect::<Vec<_>>()
+        };
+
+        self.monitor_transaction_chain(new_pairs).await?;
+        self.check_transactions().await
+    }
+
+    /// Collect relevant commit/reveal transaction pairs from the wallet's unspent
+    /// outputs within the given confirmation range.
+    async fn collect_relevant_tx_pairs(
+        &self,
+        min_conf: Option<usize>,
+        max_conf: usize,
+    ) -> Result<Vec<[TxWithId; 2]>> {
         let mut unspent = self
             .client
-            .list_unspent(None, Some(self.finality_depth as usize), None, None, None)
+            .list_unspent(min_conf, Some(max_conf), None, None, None)
             .await?;
 
         unspent.sort_unstable_by_key(|utxo| {
             utxo.ancestor_count.unwrap_or(0) as i64 - utxo.confirmations as i64 - utxo.vout as i64
         });
-        tracing::trace!("[restore_from_utxos] {unspent:?}");
+        tracing::trace!("[collect_relevant_tx_pairs] {unspent:?}");
 
         let mut txs = Vec::new();
         for tx in &unspent {
@@ -412,10 +466,7 @@ impl MonitoringService {
             }
         }
 
-        tracing::trace!("[restore_from_utxos] {txs:?}");
-
-        self.monitor_transaction_chain(txs).await?;
-        self.check_transactions().await
+        Ok(txs)
     }
 
     /// Run monitoring to keep track of TX status and chain re-orgs
@@ -459,11 +510,22 @@ impl MonitoringService {
         for [commit, reveal] in txs {
             let next_id = reveal.id;
             let prev_id = commit.id;
-            self.monitor_transaction(commit, last_tx, Some(next_id), MonitoredTxKind::Commit)
-                .await?;
 
-            self.monitor_transaction(reveal, Some(prev_id), None, MonitoredTxKind::Reveal)
-                .await?;
+            match self
+                .monitor_transaction(commit, last_tx, Some(next_id), MonitoredTxKind::Commit)
+                .await
+            {
+                Ok(()) | Err(MonitorError::AlreadyMonitored) => {}
+                Err(e) => return Err(e),
+            }
+
+            match self
+                .monitor_transaction(reveal, Some(prev_id), None, MonitoredTxKind::Reveal)
+                .await
+            {
+                Ok(()) | Err(MonitorError::AlreadyMonitored) => {}
+                Err(e) => return Err(e),
+            }
 
             last_tx = Some(next_id)
         }
@@ -727,7 +789,12 @@ impl MonitoringService {
         } else {
             match self.client.get_mempool_entry(&tx_result.info.txid).await {
                 Ok(entry) => {
-                    let base_fee = entry.fees.base.to_sat() as f64;
+                    let base_fee = mempool_entry_base_fee(&entry).ok_or_else(|| {
+                        anyhow!(
+                            "Mempool entry for tx {} has zero vsize",
+                            tx_result.info.txid
+                        )
+                    })?;
                     TxStatus::InMempool {
                         base_fee,
                         timestamp: get_timestamp(),
@@ -898,6 +965,32 @@ impl MonitoringService {
         if let Some(parent) = monitored_txs.get_mut(txid) {
             parent.next_txid = Some(next_txid);
         }
+    }
+
+    /// Set the status for a monitored transaction.
+    pub async fn set_tx_status(&self, txid: &Txid, status: TxStatus) {
+        let mut monitored_txs = self.monitored_txs.write().await;
+        if let Some(entry) = monitored_txs.get_mut(txid) {
+            if matches!(entry.status, TxStatus::Finalized { .. })
+                && !matches!(status, TxStatus::Finalized { .. })
+            {
+                return;
+            }
+
+            if matches!(entry.status, TxStatus::Confirmed { .. })
+                && matches!(status, TxStatus::InMempool { .. })
+            {
+                return;
+            }
+
+            entry.status = status;
+            entry.last_checked = get_timestamp();
+        }
+    }
+
+    /// Return the configured finality depth.
+    pub fn finality_depth(&self) -> u64 {
+        self.finality_depth
     }
 
     /// Fetch and update the status of multiple transactions.

@@ -27,6 +27,14 @@ use crate::metrics::SEQUENCER_METRICS as SM;
 /// L2 heights to commit
 pub(crate) type CommitmentRange = RangeInclusive<L2BlockNumber>;
 
+const COMMITMENT_SUBMISSION_RETRY_BACKOFF_START: Duration = Duration::from_secs(5);
+const COMMITMENT_SUBMISSION_RETRY_BACKOFF_MAX: Duration = Duration::from_secs(60);
+
+enum CommitmentSubmissionResult {
+    Submitted,
+    Shutdown,
+}
+
 /// Service responsible for managing and processing sequencer commitments
 pub struct CommitmentService<Da, Db>
 where
@@ -164,9 +172,17 @@ where
                             .expect("Commit check tokio blocking task failed")
                             .expect("Commitment criteria check failed")
                         {
-                            self.commit(index, commitment_range.clone())
+                            match self
+                                .submit_commitment_with_retry(
+                                    index,
+                                    commitment_range.clone(),
+                                    &mut shutdown_signal,
+                                )
                                 .await
-                                .expect("Failed to submit commitment");
+                            {
+                                CommitmentSubmissionResult::Submitted => {}
+                                CommitmentSubmissionResult::Shutdown => return,
+                            }
 
                             record_commitment_process_duration_metrics(
                                 start_commitment_processing,
@@ -185,6 +201,107 @@ where
         }
     }
 
+    async fn submit_commitment_with_retry(
+        &mut self,
+        commitment_index: u32,
+        commitment_range: CommitmentRange,
+        shutdown_signal: &mut GracefulShutdown,
+    ) -> CommitmentSubmissionResult {
+        let mut backoff = COMMITMENT_SUBMISSION_RETRY_BACKOFF_START;
+
+        loop {
+            match self
+                .commit(commitment_index, commitment_range.clone(), shutdown_signal)
+                .await
+            {
+                Ok(()) => return CommitmentSubmissionResult::Submitted,
+                Err(e) => {
+                    // A closed DA submission queue means the DA service has shut down
+                    // (node is stopping); halt commitment production gracefully.
+                    if self.da_service.get_send_transaction_queue().is_closed() {
+                        info!(
+                            "CommitmentService: DA service stopped, halting commitment production"
+                        );
+                        return CommitmentSubmissionResult::Shutdown;
+                    }
+
+                    error!(
+                        commitment_index,
+                        l2_start = commitment_range.start().0,
+                        l2_end = commitment_range.end().0,
+                        retry_in_secs = backoff.as_secs(),
+                        "Failed to submit commitment to DA: {e}. Retrying the same commitment"
+                    );
+
+                    select! {
+                        biased;
+                        _ = &mut *shutdown_signal => {
+                            info!("CommitmentService shutting down while waiting to retry DA submission");
+                            return CommitmentSubmissionResult::Shutdown;
+                        }
+                        halt_signal = self.halt_rx.recv() => {
+                            match halt_signal {
+                                Some(should_halt) => {
+                                    self.apply_halt_signal(should_halt);
+                                    if !self.is_producing_commitments
+                                        && !self.wait_until_commitments_resume(shutdown_signal).await
+                                    {
+                                        return CommitmentSubmissionResult::Shutdown;
+                                    }
+                                }
+                                None => {
+                                    warn!("CommitmentService: Halt signal channel closed");
+                                    return CommitmentSubmissionResult::Shutdown;
+                                }
+                            }
+                        }
+                        _ = tokio::time::sleep(backoff) => {}
+                    }
+
+                    backoff = (backoff * 2).min(COMMITMENT_SUBMISSION_RETRY_BACKOFF_MAX);
+                }
+            }
+        }
+    }
+
+    fn apply_halt_signal(&mut self, should_halt: bool) {
+        let should_run = !should_halt;
+        if self.is_producing_commitments != should_run {
+            self.is_producing_commitments = should_run;
+            if should_halt {
+                warn!("CommitmentService: Commitments halted via RPC");
+            } else {
+                info!("CommitmentService: Commitments resumed via RPC");
+            }
+        }
+    }
+
+    async fn wait_until_commitments_resume(
+        &mut self,
+        shutdown_signal: &mut GracefulShutdown,
+    ) -> bool {
+        while !self.is_producing_commitments {
+            select! {
+                biased;
+                _ = &mut *shutdown_signal => {
+                    info!("CommitmentService shutting down while commitments are halted");
+                    return false;
+                }
+                halt_signal = self.halt_rx.recv() => {
+                    match halt_signal {
+                        Some(should_halt) => self.apply_halt_signal(should_halt),
+                        None => {
+                            warn!("CommitmentService: Halt signal channel closed");
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+
+        true
+    }
+
     /// Commits a range of L2 blocks to the data availability layer
     ///
     /// # Arguments
@@ -199,6 +316,7 @@ where
         &mut self,
         commitment_index: u32,
         commitment_range: CommitmentRange,
+        shutdown_signal: &mut GracefulShutdown,
     ) -> anyhow::Result<()> {
         let l2_start = *commitment_range.start();
         let l2_end = *commitment_range.end();
@@ -232,25 +350,34 @@ where
             l2_start.0, l2_end.0, commitment_index,
         );
 
-        let start = Instant::now();
-        let ledger_db = self.ledger_db.clone();
+        let submission_id = select! {
+            biased;
+            _ = &mut *shutdown_signal => {
+                return Err(anyhow!("Commitment DA submission interrupted by shutdown"));
+            }
+            submission_id = rx => {
+                submission_id
+                    .map_err(|_| anyhow!("Commitment DA submission task dropped before responding"))?
+                    .map_err(|e| anyhow!("Failed to submit commitment to DA: {e}"))?
+            }
+        };
 
-        let _tx_id = rx
-            .await
-            .map_err(|_| anyhow!("DA service is dead!"))?
-            .map_err(|_| anyhow!("Send transaction cannot fail"))?;
+        select! {
+            biased;
+            _ = &mut *shutdown_signal => {
+                return Err(anyhow!("Commitment DA txid resolution interrupted by shutdown"));
+            }
+            result = self.da_service.wait_for_transaction_id(submission_id) => {
+                result.map_err(|e| anyhow!("Failed to resolve commitment DA txid: {e}"))?;
+            }
+        }
 
-        SM.send_commitment_execution.record(
-            Instant::now()
-                .saturating_duration_since(start)
-                .as_secs_f64(),
-        );
-
-        ledger_db
+        self.ledger_db
             .put_commitment_by_index(&commitment)
             .map_err(|_| anyhow!("Sequencer: Failed to store sequencer commitment by index"))?;
 
-        ledger_db.delete_state_diff_by_range(commitment_range)?;
+        self.ledger_db
+            .delete_state_diff_by_range(commitment_range)?;
 
         info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
 

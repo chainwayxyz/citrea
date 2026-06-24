@@ -10,8 +10,7 @@ node_url = "http://127.0.0.1:18443/wallet/batch-prover"
 node_username = "citrea"
 # fill here
 node_password = "citrea"
-tx_backup_dir = "resources/bitcoin/inscription_txs"
-da_private_key = "56D08C2DDE7F412F80EC99A0A328F76688C904BD4D1435281EFC9270EC8C8707"
+tx_sender_url = "http://127.0.0.1:3000"
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.

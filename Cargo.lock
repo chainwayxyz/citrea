@@ -2726,18 +2726,14 @@ dependencies = [
  "citrea-common",
  "citrea-primitives",
  "crypto-bigint 0.5.5",
- "futures",
  "hex",
  "itertools 0.13.0",
  "jsonrpsee",
  "k256",
  "lru 0.16.4",
- "metrics",
- "metrics-derive",
  "rand 0.8.6",
  "reqwest",
  "reth-tasks",
- "secp256k1 0.29.0",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -2745,6 +2741,7 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "tracing",
+ "tx-sender-jsonrpc-client",
 ]
 
 [[package]]
@@ -3496,6 +3493,7 @@ dependencies = [
  "risc0-zkvm",
  "rs_merkle",
  "rustc_version_runtime",
+ "secp256k1 0.29.0",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -3516,6 +3514,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.20",
+ "tx-sender-jsonrpc-client",
  "uuid",
 ]
 
@@ -3633,7 +3632,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=67c724bb0a8b3ff18b1aa1419016d3bd90cef374#67c724bb0a8b3ff18b1aa1419016d3bd90cef374"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=b25c95e#b25c95e09775a4d7a7dfad4db14567b6058110e3"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -12904,6 +12903,23 @@ dependencies = [
  "sha1",
  "thiserror 1.0.69",
  "utf-8",
+]
+
+[[package]]
+name = "tx-sender-jsonrpc-client"
+version = "0.6.4"
+source = "git+https://github.com/chainwayxyz/clementine?rev=243a083e1d0dcec5671644371ef2cd4af0a61ab6#243a083e1d0dcec5671644371ef2cd4af0a61ab6"
+dependencies = [
+ "jsonrpsee",
+ "tx-sender-types",
+]
+
+[[package]]
+name = "tx-sender-types"
+version = "0.6.4"
+source = "git+https://github.com/chainwayxyz/clementine?rev=243a083e1d0dcec5671644371ef2cd4af0a61ab6#243a083e1d0dcec5671644371ef2cd4af0a61ab6"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
