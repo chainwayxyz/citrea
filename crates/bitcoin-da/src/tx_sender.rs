@@ -208,14 +208,14 @@ pub(crate) async fn wait_for_tx_sender_job(
     poll_interval: Duration,
     max_wait: Duration,
 ) -> Result<Txid, anyhow::Error> {
-    info!(job_id, "Waiting for tx-sender job to finalize");
+    info!(job_id, "Waiting for tx-sender job to expose payload txid");
 
     let started_at = Instant::now();
     let mut consecutive_track_errors = 0u32;
     loop {
         if started_at.elapsed() >= max_wait {
             return Err(anyhow!(
-                "Timed out waiting for tx-sender job {job_id} to finalize after {:?}",
+                "Timed out waiting for tx-sender job {job_id} to expose payload txid after {:?}",
                 max_wait
             ));
         }
@@ -229,7 +229,10 @@ pub(crate) async fn wait_for_tx_sender_job(
                         return Err(anyhow!("Tx-sender job {job_id} failed: {error}"));
                     }
                     None => {
-                        debug!(job_id, "Tx-sender job has not finalized yet, polling again");
+                        debug!(
+                            job_id,
+                            "Tx-sender job has not exposed payload txid yet, polling again"
+                        );
                     }
                 }
             }
@@ -296,8 +299,9 @@ async fn poll_and_sync_with_timeout(
 ///
 /// Terminal failure takes precedence over an extractable payload txid: a cancelled job
 /// may still carry a reveal submission with a txid, but that DA submission has failed and
-/// must never be reported as success. Returns `None` while the job is still in progress
-/// or mined but not finalized.
+/// must never be reported as success. Otherwise the first payload reveal txid exposed by
+/// tx-sender is enough for callers to continue; finality is tracked separately by
+/// monitoring and must not serialize commitment production.
 fn resolve_wait_outcome(
     status: &TxSenderJobStatus,
     raw_status: &TrackResponse,
@@ -307,8 +311,8 @@ fn resolve_wait_outcome(
         TxSenderJobStatus::Failed { error } => Some(Err(error.clone())),
         TxSenderJobStatus::Pending | TxSenderJobStatus::Processing => {
             if let TrackResponse::CommitReveal(commit_reveal_status) = raw_status {
-                if extract_payload_txid_from_commit_reveal(commit_reveal_status).is_some() {
-                    debug!("Tx-sender job exposed a reveal txid before finality");
+                if let Some(txid) = extract_payload_txid_from_commit_reveal(commit_reveal_status) {
+                    return Some(Ok(txid));
                 }
             }
             None
@@ -868,7 +872,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_wait_outcome_waits_for_finalized_status() {
+    fn resolve_wait_outcome_returns_broadcast_txid_before_finality() {
         let reveal_txid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         let raw_status = TrackResponse::CommitReveal(CommitRevealStatus {
             status: TrackStatus::Mined,
@@ -876,9 +880,13 @@ mod tests {
             reveals: vec![reveal_with_submission(reveal_txid)],
             aggregate_commit_tx: None,
         });
+        let reveal_txid = reveal_txid.parse::<Txid>().unwrap();
         let status = TxSenderJobStatus::Processing;
 
-        assert!(resolve_wait_outcome(&status, &raw_status).is_none());
+        match resolve_wait_outcome(&status, &raw_status) {
+            Some(Ok(txid)) => assert_eq!(txid, reveal_txid),
+            other => panic!("Expected Some(Ok(..)), got {other:?}"),
+        }
     }
 
     #[test]

@@ -111,6 +111,10 @@ pub trait DaService: Send + Sync + 'static {
     ) -> Result<Self::SubmissionId, Self::Error>;
 
     /// Wait until a transaction handle resolves to the DA-layer transaction id.
+    ///
+    /// This should resolve once the DA transaction id is known/submitted by the
+    /// backend. It must not wait for DA finality; confirmation/finality tracking
+    /// is handled separately by DA monitoring.
     async fn wait_for_transaction_id(
         &self,
         submission_id: Self::SubmissionId,

@@ -698,7 +698,7 @@ where
     /// and continuously polls for the completion of each job.
     /// Once a job is completed, it extracts the proof output, verifies the proof,
     /// stores the proof in the ledger database, and submits the proof to the DA service.
-    /// After successful submission, it updates the ledger database with the transaction ID of the submitted proof
+    /// After successful submission, it updates the ledger database with the DA transaction ID of the submitted proof
     /// and removes job from pending da submission.
     ///
     /// # Arguments
@@ -747,7 +747,7 @@ where
 
                 // submit the proof to the DA service in the background
                 tokio::spawn(async move {
-                    Self::submit_proof_to_da_until_finalized(
+                    Self::submit_proof_to_da_until_txid_resolved(
                         prover_service,
                         ledger_db,
                         proof,
@@ -784,7 +784,7 @@ where
             let ledger_db = self.ledger_db.clone();
             info!("Submitting recovered proof for job {}", job_id);
             tokio::spawn(async move {
-                Self::submit_proof_to_da_until_finalized(
+                Self::submit_proof_to_da_until_txid_resolved(
                     prover_service,
                     ledger_db,
                     stored_proof.proof,
@@ -796,7 +796,7 @@ where
         }
     }
 
-    async fn submit_proof_to_da_until_finalized(
+    async fn submit_proof_to_da_until_txid_resolved(
         prover_service: Arc<ParallelProverService<Da, Vm>>,
         ledger_db: DB,
         proof: Proof,
@@ -836,13 +836,13 @@ where
                 }
             };
 
-            info!(%job_id, recovered, "Proof sent to DA and finalized");
+            info!(%job_id, recovered, "Proof sent to DA and payload txid resolved");
             let tx_id = tx_id.into();
 
             loop {
                 match ledger_db.finalize_proving_job(job_id, tx_id) {
                     Ok(()) => {
-                        info!(%job_id, recovered, "Finalized proving job");
+                        info!(%job_id, recovered, "Stored proving job DA txid");
                         return;
                     }
                     Err(e) => {

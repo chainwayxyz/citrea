@@ -408,7 +408,7 @@ async fn tx_sender_restart_test() -> Result<()> {
 /// Batch prover routes proof submission through the tx-sender and ultimately stores
 /// a real L1 txid (not all-zeros). This validates the full job-based DA flow:
 ///   send_transaction → tx-sender send_citrea_tx → wait_for_transaction_id →
-///   track_tx → Finalized → finalize_proving_job stores the real txid.
+///   track_tx exposes payload txid → finalize_proving_job stores the real txid.
 struct TxSenderBatchProverTxidTest;
 
 #[async_trait]
@@ -482,14 +482,14 @@ impl TestCase for TxSenderBatchProverTxidTest {
             "Expected at least one batch proof"
         );
 
-        // Wait for the proving job to be finalized with a real l1_tx_id.
+        // Wait for the proving job to store a real l1_tx_id.
         let job_ids = wait_for_prover_job_count(batch_prover, 1, None).await?;
         let response = wait_for_prover_job_with_l1_tx_id(batch_prover, job_ids[0], None).await?;
 
         let proof = response.proof.expect("Job should have a proof");
         let l1_tx_id = proof
             .l1_tx_id
-            .expect("l1_tx_id should be set after DA finalization");
+            .expect("l1_tx_id should be set after DA submission");
 
         assert_ne!(
             l1_tx_id, [0u8; 32],
@@ -518,7 +518,7 @@ async fn tx_sender_batch_prover_txid_test() -> Result<()> {
 
 /// `submitFakeProof` is explicitly called out in the job-service issue.
 /// This test verifies that the RPC still drives the
-/// proof through the external tx-sender path and returns a real finalized L1 txid.
+/// proof through the external tx-sender path and returns a real submitted L1 txid.
 struct TxSenderSubmitFakeProofTest;
 
 #[async_trait]
