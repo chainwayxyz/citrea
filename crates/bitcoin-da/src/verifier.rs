@@ -218,10 +218,10 @@ impl DaVerifier for BitcoinVerifier {
                 let merkle_root =
                     merkle_tree::BitcoinMerkleTree::new(inclusion_proof.wtxids).root();
 
-                let input_witness_value = coinbase_tx.input[0]
-                    .witness
-                    .iter()
-                    .next()
+                let input_witness_value = coinbase_tx
+                    .input
+                    .first()
+                    .and_then(|input| input.witness.iter().next())
                     .ok_or(ValidationError::InvalidWitnessCommitmentStructure)?;
 
                 let mut vec_merkle = Vec::with_capacity(input_witness_value.len() + 32);
@@ -926,6 +926,103 @@ mod tests {
         let result =
             verifier.verify_header_chain_common(&header, &bad_state, target, expected_bits);
         assert_eq!(result, Err(ValidationError::InvalidTimestamp));
+    }
+
+    // A coinbase output with a valid SegWit-commitment script (>=38 bytes,
+    // 0x6a24aa21a9ed prefix). `tail` fills bytes [6..38] (the committed hash).
+    fn commitment_output(tail: [u8; 32]) -> bitcoin::TxOut {
+        let mut spk = vec![0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
+        spk.extend_from_slice(&tail);
+        bitcoin::TxOut {
+            value: bitcoin::Amount::from_sat(0),
+            script_pubkey: bitcoin::ScriptBuf::from_bytes(spk),
+        }
+    }
+
+    // Drives `verify_transactions` to the witness-commitment branch with the given
+    // coinbase. Uses a 2-byte reveal prefix and non-matching wtxids so the relevant
+    // iterator and completeness proof are both empty (no zip_eq panic), and tx_count=2
+    // so the single-tx short-circuit is skipped.
+    fn run_verify_transactions(
+        coinbase: bitcoin::Transaction,
+    ) -> Result<Vec<crate::spec::blob::BlobWithSender>, ValidationError> {
+        use crate::spec::proof::InclusionMultiProof;
+        use crate::spec::RollupParams;
+
+        let verifier = BitcoinVerifier::new(RollupParams {
+            reveal_tx_prefix: vec![2, 2],
+            network: Network::Nightly,
+        });
+
+        let header_hex = "00000020eefac07c86494826bb8876e4e9156cc94ab0509e106d0000000000000000000049aa89bafff85ba60886976cf8203b75baf951d52ed2a5af6e8769e0df1528a436b94d6770c0021730278e2d";
+        let inner_header =
+            BitcoinHeaderWrapper::deserialize(&mut hex::decode(header_hex).unwrap().as_ref())
+                .unwrap();
+        let header = HeaderWrapper::new(*inner_header, 2, 872918, [0u8; 32]);
+
+        let inclusion_proof =
+            InclusionMultiProof::new(vec![[0u8; 32], [1u8; 32]], coinbase.into(), vec![]);
+
+        verifier.verify_transactions(&header, inclusion_proof, vec![])
+    }
+
+    fn coinbase(input: Vec<bitcoin::TxIn>, output: Vec<bitcoin::TxOut>) -> bitcoin::Transaction {
+        bitcoin::Transaction {
+            version: bitcoin::transaction::Version(2),
+            lock_time: bitcoin::absolute::LockTime::ZERO,
+            input,
+            output,
+        }
+    }
+
+    fn coinbase_input(witness: bitcoin::Witness) -> bitcoin::TxIn {
+        bitcoin::TxIn {
+            previous_output: bitcoin::OutPoint::null(),
+            script_sig: bitcoin::ScriptBuf::new(),
+            sequence: bitcoin::Sequence::MAX,
+            witness,
+        }
+    }
+
+    // ZERO inputs but a valid commitment output -> before fix: index OOB on input[0].
+    #[test]
+    fn verify_transactions_empty_coinbase_input_returns_err() {
+        let cb = coinbase(vec![], vec![commitment_output([0u8; 32])]);
+        assert_eq!(
+            run_verify_transactions(cb).unwrap_err(),
+            ValidationError::InvalidWitnessCommitmentStructure
+        );
+    }
+
+    // Input present but EMPTY witness -> before fix: unwrap() on None.
+    #[test]
+    fn verify_transactions_empty_coinbase_witness_returns_err() {
+        let cb = coinbase(
+            vec![coinbase_input(bitcoin::Witness::new())],
+            vec![commitment_output([0u8; 32])],
+        );
+        assert_eq!(
+            run_verify_transactions(cb).unwrap_err(),
+            ValidationError::InvalidWitnessCommitmentStructure
+        );
+    }
+
+    // VALID input + non-empty witness: the hardened code must pass the witness
+    // value through unchanged and reach the real commitment comparison, returning
+    // `IncorrectWitnessCommitment` (NOT InvalidWitnessCommitmentStructure, NOT a panic).
+    // This proves the fix does not over-reject well-formed coinbases.
+    #[test]
+    fn verify_transactions_valid_witness_reaches_commitment_check() {
+        let mut witness = bitcoin::Witness::new();
+        witness.push([0x11u8; 32]); // witness reserved value
+        let cb = coinbase(
+            vec![coinbase_input(witness)],
+            vec![commitment_output([0u8; 32])], // committed hash that won't match
+        );
+        assert_eq!(
+            run_verify_transactions(cb).unwrap_err(),
+            ValidationError::IncorrectWitnessCommitment
+        );
     }
 
     #[test]
