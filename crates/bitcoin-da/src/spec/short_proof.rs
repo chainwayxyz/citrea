@@ -95,7 +95,12 @@ impl VerifiableShortHeaderProof for BitcoinHeaderShortProof {
                 // If post-segwit block, extract the commitment from the coinbase tx
                 // and compare with header.txs_commitment().
                 let script_pubkey = self.coinbase_tx.output[idx].script_pubkey.as_bytes();
-                let input_witness_value = self.coinbase_tx.input[0].witness.iter().next().unwrap();
+                let input_witness_value = self
+                    .coinbase_tx
+                    .input
+                    .first()
+                    .and_then(|input| input.witness.iter().next())
+                    .ok_or(ShortHeaderProofVerificationError::InvalidWitnessCommitmentStructure)?;
 
                 let mut vec_merkle = Vec::with_capacity(input_witness_value.len() + 32);
 
@@ -126,22 +131,23 @@ impl VerifiableShortHeaderProof for BitcoinHeaderShortProof {
             .coinbase_tx
             .input
             .first()
-            .expect("coinbase tx must have input");
+            .ok_or(ShortHeaderProofVerificationError::InvalidWitnessCommitmentStructure)?;
 
-        let push = input
-            .script_sig
-            .instructions_minimal()
-            .next()
-            .expect("should have at least one instruction")
-            .expect("should be minimal");
-
-        let script::Instruction::PushBytes(b) = push else {
-            panic!("should be push bytes");
+        let Some(Ok(push)) = input.script_sig.instructions_minimal().next() else {
+            return Err(ShortHeaderProofVerificationError::InvalidCoinbaseHeightEncoding);
         };
 
-        let height = script::read_scriptint(b.as_bytes()).expect("should work");
+        let script::Instruction::PushBytes(b) = push else {
+            return Err(ShortHeaderProofVerificationError::InvalidCoinbaseHeightEncoding);
+        };
 
-        assert!(height > 0, "height must be positive");
+        let Ok(height) = script::read_scriptint(b.as_bytes()) else {
+            return Err(ShortHeaderProofVerificationError::InvalidCoinbaseHeightEncoding);
+        };
+
+        if height <= 0 {
+            return Err(ShortHeaderProofVerificationError::InvalidCoinbaseHeightEncoding);
+        }
 
         let height = height as u64;
 
@@ -372,5 +378,216 @@ mod test {
                 }
             )
         }
+    }
+
+    // Regression test: a malformed coinbase (empty witness) must produce a
+    // graceful `Err`, never a panic. Stripping the coinbase witness keeps the
+    // txid (and thus the coinbase merkle proof) valid, so verification reaches
+    // the witness-commitment branch. Before the fix this panicked at
+    // short_proof.rs:98 (`Option::unwrap()` on `None`).
+    #[test]
+    fn shp_empty_coinbase_witness_returns_err() {
+        let mut proof = get_proof();
+
+        let mut tx = proof.coinbase_tx.deref().clone();
+        tx.input[0].witness = bitcoin::Witness::new(); // strip witness; txid unchanged
+        proof.coinbase_tx = tx.into();
+
+        assert_eq!(
+            proof.verify().unwrap_err(),
+            ShortHeaderProofVerificationError::InvalidWitnessCommitmentStructure
+        );
+    }
+
+    // ---- Exhaustive edge cases for the hardened `verify()` paths ----
+    //
+    // Each test builds a real single-transaction "block": the coinbase txid is
+    // used as the header merkle root (empty merkle proof), and `HeaderWrapper::new`
+    // computes a matching `precomputed_hash`, so `verify_hash()` and the coinbase
+    // merkle-inclusion check both pass and execution reaches the branch under test.
+    // Nothing here is stubbed: real `Transaction`/`Header` values flow through the
+    // production `verify()`.
+
+    use bitcoin::absolute::LockTime;
+    use bitcoin::transaction::Version;
+    use bitcoin::{Amount, CompactTarget, OutPoint, Script, ScriptBuf, Sequence, TxIn, TxMerkleNode, TxOut, Witness};
+
+    fn build_single_coinbase_proof(
+        coinbase: bitcoin::Transaction,
+        txs_commitment: [u8; 32],
+    ) -> BitcoinHeaderShortProof {
+        let txid = crate::helpers::calculate_txid(&coinbase);
+        let header = bitcoin::block::Header {
+            version: bitcoin::block::Version::from_consensus(0x2000_0000),
+            prev_blockhash: BlockHash::from_byte_array([0u8; 32]),
+            merkle_root: TxMerkleNode::from_byte_array(txid),
+            time: 1_700_000_000,
+            bits: CompactTarget::from_consensus(0x1703_0000),
+            nonce: 0,
+        };
+        // header height field (999) is deliberately != any script_sig height,
+        // to prove `verify()` reads the height from the coinbase, not the header.
+        let header = HeaderWrapper::new(header, 1, 999, txs_commitment);
+        BitcoinHeaderShortProof::new(header, coinbase.into(), vec![])
+    }
+
+    fn coinbase(input: Vec<TxIn>, output: Vec<TxOut>) -> bitcoin::Transaction {
+        bitcoin::Transaction {
+            version: Version(2),
+            lock_time: LockTime::ZERO,
+            input,
+            output,
+        }
+    }
+
+    fn txin(script_sig: Vec<u8>, witness: Witness) -> TxIn {
+        TxIn {
+            previous_output: OutPoint::null(),
+            script_sig: ScriptBuf::from_bytes(script_sig),
+            sequence: Sequence::MAX,
+            witness,
+        }
+    }
+
+    // >= 38 bytes, starts with 0x6a24aa21a9ed -> recognised as a SegWit commitment output.
+    fn commitment_output() -> TxOut {
+        let mut spk = vec![0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
+        spk.extend_from_slice(&[0u8; 32]);
+        TxOut {
+            value: Amount::from_sat(0),
+            script_pubkey: ScriptBuf::from_bytes(spk),
+        }
+    }
+
+    // A plain OP_RETURN output that is NOT a witness commitment -> drives the
+    // `None` (non-segwit) branch and on to BIP34 height parsing.
+    fn non_commitment_output() -> TxOut {
+        TxOut {
+            value: Amount::from_sat(0),
+            script_pubkey: ScriptBuf::from_bytes(vec![0x6a, 0x01, 0x00]),
+        }
+    }
+
+    use ShortHeaderProofVerificationError as E;
+
+    // --- witness-commitment branch (reaches the line-98 access) ---
+
+    #[test]
+    fn shp_commitment_branch_no_inputs_is_err() {
+        let cb = coinbase(vec![], vec![commitment_output()]);
+        assert_eq!(
+            build_single_coinbase_proof(cb, [0u8; 32]).verify().unwrap_err(),
+            E::InvalidWitnessCommitmentStructure
+        );
+    }
+
+    #[test]
+    fn shp_commitment_branch_empty_witness_is_err() {
+        // valid-looking height in script_sig, but the witness is empty
+        let cb = coinbase(
+            vec![txin(vec![0x03, 0x60, 0xAE, 0x0A], Witness::new())],
+            vec![commitment_output()],
+        );
+        assert_eq!(
+            build_single_coinbase_proof(cb, [0u8; 32]).verify().unwrap_err(),
+            E::InvalidWitnessCommitmentStructure
+        );
+    }
+
+    // --- BIP34 height parsing branch (non-segwit) ---
+
+    #[test]
+    fn shp_height_parse_no_inputs_is_err() {
+        let cb = coinbase(vec![], vec![non_commitment_output()]);
+        assert_eq!(
+            build_single_coinbase_proof(cb, [0u8; 32]).verify().unwrap_err(),
+            E::InvalidWitnessCommitmentStructure
+        );
+    }
+
+    #[test]
+    fn shp_height_empty_scriptsig_is_err() {
+        let cb = coinbase(vec![txin(vec![], Witness::new())], vec![non_commitment_output()]);
+        assert_eq!(
+            build_single_coinbase_proof(cb, [0u8; 32]).verify().unwrap_err(),
+            E::InvalidCoinbaseHeightEncoding
+        );
+    }
+
+    #[test]
+    fn shp_height_first_instruction_is_opcode_is_err() {
+        // 0x61 = OP_NOP, not a push
+        let cb = coinbase(vec![txin(vec![0x61], Witness::new())], vec![non_commitment_output()]);
+        assert_eq!(
+            build_single_coinbase_proof(cb, [0u8; 32]).verify().unwrap_err(),
+            E::InvalidCoinbaseHeightEncoding
+        );
+    }
+
+    #[test]
+    fn shp_height_int_too_long_is_err() {
+        // push of 5 bytes -> read_scriptint rejects (> 4 bytes)
+        let cb = coinbase(
+            vec![txin(vec![0x05, 1, 2, 3, 4, 5], Witness::new())],
+            vec![non_commitment_output()],
+        );
+        assert_eq!(
+            build_single_coinbase_proof(cb, [0u8; 32]).verify().unwrap_err(),
+            E::InvalidCoinbaseHeightEncoding
+        );
+    }
+
+    #[test]
+    fn shp_height_non_minimal_push_is_err() {
+        // OP_PUSHDATA1, len 1, byte 0x05 -> non-minimal -> instructions_minimal() yields Err
+        let cb = coinbase(
+            vec![txin(vec![0x4c, 0x01, 0x05], Witness::new())],
+            vec![non_commitment_output()],
+        );
+        assert_eq!(
+            build_single_coinbase_proof(cb, [0u8; 32]).verify().unwrap_err(),
+            E::InvalidCoinbaseHeightEncoding
+        );
+    }
+
+    #[test]
+    fn shp_height_negative_is_err() {
+        // push [0x81] = scriptint -1
+        let cb = coinbase(
+            vec![txin(vec![0x01, 0x81], Witness::new())],
+            vec![non_commitment_output()],
+        );
+        assert_eq!(
+            build_single_coinbase_proof(cb, [0u8; 32]).verify().unwrap_err(),
+            E::InvalidCoinbaseHeightEncoding
+        );
+    }
+
+    #[test]
+    fn shp_height_zero_is_err() {
+        // OP_PUSHBYTES_0 -> empty push -> read_scriptint == 0 -> height <= 0
+        let cb = coinbase(vec![txin(vec![0x00], Witness::new())], vec![non_commitment_output()]);
+        assert_eq!(
+            build_single_coinbase_proof(cb, [0u8; 32]).verify().unwrap_err(),
+            E::InvalidCoinbaseHeightEncoding
+        );
+    }
+
+    // --- happy path: proves the height is decoded from the coinbase script_sig
+    //     (700000), NOT taken from the header height field (999). ---
+    #[test]
+    fn shp_height_valid_nonsegwit_reads_height_from_coinbase() {
+        // 700000 = 0x0AAE60 -> minimal LE push: 0x60 0xAE 0x0A
+        let cb = coinbase(
+            vec![txin(vec![0x03, 0x60, 0xAE, 0x0A], Witness::new())],
+            vec![non_commitment_output()],
+        );
+        let info = build_single_coinbase_proof(cb, [0u8; 32])
+            .verify()
+            .expect("valid non-segwit coinbase must verify");
+        assert_eq!(info.block_height, 700_000);
+        assert_eq!(info.coinbase_txid_merkle_proof_height, 0);
+        // sanity: Script import used so the helper module stays warning-free
+        let _ = Script::from_bytes(&[]).len();
     }
 }

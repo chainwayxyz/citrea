@@ -231,6 +231,10 @@ pub enum ShortHeaderProofVerificationError {
     },
     /// Provided precomputed hash was incorrect
     InvalidHeaderHash,
+    /// Coinbase input/witness structure was malformed (missing input or witness commitment value)
+    InvalidWitnessCommitmentStructure,
+    /// Coinbase script_sig did not contain a valid BIP34 block height
+    InvalidCoinbaseHeightEncoding,
 }
 
 /// Latest da state to verify and apply da block changes
