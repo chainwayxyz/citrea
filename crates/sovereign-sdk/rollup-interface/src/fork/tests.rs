@@ -9,7 +9,7 @@ fn test_fork_pos_from_block_number() {
     static T_FORKS: &[Fork] = &[
         Fork::new(SpecId::Tangelo, 0),
         Fork::new(SpecId::TangeloSelfdestructFix, 100),
-        Fork::new(SpecId::Fork5, 500),
+        Fork::new(SpecId::Fork6, 500),
     ];
 
     assert_eq!(fork_pos_from_block_number(T_FORKS, 5), 0);
@@ -23,7 +23,8 @@ fn test_fork_manager() {
     static T_FORKS: &[Fork] = &[
         Fork::new(SpecId::Tangelo, 0),
         Fork::new(SpecId::TangeloSelfdestructFix, 100),
-        Fork::new(SpecId::Fork5, 500),
+        Fork::new(SpecId::V3, 350),
+        Fork::new(SpecId::Fork6, 500),
     ];
     let mut fork_manager = ForkManager::new(T_FORKS, 0);
     fork_manager.register_block(5).unwrap();
@@ -34,12 +35,9 @@ fn test_fork_manager() {
         SpecId::TangeloSelfdestructFix
     );
     fork_manager.register_block(350).unwrap();
-    assert_eq!(
-        fork_manager.active_fork().spec_id,
-        SpecId::TangeloSelfdestructFix
-    );
+    assert_eq!(fork_manager.active_fork().spec_id, SpecId::V3);
     fork_manager.register_block(500).unwrap();
-    assert_eq!(fork_manager.active_fork().spec_id, SpecId::Fork5);
+    assert_eq!(fork_manager.active_fork().spec_id, SpecId::Fork6);
 }
 
 #[test]
@@ -47,7 +45,8 @@ fn test_fork_manager_callbacks() {
     static T_FORKS: &[Fork] = &[
         Fork::new(SpecId::Tangelo, 0),
         Fork::new(SpecId::TangeloSelfdestructFix, 100),
-        Fork::new(SpecId::Fork5, 500),
+        Fork::new(SpecId::V3, 400),
+        Fork::new(SpecId::Fork6, 500),
     ];
 
     struct Handler {}

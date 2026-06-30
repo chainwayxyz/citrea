@@ -53,6 +53,9 @@ pub fn fork_from_block_number(block_number: u64) -> Fork {
     forks[pos]
 }
 
+// TODO(ecrecover-pubkey-witness): schedule the activation on the production
+// networks below once heights are decided. Until then only Nightly and
+// TestNetworkWithForks use the pubkey-witness batch-proof input.
 pub const MAINNET_FORKS: [Fork; 2] = [
     Fork::new(SpecId::Tangelo, 0),
     Fork::new(SpecId::TangeloSelfdestructFix, 3098000), // will be reached Feb 5 2026 ~1 PM UTC
@@ -74,12 +77,13 @@ pub const DEVNET_FORKS: [Fork; 3] = [
 
 pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::latest(), 0)];
 
-pub const ALL_FORKS: [Fork; 5] = [
+pub const ALL_FORKS: [Fork; 6] = [
     Fork::new(SpecId::Genesis, 0),
     Fork::new(SpecId::Kumquat, 100),
     Fork::new(SpecId::Tangerine, 200),
     Fork::new(SpecId::Tangelo, 210),
     Fork::new(SpecId::TangeloSelfdestructFix, 220),
+    Fork::new(SpecId::V3, 230),
     // Add the next fork here when needed
 ];
 

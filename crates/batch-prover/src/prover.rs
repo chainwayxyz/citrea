@@ -30,7 +30,8 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::batch_proof::input::v3::{BatchProofCircuitInputV3, PrevHashProof};
+use sov_rollup_interface::zk::batch_proof::input::v3::PrevHashProof;
+use sov_rollup_interface::zk::batch_proof::input::v4::BatchProofCircuitInputV4;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
@@ -241,7 +242,8 @@ where
                             for partition in partitions {
                                 match self.create_circuit_input(&partition, job_id) {
                                     Ok(input) => {
-                                        let raw_input = borsh::to_vec(&input.into_v3_parts()).expect("Input serialization cannot fail");
+                                        let spec = fork_from_block_number(partition.end_height).spec_id;
+                                        let raw_input = serialize_circuit_input(input, spec);
                                         raw_inputs.push(raw_input);
                                     }
                                     Err(e) => {
@@ -572,13 +574,13 @@ where
     /// * `partition` - The partition to create the input for
     ///
     /// # Returns
-    /// A `BatchProofCircuitInputV3` containing the necessary data for the circuit input.
+    /// A `BatchProofCircuitInputV4` containing the necessary data for the circuit input.
     #[instrument(skip_all, fields(job_id = _job_id.to_string()))]
     fn create_circuit_input(
         &self,
         partition: &Partition<'_>,
         _job_id: Uuid,
-    ) -> anyhow::Result<BatchProofCircuitInputV3> {
+    ) -> anyhow::Result<BatchProofCircuitInputV4> {
         let input_preparation_start = std::time::Instant::now();
         let initial_state_root = self
             .ledger_db
@@ -597,7 +599,7 @@ where
             cache_prune_l2_heights,
             committed_l2_blocks,
             last_l1_hash_witness,
-            recovered_pubkeys,
+            ecrecover_pubkey_witnesses,
         } = get_batch_proof_circuit_input_from_commitments::<Da, _>(
             partition.start_height,
             partition.commitments,
@@ -627,7 +629,7 @@ where
                 .as_secs_f64(),
         );
 
-        Ok(BatchProofCircuitInputV3 {
+        Ok(BatchProofCircuitInputV4 {
             initial_state_root,
             final_state_root,
             l2_blocks: committed_l2_blocks,
@@ -638,7 +640,7 @@ where
             last_l1_hash_witness,
             previous_sequencer_commitment,
             prev_hash_proof,
-            recovered_pubkeys,
+            ecrecover_pubkey_witnesses,
         })
     }
 
@@ -655,7 +657,7 @@ where
     #[instrument(skip_all, fields(job_id = job_id.to_string()))]
     async fn start_proving(
         &self,
-        input: BatchProofCircuitInputV3,
+        input: BatchProofCircuitInputV4,
         job_id: Uuid,
     ) -> anyhow::Result<oneshot::Receiver<ProofWithDuration>> {
         let end_l2_height = input
@@ -673,7 +675,7 @@ where
 
         tracing::info!("Starting proving with ELF of spec: {:?}", current_spec);
 
-        let input = borsh::to_vec(&input.into_v3_parts()).expect("Input serialization cannot fail");
+        let input = serialize_circuit_input(input, current_spec);
 
         let proof_data = ProofData {
             input,
@@ -906,8 +908,8 @@ pub(crate) struct CommitmentStateTransitionData {
     committed_l2_blocks: VecDeque<Vec<L2Block>>,
     /// Witness needed to get the last Bitcoin hash on Bitcoin Light Client contract
     last_l1_hash_witness: Witness,
-    /// Pre-computed ecrecovered pubkeys
-    recovered_pubkeys: VecDeque<Vec<Secp256k1Pubkey>>,
+    /// Pre-computed ecrecover pubkey witnesses.
+    ecrecover_pubkey_witnesses: VecDeque<Vec<Secp256k1Pubkey>>,
 }
 
 /// This function retrieves the batch proof circuit input from the sequencer commitments
@@ -992,7 +994,7 @@ pub(crate) fn get_batch_proof_circuit_input_from_commitments<
         cache_prune_l2_heights,
         short_header_proofs,
         last_l1_hash_witness,
-        recovered_pubkeys,
+        ecrecover_pubkey_witnesses,
     ) = generate_cumulative_witness::<Da, _>(
         &committed_l2_blocks,
         ledger_db,
@@ -1014,7 +1016,7 @@ pub(crate) fn get_batch_proof_circuit_input_from_commitments<
         cache_prune_l2_heights,
         committed_l2_blocks,
         last_l1_hash_witness,
-        recovered_pubkeys,
+        ecrecover_pubkey_witnesses,
     })
 }
 
@@ -1072,8 +1074,10 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
         .last()
         .expect("must have at least one l2 block")
         .height();
+    let proof_spec = fork_from_block_number(last_l2_height).spec_id;
+    let uses_ecrecover_pubkey_witnesses = proof_spec.uses_ecrecover_pubkey_witnesses();
 
-    let mut all_recovered_pubkeys = VecDeque::new();
+    let mut all_ecrecover_pubkey_witnesses = VecDeque::new();
 
     for l2_blocks_in_commitment in committed_l2_blocks {
         let mut witnesses = Vec::with_capacity(l2_blocks_in_commitment.len());
@@ -1160,11 +1164,13 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
             short_header_proofs.push_back(serialized_shp);
         }
 
-        // Recompute witness pubkeys in the order the circuit consumes them.
-        // Missing pubkeys or consumed-order drift fail during proving.
-        let pubkeys = collect_recovered_pubkeys::<Da::Spec>(l2_blocks_in_commitment)?;
+        if uses_ecrecover_pubkey_witnesses {
+            // Recompute witness pubkeys in the order the circuit consumes them.
+            // Missing pubkeys or consumed-order drift fail during proving.
+            let pubkeys = collect_ecrecover_pubkey_witnesses::<Da::Spec>(l2_blocks_in_commitment)?;
 
-        all_recovered_pubkeys.push_back(pubkeys);
+            all_ecrecover_pubkey_witnesses.push_back(pubkeys);
+        }
         state_transition_witnesses.push_back(witnesses);
     }
 
@@ -1190,21 +1196,35 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
         cache_prune_l2_heights,
         short_header_proofs,
         last_l1_hash_witness,
-        all_recovered_pubkeys,
+        all_ecrecover_pubkey_witnesses,
     ))
+}
+
+/// Serialize the batch proof circuit input for the given fork.
+///
+/// Specs with ecrecover pubkey witnesses serialize one additional stream item
+/// between Part1 and Part2. Older specs use the legacy Part1/Part2 layout and
+/// recover pubkeys in-VM.
+fn serialize_circuit_input(input: BatchProofCircuitInputV4, spec: SpecId) -> Vec<u8> {
+    if spec.uses_ecrecover_pubkey_witnesses() {
+        borsh::to_vec(&input.into_v4_parts()).expect("Input serialization cannot fail")
+    } else {
+        borsh::to_vec(&input.into_legacy_parts()).expect("Input serialization cannot fail")
+    }
 }
 
 /// Recover witness pubkeys in circuit consumption order: block, sov-tx, EVM tx.
 /// System transactions consume no witness pubkey.
-fn collect_recovered_pubkeys<Da: DaSpec>(
+fn collect_ecrecover_pubkey_witnesses<Da: DaSpec>(
     l2_blocks: &[L2Block],
 ) -> anyhow::Result<Vec<Secp256k1Pubkey>> {
     let mut pubkeys = Vec::new();
 
     for l2_block in l2_blocks {
         for tx in &l2_block.txs {
-            let call = CitreaRuntime::<DefaultContext, Da>::decode_call(tx.runtime_msg())
-                .context("Failed to decode runtime call while collecting recovered pubkeys")?;
+            let call = CitreaRuntime::<DefaultContext, Da>::decode_call(tx.runtime_msg()).context(
+                "Failed to decode runtime call while collecting ecrecover pubkey witnesses",
+            )?;
 
             let CitreaRuntimeCall::evm(call_message) = call else {
                 continue;

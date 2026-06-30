@@ -220,8 +220,9 @@ pub mod bitcoinda {
         NonEmptySlice::new(METHOD_IDS)
     };
     /// Initial batch proof method IDs for the Bitcoin DA on Test Network with Forks.
-    /// This method ID is set at compile time via the `BATCH_PROOF_METHOD_ID` environment variable, paired with activation height 0.
-    /// If the variable is not set, the method ID from the guest compilation is appended to the predefined method IDs.
+    /// If `BATCH_PROOF_METHOD_ID` is set at compile time, it overrides the schedule at height 0.
+    /// Otherwise, the historical pre-fork method IDs are followed by the current guest method ID
+    /// at the V3 activation height.
     pub const TEST_NETWORK_WITH_FORKS_INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(
         u64,
         [u32; 8],
@@ -241,8 +242,13 @@ pub mod bitcoinda {
                         "7d28b6b03836af95eedd4c0aedfe93ed89d28356f0714dd01009a0b892585c03",
                     ),
                 ),
-                (100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
-                (200, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
+                (
+                    200,
+                    decode_to_u32_array(
+                        "0817d1a12e1ab1414bf5eadf101a8aba37844ff54f8a41b4234d6930fb9fa49c",
+                    ),
+                ),
+                (230, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
             ],
         };
         NonEmptySlice::new(METHOD_IDS)
