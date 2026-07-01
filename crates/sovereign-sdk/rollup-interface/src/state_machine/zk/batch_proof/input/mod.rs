@@ -1,5 +1,3 @@
-/// Tangerine input module
-/// Removes dependency on da_data so we input less data to the circuit
-pub mod v3;
-/// Batch-proof input V4 module.
+/// SpecId::V3 input module
+/// Feeds ecrecovered pubkeys to the circuit
 pub mod v4;

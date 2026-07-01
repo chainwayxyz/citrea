@@ -37,10 +37,10 @@ use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::Zkvm as _;
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::zk::batch_proof::input::v3::{
-    BatchProofCircuitInputV3Part1, BatchProofCircuitInputV3Part2,
-};
 use sov_rollup_interface::zk::batch_proof::input::v4::EcrecoverPubkeyWitnesses;
+use sov_rollup_interface::zk::batch_proof::input::v4::{
+    BatchProofCircuitInputV4Part1, BatchProofCircuitInputV4Part2, BatchProofCircuitInputV4Part3,
+};
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{ProvingSessionInfo, ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
@@ -1391,9 +1391,9 @@ impl TestCase for BatchProverPubkeyCollectionIsolationTest {
         // The pubkey-witness input serializes Part1, then pre-computed
         // ecrecover pubkeys, then Part2.
         let (_input_part, ecrecover_pubkey_witnesses, _): (
-            BatchProofCircuitInputV3Part1,
+            BatchProofCircuitInputV4Part1,
             EcrecoverPubkeyWitnesses,
-            BatchProofCircuitInputV3Part2,
+            BatchProofCircuitInputV4Part2,
         ) = borsh::from_slice(&raw_input)?;
         assert_eq!(ecrecover_pubkey_witnesses.len(), 1);
 
@@ -1416,9 +1416,9 @@ impl TestCase for BatchProverPubkeyCollectionIsolationTest {
             .await?;
         let raw_second_input = BASE64_STANDARD.decode(&second_inputs[0]).unwrap();
         let (_second_input_part, second_pubkey_witnesses, _): (
-            BatchProofCircuitInputV3Part1,
+            BatchProofCircuitInputV4Part1,
             EcrecoverPubkeyWitnesses,
-            BatchProofCircuitInputV3Part2,
+            BatchProofCircuitInputV4Part2,
         ) = borsh::from_slice(&raw_second_input)?;
         assert_eq!(second_pubkey_witnesses, ecrecover_pubkey_witnesses);
 

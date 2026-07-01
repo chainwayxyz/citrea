@@ -4,7 +4,7 @@ use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::fork::{fork_pos_from_block_number, Fork};
 use sov_modules_api::{Context, DaSpec};
 use sov_modules_stf_blueprint::{ApplySequencerCommitmentsOutput, Runtime, StfBlueprint};
-use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3Part1;
+use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV4Part1;
 use sov_rollup_interface::zk::batch_proof::input::v4::EcrecoverPubkeyWitnesses;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
@@ -50,7 +50,7 @@ where
     ) -> BatchProofCircuitOutput {
         println!("Running sequencer commitments in DA slot");
 
-        let mut data: BatchProofCircuitInputV3Part1 = guest.read_from_host();
+        let mut data: BatchProofCircuitInputV4Part1 = guest.read_from_host();
 
         let short_header_proof_provider: ZkShortHeaderProofProviderService<Da> =
             ZkShortHeaderProofProviderService::new(data.short_header_proofs);
@@ -61,11 +61,6 @@ where
             panic!("Short header proof provider already set");
         }
 
-        // Determine the active fork for this batch proof the same way the host
-        // does, from the last commitment's end height. Specs with ecrecover
-        // pubkey witnesses serialize one extra stream item right after Part1.
-        // The read must happen on both the native and zk paths to keep the
-        // input stream in sync; only the zk path installs the provider.
         let proof_end_l2_height = data
             .sequencer_commitments
             .last()
@@ -73,24 +68,22 @@ where
             .l2_end_block_number;
         let proof_spec = forks[fork_pos_from_block_number(forks, proof_end_l2_height)].spec_id;
 
-        if proof_spec.uses_ecrecover_pubkey_witnesses() {
-            let ecrecover_pubkey_witnesses: EcrecoverPubkeyWitnesses = guest.read_from_host();
+        let ecrecover_pubkey_witnesses: EcrecoverPubkeyWitnesses = guest.read_from_host();
 
-            #[cfg(not(feature = "native"))]
+        #[cfg(not(feature = "native"))]
+        {
+            let flat_pubkeys = ecrecover_pubkey_witnesses.into_iter().flatten().collect();
+            let recovered_pubkey_provider =
+                recovered_pubkey_provider::RecoveredPubkeyProvider::new(flat_pubkeys);
+            if recovered_pubkey_provider::RECOVERED_PUBKEY_PROVIDER
+                .set(recovered_pubkey_provider)
+                .is_err()
             {
-                let flat_pubkeys = ecrecover_pubkey_witnesses.into_iter().flatten().collect();
-                let recovered_pubkey_provider =
-                    recovered_pubkey_provider::RecoveredPubkeyProvider::new(flat_pubkeys);
-                if recovered_pubkey_provider::RECOVERED_PUBKEY_PROVIDER
-                    .set(recovered_pubkey_provider)
-                    .is_err()
-                {
-                    panic!("Recovered pubkey provider already set");
-                }
+                panic!("Recovered pubkey provider already set");
             }
-            #[cfg(feature = "native")]
-            let _ = ecrecover_pubkey_witnesses;
         }
+        #[cfg(feature = "native")]
+        let _ = ecrecover_pubkey_witnesses;
 
         println!("going into apply_l2_blocks_from_sequencer_commitments");
 
