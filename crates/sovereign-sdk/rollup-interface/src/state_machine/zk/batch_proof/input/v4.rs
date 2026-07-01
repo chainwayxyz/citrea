@@ -1,10 +1,11 @@
+use std::collections::VecDeque;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::block::{L2Block, L2Header};
 use crate::da::SequencerCommitment;
 use crate::witness::Witness;
 use crate::zk::StorageRootHash;
-use std::collections::VecDeque;
 
 #[derive(BorshDeserialize, BorshSerialize)]
 // Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the

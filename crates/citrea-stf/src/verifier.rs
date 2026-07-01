@@ -1,11 +1,12 @@
 use citrea_evm::{keccak256, Evm, BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS, U256};
 use short_header_proof_provider::{ZkShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER};
 use sov_modules_api::default_context::ZkDefaultContext;
-use sov_modules_api::fork::{fork_pos_from_block_number, Fork};
+use sov_modules_api::fork::Fork;
 use sov_modules_api::{Context, DaSpec};
 use sov_modules_stf_blueprint::{ApplySequencerCommitmentsOutput, Runtime, StfBlueprint};
-use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV4Part1;
-use sov_rollup_interface::zk::batch_proof::input::v4::EcrecoverPubkeyWitnesses;
+use sov_rollup_interface::zk::batch_proof::input::v4::{
+    BatchProofCircuitInputV4Part1, BatchProofCircuitInputV4Part2,
+};
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
@@ -61,29 +62,17 @@ where
             panic!("Short header proof provider already set");
         }
 
-        let proof_end_l2_height = data
-            .sequencer_commitments
-            .last()
-            .expect("Batch proof must contain at least one sequencer commitment")
-            .l2_end_block_number;
-        let proof_spec = forks[fork_pos_from_block_number(forks, proof_end_l2_height)].spec_id;
+        let ecrecover_pubkey_witnesses: BatchProofCircuitInputV4Part2 = guest.read_from_host();
 
-        let ecrecover_pubkey_witnesses: EcrecoverPubkeyWitnesses = guest.read_from_host();
-
-        #[cfg(not(feature = "native"))]
+        let flat_pubkeys = ecrecover_pubkey_witnesses.0.into_iter().flatten().collect();
+        let recovered_pubkey_provider =
+            recovered_pubkey_provider::RecoveredPubkeyProvider::new(flat_pubkeys);
+        if recovered_pubkey_provider::RECOVERED_PUBKEY_PROVIDER
+            .set(recovered_pubkey_provider)
+            .is_err()
         {
-            let flat_pubkeys = ecrecover_pubkey_witnesses.into_iter().flatten().collect();
-            let recovered_pubkey_provider =
-                recovered_pubkey_provider::RecoveredPubkeyProvider::new(flat_pubkeys);
-            if recovered_pubkey_provider::RECOVERED_PUBKEY_PROVIDER
-                .set(recovered_pubkey_provider)
-                .is_err()
-            {
-                panic!("Recovered pubkey provider already set");
-            }
+            panic!("Recovered pubkey provider already set");
         }
-        #[cfg(feature = "native")]
-        let _ = ecrecover_pubkey_witnesses;
 
         println!("going into apply_l2_blocks_from_sequencer_commitments");
 

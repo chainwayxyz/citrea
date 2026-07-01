@@ -24,7 +24,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::block::{L2Header, SignedL2Header};
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::stf::StateTransitionError;
-use sov_rollup_interface::zk::batch_proof::input::v3::PrevHashProof;
+use sov_rollup_interface::zk::batch_proof::input::v4::PrevHashProof;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_rollup_interface::Network;
 use sov_state::{ProverStorage, Witness};
