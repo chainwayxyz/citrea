@@ -168,45 +168,37 @@ pub fn recover_raw_transaction(
         use k256::ecdsa::VerifyingKey;
         use k256::elliptic_curve::sec1::ToEncodedPoint;
 
-        // Newer proof inputs can supply pre-computed pubkeys out of band so the
-        // circuit can skip the expensive in-VM ecrecover. Older proofs run
-        // without a provider and fall back to real in-circuit recovery below.
-        if let Some(provider) = RECOVERED_PUBKEY_PROVIDER.get() {
-            // Use pre-computed pubkey from provider
-            let pubkey_bytes = provider
-                .get_next()
-                .expect("Missing ecrecover pubkey in witness");
+        // The batch-proof circuit feeds pre-computed pubkeys.
+        let provider = RECOVERED_PUBKEY_PROVIDER
+            .get()
+            .expect("RECOVERED_PUBKEY_PROVIDER should be set");
+        let pubkey_bytes = provider
+            .get_next()
+            .expect("Missing ecrecover pubkey in witness");
 
-            let verifying_key = VerifyingKey::from_sec1_bytes(&pubkey_bytes)
-                .map_err(|_| ConversionError::InvalidSignature)?;
+        let verifying_key = VerifyingKey::from_sec1_bytes(&pubkey_bytes)
+            .map_err(|_| ConversionError::InvalidSignature)?;
 
-            let sig = *tx.signature();
-            let prehash = tx.signature_hash();
+        let sig = *tx.signature();
+        let prehash = tx.signature_hash();
 
-            let k256_sig = sig
-                .to_k256()
-                .map_err(|_| ConversionError::InvalidSignature)?;
+        let k256_sig = sig
+            .to_k256()
+            .map_err(|_| ConversionError::InvalidSignature)?;
 
-            verify_prehash_with_recovery_parity(
-                &verifying_key,
-                &k256_sig,
-                prehash.as_slice(),
-                sig.recid().is_y_odd(),
-            )?;
+        verify_prehash_with_recovery_parity(
+            &verifying_key,
+            &k256_sig,
+            prehash.as_slice(),
+            sig.recid().is_y_odd(),
+        )?;
 
-            // Compute address from pubkey
-            let affine = verifying_key.as_ref();
-            let encoded = affine.to_encoded_point(false);
-            let digest = keccak256(&encoded.as_bytes()[1..]);
-            let address = Address::from_slice(&digest[12..]);
+        // Compute address from pubkey
+        let encoded = verifying_key.as_ref().to_encoded_point(false);
+        let digest = keccak256(&encoded.as_bytes()[1..]);
+        let address = Address::from_slice(&digest[12..]);
 
-            return Ok(Recovered::new_unchecked(tx, Address::from(address)));
-        }
-
-        // Legacy input: no pre-computed pubkeys, recover in-circuit.
-        return tx
-            .try_into_recovered()
-            .map_err(|_| ConversionError::InvalidSignature);
+        Ok(Recovered::new_unchecked(tx, address))
     }
 
     #[cfg(feature = "native")]
