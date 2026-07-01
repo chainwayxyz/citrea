@@ -5,7 +5,7 @@ use sov_modules_api::fork::Fork;
 use sov_modules_api::{Context, DaSpec};
 use sov_modules_stf_blueprint::{ApplySequencerCommitmentsOutput, Runtime, StfBlueprint};
 use sov_rollup_interface::zk::batch_proof::input::v4::{
-    BatchProofCircuitInputV4Part1, BatchProofCircuitInputV4Part2,
+    BatchProofCircuitInputV4Part1, EcrecoverPubkeyWitnesses,
 };
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
@@ -62,9 +62,9 @@ where
             panic!("Short header proof provider already set");
         }
 
-        let ecrecover_pubkey_witnesses: BatchProofCircuitInputV4Part2 = guest.read_from_host();
+        let ecrecover_pubkey_witnesses: EcrecoverPubkeyWitnesses = guest.read_from_host();
 
-        let flat_pubkeys = ecrecover_pubkey_witnesses.0.into_iter().flatten().collect();
+        let flat_pubkeys = ecrecover_pubkey_witnesses.into_iter().flatten().collect();
         let recovered_pubkey_provider =
             recovered_pubkey_provider::RecoveredPubkeyProvider::new(flat_pubkeys);
         if recovered_pubkey_provider::RECOVERED_PUBKEY_PROVIDER
