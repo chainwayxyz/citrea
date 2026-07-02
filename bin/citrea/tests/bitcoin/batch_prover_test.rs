@@ -1270,9 +1270,6 @@ impl TestCase for BatchProverCreateInputTest {
             error_msg
         );
 
-        sequencer.wait_until_stopped().await?;
-        batch_prover.wait_until_stopped().await?;
-
         Ok(())
     }
 }
@@ -1441,6 +1438,139 @@ fn uncompressed_pubkey_from_private_key(private_key: &str) -> anyhow::Result<[u8
 #[tokio::test]
 async fn batch_prover_pubkey_collection_isolation_test() -> Result<()> {
     TestCaseRunner::new(BatchProverPubkeyCollectionIsolationTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+/// Feeds the batch-proof guest an input whose ecrecover pubkey witness has been
+/// tampered with, and asserts that guest execution fails.
+struct IncorrectFedPubkeyTest;
+
+#[async_trait]
+impl TestCase for IncorrectFedPubkeyTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 1,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let batch_prover = f.batch_prover.as_mut().unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let da = f.bitcoin_nodes.get(0).unwrap();
+
+        // The commitment needs at least one user EVM transaction so it carries a
+        // recovered pubkey witness to tamper with.
+        let signer_private_key =
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+        let sequencer_rpc_addr = SocketAddr::new(
+            sequencer.config().rpc_bind_host().parse()?,
+            sequencer.config().rpc_bind_port(),
+        );
+        let signer_client =
+            make_test_client_from_private_key(sequencer_rpc_addr, signer_private_key).await?;
+        let _ = signer_client
+            .send_eth(Address::random(), None, None, None, 100)
+            .await?;
+
+        // Generate commitments to create input for proving. The user transaction
+        // above lands in the first published block, so the commitment carries
+        // exactly one recovered pubkey witness.
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for commitment transactions to hit the mempool
+        da.wait_mempool_len(2, None).await?;
+
+        // Finalize the commitments
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Ensure the batch prover sees the finalized commitments
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        // Call batchProver_createInput to generate input for proving
+        let inputs = batch_prover
+            .client
+            .http_client()
+            .create_circuit_input(0, 1, PartitionMode::Normal)
+            .await?;
+        assert_eq!(inputs.len(), 1);
+
+        let raw_input = BASE64_STANDARD.decode(&inputs[0]).unwrap();
+        let (input_part1, mut ecrecover_pubkey_witnesses, input_part3): (
+            BatchProofCircuitInputV4Part1,
+            EcrecoverPubkeyWitnesses,
+            BatchProofCircuitInputV4Part3,
+        ) = borsh::from_slice(&raw_input)?;
+
+        // Switch to another valid signer's pubkey
+        let wrong_pubkey = uncompressed_pubkey_from_private_key(
+            "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+        )?;
+        let first_pubkey = ecrecover_pubkey_witnesses
+            .iter_mut()
+            .flat_map(|commitment_pubkeys| commitment_pubkeys.iter_mut())
+            .next()
+            .expect("commitment must carry at least one ecrecover pubkey to tamper with");
+        assert_ne!(
+            *first_pubkey, wrong_pubkey,
+            "tampered pubkey must differ from the original signer's pubkey"
+        );
+        *first_pubkey = wrong_pubkey;
+
+        let tampered_input =
+            borsh::to_vec(&(input_part1, ecrecover_pubkey_witnesses, input_part3))?;
+
+        // Instantiate Risc0Host
+        let rocksdb_config = RocksdbConfig::new(batch_prover.config.dir(), None, None);
+        let network = Network::Nightly;
+
+        let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
+        let risc0_config = Risc0HostConfig::from_env().expect("Failed to load risc0 config");
+        let mut risc0_host = Risc0Host::new(ledger_db, network, risc0_config).await;
+        risc0_host.add_hint(tampered_input);
+
+        let run_result = risc0_host
+            .run(
+                Uuid::new_v4(),
+                citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec(),
+                ReceiptType::Groth16,
+                false,
+            )
+            .await
+            .expect("spawning guest execution should not fail")
+            .await;
+
+        assert!(
+            run_result.is_err(),
+            "guest execution must fail when a witness pubkey is tampered with"
+        );
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn batch_prover_incorrect_pubkey_test() -> Result<()> {
+    TestCaseRunner::new(IncorrectFedPubkeyTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await

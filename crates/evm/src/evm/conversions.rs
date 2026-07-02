@@ -9,6 +9,7 @@ use recovered_pubkey_provider::Secp256k1Pubkey;
 #[cfg(not(feature = "native"))]
 use recovered_pubkey_provider::RECOVERED_PUBKEY_PROVIDER;
 use reth_primitives::{Recovered, TransactionSigned};
+#[cfg(feature = "native")]
 use reth_primitives_traits::SignedTransaction;
 use revm::context::{TransactTo, TxEnv};
 use revm::state::AccountInfo as ReVmAccountInfo;
