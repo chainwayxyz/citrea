@@ -13,9 +13,7 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::{ErrorCode, ErrorObject};
 use parking_lot::Mutex;
-use reth_rpc::eth::EthTxBuilder;
 use reth_rpc_eth_types::error::EthApiError;
-use reth_rpc_types_compat::TransactionCompat;
 use reth_transaction_pool::{
     AllPoolTransactions, EthPooledTransaction, PoolTransaction, ValidPoolTransaction,
 };
@@ -274,10 +272,8 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
 
         match self.context.mempool.get(&hash) {
             Some(tx) => {
-                let tx_signed_ec_recovered = tx.to_consensus(); // tx signed ec recovered
-                let tx = EthTxBuilder::default()
-                    .fill_pending(tx_signed_ec_recovered)
-                    .expect("EthTxBuilder fill can't fail");
+                let tx_signed_ec_recovered = tx.to_consensus().map(Into::into);
+                let tx = Transaction::from_transaction(tx_signed_ec_recovered, Default::default());
                 Ok(Some(tx))
             }
             None => match mempool_only {
@@ -429,10 +425,8 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
         let AllPoolTransactions { pending, queued } = self.context.mempool.all_transactions();
 
         fn extract_tx(tx: Arc<ValidPoolTransaction<EthPooledTransaction>>) -> Transaction {
-            let tx_signed_ec_recovered = tx.to_consensus(); // tx signed ec recovered
-            EthTxBuilder::default()
-                .fill_pending(tx_signed_ec_recovered)
-                .expect("EthTxBuilder fill can't fail")
+            let tx_signed_ec_recovered = tx.to_consensus().map(Into::into);
+            Transaction::from_transaction(tx_signed_ec_recovered, Default::default())
         }
 
         let mut content = TxpoolContent::default();

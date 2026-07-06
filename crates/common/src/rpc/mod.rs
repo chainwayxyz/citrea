@@ -1,18 +1,19 @@
 //! Common RPC crate provides helper methods that are needed in rpc servers
+use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
-use futures::future::BoxFuture;
-use futures::FutureExt;
 use hyper::Method;
 use jsonrpsee::core::RegisterMethodError;
 use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
-use jsonrpsee::server::middleware::rpc::RpcServiceT;
+use jsonrpsee::server::middleware::rpc::{
+    Batch, MethodResponse, Notification, Request, RpcServiceT,
+};
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
-use jsonrpsee::types::{ErrorObjectOwned, Request};
-use jsonrpsee::{MethodResponse, RpcModule};
+use jsonrpsee::types::ErrorObjectOwned;
+use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::schema::types::L2BlockNumber;
 use sov_rollup_interface::services::da::DaService;
@@ -120,7 +121,7 @@ pub fn register_healthcheck_rpc_light_client_prover<T: Send + Sync + 'static, Da
 
 /// Returns health check proxy layer to be used as http middleware
 pub fn get_healthcheck_proxy_layer() -> ProxyGetRequestLayer {
-    ProxyGetRequestLayer::new("/health", "health_check").unwrap()
+    ProxyGetRequestLayer::new([("/health", "health_check")]).unwrap()
 }
 
 /// Returns cors layer to be used as http middleware
@@ -134,14 +135,23 @@ pub fn get_cors_layer() -> CorsLayer {
 #[derive(Debug, Clone)]
 pub struct Logger<S>(pub S);
 
-impl<'a, S> RpcServiceT<'a> for Logger<S>
+impl<S> RpcServiceT for Logger<S>
 where
-    S: RpcServiceT<'a> + Send + Sync + Clone + 'a,
+    S: RpcServiceT<
+            MethodResponse = MethodResponse,
+            NotificationResponse = MethodResponse,
+            BatchResponse = MethodResponse,
+        > + Send
+        + Sync
+        + Clone
+        + 'static,
 {
-    type Future = BoxFuture<'a, MethodResponse>;
+    type MethodResponse = MethodResponse;
+    type NotificationResponse = MethodResponse;
+    type BatchResponse = MethodResponse;
 
-    fn call(&self, req: Request<'a>) -> Self::Future {
-        let req_id = req.id();
+    fn call<'a>(&self, req: Request<'a>) -> impl Future<Output = Self::MethodResponse> + Send + 'a {
+        let req_id = req.id().clone();
         let req_method = req.method_name().to_string();
 
         tracing::debug!(id = ?req_id, method = ?req_method, params = ?req.params().as_str(), "rpc_request");
@@ -150,17 +160,38 @@ where
         async move {
             let resp = service.call(req).await;
             if resp.is_success() {
-                tracing::trace!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_success");
+                tracing::trace!(id = ?req_id, method = ?req_method, result = %resp.as_json(), "rpc_success");
             } else {
                 match req_method.as_str() {
-                    "eth_sendRawTransaction" | "eth_sendRawTransactionSync"=> tracing::debug!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_error"),
-                    _ => tracing::warn!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_error")
+                    "eth_sendRawTransaction" | "eth_sendRawTransactionSync" => tracing::debug!(
+                        id = ?req_id,
+                        method = ?req_method,
+                        error_code = ?resp.as_error_code(),
+                        result = %resp.as_json(),
+                        "rpc_error"
+                    ),
+                    _ => tracing::warn!(
+                        id = ?req_id,
+                        method = ?req_method,
+                        error_code = ?resp.as_error_code(),
+                        result = %resp.as_json(),
+                        "rpc_error"
+                    ),
                 }
-
             }
 
             resp
         }
-        .boxed()
+    }
+
+    fn batch<'a>(&self, batch: Batch<'a>) -> impl Future<Output = Self::BatchResponse> + Send + 'a {
+        self.0.batch(batch)
+    }
+
+    fn notification<'a>(
+        &self,
+        notification: Notification<'a>,
+    ) -> impl Future<Output = Self::NotificationResponse> + Send + 'a {
+        self.0.notification(notification)
     }
 }

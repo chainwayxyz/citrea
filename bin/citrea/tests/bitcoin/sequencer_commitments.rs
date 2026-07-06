@@ -16,7 +16,7 @@ use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
 use citrea_primitives::REVEAL_TX_PREFIX;
 use citrea_sequencer::SequencerRpcClient;
-use reth_tasks::TaskManager;
+use reth_tasks::TaskExecutor as TaskManager;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_ledger_rpc::LedgerRpcClient;
@@ -49,7 +49,7 @@ pub async fn wait_for_sequencer_commitments(
         {
             Ok(Some(commitments)) => return Ok(commitments),
             Ok(None) => sleep(Duration::from_millis(500)).await,
-            Err(e) => bail!("Error fetching sequencer commitments: {}", e),
+            Err(e) => bail!("Error fetching sequencer commitments: {e}"),
         }
     }
 }
@@ -349,7 +349,7 @@ impl TestCase for SequencerCommitmentsFromDaTest {
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
         let da_service = spawn_bitcoin_da_with_wallet(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             NodeKind::Sequencer.to_string(),
         )
@@ -451,7 +451,8 @@ impl TestCase for SequencerCommitmentsFromDaTest {
 #[tokio::test]
 async fn test_sequencer_commitments_from_da_layer() -> Result<()> {
     TestCaseRunner::new(SequencerCommitmentsFromDaTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()

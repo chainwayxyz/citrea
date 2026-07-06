@@ -28,7 +28,7 @@ use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::REVEAL_TX_PREFIX;
 use rand::{thread_rng, Rng};
-use reth_tasks::TaskManager;
+use reth_tasks::TaskExecutor as TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{
@@ -583,7 +583,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let bitcoin_da_service = spawn_bitcoin_da_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
             // Method id sender private key, can be any sender
@@ -773,7 +773,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
 #[tokio::test]
 async fn test_light_client_batch_proof_method_id_update() -> Result<()> {
     TestCaseRunner::new(LightClientBatchProofMethodIdUpdateTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()
@@ -835,7 +836,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let bitcoin_da_service = spawn_bitcoin_da_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
             // Method id sender private key, can be any sender
@@ -1187,7 +1188,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
 #[tokio::test]
 async fn test_light_client_batch_proof_method_id_update_security_council() -> Result<()> {
     TestCaseRunner::new(LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()
@@ -1230,14 +1232,14 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let bitcoin_da_service = spawn_bitcoin_da_prover_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
         )
         .await;
 
         let sequencer_bitcoin_da_service = spawn_bitcoin_da_sequencer_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
         )
@@ -1447,7 +1449,8 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
 #[tokio::test]
 async fn test_light_client_unverifiable_batch_proof() -> Result<()> {
     TestCaseRunner::new(LightClientUnverifiableBatchProofTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()
@@ -1497,14 +1500,14 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let bitcoin_da_service = spawn_bitcoin_da_prover_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
         )
         .await;
 
         let sequencer_bitcoin_da_service = spawn_bitcoin_da_sequencer_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
         )
@@ -1825,7 +1828,8 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 #[tokio::test]
 async fn test_verify_chunked_txs_in_light_client() -> Result<()> {
     TestCaseRunner::new(VerifyChunkedTxsInLightClient {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()
@@ -1875,14 +1879,14 @@ impl TestCase for UnchainedBatchProofsTest {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let bitcoin_da_service = spawn_bitcoin_da_prover_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
         )
         .await;
 
         let sequencer_bitcoin_da_service = spawn_bitcoin_da_sequencer_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
         )
@@ -2090,7 +2094,8 @@ impl TestCase for UnchainedBatchProofsTest {
 #[tokio::test]
 async fn test_unchained_batch_proofs_in_light_client() -> Result<()> {
     TestCaseRunner::new(UnchainedBatchProofsTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()
@@ -2140,13 +2145,13 @@ impl TestCase for UnknownL1HashBatchProofTest {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let bitcoin_da_service = spawn_bitcoin_da_prover_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
         )
         .await;
         let sequencer_bitcoin_da_service = spawn_bitcoin_da_sequencer_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
         )
@@ -2240,7 +2245,8 @@ impl TestCase for UnknownL1HashBatchProofTest {
 #[tokio::test]
 async fn test_unknown_l1_hash_batch_proof_in_light_client() -> Result<()> {
     TestCaseRunner::new(UnknownL1HashBatchProofTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()
@@ -2290,14 +2296,14 @@ impl TestCase for ChainProofByCommitmentIndex {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let bitcoin_da_service = spawn_bitcoin_da_prover_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
         )
         .await;
 
         let sequencer_bitcoin_da_service = spawn_bitcoin_da_sequencer_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
         )
@@ -2456,7 +2462,8 @@ impl TestCase for ChainProofByCommitmentIndex {
 #[tokio::test]
 async fn test_chain_proof_by_commitment_index() -> Result<()> {
     TestCaseRunner::new(ChainProofByCommitmentIndex {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()
@@ -2506,7 +2513,7 @@ impl TestCase for ProofWithMissingCommitment {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let bitcoin_da_service = spawn_bitcoin_da_prover_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
         )
@@ -2605,7 +2612,8 @@ impl TestCase for ProofWithMissingCommitment {
 #[tokio::test]
 async fn test_proof_with_missing_commitment_is_discarded() -> Result<()> {
     TestCaseRunner::new(ProofWithMissingCommitment {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()
@@ -2655,21 +2663,21 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let batch_prover_bitcoin_da_service = spawn_bitcoin_da_prover_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
         )
         .await;
 
         let sequencer_bitcoin_da_service = spawn_bitcoin_da_sequencer_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
         )
         .await;
 
         let malicious_bitcoin_da_service = spawn_bitcoin_da_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
             DaServiceKeyKind::Other(
@@ -2924,7 +2932,8 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
 #[tokio::test]
 async fn test_proof_and_commitment_with_wrong_da_pubkey() -> Result<()> {
     TestCaseRunner::new(ProofAndCommitmentWithWrongDaPubkey {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()
@@ -2974,14 +2983,14 @@ impl TestCase for ProofWithWrongPreviousCommitmentHash {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let batch_prover_bitcoin_da_service = spawn_bitcoin_da_prover_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
         )
         .await;
 
         let sequencer_bitcoin_da_service = spawn_bitcoin_da_sequencer_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
         )
@@ -3163,7 +3172,8 @@ impl TestCase for ProofWithWrongPreviousCommitmentHash {
 #[tokio::test]
 async fn test_proof_with_wrong_previous_commitment_hash() -> Result<()> {
     TestCaseRunner::new(ProofWithWrongPreviousCommitmentHash {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()
@@ -3503,7 +3513,7 @@ impl TestCase for UndecompressableBlobTest {
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         let prover_da_service = spawn_bitcoin_da_prover_service(
-            &self.task_manager.executor(),
+            &self.task_manager.clone(),
             &da.config,
             Self::test_config().dir,
         )
@@ -3665,7 +3675,8 @@ impl TestCase for UndecompressableBlobTest {
 #[tokio::test]
 async fn test_undecompressable_blob() -> Result<()> {
     TestCaseRunner::new(UndecompressableBlobTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()

@@ -15,7 +15,7 @@ fn check_if_l2_block_pruned(ledger_db: &LedgerDB, l2_height: u64) -> Result<(), 
     let last_pruned_l2_height = ledger_db.get_last_pruned_l2_height()?;
     if let Some(last_pruned_l2_height) = last_pruned_l2_height {
         if l2_height <= last_pruned_l2_height {
-            anyhow::bail!("L2 block at height {} has been pruned.", l2_height);
+            anyhow::bail!("L2 block at height {l2_height} has been pruned.");
         }
     }
     Ok(())

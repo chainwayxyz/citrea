@@ -91,7 +91,7 @@ async fn update_short_header_proof_from_sys_tx<Da: DaService, DB: SharedLedgerOp
         // TODO: https://github.com/chainwayxyz/citrea/issues/2442
         unexpected_selector => {
             tracing::warn!(
-                "Unexpected function selector at system tx: {unexpected_selector:?} , tx input: {:?}, tx hash: {:?}, tx nonce: {:?}", tx.inner().transaction().input(), tx.inner().hash(), tx.inner().transaction().nonce()
+                "Unexpected function selector at system tx: {unexpected_selector:?} , tx input: {:?}, tx hash: {:?}, tx nonce: {:?}", tx.inner().input(), tx.inner().hash(), tx.inner().nonce()
             );
         }
     }
@@ -139,7 +139,7 @@ pub async fn decode_sov_tx_and_update_short_header_proofs<Da: DaService, DB: Sha
 }
 
 pub fn read_env(key: &str) -> anyhow::Result<String> {
-    env::var(key).map_err(|_| anyhow::anyhow!("Env {} missing or invalid UTF-8", key))
+    env::var(key).map_err(|_| anyhow::anyhow!("Env {key} missing or invalid UTF-8"))
 }
 
 /// Non-blocking shutdown probe.

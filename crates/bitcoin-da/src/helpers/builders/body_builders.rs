@@ -99,7 +99,7 @@ fn mine_reveal_prefix(
         }
 
         iterations += 1;
-        if iterations % 1000 == 0 {
+        if iterations.is_multiple_of(1000) {
             trace!(iterations, "Mining for {label} reveal tx prefix");
             if iterations > 16384 {
                 warn!("Too many iterations mining for {label} reveal tx prefix");
@@ -134,7 +134,7 @@ fn verify_commit_address(
 /// from the `reveal_tx_prefix`.
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
-pub fn create_inscription_transactions(
+pub(crate) fn create_inscription_transactions(
     data: RawTxData,
     da_private_key: SecretKey,
     utxo_context: UtxoContext,

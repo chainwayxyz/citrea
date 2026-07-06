@@ -1,5 +1,5 @@
 use alloy_consensus::TxEip1559;
-use alloy_primitives::{address, Address, PrimitiveSignature, TxKind, U256};
+use alloy_primitives::{address, Address, Signature, TxKind, U256};
 use reth_primitives::{Recovered, Transaction, TransactionSigned};
 
 use super::system_contracts::{BitcoinLightClient, BridgeWrapper};
@@ -8,8 +8,7 @@ use super::system_contracts::{BitcoinLightClient, BridgeWrapper};
 pub const SYSTEM_SIGNER: Address = address!("deaddeaddeaddeaddeaddeaddeaddeaddeaddead");
 
 /// This is a special signature to force tx.signer to be set to SYSTEM_SIGNER
-pub const SYSTEM_SIGNATURE: PrimitiveSignature =
-    PrimitiveSignature::new(U256::ZERO, U256::ZERO, false);
+pub const SYSTEM_SIGNATURE: Signature = Signature::new(U256::ZERO, U256::ZERO, false);
 
 /// Gas limit for system transactions.
 pub const SYSTEM_TX_GAS_LIMIT: u64 = 1_000_000;

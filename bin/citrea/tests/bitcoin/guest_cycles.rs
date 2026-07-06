@@ -265,14 +265,13 @@ impl TestCase for GenerateProvingStatsDB {
             env!("CARGO_MANIFEST_DIR")
         ));
         let file = File::open(transactions_file_path)
-            .map_err(|e| anyhow::anyhow!("Failed to open transactions file: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to open transactions file: {e}"))?;
         let reader = BufReader::new(file);
 
         // Send each transaction from the file
         let mut tx_count = 0;
         for (i, line) in reader.lines().enumerate() {
-            let signed_tx =
-                line.map_err(|e| anyhow::anyhow!("Failed to read line {}: {}", i, e))?;
+            let signed_tx = line.map_err(|e| anyhow::anyhow!("Failed to read line {i}: {e}"))?;
             // Skip empty lines
             if signed_tx.trim().is_empty() {
                 continue;

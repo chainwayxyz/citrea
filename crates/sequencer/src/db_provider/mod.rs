@@ -4,9 +4,9 @@ use std::fmt::Debug;
 use alloy_eips::{BlockHashOrNumber, BlockId, BlockNumberOrTag};
 use alloy_genesis::Genesis;
 use alloy_primitives::{
-    Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, TxHash, TxNumber, B256, U256,
+    Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, TxHash, TxNumber, B256,
 };
-use alloy_rpc_types::{BlockTransactions, Withdrawals};
+use alloy_rpc_types::BlockTransactions;
 use alloy_rpc_types_eth::Block as AlloyRpcBlock;
 use alloy_serde::WithOtherFields;
 use citrea_evm::{Evm, EvmChainConfig};
@@ -17,10 +17,10 @@ use reth_db::DatabaseError;
 use reth_primitives::{Account, Bytecode, RecoveredBlock, SealedHeader};
 use reth_provider::{
     AccountReader, BlockBodyIndicesProvider, BlockHashReader, BlockIdReader, BlockNumReader,
-    BlockReader, BlockReaderIdExt, ChainSpecProvider, HashedPostStateProvider, HeaderProvider,
-    OmmersProvider, ProviderError, ProviderResult, ReceiptProvider, ReceiptProviderIdExt,
+    BlockReader, BlockReaderIdExt, BytecodeReader, ChainSpecProvider, HashedPostStateProvider,
+    HeaderProvider, ProviderError, ProviderResult, ReceiptProvider, ReceiptProviderIdExt,
     StateProofProvider, StateProvider, StateProviderFactory, StateRootProvider,
-    StorageRootProvider, TransactionVariant, TransactionsProvider, WithdrawalsProvider,
+    StorageRootProvider, TransactionVariant, TransactionsProvider,
 };
 use reth_trie::updates::TrieUpdates;
 use reth_trie::{HashedPostState, HashedStorage, StorageMultiProof, StorageProof};
@@ -141,6 +141,16 @@ impl StateProvider for DbProvider {
         Ok(value)
     }
 
+    fn storage_by_hashed_key(
+        &self,
+        address: Address,
+        hashed_storage_key: StorageKey,
+    ) -> ProviderResult<Option<StorageValue>> {
+        self.storage(address, hashed_storage_key)
+    }
+}
+
+impl BytecodeReader for DbProvider {
     fn bytecode_by_hash(&self, code_hash: &B256) -> ProviderResult<Option<Bytecode>> {
         let mut working_set = WorkingSet::new(self.storage.clone());
         let code = self
@@ -149,12 +159,6 @@ impl StateProvider for DbProvider {
             .get(code_hash, &mut working_set.offchain_state());
 
         Ok(code.map(reth_primitives::Bytecode))
-    }
-}
-
-impl OmmersProvider for DbProvider {
-    fn ommers(&self, _id: BlockHashOrNumber) -> ProviderResult<Option<Vec<Self::Header>>> {
-        unimplemented!("ommers")
     }
 }
 
@@ -195,8 +199,22 @@ impl BlockReaderIdExt for DbProvider {
         unimplemented!("finalized_header")
     }
 
-    fn header_by_id(&self, _id: BlockId) -> ProviderResult<Option<reth_primitives::Header>> {
-        unimplemented!("header_by_id")
+    fn header_by_id(&self, id: BlockId) -> ProviderResult<Option<reth_primitives::Header>> {
+        let mut working_set = WorkingSet::new(self.storage.clone());
+
+        let block_num = match id {
+            BlockId::Number(num) => num,
+            BlockId::Hash(hash) => {
+                let block_num = self
+                    .evm
+                    .get_block_number_by_block_hash(hash.block_hash, &mut working_set)
+                    .ok_or(ProviderError::BlockHashNotFound(hash.block_hash))?;
+
+                BlockNumberOrTag::Number(block_num)
+            }
+        };
+
+        self.header_by_number_or_tag(block_num)
     }
 
     fn header_by_number_or_tag(
@@ -220,17 +238,6 @@ impl BlockReaderIdExt for DbProvider {
             Ok(None) => Ok(None),
             Err(_) => Ok(None),
         }
-    }
-
-    fn ommers_by_id(&self, _id: BlockId) -> ProviderResult<Option<Vec<reth_primitives::Header>>> {
-        unimplemented!("ommers_by_id")
-    }
-
-    fn ommers_by_number_or_tag(
-        &self,
-        _id: BlockNumberOrTag,
-    ) -> ProviderResult<Option<Vec<reth_primitives::Header>>> {
-        unimplemented!("ommers_by_number_or_tag")
     }
 
     fn pending_header(&self) -> ProviderResult<Option<reth_primitives::SealedHeader>> {
@@ -285,20 +292,12 @@ impl BlockReaderIdExt for DbProvider {
 
 impl HeaderProvider for DbProvider {
     type Header = reth_primitives::Header;
-    fn header(&self, _block_hash: &BlockHash) -> ProviderResult<Option<Self::Header>> {
+    fn header(&self, _block_hash: BlockHash) -> ProviderResult<Option<Self::Header>> {
         unimplemented!("header")
     }
 
     fn header_by_number(&self, _num: u64) -> ProviderResult<Option<Self::Header>> {
         unimplemented!("header_by_number")
-    }
-
-    fn header_td(&self, _hash: &BlockHash) -> ProviderResult<Option<U256>> {
-        unimplemented!("header_td")
-    }
-
-    fn header_td_by_number(&self, _number: BlockNumber) -> ProviderResult<Option<U256>> {
-        unimplemented!("header_td_by_number")
     }
 
     fn headers_range(
@@ -434,13 +433,13 @@ impl BlockReader for DbProvider {
         unimplemented!("find_block_by_hash")
     }
 
-    fn pending_block(&self) -> ProviderResult<Option<reth_primitives::SealedBlock>> {
+    fn pending_block(&self) -> ProviderResult<Option<RecoveredBlock<Self::Block>>> {
         unimplemented!("pending_block")
     }
 
     fn pending_block_and_receipts(
         &self,
-    ) -> ProviderResult<Option<(reth_primitives::SealedBlock, Vec<reth_primitives::Receipt>)>> {
+    ) -> ProviderResult<Option<(RecoveredBlock<Self::Block>, Vec<Self::Receipt>)>> {
         unimplemented!("pending_block_and_receipts")
     }
 
@@ -457,10 +456,6 @@ impl BlockReader for DbProvider {
         _range: std::ops::RangeInclusive<BlockNumber>,
     ) -> ProviderResult<Vec<reth_primitives::Block>> {
         unimplemented!("block_range")
-    }
-
-    fn pending_block_with_senders(&self) -> ProviderResult<Option<RecoveredBlock<Self::Block>>> {
-        unimplemented!("pending_block_with_senders")
     }
 
     fn block_with_senders_range(
@@ -484,6 +479,10 @@ impl BlockReader for DbProvider {
     ) -> ProviderResult<Vec<RecoveredBlock<Self::Block>>> {
         unimplemented!("recovered_block_range")
     }
+
+    fn block_by_transaction_id(&self, _id: TxNumber) -> ProviderResult<Option<BlockNumber>> {
+        unimplemented!("block_by_transaction_id")
+    }
 }
 
 impl TransactionsProvider for DbProvider {
@@ -493,10 +492,6 @@ impl TransactionsProvider for DbProvider {
         _range: impl std::ops::RangeBounds<TxNumber>,
     ) -> ProviderResult<Vec<Address>> {
         unimplemented!("senders_by_tx_range")
-    }
-
-    fn transaction_block(&self, _id: TxNumber) -> ProviderResult<Option<BlockNumber>> {
-        unimplemented!("transaction_block")
     }
 
     fn transaction_by_hash(&self, _hash: TxHash) -> ProviderResult<Option<Self::Transaction>> {
@@ -579,19 +574,16 @@ impl ReceiptProvider for DbProvider {
     ) -> ProviderResult<Vec<Self::Receipt>> {
         unimplemented!("receipts_by_tx_range")
     }
+
+    fn receipts_by_block_range(
+        &self,
+        _block_range: RangeInclusive<BlockNumber>,
+    ) -> ProviderResult<Vec<Vec<Self::Receipt>>> {
+        unimplemented!("receipts_by_block_range")
+    }
 }
 
 impl ReceiptProviderIdExt for DbProvider {}
-
-impl WithdrawalsProvider for DbProvider {
-    fn withdrawals_by_block(
-        &self,
-        _id: BlockHashOrNumber,
-        _timestamp: u64,
-    ) -> ProviderResult<Option<Withdrawals>> {
-        unimplemented!("withdrawals_by_block")
-    }
-}
 
 impl ChainSpecProvider for DbProvider {
     type ChainSpec = ChainSpec;
@@ -673,6 +665,10 @@ impl StateProviderFactory for DbProvider {
         _number_or_tag: BlockNumberOrTag,
     ) -> ProviderResult<reth_provider::StateProviderBox> {
         unimplemented!("state_by_block_number_or_tag")
+    }
+
+    fn maybe_pending(&self) -> ProviderResult<Option<reth_provider::StateProviderBox>> {
+        unimplemented!("maybe_pending")
     }
 }
 

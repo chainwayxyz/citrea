@@ -18,7 +18,7 @@ use alloy_rpc_types_trace::geth::{
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::{CallerContract, SimpleStorageContract};
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_tasks::TaskManager;
+use reth_tasks::TaskExecutor as TaskManager;
 use serde_json::{self, json};
 
 use crate::common::client::{TestClient, MAX_FEE_PER_GAS};

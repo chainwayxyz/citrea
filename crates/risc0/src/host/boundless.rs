@@ -15,8 +15,8 @@ use boundless_market::deployments::BASE;
 use boundless_market::request_builder::{
     OfferLayer, OfferLayerConfigBuilder, RequestParams, RequirementParams,
 };
-use boundless_market::storage::{PinataStorageProvider, S3StorageProvider};
-use boundless_market::{GuestEnv, RequestId, StandardStorageProvider};
+use boundless_market::storage::{PinataStorageUploader, S3StorageUploader, StandardUploader};
+use boundless_market::{GuestEnv, RequestId};
 use citrea_common::config::risc0::{BoundlessProverConfig, BoundlessStorageConfig};
 use citrea_common::utils::is_dev_mode_enabled_via_environment;
 use metrics::gauge;
@@ -87,8 +87,8 @@ impl BoundlessProver {
             .expect("Failed to create boundless client");
 
         assert!(
-            client.storage_provider.is_some(),
-            "a storage provider is required to upload the zkVM guest ELF"
+            client.uploader.is_some(),
+            "a storage uploader is required to upload the zkVM guest ELF"
         );
 
         let pricing_service = PricingService::from_config(&prover_config.pricing_service);
@@ -104,27 +104,29 @@ impl BoundlessProver {
     async fn boundless_client(prover_config: BoundlessProverConfig) -> anyhow::Result<Client> {
         let config = &prover_config.boundless;
 
-        // Get storage provider from config
-        let storage_provider = match prover_config.storage {
-            BoundlessStorageConfig::S3(s3_config) => {
-                StandardStorageProvider::S3(S3StorageProvider::from_parts(
-                    s3_config.s3_access_key,
-                    s3_config.s3_secret_key,
+        // Get storage uploader from config
+        let storage_uploader = match prover_config.storage {
+            BoundlessStorageConfig::S3(s3_config) => StandardUploader::S3(
+                S3StorageUploader::new(
                     s3_config.s3_bucket,
-                    s3_config.s3_url,
-                    s3_config.aws_region,
+                    Some(s3_config.s3_url),
+                    Some(s3_config.aws_region),
+                    Some((s3_config.s3_access_key, s3_config.s3_secret_key)),
                     s3_config.s3_use_presigned,
-                ))
-            }
-            BoundlessStorageConfig::Pinata(pinata_config) => StandardStorageProvider::Pinata(
-                PinataStorageProvider::from_parts(
-                    pinata_config.pinata_jwt,
-                    pinata_config.pinata_api_url,
-                    pinata_config.ipfs_gateway_url,
+                    false,
                 )
                 .await
-                .context("Failed to create Pinata storage provider")?,
+                .context("Failed to create S3 storage uploader")?,
             ),
+            BoundlessStorageConfig::Pinata(pinata_config) => {
+                StandardUploader::Pinata(PinataStorageUploader::new(
+                    pinata_config.pinata_jwt,
+                    Url::parse(&pinata_config.pinata_api_url)
+                        .context("Invalid boundless Pinata API URL")?,
+                    Url::parse(&pinata_config.ipfs_gateway_url)
+                        .context("Invalid boundless IPFS gateway URL")?,
+                ))
+            }
         };
 
         // TODO: Switch to Deployment::builder after boundless 1.0 release to switch between base mainnet and sepolia
@@ -141,7 +143,7 @@ impl BoundlessProver {
         ClientBuilder::new()
             .with_deployment(deployment)
             .with_rpc_url(rpc_url)
-            .with_storage_provider(Some(storage_provider))
+            .with_uploader(Some(storage_uploader))
             .with_private_key(private_key)
             .build()
             .await
@@ -274,11 +276,7 @@ impl BoundlessProver {
         })
         .await
         .map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to get price from pricing service for job: {}  | err={}",
-                job_id,
-                e
-            )
+            anyhow::anyhow!("Failed to get price from pricing service for job: {job_id}  | err={e}")
         })?;
 
         let lock_timeout = cmp::max(lock_timeout, MIN_LOCK_TIMEOUT); // at least 200 seconds
@@ -704,6 +702,8 @@ impl BoundlessProver {
                 U256::from_str(request_id).expect("Should convert str to U256"),
                 None,
                 None,
+                None,
+                None,
             )
             .await
         else {
@@ -750,10 +750,7 @@ impl BoundlessProver {
         .await
         .map_err(|e| {
             anyhow::anyhow!(
-                "Failed to get price from pricing service for job: {} request_id: {} | err={}",
-                job_id,
-                request_id,
-                e
+                "Failed to get price from pricing service for job: {job_id} request_id: {request_id} | err={e}"
             )
         })?;
         let max_possible_price_wei_per_cycle = price_response.max_possible_price_wei_per_cycle;

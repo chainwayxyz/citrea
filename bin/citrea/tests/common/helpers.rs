@@ -15,7 +15,7 @@ use citrea_common::{
 };
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_tasks::TaskManager;
+use reth_tasks::TaskExecutor as TaskManager;
 use short_header_proof_provider::{
     NativeShortHeaderProofProviderService, SHORT_HEADER_PROOF_PROVIDER,
 };
@@ -162,7 +162,7 @@ pub async fn start_rollup(
 
     let Dependencies {
         da_service,
-        task_manager,
+        task_executor,
         l2_block_channel,
     } = mock_demo_rollup
         .setup_dependencies(
@@ -181,7 +181,7 @@ pub async fn start_rollup(
         Err(_) => tracing::error!("Short header proof provider already set"),
     }
 
-    let task_executor = task_manager.executor();
+    let task_executor = task_executor.clone();
 
     // I am sorry
     if let_hell_loose {
@@ -460,7 +460,7 @@ pub async fn start_rollup(
         );
     }
 
-    task_manager
+    task_executor
 }
 
 pub fn create_default_rollup_config(
@@ -592,7 +592,7 @@ pub async fn wait_for_prover_job(
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            bail!("Timeout. Failed to get prover job {}", job_id);
+            bail!("Timeout. Failed to get prover job {job_id}");
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -618,7 +618,7 @@ pub async fn wait_for_prover_l1_height_proofs(
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            bail!("Timeout. Failed to get batch proofs on L1 height {}", num);
+            bail!("Timeout. Failed to get batch proofs on L1 height {num}");
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -644,10 +644,7 @@ pub async fn wait_for_prover_l1_height(
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            bail!(
-                "Timeout. Failed to wait for batch prover to scan L1 height {}",
-                num
-            );
+            bail!("Timeout. Failed to wait for batch prover to scan L1 height {num}");
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -665,10 +662,7 @@ pub async fn wait_for_prover_job_count(
 
     loop {
         if start.elapsed() >= timeout {
-            bail!(
-                "BatchProver failed to reach proving job count {} on time",
-                count
-            );
+            bail!("BatchProver failed to reach proving job count {count} on time");
         }
 
         let jobs = prover_client.get_proving_jobs(count, None).await;

@@ -103,7 +103,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         require_wallet_check: bool,
-        task_manager: TaskExecutor,
+        task_executor: TaskExecutor,
         network: Network,
     ) -> Result<Arc<Self::DaService>, anyhow::Error>;
 

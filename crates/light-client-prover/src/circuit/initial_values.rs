@@ -653,7 +653,7 @@ pub trait InitialValueProvider<Das: DaSpec> {
     fn get_l2_genesis_root(&self) -> [u8; 32];
 
     /// Returns the initial batch proof method IDs.
-    fn initial_batch_proof_method_ids(&self) -> NonEmptySlice<(u64, [u32; 8])>;
+    fn initial_batch_proof_method_ids(&self) -> NonEmptySlice<'_, (u64, [u32; 8])>;
 
     /// Returns the public key of the batch prover.
     fn batch_prover_da_public_key(&self) -> [u8; 33];
@@ -674,7 +674,7 @@ impl InitialValueProvider<MockDaSpec> for Network {
         mockda::GENESIS_ROOT
     }
 
-    fn initial_batch_proof_method_ids(&self) -> NonEmptySlice<(u64, [u32; 8])> {
+    fn initial_batch_proof_method_ids(&self) -> NonEmptySlice<'_, (u64, [u32; 8])> {
         assert_eq!(self, &Network::Nightly, "Only nightly allowed on mock da!");
         mockda::INITIAL_BATCH_PROOF_METHOD_IDS
     }
@@ -709,7 +709,7 @@ impl InitialValueProvider<BitcoinSpec> for Network {
         }
     }
 
-    fn initial_batch_proof_method_ids(&self) -> NonEmptySlice<(u64, [u32; 8])> {
+    fn initial_batch_proof_method_ids(&self) -> NonEmptySlice<'_, (u64, [u32; 8])> {
         match self {
             Network::Mainnet => bitcoinda::MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS,
             Network::Testnet => bitcoinda::TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS,

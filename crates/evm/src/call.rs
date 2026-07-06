@@ -54,7 +54,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let l1_fee_rate = context.l1_fee_rate();
         let mut citrea_handler_ext = CitreaChain::new(l1_fee_rate);
 
-        let block_number = self.block_env.number;
+        let block_number = self.block_env.number.to::<u64>();
         let mut cumulative_gas_used = 0;
         let mut log_index_start = 0;
 

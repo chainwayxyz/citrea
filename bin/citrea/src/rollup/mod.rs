@@ -20,7 +20,7 @@ use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use citrea_storage_ops::pruning::PrunerService;
 use citrea_storage_ops::rollback::Rollback;
 use jsonrpsee::RpcModule;
-use reth_tasks::{TaskExecutor, TaskManager};
+use reth_tasks::TaskExecutor;
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
@@ -61,8 +61,8 @@ pub struct Storage {
 
 /// Group for initialization dependencies
 pub struct Dependencies<T: RollupBlueprint> {
-    /// The task manager
-    pub task_manager: TaskManager,
+    /// The task executor
+    pub task_executor: TaskExecutor,
     /// The DA service
     pub da_service: Arc<<T as RollupBlueprint>::DaService>,
     /// The channel on which L2 block number is broadcasted.
@@ -79,12 +79,12 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         require_da_wallet: bool,
         network: Network,
     ) -> Result<Dependencies<Self>> {
-        let task_manager = TaskManager::current();
+        let task_executor = TaskExecutor::with_existing_handle(tokio::runtime::Handle::current())?;
         let da_service = self
             .create_da_service(
                 rollup_config,
                 require_da_wallet,
-                task_manager.executor(),
+                task_executor.clone(),
                 network,
             )
             .await?;
@@ -97,7 +97,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         };
 
         Ok(Dependencies {
-            task_manager,
+            task_executor,
             da_service,
             l2_block_channel: (l2_block_tx, l2_block_rx),
         })
@@ -185,9 +185,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             );
         } else {
             anyhow::bail!(
-                "Storage is corrupted, LedgerDB version: {}, StateDB version: {}",
-                ledger_version,
-                state_version
+                "Storage is corrupted, LedgerDB version: {ledger_version}, StateDB version: {state_version}"
             );
         }
         return Ok(());
@@ -211,7 +209,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     ) -> Result<(CitreaSequencer<Self::DaService>, RpcModule<()>)> {
         let current_l2_height = ledger_db
             .get_head_l2_block()
-            .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
+            .map_err(|e| anyhow!("Failed to get head l2 block: {e}"))?
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(L2BlockNumber(0));
 
@@ -270,7 +268,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let current_l2_height = ledger_db
             .get_head_l2_block_height()
-            .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
+            .map_err(|e| anyhow!("Failed to get head l2 block: {e}"))?
             .unwrap_or(0);
 
         let mut fork_manager = ForkManager::new(get_forks(), current_l2_height);
@@ -329,7 +327,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let current_l2_height = ledger_db
             .get_head_l2_block_height()
-            .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
+            .map_err(|e| anyhow!("Failed to get head l2 block: {e}"))?
             .unwrap_or(0);
 
         let mut fork_manager = ForkManager::new(get_forks(), current_l2_height);

@@ -1332,8 +1332,7 @@ impl TestCase for BatchProverCreateInputTest {
         let error_msg = result.unwrap_err().to_string();
         assert!(
             error_msg.contains("No commitments found"),
-            "Expected error about no commitments found, got: {}",
-            error_msg
+            "Expected error about no commitments found, got: {error_msg}"
         );
 
         sequencer.wait_until_stopped().await?;

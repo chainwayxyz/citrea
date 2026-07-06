@@ -5,7 +5,7 @@ use std::time::Duration;
 use citrea_common::{NodeType, PruningConfig};
 use jmt::storage::TreeWriter;
 use jmt::KeyHash;
-use reth_tasks::TaskManager;
+use reth_tasks::TaskExecutor as TaskManager;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -32,8 +32,9 @@ use crate::pruning::{Pruner, PrunerService};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_pruning_simple_run() {
-    let task_manager = TaskManager::current();
-    let task_executor = task_manager.executor();
+    let task_executor = TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+        .expect("tokio runtime handle should exist in tests");
+    let task_executor = task_executor.clone();
 
     let tmpdir = tempfile::tempdir().unwrap();
     let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
@@ -64,7 +65,7 @@ async fn test_pruning_simple_run() {
 
         sleep(Duration::from_secs(1));
 
-        task_manager.graceful_shutdown();
+        task_executor.graceful_shutdown();
     }
     tokio::time::sleep(Duration::from_secs(1)).await;
 

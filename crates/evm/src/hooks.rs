@@ -76,15 +76,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let evm_spec = citrea_spec_id_to_evm_spec_id(l2_block_info.current_spec);
 
-        let blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new(
-            0,
-            evm_spec.is_enabled_in(SpecId::PRAGUE),
-        ));
+        let blob_excess_gas_and_price = Some(BlobExcessGasAndPrice::new_with_spec(0, evm_spec));
 
         let new_pending_env = BlockEnv {
-            number: parent_block_number + 1,
+            number: U256::from(parent_block_number + 1),
             beneficiary: cfg.coinbase,
-            timestamp: l2_block_info.timestamp(),
+            timestamp: U256::from(l2_block_info.timestamp()),
             prevrandao: Some(B256::ZERO),
             basefee,
             gas_limit: cfg.block_gas_limit,
@@ -118,9 +115,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let expected_block_number = parent_block.header.number + 1;
         assert_eq!(
-            self.block_env.number, expected_block_number,
+            self.block_env.number,
+            U256::from(expected_block_number),
             "Pending head must be set to block {}, but found block {}",
-            expected_block_number, self.block_env.number
+            expected_block_number,
+            self.block_env.number
         );
 
         let pending_transactions = &mut self.pending_transactions;
@@ -140,8 +139,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let header = AlloyHeader {
             parent_hash: parent_block_hash,
-            timestamp: self.block_env.timestamp,
-            number: self.block_env.number,
+            timestamp: self.block_env.timestamp.to::<u64>(),
+            number: self.block_env.number.to::<u64>(),
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: parent_block.header.beneficiary,
             // This will be set in finalize_hook or in the next begin_slot_hook

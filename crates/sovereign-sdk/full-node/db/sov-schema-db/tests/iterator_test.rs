@@ -82,11 +82,11 @@ impl TestDB {
 }
 
 impl TestDB {
-    fn iter(&self) -> SchemaIterator<S> {
+    fn iter(&self) -> SchemaIterator<'_, S> {
         self.db.iter().expect("Failed to create iterator.")
     }
 
-    fn rev_iter(&self) -> SchemaIterator<S> {
+    fn rev_iter(&self) -> SchemaIterator<'_, S> {
         let mut read_options = ReadOptions::default();
         read_options.set_async_io(true);
         self.db

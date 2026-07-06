@@ -68,10 +68,28 @@ fn tx_rlp_encoding_test() {
 
 #[test]
 fn tx_conversion() {
-    let signer = Address::random();
+    let wallet = "dcf2cbdd171a21c480aa7f53d77f31bb102282b3ff099c78e3118b37348c72f7"
+        .parse::<PrivateKeySigner>()
+        .unwrap();
+    let signer = wallet.address();
+    let mut request = TransactionRequest::default()
+        .from(signer)
+        .nonce(0u64)
+        .max_priority_fee_per_gas(1)
+        .max_fee_per_gas(2)
+        .gas_limit(21_000)
+        .to(Address::ZERO)
+        .value(U256::ZERO)
+        .input(Bytes::new().into());
+    request.chain_id = Some(DEFAULT_CHAIN_ID);
+
+    let typed_tx = request.build_typed_tx().unwrap();
+    let mut tx = typed_tx.eip1559().unwrap().clone();
+    let sig = wallet.sign_transaction_sync(&mut tx).unwrap();
+
     let tx = TransactionSignedAndRecovered {
         signer,
-        signed_transaction: Default::default(),
+        signed_transaction: tx.into_signed(sig).into(),
         block_number: 5u64,
     };
 

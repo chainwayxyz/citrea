@@ -9,7 +9,7 @@ use citrea_common::{BatchProverConfig, FromEnv, PruningConfig, SequencerConfig};
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_primitives::forks::fork_from_block_number;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_tasks::TaskManager;
+use reth_tasks::TaskExecutor as TaskManager;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::rpc::LastVerifiedBatchProofResponse;
 use sov_rollup_interface::spec::SpecId;

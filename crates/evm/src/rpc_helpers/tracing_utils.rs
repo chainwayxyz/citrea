@@ -8,8 +8,8 @@ use alloy_rpc_types_trace::geth::{
 use reth_rpc_eth_api::FromEthApiError;
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use revm::context::result::{EVMError, ResultAndState};
-use revm::context::{Cfg, CfgEnv, JournalTr, Transaction, TxEnv};
-use revm::{Context, InspectEvm, Inspector, Journal};
+use revm::context::{CfgEnv, JournalTr, Transaction, TxEnv};
+use revm::{Context, Inspector, Journal};
 use revm_inspectors::tracing::js::JsInspector;
 use revm_inspectors::tracing::{
     FourByteInspector, MuxInspector, TracingInspector, TracingInspectorConfig, TransactionContext,
@@ -147,7 +147,7 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         &mut inspector,
                     )?;
                     let tx_info = TransactionInfo {
-                        block_number: Some(block_env.number),
+                        block_number: Some(block_number_to_u64(block_env.number)?),
                         base_fee: Some(block_env.basefee),
                         hash: None,
                         block_hash: None,
@@ -158,6 +158,9 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         .try_into_mux_frame(&res, &db_ref, tx_info)
                         .map_err(EthApiError::from_eth_err)?;
                     Ok(frame.into())
+                }
+                GethDebugBuiltInTracerType::Erc7562Tracer => {
+                    Err(EthApiError::Unsupported("ERC-7562 tracer is not supported"))
                 }
                 GethDebugBuiltInTracerType::NoopTracer => Ok(NoopFrame::default().into()),
             },
@@ -332,7 +335,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         &mut inspector,
                     )?;
                     let tx_info = TransactionInfo {
-                        block_number: Some(block_env.number),
+                        block_number: Some(block_number_to_u64(block_env.number)?),
                         base_fee: Some(block_env.basefee),
                         hash: None,
                         block_hash: None,
@@ -342,6 +345,9 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         .try_into_mux_frame(&res, &db_ref, tx_info)
                         .map_err(EthApiError::from_eth_err)?;
                     return Ok((frame.into(), res.state));
+                }
+                GethDebugBuiltInTracerType::Erc7562Tracer => {
+                    Err(EthApiError::Unsupported("ERC-7562 tracer is not supported"))
                 }
                 GethDebugBuiltInTracerType::NoopTracer => {
                     Ok((NoopFrame::default().into(), Default::default()))
@@ -400,6 +406,15 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
     Ok((frame.into(), res.state))
 }
 
+fn block_number_to_u64(block_number: U256) -> EthResult<u64> {
+    if block_number > U256::from(u64::MAX) {
+        return Err(EthApiError::InvalidParams(
+            "block number exceeds u64::MAX".to_string(),
+        ));
+    }
+    Ok(block_number.to::<u64>())
+}
+
 /// Executes the [Env] against the given [Database] without committing state changes.
 fn trace_citrea<DB, I>(
     db: DB,
@@ -421,11 +436,12 @@ where
     ext.set_current_tx_hash(tx_hash);
 
     let mut journal = Journal::new(db);
-    journal.set_spec_id(config_env.spec());
+    journal.set_spec_id(*config_env.spec());
     let mut evm = Context {
         block: block_env,
         cfg: config_env,
         chain: &mut ext,
+        local: Default::default(),
         tx: tx_env,
         error: Ok(()),
         journaled_state: journal,
@@ -453,11 +469,12 @@ where
     ext.set_current_tx_hash(&tmp_hash);
 
     let mut journal = Journal::new(db);
-    journal.set_spec_id(config_env.spec());
+    journal.set_spec_id(*config_env.spec());
     let mut evm = Context {
         block: block_env,
         cfg: config_env,
         chain: &mut ext,
+        local: Default::default(),
         tx: tx_env,
         error: Ok(()),
         journaled_state: journal,

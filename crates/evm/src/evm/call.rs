@@ -2,11 +2,12 @@
 
 use std::cmp::min;
 
+use alloy_consensus::transaction::Either;
 use alloy_consensus::TxType;
 use alloy_primitives::U256;
 use alloy_rpc_types::TransactionRequest;
 use reth_rpc_eth_types::error::{EthResult, RpcInvalidTransactionError};
-use reth_rpc_eth_types::revm_utils::CallFees;
+use reth_rpc_types_compat::{CallFees, EthTxEnvError};
 use revm::context::{BlockEnv, CfgEnv, TxEnv};
 
 use crate::caller_gas_allowance;
@@ -66,7 +67,8 @@ pub(crate) fn create_txn_env(
         None,
         None,
         None,
-    )?;
+    )
+    .map_err(EthTxEnvError::from)?;
 
     // set gas limit initially to block gas limit
     let mut gas_limit = U256::from(block_env.gas_limit);
@@ -120,7 +122,11 @@ pub(crate) fn create_txn_env(
         value: value.unwrap_or_default(),
         data: input.try_into_unique_input()?.unwrap_or_default(),
         access_list: access_list.unwrap_or_default(),
-        authorization_list: authorization_list.unwrap_or_default().to_vec(),
+        authorization_list: authorization_list
+            .unwrap_or_default()
+            .into_iter()
+            .map(Either::Left)
+            .collect(),
 
         // EIP-4844 related fields
         // as the `TxEnv` returned from this function is given to plain revm::Evm

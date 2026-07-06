@@ -74,7 +74,7 @@ impl RollupBlueprint for MockDemoRollup {
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         _require_wallet_check: bool,
-        _task_manager: TaskExecutor,
+        _task_executor: TaskExecutor,
         _network: Network,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
         Ok(Arc::new(MockDaService::new(

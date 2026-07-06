@@ -12,7 +12,7 @@ use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
-use reth_tasks::TaskManager;
+use reth_tasks::TaskExecutor as TaskManager;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
@@ -270,7 +270,7 @@ impl TestCase for DaTransactionQueueingTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_executor = self.task_manager.executor();
+        let task_executor = self.task_manager.clone();
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
@@ -354,7 +354,8 @@ impl TestCase for DaTransactionQueueingTest {
 #[tokio::test]
 async fn test_queue_da_transactions() -> Result<()> {
     TestCaseRunner::new(DaTransactionQueueingTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .set_citrea_cli_path(get_citrea_cli_path())
@@ -607,7 +608,7 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_executor = self.task_manager.executor();
+        let task_executor = self.task_manager.clone();
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
@@ -695,7 +696,8 @@ impl TestCase for DaTransactionQueueingUtxoSelectionModeOldestTest {
 #[tokio::test]
 async fn test_queue_da_transactions_oldest_mode() -> Result<()> {
     TestCaseRunner::new(DaTransactionQueueingUtxoSelectionModeOldestTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .set_citrea_cli_path(get_citrea_cli_path())

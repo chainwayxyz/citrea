@@ -1448,16 +1448,19 @@ fn test_eip7702_tx() {
             &signer1_account_info_post_tx.code_hash.unwrap(),
             &mut working_set.offchain_state()
         ),
-        Some(Bytecode::Eip7702(Eip7702Bytecode {
-            delegated_address: log_contract_address,
-            version: 0,
-            raw: [
-                Bytes::from_hex("0xef0100").unwrap(),
-                Bytes::from(log_contract_address.to_vec())
-            ]
-            .concat()
+        Some(Bytecode::Eip7702(
+            Eip7702Bytecode {
+                delegated_address: log_contract_address,
+                version: 0,
+                raw: [
+                    Bytes::from_hex("0xef0100").unwrap(),
+                    Bytes::from(log_contract_address.to_vec())
+                ]
+                .concat()
+                .into()
+            }
             .into()
-        }))
+        ))
     );
 
     // now let's see if we can call signer1 like it's log contract again
@@ -1571,16 +1574,19 @@ fn test_eip7702_tx() {
             &signer1_account_info_post_tx.code_hash.unwrap(),
             &mut working_set.offchain_state()
         ),
-        Some(Bytecode::Eip7702(Eip7702Bytecode {
-            delegated_address: set_arg_contract_address,
-            version: 0,
-            raw: [
-                Bytes::from_hex("0xef0100").unwrap(),
-                Bytes::from(set_arg_contract_address.to_vec())
-            ]
-            .concat()
+        Some(Bytecode::Eip7702(
+            Eip7702Bytecode {
+                delegated_address: set_arg_contract_address,
+                version: 0,
+                raw: [
+                    Bytes::from_hex("0xef0100").unwrap(),
+                    Bytes::from(set_arg_contract_address.to_vec())
+                ]
+                .concat()
+                .into()
+            }
             .into()
-        }))
+        ))
     );
     // and assert storage change
     assert_eq!(
@@ -1655,16 +1661,19 @@ fn test_eip7702_tx() {
             &signer1_account_info_post_tx.code_hash.unwrap(),
             &mut working_set.offchain_state()
         ),
-        Some(Bytecode::Eip7702(Eip7702Bytecode {
-            delegated_address: set_arg_contract_address,
-            version: 0,
-            raw: [
-                Bytes::from_hex("0xef0100").unwrap(),
-                Bytes::from(set_arg_contract_address.to_vec())
-            ]
-            .concat()
+        Some(Bytecode::Eip7702(
+            Eip7702Bytecode {
+                delegated_address: set_arg_contract_address,
+                version: 0,
+                raw: [
+                    Bytes::from_hex("0xef0100").unwrap(),
+                    Bytes::from(set_arg_contract_address.to_vec())
+                ]
+                .concat()
+                .into()
+            }
             .into()
-        }))
+        ))
     );
 
     assert_eq!(signer1_account_info_post_tx.nonce, 4);
@@ -2713,16 +2722,19 @@ fn test_eip7702_selfdestruct_delegation() {
             &signer1_info_after.code_hash.unwrap(),
             &mut working_set.offchain_state()
         ),
-        Some(Bytecode::Eip7702(Eip7702Bytecode {
-            delegated_address: self_destructor_address,
-            version: 0,
-            raw: [
-                Bytes::from_hex("0xef0100").unwrap(),
-                Bytes::from(self_destructor_address.to_vec())
-            ]
-            .concat()
+        Some(Bytecode::Eip7702(
+            Eip7702Bytecode {
+                delegated_address: self_destructor_address,
+                version: 0,
+                raw: [
+                    Bytes::from_hex("0xef0100").unwrap(),
+                    Bytes::from(self_destructor_address.to_vec())
+                ]
+                .concat()
+                .into()
+            }
             .into()
-        }))
+        ))
     );
 
     // Balance should have been transferred to beneficiary (selfdestruct sends balance)

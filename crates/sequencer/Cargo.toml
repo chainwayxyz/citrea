@@ -43,6 +43,7 @@ alloy-rpc-types-txpool = { workspace = true }
 alloy-sol-types = { workspace = true }
 reth-chainspec = { workspace = true }
 reth-db = { workspace = true }
+reth-evm-ethereum = { workspace = true }
 reth-execution-types = { workspace = true }
 reth-primitives = { workspace = true }
 reth-provider = { workspace = true }

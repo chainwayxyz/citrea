@@ -17,7 +17,7 @@ use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::circuit::initial_values::bitcoinda::NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
-use reth_tasks::TaskManager;
+use reth_tasks::TaskExecutor as TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_db::schema::types::L2HeightAndIndex;
 use sov_ledger_rpc::LedgerRpcClient;
@@ -70,7 +70,7 @@ impl TestCase for PreStateRootMismatchTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_executor = self.task_manager.executor();
+        let task_executor = self.task_manager.clone();
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
@@ -243,7 +243,8 @@ impl TestCase for PreStateRootMismatchTest {
 #[tokio::test]
 async fn test_pre_state_root_mismatch() -> Result<()> {
     TestCaseRunner::new(PreStateRootMismatchTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()
@@ -281,7 +282,7 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_executor = self.task_manager.executor();
+        let task_executor = self.task_manager.clone();
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
@@ -421,7 +422,8 @@ impl TestCase for SequencerCommitmentHashMismatchTest {
 #[tokio::test]
 async fn test_sequencer_commitment_hash_mismatch() -> Result<()> {
     TestCaseRunner::new(SequencerCommitmentHashMismatchTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()
@@ -452,7 +454,7 @@ impl TestCase for PendingCommitmentHaltingErrorTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_executor = self.task_manager.executor();
+        let task_executor = self.task_manager.clone();
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
@@ -548,7 +550,8 @@ impl TestCase for PendingCommitmentHaltingErrorTest {
 #[tokio::test]
 async fn test_halting_pending_commitment_merkle_root_mismatch() -> Result<()> {
     TestCaseRunner::new(PendingCommitmentHaltingErrorTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()
@@ -875,7 +878,7 @@ impl TestCase for OutOfOrderCommitmentsTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_executor = self.task_manager.executor();
+        let task_executor = self.task_manager.clone();
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
@@ -1029,7 +1032,8 @@ impl TestCase for OutOfOrderCommitmentsTest {
 #[tokio::test]
 async fn test_out_of_order_commitments() -> Result<()> {
     TestCaseRunner::new(OutOfOrderCommitmentsTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()
@@ -1068,7 +1072,7 @@ impl TestCase for ConflictingCommitmentsTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_executor = self.task_manager.executor();
+        let task_executor = self.task_manager.clone();
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
@@ -1255,7 +1259,8 @@ impl TestCase for ConflictingCommitmentsTest {
 #[tokio::test]
 async fn test_conflicting_commitments() -> Result<()> {
     TestCaseRunner::new(ConflictingCommitmentsTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .run()
@@ -1304,7 +1309,7 @@ impl TestCase for OutOfRangeProofTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_executor = self.task_manager.executor();
+        let task_executor = self.task_manager.clone();
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
@@ -1854,7 +1859,8 @@ impl TestCase for OutOfRangeProofTest {
 #[tokio::test]
 async fn test_out_of_range_proof() -> Result<()> {
     TestCaseRunner::new(OutOfRangeProofTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .set_citrea_cli_path(get_citrea_cli_path())
@@ -1903,7 +1909,7 @@ impl TestCase for OverlappingProofRangesTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        let task_executor = self.task_manager.executor();
+        let task_executor = self.task_manager.clone();
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
@@ -2408,7 +2414,8 @@ impl TestCase for OverlappingProofRangesTest {
 #[tokio::test]
 async fn test_overlapping_proof_ranges() -> Result<()> {
     TestCaseRunner::new(OverlappingProofRangesTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .set_citrea_cli_path(get_citrea_cli_path())
@@ -2480,7 +2487,7 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
         They should be the latest ones
 
          */
-        let task_executor = self.task_manager.executor();
+        let task_executor = self.task_manager.clone();
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
@@ -2828,7 +2835,8 @@ impl TestCase for UnsyncedCommitmentL2RangeTest {
 #[tokio::test]
 async fn test_unsynced_commitment_l2_range_test() -> Result<()> {
     TestCaseRunner::new(UnsyncedCommitmentL2RangeTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .set_citrea_cli_path(get_citrea_cli_path())
@@ -2922,7 +2930,7 @@ impl TestCase for FullNodeLcpChunkProofTest {
         mine chunk 2 to block m+2
         see that because the order is wrong the proof is not processed for both lcp and full node
          */
-        let task_executor = self.task_manager.executor();
+        let task_executor = self.task_manager.clone();
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
         let sequencer = f.sequencer.as_mut().unwrap();
@@ -3545,7 +3553,8 @@ impl TestCase for FullNodeLcpChunkProofTest {
 #[tokio::test]
 async fn test_full_node_lcp_chunk_proof() -> Result<()> {
     TestCaseRunner::new(FullNodeLcpChunkProofTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .set_citrea_cli_path(get_citrea_cli_path())
@@ -3619,7 +3628,7 @@ impl TestCase for FullNodeL1SyncHaltOnMerkleRootMismatch {
             l2_end_block_number: 5,
             merkle_root,
         };
-        let task_executor = self.task_manager.executor();
+        let task_executor = self.task_manager.clone();
         let sequencer_da_service =
             spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
                 .await;
@@ -3727,7 +3736,8 @@ impl TestCase for FullNodeL1SyncHaltOnMerkleRootMismatch {
 #[tokio::test]
 async fn test_full_node_l1_sync_halt_on_merkle_root_mismatch() -> Result<()> {
     TestCaseRunner::new(FullNodeL1SyncHaltOnMerkleRootMismatch {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .set_citrea_cli_path(get_citrea_cli_path())
@@ -3836,7 +3846,8 @@ impl TestCase for UnsyncedFirstCommitmentTest {
 #[tokio::test]
 async fn test_unsynced_first_commitment() -> Result<()> {
     TestCaseRunner::new(UnsyncedFirstCommitmentTest {
-        task_manager: TaskManager::current(),
+        task_manager: TaskManager::with_existing_handle(tokio::runtime::Handle::current())
+            .expect("tokio runtime handle should exist in tests"),
     })
     .set_citrea_path(get_citrea_path())
     .set_citrea_cli_path(get_citrea_cli_path())

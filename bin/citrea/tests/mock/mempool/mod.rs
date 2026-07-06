@@ -7,7 +7,7 @@ use alloy_primitives::Address;
 use alloy_rpc_types::BlockNumberOrTag;
 use citrea_common::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_tasks::TaskManager;
+use reth_tasks::TaskExecutor as TaskManager;
 
 use crate::common::client::{TestClient, MAX_FEE_PER_GAS};
 use crate::common::helpers::{

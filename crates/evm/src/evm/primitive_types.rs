@@ -21,15 +21,7 @@ pub struct RlpEvmTransaction {
 }
 
 #[derive(
-    Debug,
-    PartialEq,
-    Clone,
-    serde::Serialize,
-    serde::Deserialize,
-    RlpEncodable,
-    RlpDecodable,
-    Default,
-    Eq,
+    Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize, RlpEncodable, RlpDecodable, Eq,
 )]
 /// A signed transaction with recovered signer address and associated block number.
 pub struct TransactionSignedAndRecovered {

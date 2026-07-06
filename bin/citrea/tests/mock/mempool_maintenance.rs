@@ -8,7 +8,7 @@ use alloy_primitives::Address;
 use alloy_rpc_types::BlockNumberOrTag;
 use citrea_common::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_tasks::TaskManager;
+use reth_tasks::TaskExecutor as TaskManager;
 use sov_db::ledger_db::migrations::copy_db_dir_recursive;
 
 use crate::common::client::TestClient;

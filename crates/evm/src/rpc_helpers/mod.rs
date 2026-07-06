@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use alloy_consensus::constants::KECCAK_EMPTY;
-use alloy_primitives::{keccak256, Address, Bytes};
+use alloy_primitives::{keccak256, Address, Bytes, U256};
 use alloy_rpc_types::state::AccountOverride;
 use alloy_rpc_types::{BlockOverrides, EIP1186AccountProofResponse, EIP1186StorageProof};
 use alloy_serde::JsonStorageKey;
@@ -70,7 +70,7 @@ pub(crate) fn apply_account_override<C: sov_modules_api::Context>(
     let mut acc = revm::state::Account {
         info: account_info,
         status: AccountStatus::Touched,
-        storage: HashMap::default(),
+        ..Default::default()
     };
 
     // We ensure that not both state and state_diff are set.
@@ -124,14 +124,13 @@ pub(crate) fn apply_block_overrides<C: sov_modules_api::Context>(
         coinbase,
         random,
         base_fee,
-        block_hash: _,
-        difficulty: _,
+        ..
     } = *block_overrides;
     if let Some(number) = number {
         block_env.number = number.saturating_to();
     }
     if let Some(time) = time {
-        block_env.timestamp = time;
+        block_env.timestamp = U256::from(time);
     }
     if let Some(gas_limit) = gas_limit {
         block_env.gas_limit = gas_limit;
