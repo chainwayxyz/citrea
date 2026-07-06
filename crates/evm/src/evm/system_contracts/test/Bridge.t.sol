@@ -45,14 +45,14 @@ contract MockSchnorrPrecompile {
         uint256 rx;
         uint256 s;
         bytes32 m;
-        
+
         assembly {
             px := calldataload(0)
             m := calldataload(32)
             rx := calldataload(64)
             s := calldataload(96)
         }
-        
+
         return abi.encode(verify(px, rx, s, m));
     }
 
@@ -61,17 +61,17 @@ contract MockSchnorrPrecompile {
         if (px >= PP || rx >= PP || s >= NN) {
             return hex"";
         }
-        
+
         (address exp_, bool ok) = convToFakeAddr(rx);
         if (!ok) {
             return hex"";
         }
-        
+
         uint256 e = computeChallenge(bytes32(rx), bytes32(px), m);
         bytes32 sp = bytes32(NN - mulmod(s, px, NN));
         bytes32 ep = bytes32(NN - mulmod(e, px, NN));
         address rvh = ecrecover(sp, 27, bytes32(px), ep);
-        
+
         assembly {
             if eq(rvh, exp_) {
                 let result := mload(0x40)
@@ -89,7 +89,7 @@ contract MockSchnorrPrecompile {
         if (_x >= PP) {
             return (0, false);
         }
-        
+
         // Taken from the EllipticCurve code.
         uint256 y2 = addmod(mulmod(_x, mulmod(_x, _x, PP), PP), addmod(mulmod(_x, AA, PP), BB, PP), PP);
         y2 = expMod(y2, (PP + 1) / 4, PP);
@@ -162,6 +162,7 @@ contract BridgeTest is Test {
     bytes witness = hex"0340c8ab5934617fe53e02543345880afd0fad024bc4045570e31fc25bf3a66d8b34ae4a29ec34963dc428a882f8fe3c9d96ca8bf8f41f2ddd89110f20d76655f2754a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114010101010101010101010101010101010101010108000000003b9aca006841c193c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de5162e2acaa4eb5dcc1d4bfb32d9e12d444861378d4a2ccfd7d8ba97d4970be096b";
     bytes depositPrefix = hex"4a203b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630663697472656114";
     bytes depositSuffix = hex"08000000003b9aca0068";
+    bytes32 legacySigner = hex"3b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1d";
     bytes intermediateNodes = hex"7e3bfb74009ffaa87436e5af4229178bc9ff6a8a2c5e726854912b136dd214215066ac03deadb1a4694d24189d8bb4607d80cb74da5ce59995e7f2c51c0aa9df7661ddbe37aa5059282d818f51446a40d5bcfb5af24683f357d7f0faae0a1a92";
     uint256 index = 5;
     bytes32 shaScriptPubkeys = hex"cc17c6434cbe073dadf43e8b9840a2596ec30af84ff6bbf03afeba4d5d6bd42d";
@@ -191,7 +192,7 @@ contract BridgeTest is Test {
         address proxy_impl = address(new TransparentUpgradeableProxy(bridgeImpl, address(proxyAdmin), ""));
 
         vm.etch(address(bridge), proxy_impl.code);
-        
+
         // Mock Schnorr verifier precompile
         vm.etch(address(0x200), address(new MockSchnorrPrecompile()).code);
 
@@ -205,6 +206,10 @@ contract BridgeTest is Test {
 
         vm.prank(SYSTEM_CALLER);
         bridge.initialize(depositPrefix, depositSuffix, 10 ether);
+        bytes32[] memory initialSigners = new bytes32[](1);
+        initialSigners[0] = legacySigner;
+        vm.prank(owner);
+        bridge.setSigners(initialSigners);
         vm.deal(address(bridge), 21_000_000 ether);
         address lightClient_impl = address(new BitcoinLightClient());
         bitcoinLightClient = bridge.LIGHT_CLIENT();
@@ -229,6 +234,49 @@ contract BridgeTest is Test {
         assertEq(bridge.depositTxIds(0), hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929");
     }
 
+    function testIndividualSchnorrDeposit() public {
+        bytes32[] memory individualSigners = new bytes32[](2);
+        individualSigners[0] = hex"4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa";
+        individualSigners[1] = hex"466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27";
+
+        vm.startPrank(owner);
+        bridge.setSigners(individualSigners);
+        bridge.setDepositScript(
+            hex"64204f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aaad20466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27ad5100630663697472656114",
+            hex"68"
+        );
+        vm.stopPrank();
+
+        vm.prank(SYSTEM_CALLER);
+        bitcoinLightClient.setBlockInfo(
+            keccak256("CITREA_INDIVIDUAL_SCHNORR_TEST"),
+            hex"41270fcd3ca5e5bb533f9381c4fa211df266227101fbe4921c0d2ed0783b065a",
+            1
+        );
+
+        Bridge.Transaction memory individualDepositTx = Bridge.Transaction(
+            hex"03000000",
+            hex"0001",
+            hex"0176030e6f4fa1181099fdf6c779800b40e2c4eb23d6848855b670a38a6ffe67220000000000fdffffff",
+            hex"0200ca9a3b00000000225120825694c468b0b2f2e78ede30bc1c2a34caa622bfd3264468b6315cde7db7ca4700000000000000000451024e73",
+            hex"044043aff11d80e1ff05214a7782829d3a05000e9f30bb23308e1c2c814023e2b5240ff56a60932a9327b0406e809efb4b951d55e94bee197f0d73ddc2901bbbd546408e1f14927c61fb0a90cd7744470a71d29cf258aee966a2330186cda36cd9bbec099cac38042caaa5f936497808d4ac1a0bd98782dd15221267f81b94f8218f5464204f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aaad20466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27ad510063066369747265611442424242424242424242424242424242424242426841c150929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac03cddcefc5ae27173bd5f847b9c187dac975eac5a6cdefbddd849e5ba1fd4cb73",
+            hex"00000000"
+        );
+        Bridge.MerkleProof memory proof = Bridge.MerkleProof(
+            hex"0000000000000000000000000000000000000000000000000000000000000000", INITIAL_BLOCK_NUMBER + 1, 1
+        );
+
+        vm.prank(operator);
+        bridge.deposit(
+            individualDepositTx, proof, hex"2174d11cf27bed78e8e8aceadf325bdde2ca15aa6ce0d4ede1248fdaf60f4ac3"
+        );
+
+        address individualReceiver = address(0x4242424242424242424242424242424242424242);
+        assertEq(individualReceiver.balance, DEPOSIT_AMOUNT);
+        assertTrue(bridge.processedTxIds(hex"cb324d848c2fc8b58e5db4fb05d5d8f4c093c78b7e3765464aa82e5fdf53690d"));
+        assertEq(bridge.depositTxIds(0), hex"cb324d848c2fc8b58e5db4fb05d5d8f4c093c78b7e3765464aa82e5fdf53690d");
+    }
+
     function testDepositThenWithdraw() public {
         doDeposit();
         // Assert if transferred
@@ -242,7 +290,7 @@ contract BridgeTest is Test {
         (bytes32 _txId, bytes4 _outputId) = bridge.withdrawalUTXOs(withdrawalCount);
         assertEq(_txId, txId);
         assertEq(_outputId, outputId);
-        
+
         // Assert if tokens are burned from receiver
         assertEq(receiver.balance, 0);
 
@@ -264,7 +312,7 @@ contract BridgeTest is Test {
             assertEq(_txId, txIds[i]);
             assertEq(_outputId, outputIds[i]);
         }
-        
+
         assertEq(user.balance, 0);
     }
 
@@ -423,10 +471,14 @@ contract BridgeTest is Test {
         bridge.replaceDeposit(replaceTx, proof, 0, hex"486568b2542cc5ebf896e41e17c42e5571e6f3e68020d90d39fe7a2d7f0a68c3");
     }
 
-    function testCannotSetReplaceScriptWithMismatchingAggregatedKey() public {
+    function testCanSetReplaceScriptWithDifferentPrefixKey() public {
         vm.prank(owner);
-        vm.expectRevert("Replace prefix must contain the same aggregated key as deposit prefix");
-        bridge.setReplaceScript(hex"54203c48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630d6369747265615265706c61636520", hex"68");
+        bytes memory newPrefix =
+            hex"54203c48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1dac00630d6369747265615265706c61636520";
+        bytes memory newSuffix = hex"68";
+        bridge.setReplaceScript(newPrefix, newSuffix);
+        assert(bridge.isBytesEqual_(newPrefix, bridge.replacePrefix()));
+        assert(bridge.isBytesEqual_(newSuffix, bridge.replaceSuffix()));
     }
 
     function testBytesEqual() public view {
@@ -488,6 +540,59 @@ contract BridgeTest is Test {
         assert(bridge.isBytesEqual_(newSuffix, bridge.depositSuffix()));
     }
 
+    function testOwnerCanSetSigners() public {
+        bytes32[] memory newSigners = new bytes32[](2);
+        newSigners[0] = hex"4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa";
+        newSigners[1] = hex"466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27";
+
+        vm.prank(owner);
+        vm.expectEmit();
+        emit Bridge.SignersUpdated(newSigners);
+        bridge.setSigners(newSigners);
+
+        bytes32[] memory storedSigners = bridge.getSigners();
+        assertEq(storedSigners.length, 2);
+        assertEq(storedSigners[0], newSigners[0]);
+        assertEq(storedSigners[1], newSigners[1]);
+        assertEq(bridge.signers(0), newSigners[0]);
+        assertEq(bridge.signers(1), newSigners[1]);
+    }
+
+    function testNonOwnerCannotSetSigners() public {
+        bytes32[] memory newSigners = new bytes32[](1);
+        newSigners[0] = legacySigner;
+
+        vm.prank(user);
+        vm.expectRevert();
+        bridge.setSigners(newSigners);
+    }
+
+    function testCannotSetEmptySigners() public {
+        bytes32[] memory newSigners = new bytes32[](0);
+
+        vm.prank(owner);
+        vm.expectRevert("Signers cannot be empty");
+        bridge.setSigners(newSigners);
+    }
+
+    function testCannotSetZeroSigner() public {
+        bytes32[] memory newSigners = new bytes32[](1);
+
+        vm.prank(owner);
+        vm.expectRevert("Signer cannot be empty");
+        bridge.setSigners(newSigners);
+    }
+
+    function testCannotSetDuplicateSigner() public {
+        bytes32[] memory newSigners = new bytes32[](2);
+        newSigners[0] = legacySigner;
+        newSigners[1] = legacySigner;
+
+        vm.prank(owner);
+        vm.expectRevert("Duplicate signer");
+        bridge.setSigners(newSigners);
+    }
+
     function testSetDepositScriptToEmptyBytesRevert() public {
         vm.expectRevert(bytes("Deposit script must be longer than 34 bytes"));
         vm.prank(owner);
@@ -508,20 +613,18 @@ contract BridgeTest is Test {
         assert(bridge.isBytesEqual_(depositSuffix, bridge.depositSuffix()));
     }
 
-    function testSetReplaceScriptToNonDepositPrefixRevert() public {
+    function testSetReplaceScriptToNonDepositPrefix() public {
         bytes memory replacePrefix = depositPrefix;
         bytes memory replaceSuffix = bytes("new suffix");
         vm.startPrank(owner);
         // using the same values here on purpose
         bridge.setReplaceScript(replacePrefix, replaceSuffix);
 
-        vm.expectRevert(bytes("Replace prefix must contain the same aggregated key as deposit prefix"));
-
         bytes memory newPrefix = bytes("new random prefix longer than 34 bytes");
         bytes memory newSuffix = bytes("new suffix 2");
         bridge.setReplaceScript(newPrefix, newSuffix);
-        assert(bridge.isBytesEqual_(replacePrefix, bridge.replacePrefix()));
-        assert(bridge.isBytesEqual_(replaceSuffix, bridge.replaceSuffix()));
+        assert(bridge.isBytesEqual_(newPrefix, bridge.replacePrefix()));
+        assert(bridge.isBytesEqual_(newSuffix, bridge.replaceSuffix()));
     }
 
     function testSetReplaceScriptToEmptyBytesRevert() public {
@@ -614,9 +717,9 @@ contract BridgeTest is Test {
 
     function testDepositRedirectsWhenReceiverReverts() public {
         RevertingReceiver rev = new RevertingReceiver();
-        vm.etch(receiver, address(rev).code); 
+        vm.etch(receiver, address(rev).code);
 
-        address vault = bridge.failedDepositVault(); 
+        address vault = bridge.failedDepositVault();
         uint256 vaultBalBefore = vault.balance;
 
         vm.startPrank(operator);
@@ -639,7 +742,6 @@ contract BridgeTest is Test {
 
         assertTrue(bridge.processedTxIds(hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929"));
     }
-    
 
     function testSecondDepositId() public {
         doDeposit();
@@ -669,7 +771,7 @@ contract BridgeTest is Test {
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
         prepareSafeWithdraw();
         doSafeWithdraw();
-        
+
         assertEq(receiver.balance, 0);
         // Assert if withdrawal UTXO is stored properly
         uint256 withdrawalCount = bridge.getWithdrawalCount();
@@ -918,10 +1020,10 @@ contract BridgeTest is Test {
 
     function safeWithdrawTxInfo() public pure returns (Bridge.Transaction memory prepareTx, Bridge.MerkleProof memory proof, Bridge.Transaction memory payoutTx) {
         prepareTx = Bridge.Transaction(
-            hex"02000000", 
-            hex"0001", 
-            hex"0180f01d40c4c53e10a58e0e63d84ee369173c3b03e9c4787f33416beefac82f910000000000fdffffff", 
-            hex"02e7251a1e01000000225120af6d60391056de5e15fd91efc05330439f58eaa811a24fe4bba53cd8c660562c26020000000000002251202a64b1ee3375f3bb4b367b8cb8384a47f73cf231717f827c6c6fbbf5aecf0c36", 
+            hex"02000000",
+            hex"0001",
+            hex"0180f01d40c4c53e10a58e0e63d84ee369173c3b03e9c4787f33416beefac82f910000000000fdffffff",
+            hex"02e7251a1e01000000225120af6d60391056de5e15fd91efc05330439f58eaa811a24fe4bba53cd8c660562c26020000000000002251202a64b1ee3375f3bb4b367b8cb8384a47f73cf231717f827c6c6fbbf5aecf0c36",
             hex"01404344971b6185f8724449b964393220cf37cbc124727ad29df7540ee9048f47a704845f8f3d7c2c240ae904c45de08b0187cc41745d5266b8e5a5d092d30ed19b",
             hex"d5000000"
         );
@@ -931,10 +1033,10 @@ contract BridgeTest is Test {
             2
         );
         payoutTx = Bridge.Transaction(
-            hex"02000000", 
-            hex"0001", 
-            hex"019e7138d6bebcc9cab3de962a1d2dd35163d49a0f9053ad1afc9cd5539249af780100000000fdffffff", 
-            hex"016043993b000000002251209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90", 
+            hex"02000000",
+            hex"0001",
+            hex"019e7138d6bebcc9cab3de962a1d2dd35163d49a0f9053ad1afc9cd5539249af780100000000fdffffff",
+            hex"016043993b000000002251209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90",
             hex"0141834e7a701035bb446dd4112c3a0498c1d7b44f89000f2c14e9a3ef8c04a05e6b1faa5727d1a7a62e6d46b7942ee17cb6766bde46f5b5d1e4337c57240e3c712a83",
             hex"00000000"
         );

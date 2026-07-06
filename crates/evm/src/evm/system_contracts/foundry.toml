@@ -11,5 +11,6 @@ cbor_metadata = false
 additional_compiler_profiles = [ { name = "via-ir", via_ir = true } ]
 compilation_restrictions = [
     { paths = "src/Bridge.sol", via_ir = true, version = "=0.8.30" },
+    { paths = "src/ClementineActors.sol", via_ir = true, version = "=0.8.30" },
 ]
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

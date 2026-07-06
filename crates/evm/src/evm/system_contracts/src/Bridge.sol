@@ -65,12 +65,13 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
 
     UTXO[] public withdrawalUTXOs;
     bytes32[] public depositTxIds;
+    bytes32[] public signers;
 
     mapping(bytes32 => bool) public processedTxIds;
     mapping(bytes32 => bool) public usedWithdrawalUTXO;
 
     uint256 public optimisticWithdrawAmountSats;
-    
+
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
     event SafeWithdrawal(Transaction payoutTx, UTXO spentUtxo, uint256 index);
@@ -81,6 +82,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     event FailedDepositVaultUpdated(address oldVault, address newVault);
     event DepositTransferFailed(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event OptimisticWithdrawAmountSet(uint256 amount);
+    event SignersUpdated(bytes32[] signers);
 
     modifier onlySystem() {
         require(msg.sender == SYSTEM_CALLER, "caller is not the system caller");
@@ -152,12 +154,35 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     /// @param _replaceSuffix The part of the replace script that succeeds the txId
     function setReplaceScript(bytes calldata _replacePrefix, bytes calldata _replaceSuffix) external onlyOwner {
         require(_replacePrefix.length >= 34, "Replace script must be longer than 34 bytes");
-        require(bytesToBytes32(_replacePrefix.slice(2, 32)) == bytesToBytes32(getAggregatedKey()), "Replace prefix must contain the same aggregated key as deposit prefix");
 
         replacePrefix = _replacePrefix;
         replaceSuffix = _replaceSuffix;
 
         emit ReplaceScriptUpdate(_replacePrefix, _replaceSuffix);
+    }
+
+    /// @notice Sets the x-only Schnorr signer keys expected in deposit and replacement Bitcoin scripts
+    /// @param _signers New signer list in the same order as the Bitcoin script checks signatures
+    function setSigners(bytes32[] calldata _signers) external onlyOwner {
+        require(_signers.length != 0, "Signers cannot be empty");
+
+        for (uint256 i = 0; i < _signers.length; i++) {
+            require(_signers[i] != bytes32(0), "Signer cannot be empty");
+            for (uint256 j = i + 1; j < _signers.length; j++) {
+                require(_signers[i] != _signers[j], "Duplicate signer");
+            }
+        }
+
+        delete signers;
+        for (uint256 i = 0; i < _signers.length; i++) {
+            signers.push(_signers[i]);
+        }
+
+        emit SignersUpdated(_signers);
+    }
+
+    function getSigners() external view returns (bytes32[] memory) {
+        return signers;
     }
 
     /// @notice Sets the address of the failed deposit vault
@@ -203,7 +228,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         bytes memory outputs = moveTx.vout.slice(1, moveTx.vout.length - 1);
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(moveTx.witness, 0);
 
-        // Verify the P2TR Schnorr signature from n-of-n which is included in move transaction
+        // Verify every configured signer's P2TR Schnorr signature included in the move transaction
         verifySigInTx(input, outputs, witness0, moveTx.version, moveTx.locktime, shaScriptPubkeys);
 
         // Nullify the move transaction based on txId
@@ -212,11 +237,12 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         processedTxIds[txId] = true;
         depositTxIds.push(txId);
         
-        // Our P2TR script path spend unlocking witness should have exactly 3 witness items
+        uint256 signerCount = getSignerCount();
+        // Our P2TR script path spend unlocking witness should have one item per signer plus script and control block
         (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
-        require(nItems == 3, "Invalid witness items"); // musig signature + script + witness script
+        require(nItems == signerCount + 2, "Invalid witness items");
 
-        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig signature
+        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, signerCount); // skip signer signatures
         // Unlocking witness script is consisted of a fixed prefix and suffix part with a variable receiver address in between
         uint256 prefixLen = depositPrefix.length;
         uint256 suffixLen = depositSuffix.length;
@@ -349,7 +375,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     function getWithdrawalCount() external view returns (uint256) {
         return withdrawalUTXOs.length;
     }
-    
+
     /// @notice Sets the operator address that can process user deposits
     /// @param _operator Address of the privileged operator
     function setOperator(address _operator) external onlyOwner {
@@ -359,7 +385,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         emit OperatorUpdated(oldOperator, _operator);
     }
 
-    /// @notice Operator can replace a deposit transaction with its replacement if the replacement transaction is included in Bitcoin and signed by N-of-N with the replacement script
+    /// @notice Operator can replace a deposit transaction with its replacement if the replacement transaction is included in Bitcoin and signed by the configured signers with the replacement script
     /// @param replaceTx Transaction parameters of the replacement transaction on Bitcoin
     /// @param proof Merkle proof of the replacement transaction
     /// @param idToReplace The index of the deposit transaction to be replaced in the `depositTxIds` array
@@ -380,7 +406,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         bytes memory outputs = replaceTx.vout.slice(1, replaceTx.vout.length - 1);
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(replaceTx.witness, 0);
 
-        // Verify the P2TR Schnorr signature from n-of-n which is included in replace transaction
+        // Verify every configured signer's P2TR Schnorr signature included in the replace transaction
         verifySigInTx(input, outputs, witness0, replaceTx.version, replaceTx.locktime, shaScriptPubkeys);
 
         // Nullify the replace transaction based on txId
@@ -392,10 +418,11 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         bytes32 txIdToReplace = depositTxIds[idToReplace];
         depositTxIds[idToReplace] = newTxId;
 
+        uint256 signerCount = getSignerCount();
         (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
-        // Our P2TR script path spend unlocking witness should have exactly 3 witness items
-        require(nItems == 3, "Invalid witness items"); // musig signature + script + witness script
-        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig signature
+        // Our P2TR script path spend unlocking witness should have one item per signer plus script and control block
+        require(nItems == signerCount + 2, "Invalid witness items");
+        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, signerCount); // skip signer signatures
 
         // Unlocking witness script is consisted of a fixed prefix and suffix part with a variable txId of the transaction to be replaced in between
         uint256 prefixLen = replacePrefix.length;
@@ -441,6 +468,12 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
 
     function getAggregatedKey() public view returns (bytes memory) {
         return depositPrefix.slice(2, 32);
+    }
+
+    function getSignerCount() internal view returns (uint256) {
+        uint256 signerCount = signers.length;
+        require(signerCount != 0, "Signers not set");
+        return signerCount;
     }
 
     function pause() external onlyOwnerOrOperator {
@@ -501,22 +534,28 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
 
     /// @notice Verifies a P2TR signature by reconstructing the message hash and checking it against the provided signature, see BIP-341
     function verifySigInTx(bytes memory input, bytes memory outputs, bytes memory witness0, bytes4 version, bytes4 locktime, bytes32 shaScriptPubkeys) internal view {
+        uint256 signerCount = getSignerCount();
+        (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
+        require(nItems == signerCount + 2, "Invalid witness items");
+
         bytes32 shaPrevouts = sha256(input.extractOutpoint());
         bytes32 shaAmounts = sha256(abi.encodePacked(bytes8(BTCUtils.reverseUint64(uint64(depositAmount/(SAT_TO_WEI)))))); // 1000000000 in LE
         bytes32 shaSequences = sha256(abi.encodePacked(input.extractSequenceLEWitness()));
         bytes32 shaOutputs = sha256(abi.encodePacked(outputs));
-        bytes memory script = witness0.extractItemFromWitness(1);
-        bytes memory controlBlock = witness0.extractItemFromWitness(2);
+        bytes memory script = witness0.extractItemFromWitness(signerCount);
+        bytes memory controlBlock = witness0.extractItemFromWitness(signerCount + 1);
         // First byte of the parsed control block is the length of it so it is skipped to get the actual first byte
         // We can safely assume the control block compact size to be single byte as the depth of taproot tree is 1 both for `deposit` and `replaceDeposit`
         bytes1 leafVersion = controlBlock[1] & 0xFE;
         bytes32 tapleafHash = taggedHash("TapLeaf", (abi.encodePacked(leafVersion, script)));
         bytes memory message = abi.encodePacked(EPOCH, SIGHASH_DEFAULT_HASH_TYPE, version, locktime, shaPrevouts, shaAmounts, shaScriptPubkeys, shaSequences, shaOutputs, SPEND_TYPE_EXT, INPUT_INDEX, tapleafHash, KEY_VERSION, CODESEP_POS);
         bytes32 messageHash = taggedHash("TapSighash", message);
-        bytes memory signatureWithLen = witness0.extractItemFromWitness(0);
-        bytes memory signature = signatureWithLen.slice(1, signatureWithLen.length - 1);
-        bytes memory aggregatedKey = getAggregatedKey();
-        require(isSchnorrSigValid(aggregatedKey, messageHash, signature), "Invalid signature");
+        for (uint256 i = 0; i < signerCount; i++) {
+            // Bitcoin script execution consumes signatures from the stack in reverse witness order.
+            bytes memory signatureWithLen = witness0.extractItemFromWitness(signerCount - 1 - i);
+            bytes memory signature = signatureWithLen.slice(1, signatureWithLen.length - 1);
+            require(isSchnorrSigValid(abi.encodePacked(signers[i]), messageHash, signature), "Invalid signature");
+        }
     }
 
     /// @notice Checks if a Schnorr signature is valid by calling Citrea's Schnorr signature verification precompile at 0x200
