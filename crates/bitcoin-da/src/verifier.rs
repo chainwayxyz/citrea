@@ -292,7 +292,7 @@ impl DaVerifier for BitcoinVerifier {
                 // it can start from anywhere.
                 self.verify_header_chain_regtest(
                     latest_da_state.unwrap_or(&LatestDaState {
-                        block_hash: block_header.prev_hash().to_byte_array(),
+                        block_hash: block_header.prev_hash(),
                         block_height: block_header.height() - 1,
                         // Total work is irrelevant in regtest
                         total_work: [0; 32],
@@ -361,7 +361,7 @@ impl BitcoinVerifier {
             .to_be_bytes();
 
         Ok(LatestDaState {
-            block_hash: block_header.hash().to_byte_array(),
+            block_hash: block_header.hash(),
             block_height: block_header.height(),
             total_work,
             current_target_bits,
@@ -429,7 +429,7 @@ impl BitcoinVerifier {
             .to_be_bytes();
 
         Ok(LatestDaState {
-            block_hash: block_header.hash().to_byte_array(),
+            block_hash: block_header.hash(),
             block_height: block_header.height(),
             total_work,
             current_target_bits,
@@ -489,7 +489,7 @@ impl BitcoinVerifier {
             .to_be_bytes();
 
         Ok(LatestDaState {
-            block_hash: block_header.hash().to_byte_array(),
+            block_hash: block_header.hash(),
             block_height: block_header.height(),
             total_work,
             current_target_bits,
@@ -521,7 +521,7 @@ impl BitcoinVerifier {
         prev_11_timestamps[block_header.height() as usize % 11] = block_header.time().secs() as u32;
 
         Ok(LatestDaState {
-            block_hash: block_header.hash().to_byte_array(),
+            block_hash: block_header.hash(),
             block_height: block_header.height(),
             total_work: [0; 32],
             current_target_bits: block_header.bits(),
@@ -554,7 +554,7 @@ impl BitcoinVerifier {
             return Err(ValidationError::NonConsecutiveBlockHeight);
         }
         // Check 3: prev hash matches with prev light client proof hash
-        if block_header.prev_hash().to_byte_array() != latest_da_state.block_hash {
+        if block_header.prev_hash() != latest_da_state.block_hash {
             return Err(ValidationError::InvalidPrevBlockHash);
         }
         // Check 4: valid bits
@@ -562,7 +562,7 @@ impl BitcoinVerifier {
             return Err(ValidationError::InvalidBlockBits);
         }
         // Check 5: proof of work
-        if !verify_target_hash(block_header.hash().into(), target) {
+        if !verify_target_hash(block_header.hash(), target) {
             return Err(ValidationError::InvalidTargetHash);
         }
         // Check 6: valid timestamp

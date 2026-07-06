@@ -117,6 +117,7 @@ tokio-stream = { version = "0.1" }
 tower-http = { version = "0.5.0", features = ["cors"] }
 tower = { version = "0.5.2", features = ["util", "timeout"] }
 url = { version = "2.5.4" }
+zerocopy = "0.8"
 
 # Risc0 dependencies
 bonsai-sdk = { version = "1.4.2" }
