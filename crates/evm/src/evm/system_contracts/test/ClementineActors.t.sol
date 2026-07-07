@@ -143,8 +143,10 @@ contract ClementineActorsTest is Test {
     bytes32 watchtowerKey = hex"4d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766";
     bytes32 operatorKey2 = hex"2b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f";
     bytes32 watchtowerKey2 = hex"5d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766";
-    bytes32 securityCouncilKey = hex"8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841b";
-    bytes32 sourceShaScriptPubkeys = hex"4c7b976c44d0d2226d7c5288010306c0a773402a7007f6a05aac50a37076cfaa";
+    bytes32 securityCouncilKey0 = hex"531fe6068134503d2723133227c867ac8fa6c83c537e9a44c3c5bdbdcb1fe337";
+    bytes32 securityCouncilKey1 = hex"462779ad4aad39514614751a71085f2f10e1c7a593e4e030efb5b8721ce55b0b";
+    bytes32 securityCouncilKey2 = hex"62c0a046dacce86ddd0343c6d3c7c79c2208ba0d9c9cf24a6d046d21d21f90f7";
+    bytes32 sourceShaScriptPubkeys = hex"473ddc7204e9d53188ced890e048f54817782e1a895470198819619922694b42";
 
     ProxyAdmin proxyAdmin = ProxyAdmin(0x31fFFfFfFFFffFFFFFFfFFffffFFffffFfFFfffF);
 
@@ -154,11 +156,8 @@ contract ClementineActorsTest is Test {
 
         address actorsImpl = address(new ClementineActorsHarness());
 
-        bytes32[] memory council = new bytes32[](1);
-        council[0] = securityCouncilKey;
-
         bytes memory initializeData =
-            abi.encodeWithSelector(ClementineActors.initialize.selector, owner, operator, 1, 1, council);
+            abi.encodeWithSelector(ClementineActors.initialize.selector, owner, operator, 1, 2, initialCouncil());
         address proxyImpl = address(new TransparentUpgradeableProxy(actorsImpl, address(proxyAdmin), initializeData));
         actors = ClementineActorsHarness(proxyImpl);
 
@@ -169,21 +168,20 @@ contract ClementineActorsTest is Test {
         assertEq(actors.operator(), operator);
         assertEq(actors.owner(), owner);
         assertEq(actors.circuitVersion(), 1);
-        assertEq(actors.securityCouncilThreshold(), 1);
+        assertEq(actors.securityCouncilThreshold(), 2);
         assertTrue(actors.signingPaused());
         assertEq(actors.setupGeneration(), 1);
 
         bytes32[] memory council = actors.getSecurityCouncil();
-        assertEq(council.length, 1);
-        assertEq(council[0], securityCouncilKey);
+        assertEq(council.length, 3);
+        assertEq(council[0], securityCouncilKey0);
+        assertEq(council[1], securityCouncilKey1);
+        assertEq(council[2], securityCouncilKey2);
     }
 
     function testCannotReinitialize() public {
-        bytes32[] memory council = new bytes32[](1);
-        council[0] = securityCouncilKey;
-
         vm.expectRevert("Contract is already initialized");
-        actors.initialize(owner, operator, 1, 1, council);
+        actors.initialize(owner, operator, 1, 2, initialCouncil());
     }
 
     function testOnlyOwnerCanSetOperator() public {
@@ -238,8 +236,8 @@ contract ClementineActorsTest is Test {
         emit ClementineActors.GarbledSetupProven(
             operatorKey,
             watchtowerKey,
-            hex"bb7cf4dd1b97240deba895bbb7afdd86db8853d49e3dbd894c7e28e001b36e1c",
-            hex"a2868aec3b441f5f651d05e5516b3e1d6ae97056fc1e514ff0f700521b339461",
+            hex"58160829da8ec0ed8dd09beec697f1689795297044056a26e53887afe3044efc",
+            hex"d468a796bdbdbe6ea731320bb349e48da925f65f68aec64e1fa048f96d723f04",
             1
         );
         actors.proveGarbledSetup(
@@ -247,6 +245,7 @@ contract ClementineActorsTest is Test {
             operatorKey,
             watchtowerKey,
             990,
+            collateralOutpoint(),
             sourceShaScriptPubkeys
         );
         assertTrue(actors.garbledSetups(operatorKey, watchtowerKey));
@@ -262,6 +261,7 @@ contract ClementineActorsTest is Test {
             operatorKey,
             watchtowerKey,
             990,
+            collateralOutpoint(),
             sourceShaScriptPubkeys
         );
     }
@@ -276,6 +276,7 @@ contract ClementineActorsTest is Test {
             operatorKey,
             watchtowerKey,
             990,
+            collateralOutpoint(),
             sourceShaScriptPubkeys
         );
     }
@@ -284,7 +285,7 @@ contract ClementineActorsTest is Test {
         addCandidatePair(operatorKey, watchtowerKey);
 
         vm.expectRevert("Invalid signature");
-        actors.proveGarbledSetup(circuitGeneratedTx(), operatorKey, watchtowerKey, 990, bytes32(0));
+        actors.proveGarbledSetup(circuitGeneratedTx(), operatorKey, watchtowerKey, 990, collateralOutpoint(), bytes32(0));
     }
 
     function testCannotProveSetupWithWrongCircuitVersion() public {
@@ -293,12 +294,48 @@ contract ClementineActorsTest is Test {
         vm.prank(owner);
         actors.setCircuitVersion(2);
 
-        vm.expectRevert("Invalid circuit version");
+        vm.expectRevert("Invalid circuit script");
         actors.proveGarbledSetup(
             circuitGeneratedTx(),
             operatorKey,
             watchtowerKey,
             990,
+            collateralOutpoint(),
+            sourceShaScriptPubkeys
+        );
+    }
+
+    function testCannotProveSetupWithWrongCollateralOutpoint() public {
+        addCandidatePair(operatorKey, watchtowerKey);
+        bytes memory wrongCollateralOutpoint = collateralOutpoint();
+        wrongCollateralOutpoint[35] = bytes1(0xfe);
+
+        vm.expectRevert("Invalid circuit script");
+        actors.proveGarbledSetup(
+            circuitGeneratedTx(),
+            operatorKey,
+            watchtowerKey,
+            990,
+            wrongCollateralOutpoint,
+            sourceShaScriptPubkeys
+        );
+    }
+
+    function testCannotReplaySetupAfterSecurityCouncilUpdate() public {
+        addCandidatePair(operatorKey, watchtowerKey);
+        bytes32[] memory council = initialCouncil();
+        council[2] = hex"72c0a046dacce86ddd0343c6d3c7c79c2208ba0d9c9cf24a6d046d21d21f90f7";
+
+        vm.prank(owner);
+        actors.setSecurityCouncil(2, council);
+
+        vm.expectRevert("Invalid circuit script");
+        actors.proveGarbledSetup(
+            circuitGeneratedTx(),
+            operatorKey,
+            watchtowerKey,
+            990,
+            collateralOutpoint(),
             sourceShaScriptPubkeys
         );
     }
@@ -313,6 +350,7 @@ contract ClementineActorsTest is Test {
             operatorKey,
             watchtowerKey,
             990,
+            collateralOutpoint(),
             sourceShaScriptPubkeys
         );
     }
@@ -324,11 +362,15 @@ contract ClementineActorsTest is Test {
         vm.prank(operator);
         actors.setActiveActors(single(operatorKey), single(watchtowerKey));
 
-        assertFalse(actors.signingPaused());
+        assertTrue(actors.signingPaused());
         assertTrue(actors.isActiveOperator(operatorKey));
         assertTrue(actors.isActiveWatchtower(watchtowerKey));
         assertEq(actors.getActiveOperators().length, 1);
         assertEq(actors.getActiveWatchtowers().length, 1);
+
+        vm.prank(operator);
+        actors.setSigningPause(false);
+        assertFalse(actors.signingPaused());
     }
 
     function testCannotSetInitialActiveActorsWithoutEverySetup() public {
@@ -365,6 +407,7 @@ contract ClementineActorsTest is Test {
 
         assertTrue(actors.isActiveOperator(operatorKey2));
         assertEq(actors.getActiveOperators().length, 2);
+        assertTrue(actors.signingPaused());
     }
 
     function testCannotAddActiveOperatorWithoutSetup() public {
@@ -390,6 +433,7 @@ contract ClementineActorsTest is Test {
 
         assertTrue(actors.isActiveWatchtower(watchtowerKey2));
         assertEq(actors.getActiveWatchtowers().length, 2);
+        assertTrue(actors.signingPaused());
     }
 
     function testCannotAddActiveWatchtowerWithoutSetup() public {
@@ -410,6 +454,8 @@ contract ClementineActorsTest is Test {
         actors.removeActiveOperator(operatorKey);
 
         assertFalse(actors.isActiveOperator(operatorKey));
+        assertTrue(actors.isDisabledOperator(operatorKey));
+        assertTrue(actors.signingPaused());
         assertEq(actors.getActiveOperators().length, 0);
     }
 
@@ -420,7 +466,48 @@ contract ClementineActorsTest is Test {
         actors.removeActiveWatchtower(watchtowerKey);
 
         assertFalse(actors.isActiveWatchtower(watchtowerKey));
+        assertTrue(actors.isDisabledWatchtower(watchtowerKey));
+        assertTrue(actors.signingPaused());
         assertEq(actors.getActiveWatchtowers().length, 0);
+    }
+
+    function testRemovedOperatorCannotBeReactivated() public {
+        setActivePair();
+
+        vm.prank(owner);
+        actors.removeActiveOperator(operatorKey);
+
+        vm.prank(operator);
+        vm.expectRevert("Operator disabled");
+        actors.addActiveOperators(single(operatorKey));
+    }
+
+    function testRemovedWatchtowerCannotBeReactivated() public {
+        setActivePair();
+
+        vm.prank(owner);
+        actors.removeActiveWatchtower(watchtowerKey);
+
+        vm.prank(operator);
+        vm.expectRevert("Watchtower disabled");
+        actors.addActiveWatchtowers(single(watchtowerKey));
+    }
+
+    function testDisabledOperatorCannotProveNewSetup() public {
+        setActivePair();
+
+        vm.prank(owner);
+        actors.removeActiveOperator(operatorKey);
+
+        vm.expectRevert("Operator disabled");
+        actors.proveGarbledSetup(
+            circuitGeneratedTx(),
+            operatorKey,
+            watchtowerKey,
+            990,
+            collateralOutpoint(),
+            sourceShaScriptPubkeys
+        );
     }
 
     function testNonOwnerCannotRemoveActiveActors() public {
@@ -452,15 +539,14 @@ contract ClementineActorsTest is Test {
 
     function testSecurityCouncilUpdatePausesAndClearsState() public {
         setActivePair();
-        bytes32[] memory council = new bytes32[](2);
-        council[0] = securityCouncilKey;
-        council[1] = hex"7f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841b";
+        bytes32[] memory council = initialCouncil();
+        council[2] = hex"7f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841b";
 
         vm.prank(owner);
         actors.setSecurityCouncil(2, council);
 
         assertEq(actors.securityCouncilThreshold(), 2);
-        assertEq(actors.getSecurityCouncil().length, 2);
+        assertEq(actors.getSecurityCouncil().length, 3);
         assertTrue(actors.signingPaused());
         assertEq(actors.getActiveOperators().length, 0);
         assertEq(actors.getActiveWatchtowers().length, 0);
@@ -468,19 +554,75 @@ contract ClementineActorsTest is Test {
     }
 
     function testOwnerOrOperatorCanSetSigningPause() public {
-        vm.prank(operator);
-        actors.setSigningPause(false);
-        assertFalse(actors.signingPaused());
+        setActivePair();
 
         vm.prank(owner);
         actors.setSigningPause(true);
         assertTrue(actors.signingPaused());
+
+        vm.prank(operator);
+        actors.setSigningPause(false);
+        assertFalse(actors.signingPaused());
+    }
+
+    function testCannotUnpauseWithoutActiveActors() public {
+        vm.prank(operator);
+        vm.expectRevert("No active operators");
+        actors.setSigningPause(false);
+    }
+
+    function testCannotUnpauseWithoutActiveWatchtowers() public {
+        setActivePair();
+
+        vm.prank(owner);
+        actors.removeActiveWatchtower(watchtowerKey);
+
+        vm.prank(operator);
+        vm.expectRevert("No active watchtowers");
+        actors.setSigningPause(false);
     }
 
     function testUserCannotSetSigningPause() public {
         vm.prank(user);
         vm.expectRevert("caller is not the owner or operator");
         actors.setSigningPause(false);
+    }
+
+    function testCannotSetSecurityCouncilAboveCap() public {
+        bytes32[] memory council = uniqueKeys(actors.MAX_SECURITY_COUNCIL() + 1, 1);
+
+        vm.prank(owner);
+        vm.expectRevert("Security council too large");
+        actors.setSecurityCouncil(1, council);
+    }
+
+    function testCannotAddCandidateOperatorsAboveCap() public {
+        bytes32[] memory operators = uniqueKeys(actors.MAX_CANDIDATE_OPERATORS() + 1, 1);
+
+        vm.prank(operator);
+        vm.expectRevert("Too many candidate operators");
+        actors.addCandidateOperators(operators);
+    }
+
+    function testCannotAddCandidateWatchtowersAboveCap() public {
+        bytes32[] memory watchtowers = uniqueKeys(actors.MAX_CANDIDATE_WATCHTOWERS() + 1, 1);
+
+        vm.prank(operator);
+        vm.expectRevert("Too many candidate watchtowers");
+        actors.addCandidateWatchtowers(watchtowers);
+    }
+
+    function testCannotSetActiveActorsAboveCaps() public {
+        uint256 maxActiveOperators = actors.MAX_ACTIVE_OPERATORS();
+        uint256 maxActiveWatchtowers = actors.MAX_ACTIVE_WATCHTOWERS();
+
+        vm.prank(operator);
+        vm.expectRevert("Too many active operators");
+        actors.setActiveActors(uniqueKeys(maxActiveOperators + 1, 1), single(watchtowerKey));
+
+        vm.prank(operator);
+        vm.expectRevert("Too many active watchtowers");
+        actors.setActiveActors(single(operatorKey), uniqueKeys(maxActiveWatchtowers + 1, 1));
     }
 
     function testUpgrade() public {
@@ -505,8 +647,10 @@ contract ClementineActorsTest is Test {
         addCandidatePair(operatorKey, watchtowerKey);
         actors.recordGarbledSetup_(operatorKey, watchtowerKey);
 
-        vm.prank(operator);
+        vm.startPrank(operator);
         actors.setActiveActors(single(operatorKey), single(watchtowerKey));
+        actors.setSigningPause(false);
+        vm.stopPrank();
     }
 
     function single(bytes32 value) internal pure returns (bytes32[] memory values) {
@@ -514,13 +658,31 @@ contract ClementineActorsTest is Test {
         values[0] = value;
     }
 
+    function uniqueKeys(uint256 count, uint256 start) internal pure returns (bytes32[] memory values) {
+        values = new bytes32[](count);
+        for (uint256 i = 0; i < count; i++) {
+            values[i] = bytes32(start + i);
+        }
+    }
+
+    function initialCouncil() internal view returns (bytes32[] memory council) {
+        council = new bytes32[](3);
+        council[0] = securityCouncilKey0;
+        council[1] = securityCouncilKey1;
+        council[2] = securityCouncilKey2;
+    }
+
+    function collateralOutpoint() internal pure returns (bytes memory) {
+        return hex"c2d9912919ba7c2e34f8de0faf45fa1e0e5c45f345676952478d56cd7c4ebabd00000000";
+    }
+
     function circuitGeneratedTx() internal pure returns (ClementineActors.Transaction memory) {
         return ClementineActors.Transaction(
             hex"03000000",
             hex"0001",
-            hex"0100000000000000000000000000000000000000000000000000000000000000000000000000fdffffff",
-            hex"02de030000000000002251205f02a2138b617c13ec6964fed95327f488af3ecab0c356fca67e08a2294af8c400000000000000000451024e73",
-            hex"044061ec92580312bb1cf2970fcc8d727423b7d9d199e97d3d1e43637f920742c1da354c18efe709ed28b3ae5ce2840bf2e7290cb72632fd6fc49017afe643555cff40ee25d32a92f2fdc75391d463d85b87949178ec5d9ad81d46c7eada9b3ce28b6833ac46d9391d64d78278d1a68cb2f6bd92b216c9daa667b0a0016bc7cb9a2dd170204d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766ad201b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078fad510063020100240000000000000000000000000000000000000000000000000000000000000000ffffffff6821c050929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0",
+            hex"01a58355ee6e85d0bdcd009ce057528d4eee2412cda39ba50831103e713777a1860100000000fdffffff",
+            hex"02de03000000000000225120a33d31d4ce8da713dbe66544d27df915a5b6c91ac05b7f5ee6f2915a5efdb04400000000000000000451024e73",
+            hex"0440a0bfe953e5448171fc870e86dadbdafcb2653af0ff95fc13ace9192e3b013ce226833fec48d62a4d1e532df1e95de9ac2c2c5ec8c68aa96f2e51af47ea9bc600408e1975b7ba2b2cf96fc04888c9ab0986c5195eab3fcf98178db0cec4ce01a204018767d1ce6e8eebc3a46be4287b35e515fe0b06d9d8f2816ff57106e0728a75dd204d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766ad201b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078fad51006302010024c2d9912919ba7c2e34f8de0faf45fa1e0e5c45f345676952478d56cd7c4ebabd000000000402000000040300000020531fe6068134503d2723133227c867ac8fa6c83c537e9a44c3c5bdbdcb1fe33720462779ad4aad39514614751a71085f2f10e1c7a593e4e030efb5b8721ce55b0b2062c0a046dacce86ddd0343c6d3c7c79c2208ba0d9c9cf24a6d046d21d21f90f76821c150929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0",
             hex"00000000"
         );
     }

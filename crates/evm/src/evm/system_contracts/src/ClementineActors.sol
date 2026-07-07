@@ -31,6 +31,11 @@ contract ClementineActors is Ownable2StepUpgradeable {
     bytes public constant INPUT_INDEX = hex"00000000";
     bytes public constant KEY_VERSION = hex"00";
     bytes public constant CODESEP_POS = hex"ffffffff";
+    uint256 public constant MAX_ACTIVE_OPERATORS = 10_000;
+    uint256 public constant MAX_ACTIVE_WATCHTOWERS = 10_000;
+    uint256 public constant MAX_CANDIDATE_OPERATORS = 10_000;
+    uint256 public constant MAX_CANDIDATE_WATCHTOWERS = 10_000;
+    uint256 public constant MAX_SECURITY_COUNCIL = 10_000;
 
     bool public initialized;
     address public operator;
@@ -49,6 +54,8 @@ contract ClementineActors is Ownable2StepUpgradeable {
     mapping(bytes32 => bool) public isCandidateOperator;
     mapping(bytes32 => bool) public isActiveWatchtower;
     mapping(bytes32 => bool) public isActiveOperator;
+    mapping(bytes32 => bool) public isDisabledWatchtower;
+    mapping(bytes32 => bool) public isDisabledOperator;
 
     mapping(bytes32 => mapping(bytes32 => uint256)) internal garbledSetupGenerations;
 
@@ -66,6 +73,8 @@ contract ClementineActors is Ownable2StepUpgradeable {
     event ActiveWatchtowerAdded(bytes32 watchtowerKey, uint256 index);
     event ActiveOperatorRemoved(bytes32 operatorKey);
     event ActiveWatchtowerRemoved(bytes32 watchtowerKey);
+    event OperatorDisabled(bytes32 operatorKey);
+    event WatchtowerDisabled(bytes32 watchtowerKey);
 
     modifier onlyOperator() {
         require(msg.sender == operator, "caller is not the operator");
@@ -109,6 +118,10 @@ contract ClementineActors is Ownable2StepUpgradeable {
     }
 
     function setSigningPause(bool _signingPaused) external onlyOwnerOrOperator {
+        if (!_signingPaused) {
+            require(activeOperators.length != 0, "No active operators");
+            require(activeWatchtowers.length != 0, "No active watchtowers");
+        }
         signingPaused = _signingPaused;
         emit SigningPauseUpdated(_signingPaused);
     }
@@ -130,9 +143,14 @@ contract ClementineActors is Ownable2StepUpgradeable {
     }
 
     function addCandidateOperators(bytes32[] calldata operatorKeys) external onlyOperator {
+        require(
+            candidateOperators.length + operatorKeys.length <= MAX_CANDIDATE_OPERATORS,
+            "Too many candidate operators"
+        );
         for (uint256 i = 0; i < operatorKeys.length; i++) {
             bytes32 operatorKey = operatorKeys[i];
             require(operatorKey != bytes32(0), "Operator key cannot be empty");
+            require(!isDisabledOperator[operatorKey], "Operator disabled");
             require(!isCandidateOperator[operatorKey], "Candidate operator already exists");
 
             isCandidateOperator[operatorKey] = true;
@@ -142,9 +160,14 @@ contract ClementineActors is Ownable2StepUpgradeable {
     }
 
     function addCandidateWatchtowers(bytes32[] calldata watchtowerKeys) external onlyOperator {
+        require(
+            candidateWatchtowers.length + watchtowerKeys.length <= MAX_CANDIDATE_WATCHTOWERS,
+            "Too many candidate watchtowers"
+        );
         for (uint256 i = 0; i < watchtowerKeys.length; i++) {
             bytes32 watchtowerKey = watchtowerKeys[i];
             require(watchtowerKey != bytes32(0), "Watchtower key cannot be empty");
+            require(!isDisabledWatchtower[watchtowerKey], "Watchtower disabled");
             require(!isCandidateWatchtower[watchtowerKey], "Candidate watchtower already exists");
 
             isCandidateWatchtower[watchtowerKey] = true;
@@ -158,28 +181,35 @@ contract ClementineActors is Ownable2StepUpgradeable {
         bytes32 operatorKey,
         bytes32 watchtowerKey,
         uint256 sourceUtxoValueSats,
+        bytes calldata operatorCollateralOutpoint,
         bytes32 shaScriptPubkeys
     ) external {
+        require(!isDisabledOperator[operatorKey], "Operator disabled");
+        require(!isDisabledWatchtower[watchtowerKey], "Watchtower disabled");
         require(isCandidateOperator[operatorKey], "Operator is not candidate");
         require(isCandidateWatchtower[watchtowerKey], "Watchtower is not candidate");
         require(!garbledSetups(operatorKey, watchtowerKey), "Garbled setup already proven");
+        require(operatorCollateralOutpoint.length == 36, "Invalid collateral outpoint");
 
         (bytes32 wtxId, uint256 nIns) = validateTransaction(circuitGeneratedTx);
         require(nIns == 1, "Only one input allowed");
 
         bytes memory input = circuitGeneratedTx.vin.extractInputAtIndex(0);
-        bytes memory outputs = circuitGeneratedTx.vout.slice(1, circuitGeneratedTx.vout.length - 1);
+        bytes memory outputs = stripTxVectorCount(circuitGeneratedTx.vout);
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(circuitGeneratedTx.witness, 0);
 
         (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
         require(nItems == 4, "Invalid witness items");
 
         bytes memory script = witness0.extractItemFromWitness(2);
-        validateCircuitGeneratedScript(script, operatorKey, watchtowerKey);
+        bytes memory expectedScript = validateCircuitGeneratedScript(
+            script, operatorKey, watchtowerKey, operatorCollateralOutpoint
+        );
         verifyCircuitGeneratedSignatures(
             input,
             outputs,
             witness0,
+            expectedScript,
             circuitGeneratedTx.version,
             circuitGeneratedTx.locktime,
             shaScriptPubkeys,
@@ -199,14 +229,18 @@ contract ClementineActors is Ownable2StepUpgradeable {
         require(activeOperators.length == 0 && activeWatchtowers.length == 0, "Active actors already set");
         require(operatorKeys.length != 0, "Active operators cannot be empty");
         require(watchtowerKeys.length != 0, "Active watchtowers cannot be empty");
+        require(operatorKeys.length <= MAX_ACTIVE_OPERATORS, "Too many active operators");
+        require(watchtowerKeys.length <= MAX_ACTIVE_WATCHTOWERS, "Too many active watchtowers");
 
         for (uint256 i = 0; i < operatorKeys.length; i++) {
             bytes32 operatorKey = operatorKeys[i];
+            require(!isDisabledOperator[operatorKey], "Operator disabled");
             require(isCandidateOperator[operatorKey], "Operator is not candidate");
             require(!isActiveOperator[operatorKey], "Operator already active");
 
             for (uint256 j = 0; j < watchtowerKeys.length; j++) {
                 bytes32 watchtowerKey = watchtowerKeys[j];
+                require(!isDisabledWatchtower[watchtowerKey], "Watchtower disabled");
                 require(isCandidateWatchtower[watchtowerKey], "Watchtower is not candidate");
                 require(garbledSetups(operatorKey, watchtowerKey), "Missing garbled setup");
             }
@@ -217,22 +251,27 @@ contract ClementineActors is Ownable2StepUpgradeable {
 
         for (uint256 i = 0; i < watchtowerKeys.length; i++) {
             bytes32 watchtowerKey = watchtowerKeys[i];
+            require(!isDisabledWatchtower[watchtowerKey], "Watchtower disabled");
             require(!isActiveWatchtower[watchtowerKey], "Watchtower already active");
 
             isActiveWatchtower[watchtowerKey] = true;
             activeWatchtowers.push(watchtowerKey);
         }
 
-        signingPaused = false;
+        _pauseSigning();
         emit ActiveActorsSet(operatorKeys, watchtowerKeys);
-        emit SigningPauseUpdated(false);
     }
 
     function addActiveOperators(bytes32[] calldata operatorKeys) external onlyOperator {
         require(activeWatchtowers.length != 0, "No active watchtowers");
+        require(
+            activeOperators.length + operatorKeys.length <= MAX_ACTIVE_OPERATORS,
+            "Too many active operators"
+        );
 
         for (uint256 i = 0; i < operatorKeys.length; i++) {
             bytes32 operatorKey = operatorKeys[i];
+            require(!isDisabledOperator[operatorKey], "Operator disabled");
             require(isCandidateOperator[operatorKey], "Operator is not candidate");
             require(!isActiveOperator[operatorKey], "Operator already active");
 
@@ -244,13 +283,19 @@ contract ClementineActors is Ownable2StepUpgradeable {
             activeOperators.push(operatorKey);
             emit ActiveOperatorAdded(operatorKey, activeOperators.length - 1);
         }
+        _pauseSigning();
     }
 
     function addActiveWatchtowers(bytes32[] calldata watchtowerKeys) external onlyOperator {
         require(activeOperators.length != 0, "No active operators");
+        require(
+            activeWatchtowers.length + watchtowerKeys.length <= MAX_ACTIVE_WATCHTOWERS,
+            "Too many active watchtowers"
+        );
 
         for (uint256 i = 0; i < watchtowerKeys.length; i++) {
             bytes32 watchtowerKey = watchtowerKeys[i];
+            require(!isDisabledWatchtower[watchtowerKey], "Watchtower disabled");
             require(isCandidateWatchtower[watchtowerKey], "Watchtower is not candidate");
             require(!isActiveWatchtower[watchtowerKey], "Watchtower already active");
 
@@ -262,20 +307,27 @@ contract ClementineActors is Ownable2StepUpgradeable {
             activeWatchtowers.push(watchtowerKey);
             emit ActiveWatchtowerAdded(watchtowerKey, activeWatchtowers.length - 1);
         }
+        _pauseSigning();
     }
 
     function removeActiveOperator(bytes32 operatorKey) external onlyOwner {
         require(isActiveOperator[operatorKey], "Operator is not active");
         isActiveOperator[operatorKey] = false;
+        isDisabledOperator[operatorKey] = true;
         removeKey(activeOperators, operatorKey);
         emit ActiveOperatorRemoved(operatorKey);
+        emit OperatorDisabled(operatorKey);
+        _pauseSigning();
     }
 
     function removeActiveWatchtower(bytes32 watchtowerKey) external onlyOwner {
         require(isActiveWatchtower[watchtowerKey], "Watchtower is not active");
         isActiveWatchtower[watchtowerKey] = false;
+        isDisabledWatchtower[watchtowerKey] = true;
         removeKey(activeWatchtowers, watchtowerKey);
         emit ActiveWatchtowerRemoved(watchtowerKey);
+        emit WatchtowerDisabled(watchtowerKey);
+        _pauseSigning();
     }
 
     function garbledSetups(bytes32 operatorKey, bytes32 watchtowerKey) public view returns (bool) {
@@ -311,6 +363,7 @@ contract ClementineActors is Ownable2StepUpgradeable {
     function _setSecurityCouncil(uint256 _securityCouncilThreshold, bytes32[] calldata _securityCouncil) internal {
         require(_securityCouncilThreshold != 0, "Security council threshold cannot be 0");
         require(_securityCouncil.length != 0, "Security council cannot be empty");
+        require(_securityCouncil.length <= MAX_SECURITY_COUNCIL, "Security council too large");
         require(_securityCouncilThreshold <= _securityCouncil.length, "Security council threshold too high");
 
         for (uint256 i = 0; i < _securityCouncil.length; i++) {
@@ -333,8 +386,14 @@ contract ClementineActors is Ownable2StepUpgradeable {
     function _resetSigningState() internal {
         setupGeneration++;
         clearActiveActors();
-        signingPaused = true;
-        emit SigningPauseUpdated(true);
+        _pauseSigning();
+    }
+
+    function _pauseSigning() internal {
+        if (!signingPaused) {
+            signingPaused = true;
+            emit SigningPauseUpdated(true);
+        }
     }
 
     function clearActiveActors() internal {
@@ -363,6 +422,7 @@ contract ClementineActors is Ownable2StepUpgradeable {
     }
 
     function validateTransaction(Transaction calldata txn) internal view returns (bytes32, uint256) {
+        require(txn.flag == hex"0001", "Invalid segwit flag");
         bytes32 wtxId = WitnessUtils.calculateWtxId(txn.version, txn.flag, txn.vin, txn.vout, txn.witness, txn.locktime);
         require(BTCUtils.validateVin(txn.vin), "Vin is not properly formatted");
         require(BTCUtils.validateVout(txn.vout), "Vout is not properly formatted");
@@ -373,41 +433,33 @@ contract ClementineActors is Ownable2StepUpgradeable {
         return (wtxId, nIns);
     }
 
-    function validateCircuitGeneratedScript(bytes memory scriptWithLen, bytes32 operatorKey, bytes32 watchtowerKey)
+    function validateCircuitGeneratedScript(
+        bytes memory scriptWithLen,
+        bytes32 operatorKey,
+        bytes32 watchtowerKey,
+        bytes calldata operatorCollateralOutpoint
+    )
         internal
         view
+        returns (bytes memory expectedScriptWithLen)
     {
         (uint256 varIntDataLen, uint256 scriptLen) = BTCUtils.parseVarInt(scriptWithLen);
         require(varIntDataLen != BTCUtils.ERR_BAD_ARG, "Bad circuit script length");
 
         uint256 offset = 1 + varIntDataLen;
         require(scriptWithLen.length == offset + scriptLen, "Invalid circuit script length");
-        require(scriptLen >= 112, "Invalid circuit script length");
 
-        require(scriptWithLen[offset] == bytes1(0x20), "Invalid watchtower key");
-        bytes32 parsedWatchtower = bytesToBytes32(scriptWithLen.slice(offset + 1, 32));
-        require(parsedWatchtower == watchtowerKey, "Invalid watchtower key");
-        require(scriptWithLen[offset + 33] == bytes1(0xad), "Invalid circuit script");
-
-        require(scriptWithLen[offset + 34] == bytes1(0x20), "Invalid operator key");
-        bytes32 parsedOperator = bytesToBytes32(scriptWithLen.slice(offset + 35, 32));
-        require(parsedOperator == operatorKey, "Invalid operator key");
-        require(scriptWithLen[offset + 67] == bytes1(0xad), "Invalid circuit script");
-
-        require(scriptWithLen[offset + 68] == bytes1(0x51), "Invalid circuit script");
-        require(scriptWithLen[offset + 69] == bytes1(0x00), "Invalid circuit script");
-        require(scriptWithLen[offset + 70] == bytes1(0x63), "Invalid circuit script");
-        require(scriptWithLen[offset + 71] == bytes1(0x02), "Invalid circuit version encoding");
-
-        uint256 parsedCircuitVersion =
-            uint8(scriptWithLen[offset + 72]) | (uint256(uint8(scriptWithLen[offset + 73])) << 8);
-        require(parsedCircuitVersion == circuitVersion, "Invalid circuit version");
+        bytes memory expectedScript = buildCircuitGeneratedScript(operatorKey, watchtowerKey, operatorCollateralOutpoint);
+        expectedScriptWithLen = abi.encodePacked(compactSize(expectedScript.length), expectedScript);
+        require(scriptWithLen.length == expectedScriptWithLen.length, "Invalid circuit script length");
+        require(keccak256(scriptWithLen) == keccak256(expectedScriptWithLen), "Invalid circuit script");
     }
 
     function verifyCircuitGeneratedSignatures(
         bytes memory input,
         bytes memory outputs,
         bytes memory witness0,
+        bytes memory scriptWithLen,
         bytes4 version,
         bytes4 locktime,
         bytes32 shaScriptPubkeys,
@@ -421,10 +473,9 @@ contract ClementineActors is Ownable2StepUpgradeable {
         bytes32 shaAmounts = sha256(abi.encodePacked(bytes8(BTCUtils.reverseUint64(uint64(sourceUtxoValueSats)))));
         bytes32 shaSequences = sha256(abi.encodePacked(input.extractSequenceLEWitness()));
         bytes32 shaOutputs = sha256(abi.encodePacked(outputs));
-        bytes memory script = witness0.extractItemFromWitness(2);
         bytes memory controlBlock = witness0.extractItemFromWitness(3);
         bytes1 leafVersion = controlBlock[1] & 0xFE;
-        bytes32 tapleafHash = taggedHash("TapLeaf", abi.encodePacked(leafVersion, script));
+        bytes32 tapleafHash = taggedHash("TapLeaf", abi.encodePacked(leafVersion, scriptWithLen));
         bytes memory message = abi.encodePacked(
             EPOCH,
             SIGHASH_DEFAULT_HASH_TYPE,
@@ -456,6 +507,77 @@ contract ClementineActors is Ownable2StepUpgradeable {
         require(isSchnorrSigValid(abi.encodePacked(pubKey), messageHash, signature), "Invalid signature");
     }
 
+    function stripTxVectorCount(bytes memory vector) internal pure returns (bytes memory) {
+        (uint256 varIntDataLen,) = BTCUtils.parseVarInt(vector);
+        require(varIntDataLen != BTCUtils.ERR_BAD_ARG, "Bad tx vector length");
+        uint256 offset = 1 + varIntDataLen;
+        return vector.slice(offset, vector.length - offset);
+    }
+
+    function buildCircuitGeneratedScript(
+        bytes32 operatorKey,
+        bytes32 watchtowerKey,
+        bytes calldata operatorCollateralOutpoint
+    ) internal view returns (bytes memory) {
+        bytes memory securityCouncilScript = buildSecurityCouncilScript();
+        return abi.encodePacked(
+            hex"20",
+            watchtowerKey,
+            hex"ad20",
+            operatorKey,
+            hex"ad51006302",
+            uint16LE(circuitVersion),
+            hex"24",
+            operatorCollateralOutpoint,
+            securityCouncilScript,
+            hex"68"
+        );
+    }
+
+    function buildSecurityCouncilScript() internal view returns (bytes memory script) {
+        script = abi.encodePacked(
+            scriptPush(uint32LE(securityCouncilThreshold)),
+            scriptPush(uint32LE(securityCouncil.length))
+        );
+        for (uint256 i = 0; i < securityCouncil.length; i++) {
+            script = abi.encodePacked(script, scriptPush(abi.encodePacked(securityCouncil[i])));
+        }
+    }
+
+    function scriptPush(bytes memory value) internal pure returns (bytes memory) {
+        if (value.length <= 75) {
+            return abi.encodePacked(bytes1(uint8(value.length)), value);
+        }
+        if (value.length <= type(uint8).max) {
+            return abi.encodePacked(hex"4c", bytes1(uint8(value.length)), value);
+        }
+        require(value.length <= type(uint16).max, "Script push too large");
+        return abi.encodePacked(hex"4d", uint16LE(value.length), value);
+    }
+
+    function compactSize(uint256 value) internal pure returns (bytes memory) {
+        if (value < 0xfd) {
+            return abi.encodePacked(bytes1(uint8(value)));
+        }
+        require(value <= type(uint16).max, "Compact size too large");
+        return abi.encodePacked(hex"fd", uint16LE(value));
+    }
+
+    function uint16LE(uint256 value) internal pure returns (bytes memory) {
+        require(value <= type(uint16).max, "Value too large");
+        return abi.encodePacked(bytes1(uint8(value)), bytes1(uint8(value >> 8)));
+    }
+
+    function uint32LE(uint256 value) internal pure returns (bytes memory) {
+        require(value <= type(uint32).max, "Value too large");
+        return abi.encodePacked(
+            bytes1(uint8(value)),
+            bytes1(uint8(value >> 8)),
+            bytes1(uint8(value >> 16)),
+            bytes1(uint8(value >> 24))
+        );
+    }
+
     function isSchnorrSigValid(bytes memory pubKey, bytes32 messageHash, bytes memory signature)
         internal
         view
@@ -466,20 +588,6 @@ contract ClementineActors is Ownable2StepUpgradeable {
         (bool success, bytes memory result) =
             address(SCHNORR_VERIFIER_PRECOMPILE).staticcall(abi.encodePacked(pubKey, messageHash, signature));
         isValid = success && (result.length == 32) && (result[31] == 0x01);
-    }
-
-    function bytesToBytes32(bytes memory _source) internal pure returns (bytes32 result) {
-        if (_source.length == 0) {
-            return 0x0;
-        }
-        uint256 length = _source.length;
-        require(length <= 32, "Bytes cannot be more than 32 bytes");
-        uint256 diff;
-        assembly {
-            result := mload(add(_source, 32))
-            diff := sub(32, length)
-            result := shr(mul(diff, 8), result)
-        }
     }
 
     function taggedHash(string memory tag, bytes memory message) internal pure returns (bytes32) {
