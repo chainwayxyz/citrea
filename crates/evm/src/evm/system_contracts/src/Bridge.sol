@@ -71,6 +71,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     mapping(bytes32 => bool) public usedWithdrawalUTXO;
 
     uint256 public optimisticWithdrawAmountSats;
+    mapping(bytes32 => uint256) public depositTxIdToIndex;
 
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
@@ -236,6 +237,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         require(!processedTxIds[txId], "txId already spent");
         processedTxIds[txId] = true;
         depositTxIds.push(txId);
+        depositTxIdToIndex[txId] = depositTxIds.length - 1;
         
         uint256 signerCount = getSignerCount();
         // Our P2TR script path spend unlocking witness should have one item per signer plus script and control block
@@ -417,6 +419,8 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         // Cache the existing txId to be replaced before overwriting it
         bytes32 txIdToReplace = depositTxIds[idToReplace];
         depositTxIds[idToReplace] = newTxId;
+        delete depositTxIdToIndex[txIdToReplace];
+        depositTxIdToIndex[newTxId] = idToReplace;
 
         uint256 signerCount = getSignerCount();
         (, uint256 nItems) = BTCUtils.parseVarInt(witness0);

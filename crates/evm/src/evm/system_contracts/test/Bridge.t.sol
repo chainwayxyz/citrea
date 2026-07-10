@@ -439,6 +439,7 @@ contract BridgeTest is Test {
     }
 
     function testReplaceDeposit() public {
+        doDeposit();
         Bridge.MerkleProof memory proof = prepareReplaceDeposit();
         vin = hex"01f7dc30d46c53a660ba2011fd389891736760cddeff5d68ef57afb815076ce86f0000000000fdffffff";
         vout = hex"0210c99a3b0000000022512040b87e69e03b5535637a6fcc3ee4fee978e57944261c06b71c88a47d2d61e1b3f0000000000000000451024e73";
@@ -446,13 +447,16 @@ contract BridgeTest is Test {
         intermediateNodes = hex"0000000000000000000000000000000000000000000000000000000000000000030486678812997a69add330bc972e229a69e2125590ab73784f55eb680ef801";
         witnessRoot = hex"3e2161fe3b7688914a624e360dae3f3e33caf9395870610c056785d66ec26906";
         bitcoinLightClient.setBlockInfo(keccak256("CITREA_TEST_3"), witnessRoot, 2);
-        assertEq(bridge.depositTxIds(0), hex"36db3e96dc72a2be198234a326f3443c9326d2546deca3576a1959725a039108");
+        assertEq(bridge.depositTxIds(1), hex"36db3e96dc72a2be198234a326f3443c9326d2546deca3576a1959725a039108");
+        assertEq(bridge.depositTxIdToIndex(hex"36db3e96dc72a2be198234a326f3443c9326d2546deca3576a1959725a039108"), 1);
         vm.stopPrank();
         vm.prank(operator);
         Bridge.Transaction memory replaceTx = Bridge.Transaction(version, flag, vin, vout, witness, locktime);
         proof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER + 2, index);
-        bridge.replaceDeposit(replaceTx, proof, 0, hex"486568b2542cc5ebf896e41e17c42e5571e6f3e68020d90d39fe7a2d7f0a68c3");
-        assertEq(bridge.depositTxIds(0), hex"6a1d18b80867c0bc84cb9a20ec88922cf17a7bdd50e5237d67b6fad11d70fe95");
+        bridge.replaceDeposit(replaceTx, proof, 1, hex"486568b2542cc5ebf896e41e17c42e5571e6f3e68020d90d39fe7a2d7f0a68c3");
+        assertEq(bridge.depositTxIds(1), hex"6a1d18b80867c0bc84cb9a20ec88922cf17a7bdd50e5237d67b6fad11d70fe95");
+        assertEq(bridge.depositTxIdToIndex(hex"36db3e96dc72a2be198234a326f3443c9326d2546deca3576a1959725a039108"), 0);
+        assertEq(bridge.depositTxIdToIndex(hex"6a1d18b80867c0bc84cb9a20ec88922cf17a7bdd50e5237d67b6fad11d70fe95"), 1);
     }
 
     function testCannotReplaceDepositWithMoreThanOneInputInReplaceTx() public {
