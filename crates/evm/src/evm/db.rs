@@ -35,6 +35,19 @@ impl std::fmt::Display for DBError {
     }
 }
 
+/// Session-lifetime cache of decoded bytecode, keyed by code hash.
+///
+/// Bytecode is immutable per hash and every entry was keccak-verified on its
+/// first non-cached state read, so reusing the decoded [`Bytecode`]
+/// (refcounted bytes + shared jump table) only skips repeated decode work.
+/// Guest-only: a long-running native node must not grow an unbounded map.
+#[cfg(target_os = "zkvm")]
+fn bytecode_cache() -> &'static std::sync::Mutex<std::collections::HashMap<B256, Bytecode>> {
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<B256, Bytecode>>> =
+        std::sync::OnceLock::new();
+    CACHE.get_or_init(Default::default)
+}
+
 pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
     pub(crate) evm: &'a Evm<C>,
     pub(crate) working_set: &'a mut WorkingSet<C::Storage>,
@@ -92,6 +105,11 @@ impl<C: sov_modules_api::Context> Database for EvmDb<'_, C> {
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
         // TODO move to new_raw_with_hash for better performance
 
+        #[cfg(target_os = "zkvm")]
+        if let Some(code) = bytecode_cache().lock().unwrap().get(&code_hash).cloned() {
+            return Ok(code);
+        }
+
         if let Some(code) = self.evm.offchain_code.get_with_verification_on_no_cache(
             &code_hash,
             |val| {
@@ -108,6 +126,12 @@ impl<C: sov_modules_api::Context> Database for EvmDb<'_, C> {
             },
             &mut self.working_set.offchain_state(),
         )? {
+            #[cfg(target_os = "zkvm")]
+            bytecode_cache()
+                .lock()
+                .unwrap()
+                .insert(code_hash, code.clone());
+
             Ok(code)
         } else {
             Err(DBError::UnknownCodeHash)
