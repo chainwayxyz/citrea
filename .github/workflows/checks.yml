@@ -647,12 +647,12 @@ jobs:
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444 # v1
 
-      - name: Rust cache
-        if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
-        uses: ubicloud/rust-cache@65b3ff06b9bcc69d88c25e212f1ae3d14a0953c3 # v2.7.5
-        with:
-          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
-          shared-key: build
+      # - name: Rust cache
+      #   if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
+      #   uses: ubicloud/rust-cache@65b3ff06b9bcc69d88c25e212f1ae3d14a0953c3 # v2.7.5
+      #   with:
+      #     prefix-key: ${{ env.RUST_CACHE_PREFIX }}
+      #     shared-key: build
       - name: Cache ethereum-tests
         if: steps.restore-test-cache.outputs.cache-hit != 'true' && steps.restore-artifact.outputs.cache-hit != 'true'
         uses: ubicloud/cache@92361f338d82d2c58a98875f1b5c95cd14cd6b2a # v4.1.2
