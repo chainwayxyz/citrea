@@ -87,4 +87,8 @@ where
     ) -> Result<Self::GenesisConfig, anyhow::Error> {
         crate::genesis_config::get_genesis_config(genesis_paths)
     }
+
+    fn cache_log_pruned(&mut self) {
+        self.evm.clear_bytecode_cache();
+    }
 }
