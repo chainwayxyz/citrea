@@ -51,7 +51,7 @@ impl std::fmt::Display for DBError {
 // the next offchain read would consume a value meant for someone else.
 #[cfg(not(feature = "native"))]
 std::thread_local! {
-    static BYTECODE_CACHE: RefCell<std::collections::HashMap<B256, Bytecode>> =
+    static BYTECODE_CACHE: RefCell<std::collections::BTreeMap<B256, Bytecode>> =
         RefCell::default();
 }
 
