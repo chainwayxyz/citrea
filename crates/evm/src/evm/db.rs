@@ -1,6 +1,8 @@
 use core::error::Error;
 #[cfg(not(feature = "native"))]
 use std::cell::RefCell;
+#[cfg(not(feature = "native"))]
+use std::collections::BTreeMap;
 #[cfg(feature = "native")]
 use std::collections::HashMap;
 
@@ -50,9 +52,8 @@ impl std::fmt::Display for DBError {
 // is pruned; otherwise a cached hit would skip a hint the prover did emit and
 // the next offchain read would consume a value meant for someone else.
 #[cfg(not(feature = "native"))]
-std::thread_local! {
-    static BYTECODE_CACHE: RefCell<std::collections::BTreeMap<B256, Bytecode>> =
-        RefCell::default();
+thread_local! {
+    static BYTECODE_CACHE: RefCell<BTreeMap<B256, Bytecode>> = RefCell::default();
 }
 
 /// Drops every cached bytecode, so no entry outlives the cache-log entry it
@@ -70,13 +71,13 @@ pub(crate) fn clear_bytecode_cache() {}
 /// Whether the decoded bytecode of `code_hash` is already cached, which implies
 /// the offchain cache log holds the same code.
 #[cfg(not(feature = "native"))]
-pub(crate) fn is_bytecode_cached(code_hash: &B256) -> bool {
+fn is_bytecode_cached(code_hash: &B256) -> bool {
     BYTECODE_CACHE.with_borrow(|cache| cache.contains_key(code_hash))
 }
 
 /// Native execution never populates the bytecode cache, so nothing is cached.
 #[cfg(feature = "native")]
-pub(crate) fn is_bytecode_cached(_code_hash: &B256) -> bool {
+fn is_bytecode_cached(_code_hash: &B256) -> bool {
     false
 }
 
@@ -117,10 +118,12 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
     /// Whether the offchain state already holds the code of `code_hash` — what
     /// decides if [`DatabaseCommit::commit`] still has to store it.
     ///
-    /// The commit path only asks about code hashes missing from the bytecode
-    /// cache, so this reaches the witness exactly when the code was never read
-    /// this session either: `None` for a genuinely new contract, and its stored
-    /// code for bytecode redeployed at a new address.
+    /// A cached decode already mirrors an offchain cache log entry, so it settles
+    /// the question without a read that could only confirm what the log holds —
+    /// in the circuit at the price of decoding the whole contract again. Past the
+    /// cache this reaches the witness exactly when the code was never read this
+    /// session either: `None` for a genuinely new contract, and its stored code
+    /// for bytecode redeployed at a new address.
     ///
     /// The circuit verifies that value rather than trust it. An unverified read
     /// would plant prover-supplied bytecode in the offchain cache log, which a
@@ -131,6 +134,10 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
     ///
     /// [`DatabaseCommit::commit`]: revm::DatabaseCommit::commit
     pub(crate) fn is_code_stored(&mut self, code_hash: &B256) -> bool {
+        if is_bytecode_cached(code_hash) {
+            return true;
+        }
+
         #[cfg(not(feature = "native"))]
         let code = self
             .evm

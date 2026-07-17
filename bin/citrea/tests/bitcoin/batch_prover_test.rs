@@ -1,5 +1,6 @@
 use std::fs;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::time::Duration;
 
 use alloy::consensus::{SignableTransaction, TxLegacy};
@@ -1729,7 +1730,7 @@ impl BytecodeCachePruningTest {
     ///
     /// Everything else in this test would still pass if the fillers stopped
     /// overflowing the cache limit — but it would no longer prove anything.
-    fn assert_pruned_before_probe(batch_prover_dir: &std::path::Path) -> Result<()> {
+    fn assert_pruned_before_probe(batch_prover_dir: &Path) -> Result<()> {
         const PRUNE_LOG: &str = "Pruned witness caches after L2 block ";
 
         let stdout = fs::read_to_string(batch_prover_dir.join("stdout.log"))?;

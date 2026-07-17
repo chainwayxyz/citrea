@@ -8,7 +8,7 @@ use revm::state::{Account, AccountInfo};
 use revm::DatabaseCommit;
 use sov_modules_api::{SpecId, StateMapAccessor};
 
-use super::db::{is_bytecode_cached, EvmDb};
+use super::db::EvmDb;
 use super::AccountInfo as DbAccountInfo;
 
 impl<C: sov_modules_api::Context> DatabaseCommit for EvmDb<'_, C> {
@@ -46,20 +46,15 @@ impl<C: sov_modules_api::Context> DatabaseCommit for EvmDb<'_, C> {
             let new_info = account.info;
 
             if let Some(ref code) = new_info.code {
-                // Cached code is already in the offchain cache log, so the read below
-                // could only confirm what is there — in the circuit at the price of
-                // decoding the whole contract again.
-                if !code.is_empty() && !is_bytecode_cached(&new_info.code_hash) {
-                    // we don't update code with analyzed code because that would mean we can change jump table
-                    // however we want without changing the code hash
-                    // that means we can fiddle with tx execution
-                    if !self.is_code_stored(&new_info.code_hash) {
-                        self.evm.offchain_code.set(
-                            &new_info.code_hash,
-                            code,
-                            &mut self.working_set.offchain_state(),
-                        );
-                    }
+                // we don't update code with analyzed code because that would mean we can change jump table
+                // however we want without changing the code hash
+                // that means we can fiddle with tx execution
+                if !code.is_empty() && !self.is_code_stored(&new_info.code_hash) {
+                    self.evm.offchain_code.set(
+                        &new_info.code_hash,
+                        code,
+                        &mut self.working_set.offchain_state(),
+                    );
                 }
             }
 
