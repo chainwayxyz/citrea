@@ -4,7 +4,7 @@ use std::cell::RefCell;
 #[cfg(feature = "native")]
 use std::collections::HashMap;
 
-use alloy_primitives::{keccak256, Address, B256, U256};
+use alloy_primitives::{Address, B256, U256};
 use revm::context::DBErrorMarker;
 use revm::state::{AccountInfo as ReVmAccountInfo, Bytecode};
 use revm::Database;
@@ -87,7 +87,7 @@ pub(crate) fn is_bytecode_cached(_code_hash: &B256) -> bool {
 /// "not stored yet".
 fn verify_code_hash(code_hash: &B256, code: &Option<Bytecode>) -> Result<(), DBError> {
     code.as_ref().map_or(Ok(()), |code| {
-        if *code_hash == keccak256(code.original_byte_slice()) {
+        if *code_hash == code.hash_slow() {
             Ok(())
         } else {
             Err(DBError::CodeHashMismatch)
