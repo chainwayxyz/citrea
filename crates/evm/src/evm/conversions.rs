@@ -107,6 +107,24 @@ impl TryFrom<RlpEvmTransaction> for TransactionSigned {
     }
 }
 
+/// Verify `signature` over `prehash` against `verifying_key`, additionally
+/// checking that the key is the one `ecrecover` would return for a recovery id
+/// with y parity `expected_y_parity`.
+///
+/// Adapted from `ecdsa::hazmat::verify_prehashed` (ecdsa v0.16.9, the version
+/// k256 v0.13.4 delegates to):
+/// <https://github.com/RustCrypto/signatures/blob/ecdsa/v0.16.9/ecdsa/src/hazmat.rs#L270-L293>
+///
+/// The upstream function cannot be called directly because it discards the
+/// computed verification point `R`, which the recovery checks below need.
+/// Deviations from upstream, all deliberate:
+/// - rejects high-s signatures (EIP-2, matching `try_into_recovered` on the
+///   native path);
+/// - rejects an identity verification point;
+/// - compares `R.x` to `r` as raw bytes instead of reducing `R.x` mod n first:
+///   Ethereum recovery ids only encode y parity (never "x reduced"), so
+///   `ecrecover` can only return a key whose `R.x` equals `r` exactly;
+/// - checks `R`'s y parity against `expected_y_parity`.
 #[cfg(any(test, not(feature = "native")))]
 fn verify_prehash_with_recovery_parity(
     verifying_key: &k256::ecdsa::VerifyingKey,
