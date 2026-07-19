@@ -25,8 +25,6 @@ use risc0_zkvm::{
     compute_image_id, default_executor, AssumptionReceipt, Digest, ExecutorEnvBuilder,
     Groth16Receipt, InnerReceipt, Journal, MaybePruned, Receipt, ReceiptClaim,
 };
-use sov_db::ledger_db::{BoundlessLedgerOps, LedgerDB};
-use sov_db::schema::types::BoundlessSession;
 use sov_rollup_interface::zk::{
     BoundlessProvingSessionInfo, ProofWithJob, ProvingSessionInfo, ReceiptType,
 };
@@ -75,13 +73,12 @@ enum ResubmitResult {
 #[derive(Clone)]
 pub struct BoundlessProver {
     pub client: Client,
-    pub ledger_db: LedgerDB,
     pub pricing_service: PricingService,
     config: BoundlessProverConfig,
 }
 
 impl BoundlessProver {
-    pub async fn new(ledger_db: LedgerDB, prover_config: BoundlessProverConfig) -> Self {
+    pub async fn new(prover_config: BoundlessProverConfig) -> Self {
         let client = Self::boundless_client(prover_config.clone())
             .await
             .expect("Failed to create boundless client");
@@ -95,7 +92,6 @@ impl BoundlessProver {
 
         Self {
             client,
-            ledger_db,
             pricing_service,
             config: prover_config,
         }
@@ -297,14 +293,8 @@ impl BoundlessProver {
                 image_id,
                 image_url,
                 input_url,
-                U256::from(cmp::min(
-                    min_price_wei_per_cycle,
-                    max_possible_price_wei_per_cycle,
-                )),
-                U256::from(cmp::min(
-                    max_price_wei_per_cycle,
-                    max_possible_price_wei_per_cycle,
-                )),
+                cmp::min(min_price_wei_per_cycle, max_possible_price_wei_per_cycle),
+                cmp::min(max_price_wei_per_cycle, max_possible_price_wei_per_cycle),
                 lock_timeout,
                 timeout,
                 ramp_up_period,
@@ -322,21 +312,10 @@ impl BoundlessProver {
         );
 
         // Start boundless proving session
-        let (req_id, request_expiry) = self
-            .send_request(
-                request,
-                job_id,
-                image_id,
-                journal.clone(),
-                receipt_claim.clone(),
-                receipt_type,
-                total_cycles_approx,
-            )
-            .await?;
+        let (req_id, request_expiry) = self.send_request(request, job_id, image_id).await?;
 
         let rx = self.spawn_handler(
             job_id,
-            receipt_type,
             req_id,
             image_id,
             journal,
@@ -360,7 +339,7 @@ impl BoundlessProver {
         lock_timeout: u64,
         timeout: u64,
         ramp_up_period: u64,
-        lock_stake: u64,
+        lock_stake: U256,
         bidding_start_delay: u64,
         total_cycles_approx: u64,
         journal: Journal,
@@ -383,7 +362,7 @@ impl BoundlessProver {
             .lock_timeout(lock_timeout as u32)
             .timeout(timeout as u32)
             .ramp_up_period(ramp_up_period as u32)
-            .lock_collateral(U256::from(lock_stake))
+            .lock_collateral(lock_stake)
             .bidding_start_delay(bidding_start_delay)
             .build()
             .expect("Failed to build offer layer config");
@@ -490,7 +469,7 @@ impl BoundlessProver {
                     .with_lock_timeout(lock_timeout as u32)
                     .with_timeout(timeout as u32)
                     .with_ramp_up_period(ramp_up_period as u32)
-                    .with_lock_collateral(U256::from(lock_stake))
+                    .with_lock_collateral(lock_stake)
                     .with_ramp_up_start(bidding_start),
             )
             .with_cycles(total_cycles_approx)
@@ -501,16 +480,11 @@ impl BoundlessProver {
         params
     }
 
-    #[allow(clippy::too_many_arguments)]
     async fn send_request(
         &self,
         request: RequestParams,
         job_id: Uuid,
         image_id: Digest,
-        journal: Journal,
-        receipt_claim: ReceiptClaim,
-        receipt_type: ReceiptType,
-        total_cycles_approx: u64,
     ) -> Result<(String, u64), ClientError> {
         // Start boundless proving session
         tracing::info!(
@@ -540,19 +514,6 @@ impl BoundlessProver {
             req_id
         );
 
-        let db_session = BoundlessSession {
-            request_id: req_id.clone(),
-            request_expiry,
-            image_id: image_id.into(),
-            journal_bytes: journal.bytes.to_vec(),
-            receipt_claim_bytes: borsh::to_vec(&receipt_claim).expect("should serialize"),
-            receipt_type,
-            total_cycles_approx,
-        };
-        self.ledger_db
-            .upsert_pending_boundless_session(job_id, db_session)
-            .context("Failed to upsert boundless session")?;
-
         Ok((req_id.to_string(), request_expiry))
     }
 
@@ -560,7 +521,6 @@ impl BoundlessProver {
     fn spawn_handler(
         &self,
         job_id: Uuid,
-        receipt_type: ReceiptType,
         request_id: String,
         image_id: Digest,
         journal: Journal,
@@ -595,13 +555,6 @@ impl BoundlessProver {
                             return;
                         };
 
-                        if let Err(e) = this.ledger_db.remove_pending_boundless_session(job_id) {
-                            tracing::error!(
-                                "Failed to remove pending boundless session job: {} err={}",
-                                job_id,
-                                e
-                            );
-                        }
                         tracing::info!(
                             "Boundless proving job finished: {} | Boundless request id: {}",
                             job_id,
@@ -628,7 +581,6 @@ impl BoundlessProver {
                             receipt_claim.clone(),
                             total_cycles_approx,
                             image_id,
-                            receipt_type,
                         )
                         .await
                         {
@@ -689,13 +641,7 @@ impl BoundlessProver {
         receipt_claim: ReceiptClaim,
         total_cycles_approx: u64,
         image_id: Digest,
-        receipt_type: ReceiptType,
     ) -> anyhow::Result<ResubmitResult> {
-        // Remove failed job from pending boundless sessions
-        self.ledger_db
-            .remove_pending_boundless_session(job_id)
-            .expect("Failed to remove pending boundless session on error");
-
         // Get data of failed order
         // Queries first offchain, and then onchain.
         let Ok((failed_request, _signature)) = self
@@ -801,10 +747,10 @@ impl BoundlessProver {
                 let min_price_per_cycle = min_price_per_cycle
                     .saturating_mul(U256::from(MIN_PRICE_INCREASE_MULTIPLIER))
                     .div_ceil(U256::from(MIN_PRICE_INCREASE_DIVISOR))
-                    .min(U256::from(max_possible_price_wei_per_cycle));
+                    .min(max_possible_price_wei_per_cycle);
                 let max_price_per_cycle = max_price_per_cycle
                     .saturating_mul(U256::from(MAX_PRICE_INCREASE_RATIO))
-                    .min(U256::from(max_possible_price_wei_per_cycle));
+                    .min(max_possible_price_wei_per_cycle);
                 (min_price_per_cycle, max_price_per_cycle, lock_timeout)
             }
         };
@@ -833,15 +779,7 @@ impl BoundlessProver {
             .await;
 
         let (new_req_id, new_exp_time) = match self
-            .send_request(
-                new_request,
-                job_id,
-                image_id,
-                journal.clone(),
-                receipt_claim.clone(),
-                receipt_type,
-                total_cycles_approx,
-            )
+            .send_request(new_request, job_id, image_id)
             .await
         {
             Ok((req_id, exp_time)) => (req_id, exp_time),
@@ -908,45 +846,6 @@ impl BoundlessProver {
         );
 
         Ok(full_snark_receipt)
-    }
-
-    // Starts the recovery of proving jobs from db by starting a background task, returning list of
-    /// receiver channels that return the associated job id and proof result on finish.
-    pub fn start_recovery(&self) -> anyhow::Result<Vec<oneshot::Receiver<ProofWithJob>>> {
-        let sessions = self.ledger_db.get_pending_boundless_sessions()?;
-        tracing::info!(
-            "Found {} pending boundless sessions to recover",
-            sessions.len()
-        );
-        if sessions.is_empty() {
-            tracing::info!("No pending boundless sessions to recover");
-            return Ok(vec![]);
-        }
-
-        let mut rxs = vec![];
-        for (job_id, session) in sessions {
-            tracing::info!(
-                "Recovering boundless session, job_id={} session={:?}",
-                job_id,
-                session
-            );
-
-            let rx = self.spawn_handler(
-                job_id,
-                session.receipt_type,
-                session.request_id,
-                session.image_id.into(),
-                Journal {
-                    bytes: session.journal_bytes,
-                },
-                borsh::from_slice(&session.receipt_claim_bytes)
-                    .expect("Failed to deserialize receipt claim from bytes"),
-                session.request_expiry,
-                session.total_cycles_approx,
-            );
-            rxs.push(rx);
-        }
-        Ok(rxs)
     }
 }
 

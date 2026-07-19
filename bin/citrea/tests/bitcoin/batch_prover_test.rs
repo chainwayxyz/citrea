@@ -32,8 +32,6 @@ use citrea_risc0_adapter::host::Risc0Host;
 use citrea_sequencer::SequencerRpcClient;
 use risc0_binfmt::compute_image_id;
 use risc0_zkvm::Digest;
-use sov_db::ledger_db::LedgerDB;
-use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::Zkvm as _;
 use sov_rollup_interface::spec::SpecId;
@@ -603,9 +601,15 @@ impl TestCase for ForkElfSwitchingTest {
         }
     }
 
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
     fn batch_prover_config() -> BatchProverConfig {
         BatchProverConfig {
-            enable_recovery: false,
             proof_sampling_number: 999_999_999,
             ..Default::default()
         }
@@ -1202,12 +1206,10 @@ impl TestCase for BatchProverCreateInputTest {
         let code_commitment = Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID);
 
         // Instantiate Risc0Host
-        let rocksdb_config = RocksdbConfig::new(batch_prover.config.dir(), None, None);
         let network = Network::Nightly;
 
-        let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
         let risc0_config = Risc0HostConfig::from_env().expect("Failed to load risc0 config");
-        let mut risc0_host = Risc0Host::new(ledger_db, network, risc0_config).await;
+        let mut risc0_host = Risc0Host::new(network, risc0_config).await;
 
         for input in inputs {
             // Decode raw circuit input
@@ -1539,13 +1541,9 @@ impl TestCase for IncorrectFedPubkeyTest {
         let tampered_input =
             borsh::to_vec(&(input_part1, ecrecover_pubkey_witnesses, input_part3))?;
 
-        // Instantiate Risc0Host
-        let rocksdb_config = RocksdbConfig::new(batch_prover.config.dir(), None, None);
         let network = Network::Nightly;
-
-        let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
         let risc0_config = Risc0HostConfig::from_env().expect("Failed to load risc0 config");
-        let mut risc0_host = Risc0Host::new(ledger_db, network, risc0_config).await;
+        let mut risc0_host = Risc0Host::new(network, risc0_config).await;
         risc0_host.add_hint(tampered_input);
 
         let run_result = risc0_host

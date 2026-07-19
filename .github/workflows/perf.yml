@@ -15,13 +15,13 @@ jobs:
   performance-comparison:
     runs-on: ubicloud-standard-16
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Fetch latest nightly
         run: |
           git fetch origin nightly:nightly
-      - uses: rui314/setup-mold@v1
+      - uses: rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444 # v1
       - name: Install Protoc
-        uses: arduino/setup-protoc@v3
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -31,7 +31,7 @@ jobs:
           override: true
           components: rustfmt, clippy
       - name: Rust Cache
-        uses: ubicloud/rust-cache@v2
+        uses: ubicloud/rust-cache@65b3ff06b9bcc69d88c25e212f1ae3d14a0953c3 # v2.7.5
         with:
           prefix-key: ${{ env.RUST_CACHE_PREFIX }}
       - name: Install risc0
@@ -39,7 +39,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache ethereum-tests
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
@@ -54,7 +54,7 @@ jobs:
           ./resources/scripts/cycle-diff.sh check
 
       - name: Upload comparison results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: comparison-results
           path: comparison_results.log

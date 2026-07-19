@@ -7,8 +7,6 @@ use citrea_common::config::risc0::BonsaiProverConfig;
 use citrea_common::utils::is_dev_mode_enabled_via_environment;
 use metrics::gauge;
 use risc0_zkvm::{compute_image_id, AssumptionReceipt, Digest, InnerAssumptionReceipt, Receipt};
-use sov_db::ledger_db::{BonsaiLedgerOps, LedgerDB};
-use sov_db::schema::types::{BonsaiSession, BonsaiSessionKind};
 use sov_rollup_interface::zk::{
     BonsaiProvingSessionInfo, ProofWithJob, ProvingSessionInfo, ReceiptType,
 };
@@ -19,11 +17,10 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct BonsaiProver {
     client: Client,
-    ledger_db: LedgerDB,
 }
 
 impl BonsaiProver {
-    pub fn new(ledger_db: LedgerDB, config: BonsaiProverConfig) -> Self {
+    pub fn new(config: BonsaiProverConfig) -> Self {
         assert!(
             !is_dev_mode_enabled_via_environment(),
             "RISC0_DEV_MODE should not be set for bonsai"
@@ -32,7 +29,7 @@ impl BonsaiProver {
         let client = Client::from_parts(config.api_url, config.api_key, risc0_zkvm::VERSION)
             .expect("Bonsai client build cannot fail");
 
-        Self { client, ledger_db }
+        Self { client }
     }
 
     pub fn prove(
@@ -78,15 +75,6 @@ impl BonsaiProver {
             job_id, session.uuid
         );
 
-        let db_session = BonsaiSession {
-            kind: BonsaiSessionKind::StarkSession(session.uuid.clone()),
-            image_id: image_id.into(),
-            receipt_type,
-        };
-        self.ledger_db
-            .upsert_pending_bonsai_session(job_id, db_session)
-            .context("Failed to upsert bonsai stark session")?;
-
         let rx = self.spawn_handler(job_id, session, image_id, receipt_type);
 
         Ok(rx)
@@ -112,8 +100,6 @@ impl BonsaiProver {
                     let serialized_receipt = bincode::serialize(&receipt.inner)
                         .expect("Receipt serialization cannot fail");
 
-                    // Do not remove pending bonsai session if we couldn't send the proof to caller.
-                    // On restart we can again try to resend.
                     let Ok(_) = tx.send(ProofWithJob {
                         job_id,
                         proof: serialized_receipt,
@@ -128,13 +114,6 @@ impl BonsaiProver {
                         error!("Bonsai proof receiver channel is closed");
                         return;
                     };
-
-                    if let Err(e) = this.ledger_db.remove_pending_bonsai_session(job_id) {
-                        error!(
-                            "Failed to remove pending bonsai session job: {} err={}",
-                            job_id, e
-                        );
-                    }
                 }
                 Err(e) => error!(
                     "Failed to handle Bonsai proving session job: {} err={}",
@@ -172,15 +151,6 @@ impl BonsaiProver {
         }
 
         let snark_session = self.client.create_snark(session.uuid.clone())?;
-
-        let db_session = BonsaiSession {
-            kind: BonsaiSessionKind::SnarkSession(session.uuid, snark_session.uuid.clone()),
-            image_id: image_id.into(),
-            receipt_type,
-        };
-        self.ledger_db
-            .upsert_pending_bonsai_session(job_id, db_session)
-            .context("Failed to upsert bonsai snark session")?;
 
         let groth16_receipt = self.wait_snark_receipt(&snark_session).await?;
         groth16_receipt
@@ -254,46 +224,6 @@ impl BonsaiProver {
                 }
             }
         }
-    }
-
-    /// Starts the recovery of proving jobs from db by starting a background task, returning list of
-    /// receiver channels that return the associated job id and proof result on finish.
-    pub fn start_recovery(&self) -> anyhow::Result<Vec<oneshot::Receiver<ProofWithJob>>> {
-        let sessions = self.ledger_db.get_pending_bonsai_sessions()?;
-        info!("Recovering Bonsai sessions: {:?}", sessions);
-        if sessions.is_empty() {
-            return Ok(vec![]);
-        }
-
-        let mut rxs = vec![];
-        for (job_id, session) in sessions {
-            info!(
-                "Recovering bonsai session, job_id={} session={:?}",
-                job_id, session
-            );
-
-            let rx = match session.kind {
-                BonsaiSessionKind::StarkSession(id) => self.spawn_handler(
-                    job_id,
-                    SessionId::new(id),
-                    session.image_id.into(),
-                    session.receipt_type,
-                ),
-                BonsaiSessionKind::SnarkSession(id, _) => {
-                    // TODO: check if create snark call creates a new snark session every time and update if needed
-                    self.spawn_handler(
-                        job_id,
-                        SessionId::new(id),
-                        session.image_id.into(),
-                        session.receipt_type,
-                    )
-                }
-            };
-
-            rxs.push(rx);
-        }
-
-        Ok(rxs)
     }
 }
 

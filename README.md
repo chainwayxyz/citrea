@@ -4,13 +4,6 @@
 
 ![](resources/assets/banner.png)
 
-> [!WARNING]
-> Citrea uses **BTC** as its native token. **There's no Citrea token**. Please beware of scams! \
-> \
-> Follow our [website](https://citrea.xyz) & [social media accounts](https://twitter.com/citrea_xyz) for announcements regarding the next phases of Citrea.
-
-
-
 ## What is Citrea?
 
 Citrea is the first rollup that enhances the capabilities of Bitcoin blockspace with zero-knowledge technology, **making it possible to build everything on Bitcoin**.

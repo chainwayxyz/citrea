@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
 use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
-use bitcoin_da::spec::RollupParams;
+use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::utxo_manager::UtxoContext;
 use bitcoin_da::verifier::BitcoinVerifier;
 use bitcoincore_rpc::{Client, RpcApi};
@@ -32,13 +32,14 @@ use reth_tasks::TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{
-    BatchProofMethodId, BatchProofMethodIdBody, DaTxRequest, DaVerifier, DataOnDa,
-    SequencerCommitment,
+    BatchProofMethodId, BatchProofMethodIdBody, BlockHeaderTrait, DaTxRequest, DaVerifier,
+    DataOnDa, SequencerCommitment,
 };
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
+use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
 use sov_rollup_interface::zk::ProvingSessionInfo;
 use sov_rollup_interface::Network;
 
@@ -78,14 +79,12 @@ impl TestCase for LightClientProvingTest {
 
     fn batch_prover_config() -> BatchProverConfig {
         BatchProverConfig {
-            enable_recovery: false,
             ..Default::default()
         }
     }
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
             ..Default::default()
         }
     }
@@ -218,7 +217,6 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
     fn batch_prover_config() -> BatchProverConfig {
         BatchProverConfig {
-            enable_recovery: false,
             proof_sampling_number: 99999999,
             ..Default::default()
         }
@@ -226,7 +224,6 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
             initial_da_height: 171,
             ..Default::default()
         }
@@ -553,14 +550,12 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
 
     fn batch_prover_config() -> BatchProverConfig {
         BatchProverConfig {
-            enable_recovery: false,
             ..Default::default()
         }
     }
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
             initial_da_height: 171,
             ..Default::default()
         }
@@ -805,14 +800,12 @@ impl TestCase for LightClientBatchProofMethodIdUpdateSecurityCouncilTest {
 
     fn batch_prover_config() -> BatchProverConfig {
         BatchProverConfig {
-            enable_recovery: false,
             ..Default::default()
         }
     }
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
             initial_da_height: 171,
             ..Default::default()
         }
@@ -1209,7 +1202,6 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
             initial_da_height: 171,
             ..Default::default()
         }
@@ -1469,7 +1461,6 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
             initial_da_height: 171,
             ..Default::default()
         }
@@ -1847,7 +1838,6 @@ impl TestCase for UnchainedBatchProofsTest {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
             initial_da_height: 164,
             ..Default::default()
         }
@@ -2112,7 +2102,6 @@ impl TestCase for UnknownL1HashBatchProofTest {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
             initial_da_height: 165,
             ..Default::default()
         }
@@ -2262,7 +2251,6 @@ impl TestCase for ChainProofByCommitmentIndex {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
             initial_da_height: 171,
             ..Default::default()
         }
@@ -2478,7 +2466,6 @@ impl TestCase for ProofWithMissingCommitment {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
             initial_da_height: 171,
             ..Default::default()
         }
@@ -2627,7 +2614,6 @@ impl TestCase for ProofAndCommitmentWithWrongDaPubkey {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
             initial_da_height: 164,
             ..Default::default()
         }
@@ -2946,7 +2932,6 @@ impl TestCase for ProofWithWrongPreviousCommitmentHash {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
             initial_da_height: 164,
             ..Default::default()
         }
@@ -3477,7 +3462,6 @@ impl TestCase for UndecompressableBlobTest {
 
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
-            enable_recovery: false,
             initial_da_height: 171,
             ..Default::default()
         }
@@ -3670,6 +3654,163 @@ async fn test_undecompressable_blob() -> Result<()> {
     .set_citrea_path(get_citrea_path())
     .run()
     .await
+}
+
+struct LightClientCreateCircuitInputRpcTest;
+
+#[async_trait]
+impl TestCase for LightClientCreateCircuitInputRpcTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_sequencer: true,
+            with_batch_prover: true,
+            with_light_client_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 5,
+            da_update_interval_ms: 500,
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            proof_sampling_number: 99999999,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(195)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        sequencer
+            .wait_for_l2_height(max_l2_blocks_per_commitment, None)
+            .await?;
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let commitment_l1_height = da.get_finalized_height(None).await?;
+
+        batch_prover
+            .wait_for_l1_height(commitment_l1_height, Some(TEN_MINS))
+            .await?;
+
+        let job_ids = batch_prover
+            .client
+            .http_client()
+            .prove(PartitionMode::OneByOne)
+            .await?;
+        assert_eq!(job_ids.len(), 1);
+
+        let response = wait_for_prover_job(batch_prover, job_ids[0], Some(TEN_MINS)).await?;
+        assert_eq!(response.commitments.len(), 1);
+        let batch_proof_output = response
+            .proof
+            .as_ref()
+            .expect("Batch prover job should contain proof")
+            .proof_output
+            .clone();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let batch_proof_l1_height = da.get_finalized_height(None).await?;
+
+        light_client_prover
+            .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
+            .await?;
+
+        let light_client_proof = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(U64::from(batch_proof_l1_height))
+            .await?
+            .expect("Light client proof should exist");
+        assert_eq!(
+            light_client_proof.light_client_proof_output.last_l2_height,
+            batch_proof_output.last_l2_height
+        );
+        assert_eq!(
+            light_client_proof.light_client_proof_output.l2_state_root,
+            batch_proof_output.final_state_root()
+        );
+        assert_eq!(
+            light_client_proof
+                .light_client_proof_output
+                .last_sequencer_commitment_index,
+            batch_proof_output.sequencer_commitment_index_range.1
+        );
+
+        let input_response = light_client_prover
+            .client
+            .http_client()
+            .create_light_client_circuit_input(U64::from(batch_proof_l1_height))
+            .await?;
+
+        let expected_l1_hash = da
+            .get_block_hash(batch_proof_l1_height)
+            .await?
+            .as_raw_hash()
+            .to_byte_array();
+        assert_eq!(input_response.l1_height.to::<u64>(), batch_proof_l1_height);
+        assert_eq!(input_response.l1_hash, expected_l1_hash);
+        assert!(!input_response.input.is_empty());
+
+        let circuit_input =
+            LightClientCircuitInput::<BitcoinSpec>::try_from_slice(&input_response.input)?;
+
+        let input_l1_hash: [u8; 32] = circuit_input.da_block_header.hash();
+        assert_eq!(
+            circuit_input.da_block_header.height(),
+            batch_proof_l1_height
+        );
+        assert_eq!(input_l1_hash, input_response.l1_hash);
+        assert_eq!(
+            circuit_input.light_client_proof_method_id,
+            citrea_risc0_light_client::LIGHT_CLIENT_PROOF_BITCOIN_ID
+        );
+        assert!(circuit_input.previous_light_client_proof.is_some());
+
+        for (invalid_l1_height, expected_error) in [
+            (0, "before initial DA height"),
+            (batch_proof_l1_height + 2, "future L1 block"),
+        ] {
+            let result = light_client_prover
+                .client
+                .http_client()
+                .create_light_client_circuit_input(U64::from(invalid_l1_height))
+                .await;
+            assert!(result.is_err());
+            let error_msg = result.unwrap_err().to_string();
+            assert!(
+                error_msg.contains(expected_error),
+                "Expected error containing '{expected_error}' for L1 block #{invalid_l1_height}, got: {error_msg}"
+            );
+        }
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_light_client_create_circuit_input_rpc() -> Result<()> {
+    TestCaseRunner::new(LightClientCreateCircuitInputRpcTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
 }
 
 struct ProvingSessionInfoTest;
