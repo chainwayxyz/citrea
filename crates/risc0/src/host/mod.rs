@@ -16,7 +16,6 @@ use citrea_common::risc0::Risc0HostConfig;
 use local::LocalProver;
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{AssumptionReceipt, VerifierContext};
-use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::zk::{Proof, ProofWithJob, ReceiptType, Zkvm, ZkvmHost};
 use sov_rollup_interface::Network;
 use tokio::sync::oneshot;
@@ -37,13 +36,13 @@ pub struct Risc0Host {
 
 impl Risc0Host {
     /// Create a new Risc0Host to prove the given binary.
-    pub async fn new(ledger_db: LedgerDB, network: Network, config: Risc0HostConfig) -> Self {
+    pub async fn new(network: Network, config: Risc0HostConfig) -> Self {
         let prover = match config.prover {
             Risc0ProverConfig::Boundless(boundless_config) => {
-                Prover::Boundless(BoundlessProver::new(ledger_db, *boundless_config).await)
+                Prover::Boundless(BoundlessProver::new(*boundless_config).await)
             }
             Risc0ProverConfig::Bonsai(bonsai_config) => {
-                Prover::Bonsai(BonsaiProver::new(ledger_db, bonsai_config))
+                Prover::Bonsai(BonsaiProver::new(bonsai_config))
             }
             Risc0ProverConfig::Local(local_config) => {
                 Prover::Local(LocalProver::new(network, local_config))
@@ -129,12 +128,6 @@ impl ZkvmHost for Risc0Host {
 
         Ok(T::try_from_slice(&journal.bytes)?)
     }
-
-    fn start_session_recovery(
-        &self,
-    ) -> Result<Vec<oneshot::Receiver<ProofWithJob>>, anyhow::Error> {
-        self.prover.start_prover_session_recovery()
-    }
 }
 
 impl Zkvm for Risc0Host {
@@ -191,20 +184,4 @@ pub enum Prover {
     Bonsai(BonsaiProver),
     /// Boundless prover network
     Boundless(BoundlessProver),
-}
-
-impl Prover {
-    /// Start recovery for prover if it supports it
-    pub fn start_prover_session_recovery(
-        &self,
-    ) -> anyhow::Result<Vec<oneshot::Receiver<ProofWithJob>>> {
-        match self {
-            Prover::Local(_) => {
-                info!("Skipping proving recovery...");
-                Ok(vec![])
-            }
-            Prover::Boundless(prover) => prover.start_recovery(),
-            Prover::Bonsai(prover) => prover.start_recovery(),
-        }
-    }
 }

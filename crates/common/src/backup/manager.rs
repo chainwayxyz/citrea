@@ -160,13 +160,11 @@ impl BackupManager {
         let l2_lock = self.l2_processing_lock.lock().await;
 
         let (l1_block_height, l2_block_height) = match self.node_type {
-            // Sequencer does not have L1 blocks, so we use L2 height
-            NodeType::Sequencer => (None, ledger_db.get_head_l2_block_height()?),
             NodeType::LightClientProver => {
                 // Light client prover does not have L2 blocks, so we use L1 height
                 (ledger_db.get_last_scanned_l1_height()?.map(|h| h.0), None)
             }
-            NodeType::FullNode | NodeType::BatchProver => (
+            NodeType::Sequencer | NodeType::FullNode | NodeType::BatchProver => (
                 ledger_db.get_last_scanned_l1_height()?.map(|h| h.0),
                 ledger_db.get_head_l2_block_height()?,
             ),

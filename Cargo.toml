@@ -41,7 +41,7 @@ members = [
 ]
 
 [workspace.package]
-version = "2.3.1"
+version = "2.6.0"
 edition = "2021"
 license = "GPL-3.0-only"
 authors = ["Chainway Labs <info@chainway.xyz>"]
@@ -171,7 +171,7 @@ alloy-network = { version = "0.13", default-features = false }
 alloy-signer = { version = "0.13", default-features = false }
 alloy-signer-local = { version = "0.13.0", default-features = false }
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "143d76086591006d2424bda027512bd03565229a" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "67c724bb0a8b3ff18b1aa1419016d3bd90cef374" }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "a6e011a" }

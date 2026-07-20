@@ -31,6 +31,18 @@
         # Workspace root is one level up from this flake (which lives in `nix/`).
         workspaceRoot = ../.;
 
+        # Release artifacts run outside the Nix store, so Linux binaries need the
+        # distro-standard dynamic loader instead of Nix's glibc interpreter path.
+        linuxElfInterpreter =
+          if system == "x86_64-linux" then
+            "/lib64/ld-linux-x86-64.so.2"
+          else if system == "aarch64-linux" then
+            "/lib/ld-linux-aarch64.so.1"
+          else if pkgs.stdenv.hostPlatform.isLinux then
+            throw "Unsupported Linux release system: ${system}"
+          else
+            "";
+
         # Source filtering: Rust sources + non-Rust assets the workspace consumes at
         # compile time. Anything else is excluded so deps-only caching isn't invalidated
         # by unrelated changes.
@@ -87,9 +99,14 @@
 
           # GCC 14 promoted -Wint-conversion to an error by default, which breaks
           # the bundled jemalloc in tikv-jemalloc-sys 0.6.0 (its strerror_r call
-          # predates the XSI-compliant prototype). Demote it back to a warning;
-          # doesn't affect codegen, so reproducibility is unchanged.
-          NIX_CFLAGS_COMPILE = "-Wno-int-conversion";
+          # predates the XSI-compliant prototype). Demote it back to a warning.
+          #
+          # blst otherwise probes the build host and may compile an ADX/BMI2-only
+          # path on newer x86_64 CPUs. Force its portable dispatch path there so
+          # Nix release binaries do not depend on the runner CPU.
+          NIX_CFLAGS_COMPILE =
+            "-Wno-int-conversion"
+            + pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isx86_64 " -D__BLST_PORTABLE__";
 
           RUSTFLAGS = builtins.concatStringsSep " " [
             "--remap-path-prefix=${src}=/build/source"
@@ -120,25 +137,41 @@
               strip $out/bin/citrea-cli
             '';
 
-            postFixup = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
-              otool="${pkgs.darwin.cctools}/bin/otool"
-              install_name_tool="${pkgs.darwin.cctools}/bin/install_name_tool"
-              codesign_allocate="${pkgs.darwin.binutils.bintools}/bin/codesign_allocate"
-              codesign="${pkgs.darwin.sigtool}/bin/codesign"
-              for bin in $out/bin/citrea $out/bin/citrea-cli; do
-                chmod +w "$bin"
+            postFixup =
+              pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
+                otool="${pkgs.darwin.cctools}/bin/otool"
+                install_name_tool="${pkgs.darwin.cctools}/bin/install_name_tool"
+                codesign_allocate="${pkgs.darwin.binutils.bintools}/bin/codesign_allocate"
+                codesign="${pkgs.darwin.sigtool}/bin/codesign"
+                for bin in $out/bin/citrea $out/bin/citrea-cli; do
+                  chmod +w "$bin"
 
-                LIBICONV_PATH="$("$otool" -L "$bin" | awk '/libiconv\.2\.dylib/{print $1; exit}')"
-                if [ -n "$LIBICONV_PATH" ]; then
-                  "$install_name_tool" \
-                    -change "$LIBICONV_PATH" /usr/lib/libiconv.2.dylib \
-                    "$bin"
-                fi
+                  LIBICONV_PATH="$("$otool" -L "$bin" | awk '/libiconv\.2\.dylib/{print $1; exit}')"
+                  if [ -n "$LIBICONV_PATH" ]; then
+                    "$install_name_tool" \
+                      -change "$LIBICONV_PATH" /usr/lib/libiconv.2.dylib \
+                      "$bin"
+                  fi
 
-                CODESIGN_ALLOCATE="$codesign_allocate" "$codesign" -f -s - "$bin"
-                chmod 555 "$bin"
-              done
-            '';
+                  CODESIGN_ALLOCATE="$codesign_allocate" "$codesign" -f -s - "$bin"
+                  chmod 555 "$bin"
+                done
+              ''
+              + pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
+                patchelf="${pkgs.patchelf}/bin/patchelf"
+                for bin in $out/bin/citrea $out/bin/citrea-cli; do
+                  chmod +w "$bin"
+
+                  "$patchelf" --set-interpreter "${linuxElfInterpreter}" "$bin"
+                  actual_interpreter="$("$patchelf" --print-interpreter "$bin")"
+                  if [ "$actual_interpreter" != "${linuxElfInterpreter}" ]; then
+                    echo "failed to patch ELF interpreter for $bin" >&2
+                    exit 1
+                  fi
+
+                  chmod 555 "$bin"
+                done
+              '';
           });
 
           default = self.packages.${system}.citrea;

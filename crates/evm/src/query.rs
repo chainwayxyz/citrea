@@ -1023,12 +1023,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
+        state_overrides: Option<StateOverride>,
         working_set: &mut WorkingSet<C::Storage>,
         ledger_db: &crate::LedgerDB,
     ) -> RpcResult<EstimatedDiffSize> {
         self.eth_estimate_diff_size_inner(
             request,
             block_number,
+            state_overrides,
             working_set,
             ledger_db,
             fork_from_block_number,
@@ -1039,6 +1041,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         request: TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
+        state_overrides: Option<StateOverride>,
         working_set: &mut WorkingSet<C::Storage>,
         ledger_db: &crate::LedgerDB,
         fork_fn: impl Fn(u64) -> Fork,
@@ -1046,7 +1049,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let estimated = self.estimate_tx_expenses(
             request,
             block_number,
-            None,
+            state_overrides,
             working_set,
             ledger_db,
             fork_fn,

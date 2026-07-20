@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check PR Title
-        uses: amannn/action-semantic-pull-request@v5
+        uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
         with:
           types: |
             feat
@@ -59,7 +59,7 @@ jobs:
     if: github.event_name == 'pull_request'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
@@ -87,7 +87,7 @@ jobs:
 
       - name: Comment if changelog is missing
         if: steps.changelog-check.outputs.modified == 'false' && steps.pr-type-check.outputs.needs_changelog == 'true'
-        uses: actions/github-script@v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const prTitle = context.payload.pull_request.title;
@@ -142,7 +142,7 @@ jobs:
 
       - name: Remove comment if changelog was added
         if: steps.changelog-check.outputs.modified == 'true'
-        uses: actions/github-script@v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const { data: comments } = await github.rest.issues.listComments({
@@ -174,7 +174,7 @@ jobs:
     if: github.event_name == 'issue_comment' && github.event.issue.pull_request
     steps:
       - name: Handle dismissal comment
-        uses: actions/github-script@v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const prAuthor = context.payload.issue.user.login;
