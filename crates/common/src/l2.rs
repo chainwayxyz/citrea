@@ -19,7 +19,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::StorageRootHash;
+use sov_rollup_interface::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};

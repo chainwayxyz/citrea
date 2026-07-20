@@ -4,7 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use super::CumulativeStateDiff;
-use crate::zk::StorageRootHash;
+use crate::StorageRootHash;
 
 /// The public output of a SNARK batch proof in Sovereign, this struct makes a claim that
 /// the state of the rollup has transitioned from `initial_state_root` to `final_state_root`

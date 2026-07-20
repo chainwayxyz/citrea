@@ -201,8 +201,5 @@ pub trait Matches<T> {
     fn matches(&self, other: &T) -> bool;
 }
 
-/// A cryptographic commitment to the contents of this storage
-pub type StorageRootHash = [u8; 32];
-
 /// Alias to jmt::proof::SparseMerkleProof.
 pub type SparseMerkleProofSha2 = jmt::proof::SparseMerkleProof<sha2::Sha256>;

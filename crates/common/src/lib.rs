@@ -12,7 +12,7 @@ pub mod utils;
 
 pub use config::*;
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::zk::StorageRootHash;
+use sov_rollup_interface::StorageRootHash;
 
 type L2BlockHash = [u8; 32];
 
