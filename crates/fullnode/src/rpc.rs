@@ -28,6 +28,7 @@ use sov_modules_api::L2Block;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
+use sov_rollup_interface::rpc::{BlockStateDiffResponse, StateDiffEntryResponse};
 use sov_rollup_interface::services::da::DaService;
 
 /// Context containing shared data needed for RPC method implementations
@@ -58,34 +59,6 @@ pub struct L2StatusHeightsByL1Height {
     /// The L2 block height that has been proven valid on L1 by the batch prover at this L1 height.
     /// Proven blocks have had their validity mathematically verified through ZK proofs.
     pub proven: L2HeightAndIndex,
-}
-
-/// A single state diff entry. `value` is `None` when the key was deleted.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StateDiffEntryResponse {
-    /// Raw storage key preimage
-    pub key: Bytes,
-    /// Codec-encoded value bytes, or `None` if the key was deleted
-    pub value: Option<Bytes>,
-}
-
-/// Response of `citrea_getStateDiffByBlockNumber`: the state diff produced by re-executing
-/// a single L2 block. Entries are deduplicated (last write wins) and sorted by key so that
-/// responses from different nodes are directly comparable.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BlockStateDiffResponse {
-    /// The re-executed L2 block height
-    pub block_number: U64,
-    /// Hash of the re-executed block
-    pub block_hash: B256,
-    /// State root the block was executed against (root of block N-1)
-    pub pre_state_root: B256,
-    /// State root after re-execution; guaranteed to match the stored root of block N
-    pub post_state_root: B256,
-    /// The state diff produced by the block
-    pub state_diff: Vec<StateDiffEntryResponse>,
 }
 
 /// Builds an invalid-params JSON-RPC error
