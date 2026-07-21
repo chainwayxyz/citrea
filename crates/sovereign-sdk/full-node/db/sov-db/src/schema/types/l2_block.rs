@@ -41,7 +41,12 @@ impl TryFrom<StoredL2Block> for L2Block {
             .txs
             .iter()
             .map(|tx| {
-                let body = tx.body.as_ref().unwrap();
+                let body = tx.body.as_ref().ok_or_else(|| {
+                    borsh::io::Error::new(
+                        borsh::io::ErrorKind::InvalidData,
+                        "Transaction body is not stored, node is running with include_tx_body = false",
+                    )
+                })?;
                 borsh::from_slice::<Transaction>(body)
             })
             .collect::<Result<Vec<_>, Self::Error>>()?;

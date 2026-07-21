@@ -1,6 +1,8 @@
+use std::net::SocketAddr;
+use std::str::FromStr;
 use std::time::Duration;
 
-use alloy_primitives::{U32, U64};
+use alloy_primitives::{Address, U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
@@ -33,6 +35,7 @@ use crate::bitcoin::utils::{
     spawn_bitcoin_da_prover_service, spawn_bitcoin_da_sequencer_service, wait_for_prover_job,
     wait_for_prover_job_count, wait_for_zkproofs,
 };
+use crate::common::make_test_client;
 
 fn calculate_merkle_root(blocks: &[Option<L2BlockResponse>]) -> [u8; 32] {
     let leaves: Vec<[u8; 32]> = blocks
@@ -3897,4 +3900,99 @@ pub fn create_serialized_fake_receipt_batch_proof_with_state_roots(
     // Receipt with verifiable claim
     let receipt = InnerReceipt::Fake(fake_receipt);
     bincode::serialize(&receipt).unwrap()
+}
+
+struct StateDiffRpcTest;
+
+#[async_trait]
+impl TestCase for StateDiffRpcTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_sequencer: true,
+            with_full_node: true,
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
+
+        let seq_test_client = make_test_client(SocketAddr::new(
+            sequencer.config.rpc_bind_host().parse()?,
+            sequencer.config.rpc_bind_port(),
+        ))
+        .await?;
+
+        let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+
+        const BLOCK_COUNT: u64 = 5;
+        for _ in 0..BLOCK_COUNT {
+            let _ = seq_test_client
+                .send_eth(addr, None, None, None, 1_000_000u128)
+                .await?;
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        sequencer.wait_for_l2_height(BLOCK_COUNT, None).await?;
+        full_node.wait_for_l2_height(BLOCK_COUNT, None).await?;
+
+        let client = full_node.client.http_client();
+
+        let mut prev_post_root = None;
+        for height in 1..=BLOCK_COUNT {
+            let diff = client
+                .get_state_diff_by_block_number(U64::from(height))
+                .await?;
+
+            assert_eq!(diff.block_number, U64::from(height));
+
+            // Re-executed roots and hash must match the stored block
+            let block = client
+                .get_l2_block_by_number(U64::from(height))
+                .await?
+                .unwrap();
+            assert_eq!(diff.post_state_root.0, block.header.state_root);
+            assert_eq!(diff.block_hash.0, block.header.hash);
+
+            // Pre state root chains to the previous block's post state root
+            if let Some(prev) = prev_post_root {
+                assert_eq!(diff.pre_state_root, prev);
+            }
+            prev_post_root = Some(diff.post_state_root);
+
+            // Every block carried an EVM transfer, so the diff cannot be empty
+            assert!(!diff.state_diff.is_empty());
+
+            // Keys are strictly ascending: sorted and deduplicated
+            assert!(diff.state_diff.windows(2).all(|w| w[0].key < w[1].key));
+
+            // Deterministic across calls
+            let diff_again = client
+                .get_state_diff_by_block_number(U64::from(height))
+                .await?;
+            assert_eq!(diff, diff_again);
+        }
+
+        // Genesis is not re-executable
+        assert!(client
+            .get_state_diff_by_block_number(U64::from(0u64))
+            .await
+            .is_err());
+        // Unknown (future) height
+        assert!(client
+            .get_state_diff_by_block_number(U64::from(u64::MAX))
+            .await
+            .is_err());
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_full_node_state_diff_rpc() -> Result<()> {
+    TestCaseRunner::new(StateDiffRpcTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
 }
