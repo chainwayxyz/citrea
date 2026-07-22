@@ -71,7 +71,7 @@ pub async fn apply_l2_block<Da: DaService, DB: SharedLedgerOps>(
     );
 
     if current_l2_block_hash != l2_block_response.header.prev_hash {
-        bail!("Previous hash mismatch at height: {}", l2_height);
+        bail!("Previous hash mismatch at height: {l2_height}");
     }
 
     let pre_state = storage_manager.create_storage_for_next_l2_height();
@@ -121,7 +121,7 @@ pub async fn apply_l2_block<Da: DaService, DB: SharedLedgerOps>(
     let next_state_root = l2_block_result.state_root_transition.final_root;
     // Check if post state root is the same as the one in the l2 block
     if next_state_root.as_ref().to_vec() != l2_block.state_root() {
-        bail!("Post state root mismatch at height: {}", l2_height)
+        bail!("Post state root mismatch at height: {l2_height}")
     }
 
     storage_manager.finalize_storage(l2_block_result.change_set);

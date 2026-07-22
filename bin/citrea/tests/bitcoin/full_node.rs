@@ -15,8 +15,8 @@ use citrea_e2e::config::{
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
-use citrea_evm::AccountInfo;
 use citrea_e2e::Result;
+use citrea_evm::AccountInfo;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::circuit::initial_values::bitcoinda::NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
@@ -3985,10 +3985,8 @@ impl TestCase for StateDiffRpcTest {
                     .iter()
                     .find(|e| e.key.as_ref() == account_idx_key.as_slice())
                     .expect("Recipient account id mapping must be in the first block's diff");
-                let account_id =
-                    u64::deserialize(&mut idx_entry.value.as_ref().unwrap().as_ref())?;
-                account_key =
-                    Some([b"E/a/".as_slice(), &borsh::to_vec(&account_id)?].concat());
+                let account_id = u64::deserialize(&mut idx_entry.value.as_ref().unwrap().as_ref())?;
+                account_key = Some([b"E/a/".as_slice(), &borsh::to_vec(&account_id)?].concat());
             }
 
             // The recipient's account record must be in every diff with the exact

@@ -234,7 +234,7 @@ where
                     "DryRun: Failed to apply l2 block hook: {:?} \n reverting batch workspace",
                     err
                 );
-                bail!("DryRun: Failed to apply begin l2 block hook: {:?}", err)
+                bail!("DryRun: Failed to apply begin l2 block hook: {err:?}")
             }
 
             let evm = citrea_evm::Evm::<DefaultContext>::default();
@@ -714,7 +714,7 @@ where
                 "Failed to apply l2 block hook: {:?} \n reverting batch workspace",
                 err
             );
-            bail!("Failed to apply begin l2 block hook: {:?}", err)
+            bail!("Failed to apply begin l2 block hook: {err:?}")
         }
         SM.begin_l2_block_time.set(
             Instant::now()
@@ -1324,7 +1324,7 @@ where
         let latest_header = self
             .db_provider
             .latest_header()
-            .map_err(|e| anyhow!("Failed to get latest header: {}", e))?
+            .map_err(|e| anyhow!("Failed to get latest header: {e}"))?
             .ok_or(anyhow!("Latest header must always exist"))?
             .unseal();
 
@@ -1405,7 +1405,7 @@ where
 
         match accounts
             .get_account(pub_key, working_set)
-            .map_err(|e| anyhow!("Sequencer: Failed to get sov-account: {}", e))?
+            .map_err(|e| anyhow!("Sequencer: Failed to get sov-account: {e}"))?
         {
             AccountExists { addr: _, nonce } => Ok(nonce),
             AccountEmpty => Ok(0),
@@ -1679,7 +1679,7 @@ where
                     // evm_nonce stays the same — next tx gets the correct nonce
                     continue;
                 }
-                return Err(anyhow!("Failed to apply system transaction: {:?}", e));
+                return Err(anyhow!("Failed to apply system transaction: {e:?}"));
             }
             evm_nonce += 1; // only increment on success
             working_set_to_discard = working_set.checkpoint().to_revertable();

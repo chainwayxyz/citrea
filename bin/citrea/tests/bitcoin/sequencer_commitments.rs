@@ -49,7 +49,7 @@ pub async fn wait_for_sequencer_commitments(
         {
             Ok(Some(commitments)) => return Ok(commitments),
             Ok(None) => sleep(Duration::from_millis(500)).await,
-            Err(e) => bail!("Error fetching sequencer commitments: {}", e),
+            Err(e) => bail!("Error fetching sequencer commitments: {e}"),
         }
     }
 }

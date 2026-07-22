@@ -137,9 +137,7 @@ impl MockDaService {
         let last_finalized_height = self.get_last_finalized_height().await;
         if last_finalized_height > height {
             anyhow::bail!(
-                "Cannot fork at height {}, last finalized height is {}",
-                height,
-                last_finalized_height
+                "Cannot fork at height {height}, last finalized height is {last_finalized_height}"
             );
         }
         let blocks = self.blocks.lock().await;
@@ -343,8 +341,7 @@ impl DaService for MockDaService {
         let index = height
             .checked_sub(oldest_available_height)
             .ok_or(anyhow::anyhow!(
-                "Block at height {} is not available anymore",
-                height
+                "Block at height {height} is not available anymore"
             ))?;
 
         Ok(blocks.get(index).unwrap().clone())
@@ -480,7 +477,7 @@ impl DaService for MockDaService {
             .lock()
             .await
             .get_by_hash(hash.0)
-            .ok_or_else(|| anyhow::anyhow!("Block with hash {:?} not found", hash))
+            .ok_or_else(|| anyhow::anyhow!("Block with hash {hash:?} not found"))
     }
 
     async fn get_pending_sequencer_commitments(
