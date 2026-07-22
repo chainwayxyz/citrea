@@ -1,13 +1,13 @@
 use std::net::SocketAddr;
-use std::str::FromStr;
 use std::time::Duration;
 
-use alloy_primitives::{Address, U32, U64};
+use alloy_primitives::{Address, U256, U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
 use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
 use bitcoincore_rpc::RpcApi;
+use borsh::BorshDeserialize;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::{
     BatchProverConfig, BitcoinConfig, LightClientProverConfig, SequencerConfig, TestCaseConfig,
@@ -15,6 +15,7 @@ use citrea_e2e::config::{
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
+use citrea_evm::AccountInfo;
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::circuit::initial_values::bitcoinda::NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS;
@@ -3924,12 +3925,15 @@ impl TestCase for StateDiffRpcTest {
         ))
         .await?;
 
-        let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+        // Fresh address that is not in the genesis config, so its balance is exactly
+        // the sum of the transfers below
+        let addr = Address::from([0x11; 20]);
 
         const BLOCK_COUNT: u64 = 5;
+        const TRANSFER_AMOUNT: u128 = 1_000_000;
         for _ in 0..BLOCK_COUNT {
             let _ = seq_test_client
-                .send_eth(addr, None, None, None, 1_000_000u128)
+                .send_eth(addr, None, None, None, TRANSFER_AMOUNT)
                 .await?;
             sequencer.client.send_publish_batch_request().await?;
         }
@@ -3938,6 +3942,12 @@ impl TestCase for StateDiffRpcTest {
         full_node.wait_for_l2_height(BLOCK_COUNT, None).await?;
 
         let client = full_node.client.http_client();
+
+        // The recipient's account record in the diff:
+        // "E/i/" ++ address        => account id (u64, borsh)
+        // "E/a/" ++ account id     => AccountInfo (borsh)
+        let account_idx_key = [b"E/i/".as_slice(), addr.as_slice()].concat();
+        let mut account_key = None;
 
         let mut prev_post_root = None;
         for height in 1..=BLOCK_COUNT {
@@ -3966,6 +3976,35 @@ impl TestCase for StateDiffRpcTest {
 
             // Keys are strictly ascending: sorted and deduplicated
             assert!(diff.state_diff.windows(2).all(|w| w[0].key < w[1].key));
+
+            // The recipient is created in block 1, so its address -> account id mapping
+            // must be part of the first diff. Later blocks only update the account record.
+            if height == 1 {
+                let idx_entry = diff
+                    .state_diff
+                    .iter()
+                    .find(|e| e.key.as_ref() == account_idx_key.as_slice())
+                    .expect("Recipient account id mapping must be in the first block's diff");
+                let account_id =
+                    u64::deserialize(&mut idx_entry.value.as_ref().unwrap().as_ref())?;
+                account_key =
+                    Some([b"E/a/".as_slice(), &borsh::to_vec(&account_id)?].concat());
+            }
+
+            // The recipient's account record must be in every diff with the exact
+            // cumulative balance of the transfers so far
+            let account_entry = diff
+                .state_diff
+                .iter()
+                .find(|e| e.key.as_ref() == account_key.as_ref().unwrap().as_slice())
+                .expect("Recipient account record must be in every block's diff");
+            let account_info =
+                AccountInfo::deserialize(&mut account_entry.value.as_ref().unwrap().as_ref())?;
+            assert_eq!(
+                account_info.balance,
+                U256::from(TRANSFER_AMOUNT * height as u128)
+            );
+            assert_eq!(account_info.nonce, 0);
 
             // Deterministic across calls
             let diff_again = client
