@@ -15,6 +15,7 @@ use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_ligh
 use citrea_common::utils::is_dev_mode_enabled_via_environment;
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig, NodeType, StartVariant};
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
+use citrea_sequencer::SequencerType;
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use clap::Parser;
@@ -36,6 +37,7 @@ use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
 use tokio::signal;
 use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::broadcast;
 use tracing::{debug, error, info, instrument};
 
 use crate::cli::{node_type_from_args, Args, NodeWithConfig, SupportedDaLayer};
@@ -269,7 +271,14 @@ where
 
     match node_type {
         NodeWithConfig::Sequencer(sequencer_config) => {
-            let (mut sequencer, rpc_module) = rollup_blueprint
+            let is_listen_mode = sequencer_config.listen_mode_config.is_some();
+            tracing::info!(
+                "Listen mode: {}, config: {:?}",
+                is_listen_mode,
+                sequencer_config
+            );
+            let (mempool_transaction_tx, _mempool_transaction_rx) = broadcast::channel(1000);
+            match rollup_blueprint
                 .create_sequencer(
                     genesis_config,
                     rollup_config.clone(),
@@ -278,22 +287,38 @@ where
                     ledger_db,
                     storage_manager,
                     l2_block_tx,
+                    mempool_transaction_tx,
                     rpc_module,
                     backup_manager,
                     task_executor.clone(),
+                    is_listen_mode,
                 )
-                .expect("Could not start sequencer");
+                .expect("Could not start sequencer")
+            {
+                // TODO: Like full node get l2 syncer and other stuff here and run them
+                // Make the sequencer type enum return L2Syncer
+                (SequencerType::ListenMode(listen_mode_sequencer), rpc_module) => {
+                    info!("Starting listen mode sequencer");
+                    start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
 
-            start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
-
-            task_executor.spawn_critical_with_graceful_shutdown_signal(
-                "sequencer",
-                |shutdown_signal| async move {
-                    if let Err(e) = sequencer.run(shutdown_signal).await {
+                    if let Err(e) = listen_mode_sequencer.run().await {
                         error!("Error: {}", e);
                     }
-                },
-            );
+                }
+                (SequencerType::Normal(mut sequencer), rpc_module) => {
+                    info!("Starting sequencer");
+                    start_rpc_server(rollup_config.rpc.clone(), &task_executor, rpc_module, None);
+
+                    task_executor.spawn_critical_with_graceful_shutdown_signal(
+                        "sequencer",
+                        |shutdown_signal| async move {
+                            if let Err(e) = sequencer.run(shutdown_signal).await {
+                                error!("Error: {}", e);
+                            }
+                        },
+                    );
+                }
+            }
         }
         NodeWithConfig::BatchProver(batch_prover_config) => {
             let (l2_syncer, l1_syncer, prover, rpc_module) =
@@ -371,7 +396,7 @@ where
             );
         }
         _ => {
-            let (mut l2_syncer, l1_block_handler, pruner_service, rpc_module) =
+            let (l2_syncer, l1_block_handler, pruner_service, rpc_module) =
                 CitreaRollupBlueprint::create_full_node(
                     &rollup_blueprint,
                     network,

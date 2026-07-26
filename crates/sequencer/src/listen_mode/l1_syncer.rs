@@ -1,0 +1,224 @@
+//! DA block syncing for the sequencer
+//!
+//! This module is responsible for processing L1 blocks, extracting and storing
+//! sequencer commitments for the sequencer in listen mode.
+
+use std::collections::VecDeque;
+use std::sync::Arc;
+use std::time::Instant;
+
+use citrea_common::backup::BackupManager;
+use citrea_common::cache::L1BlockCache;
+use citrea_common::da::{extract_sequencer_commitments, sync_l1};
+use citrea_common::RollupPublicKeys;
+use citrea_evm::{get_last_l1_height_in_light_client, Evm};
+use citrea_stf::runtime::DefaultContext;
+use reth_tasks::shutdown::GracefulShutdown;
+use sov_db::ledger_db::SequencerLedgerOps;
+use sov_db::schema::types::SlotNumber;
+use sov_modules_api::WorkingSet;
+use sov_prover_storage_manager::ProverStorageManager;
+use sov_rollup_interface::da::BlockHeaderTrait;
+use sov_rollup_interface::services::da::{DaService, SlotData};
+use tokio::select;
+use tokio::sync::{Mutex, Notify};
+use tokio::time::Duration;
+use tracing::{error, info, instrument};
+
+use crate::metrics::SEQUENCER_METRICS as SM;
+
+/// Handles L1 sync operations for the sequencer by tracking the finalized L1 blocks and
+/// extracting the sequencer commitments from them.
+///
+/// This struct is responsible for:
+/// - Synchronizing L1 blocks
+/// - Processing sequencer commitments
+/// - Maintaining block processing order
+/// - Managing the backup state
+/// - Storing commitments in CommitmentsByNumber table
+pub struct L1Syncer<Da, DB>
+where
+    Da: DaService,
+    DB: SequencerLedgerOps,
+{
+    /// Database for ledger operations
+    ledger_db: DB,
+    /// Data availability service instance
+    da_service: Arc<Da>,
+    /// Sequencer's DA public key for verifying commitments
+    sequencer_da_pub_key: Vec<u8>,
+    /// Cache for L1 blocks to avoid redundant fetches
+    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+    /// Queue of L1 blocks waiting to be processed
+    queued_l1_blocks: Arc<Mutex<VecDeque<<Da as DaService>::FilteredBlock>>>,
+    /// Manager for backup operations
+    backup_manager: Arc<BackupManager>,
+    /// Manager for prover storage
+    storage_manager: ProverStorageManager,
+}
+
+impl<Da, DB> L1Syncer<Da, DB>
+where
+    Da: DaService,
+    DB: SequencerLedgerOps + Clone + 'static,
+{
+    /// Creates a new instance of `SequencerL1Syncer`
+    ///
+    /// # Arguments
+    /// * `ledger_db` - The database instance to store L1 block data.
+    /// * `da_service` - The DA service instance to fetch L1 blocks.
+    /// * `public_keys` - The public keys used for distinguishing between different rollup participants.
+    /// * `scan_l1_start_height` - The height from which to start scanning L1 blocks.
+    /// * `l1_block_cache` - A cache for L1 blocks to avoid redundant fetches.
+    /// * `backup_manager` - Manager for backup operations.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        ledger_db: DB,
+        da_service: Arc<Da>,
+        public_keys: RollupPublicKeys,
+        l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+        backup_manager: Arc<BackupManager>,
+        storage_manager: ProverStorageManager,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            ledger_db,
+            da_service,
+            sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
+            l1_block_cache,
+            queued_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
+            backup_manager,
+            storage_manager,
+        })
+    }
+
+    /// Runs the SequencerL1Syncer until shutdown is signaled
+    ///
+    /// This method continuously:
+    /// 1. Fetches new L1 blocks from the DA Layer
+    /// 2. Processes each block to update the local state
+    /// 3. Handles any errors with exponential backoff
+    /// 4. Maintains metrics about syncing progress
+    #[instrument(name = "SequencerL1Syncer", skip_all)]
+    pub async fn run(mut self, mut shutdown_signal: GracefulShutdown) {
+        let scan_l1_start_height: u64 = {
+            if let Some(l1_height) = self
+                .ledger_db
+                .get_last_scanned_l1_height()
+                .expect("Should get last scanned l1 height")
+            {
+                l1_height.0 + 1
+            } else {
+                let prestate = self.storage_manager.create_final_view_storage();
+                let mut working_set = WorkingSet::new(prestate.clone());
+                let l2_height = self
+                    .ledger_db
+                    .get_last_commitment()
+                    .expect("Should be None if does not exist")
+                    .map(|c| c.l2_end_block_number)
+                    .unwrap_or(1);
+
+                // set state to end of evm block l2_height
+                working_set.set_archival_version(l2_height + 1);
+
+                let l1_height = get_last_l1_height_in_light_client(
+                    &Evm::<DefaultContext>::default(),
+                    &mut working_set,
+                )
+                .expect("There must be a last l1 height");
+
+                l1_height.to::<u64>() + 1
+            }
+        };
+        info!("Starting L1 syncer from height {}", scan_l1_start_height);
+        let notifier = Arc::new(Notify::new());
+        let l1_sync_worker = sync_l1(
+            scan_l1_start_height,
+            self.da_service.clone(),
+            self.queued_l1_blocks.clone(),
+            self.l1_block_cache.clone(),
+            notifier.clone(),
+        );
+        tokio::pin!(l1_sync_worker);
+
+        let mut interval = tokio::time::interval(Duration::from_secs(1));
+        interval.tick().await;
+        loop {
+            select! {
+                biased;
+                _ = &mut shutdown_signal => {
+                    info!("Shutting down Sequencer L1 syncer");
+                    return;
+                }
+                 _ = notifier.notified() => {
+                    if let Err(e) = self.process_queued_l1_blocks().await {
+                        error!("Could not process queued L1 blocks: {:?}", e);
+                    }
+                },
+                _ = &mut l1_sync_worker => {},
+            }
+        }
+    }
+
+    /// Processes L1 blocks waiting in the queue.
+    async fn process_queued_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
+        loop {
+            let Some(l1_block) = self.queued_l1_blocks.lock().await.front().cloned() else {
+                break;
+            };
+            self.process_l1_block(l1_block).await?;
+            self.queued_l1_blocks.lock().await.pop_front();
+        }
+
+        Ok(())
+    }
+
+    /// Processes L1 blocks waiting in the queue
+    ///
+    /// This method for each L1 block in the queue:
+    /// 1. Records block height to hash mapping
+    /// 2. Extracts sequencer commitments and stores them by slot number
+    /// 3. Updates the CommitmentsByNumber table with found commitments
+    async fn process_l1_block(&mut self, l1_block: Da::FilteredBlock) -> Result<(), anyhow::Error> {
+        let start_scanning = Instant::now();
+        let _l1_lock = self.backup_manager.start_l1_processing().await;
+
+        let l1_height = l1_block.header().height();
+        info!("Processing L1 block at height: {}", l1_height);
+
+        // Extract sequencer commitments
+        let l1_commitments = extract_sequencer_commitments::<Da>(
+            self.da_service.clone(),
+            &l1_block,
+            &self.sequencer_da_pub_key,
+        );
+
+        // Store commitments in CommitmentsByNumber table
+        for commitment in l1_commitments.iter() {
+            info!(
+                "Found commitment with index {} and L2 end height: {} in L1 block {}",
+                commitment.index, commitment.l2_end_block_number, l1_height
+            );
+
+            // Update commitments on DA slot - this stores in CommitmentsByNumber
+            self.ledger_db
+                .update_commitments_on_da_slot(l1_height, commitment.clone())
+                .expect("Should store commitment in CommitmentsByNumber");
+            self.ledger_db.put_commitment_by_index(commitment)?;
+        }
+
+        self.ledger_db
+            .set_last_scanned_l1_height(SlotNumber(l1_height))?;
+
+        SM.listen_mode_l1_block_process_duration_secs.record(
+            Instant::now()
+                .saturating_duration_since(start_scanning)
+                .as_secs_f64(),
+        );
+
+        SM.current_l1_block.set(l1_height as f64);
+
+        info!("Processed L1 block {}", l1_height);
+
+        Ok(())
+    }
+}

@@ -128,7 +128,6 @@ use citrea_stf::runtime::CitreaRuntime;
 use citrea_storage_ops::pruning::{Pruner, PrunerService};
 use da_block_handler::L1BlockHandler;
 use jsonrpsee::RpcModule;
-pub use l2_syncer::L2Syncer;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::ForkManager;
@@ -140,6 +139,7 @@ use sov_rollup_interface::zk::ZkvmHost;
 use sov_rollup_interface::Network;
 use tokio::sync::{broadcast, Mutex};
 
+pub use crate::l2_syncer::FullNodeL2Syncer;
 /// Configuration for optional height-based node stopping (debug/testing)
 ///
 /// When either stop condition is set, the fullnode will gracefully shut down
@@ -216,7 +216,7 @@ pub fn build_services<DA, DB, Vm>(
     backup_manager: Arc<BackupManager>,
     stop_conditions: StopConditions,
 ) -> Result<(
-    L2Syncer<DA, DB>,
+    FullNodeL2Syncer<DA, DB>,
     L1BlockHandler<Vm, DA, DB>,
     Option<PrunerService>,
     RpcModule<()>,
@@ -247,8 +247,9 @@ where
     }
 
     let include_tx_bodies = runner_config.include_tx_body;
-    let l2_syncer = L2Syncer::new(
-        runner_config,
+    let l2_syncer = FullNodeL2Syncer::new(
+        runner_config.sequencer_client_url,
+        runner_config.sync_blocks_count,
         init_params,
         native_stf,
         public_keys.clone(),
@@ -259,6 +260,7 @@ where
         l2_block_tx,
         backup_manager.clone(),
         include_tx_bodies,
+        false,
         stop_conditions.stop_at_l2_height,
     )?;
 

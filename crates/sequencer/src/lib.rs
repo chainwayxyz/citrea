@@ -37,12 +37,17 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use citrea_common::backup::BackupManager;
+use citrea_common::cache::L1BlockCache;
+use citrea_common::l2::L2Syncer;
 pub use citrea_common::SequencerConfig;
 use citrea_common::{InitParams, RollupPublicKeys};
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use db_provider::DbProvider;
 use deposit_data_mempool::DepositDataMempool;
 use jsonrpsee::RpcModule;
+use listen_mode::l1_syncer::L1Syncer;
+use listen_mode::mempool_syncer::MempoolSyncer;
+use listen_mode::ListenModeSequencer;
 use mempool::CitreaMempool;
 use parking_lot::Mutex;
 use reth_provider::CanonStateNotification;
@@ -50,13 +55,14 @@ use reth_tasks::TaskExecutor;
 use reth_transaction_pool::maintain::{maintain_transaction_pool_future, MaintainPoolConfig};
 pub use rpc::SequencerRpcClient;
 pub use runner::{CitreaSequencer, MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK};
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
+use sov_rollup_interface::rpc::MempoolTransactionSignal;
 use sov_rollup_interface::services::da::DaService;
 use tokio::sync::mpsc::unbounded_channel;
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::{broadcast, mpsc, Mutex as AsyncMutex};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::debug;
 
@@ -71,6 +77,8 @@ pub mod db_migrations;
 mod db_provider;
 /// Separate mempool implementation only for handling deposit data in FIFO (First-In-First-Out) order
 mod deposit_data_mempool;
+/// Module containing functionality for running the sequencer
+mod listen_mode;
 /// Module containing mempool functionality for transaction management
 mod mempool;
 /// Module containing metrics collection and reporting functionality
@@ -83,6 +91,16 @@ mod runner;
 mod types;
 /// Module containing utility functions and helpers
 mod utils;
+
+#[allow(clippy::large_enum_variant)]
+pub enum SequencerType<DA, DB>
+where
+    DA: DaService,
+    DB: SequencerLedgerOps + Clone + Send + Sync + 'static,
+{
+    ListenMode(ListenModeSequencer<DA, DB>),
+    Normal(CitreaSequencer<DA>),
+}
 
 /// Builds and initializes all sequencer services
 ///
@@ -116,11 +134,13 @@ pub fn build_services<Da>(
     ledger_db: LedgerDB,
     storage_manager: ProverStorageManager,
     l2_block_tx: broadcast::Sender<u64>,
+    mempool_transaction_tx: broadcast::Sender<MempoolTransactionSignal>,
     fork_manager: ForkManager<'static>,
     rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
     task_executor: TaskExecutor,
-) -> Result<(CitreaSequencer<Da>, RpcModule<()>)>
+    is_listen_mode: bool,
+) -> Result<(SequencerType<Da, LedgerDB>, RpcModule<()>)>
 where
     Da: DaService,
 {
@@ -166,32 +186,90 @@ where
         rpc_storage,
         ledger_db.clone(),
         sequencer_config.test_mode,
+        l2_block_tx.subscribe(),
+        mempool_transaction_tx.clone(),
+        mempool_transaction_tx.subscribe(),
     );
     let rpc_module = rpc::register_rpc_methods(rpc_context, rpc_module)?;
 
     if let Err(e) = crate::metrics::initialize_metrics(&ledger_db) {
         debug!("Failed to initialize sequencer metrics: {:?}", e);
     }
+    // If this is a listen mode sequencer, we create both L2 and L1 syncers
+    if is_listen_mode {
+        let listen_mode_config = sequencer_config
+            .listen_mode_config
+            .clone()
+            .expect("Listen Mode Config must be set in listen mode");
 
-    let seq = CitreaSequencer::new(
-        da_service,
-        sequencer_config,
-        init_params,
-        native_stf,
-        storage_manager,
-        public_keys,
-        ledger_db,
-        db_provider,
-        mempool,
-        deposit_mempool,
-        fork_manager,
-        l2_block_tx,
-        backup_manager,
-        rpc_message_rx,
-        canon_state_tx,
-        task_executor,
-    )
-    .unwrap();
+        let l2_syncer = L2Syncer::new(
+            listen_mode_config.sequencer_client_url.clone(),
+            listen_mode_config.sync_blocks_count,
+            init_params,
+            native_stf,
+            public_keys.clone(),
+            da_service.clone(),
+            ledger_db.clone(),
+            storage_manager.clone(),
+            fork_manager,
+            l2_block_tx,
+            backup_manager.clone(),
+            true, // Include tx body must be true in listen mode
+            true,
+            None, // Sequencer doesn't need stop-at-height
+        )
+        .unwrap();
 
-    Ok((seq, rpc_module))
+        // Create L1 syncer for commitment tracking
+        let l1_block_cache = Arc::new(AsyncMutex::new(L1BlockCache::new()));
+        let l1_syncer = L1Syncer::new(
+            ledger_db.clone(),
+            da_service,
+            public_keys,
+            l1_block_cache,
+            backup_manager,
+            storage_manager,
+        )
+        .unwrap();
+
+        let mempool_syncer = MempoolSyncer::new(
+            ledger_db.clone(),
+            listen_mode_config
+                .sequencer_client_url
+                .clone()
+                .replace("http://", "ws://"),
+        );
+
+        let listen_mode_sequencer = ListenModeSequencer::new(
+            l2_syncer,
+            l1_syncer,
+            mempool_syncer,
+            task_executor,
+            ledger_db.clone(),
+        );
+        Ok((SequencerType::ListenMode(listen_mode_sequencer), rpc_module))
+    } else {
+        // Normal sequencer mode
+        let seq = CitreaSequencer::new(
+            da_service,
+            sequencer_config,
+            init_params,
+            native_stf,
+            storage_manager,
+            public_keys,
+            ledger_db,
+            db_provider,
+            mempool,
+            deposit_mempool,
+            fork_manager,
+            l2_block_tx,
+            mempool_transaction_tx,
+            backup_manager,
+            rpc_message_rx,
+            canon_state_tx,
+            task_executor,
+        )
+        .unwrap();
+        Ok((SequencerType::Normal(seq), rpc_module))
+    }
 }

@@ -33,7 +33,6 @@ use citrea_common::{BatchProverConfig, InitParams, RollupPublicKeys, RpcConfig, 
 use citrea_stf::runtime::CitreaRuntime;
 use jsonrpsee::RpcModule;
 pub use l1_syncer::L1Syncer;
-pub use l2_syncer::L2Syncer;
 pub use partition::PartitionMode;
 use prover::Prover;
 use prover_services::ParallelProverService;
@@ -47,6 +46,8 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_rollup_interface::Network;
 use tokio::sync::{broadcast, mpsc, Mutex};
+
+pub use crate::l2_syncer::BatchProverL2Syncer;
 
 /// Module containing database migration definitions
 pub mod db_migrations;
@@ -120,7 +121,7 @@ pub async fn build_services<DA, DB, Vm>(
     rpc_module: RpcModule<()>,
     backup_manager: Arc<BackupManager>,
 ) -> Result<(
-    L2Syncer<DA, DB>,
+    BatchProverL2Syncer<DA, DB>,
     L1Syncer<DA, DB>,
     Prover<DA, DB, Vm>,
     RpcModule<()>,
@@ -148,8 +149,9 @@ where
         tracing::debug!("Failed to initialize batch prover metrics: {:?}", e);
     }
 
-    let l2_syncer = L2Syncer::new(
-        runner_config.clone(),
+    let l2_syncer = BatchProverL2Syncer::new(
+        runner_config.sequencer_client_url,
+        runner_config.sync_blocks_count,
         init_params,
         native_stf,
         public_keys.clone(),
@@ -160,6 +162,8 @@ where
         l2_block_tx.clone(),
         backup_manager.clone(),
         true,
+        runner_config.with_subscription,
+        None, // No stop at height support for batch-prover
     )?;
 
     let (l1_signal_tx, l1_signal_rx) = mpsc::channel(1);

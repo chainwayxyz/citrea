@@ -100,6 +100,10 @@ impl TestClient {
         Ok(resp.status().as_u16())
     }
 
+    pub(crate) fn nonce(&self) -> u64 {
+        self.current_nonce.load(Ordering::Relaxed)
+    }
+
     pub(crate) async fn spam_publish_batch_request(
         &self,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -815,6 +819,30 @@ impl TestClient {
                     return;
                 };
                 tx.send(log).unwrap();
+            }
+        });
+
+        rx
+    }
+
+    pub(crate) async fn subscribe_new_l2_blocks(&self) -> mpsc::Receiver<L2BlockResponse> {
+        let (tx, rx) = mpsc::channel();
+        let mut subscription = self
+            .ws_client
+            .subscribe(
+                "citrea_subscribe",
+                rpc_params!["newL2Blocks"],
+                "citrea_unsubscribe",
+            )
+            .await
+            .unwrap();
+
+        tokio::spawn(async move {
+            loop {
+                let Some(Ok(block)) = subscription.next().await else {
+                    return;
+                };
+                tx.send(block).unwrap();
             }
         });
 

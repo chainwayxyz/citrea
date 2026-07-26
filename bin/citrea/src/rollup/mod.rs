@@ -4,18 +4,18 @@ use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use citrea_batch_prover::l1_syncer::L1Syncer as BatchProverL1Syncer;
 use citrea_batch_prover::prover::Prover;
-use citrea_batch_prover::L2Syncer as BatchProverL2Syncer;
+use citrea_batch_prover::BatchProverL2Syncer;
 use citrea_common::backup::BackupManager;
 use citrea_common::{
     BatchProverConfig, FullNodeConfig, InitParams, LightClientProverConfig, NodeType,
     SequencerConfig,
 };
 use citrea_fullnode::da_block_handler::L1BlockHandler as FullNodeL1BlockHandler;
-use citrea_fullnode::L2Syncer as FullNodeL2Syncer;
+use citrea_fullnode::FullNodeL2Syncer;
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
 use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientProverL1BlockHandler;
 use citrea_primitives::forks::get_forks;
-use citrea_sequencer::CitreaSequencer;
+use citrea_sequencer::SequencerType;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use citrea_storage_ops::pruning::PrunerService;
 use citrea_storage_ops::rollback::Rollback;
@@ -33,6 +33,7 @@ use sov_modules_stf_blueprint::{
 };
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::ForkManager;
+use sov_rollup_interface::rpc::MempoolTransactionSignal;
 use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
 use tokio::sync::broadcast;
@@ -205,10 +206,15 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         ledger_db: LedgerDB,
         storage_manager: ProverStorageManager,
         l2_block_tx: broadcast::Sender<u64>,
+        mempool_transaction_tx: broadcast::Sender<MempoolTransactionSignal>,
         rpc_module: RpcModule<()>,
         backup_manager: Arc<BackupManager>,
         task_executor: TaskExecutor,
-    ) -> Result<(CitreaSequencer<Self::DaService>, RpcModule<()>)> {
+        is_listen_mode: bool,
+    ) -> Result<(
+        SequencerType<<Self as RollupBlueprint>::DaService, LedgerDB>,
+        RpcModule<()>,
+    )> {
         let current_l2_height = ledger_db
             .get_head_l2_block()
             .map_err(|e| anyhow!("Failed to get head l2 block: {}", e))?
@@ -231,10 +237,12 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             ledger_db,
             storage_manager,
             l2_block_tx,
+            mempool_transaction_tx,
             fork_manager,
             rpc_module,
             backup_manager,
             task_executor,
+            is_listen_mode,
         )
     }
 

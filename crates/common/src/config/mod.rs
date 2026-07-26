@@ -48,6 +48,9 @@ pub struct RunnerConfig {
     pub sequencer_client_url: String,
     /// Saves sequencer l2 blocks if set to true
     pub include_tx_body: bool,
+    /// Listen to sequencer notification
+    #[serde(default)]
+    pub with_subscription: bool,
     /// Number of blocks to request during sync
     #[serde(default = "default_sync_blocks_count")]
     pub sync_blocks_count: u64,
@@ -62,6 +65,7 @@ impl FromEnv for RunnerConfig {
         Ok(Self {
             sequencer_client_url: read_env("SEQUENCER_CLIENT_URL")?,
             include_tx_body: read_env("INCLUDE_TX_BODY")?.parse()?,
+            with_subscription: read_env("WITH_SUBSCRIPTION")?.parse()?,
             sync_blocks_count: read_env("SYNC_BLOCKS_COUNT")
                 .ok()
                 .and_then(|val| val.parse().ok())
@@ -279,6 +283,8 @@ pub struct SequencerConfig {
     /// Bridge system contract initialize function parameters
     #[serde(with = "hex")]
     pub bridge_initialize_params: Vec<u8>,
+    /// Configuration for the listen mode sequencer
+    pub listen_mode_config: Option<ListenModeConfig>,
     /// L1 fee rate multiplier
     #[serde(default = "default_l1_fee_rate_multiplier")]
     pub l1_fee_rate_multiplier: f64,
@@ -302,6 +308,7 @@ impl Default for SequencerConfig {
             da_update_interval_ms: 100,
             bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
             mempool_conf: Default::default(),
+            listen_mode_config: None,
             l1_fee_rate_multiplier: 1.0,
             max_l1_fee_rate_sat_vb: 1, // doesn't matter since mock da returns 10 wei/byte
             l1_fee_rate_update_interval_ms: default_l1_fee_rate_update_interval_ms(),
@@ -320,6 +327,7 @@ impl FromEnv for SequencerConfig {
             da_update_interval_ms: read_env("DA_UPDATE_INTERVAL_MS")?.parse()?,
             block_production_interval_ms: read_env("BLOCK_PRODUCTION_INTERVAL_MS")?.parse()?,
             bridge_initialize_params: hex::decode(read_env("BRIDGE_INITIALIZE_PARAMS")?)?,
+            listen_mode_config: ListenModeConfig::from_env().ok(),
             l1_fee_rate_multiplier: read_env("L1_FEE_RATE_MULTIPLIER")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -500,6 +508,27 @@ pub struct PruningConfig {
     pub distance: u64,
 }
 
+// Configuration for the listen mode sequencer
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, Default)]
+pub struct ListenModeConfig {
+    /// The sequencer client URL to connect to
+    pub sequencer_client_url: String,
+    /// The number of blocks to sync from the sequencer
+    pub sync_blocks_count: u64,
+}
+
+impl FromEnv for ListenModeConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            sequencer_client_url: read_env("LISTEN_MODE_SEQUENCER_CLIENT_URL")?,
+            sync_blocks_count: read_env("LISTEN_MODE_SYNC_BLOCKS_COUNT")?
+                .parse()
+                .ok()
+                .unwrap_or(10),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::Write;
@@ -551,6 +580,7 @@ mod tests {
             include_tx_body = true
             sequencer_client_url = "http://0.0.0.0:12346"
             scan_l1_start_height = 1
+            with_subscription = true
 
             [telemetry]
             bind_host = "0.0.0.0"
@@ -566,6 +596,7 @@ mod tests {
             runner: Some(RunnerConfig {
                 sequencer_client_url: "http://0.0.0.0:12346".to_owned(),
                 include_tx_body: true,
+                with_subscription: true,
                 sync_blocks_count: 10,
                 pruning_config: None,
                 scan_l1_start_height: 1,
@@ -628,6 +659,65 @@ mod tests {
         };
         assert_eq!(config, expected);
     }
+
+    #[test]
+    fn test_correct_listen_mode_enabled_sequencer_config() {
+        let config = r#"
+            private_key = "1212121212121212121212121212121212121212121212121212121212121212"
+            max_l2_blocks_per_commitment = 123
+            test_mode = false
+            deposit_mempool_fetch_limit = 10
+            da_update_interval_ms = 1000
+            block_production_interval_ms = 1000
+            bridge_initialize_params = "000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"
+            l1_fee_rate_multiplier = 0.75
+            [mempool_conf]
+            pending_tx_limit = 100000
+            pending_tx_size = 200
+            queue_tx_limit = 100000
+            queue_tx_size = 200
+            base_fee_tx_limit = 100000
+            base_fee_tx_size = 200
+            max_account_slots = 16
+            [listen_mode_config]
+            sequencer_client_url = "http://localhost:8080"
+            sync_blocks_count = 10
+        "#;
+
+        let config_file = create_config_from(config);
+
+        let config: SequencerConfig = from_toml_path(config_file.path()).unwrap();
+
+        let expected = SequencerConfig {
+            private_key: "1212121212121212121212121212121212121212121212121212121212121212"
+                .to_string(),
+            max_l2_blocks_per_commitment: 123,
+            test_mode: false,
+            deposit_mempool_fetch_limit: 10,
+            mempool_conf: SequencerMempoolConfig {
+                pending_tx_limit: 100000,
+                pending_tx_size: 200,
+                queue_tx_limit: 100000,
+                queue_tx_size: 200,
+                base_fee_tx_limit: 100000,
+                base_fee_tx_size: 200,
+                max_account_slots: 16,
+                maintenance: MempoolMaintenanceConfig::default(),
+            },
+            da_update_interval_ms: 1000,
+            block_production_interval_ms: 1000,
+            bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
+            listen_mode_config: Some(ListenModeConfig {
+                sequencer_client_url: "http://localhost:8080".to_string(),
+                sync_blocks_count: 10,
+            }),
+            l1_fee_rate_multiplier: 0.75,
+            max_l1_fee_rate_sat_vb: 15,
+            l1_fee_rate_update_interval_ms: 30_000,
+        };
+        assert_eq!(config, expected);
+    }
+
     #[test]
     fn test_correct_sequencer_config() {
         let config = r#"
@@ -675,6 +765,7 @@ mod tests {
             bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
             l1_fee_rate_multiplier: 0.75,
             max_l1_fee_rate_sat_vb: 15,
+            listen_mode_config: None,
             l1_fee_rate_update_interval_ms: 30_000,
         };
         assert_eq!(config, expected);
@@ -737,8 +828,63 @@ mod tests {
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
             bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
+            listen_mode_config: None,
             l1_fee_rate_multiplier: 1.0,
             max_l1_fee_rate_sat_vb: 40,
+            l1_fee_rate_update_interval_ms: 30_000,
+        };
+        assert_eq!(sequencer_config, expected);
+    }
+
+    #[test]
+    fn test_correct_listen_mode_enabled_sequencer_config_from_env() {
+        std::env::set_var(
+            "PRIVATE_KEY",
+            "1212121212121212121212121212121212121212121212121212121212121212",
+        );
+        std::env::set_var("MAX_L2_BLOCKS_PER_COMMITMENT", "123");
+        std::env::set_var("TEST_MODE", "false");
+        std::env::set_var("DEPOSIT_MEMPOOL_FETCH_LIMIT", "10");
+        std::env::set_var("DA_UPDATE_INTERVAL_MS", "1000");
+        std::env::set_var("BLOCK_PRODUCTION_INTERVAL_MS", "1000");
+        std::env::set_var("PENDING_TX_LIMIT", "100000");
+        std::env::set_var("PENDING_TX_SIZE", "200");
+        std::env::set_var("QUEUE_TX_LIMIT", "100000");
+        std::env::set_var("QUEUE_TX_SIZE", "200");
+        std::env::set_var("BASE_FEE_TX_LIMIT", "100000");
+        std::env::set_var("BASE_FEE_TX_SIZE", "200");
+        std::env::set_var("MAX_ACCOUNT_SLOTS", "16");
+        std::env::set_var("BRIDGE_INITIALIZE_PARAMS", "000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000");
+        std::env::set_var("LISTEN_MODE_SEQUENCER_CLIENT_URL", "http://localhost:8080");
+        std::env::set_var("LISTEN_MODE_SYNC_BLOCKS_COUNT", "10");
+
+        let sequencer_config = SequencerConfig::from_env().unwrap();
+
+        let expected = SequencerConfig {
+            private_key: "1212121212121212121212121212121212121212121212121212121212121212"
+                .to_string(),
+            max_l2_blocks_per_commitment: 123,
+            test_mode: false,
+            deposit_mempool_fetch_limit: 10,
+            mempool_conf: SequencerMempoolConfig {
+                pending_tx_limit: 100000,
+                pending_tx_size: 200,
+                queue_tx_limit: 100000,
+                queue_tx_size: 200,
+                base_fee_tx_limit: 100000,
+                base_fee_tx_size: 200,
+                max_account_slots: 16,
+                maintenance: MempoolMaintenanceConfig::default(),
+            },
+            da_update_interval_ms: 1000,
+            block_production_interval_ms: 1000,
+            bridge_initialize_params: PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS.to_vec(),
+            listen_mode_config: Some(ListenModeConfig {
+                sequencer_client_url: "http://localhost:8080".to_string(),
+                sync_blocks_count: 10,
+            }),
+            l1_fee_rate_multiplier: 1.0,
+            max_l1_fee_rate_sat_vb: 15,
             l1_fee_rate_update_interval_ms: 30_000,
         };
         assert_eq!(sequencer_config, expected);
@@ -775,6 +921,7 @@ mod tests {
         std::env::set_var("DB_MAX_OPEN_FILES", "123");
 
         std::env::set_var("INCLUDE_TX_BODY", "true");
+        std::env::set_var("WITH_SUBSCRIPTION", "true");
         std::env::set_var("SEQUENCER_CLIENT_URL", "http://0.0.0.0:12346");
         std::env::set_var("PRUNING_DISTANCE", "1000");
         std::env::set_var("SCAN_L1_START_HEIGHT", "1");
@@ -811,6 +958,7 @@ mod tests {
             runner: Some(RunnerConfig {
                 sequencer_client_url: "http://0.0.0.0:12346".to_string(),
                 include_tx_body: true,
+                with_subscription: true,
                 sync_blocks_count: default_sync_blocks_count(),
                 pruning_config: Some(PruningConfig { distance: 1000 }),
                 scan_l1_start_height: 1,
@@ -855,6 +1003,22 @@ mod tests {
             bind_port: Some(5000),
         };
         assert_eq!(telemetry_config, expected);
+    }
+
+    #[test]
+    fn test_optional_listen_mode_config_from_env() {
+        let listen_mode_config = ListenModeConfig::from_env().ok();
+        assert!(listen_mode_config.is_none());
+
+        std::env::set_var("LISTEN_MODE_SEQUENCER_CLIENT_URL", "http://localhost:8080");
+        std::env::set_var("LISTEN_MODE_SYNC_BLOCKS_COUNT", "20");
+        let listen_mode_config = ListenModeConfig::from_env().unwrap();
+
+        let expected = ListenModeConfig {
+            sequencer_client_url: "http://localhost:8080".to_string(),
+            sync_blocks_count: 20,
+        };
+        assert_eq!(listen_mode_config, expected);
     }
 
     #[test]

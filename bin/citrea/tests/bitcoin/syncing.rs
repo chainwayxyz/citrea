@@ -422,6 +422,7 @@ impl TestCase for HealthCheckTest {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
             test_mode: false,
+            max_l2_blocks_per_commitment: 1_000, // Prevent commitments
             ..Default::default()
         }
     }
@@ -457,7 +458,7 @@ impl TestCase for HealthCheckTest {
         f.sequencer.as_mut().unwrap().stop().await?;
 
         // Add a sleep to hit `Block number is not increasing` consistently
-        tokio::time::sleep(Duration::from_millis(1500)).await;
+        tokio::time::sleep(Duration::from_millis(5000)).await;
 
         let status = full_node_test_client.healthcheck().await.unwrap();
         assert_eq!(status, 500);

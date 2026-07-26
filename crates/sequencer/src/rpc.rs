@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -9,9 +10,10 @@ use alloy_rpc_types_txpool::TxpoolContent;
 use citrea_common::rpc::utils::internal_rpc_error;
 use citrea_evm::Evm;
 use citrea_stf::runtime::DefaultContext;
-use jsonrpsee::core::RpcResult;
+use jsonrpsee::core::{RpcResult, SubscriptionResult};
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::{ErrorCode, ErrorObject};
+use jsonrpsee::{PendingSubscriptionSink, SubscriptionSink};
 use parking_lot::Mutex;
 use reth_rpc::eth::EthTxBuilder;
 use reth_rpc_eth_types::error::EthApiError;
@@ -19,8 +21,11 @@ use reth_rpc_types_compat::TransactionCompat;
 use reth_transaction_pool::{
     AllPoolTransactions, EthPooledTransaction, PoolTransaction, ValidPoolTransaction,
 };
-use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps, SharedLedgerOps};
+use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps};
 use sov_modules_api::{Spec, WorkingSet};
+use sov_rollup_interface::rpc::block::L2BlockResponse;
+use sov_rollup_interface::rpc::{L2BlockIdentifier, LedgerRpcProvider, MempoolTransactionSignal};
+use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error};
 
@@ -29,6 +34,14 @@ use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS as SM;
 use crate::types::SequencerRpcMessage;
 use crate::utils::recover_raw_transaction;
+
+/// Result of receiving blocks from the `l2_block_rx` channel
+enum BlockReceiveResult {
+    /// Successfully received blocks (may include recovered lagged blocks)
+    HighestBlock(u64),
+    /// Channel was closed
+    ChannelClosed,
+}
 
 /// RPC context containing all the shared data needed for RPC method implementations
 pub struct RpcContext {
@@ -44,6 +57,12 @@ pub struct RpcContext {
     pub ledger: LedgerDB,
     /// Whether the sequencer is running in test mode
     pub test_mode: bool,
+    /// Broadcast receiver for L2 block notifications
+    pub l2_block_rx: broadcast::Receiver<u64>,
+    /// Broadcast sender for mempool transactions accepted in `eth_sendRawTransaction`
+    pub mempool_transaction_tx: broadcast::Sender<MempoolTransactionSignal>,
+    /// Broadcast receiver for mempool transaction notifications
+    pub mempool_transaction_rx: broadcast::Receiver<MempoolTransactionSignal>,
 }
 
 /// Creates a shared RpcContext with all required data.
@@ -55,6 +74,8 @@ pub struct RpcContext {
 /// * `storage` - Storage for the sequencer state
 /// * `ledger_db` - Ledger database access
 /// * `test_mode` - Whether the sequencer is running in test mode
+/// * `l2_block_rx` - Broadcast receiver for L2 block notifications
+#[allow(clippy::too_many_arguments)]
 pub fn create_rpc_context(
     mempool: Arc<CitreaMempool>,
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
@@ -62,6 +83,9 @@ pub fn create_rpc_context(
     storage: <DefaultContext as Spec>::Storage,
     ledger_db: LedgerDB,
     test_mode: bool,
+    l2_block_rx: broadcast::Receiver<u64>,
+    mempool_transaction_tx: broadcast::Sender<MempoolTransactionSignal>,
+    mempool_transaction_rx: broadcast::Receiver<MempoolTransactionSignal>,
 ) -> RpcContext {
     RpcContext {
         mempool,
@@ -70,6 +94,9 @@ pub fn create_rpc_context(
         storage,
         ledger: ledger_db,
         test_mode,
+        l2_block_rx,
+        mempool_transaction_tx,
+        mempool_transaction_rx,
     }
 }
 
@@ -180,6 +207,10 @@ pub trait SequencerRpc {
     #[method(name = "citrea_resumeCommitments")]
     async fn resume_commitments(&self) -> RpcResult<()>;
 
+    /// Subscribe to Citrea events
+    #[subscription(name = "citrea_subscribe" => "citrea_subscription", unsubscribe = "citrea_unsubscribe", item = L2BlockResponse)]
+    async fn subscribe_citrea(&self, topic: String) -> SubscriptionResult;
+
     /// Returns the transaction pool content.
     #[method(name = "txpool_content")]
     async fn txpool_content(&self) -> RpcResult<TxpoolContent<Transaction>>;
@@ -236,6 +267,17 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             .add_external_transaction(pool_transaction)
             .await
             .map_err(EthApiError::from)?;
+
+        if let Err(e) =
+            self.context
+                .mempool_transaction_tx
+                .send(MempoolTransactionSignal::NewTransaction((
+                    hash,
+                    rlp_encoded_tx.clone(),
+                )))
+        {
+            tracing::warn!("Failed to send new transaction signal: {:?}", e);
+        }
 
         // Do not return error here just log
         if let Err(e) = self
@@ -424,6 +466,56 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             })
     }
 
+    /// Subscribe to Citrea events
+    async fn subscribe_citrea(
+        &self,
+        pending: PendingSubscriptionSink,
+        topic: String,
+    ) -> SubscriptionResult {
+        match topic.as_str() {
+            "newL2Blocks" => {
+                let subscription = pending.accept().await?;
+                let mut rx = self.context.l2_block_rx.resubscribe();
+                let ledger = self.context.ledger.clone();
+
+                tokio::spawn(async move {
+                    handle_l2_block_subscription(subscription, &mut rx, ledger).await;
+                });
+            }
+            "mempoolTransactions" => {
+                let subscription = pending.accept().await?;
+                let mut rx = self.context.mempool_transaction_rx.resubscribe();
+                tokio::spawn(async move {
+                    loop {
+                        if let Ok(response) = rx.recv().await {
+                            if let Err(e) = subscription
+                                .send_timeout(
+                                    jsonrpsee::SubscriptionMessage::new(
+                                        subscription.method_name(),
+                                        subscription.subscription_id(),
+                                        &response,
+                                    )
+                                    .unwrap(),
+                                    std::time::Duration::from_secs(10),
+                                )
+                                .await
+                            {
+                                tracing::debug!("Failed to send mempool transaction: {}", e);
+                                return false; // End subscription
+                            }
+                        }
+                    }
+                });
+            }
+            _ => {
+                pending
+                    .reject(internal_rpc_error("Unsupported subscription topic"))
+                    .await;
+            }
+        }
+        Ok(())
+    }
+
     /// Returns the transaction pool content.
     async fn txpool_content(&self) -> RpcResult<TxpoolContent<Transaction>> {
         let AllPoolTransactions { pending, queued } = self.context.mempool.all_transactions();
@@ -481,8 +573,7 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             .context
             .ledger
             .get_head_l2_block_height()
-            .map_err(|e| internal_rpc_error(format!("Failed to get head L2 block height: {e}")))?
-            .unwrap_or(0);
+            .map_err(|e| internal_rpc_error(format!("Failed to get head L2 block height: {e}")))?;
 
         Ok(EthSyncStatus::Info(Box::new(SyncInfo {
             starting_block: U256::from(0),
@@ -493,6 +584,108 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             stages: None,
         })))
     }
+}
+
+/// Get L2 block response by block height
+async fn get_l2_block_response(
+    block_height: u64,
+    ledger: &LedgerDB,
+) -> Result<L2BlockResponse, Box<dyn std::error::Error + Send + Sync>> {
+    let l2_block = ledger
+        .get_l2_block(&L2BlockIdentifier::Number(block_height))?
+        .ok_or(format!("L2 block at height {block_height} not found"))?;
+
+    Ok(l2_block)
+}
+
+/// Handle L2 block subscription, including lagged block recovery
+async fn handle_l2_block_subscription(
+    subscription: SubscriptionSink,
+    rx: &mut tokio::sync::broadcast::Receiver<u64>,
+    ledger: LedgerDB,
+) {
+    let head_block_num = ledger.get_head_l2_block_height().unwrap_or(0);
+    let last_sent_block = AtomicU64::new(head_block_num);
+    loop {
+        match receive_next_blocks(rx, &last_sent_block).await {
+            BlockReceiveResult::HighestBlock(highest_block_height) => {
+                let last_sent_block_num = last_sent_block.load(Ordering::SeqCst);
+                for block_height in last_sent_block_num + 1..=highest_block_height {
+                    if !send_block_notification(&subscription, block_height, &ledger).await {
+                        return;
+                    }
+                }
+                last_sent_block.store(highest_block_height, Ordering::SeqCst);
+            }
+            BlockReceiveResult::ChannelClosed => {
+                tracing::info!("L2 block channel closed, ending subscription");
+                return;
+            }
+        }
+    }
+}
+
+/// Receive the next block(s) from the channel, handling lag recovery
+async fn receive_next_blocks(
+    rx: &mut broadcast::Receiver<u64>,
+    last_sent_block: &AtomicU64,
+) -> BlockReceiveResult {
+    match rx.recv().await {
+        Ok(block_height) => BlockReceiveResult::HighestBlock(block_height),
+        Err(broadcast::error::RecvError::Lagged(num_lagged)) => {
+            tracing::warn!(
+                "Subscription lagged by {} blocks, attempting to recover",
+                num_lagged
+            );
+
+            // Explanation of lag recovery:
+            // If the channel size is for example 10 and we somehow sent 30 blocks at the same time to the channel,
+            // The first 20 blocks will be dropped and we will only receive the last 10 blocks.
+            // Since we send blocks sequentially, we can recover the lagged blocks by
+            // calculating the range of blocks that were missed based on the last sent block number.
+            // Assume our last sent block number is 0, initial state, we receive a lagged error with num_lagged = 20.
+            // We return blocks from 1 to 20 to recover from the lag. After that when we call receive again,
+            // we will receive the next block, which is 21, and continue from there as normal.
+
+            // Recover blocks from the `last_sent_block + 1`, to `last_sent_block + num_lagged`
+            let last_sent_block_num = last_sent_block.load(Ordering::SeqCst);
+            BlockReceiveResult::HighestBlock(last_sent_block_num + num_lagged)
+        }
+        Err(broadcast::error::RecvError::Closed) => BlockReceiveResult::ChannelClosed,
+    }
+}
+
+/// Send a block notification to the subscriber
+async fn send_block_notification(
+    subscription: &SubscriptionSink,
+    block_height: u64,
+    ledger: &LedgerDB,
+) -> bool {
+    let block_response = match get_l2_block_response(block_height, ledger).await {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::error!("Failed to get L2 block {} response: {}", block_height, e);
+            return true; // Continue subscription despite this error
+        }
+    };
+
+    if let Err(e) = subscription
+        .send_timeout(
+            jsonrpsee::SubscriptionMessage::new(
+                subscription.method_name(),
+                subscription.subscription_id(),
+                &block_response,
+            )
+            .unwrap(),
+            std::time::Duration::from_secs(10),
+        )
+        .await
+    {
+        tracing::debug!("Failed to send L2 block notification: {}", e);
+        return false; // End subscription
+    }
+
+    true
 }
 
 /// Creates and returns the sequencer RPC module with all methods registered
