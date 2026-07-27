@@ -274,8 +274,7 @@ where
                 // next block.
                 if start.elapsed() >= dry_run_deadline {
                     debug!(
-                        "DryRun: reached the {}ms time budget after including {} transactions; \
-                         sealing block with the current set",
+                        "DryRun: reached the {}ms time budget after including {} transactions; sealing block with the current set",
                         self.config.dry_run_time_limit_ms,
                         all_txs.len()
                     );
