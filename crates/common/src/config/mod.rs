@@ -342,7 +342,7 @@ impl FromEnv for SequencerConfig {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or_else(default_l1_fee_rate_update_interval_ms),
-            dry_run_time_limit_ms: read_env("DRY_RUN_TIME_LIMIT_MS")
+            dry_run_time_limit_ms: read_env("SEQUENCER_DRY_RUN_TIME_LIMIT_MS")
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or_else(default_dry_run_time_limit_ms),
@@ -462,7 +462,7 @@ impl FromEnv for SequencerMempoolConfig {
             base_fee_tx_limit: read_env("BASE_FEE_TX_LIMIT")?.parse()?,
             base_fee_tx_size: read_env("BASE_FEE_TX_SIZE")?.parse()?,
             max_account_slots: read_env("MAX_ACCOUNT_SLOTS")?.parse()?,
-            additional_validation_tasks: read_env("MEMPOOL_ADDITIONAL_VALIDATION_TASKS")
+            additional_validation_tasks: read_env("SEQUENCER_MEMPOOL_ADDITIONAL_VALIDATION_TASKS")
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or_else(default_additional_validation_tasks),
