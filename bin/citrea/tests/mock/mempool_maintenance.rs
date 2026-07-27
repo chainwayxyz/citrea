@@ -4,14 +4,14 @@ use std::time::Duration;
 
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
-use alloy_primitives::Address;
+use alloy_primitives::{Address, U256};
 use alloy_rpc_types::BlockNumberOrTag;
 use citrea_common::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_tasks::TaskManager;
 use sov_db::ledger_db::migrations::copy_db_dir_recursive;
 
-use crate::common::client::TestClient;
+use crate::common::client::{TestClient, MAX_FEE_PER_GAS, SEND_ETH_GAS};
 use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
 };
@@ -781,6 +781,57 @@ async fn test_stale_tx_eviction() {
     assert_eq!(
         mempool_count, 0,
         "All stale transactions should be evicted, but found {mempool_count} transactions"
+    );
+
+    seq_task.graceful_shutdown();
+}
+
+/// The mempool reserves the Citrea L1 fee at admission: a transaction whose sender can cover the
+/// L2 cost but would be left without enough balance for the L1 fee is rejected, while an
+/// otherwise-identical transaction that keeps enough headroom is admitted.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_mempool_reserves_l1_fee_at_admission() {
+    let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let da_db_dir = db_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
+    let (seq_task, test_client) = initialize_test(sequencer_db_dir, da_db_dir).await;
+
+    // Produce one block so the latest committed block carries a real (non-zero) L1 fee rate;
+    // the admission check prices the L1 fee against the latest block's rate.
+    test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 1, None).await;
+
+    let from_addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+    let to_addr = Address::from([0x22u8; 20]);
+
+    let balance = test_client.eth_get_balance(from_addr, None).await.unwrap();
+
+    // `send_eth` reserves `SEND_ETH_GAS * MAX_FEE_PER_GAS + value` for the L2 cost (this is what
+    // reth checks against the balance). Sizing `value` against that reservation controls exactly
+    // how much balance is left over for the L1 fee.
+    let l2_reserved = U256::from(SEND_ETH_GAS) * U256::from(MAX_FEE_PER_GAS);
+
+    // Leave exactly 1 wei over the L2 reservation — not enough for any positive L1 fee, so the
+    // transaction must be rejected at admission.
+    let value_reject = u128::try_from(balance - l2_reserved - U256::from(1u64)).unwrap();
+    let res = test_client
+        .send_eth(to_addr, None, None, Some(0), value_reject)
+        .await;
+    assert!(
+        res.is_err(),
+        "transaction leaving no balance for the L1 fee must be rejected at admission"
+    );
+
+    // The same transaction shape, but leaving ample headroom (0.001 cBTC) over the L2 reservation,
+    // comfortably covers the L1 fee and is admitted.
+    let headroom = 1_000_000_000_000_000u128; // 1e15 wei, far above any L1 fee
+    let value_ok = u128::try_from(balance - l2_reserved - U256::from(headroom)).unwrap();
+    let res = test_client
+        .send_eth(to_addr, None, None, Some(0), value_ok)
+        .await;
+    assert!(
+        res.is_ok(),
+        "transaction with enough balance for the L1 fee must be admitted: {res:?}"
     );
 
     seq_task.graceful_shutdown();

@@ -3878,6 +3878,7 @@ dependencies = [
  "reth-db",
  "reth-execution-types",
  "reth-primitives",
+ "reth-primitives-traits",
  "reth-provider",
  "reth-rpc",
  "reth-rpc-eth-api",

@@ -81,6 +81,8 @@ pub mod rpc;
 mod runner;
 /// Module for declaring types used by the sequencer
 mod types;
+/// Custom mempool transaction validator that reserves the Citrea L1 fee at admission
+mod tx_validator;
 /// Module containing utility functions and helpers
 mod utils;
 
