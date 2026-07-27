@@ -79,10 +79,10 @@ mod metrics;
 pub mod rpc;
 /// Module implementing the main sequencer running logic
 mod runner;
-/// Module for declaring types used by the sequencer
-mod types;
 /// Custom mempool transaction validator that reserves the Citrea L1 fee at admission
 mod tx_validator;
+/// Module for declaring types used by the sequencer
+mod types;
 /// Module containing utility functions and helpers
 mod utils;
 

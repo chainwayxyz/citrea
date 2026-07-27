@@ -33,6 +33,8 @@ pub(crate) struct CitreaTransactionValidator {
 }
 
 impl CitreaTransactionValidator {
+    /// Creates a new [`CitreaTransactionValidator`] from the given inner validator and EVM state
+    /// provider.
     pub(crate) fn new(
         inner: EthTransactionValidator<DbProvider, EthPooledTransaction>,
         provider: DbProvider,
