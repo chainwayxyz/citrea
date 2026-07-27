@@ -45,9 +45,7 @@ fn ensure_l1_height_at_or_after_initial_da_height(
 ) -> anyhow::Result<()> {
     if l1_height < initial_da_height {
         anyhow::bail!(
-            "Cannot build light client input for L1 block #{} before initial DA height #{}",
-            l1_height,
-            initial_da_height
+            "Cannot build light client input for L1 block #{l1_height} before initial DA height #{initial_da_height}"
         );
     }
 
@@ -65,9 +63,7 @@ fn validate_live_l1_height(
     let Some(last_scanned_l1_height) = last_scanned_l1_height else {
         if l1_height != initial_da_height {
             anyhow::bail!(
-                "Cannot build light client input for L1 block #{} before initial L1 block #{} has been processed",
-                l1_height,
-                initial_da_height
+                "Cannot build light client input for L1 block #{l1_height} before initial L1 block #{initial_da_height} has been processed"
             );
         }
 
@@ -77,9 +73,7 @@ fn validate_live_l1_height(
     let expected_next_l1_height = last_scanned_l1_height + 1;
     if l1_height != expected_next_l1_height {
         anyhow::bail!(
-            "Live light client processing expected L1 block #{}, got #{}",
-            expected_next_l1_height,
-            l1_height
+            "Live light client processing expected L1 block #{expected_next_l1_height}, got #{l1_height}"
         );
     }
 
@@ -98,16 +92,12 @@ fn validate_rpc_l1_height(
         let max_request_height = last_scanned_l1_height + 1;
         if l1_height > max_request_height {
             anyhow::bail!(
-                "Cannot build light client input for future L1 block #{}; last scanned L1 block is #{}",
-                l1_height,
-                last_scanned_l1_height
+                "Cannot build light client input for future L1 block #{l1_height}; last scanned L1 block is #{last_scanned_l1_height}"
             );
         }
     } else if l1_height != initial_da_height {
         anyhow::bail!(
-            "Cannot build light client input for L1 block #{} before initial L1 block #{} has been processed",
-            l1_height,
-            initial_da_height
+            "Cannot build light client input for L1 block #{l1_height} before initial L1 block #{initial_da_height} has been processed"
         );
     }
 

@@ -24,15 +24,9 @@ fn check_pruning_result(
 ) -> anyhow::Result<()> {
     match result {
         Ok(Ok(())) => Ok(()),
-        Ok(Err(e)) => Err(anyhow::anyhow!(
-            "Failed to prune {} database: {:?}",
-            db_name,
-            e
-        )),
+        Ok(Err(e)) => Err(anyhow::anyhow!("Failed to prune {db_name} database: {e:?}")),
         Err(e) => Err(anyhow::anyhow!(
-            "Pruning task for {} database panicked: {:?}",
-            db_name,
-            e
+            "Pruning task for {db_name} database panicked: {e:?}"
         )),
     }
 }
