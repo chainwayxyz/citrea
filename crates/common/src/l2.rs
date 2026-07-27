@@ -13,14 +13,16 @@ use sov_db::ledger_db::SharedLedgerOps;
 use sov_keys::default_signature::K256PublicKey;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::{L2Block, StateDiff};
+use sov_modules_api::{L2Block, SpecId, StateDiff};
 use sov_modules_stf_blueprint::StfBlueprint;
-use sov_prover_storage_manager::ProverStorageManager;
+use sov_prover_storage_manager::{ProverStorage, ProverStorageManager};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::stf::{L2BlockResult, StateTransitionError};
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
+use sov_state::{ReadWriteLog, Witness};
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, warn};
@@ -69,7 +71,7 @@ pub async fn apply_l2_block<Da: DaService, DB: SharedLedgerOps>(
     );
 
     if current_l2_block_hash != l2_block_response.header.prev_hash {
-        bail!("Previous hash mismatch at height: {}", l2_height);
+        bail!("Previous hash mismatch at height: {l2_height}");
     }
 
     let pre_state = storage_manager.create_storage_for_next_l2_height();
@@ -106,23 +108,20 @@ pub async fn apply_l2_block<Da: DaService, DB: SharedLedgerOps>(
         decode_sov_tx_and_update_short_header_proofs(l2_block_response, ledger_db, da_service)
             .await?;
 
-        stf.apply_l2_block(
-            current_spec,
-            sequencer_pub_key,
-            &current_state_root,
-            pre_state,
-            None,
-            None,
-            Default::default(),
-            Default::default(),
+        execute_l2_block::<Da>(
+            stf,
             &l2_block,
+            pre_state,
+            current_spec,
+            &current_state_root,
+            sequencer_pub_key,
         )?
     };
 
     let next_state_root = l2_block_result.state_root_transition.final_root;
     // Check if post state root is the same as the one in the l2 block
     if next_state_root.as_ref().to_vec() != l2_block.state_root() {
-        bail!("Post state root mismatch at height: {}", l2_height)
+        bail!("Post state root mismatch at height: {l2_height}")
     }
 
     storage_manager.finalize_storage(l2_block_result.change_set);
@@ -145,6 +144,31 @@ pub async fn apply_l2_block<Da: DaService, DB: SharedLedgerOps>(
         tx_bodies,
         block_size,
     })
+}
+
+/// Execute an L2 block through the STF against the given pre-state and return the result,
+/// including the block's state diff. Pure with respect to the node: it does not create or
+/// finalize storage and does not touch the fork manager. The caller decides whether the
+/// resulting change set is finalized (syncer) or dropped (read-only re-execution).
+pub fn execute_l2_block<Da: DaService>(
+    stf: &mut StfBlueprint<DefaultContext, Da::Spec, CitreaRuntime<DefaultContext, Da::Spec>>,
+    l2_block: &L2Block,
+    pre_state: ProverStorage,
+    current_spec: SpecId,
+    current_state_root: &StorageRootHash,
+    sequencer_pub_key: &K256PublicKey,
+) -> Result<L2BlockResult<ProverStorage, Witness, ReadWriteLog>, StateTransitionError> {
+    stf.apply_l2_block(
+        current_spec,
+        sequencer_pub_key,
+        current_state_root,
+        pre_state,
+        None,
+        None,
+        Default::default(),
+        Default::default(),
+        l2_block,
+    )
 }
 
 /// Commit an L2 block to the ledger database

@@ -95,9 +95,7 @@ where
             }
             None => {
                 anyhow::bail!(
-                    "Missing previous light client proof for L1 block #{} while building input for L1 block #{}",
-                    previous_l1_height,
-                    l1_height
+                    "Missing previous light client proof for L1 block #{previous_l1_height} while building input for L1 block #{l1_height}"
                 );
             }
         };

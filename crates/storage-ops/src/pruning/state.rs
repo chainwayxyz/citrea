@@ -20,10 +20,7 @@ pub(crate) fn prune_state_db(
     let to_version = to_block + 1;
 
     let mut indices = state_db.iter::<StaleNodes>().map_err(|e| {
-        anyhow::anyhow!(
-            "Tried to prune state DB but could not obtain an iterator: {:?}",
-            e
-        )
+        anyhow::anyhow!("Tried to prune state DB but could not obtain an iterator: {e:?}")
     })?;
 
     indices.seek_to_first();
@@ -162,7 +159,7 @@ pub(crate) fn prune_state_db(
 
     state_db
         .write_schemas(batch)
-        .map_err(|e| anyhow::anyhow!("Could not delete state data: {:?}", e))?;
+        .map_err(|e| anyhow::anyhow!("Could not delete state data: {e:?}"))?;
 
     let duration = start.elapsed();
     info!(
