@@ -22,7 +22,8 @@ use sov_modules_api::WorkingSet;
 
 use crate::db_provider::DbProvider;
 
-/// Wraps reth's [`EthTransactionValidator`] and additionally reserves the Citrea L1 fee.
+/// Wraps reth's [`EthTransactionValidator`] and additionally checks that the sender can also cover
+/// the Citrea L1 data-availability fee (best-effort, based on current state and fee rate).
 #[derive(Debug, Clone)]
 pub(crate) struct CitreaTransactionValidator {
     /// Stock reth validator; runs first and provides all static + L2-balance checks.
