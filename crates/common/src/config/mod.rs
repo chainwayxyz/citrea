@@ -259,6 +259,11 @@ const fn default_l1_fee_rate_update_interval_ms() -> u64 {
     30_000 // 30 seconds
 }
 
+#[inline]
+const fn default_dry_run_time_limit_ms() -> u64 {
+    500 // ms; time budget for the per-block transaction-selection loop
+}
+
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SequencerConfig {
@@ -288,6 +293,10 @@ pub struct SequencerConfig {
     /// L1 fee rate update interval in ms
     #[serde(default = "default_l1_fee_rate_update_interval_ms")]
     pub l1_fee_rate_update_interval_ms: u64,
+    /// Time budget (ms) for the per-block transaction-selection ("dry run") loop. Bounds how long
+    /// the sequencer spends executing candidate transactions while building a block.
+    #[serde(default = "default_dry_run_time_limit_ms")]
+    pub dry_run_time_limit_ms: u64,
 }
 
 impl Default for SequencerConfig {
@@ -305,6 +314,7 @@ impl Default for SequencerConfig {
             l1_fee_rate_multiplier: 1.0,
             max_l1_fee_rate_sat_vb: 1, // doesn't matter since mock da returns 10 wei/byte
             l1_fee_rate_update_interval_ms: default_l1_fee_rate_update_interval_ms(),
+            dry_run_time_limit_ms: default_dry_run_time_limit_ms(),
         }
     }
 }
@@ -332,8 +342,17 @@ impl FromEnv for SequencerConfig {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or_else(default_l1_fee_rate_update_interval_ms),
+            dry_run_time_limit_ms: read_env("SEQUENCER_DRY_RUN_TIME_LIMIT_MS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_dry_run_time_limit_ms),
         })
     }
+}
+
+#[inline]
+const fn default_additional_validation_tasks() -> u64 {
+    4
 }
 
 /// Mempool maintenance configuration wrapper since the original struct
@@ -408,6 +427,10 @@ pub struct SequencerMempoolConfig {
     pub base_fee_tx_size: u64,
     /// Max number of executable transaction slots guaranteed per account
     pub max_account_slots: u64,
+    /// Number of additional transaction validation tasks to run in parallel (on top of the one
+    /// always-present task)
+    #[serde(default = "default_additional_validation_tasks")]
+    pub additional_validation_tasks: u64,
     /// Mempool maintenance configuration
     #[serde(default)]
     pub maintenance: MempoolMaintenanceConfig,
@@ -423,6 +446,7 @@ impl Default for SequencerMempoolConfig {
             base_fee_tx_limit: 100000,
             base_fee_tx_size: 200,
             max_account_slots: 16,
+            additional_validation_tasks: default_additional_validation_tasks(),
             maintenance: MempoolMaintenanceConfig::default(),
         }
     }
@@ -438,6 +462,10 @@ impl FromEnv for SequencerMempoolConfig {
             base_fee_tx_limit: read_env("BASE_FEE_TX_LIMIT")?.parse()?,
             base_fee_tx_size: read_env("BASE_FEE_TX_SIZE")?.parse()?,
             max_account_slots: read_env("MAX_ACCOUNT_SLOTS")?.parse()?,
+            additional_validation_tasks: read_env("SEQUENCER_MEMPOOL_ADDITIONAL_VALIDATION_TASKS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_additional_validation_tasks),
             maintenance: MempoolMaintenanceConfig::from_env()?,
         })
     }
@@ -668,6 +696,7 @@ mod tests {
                 base_fee_tx_limit: 100000,
                 base_fee_tx_size: 200,
                 max_account_slots: 16,
+                additional_validation_tasks: default_additional_validation_tasks(),
                 maintenance: MempoolMaintenanceConfig::default(),
             },
             da_update_interval_ms: 1000,
@@ -676,6 +705,7 @@ mod tests {
             l1_fee_rate_multiplier: 0.75,
             max_l1_fee_rate_sat_vb: 15,
             l1_fee_rate_update_interval_ms: 30_000,
+            dry_run_time_limit_ms: default_dry_run_time_limit_ms(),
         };
         assert_eq!(config, expected);
     }
@@ -732,6 +762,7 @@ mod tests {
                 base_fee_tx_limit: 100000,
                 base_fee_tx_size: 200,
                 max_account_slots: 16,
+                additional_validation_tasks: default_additional_validation_tasks(),
                 maintenance: MempoolMaintenanceConfig::default(),
             },
             da_update_interval_ms: 1000,
@@ -740,6 +771,7 @@ mod tests {
             l1_fee_rate_multiplier: 1.0,
             max_l1_fee_rate_sat_vb: 40,
             l1_fee_rate_update_interval_ms: 30_000,
+            dry_run_time_limit_ms: default_dry_run_time_limit_ms(),
         };
         assert_eq!(sequencer_config, expected);
     }

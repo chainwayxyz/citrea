@@ -260,11 +260,27 @@ where
             // Track senders for successfully validated transactions
             let mut senders = vec![];
 
+            // Time budget for selecting transactions for this block, so block production stays on
+            // cadence regardless of how expensive the pending set is to execute.
+            let dry_run_deadline = Duration::from_millis(self.config.dry_run_time_limit_ms);
+
             // using .next() instead of a for loop because its the intended
             // behaviour for the BestTransactions implementations
             // when we update reth we'll need to call transactions.mark_invalid()
             #[allow(clippy::while_let_on_iterator)]
             while let Some(evm_tx) = transactions.next() {
+                // Once the budget is spent, stop pulling more transactions. The ones already
+                // selected form a valid (smaller) block; the rest remain in the mempool for the
+                // next block.
+                if start.elapsed() >= dry_run_deadline {
+                    debug!(
+                        "DryRun: reached the {}ms time budget after including {} transactions; sealing block with the current set",
+                        self.config.dry_run_time_limit_ms,
+                        all_txs.len()
+                    );
+                    break;
+                }
+
                 let start_tx = Instant::now();
                 let recovered = evm_tx.to_consensus();
                 let sender = recovered.signer();

@@ -3,9 +3,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use alloy::consensus::{Signed, TxEip1559, TxEnvelope};
-use alloy::signers::local::PrivateKeySigner;
-use alloy::signers::Signer;
-use alloy_primitives::Address;
+use alloy_primitives::{Address, U256};
 use alloy_rlp::{BytesMut, Encodable};
 use alloy_rpc_types::BlockNumberOrTag;
 use citrea_common::{SequencerConfig, SequencerMempoolConfig};
@@ -19,7 +17,6 @@ use tokio::time::sleep;
 
 use super::evm::init_test_rollup;
 use super::{initialize_test, TestConfig};
-use crate::common::client::TestClient;
 use crate::common::helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment,
     wait_for_l1_block, wait_for_l2_block, NodeMode,
@@ -266,8 +263,11 @@ async fn test_sequencer_commitment_threshold() {
 }
 
 /// Run the sequencer.
-/// Send a transaction that can cover base fee and priority fee but not the L1 fee.
-/// Check if the transaction is removed from the mempool and not included in the block.
+/// Mempool admission prices the L1 fee against the latest sealed block's L1 fee rate, and the
+/// genesis block carries a rate of 0 — so at genesis state a transaction whose balance covers
+/// exactly its L2 cost is admitted with no L1 fee reserved. Block 1 is then produced with the
+/// real, non-zero DA fee rate: the dry run fails the transaction on the L1 fee, removes it from
+/// the mempool and leaves it out of the block.
 #[tokio::test(flavor = "multi_thread")]
 async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyhow::Error> {
     // citrea::initialize_logging(tracing::Level::INFO);
@@ -286,42 +286,30 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
         })
         .await;
 
-    let random_wallet = PrivateKeySigner::random().with_chain_id(Some(seq_test_client.chain_id));
+    // Base fee block 1 will be priced at.
+    let first_block_base_fee = seq_test_client
+        .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Pending))
+        .await
+        .header
+        .base_fee_per_gas
+        .unwrap() as u128;
 
-    let random_wallet_address = random_wallet.address();
-
-    let second_block_base_fee = 768475050;
-
-    let _pending = seq_test_client
-        .send_eth(
-            random_wallet_address,
-            None,
-            None,
-            None,
-            // gas needed for transaction + 500 (to send) but this won't be enough for L1 fees
-            21000 * second_block_base_fee + 500,
-        )
+    let balance = seq_test_client
+        .eth_get_balance(seq_test_client.from_addr, None)
         .await
         .unwrap();
 
-    seq_test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&seq_test_client, 1, None).await;
+    // Size the transfer so the sender's balance covers exactly the L2 cost
+    // (gas * base fee + value), leaving nothing for any positive L1 fee.
+    let value = u128::try_from(balance - U256::from(21000 * first_block_base_fee)).unwrap();
 
-    let random_test_client = TestClient::new(
-        seq_test_client.chain_id,
-        random_wallet,
-        random_wallet_address,
-        seq_test_client.rpc_addr,
-    )
-    .await?;
-
-    let tx = random_test_client
+    let tx = seq_test_client
         .send_eth_with_gas(
             Address::from_str("0x0000000000000000000000000000000000000000").unwrap(),
             Some(0),
-            Some(second_block_base_fee),
+            Some(first_block_base_fee),
             21000,
-            500,
+            value,
         )
         .await
         .unwrap();
@@ -333,15 +321,17 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
     assert!(tx_from_mempool.is_some());
 
     seq_test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&seq_test_client, 2, None).await;
+    wait_for_l2_block(&seq_test_client, 1, None).await;
 
     let block = seq_test_client
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
         .await;
 
+    // The block was priced at the base fee the transaction's funds were sized against, so the
+    // only cost it could not cover is the L1 fee.
     assert_eq!(
         block.header.base_fee_per_gas.unwrap() as u128,
-        second_block_base_fee
+        first_block_base_fee
     );
 
     let tx_from_mempool = seq_test_client
@@ -353,9 +343,16 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
         .await
         .unwrap();
 
-    assert_eq!(block.transactions.len(), 0);
+    // Block 1 carries only its system transactions; the L1-fee-failing transaction was dropped
+    // from the mempool without being included.
+    assert!(!block
+        .transactions
+        .hashes()
+        .any(|hash| hash == *tx.tx_hash()));
     assert!(tx_from_mempool.is_none());
-    assert_eq!(l2_block.txs.len(), 0);
+    // All of a block's EVM transactions are bundled into a single sov-tx, so the ledger block
+    // carries exactly one: the system-transaction bundle.
+    assert_eq!(l2_block.txs.len(), 1);
 
     wait_for_l2_block(&full_node_test_client, block.header.number, None).await;
 
@@ -409,6 +406,9 @@ async fn test_gas_limit_too_high() {
         },
         da_update_interval_ms: 1000,
         block_production_interval_ms: 1000,
+        // This test fills a whole 30M-gas block with ~1400 transfers; give the dry run enough
+        // time so the gas limit — not the time budget — decides the block's contents.
+        dry_run_time_limit_ms: 60_000,
         ..Default::default()
     };
     let seq_task = start_rollup(

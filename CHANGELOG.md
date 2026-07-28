@@ -1,5 +1,10 @@
 # Changelog
 ## [Unreleased]
+### Changed
+- perf: better tx validation in mempool ([#3311](https://github.com/chainwayxyz/citrea/pull/3311))\
+  **New env vars:**\
+  `SEQUENCER_MEMPOOL_ADDITIONAL_VALIDATION_TASKS`: Number of additional parallel transaction validation tasks in the sequencer mempool (default: 4)\
+  `SEQUENCER_DRY_RUN_TIME_LIMIT_MS`: Time budget in milliseconds for the sequencer's per-block transaction-selection (dry run) loop (default: 500)
 ### Added
 - feat: full node state diff rpc ([#3310](https://github.com/chainwayxyz/citrea/pull/3310))
 

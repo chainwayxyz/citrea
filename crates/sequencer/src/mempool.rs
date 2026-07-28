@@ -10,16 +10,17 @@ use reth_transaction_pool::blobstore::NoopBlobStore;
 use reth_transaction_pool::error::{PoolError, PoolErrorKind};
 use reth_transaction_pool::{
     AllPoolTransactions, BestTransactions, BestTransactionsAttributes, CoinbaseTipOrdering,
-    EthPooledTransaction, EthTransactionValidator, Pool, PoolConfig, PoolResult, PoolTransaction,
-    SubPoolLimit, TransactionPool, TransactionValidationTaskExecutor, ValidPoolTransaction,
+    EthPooledTransaction, Pool, PoolConfig, PoolResult, PoolTransaction, SubPoolLimit,
+    TransactionPool, TransactionValidationTaskExecutor, ValidPoolTransaction,
 };
 use sov_modules_api::SpecId;
 
 use crate::db_provider::DbProvider;
+use crate::tx_validator::CitreaTransactionValidator;
 
 /// The concrete implementation type for the Citrea mempool, using Reth's Pool with custom configuration
 type CitreaMempoolImpl = Pool<
-    TransactionValidationTaskExecutor<EthTransactionValidator<DbProvider, EthPooledTransaction>>,
+    TransactionValidationTaskExecutor<CitreaTransactionValidator>,
     CoinbaseTipOrdering<EthPooledTransaction>,
     NoopBlobStore,
 >;
@@ -64,6 +65,9 @@ impl CitreaMempool {
             ..Default::default()
         };
 
+        // Keep a provider handle for the custom validator before `client` is moved into the builder.
+        let provider = client.clone();
+
         let validator = TransactionValidationTaskExecutor::eth_builder(client)
             .no_eip4844()
             .set_shanghai(true)
@@ -72,9 +76,22 @@ impl CitreaMempool {
             // TODO: if we ever increase block gas limits, we need to pull this from
             // somewhere else
             .set_block_gas_limit(evm_config.block_gas_limit)
-            .build_with_tasks::<EthPooledTransaction, _, _>(task_executor, blob_store);
+            // Admission runs a per-tx EVM simulation to reserve the L1 fee, so run validation
+            // across several tasks in parallel instead of the single default task.
+            .with_additional_tasks(mempool_conf.additional_validation_tasks as usize)
+            .build_with_tasks::<EthPooledTransaction, _, _>(task_executor, blob_store)
+            // Wrap the stock validator so it also reserves the Citrea L1 fee. `.map` preserves
+            // the already-spawned validation-task channel.
+            .map(move |inner| CitreaTransactionValidator::new(inner, provider.clone()));
 
-        Ok(Self(Pool::eth_pool(validator, blob_store, pool_config)))
+        // `Pool::eth_pool` is hardcoded to `EthTransactionValidator`, so build the pool directly
+        // with the same ordering it would have used.
+        Ok(Self(Pool::new(
+            validator,
+            CoinbaseTipOrdering::default(),
+            blob_store,
+            pool_config,
+        )))
     }
 
     /// Add a transaction to the mempool

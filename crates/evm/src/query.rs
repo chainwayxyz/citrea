@@ -74,7 +74,7 @@ const ESTIMATE_GAS_ERROR_RATIO: f64 = 0.015;
 /// This is very useful for users to test their balance after calling to `eth_estimateGas`
 /// whether they can afford to execute a transaction.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub(crate) struct EstimatedTxExpenses {
+pub struct EstimatedTxExpenses {
     /// Evm gas used.
     pub gas_used: U64,
     /// Gas limit of the block used for simulation.
@@ -93,6 +93,11 @@ impl EstimatedTxExpenses {
         // Actually not an L1 fee but l1_fee / base_fee.
         let l1_fee_overhead = U256::from(1).max(self.l1_fee.div_ceil(self.base_fee));
         l1_fee_overhead + U256::from(self.gas_used)
+    }
+
+    /// The L1 data-availability fee the transaction is expected to owe post-execution.
+    pub fn l1_fee(&self) -> U256 {
+        self.l1_fee
     }
 }
 
@@ -2269,6 +2274,83 @@ fn set_state_to_end_of_evm_block<C: sov_modules_api::Context>(
     // genesis is committed at db version 1
     // so every block is offset by 1
     working_set.set_archival_version(block_number + 1);
+}
+
+impl<C: sov_modules_api::Context> Evm<C> {
+    /// Prices the Citrea L1 data-availability fee a concrete, already-signed transaction is
+    /// expected to owe *post-execution*, by simulating it once against the pending (next) block.
+    ///
+    /// Unlike [`Evm::estimate_gas_with_env`], this performs a **single** execution at the
+    /// transaction's own gas limit — no gas binary search — because the caller already has a
+    /// concrete tx and only needs its diff-size/L1 fee. Intended for mempool admission, where
+    /// running the full gas search per incoming tx would be needlessly expensive.
+    ///
+    /// The inner execution runs with `l1_fee_rate = 0` so the [`CitreaHandler`](crate::handler)
+    /// never trips the "Not enough funds for L1 fee" error; `l1_diff_size` is rate-independent
+    /// (it is the *structure* of the state diff), so the real fee is recovered afterwards as
+    /// `next_block_l1_fee_rate * l1_diff_size`.
+    pub fn simulate_tx_l1_fee(
+        &self,
+        tx: &Recovered<TransactionSigned>,
+        working_set: &mut WorkingSet<C::Storage>,
+        fork_fn: impl Fn(u64) -> Fork,
+    ) -> Result<EstimatedTxExpenses, EthApiError> {
+        // Rate the block builder will price the next block with (last sealed block's rate).
+        // Guard explicitly instead of relying on the `.expect()` inside `get_pending_block_env`,
+        // as a panic here would take down the mempool validation task.
+        let l1_fee_rate = self
+            .blocks
+            .last(&mut working_set.accessory_state())
+            .ok_or(EthApiError::HeaderNotFound(BlockNumberOrTag::Latest.into()))?
+            .l1_fee_rate;
+
+        let block_env = get_pending_block_env(self, working_set);
+        let citrea_spec_id = fork_fn(block_env.number).spec_id;
+        let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
+
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
+        let mut cfg_env = get_cfg_env(cfg, evm_spec_id);
+        // The pool legitimately holds transactions that are not yet includable: below the
+        // current base fee (base-fee subpool) or with a future nonce (queued subpool). We only
+        // want the diff size, so relax these checks. Balance checks stay ON so the L2 spend
+        // semantics remain real (reth already guaranteed `balance >= cost()`).
+        cfg_env.disable_base_fee = true;
+        cfg_env.disable_nonce_check = true;
+        cfg_env.disable_eip3607 = true;
+
+        let mut tx_env = create_tx_env(tx);
+        // Never let the simulation claim more gas than a block can hold.
+        tx_env.gas_limit = tx_env.gas_limit.min(block_env.gas_limit);
+
+        // Capture block-derived fields before `block_env` is moved into the executor.
+        let base_fee = U256::from(block_env.basefee);
+        let block_gas_limit = U64::from(block_env.gas_limit);
+
+        let evm_db = self.get_db(working_set, citrea_spec_id);
+        let (result_and_state, tx_info) = inspect_with_citrea_handler(
+            evm_db,
+            cfg_env,
+            block_env,
+            tx_env,
+            0, // l1_fee_rate = 0; real fee recovered below
+            TracingInspector::new(TracingInspectorConfig::none()),
+        )
+        .map_err(EthApiError::from)?;
+
+        let l1_diff_size = tx_info.l1_diff_size;
+        let l1_fee = U256::from(l1_fee_rate).saturating_mul(U256::from(l1_diff_size));
+
+        Ok(EstimatedTxExpenses {
+            gas_used: U64::from(result_and_state.result.gas_used()),
+            block_gas_limit,
+            base_fee,
+            l1_fee,
+            l1_diff_size,
+        })
+    }
 }
 
 /// We add some kind of L1 fee overhead to the estimated gas
