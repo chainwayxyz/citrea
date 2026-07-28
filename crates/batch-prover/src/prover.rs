@@ -646,7 +646,7 @@ where
             last_l1_hash_witness,
             previous_sequencer_commitment,
             prev_hash_proof,
-            ecrecover_pubkey_witnesses,
+            ecrecover_pubkey_witnesses: ecrecover_pubkey_witnesses.into_iter().flatten().collect(),
         })
     }
 

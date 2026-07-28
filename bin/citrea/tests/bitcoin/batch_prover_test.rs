@@ -1388,14 +1388,14 @@ impl TestCase for BatchProverPubkeyCollectionIsolationTest {
         ) = borsh::from_slice(&raw_input)?;
         assert_eq!(ecrecover_pubkey_witnesses.len(), 1);
 
-        let first_commitment_pubkeys = ecrecover_pubkey_witnesses
-            .front()
-            .expect("must have one commitment's recovered pubkeys");
         let first_signer_pubkey = uncompressed_pubkey_from_private_key(first_funded_private_key)?;
 
         // Strict equality also catches a regression where signer A's pubkey
         // is recorded more than once, which a `contains` check would miss.
-        assert_eq!(first_commitment_pubkeys.as_slice(), &[first_signer_pubkey]);
+        assert_eq!(
+            ecrecover_pubkey_witnesses.as_slice(),
+            &[first_signer_pubkey]
+        );
 
         // Re-creating the input for the same commitment must yield the same
         // pubkeys. A stateful drain that didn't reset between collections would
@@ -1521,10 +1521,8 @@ impl TestCase for IncorrectFedPubkeyTest {
             "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
         )?;
         let first_pubkey = ecrecover_pubkey_witnesses
-            .iter_mut()
-            .flat_map(|commitment_pubkeys| commitment_pubkeys.iter_mut())
-            .next()
-            .expect("commitment must carry at least one ecrecover pubkey to tamper with");
+            .first_mut()
+            .expect("input must carry at least one ecrecover pubkey to tamper with");
         assert_ne!(
             *first_pubkey, wrong_pubkey,
             "tampered pubkey must differ from the original signer's pubkey"

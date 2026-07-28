@@ -64,9 +64,8 @@ where
 
         let ecrecover_pubkey_witnesses: EcrecoverPubkeyWitnesses = guest.read_from_host();
 
-        let flat_pubkeys = ecrecover_pubkey_witnesses.into_iter().flatten().collect();
         let recovered_pubkey_provider =
-            recovered_pubkey_provider::RecoveredPubkeyProvider::new(flat_pubkeys);
+            recovered_pubkey_provider::RecoveredPubkeyProvider::new(ecrecover_pubkey_witnesses);
         if recovered_pubkey_provider::RECOVERED_PUBKEY_PROVIDER
             .set(recovered_pubkey_provider)
             .is_err()
