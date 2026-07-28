@@ -406,6 +406,9 @@ async fn test_gas_limit_too_high() {
         },
         da_update_interval_ms: 1000,
         block_production_interval_ms: 1000,
+        // This test fills a whole 30M-gas block with ~1400 transfers; give the dry run enough
+        // time so the gas limit — not the time budget — decides the block's contents.
+        dry_run_time_limit_ms: 60_000,
         ..Default::default()
     };
     let seq_task = start_rollup(
