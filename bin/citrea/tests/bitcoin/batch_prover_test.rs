@@ -1,12 +1,13 @@
 use std::fs;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::time::Duration;
 
 use alloy::consensus::{SignableTransaction, TxLegacy};
 use alloy::network::TxSigner;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
-use alloy_primitives::{Address, Bytes, TxKind, U256, U32, U64};
+use alloy_primitives::{keccak256, Address, Bytes, TxKind, U256, U32, U64};
 use async_trait::async_trait;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
@@ -1504,6 +1505,409 @@ impl InvokeCachePruningTest {
 #[tokio::test]
 async fn invoke_cache_prune_test() -> Result<()> {
     TestCaseRunner::new(InvokeCachePruningTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+/// Proves that the circuit must drop its decoded bytecode cache whenever the
+/// prover prunes the witness caches mid-session.
+///
+/// The guest caches decoded bytecode per code hash for a whole proving session,
+/// but only entries of the cumulative offchain log decide whether an offchain
+/// read consumes a witness hint. A cached entry that outlives its log entry
+/// makes the guest skip a read the prover *did* emit a hint for, and the next
+/// offchain read consumes that stray hint instead of its own.
+///
+/// The stale cache returns correct code — bytecode is immutable per hash — so
+/// nothing detects the skipped hint until some *other* offchain read is served
+/// the wrong value. That is why the probe below reads two targets.
+///
+/// The commitment this test proves is laid out as:
+///
+/// | L2 height | contents |
+/// |---|---|
+/// | 1 | deploy both targets and the probe |
+/// | 2 | call target 1, so the guest caches its decoded bytecode |
+/// | 3..=54 | filler deployments, overflowing the prover's witness cache limit |
+/// | 55 | call the probe, which `EXTCODESIZE`s both targets |
+struct BytecodeCachePruningTest;
+
+/// Signed transactions of [`BytecodeCachePruningTest`], grouped by their block.
+struct BytecodeCachePruningTransactions {
+    deployments: Vec<Vec<u8>>,
+    cache_warming_call: Vec<u8>,
+    filler_deployments: Vec<Vec<u8>>,
+    probe_call: Vec<u8>,
+}
+
+/// Which side of `CacheLog::prune_half` a contract's code hash must land on.
+///
+/// `prune_half` keeps the lower half of its sorted keys, and offchain code is
+/// keyed by code hash. The filler deployments dominate that key set, so a hash
+/// ground below `0x80` is kept and one ground at or above `0xf0` is dropped.
+#[derive(Clone, Copy)]
+enum PruneHalf {
+    Dropped,
+    Kept,
+}
+
+impl PruneHalf {
+    fn accepts(self, code_hash_start: u8) -> bool {
+        match self {
+            Self::Dropped => code_hash_start >= 0xf0,
+            Self::Kept => code_hash_start < 0x80,
+        }
+    }
+}
+
+#[async_trait]
+impl TestCase for BytecodeCachePruningTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            with_full_node: true,
+            ..Default::default()
+        }
+    }
+
+    fn test_env() -> TestCaseEnv {
+        TestCaseEnv {
+            // `assert_pruned_before_probe` reads the prover's own INFO logs.
+            batch_prover: vec![("RUST_LOG", "info")],
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: Self::PROBE_L2_HEIGHT,
+            mempool_conf: SequencerMempoolConfig {
+                pending_tx_limit: 1_000_000,
+                pending_tx_size: 100_000_000,
+                queue_tx_limit: 1_000_000,
+                queue_tx_size: 100_000_000,
+                base_fee_tx_limit: 1_000_000,
+                base_fee_tx_size: 100_000_000,
+                max_account_slots: 1_000_000,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let batch_prover = f.batch_prover.as_mut().unwrap();
+        let full_node = f.full_node.as_mut().unwrap();
+
+        let transactions = self.create_transactions().await;
+
+        // Deploy in a block of their own: code read in the block that created it
+        // is served from REVM's journal, and would never reach the guest cache.
+        for signed_tx in transactions.deployments {
+            sequencer
+                .client
+                .http_client()
+                .eth_send_raw_transaction(signed_tx.into())
+                .await
+                .unwrap();
+        }
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer
+            .wait_for_l2_height(Self::DEPLOY_L2_HEIGHT, None)
+            .await
+            .unwrap();
+
+        // Caches the first target's decoded bytecode in the guest, and only it.
+        sequencer
+            .client
+            .http_client()
+            .eth_send_raw_transaction(transactions.cache_warming_call.into())
+            .await
+            .unwrap();
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer
+            .wait_for_l2_height(Self::WARM_L2_HEIGHT, None)
+            .await
+            .unwrap();
+
+        // Grow the cumulative caches past the prover's prune limit.
+        for signed_tx in transactions.filler_deployments {
+            sequencer
+                .client
+                .http_client()
+                .eth_send_raw_transaction(signed_tx.into())
+                .await
+                .unwrap();
+        }
+        for _ in 0..Self::FILLER_BLOCK_COUNT {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        sequencer
+            .wait_for_l2_height(Self::PROBE_L2_HEIGHT - 1, None)
+            .await
+            .unwrap();
+
+        // Submitted only now, so the guest can only reach the probe with a cache
+        // that pruning has already invalidated.
+        sequencer
+            .client
+            .http_client()
+            .eth_send_raw_transaction(transactions.probe_call.into())
+            .await
+            .unwrap();
+        sequencer.client.send_publish_batch_request().await?;
+
+        assert_eq!(
+            sequencer.max_l2_blocks_per_commitment(),
+            Self::PROBE_L2_HEIGHT,
+            "the probe must close the commitment this test proves"
+        );
+        sequencer
+            .wait_for_l2_height(Self::PROBE_L2_HEIGHT, None)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        // Without `clear_bytecode_cache`, the probe's second EXTCODESIZE consumes
+        // the offchain hint its first one left unread, fails its code hash check
+        // and panics the guest — which the framework fails this test on.
+        da.wait_mempool_len(2, Some(Duration::from_secs(300)))
+            .await?;
+
+        Self::assert_pruned_before_probe(&batch_prover.config.base.dir)?;
+
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        full_node
+            .wait_for_l1_height(finalized_height, None)
+            .await
+            .unwrap();
+
+        let last_proven_l2_data = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(last_proven_l2_data.commitment_index, 1);
+        assert_eq!(last_proven_l2_data.height, Self::PROBE_L2_HEIGHT);
+
+        Ok(())
+    }
+}
+
+impl BytecodeCachePruningTest {
+    const DEPLOY_L2_HEIGHT: u64 = 1;
+    const WARM_L2_HEIGHT: u64 = 2;
+    /// The probe runs in the last block of the commitment, so the guest reaches
+    /// it with everything the fillers pruned away already gone.
+    const PROBE_L2_HEIGHT: u64 = 55;
+    const FILLER_BLOCK_COUNT: u64 = Self::PROBE_L2_HEIGHT - Self::WARM_L2_HEIGHT - 1;
+    /// 550 x 12 KB of contract code overflows the prover's 6 MiB witness cache
+    /// limit, and fits in the filler blocks (which hold eleven deployments each).
+    const FILLER_DEPLOY_COUNT: usize = 550;
+    const FILLER_RUNTIME_SIZE: usize = 12_000;
+    const GAS_LIMIT: u64 = 3_000_000;
+
+    /// Fails unless the prover pruned its witness caches while proving the
+    /// blocks between the cache warming call and the probe.
+    ///
+    /// Everything else in this test would still pass if the fillers stopped
+    /// overflowing the cache limit — but it would no longer prove anything.
+    fn assert_pruned_before_probe(batch_prover_dir: &Path) -> Result<()> {
+        const PRUNE_LOG: &str = "Pruned witness caches after L2 block ";
+
+        let stdout = fs::read_to_string(batch_prover_dir.join("stdout.log"))?;
+        let prune_heights = stdout
+            .lines()
+            .filter_map(|line| line.split_once(PRUNE_LOG))
+            .filter_map(|(_, height)| height.trim().parse::<u64>().ok())
+            .collect::<Vec<_>>();
+
+        assert!(
+            prune_heights
+                .iter()
+                .any(|height| (Self::WARM_L2_HEIGHT..Self::PROBE_L2_HEIGHT).contains(height)),
+            "the prover must prune between L2 blocks {} and {}, but pruned at {:?}",
+            Self::WARM_L2_HEIGHT,
+            Self::PROBE_L2_HEIGHT,
+            prune_heights,
+        );
+
+        Ok(())
+    }
+
+    async fn create_transactions(&self) -> BytecodeCachePruningTransactions {
+        let private_key: [u8; 32] =
+            hex::decode("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let mut signer = PrivateKeySigner::from_slice(&private_key).unwrap();
+        signer.set_chain_id(Some(5655));
+
+        let first_target_runtime = Self::padded_runtime(0, PruneHalf::Dropped);
+        let second_target_runtime = Self::padded_runtime(1, PruneHalf::Dropped);
+        let first_target = signer.address().create(0);
+        let second_target = signer.address().create(1);
+        let probe = signer.address().create(2);
+
+        let mut nonce = 0;
+        let mut deployments = Vec::with_capacity(3);
+        for runtime in [
+            &first_target_runtime,
+            &second_target_runtime,
+            &Self::probe_runtime(first_target, second_target),
+        ] {
+            deployments.push(
+                Self::sign_transaction(&signer, nonce, TxKind::Create, Self::init_code(runtime))
+                    .await,
+            );
+            nonce += 1;
+        }
+
+        // Calling the first target one block after its deployment forces REVM to
+        // fetch its code through EvmDb, which is what fills the guest cache. The
+        // second target is never read before the prune, so it stays out of it.
+        let cache_warming_call =
+            Self::sign_transaction(&signer, nonce, TxKind::Call(first_target), Vec::new()).await;
+        nonce += 1;
+
+        let mut filler_deployments = Vec::with_capacity(Self::FILLER_DEPLOY_COUNT);
+        for seed in 2..Self::FILLER_DEPLOY_COUNT as u64 + 2 {
+            let runtime = Self::padded_runtime(seed, PruneHalf::Kept);
+            filler_deployments.push(
+                Self::sign_transaction(&signer, nonce, TxKind::Create, Self::init_code(&runtime))
+                    .await,
+            );
+            nonce += 1;
+        }
+
+        let probe_call =
+            Self::sign_transaction(&signer, nonce, TxKind::Call(probe), Vec::new()).await;
+
+        BytecodeCachePruningTransactions {
+            deployments,
+            cache_warming_call,
+            filler_deployments,
+            probe_call,
+        }
+    }
+
+    /// Runtime that runs EXTCODESIZE against both targets and stops.
+    ///
+    /// Loading the code must not *touch* the target accounts, which a plain CALL
+    /// would: `EvmDb::commit` reads the offchain code of every touched account
+    /// that has code, and a read there would consume the hint the stale bytecode
+    /// cache skipped, papering the bug over. EXTCODESIZE only warms the account,
+    /// which keeps the test independent of what the commit path does.
+    fn probe_runtime(first_target: Address, second_target: Address) -> Vec<u8> {
+        let mut runtime = Vec::new();
+        for target in [first_target, second_target] {
+            runtime.push(0x73); // PUSH20 <target>
+            runtime.extend_from_slice(target.as_slice());
+            runtime.push(0x3b); // EXTCODESIZE
+            runtime.push(0x50); // POP
+        }
+        runtime.push(0x00); // STOP
+
+        Self::grind_code_hash(runtime, PruneHalf::Kept)
+    }
+
+    /// Zero-filled runtime of [`Self::FILLER_RUNTIME_SIZE`] bytes, unique per
+    /// `seed`, whose code hash lands in `half`.
+    fn padded_runtime(seed: u64, half: PruneHalf) -> Vec<u8> {
+        let mut runtime = vec![0; Self::FILLER_RUNTIME_SIZE - 8];
+        let tail = runtime.len() - 8;
+        runtime[tail..].copy_from_slice(&seed.to_be_bytes());
+
+        Self::grind_code_hash(runtime, half)
+    }
+
+    /// Appends eight unreachable bytes to `runtime` until its code hash lands in
+    /// `half`, deciding whether `prune_half` drops or keeps its offchain entry.
+    fn grind_code_hash(mut runtime: Vec<u8>, half: PruneHalf) -> Vec<u8> {
+        let tail = runtime.len();
+        runtime.extend_from_slice(&[0; 8]);
+
+        for candidate in 0u64.. {
+            runtime[tail..].copy_from_slice(&candidate.to_be_bytes());
+            if half.accepts(keccak256(&runtime)[0]) {
+                return runtime;
+            }
+        }
+
+        unreachable!("u64 candidates must contain a matching code hash")
+    }
+
+    fn init_code(runtime: &[u8]) -> Vec<u8> {
+        const INIT_CODE_LEN: u8 = 14;
+
+        let runtime_len = u16::try_from(runtime.len()).unwrap().to_be_bytes();
+        let mut init_code = Vec::with_capacity(INIT_CODE_LEN as usize + runtime.len());
+        init_code.extend_from_slice(&[
+            0x61,
+            runtime_len[0],
+            runtime_len[1],
+            0x60,
+            INIT_CODE_LEN,
+            0x60,
+            0x00,
+            0x39,
+            0x61,
+            runtime_len[0],
+            runtime_len[1],
+            0x60,
+            0x00,
+            0xf3,
+        ]);
+        init_code.extend_from_slice(runtime);
+        init_code
+    }
+
+    async fn sign_transaction(
+        signer: &PrivateKeySigner,
+        nonce: u64,
+        to: TxKind,
+        input: Vec<u8>,
+    ) -> Vec<u8> {
+        let mut tx = TxLegacy {
+            chain_id: Some(5655),
+            nonce,
+            gas_price: 1_000_000_000 * 1_000_000_000,
+            gas_limit: Self::GAS_LIMIT,
+            to,
+            value: U256::ZERO,
+            input: Bytes::from(input),
+        };
+
+        let signature = signer.sign_transaction(&mut tx).await.unwrap();
+        let signed_tx = tx.into_signed(signature);
+        let mut rlp_buf = Vec::with_capacity(signed_tx.rlp_encoded_length());
+        signed_tx.rlp_encode(&mut rlp_buf);
+        rlp_buf
+    }
+}
+
+#[tokio::test]
+async fn bytecode_cache_prune_test() -> Result<()> {
+    TestCaseRunner::new(BytecodeCachePruningTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await

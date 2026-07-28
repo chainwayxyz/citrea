@@ -212,6 +212,10 @@ pub trait Runtime<C: Context, Da: DaSpec>:
     fn genesis_config(
         genesis_paths: &Self::GenesisPaths,
     ) -> Result<Self::GenesisConfig, anyhow::Error>;
+
+    /// Notifies the runtime that the cumulative state and offchain cache logs
+    /// have been pruned.
+    fn cache_log_pruned(&mut self) {}
 }
 
 /// Genesis parameters for a blueprint
@@ -681,6 +685,7 @@ where
                 {
                     state_log.prune_half();
                     offchain_log.prune_half();
+                    self.runtime.cache_log_pruned();
                 }
 
                 l2_height += 1;

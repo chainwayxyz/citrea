@@ -46,22 +46,15 @@ impl<C: sov_modules_api::Context> DatabaseCommit for EvmDb<'_, C> {
             let new_info = account.info;
 
             if let Some(ref code) = new_info.code {
-                if !code.is_empty() {
-                    // we don't update code with analyzed code because that would mean we can change jump table
-                    // however we want without changing the code hash
-                    // that means we can fiddle with tx execution
-                    if self
-                        .evm
-                        .offchain_code
-                        .get(&new_info.code_hash, &mut self.working_set.offchain_state())
-                        .is_none()
-                    {
-                        self.evm.offchain_code.set(
-                            &new_info.code_hash,
-                            code,
-                            &mut self.working_set.offchain_state(),
-                        );
-                    }
+                // we don't update code with analyzed code because that would mean we can change jump table
+                // however we want without changing the code hash
+                // that means we can fiddle with tx execution
+                if !code.is_empty() && !self.is_code_stored(&new_info.code_hash) {
+                    self.evm.offchain_code.set(
+                        &new_info.code_hash,
+                        code,
+                        &mut self.working_set.offchain_state(),
+                    );
                 }
             }
 

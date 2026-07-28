@@ -198,6 +198,15 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
 }
 
 impl<C: sov_modules_api::Context> Evm<C> {
+    /// Clears decoded bytecode retained by the circuit execution cache.
+    ///
+    /// This must be called whenever the cumulative offchain cache log is pruned
+    /// so a cached value never outlives the witness-cache entry it mirrors.
+    /// A no-op natively, where nothing is cached.
+    pub fn clear_bytecode_cache(&self) {
+        evm::db::clear_bytecode_cache();
+    }
+
     pub(crate) fn get_db<'a>(
         &'a self,
         working_set: &'a mut WorkingSet<C::Storage>,

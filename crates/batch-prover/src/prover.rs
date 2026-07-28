@@ -1059,6 +1059,7 @@ fn generate_cumulative_witness<Da: DaService, DB: BatchProverLedgerOps>(
                 state_log.prune_half();
                 offchain_log.prune_half();
                 cache_prune_l2_heights.push(l2_height);
+                info!("Pruned witness caches after L2 block {}", l2_height);
             }
 
             let state_log_cache_size = state_log.estimated_cache_size();

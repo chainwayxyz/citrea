@@ -1,8 +1,12 @@
 use core::error::Error;
+#[cfg(not(feature = "native"))]
+use std::cell::RefCell;
+#[cfg(not(feature = "native"))]
+use std::collections::BTreeMap;
 #[cfg(feature = "native")]
 use std::collections::HashMap;
 
-use alloy_primitives::{keccak256, Address, B256, U256};
+use alloy_primitives::{Address, B256, U256};
 use revm::context::DBErrorMarker;
 use revm::state::{AccountInfo as ReVmAccountInfo, Bytecode};
 use revm::Database;
@@ -35,6 +39,63 @@ impl std::fmt::Display for DBError {
     }
 }
 
+// Session-lifetime cache of decoded bytecode, keyed by code hash.
+//
+// Bytecode is immutable per hash and every entry was keccak-verified on its
+// first non-cached state read, so reusing the decoded Bytecode (refcounted
+// bytes + shared jump table) only skips repeated decode work. Guest-only: a
+// long-running native node must not grow an unbounded map.
+//
+// Every entry mirrors an entry of the cumulative offchain cache log, which is
+// what decides whether a read consumes an offchain witness hint. The two must
+// be dropped together, so [`clear_bytecode_cache`] is called whenever that log
+// is pruned; otherwise a cached hit would skip a hint the prover did emit and
+// the next offchain read would consume a value meant for someone else.
+#[cfg(not(feature = "native"))]
+thread_local! {
+    static BYTECODE_CACHE: RefCell<BTreeMap<B256, Bytecode>> = RefCell::default();
+}
+
+/// Drops every cached bytecode, so no entry outlives the cache-log entry it
+/// mirrors. Called whenever the cumulative offchain cache log is pruned.
+#[cfg(not(feature = "native"))]
+pub(crate) fn clear_bytecode_cache() {
+    BYTECODE_CACHE.with_borrow_mut(|cache| cache.clear());
+}
+
+/// Native execution never populates the bytecode cache, so there is nothing to
+/// clear.
+#[cfg(feature = "native")]
+pub(crate) fn clear_bytecode_cache() {}
+
+/// Whether the decoded bytecode of `code_hash` is already cached, which implies
+/// the offchain cache log holds the same code.
+#[cfg(not(feature = "native"))]
+fn is_bytecode_cached(code_hash: &B256) -> bool {
+    BYTECODE_CACHE.with_borrow(|cache| cache.contains_key(code_hash))
+}
+
+/// Native execution never populates the bytecode cache, so nothing is cached.
+#[cfg(feature = "native")]
+fn is_bytecode_cached(_code_hash: &B256) -> bool {
+    false
+}
+
+/// Checks that `code` really is the preimage of `code_hash`.
+///
+/// Reading no code is not a mismatch: it means the offchain state holds no code
+/// for `code_hash`, which callers report as [`DBError::UnknownCodeHash`] or as
+/// "not stored yet".
+fn verify_code_hash(code_hash: &B256, code: &Option<Bytecode>) -> Result<(), DBError> {
+    code.as_ref().map_or(Ok(()), |code| {
+        if *code_hash == code.hash_slow() {
+            Ok(())
+        } else {
+            Err(DBError::CodeHashMismatch)
+        }
+    })
+}
+
 pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
     pub(crate) evm: &'a Evm<C>,
     pub(crate) working_set: &'a mut WorkingSet<C::Storage>,
@@ -52,6 +113,51 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
             working_set,
             citrea_spec,
         }
+    }
+
+    /// Whether the offchain state already holds the code of `code_hash` — what
+    /// decides if [`DatabaseCommit::commit`] still has to store it.
+    ///
+    /// A cached decode already mirrors an offchain cache log entry, so it settles
+    /// the question without a read that could only confirm what the log holds —
+    /// in the circuit at the price of decoding the whole contract again. Past the
+    /// cache this reaches the witness exactly when the code was never read this
+    /// session either: `None` for a genuinely new contract, and its stored code
+    /// for bytecode redeployed at a new address.
+    ///
+    /// The circuit verifies that value rather than trust it. An unverified read
+    /// would plant prover-supplied bytecode in the offchain cache log, which a
+    /// later [`Database::code_by_hash`] would hand to the EVM unchecked — its
+    /// keccak check only runs on reads that miss the log. Natively the value
+    /// comes from the node's own database, on the same read path `code_by_hash`
+    /// already verifies.
+    ///
+    /// [`DatabaseCommit::commit`]: revm::DatabaseCommit::commit
+    pub(crate) fn is_code_stored(&mut self, code_hash: &B256) -> bool {
+        if is_bytecode_cached(code_hash) {
+            return true;
+        }
+
+        #[cfg(not(feature = "native"))]
+        let code = self
+            .evm
+            .offchain_code
+            .get_with_verification_on_no_cache(
+                code_hash,
+                |code| verify_code_hash(code_hash, code),
+                &mut self.working_set.offchain_state(),
+            )
+            // `commit` cannot fail, and a mismatch means the witness lied about
+            // code the circuit is about to trust: abort instead of proving it.
+            .expect("Offchain code must be the preimage of its code hash");
+
+        #[cfg(feature = "native")]
+        let code = self
+            .evm
+            .offchain_code
+            .get(code_hash, &mut self.working_set.offchain_state());
+
+        code.is_some()
     }
 
     #[cfg(feature = "native")]
@@ -92,22 +198,21 @@ impl<C: sov_modules_api::Context> Database for EvmDb<'_, C> {
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
         // TODO move to new_raw_with_hash for better performance
 
+        #[cfg(not(feature = "native"))]
+        if let Some(code) = BYTECODE_CACHE.with_borrow(|cache| cache.get(&code_hash).cloned()) {
+            return Ok(code);
+        }
+
         if let Some(code) = self.evm.offchain_code.get_with_verification_on_no_cache(
             &code_hash,
-            |val| {
-                // if code is read as None,
-                // we don't have code for the given code_hash
-                // return true in that case so we return None from get_with_verification_on_no_cache
-                val.as_ref().map_or(Ok(()), |code| {
-                    if *code_hash == keccak256(code.original_byte_slice()) {
-                        Ok(())
-                    } else {
-                        Err(DBError::CodeHashMismatch)
-                    }
-                })
-            },
+            |code| verify_code_hash(&code_hash, code),
             &mut self.working_set.offchain_state(),
         )? {
+            #[cfg(not(feature = "native"))]
+            BYTECODE_CACHE.with_borrow_mut(|cache| {
+                cache.insert(code_hash, code.clone());
+            });
+
             Ok(code)
         } else {
             Err(DBError::UnknownCodeHash)
