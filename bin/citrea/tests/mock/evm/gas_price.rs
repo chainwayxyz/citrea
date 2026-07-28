@@ -36,6 +36,9 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
     );
     let sequencer_config = SequencerConfig {
         max_l2_blocks_per_commitment: TEST_SEND_NO_COMMITMENT_MAX_L2_BLOCKS_PER_COMMITMENT,
+        // The flood block below must fill up to the gas limit so the base fee rises; give the
+        // dry run enough time that the gas limit — not the time budget — bounds the block.
+        dry_run_time_limit_ms: 60_000,
         ..Default::default()
     };
 
