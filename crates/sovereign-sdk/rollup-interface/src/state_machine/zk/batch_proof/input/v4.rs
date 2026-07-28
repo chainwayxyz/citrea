@@ -112,13 +112,7 @@ pub struct BatchProofCircuitInputV4 {
 }
 
 impl BatchProofCircuitInputV4 {
-    fn into_shared_parts(
-        self,
-    ) -> (
-        BatchProofCircuitInputV4Part1,
-        BatchProofCircuitInputV4Part2,
-        BatchProofCircuitInputV4Part3,
-    ) {
+    fn into_shared_parts(self) -> BatchProofCircuitInputV4Parts {
         assert_eq!(self.l2_blocks.len(), self.state_transition_witnesses.len());
         let mut part3 = VecDeque::with_capacity(self.l2_blocks.len());
 

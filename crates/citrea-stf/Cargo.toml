@@ -31,7 +31,7 @@ sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 
 citrea-evm = { path = "../evm" }
 l2-block-rule-enforcer = { path = "../l2-block-rule-enforcer" }
-recovered-pubkey-provider = { path = "../recovered-pubkey-provider", default-features = false }
+recovered-pubkey-provider = { path = "../recovered-pubkey-provider" }
 short-header-proof-provider = { path = "../short-header-proof-provider" }
 
 [dev-dependencies]

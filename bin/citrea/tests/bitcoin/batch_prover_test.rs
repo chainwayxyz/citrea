@@ -601,13 +601,6 @@ impl TestCase for ForkElfSwitchingTest {
         }
     }
 
-    fn light_client_prover_config() -> LightClientProverConfig {
-        LightClientProverConfig {
-            initial_da_height: 171,
-            ..Default::default()
-        }
-    }
-
     fn batch_prover_config() -> BatchProverConfig {
         BatchProverConfig {
             proof_sampling_number: 999_999_999,

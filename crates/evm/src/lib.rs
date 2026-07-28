@@ -2,7 +2,7 @@
 #![doc = include_str!("../README.md")]
 mod call;
 /// EVM handler and transaction processing
-pub mod evm;
+mod evm;
 mod genesis;
 mod hooks;
 #[cfg(feature = "native")]
