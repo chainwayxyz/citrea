@@ -20,7 +20,7 @@ use thiserror::Error;
 use tokio::select;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::{Mutex, RwLock};
-use tokio::time::interval;
+use tokio::time::{interval, MissedTickBehavior};
 use tracing::{debug, error, info, instrument, trace};
 
 use crate::helpers::builders::TxWithId;
@@ -92,6 +92,53 @@ pub enum TxStatus {
         /// Last error message.
         last_error: Option<String>,
     },
+}
+
+/// Select which transactions to prune, oldest first, until the map is back under
+/// both the history and size limits. The protected txid is never selected.
+fn select_txs_to_prune(
+    txs: &HashMap<Txid, MonitoredTx>,
+    total_size: usize,
+    config: &MonitoringConfig,
+    protected_txid: Option<Txid>,
+) -> Vec<Txid> {
+    if txs.len() <= config.history_limit && total_size <= config.max_history_size {
+        return Vec::new();
+    }
+
+    let mut candidates = Vec::new();
+    for (txid, tx) in txs {
+        if Some(*txid) == protected_txid {
+            continue;
+        }
+
+        let is_prunable = match &tx.status {
+            TxStatus::Finalized { .. } | TxStatus::Replaced { .. } => true,
+            TxStatus::Evicted {
+                rebroadcast_attempts,
+                ..
+            } => *rebroadcast_attempts >= config.max_rebroadcast_attempts,
+            _ => false,
+        };
+
+        if is_prunable {
+            candidates.push((tx.initial_broadcast, *txid, tx.tx.total_size()));
+        }
+    }
+    candidates.sort_unstable();
+
+    let mut remaining_count = txs.len();
+    let mut remaining_size = total_size;
+    let mut to_prune = Vec::new();
+    for (_, txid, tx_size) in candidates {
+        if remaining_count <= config.history_limit && remaining_size <= config.max_history_size {
+            break;
+        }
+        to_prune.push(txid);
+        remaining_count -= 1;
+        remaining_size = remaining_size.saturating_sub(tx_size);
+    }
+    to_prune
 }
 
 /// The kind of transaction being monitored.
@@ -176,21 +223,12 @@ pub enum MonitorError {
     /// Already monitored.
     #[error("Transaction already monitored")]
     AlreadyMonitored,
-    /// Transaction not found.
-    #[error("Transaction not found")]
-    TxNotFound,
     /// BlockHash not set.
     #[error("BlockHash not set")]
     BlockHashNotSet,
     /// Previous transaction is not monitored.
     #[error("Previous transaction not monitored: {0}")]
     PrevTxNotMonitored(Txid),
-    /// Invalid transaction chain, odd number of transactions.
-    #[error("Invalid tx chain, odd number of txs")]
-    OddNumberOfTxs,
-    /// Transaction rebroadcast failed.
-    #[error("Transaction rebroadcast failed: {0}")]
-    RebroadcastFailed(String),
     /// RPC error.
     #[error(transparent)]
     BitcoinRpcError(#[from] bitcoincore_rpc::Error),
@@ -299,7 +337,7 @@ impl FromEnv for MonitoringConfig {
 pub struct MonitoringService {
     client: Arc<Client>,
     monitored_txs: RwLock<HashMap<Txid, MonitoredTx>>,
-    chain_state: RwLock<ChainState>,
+    chain_state: Mutex<ChainState>,
     config: MonitoringConfig,
     // Last tx in queue
     last_tx: Mutex<Option<Txid>>,
@@ -323,7 +361,7 @@ impl MonitoringService {
             Self {
                 client,
                 monitored_txs: RwLock::new(HashMap::new()),
-                chain_state: RwLock::new(ChainState::default()),
+                chain_state: Mutex::new(ChainState::default()),
                 config: config.unwrap_or_default(),
                 last_tx: Mutex::new(None),
                 total_size: AtomicUsize::new(0),
@@ -352,7 +390,7 @@ impl MonitoringService {
             recent_blocks.push((current_hash, height));
         }
 
-        let mut chain_state = self.chain_state.write().await;
+        let mut chain_state = self.chain_state.lock().await;
         *chain_state = ChainState {
             current_height,
             current_tip,
@@ -381,8 +419,7 @@ impl MonitoringService {
                 .client
                 .get_transaction(&reveal_txid, None)
                 .await?
-                .transaction()
-                .unwrap();
+                .transaction()?;
 
             let reveal_wtxid = reveal_tx.compute_wtxid();
             let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
@@ -392,12 +429,15 @@ impl MonitoringService {
                 && parse_relevant_transaction(&reveal_tx).is_ok()
             {
                 let commit_txid = reveal_tx.input[0].previous_output.txid;
-                let commit_tx = self
+                let Some(commit_tx) = self
                     .client
                     .get_transaction(&commit_txid, None)
-                    .await?
-                    .transaction()
-                    .unwrap();
+                    .await
+                    .ok()
+                    .and_then(|result| result.transaction().ok())
+                else {
+                    continue;
+                };
 
                 txs.push([
                     TxWithId {
@@ -415,13 +455,16 @@ impl MonitoringService {
         tracing::trace!("[restore_from_utxos] {txs:?}");
 
         self.monitor_transaction_chain(txs).await?;
-        self.check_transactions().await
+        self.check_transactions().await;
+        Ok(())
     }
 
     /// Run monitoring to keep track of TX status and chain re-orgs
     pub async fn run(self: Arc<Self>, mut shutdown_signal: GracefulShutdown) {
         let mut check_interval = interval(Duration::from_secs(self.config.check_interval));
+        check_interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
         let mut rebroadcast_interval = interval(Duration::from_secs(self.config.rebroadcast_delay));
+        rebroadcast_interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
         loop {
             select! {
                 _ = &mut shutdown_signal => {
@@ -430,20 +473,14 @@ impl MonitoringService {
                 }
                 _ = check_interval.tick() => {
                     if let Err(e) = self.check_chain_state().await {
-                        error!("Error checking chain state: {}", e);
+                        error!("Error checking chain state: {e}");
                     }
-                    if let Err(e) = self.check_transactions().await {
-                        error!("Error checking transactions: {}", e);
-                    }
+                    self.check_transactions().await;
                     self.prune_old_transactions().await;
                 }
                 _ = rebroadcast_interval.tick() => {
-                    if let Err(e) = self.handle_evicted().await {
-                        error!("Error handling evicted transactions: {}", e);
-                    }
-                    if let Err(e) = self.rebroadcast_last_txs().await {
-                        error!("Error rebroadcasting last transactions: {}", e);
-                    }
+                    self.handle_evicted().await;
+                    self.rebroadcast_last_txs().await;
                 }
             }
         }
@@ -482,6 +519,8 @@ impl MonitoringService {
     ) -> Result<()> {
         let txid = tx.id;
 
+        let current_height = self.client.get_block_count().await?;
+
         let mut monitored_txs = self.monitored_txs.write().await;
         if monitored_txs.contains_key(&txid) {
             return Err(MonitorError::AlreadyMonitored);
@@ -493,8 +532,6 @@ impl MonitoringService {
             };
             prev_tx.next_txid = Some(txid);
         }
-
-        let current_height = self.client.get_block_count().await?;
 
         self.total_size
             .fetch_add(tx.tx.total_size(), Ordering::SeqCst);
@@ -579,40 +616,47 @@ impl MonitoringService {
         let new_height = self.client.get_block_count().await?;
         let new_tip = self.client.get_best_block_hash().await?;
 
-        let mut chain_state = self.chain_state.write().await;
+        let (old_tip, recent_blocks) = {
+            let chain_state = self.chain_state.lock().await;
+            (chain_state.current_tip, chain_state.recent_blocks.clone())
+        };
 
-        if new_tip != chain_state.current_tip {
-            // Send new tip notification
-            let _ = self.block_tx.send(new_height);
+        if new_tip == old_tip {
+            return Ok(());
+        }
 
-            let mut current_hash: BlockHash;
-            let mut new_blocks = vec![(new_tip, new_height)];
-            let mut reorg_detected = false;
-            let mut reorg_depth = 0;
+        // Send new tip notification
+        let _ = self.block_tx.send(new_height);
 
-            for i in 1..=self.finality_depth {
-                let height = new_height.saturating_sub(i);
-                current_hash = self.client.get_block_hash(height).await?;
-                new_blocks.push((current_hash, height));
+        let mut current_hash: BlockHash;
+        let mut new_blocks = vec![(new_tip, new_height)];
+        let mut reorg_detected = false;
+        let mut reorg_depth = 0;
 
-                if let Some(pos) = chain_state
-                    .recent_blocks
-                    .iter()
-                    .position(|&(hash, _)| hash == current_hash)
-                {
-                    if pos + 1 != i as usize {
-                        reorg_detected = true;
-                        reorg_depth = i;
-                    }
-                    break;
+        for i in 1..=self.finality_depth {
+            let height = new_height.saturating_sub(i);
+            current_hash = self.client.get_block_hash(height).await?;
+            new_blocks.push((current_hash, height));
+
+            if let Some(pos) = recent_blocks
+                .iter()
+                .position(|&(hash, _)| hash == current_hash)
+            {
+                if pos + 1 != i as usize {
+                    reorg_detected = true;
+                    reorg_depth = i;
                 }
+                break;
             }
+        }
 
-            if reorg_detected {
-                // Handle transaction status updates due to reorg
-                self.handle_reorg(reorg_depth).await?;
-            }
+        if reorg_detected {
+            // Handle transaction status updates due to reorg
+            self.handle_reorg(reorg_depth).await;
+        }
 
+        let mut chain_state = self.chain_state.lock().await;
+        if chain_state.current_tip == old_tip {
             chain_state.current_height = new_height;
             chain_state.current_tip = new_tip;
             chain_state.recent_blocks = new_blocks;
@@ -621,76 +665,123 @@ impl MonitoringService {
         Ok(())
     }
 
-    async fn handle_reorg(&self, depth: u64) -> Result<()> {
-        let mut txs = self.monitored_txs.write().await;
+    async fn handle_reorg(&self, depth: u64) {
+        let affected_txs: Vec<(Txid, TxStatus)> = self
+            .monitored_txs
+            .read()
+            .await
+            .iter()
+            .filter_map(|(txid, tx)| match tx.status {
+                TxStatus::Confirmed { confirmations, .. } if confirmations <= depth => {
+                    Some((*txid, tx.status.clone()))
+                }
+                _ => None,
+            })
+            .collect();
 
-        for (txid, tx) in txs.iter_mut() {
-            if let TxStatus::Confirmed { confirmations, .. } = tx.status {
-                if confirmations <= depth {
-                    let tx_result = self.client.get_transaction(txid, None).await?;
-                    tx.status = self.determine_tx_status(&tx_result, &tx.status).await?;
+        for (txid, old_status) in affected_txs {
+            let new_status = match self.fetch_tx_status(&txid, &old_status).await {
+                Ok(status) => status,
+                Err(e) => {
+                    error!("Failed to check tx {txid} after reorg: {e}");
+                    continue;
+                }
+            };
 
-                    if let TxStatus::InMempool { .. } = tx.status {
-                        info!("Rebroadcasting tx {} {tx:?}", tx.tx.compute_txid());
-                        self.attempt_rebroadcast(txid, &tx.status).await?;
-                    }
+            if let TxStatus::InMempool { .. } = new_status {
+                info!("Rebroadcasting tx {txid} after reorg of depth {depth}");
+                if let Err(e) = self.attempt_rebroadcast(&txid, &new_status).await {
+                    error!("Failed to rebroadcast tx {txid} after reorg: {e}");
                 }
             }
-        }
 
-        Ok(())
+            self.apply_tx_status(&txid, &old_status, new_status).await;
+        }
+    }
+
+    async fn apply_tx_status(&self, txid: &Txid, expected_status: &TxStatus, new_status: TxStatus) {
+        let mut txs = self.monitored_txs.write().await;
+        if let Some(tx) = txs.get_mut(txid) {
+            if tx.status == *expected_status {
+                tx.status = new_status;
+            }
+        }
     }
 
     #[instrument(skip(self))]
-    async fn check_transactions(&self) -> Result<()> {
-        let mut txs = self.monitored_txs.write().await;
+    async fn check_transactions(&self) {
+        let txs: Vec<(Txid, TxStatus)> = self
+            .monitored_txs
+            .read()
+            .await
+            .iter()
+            .map(|(txid, tx)| (*txid, tx.status.clone()))
+            .collect();
 
-        for (txid, monitored_tx) in txs.iter_mut() {
-            match &monitored_tx.status {
-                // Check non-finalized TXs
-                TxStatus::Queued | TxStatus::Confirmed { .. } | TxStatus::Replaced { .. } => {
-                    if let Ok(tx_result) = self.client.get_transaction(txid, None).await {
-                        let new_status = self
-                            .determine_tx_status(&tx_result, &monitored_tx.status)
-                            .await?;
+        for (txid, old_status) in txs {
+            let new_status = match self.check_tx(&txid, &old_status).await {
+                Ok(new_status) => new_status,
+                Err(e) => {
+                    error!("Failed to check monitored tx {txid}: {e}");
+                    None
+                }
+            };
 
+            let mut monitored_txs = self.monitored_txs.write().await;
+            if let Some(monitored_tx) = monitored_txs.get_mut(&txid) {
+                if let Some(new_status) = new_status {
+                    if monitored_tx.status == old_status {
                         monitored_tx.status = new_status;
                     }
                 }
-                // Check evicted TXs that have already been rebroadcasted at least once
-                TxStatus::Evicted {
-                    rebroadcast_attempts,
-                    ..
-                } if *rebroadcast_attempts > 0 => {
-                    let tx_result = self.client.get_transaction(txid, None).await?;
-                    let new_status = self
-                        .determine_tx_status(&tx_result, &monitored_tx.status)
-                        .await?;
-                    monitored_tx.status = new_status;
-                }
-                TxStatus::InMempool { height, .. } => {
-                    let tx_result = self.client.get_transaction(txid, None).await?;
-                    let new_status = self
-                        .determine_tx_status(&tx_result, &monitored_tx.status)
-                        .await?;
+                monitored_tx.last_checked = get_timestamp();
+            }
+        }
+    }
 
-                    // If status is still InMempool, check for how many block it has been in mempool and rebroadcast every REBROADCAST_EACH_N_BLOCK
-                    if let TxStatus::InMempool { .. } = new_status {
-                        let current_height = self.client.get_block_count().await?;
-                        if (current_height.saturating_sub(*height)) >= REBROADCAST_EACH_N_BLOCK {
-                            self.attempt_rebroadcast(txid, &new_status).await?
+    /// Check a single transaction against the chain and compute its new status.
+    /// Returns `None` when the status does not need to be re-evaluated.
+    async fn check_tx(&self, txid: &Txid, old_status: &TxStatus) -> Result<Option<TxStatus>> {
+        match old_status {
+            // Check non-finalized TXs
+            TxStatus::Queued | TxStatus::Confirmed { .. } | TxStatus::Replaced { .. } => {
+                match self.client.get_transaction(txid, None).await {
+                    Ok(tx_result) => Ok(Some(
+                        self.determine_tx_status(&tx_result, old_status).await?,
+                    )),
+                    Err(_) => Ok(None),
+                }
+            }
+            // Check evicted TXs that have already been rebroadcasted at least once
+            TxStatus::Evicted {
+                rebroadcast_attempts,
+                ..
+            } if *rebroadcast_attempts > 0 => {
+                Ok(Some(self.fetch_tx_status(txid, old_status).await?))
+            }
+            TxStatus::InMempool { height, .. } => {
+                let new_status = self.fetch_tx_status(txid, old_status).await?;
+
+                // If status is still InMempool, check for how many block it has been in mempool and rebroadcast every REBROADCAST_EACH_N_BLOCK
+                if let TxStatus::InMempool { .. } = new_status {
+                    let current_height = self.client.get_block_count().await?;
+                    if (current_height.saturating_sub(*height)) >= REBROADCAST_EACH_N_BLOCK {
+                        if let Err(e) = self.attempt_rebroadcast(txid, &new_status).await {
+                            debug!("Failed to rebroadcast in-mempool tx {txid}: {e}");
                         }
                     }
-
-                    monitored_tx.status = new_status;
                 }
-                _ => {}
+
+                Ok(Some(new_status))
             }
-
-            monitored_tx.last_checked = get_timestamp();
+            _ => Ok(None),
         }
+    }
 
-        Ok(())
+    /// Fetch a transaction from the wallet and determine its new status.
+    async fn fetch_tx_status(&self, txid: &Txid, current_status: &TxStatus) -> Result<TxStatus> {
+        let tx_result = self.client.get_transaction(txid, None).await?;
+        self.determine_tx_status(&tx_result, current_status).await
     }
 
     async fn determine_tx_status(
@@ -698,18 +789,17 @@ impl MonitoringService {
         tx_result: &GetTransactionResult,
         current_status: &TxStatus,
     ) -> Result<TxStatus> {
-        let confirmations = tx_result.info.confirmations as u64;
+        let confirmations = tx_result.info.confirmations;
         let status = if confirmations > 0 {
             let block_hash = tx_result
                 .info
                 .blockhash
                 .ok_or(MonitorError::BlockHashNotSet)?;
-            let block_height = self
-                .client
-                .get_block_info(&block_hash)
-                .await
-                .map(|header| header.height as u64)
-                .unwrap_or(0);
+            let block_height = match tx_result.info.blockheight {
+                Some(height) => u64::from(height),
+                None => self.client.get_block_info(&block_hash).await?.height as u64,
+            };
+            let confirmations = confirmations as u64;
 
             if confirmations >= self.finality_depth {
                 TxStatus::Finalized {
@@ -724,137 +814,150 @@ impl MonitoringService {
                     confirmations,
                 }
             }
+        } else if confirmations < 0 {
+            if let Some(by_txid) = tx_result.info.wallet_conflicts.first().copied() {
+                TxStatus::Replaced { by_txid }
+            } else {
+                TxStatus::Evicted {
+                    last_seen: get_timestamp(),
+                    rebroadcast_attempts: 0,
+                    last_error: None,
+                }
+            }
         } else {
             match self.client.get_mempool_entry(&tx_result.info.txid).await {
-                Ok(entry) => {
-                    let base_fee = entry.fees.base.to_sat() as f64;
-                    TxStatus::InMempool {
-                        base_fee,
-                        timestamp: get_timestamp(),
-                        height: entry.height,
-                    }
-                }
-                // Tx not found in mempool
+                Ok(entry) => TxStatus::InMempool {
+                    base_fee: entry.fees.base.to_sat() as f64,
+                    timestamp: get_timestamp(),
+                    height: entry.height,
+                },
                 Err(_) => match current_status {
-                    // If transaction is queued or evicted, keep status as is
-                    TxStatus::Queued | TxStatus::Evicted { .. } => current_status.clone(),
-                    // If transaction was previously in mempool or confirmed, re-org happened and it got evicted from mempool
-                    _ => {
-                        tracing::info!("Tx {} was evicted from mempool.", tx_result.info.txid);
-                        TxStatus::Evicted {
-                            last_seen: get_timestamp(),
-                            rebroadcast_attempts: 0,
-                            last_error: None,
-                        }
+                    TxStatus::Queued | TxStatus::Evicted { .. } | TxStatus::Replaced { .. } => {
+                        current_status.clone()
                     }
+                    _ => TxStatus::Evicted {
+                        last_seen: get_timestamp(),
+                        rebroadcast_attempts: 0,
+                        last_error: None,
+                    },
                 },
             }
         };
+
+        let was_pending = !matches!(
+            current_status,
+            TxStatus::Queued | TxStatus::Evicted { .. } | TxStatus::Replaced { .. }
+        );
+        match &status {
+            TxStatus::Evicted { .. } if was_pending => {
+                info!("Tx {} was evicted from mempool.", tx_result.info.txid);
+            }
+            TxStatus::Replaced { by_txid } if was_pending => {
+                info!(
+                    "Tx {} was replaced by conflicting tx {by_txid}.",
+                    tx_result.info.txid
+                );
+            }
+            _ => {}
+        }
+
         Ok(status)
     }
 
     async fn prune_old_transactions(&self) {
+        let protected_txid = *self.last_tx.lock().await;
         let mut txs = self.monitored_txs.write().await;
-        let current_size = self.total_size.load(Ordering::SeqCst);
+        let to_prune = select_txs_to_prune(
+            &txs,
+            self.total_size.load(Ordering::SeqCst),
+            &self.config,
+            protected_txid,
+        );
 
-        if txs.len() > self.config.history_limit || current_size > self.config.max_history_size {
-            let to_remove: Vec<_> = txs
-                .iter()
-                .filter(|(_, tx)| matches!(tx.status, TxStatus::Finalized { .. }))
-                .map(|(txid, tx)| (*txid, tx.initial_broadcast))
-                .collect();
-
-            let mut to_remove = to_remove;
-            to_remove.sort_by_key(|&(_, time)| time);
-
-            for (txid, _) in to_remove {
-                if txs.len() <= self.config.history_limit
-                    && self.total_size.load(Ordering::SeqCst) <= self.config.max_history_size
-                {
-                    break;
-                }
-
-                if let Some(removed_tx) = txs.remove(&txid) {
-                    let tx_size = removed_tx.tx.total_size();
-                    self.total_size.fetch_sub(tx_size, Ordering::SeqCst);
-                }
+        for txid in to_prune {
+            if let Some(removed_tx) = txs.remove(&txid) {
+                let tx_size = removed_tx.tx.total_size();
+                self.total_size.fetch_sub(tx_size, Ordering::SeqCst);
             }
         }
     }
 
-    async fn handle_evicted(&self) -> Result<()> {
-        let mut txs = self.monitored_txs.write().await;
+    async fn handle_evicted(&self) {
+        let evicted_txs: Vec<(Txid, u32, TxStatus)> = self
+            .monitored_txs
+            .read()
+            .await
+            .iter()
+            .filter_map(|(txid, tx)| match &tx.status {
+                TxStatus::Evicted {
+                    rebroadcast_attempts,
+                    ..
+                } if *rebroadcast_attempts < self.config.max_rebroadcast_attempts => {
+                    Some((*txid, *rebroadcast_attempts, tx.status.clone()))
+                }
+                _ => None,
+            })
+            .collect();
 
-        for (txid, monitored_tx) in txs.iter_mut() {
-            if let TxStatus::Evicted {
-                rebroadcast_attempts,
-                ..
-            } = &monitored_tx.status
-            {
-                if *rebroadcast_attempts < self.config.max_rebroadcast_attempts {
-                    let now = get_timestamp();
+        for (txid, rebroadcast_attempts, old_status) in evicted_txs {
+            let result = self.attempt_rebroadcast(&txid, &old_status).await;
+            let now = get_timestamp();
 
-                    match self.attempt_rebroadcast(txid, &monitored_tx.status).await {
-                        Ok(_) => {
-                            info!("Attempted to rebroadcast tx {txid}");
-                            monitored_tx.status = TxStatus::Evicted {
-                                last_seen: now,
-                                rebroadcast_attempts: rebroadcast_attempts + 1,
-                                last_error: None,
-                            }
-                        }
-                        Err(e) => {
-                            info!("Failed to rebroadcast tx {txid}: {e}");
-                            monitored_tx.status = TxStatus::Evicted {
-                                last_seen: now,
-                                rebroadcast_attempts: rebroadcast_attempts + 1,
-                                last_error: Some(e.to_string()),
-                            };
-                        }
+            let new_status = match result {
+                Ok(_) => {
+                    info!("Attempted to rebroadcast tx {txid}");
+                    TxStatus::Evicted {
+                        last_seen: now,
+                        rebroadcast_attempts: rebroadcast_attempts + 1,
+                        last_error: None,
                     }
                 }
-            }
-        }
+                Err(e) => {
+                    info!("Failed to rebroadcast tx {txid}: {e}");
+                    TxStatus::Evicted {
+                        last_seen: now,
+                        rebroadcast_attempts: rebroadcast_attempts + 1,
+                        last_error: Some(e.to_string()),
+                    }
+                }
+            };
 
-        Ok(())
+            self.apply_tx_status(&txid, &old_status, new_status).await;
+        }
     }
 
-    async fn rebroadcast_last_txs(&self) -> Result<()> {
-        const TXS_NUMBER_TO_REBROADCAST: u32 = 100;
+    async fn rebroadcast_last_txs(&self) {
+        const TXS_NUMBER_TO_REBROADCAST: usize = 100;
         trace!("Rebroadcasting last {TXS_NUMBER_TO_REBROADCAST} txs");
 
-        let Some(mut current_tx) = self.get_last_tx().await else {
-            return Ok(());
+        let last_txid = *self.last_tx.lock().await;
+
+        let to_rebroadcast: Vec<(Txid, TxStatus)> = {
+            let monitored_txs = self.monitored_txs.read().await;
+            let mut chain = Vec::new();
+            let mut current_txid = last_txid;
+            while let Some(txid) = current_txid {
+                if chain.len() >= TXS_NUMBER_TO_REBROADCAST {
+                    break;
+                }
+                // A missing tx means the rest of the chain was pruned
+                let Some(tx) = monitored_txs.get(&txid) else {
+                    debug!("End of rebroadcast chain: tx {txid} is not monitored anymore");
+                    break;
+                };
+                // Break on first finalized TX
+                if let TxStatus::Finalized { .. } = tx.status {
+                    break;
+                }
+                chain.push((txid, tx.status.clone()));
+                current_txid = tx.prev_txid;
+            }
+            chain
         };
 
-        let monitored_txs = self.get_monitored_txs().await;
-
-        for _ in 0..TXS_NUMBER_TO_REBROADCAST {
-            // Break on first finalized TX
-            if let TxStatus::Finalized { .. } = current_tx.1.status {
-                return Ok(());
-            }
-
-            let _ = self
-                .attempt_rebroadcast(&current_tx.0, &current_tx.1.status)
-                .await;
-
-            let Some(prev_txid) = current_tx.1.prev_txid else {
-                // End of monitored txs chain
-                return Ok(());
-            };
-
-            let prev_tx = {
-                let Some(tx_data) = monitored_txs.get(&prev_txid).cloned() else {
-                    return Err(anyhow!("Missing monitored transaction {prev_txid}").into());
-                };
-                (prev_txid, tx_data)
-            };
-
-            current_tx = prev_tx;
+        for (txid, status) in to_rebroadcast {
+            let _ = self.attempt_rebroadcast(&txid, &status).await;
         }
-
-        Ok(())
     }
 
     async fn attempt_rebroadcast(&self, txid: &Txid, current_status: &TxStatus) -> Result<()> {
@@ -885,6 +988,17 @@ impl MonitoringService {
         self.monitored_txs.read().await.clone()
     }
 
+    /// Get monitored transactions currently in the mempool.
+    pub async fn get_in_mempool_txs(&self) -> Vec<(Txid, MonitoredTx)> {
+        self.monitored_txs
+            .read()
+            .await
+            .iter()
+            .filter(|(_, tx)| matches!(tx.status, TxStatus::InMempool { .. }))
+            .map(|(txid, tx)| (*txid, tx.clone()))
+            .collect()
+    }
+
     /// Get the last monitored transaction.
     pub async fn get_last_tx(&self) -> Option<(Txid, MonitoredTx)> {
         let last_txid = (*self.last_tx.lock().await)?;
@@ -902,17 +1016,33 @@ impl MonitoringService {
 
     /// Fetch and update the status of multiple transactions.
     pub async fn update_txs_status(&self, txids: &[Txid]) -> Result<()> {
-        let mut monitored_txs = self.monitored_txs.write().await;
         for txid in txids {
-            if let Some(entry) = monitored_txs.get_mut(txid) {
-                if let Ok(tx_result) = self.client.get_transaction(txid, None).await {
-                    entry.status = self.determine_tx_status(&tx_result, &entry.status).await?;
-                    entry.last_checked = get_timestamp();
-                    entry.address = tx_result
-                        .details
-                        .first()
-                        .and_then(|detail| detail.address.clone());
+            let Some(old_status) = self.get_tx_status(txid).await else {
+                continue;
+            };
+
+            let Ok(tx_result) = self.client.get_transaction(txid, None).await else {
+                continue;
+            };
+            let new_status = match self.determine_tx_status(&tx_result, &old_status).await {
+                Ok(status) => status,
+                Err(e) => {
+                    error!("Failed to determine status of tx {txid}: {e}");
+                    continue;
                 }
+            };
+            let address = tx_result
+                .details
+                .first()
+                .and_then(|detail| detail.address.clone());
+
+            let mut monitored_txs = self.monitored_txs.write().await;
+            if let Some(entry) = monitored_txs.get_mut(txid) {
+                if entry.status == old_status {
+                    entry.status = new_status;
+                }
+                entry.last_checked = get_timestamp();
+                entry.address = address;
             }
         }
         Ok(())
@@ -934,5 +1064,179 @@ impl MonitoringService {
                 }
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const FINALITY_DEPTH: u64 = 8;
+
+    fn dummy_txid(n: u8) -> Txid {
+        Txid::from_byte_array([n; 32])
+    }
+
+    fn dummy_tx() -> Transaction {
+        Transaction {
+            version: bitcoin::transaction::Version(2),
+            lock_time: bitcoin::absolute::LockTime::ZERO,
+            input: vec![],
+            output: vec![],
+        }
+    }
+
+    fn monitored_tx(status: TxStatus, initial_broadcast: u64) -> MonitoredTx {
+        MonitoredTx {
+            tx: dummy_tx(),
+            txid: dummy_txid(0),
+            address: None,
+            initial_broadcast,
+            initial_height: 0,
+            last_checked: 0,
+            status,
+            prev_txid: None,
+            next_txid: None,
+            kind: MonitoredTxKind::Commit,
+        }
+    }
+
+    fn in_mempool_status() -> TxStatus {
+        TxStatus::InMempool {
+            base_fee: 100.0,
+            timestamp: 0,
+            height: 1,
+        }
+    }
+
+    fn confirmed_status() -> TxStatus {
+        TxStatus::Confirmed {
+            block_hash: BlockHash::all_zeros(),
+            block_height: 1,
+            confirmations: 1,
+        }
+    }
+
+    fn finalized_status() -> TxStatus {
+        TxStatus::Finalized {
+            block_hash: BlockHash::all_zeros(),
+            block_height: 1,
+            confirmations: FINALITY_DEPTH,
+        }
+    }
+
+    fn evicted_status(rebroadcast_attempts: u32) -> TxStatus {
+        TxStatus::Evicted {
+            last_seen: 0,
+            rebroadcast_attempts,
+            last_error: None,
+        }
+    }
+
+    fn prune_config(history_limit: usize, max_history_size: usize) -> MonitoringConfig {
+        MonitoringConfig {
+            history_limit,
+            max_history_size,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn prune_nothing_when_under_limits() {
+        let txs = HashMap::from([(dummy_txid(1), monitored_tx(finalized_status(), 1))]);
+        let to_prune = select_txs_to_prune(&txs, 10, &prune_config(10, 1_000), None);
+        assert!(to_prune.is_empty());
+    }
+
+    #[test]
+    fn prune_oldest_finalized_first_down_to_history_limit() {
+        let txs = HashMap::from([
+            (dummy_txid(1), monitored_tx(finalized_status(), 30)),
+            (dummy_txid(2), monitored_tx(finalized_status(), 10)),
+            (dummy_txid(3), monitored_tx(finalized_status(), 20)),
+            (dummy_txid(4), monitored_tx(in_mempool_status(), 40)),
+        ]);
+        let to_prune = select_txs_to_prune(&txs, 0, &prune_config(2, 1_000), None);
+        assert_eq!(to_prune, vec![dummy_txid(2), dummy_txid(3)]);
+    }
+
+    #[test]
+    fn prune_down_to_size_limit() {
+        let tx_size = dummy_tx().total_size();
+        let txs = HashMap::from([
+            (dummy_txid(1), monitored_tx(finalized_status(), 1)),
+            (dummy_txid(2), monitored_tx(finalized_status(), 2)),
+            (dummy_txid(3), monitored_tx(finalized_status(), 3)),
+            (dummy_txid(4), monitored_tx(finalized_status(), 4)),
+        ]);
+        // Over size budget by two transactions
+        let to_prune = select_txs_to_prune(&txs, 4 * tx_size, &prune_config(10, 2 * tx_size), None);
+        assert_eq!(to_prune, vec![dummy_txid(1), dummy_txid(2)]);
+    }
+
+    #[test]
+    fn prune_finalized_and_replaced_oldest_first() {
+        let txs = HashMap::from([
+            (
+                dummy_txid(1),
+                monitored_tx(
+                    TxStatus::Replaced {
+                        by_txid: dummy_txid(9),
+                    },
+                    1,
+                ),
+            ),
+            (
+                dummy_txid(2),
+                monitored_tx(
+                    TxStatus::Replaced {
+                        by_txid: dummy_txid(10),
+                    },
+                    2,
+                ),
+            ),
+            (dummy_txid(3), monitored_tx(finalized_status(), 100)),
+        ]);
+        let to_prune = select_txs_to_prune(&txs, 0, &prune_config(1, 1_000), None);
+        assert_eq!(to_prune, vec![dummy_txid(1), dummy_txid(2)]);
+    }
+
+    #[test]
+    fn prune_never_selects_active_txs() {
+        let txs = HashMap::from([
+            (dummy_txid(1), monitored_tx(TxStatus::Queued, 1)),
+            (dummy_txid(2), monitored_tx(in_mempool_status(), 2)),
+            (dummy_txid(3), monitored_tx(confirmed_status(), 3)),
+            // Evicted txs below the retry limit are still expected to be rebroadcast and recover.
+            (dummy_txid(4), monitored_tx(evicted_status(1), 4)),
+        ]);
+        let to_prune = select_txs_to_prune(&txs, 0, &prune_config(1, 1_000), None);
+        assert!(to_prune.is_empty());
+    }
+
+    #[test]
+    fn prune_selects_terminally_evicted_txs() {
+        let txs = HashMap::from([
+            (
+                dummy_txid(1),
+                monitored_tx(
+                    evicted_status(MonitoringConfig::default().max_rebroadcast_attempts),
+                    1,
+                ),
+            ),
+            (dummy_txid(2), monitored_tx(in_mempool_status(), 2)),
+        ]);
+        let to_prune = select_txs_to_prune(&txs, 0, &prune_config(1, 1_000), None);
+        assert_eq!(to_prune, vec![dummy_txid(1)]);
+    }
+
+    #[test]
+    fn prune_never_selects_protected_last_tx() {
+        let txs = HashMap::from([
+            (dummy_txid(1), monitored_tx(finalized_status(), 1)),
+            (dummy_txid(2), monitored_tx(finalized_status(), 2)),
+        ]);
+        let to_prune = select_txs_to_prune(&txs, 0, &prune_config(1, 1_000), Some(dummy_txid(1)));
+        assert_eq!(to_prune, vec![dummy_txid(2)]);
     }
 }

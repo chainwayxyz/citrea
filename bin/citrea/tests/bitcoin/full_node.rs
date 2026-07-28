@@ -1,11 +1,13 @@
+use std::net::SocketAddr;
 use std::time::Duration;
 
-use alloy_primitives::{U32, U64};
+use alloy_primitives::{Address, U256, U32, U64};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
 use bitcoin_da::helpers::parsers::{parse_relevant_transaction, ParsedTransaction};
 use bitcoincore_rpc::RpcApi;
+use borsh::BorshDeserialize;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::{
     BatchProverConfig, BitcoinConfig, LightClientProverConfig, SequencerConfig, TestCaseConfig,
@@ -14,6 +16,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
+use citrea_evm::AccountInfo;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::circuit::initial_values::bitcoinda::NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
@@ -33,6 +36,7 @@ use crate::bitcoin::utils::{
     spawn_bitcoin_da_prover_service, spawn_bitcoin_da_sequencer_service, wait_for_prover_job,
     wait_for_prover_job_count, wait_for_zkproofs,
 };
+use crate::common::make_test_client;
 
 fn calculate_merkle_root(blocks: &[Option<L2BlockResponse>]) -> [u8; 32] {
     let leaves: Vec<[u8; 32]> = blocks
@@ -3897,4 +3901,135 @@ pub fn create_serialized_fake_receipt_batch_proof_with_state_roots(
     // Receipt with verifiable claim
     let receipt = InnerReceipt::Fake(fake_receipt);
     bincode::serialize(&receipt).unwrap()
+}
+
+struct StateDiffRpcTest;
+
+#[async_trait]
+impl TestCase for StateDiffRpcTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_sequencer: true,
+            with_full_node: true,
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
+
+        let seq_test_client = make_test_client(SocketAddr::new(
+            sequencer.config.rpc_bind_host().parse()?,
+            sequencer.config.rpc_bind_port(),
+        ))
+        .await?;
+
+        // Fresh address that is not in the genesis config, so its balance is exactly
+        // the sum of the transfers below
+        let addr = Address::from([0x11; 20]);
+
+        const BLOCK_COUNT: u64 = 5;
+        const TRANSFER_AMOUNT: u128 = 1_000_000;
+        for _ in 0..BLOCK_COUNT {
+            let _ = seq_test_client
+                .send_eth(addr, None, None, None, TRANSFER_AMOUNT)
+                .await?;
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        sequencer.wait_for_l2_height(BLOCK_COUNT, None).await?;
+        full_node.wait_for_l2_height(BLOCK_COUNT, None).await?;
+
+        let client = full_node.client.http_client();
+
+        // The recipient's account record in the diff:
+        // "E/i/" ++ address        => account id (u64, borsh)
+        // "E/a/" ++ account id     => AccountInfo (borsh)
+        let account_idx_key = [b"E/i/".as_slice(), addr.as_slice()].concat();
+        let mut account_key = None;
+
+        let mut prev_post_root = None;
+        for height in 1..=BLOCK_COUNT {
+            let diff = client
+                .get_state_diff_by_block_number(U64::from(height))
+                .await?;
+
+            assert_eq!(diff.block_number, U64::from(height));
+
+            // Re-executed roots and hash must match the stored block
+            let block = client
+                .get_l2_block_by_number(U64::from(height))
+                .await?
+                .unwrap();
+            assert_eq!(diff.post_state_root.0, block.header.state_root);
+            assert_eq!(diff.block_hash.0, block.header.hash);
+
+            // Pre state root chains to the previous block's post state root
+            if let Some(prev) = prev_post_root {
+                assert_eq!(diff.pre_state_root, prev);
+            }
+            prev_post_root = Some(diff.post_state_root);
+
+            // Every block carried an EVM transfer, so the diff cannot be empty
+            assert!(!diff.state_diff.is_empty());
+
+            // Keys are strictly ascending: sorted and deduplicated
+            assert!(diff.state_diff.windows(2).all(|w| w[0].key < w[1].key));
+
+            // The recipient is created in block 1, so its address -> account id mapping
+            // must be part of the first diff. Later blocks only update the account record.
+            if height == 1 {
+                let idx_entry = diff
+                    .state_diff
+                    .iter()
+                    .find(|e| e.key.as_ref() == account_idx_key.as_slice())
+                    .expect("Recipient account id mapping must be in the first block's diff");
+                let account_id = u64::deserialize(&mut idx_entry.value.as_ref().unwrap().as_ref())?;
+                account_key = Some([b"E/a/".as_slice(), &borsh::to_vec(&account_id)?].concat());
+            }
+
+            // The recipient's account record must be in every diff with the exact
+            // cumulative balance of the transfers so far
+            let account_entry = diff
+                .state_diff
+                .iter()
+                .find(|e| e.key.as_ref() == account_key.as_ref().unwrap().as_slice())
+                .expect("Recipient account record must be in every block's diff");
+            let account_info =
+                AccountInfo::deserialize(&mut account_entry.value.as_ref().unwrap().as_ref())?;
+            assert_eq!(
+                account_info.balance,
+                U256::from(TRANSFER_AMOUNT * height as u128)
+            );
+            assert_eq!(account_info.nonce, 0);
+
+            // Deterministic across calls
+            let diff_again = client
+                .get_state_diff_by_block_number(U64::from(height))
+                .await?;
+            assert_eq!(diff, diff_again);
+        }
+
+        // Genesis is not re-executable
+        assert!(client
+            .get_state_diff_by_block_number(U64::from(0u64))
+            .await
+            .is_err());
+        // Unknown (future) height
+        assert!(client
+            .get_state_diff_by_block_number(U64::from(u64::MAX))
+            .await
+            .is_err());
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_full_node_state_diff_rpc() -> Result<()> {
+    TestCaseRunner::new(StateDiffRpcTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
 }

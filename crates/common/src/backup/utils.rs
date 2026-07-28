@@ -37,13 +37,13 @@ pub(super) fn restore_from_backup(
 pub(super) fn validate_backup(backup_path: impl AsRef<Path>) -> anyhow::Result<usize> {
     let backup_path = backup_path.as_ref();
     if !backup_path.exists() {
-        bail!("Backup directory does not exist at {:?}", backup_path);
+        bail!("Backup directory does not exist at {backup_path:?}");
     }
 
     let backup_engine = get_backup_engine(backup_path)?;
     let backups = backup_engine.get_backup_info();
     if backups.is_empty() {
-        bail!("No backups found in {:?}", backup_path);
+        bail!("No backups found in {backup_path:?}");
     }
 
     for backup_info in &backups {
@@ -54,25 +54,25 @@ pub(super) fn validate_backup(backup_path: impl AsRef<Path>) -> anyhow::Result<u
             bail!("Invalid backup ID: 0");
         }
         if backup_info.size == 0 {
-            bail!("Backup {} has size 0", backup_id);
+            bail!("Backup {backup_id} has size 0");
         }
         if backup_info.num_files == 0 {
-            bail!("Backup {} has no files", backup_id);
+            bail!("Backup {backup_id} has no files");
         }
 
         let meta_dir = backup_path.join("meta").join(backup_id.to_string());
         if !meta_dir.exists() {
-            bail!("Missing metadata directory for backup {}", backup_id);
+            bail!("Missing metadata directory for backup {backup_id}");
         }
 
         let private_dir = backup_path.join("private").join(backup_id.to_string());
         if !private_dir.exists() {
-            bail!("Missing private directory for backup {}", backup_id);
+            bail!("Missing private directory for backup {backup_id}");
         }
 
         let shared_dir = backup_path.join("shared_checksum");
         if !shared_dir.exists() {
-            bail!("Missing shared_checksum directory for backup {}", backup_id);
+            bail!("Missing shared_checksum directory for backup {backup_id}");
         }
 
         backup_engine.verify_backup(backup_id)?;

@@ -139,10 +139,9 @@ impl DaRpcServer for DaRpcServerImpl {
         let txs = self
             .da
             .monitoring
-            .get_monitored_txs()
+            .get_in_mempool_txs()
             .await
             .into_iter()
-            .filter(|(_, tx)| matches!(tx.status, TxStatus::InMempool { .. }))
             .map(Into::into)
             .collect::<Vec<_>>();
 

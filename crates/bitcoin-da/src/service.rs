@@ -382,10 +382,9 @@ impl BitcoinService {
     #[instrument(level = "trace", skip_all, ret)]
     async fn get_pending_transactions(&self) -> Vec<Transaction> {
         self.monitoring
-            .get_monitored_txs()
+            .get_in_mempool_txs()
             .await
             .into_iter()
-            .filter(|(_, tx)| matches!(tx.status, TxStatus::InMempool { .. }))
             .map(|(_, monitored_tx)| monitored_tx.tx)
             .collect()
     }

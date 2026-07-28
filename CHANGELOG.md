@@ -1,5 +1,7 @@
 # Changelog
 ## [Unreleased]
+### Added
+- feat: full node state diff rpc ([#3310](https://github.com/chainwayxyz/citrea/pull/3310))
 
 ## [v2.6.0](2026-06-16)
 ### Added
