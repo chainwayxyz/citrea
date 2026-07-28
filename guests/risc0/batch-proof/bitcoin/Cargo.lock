@@ -2096,7 +2096,7 @@ dependencies = [
 [[package]]
 name = "k256"
 version = "0.13.4"
-source = "git+https://github.com/jfldde/RustCrypto-elliptic-curves?branch=perf%2Ffield-modinv#0325c7b06074f00ddbe63441d56d4f01d0eec04e"
+source = "git+https://github.com/jfldde/RustCrypto-elliptic-curves?branch=perf%2Fstacked-modinv#01a2db7c999c046551b70f5bd30a01aeb69ed232"
 dependencies = [
  "bytemuck",
  "cfg-if",
