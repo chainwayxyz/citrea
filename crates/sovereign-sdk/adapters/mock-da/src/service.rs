@@ -21,9 +21,9 @@ use crate::verifier::{MockDaSpec, MockShortHeaderProof};
 use crate::{MockBlockHeader, MockHash};
 
 const GENESIS_HEADER: MockBlockHeader = MockBlockHeader {
-    prev_hash: MockHash([0; 32]),
+    prev_hash: [0; 32],
     hash: MockHash([1; 32]),
-    txs_commitment: MockHash([1; 32]),
+    txs_commitment: [1; 32],
     height: 0,
     // 2023-01-01T00:00:00Z
     time: Time::from_secs(1672531200),
@@ -137,9 +137,7 @@ impl MockDaService {
         let last_finalized_height = self.get_last_finalized_height().await;
         if last_finalized_height > height {
             anyhow::bail!(
-                "Cannot fork at height {}, last finalized height is {}",
-                height,
-                last_finalized_height
+                "Cannot fork at height {height}, last finalized height is {last_finalized_height}"
             );
         }
         let blocks = self.blocks.lock().await;
@@ -207,7 +205,7 @@ impl MockDaService {
         let data_hash = hash_to_array(&blob);
         let proof_hash = hash_to_array(&zkp_proof);
         // Hash only from single blob
-        let block_hash = block_hash(height, data_hash, proof_hash, previous_block_hash.into());
+        let block_hash = block_hash(height, data_hash, proof_hash, previous_block_hash);
 
         let blob = MockBlob::new_with_zkp_proof(
             blob.to_vec(),
@@ -219,7 +217,7 @@ impl MockDaService {
         let header = MockBlockHeader {
             prev_hash: previous_block_hash,
             hash: block_hash,
-            txs_commitment: block_hash,
+            txs_commitment: block_hash.into(),
             height,
             time: Time::from_secs(10000000000), // TODO: had to mock this for now, causes different state roots
             bits: 0,
@@ -343,8 +341,7 @@ impl DaService for MockDaService {
         let index = height
             .checked_sub(oldest_available_height)
             .ok_or(anyhow::anyhow!(
-                "Block at height {} is not available anymore",
-                height
+                "Block at height {height} is not available anymore"
             ))?;
 
         Ok(blocks.get(index).unwrap().clone())
@@ -480,7 +477,7 @@ impl DaService for MockDaService {
             .lock()
             .await
             .get_by_hash(hash.0)
-            .ok_or_else(|| anyhow::anyhow!("Block with hash {:?} not found", hash))
+            .ok_or_else(|| anyhow::anyhow!("Block with hash {hash:?} not found"))
     }
 
     async fn get_pending_sequencer_commitments(
@@ -495,8 +492,8 @@ impl DaService for MockDaService {
     ) -> <Self::Spec as DaSpec>::ShortHeaderProof {
         MockShortHeaderProof {
             header_hash: block.header.hash.0,
-            prev_header_hash: block.header.prev_hash.0,
-            txs_commitment: block.header.txs_commitment.0,
+            prev_header_hash: block.header.prev_hash,
+            txs_commitment: block.header.txs_commitment,
             height: block.header.height,
         }
     }

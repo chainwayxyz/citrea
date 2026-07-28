@@ -262,19 +262,14 @@ impl BoundlessProver {
                         PRICING_SERVICE_TIMEOUT
                     );
                     Err(backoff::Error::transient(anyhow::anyhow!(
-                        "pricing_service.get_price timed out after {:?}",
-                        PRICING_SERVICE_TIMEOUT
+                        "pricing_service.get_price timed out after {PRICING_SERVICE_TIMEOUT:?}"
                     )))
                 }
             }
         })
         .await
         .map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to get price from pricing service for job: {}  | err={}",
-                job_id,
-                e
-            )
+            anyhow::anyhow!("Failed to get price from pricing service for job: {job_id}  | err={e}")
         })?;
 
         let lock_timeout = cmp::max(lock_timeout, MIN_LOCK_TIMEOUT); // at least 200 seconds
@@ -392,8 +387,7 @@ impl BoundlessProver {
                             GAS_PRICE_RPC_TIMEOUT
                         );
                         Err(backoff::Error::transient(anyhow::anyhow!(
-                            "get_gas_price timed out after {:?}",
-                            GAS_PRICE_RPC_TIMEOUT
+                            "get_gas_price timed out after {GAS_PRICE_RPC_TIMEOUT:?}"
                         )))
                     }
                 }
@@ -687,8 +681,7 @@ impl BoundlessProver {
                         job_id
                     );
                     Err(backoff::Error::transient(anyhow::anyhow!(
-                        "pricing_service.get_price timed out after {:?}",
-                        PRICING_SERVICE_TIMEOUT
+                        "pricing_service.get_price timed out after {PRICING_SERVICE_TIMEOUT:?}"
                     )))
                 }
             }
@@ -696,10 +689,7 @@ impl BoundlessProver {
         .await
         .map_err(|e| {
             anyhow::anyhow!(
-                "Failed to get price from pricing service for job: {} request_id: {} | err={}",
-                job_id,
-                request_id,
-                e
+                "Failed to get price from pricing service for job: {job_id} request_id: {request_id} | err={e}"
             )
         })?;
         let max_possible_price_wei_per_cycle = price_response.max_possible_price_wei_per_cycle;

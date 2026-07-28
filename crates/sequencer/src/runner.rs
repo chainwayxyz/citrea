@@ -234,7 +234,7 @@ where
                     "DryRun: Failed to apply l2 block hook: {:?} \n reverting batch workspace",
                     err
                 );
-                bail!("DryRun: Failed to apply begin l2 block hook: {:?}", err)
+                bail!("DryRun: Failed to apply begin l2 block hook: {err:?}")
             }
 
             let evm = citrea_evm::Evm::<DefaultContext>::default();
@@ -714,7 +714,7 @@ where
                 "Failed to apply l2 block hook: {:?} \n reverting batch workspace",
                 err
             );
-            bail!("Failed to apply begin l2 block hook: {:?}", err)
+            bail!("Failed to apply begin l2 block hook: {err:?}")
         }
         SM.begin_l2_block_time.set(
             Instant::now()
@@ -1324,7 +1324,7 @@ where
         let latest_header = self
             .db_provider
             .latest_header()
-            .map_err(|e| anyhow!("Failed to get latest header: {}", e))?
+            .map_err(|e| anyhow!("Failed to get latest header: {e}"))?
             .ok_or(anyhow!("Latest header must always exist"))?
             .unseal();
 
@@ -1405,7 +1405,7 @@ where
 
         match accounts
             .get_account(pub_key, working_set)
-            .map_err(|e| anyhow!("Sequencer: Failed to get sov-account: {}", e))?
+            .map_err(|e| anyhow!("Sequencer: Failed to get sov-account: {e}"))?
         {
             AccountExists { addr: _, nonce } => Ok(nonce),
             AccountEmpty => Ok(0),
@@ -1552,11 +1552,11 @@ where
             if l2_block_info.l2_height() == 1 && index == 0 {
                 let bridge_init_param = self.config.bridge_initialize_params.clone();
 
-                info!("Initializing Bitcoin Light Client with L1 block: #{} with hash {}, tx commitment {}, and coinbase depth {}. Using {:?} for bridge initialization params.", l1_block.header().height(), hex::encode(Into::<[u8; 32]>::into(l1_block.header().txs_commitment())), hex::encode(l1_block.hash()), l1_block.header().coinbase_txid_merkle_proof_height(), bridge_init_param);
+                info!("Initializing Bitcoin Light Client with L1 block: #{} with hash {}, tx commitment {}, and coinbase depth {}. Using {:?} for bridge initialization params.", l1_block.header().height(), hex::encode(l1_block.header().txs_commitment()), hex::encode(l1_block.hash()), l1_block.header().coinbase_txid_merkle_proof_height(), bridge_init_param);
 
                 let initialize_events = create_initial_system_events(
-                    l1_block.header().hash().into(),
-                    l1_block.header().txs_commitment().into(),
+                    l1_block.header().hash(),
+                    l1_block.header().txs_commitment(),
                     l1_block.header().coinbase_txid_merkle_proof_height(),
                     l1_block.header().height(),
                     bridge_init_param,
@@ -1570,8 +1570,8 @@ where
             let coinbase_depth = da_block_header.coinbase_txid_merkle_proof_height();
 
             let set_block_info_event = populate_set_block_info_event(
-                da_block_header.hash().into(),
-                da_block_header.txs_commitment().into(),
+                da_block_header.hash(),
+                da_block_header.txs_commitment(),
                 coinbase_depth,
             );
             system_events.push(set_block_info_event);
@@ -1679,7 +1679,7 @@ where
                     // evm_nonce stays the same — next tx gets the correct nonce
                     continue;
                 }
-                return Err(anyhow!("Failed to apply system transaction: {:?}", e));
+                return Err(anyhow!("Failed to apply system transaction: {e:?}"));
             }
             evm_nonce += 1; // only increment on success
             working_set_to_discard = working_set.checkpoint().to_revertable();

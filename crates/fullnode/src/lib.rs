@@ -121,6 +121,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
+use borsh::BorshDeserialize;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::{InitParams, RollupPublicKeys, RunnerConfig};
@@ -130,6 +131,7 @@ use da_block_handler::L1BlockHandler;
 use jsonrpsee::RpcModule;
 pub use l2_syncer::L2Syncer;
 use sov_db::ledger_db::NodeLedgerOps;
+use sov_keys::default_signature::K256PublicKey;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::ForkManager;
 use sov_modules_api::{SpecId, Zkvm};
@@ -226,7 +228,13 @@ where
     DB: NodeLedgerOps + Send + Sync + Clone + 'static,
     Vm: ZkvmHost + Zkvm,
 {
-    let rpc_context = rpc::create_rpc_context(ledger_db.clone());
+    let sequencer_pub_key = K256PublicKey::try_from_slice(&public_keys.sequencer_public_key)?;
+    let rpc_context = rpc::create_rpc_context(
+        ledger_db.clone(),
+        storage_manager.clone(),
+        sequencer_pub_key,
+        da_service.clone(),
+    );
     let rpc_module = rpc::register_rpc_methods(rpc_module, rpc_context)?;
 
     let last_pruned_block = ledger_db.get_last_pruned_l2_height()?.unwrap_or(0);
