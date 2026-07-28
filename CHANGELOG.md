@@ -3,6 +3,9 @@
 ### Changed
 - perf: Precompute recovered public key in native.([#3090](https://github.com/chainwayxyz/citrea/pull/3090))
 
+### Added
+- feat: full node state diff rpc ([#3310](https://github.com/chainwayxyz/citrea/pull/3310))
+
 ## [v2.6.0](2026-06-16)
 ### Added
 - feat: support get last scanned l1 height in sequencer rpc ([#3298](https://github.com/chainwayxyz/citrea/pull/3298))

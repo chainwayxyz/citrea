@@ -757,8 +757,7 @@ where
                 .get_l2_state_root(previous_l2_end_block_number)?
                 .ok_or_else(|| {
                     anyhow!(
-                        "Proof verification: Could not find state root for L2 height: {}. Skipping proof.",
-                        previous_l2_end_block_number
+                        "Proof verification: Could not find state root for L2 height: {previous_l2_end_block_number}. Skipping proof."
                     )
                 })?;
 

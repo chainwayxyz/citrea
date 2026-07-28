@@ -93,9 +93,7 @@ impl Rollback {
                     if last_scanned_l1_height < l1_target {
                         // If the last scanned L1 height is less than the target, we cannot rollback
                         return Err(anyhow::anyhow!(
-                            "Cannot rollback to L1 height {} as the last scanned height is {}",
-                            l1_target,
-                            last_scanned_l1_height
+                            "Cannot rollback to L1 height {l1_target} as the last scanned height is {last_scanned_l1_height}"
                         ));
                     }
 

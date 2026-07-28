@@ -309,7 +309,7 @@ pub async fn wait_for_prover_job(
 
         let now = Instant::now();
         if start + timeout <= now {
-            bail!("Timeout. Failed to get prover job {}", job_id);
+            bail!("Timeout. Failed to get prover job {job_id}");
         }
 
         sleep(Duration::from_secs(1)).await;
@@ -326,10 +326,7 @@ pub async fn wait_for_prover_job_count(
 
     loop {
         if start.elapsed() >= timeout {
-            bail!(
-                "BatchProver failed to reach proving job count {} on time",
-                count
-            );
+            bail!("BatchProver failed to reach proving job count {count} on time");
         }
 
         let jobs = batch_prover

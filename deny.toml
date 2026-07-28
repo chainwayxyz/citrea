@@ -72,5 +72,7 @@ ignore = [
   "RUSTSEC-2026-0119", # Ignore p2p related message encoding vulnerability. Bounded by reth v1.3.7 → hickory-resolver ^0.25. Used only as stub resolver for peer discovery. Remove when reth tag is bumped.
   "RUSTSEC-2026-0118", # Vulnerable code is behind the dnssec-ring/dnssec-aws-lc-rs feature, which is not enabled in our build. Bounded by reth v1.3.7 → hickory-resolver ^0.25. Remove when reth tag is bumped.
   "RUSTSEC-2026-0173", # Ignore unmaintained proc-macro-error2
+  "RUSTSEC-2026-0183", # git2: Remote::list() unsoundness. Build-time only (vergen-git2 embedding git info). Fix requires git2 >=0.21, bounded by reth v1.3.7 → vergen-git2. Remove when reth tag is bumped.
+  "RUSTSEC-2026-0184", # git2: BlameHunk Signature unsoundness. Build-time only (vergen-git2 embedding git info). Fix requires git2 >=0.21, bounded by reth v1.3.7 → vergen-git2. Remove when reth tag is bumped.
 ]
 unsound = "all"

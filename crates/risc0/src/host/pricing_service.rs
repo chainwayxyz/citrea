@@ -73,9 +73,7 @@ impl PricingService {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             return Err(anyhow!(
-                "Pricing service returned error status {}: {}",
-                status,
-                body
+                "Pricing service returned error status {status}: {body}"
             ));
         }
 

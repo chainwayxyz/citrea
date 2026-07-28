@@ -22,7 +22,7 @@ pub(crate) fn prune_native_db(
     // For versioned state (accounts, etc.): seen_keys tracks which keys we want to preserve.
     let mut iter = native_db
         .iter_with_direction::<ModuleAccessoryState>(Default::default(), ScanDirection::Backward)
-        .map_err(|e| anyhow::anyhow!("Failed to create iterator for native DB pruning: {:?}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to create iterator for native DB pruning: {e:?}"))?;
 
     iter.seek_to_last();
 
@@ -78,7 +78,7 @@ pub(crate) fn prune_native_db(
     let deletions_count = keys_to_delete.len();
     native_db
         .delete_batch::<ModuleAccessoryState>(keys_to_delete)
-        .map_err(|e| anyhow::anyhow!("Failed to delete batch during native DB pruning: {:?}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to delete batch during native DB pruning: {e:?}"))?;
 
     let duration = start.elapsed();
     info!(

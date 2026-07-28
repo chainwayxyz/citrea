@@ -96,7 +96,7 @@ pub async fn get_da_block_at_height<Da: DaService>(
             .map_err(backoff::Error::transient)
     })
     .await
-    .map_err(|e| anyhow!("Error while fetching L1 block: {}", e))?;
+    .map_err(|e| anyhow!("Error while fetching L1 block: {e}"))?;
     l1_block_cache
         .lock()
         .await
