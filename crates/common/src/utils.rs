@@ -7,7 +7,7 @@ use alloy_sol_types::SolCall;
 use anyhow::{anyhow, Context as _};
 use borsh::BorshDeserialize;
 use citrea_evm::system_contracts::{BitcoinLightClientContract, BridgeContract};
-use citrea_evm::{CallMessage as EvmCallMessage, SYSTEM_SIGNER};
+use citrea_evm::{recover_raw_transaction, CallMessage as EvmCallMessage, SYSTEM_SIGNER};
 use citrea_primitives::forks::get_forks;
 use futures::FutureExt;
 use reth_primitives::{Recovered, TransactionSigned};
@@ -120,7 +120,7 @@ pub async fn decode_sov_tx_and_update_short_header_proofs<Da: DaService, DB: Sha
                 .context("Should deserialize evm call message")?;
             let evm_txs = evm_call_message.txs;
             for tx in evm_txs {
-                let tx = Recovered::try_from(tx)
+                let tx = recover_raw_transaction(tx)
                     .map_err(|_| anyhow!("Should be able to recover evm tx"))?;
                 if tx.signer() == SYSTEM_SIGNER {
                     update_short_header_proof_from_sys_tx(&tx, ledger_db, da_service.clone())

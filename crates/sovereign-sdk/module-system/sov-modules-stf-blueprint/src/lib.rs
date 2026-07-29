@@ -164,7 +164,7 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{L2BlockError, L2BlockResult, StateTransitionError};
 use sov_rollup_interface::transaction::Transaction;
-use sov_rollup_interface::zk::batch_proof::input::v3::PrevHashProof;
+use sov_rollup_interface::zk::batch_proof::input::v4::PrevHashProof;
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
 use sov_state::{ReadWriteLog, Storage, Witness};

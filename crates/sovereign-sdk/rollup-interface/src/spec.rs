@@ -44,14 +44,23 @@ pub enum SpecId {
     Tangelo = 3,
     /// Fourth fork fixes an edge case issue with selfdestruct opcode
     TangeloSelfdestructFix = 4,
+    /// Fifth fork moves EVM signature verification to pre-computed pubkey
+    /// witnesses in the batch-proof input.
+    V3 = 5,
     #[cfg(feature = "testing")]
-    /// Fifth fork for testing purposes only
-    Fork5 = 5,
+    /// Sixth fork for testing purposes only
+    Fork6 = 6,
 }
 
 impl SpecId {
     /// Get the latest active (official) SpecId.
     pub const fn latest() -> Self {
-        Self::TangeloSelfdestructFix
+        Self::V3
+    }
+
+    /// Returns whether batch proofs for this spec carry pre-computed ecrecover
+    /// pubkey witnesses.
+    pub fn uses_ecrecover_pubkey_witnesses(self) -> bool {
+        self >= Self::V3
     }
 }

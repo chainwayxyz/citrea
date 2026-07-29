@@ -4,7 +4,9 @@ use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::fork::Fork;
 use sov_modules_api::{Context, DaSpec};
 use sov_modules_stf_blueprint::{ApplySequencerCommitmentsOutput, Runtime, StfBlueprint};
-use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3Part1;
+use sov_rollup_interface::zk::batch_proof::input::v4::{
+    BatchProofCircuitInputV4Part1, EcrecoverPubkeyWitnesses,
+};
 use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
@@ -49,7 +51,7 @@ where
     ) -> BatchProofCircuitOutput {
         println!("Running sequencer commitments in DA slot");
 
-        let mut data: BatchProofCircuitInputV3Part1 = guest.read_from_host();
+        let mut data: BatchProofCircuitInputV4Part1 = guest.read_from_host();
 
         let short_header_proof_provider: ZkShortHeaderProofProviderService<Da> =
             ZkShortHeaderProofProviderService::new(data.short_header_proofs);
@@ -58,6 +60,17 @@ where
             .is_err()
         {
             panic!("Short header proof provider already set");
+        }
+
+        let ecrecover_pubkey_witnesses: EcrecoverPubkeyWitnesses = guest.read_from_host();
+
+        let recovered_pubkey_provider =
+            recovered_pubkey_provider::RecoveredPubkeyProvider::new(ecrecover_pubkey_witnesses);
+        if recovered_pubkey_provider::RECOVERED_PUBKEY_PROVIDER
+            .set(recovered_pubkey_provider)
+            .is_err()
+        {
+            panic!("Recovered pubkey provider already set");
         }
 
         println!("going into apply_l2_blocks_from_sequencer_commitments");

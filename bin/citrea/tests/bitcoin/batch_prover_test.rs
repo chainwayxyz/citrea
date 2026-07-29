@@ -18,7 +18,7 @@ use citrea_common::config::risc0::Risc0HostConfig;
 use citrea_common::FromEnv;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::{
-    BatchProverConfig, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig,
+    BatchProverConfig, CitreaMode, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig,
     SequencerMempoolConfig, TestCaseConfig, TestCaseEnv,
 };
 use citrea_e2e::framework::TestFramework;
@@ -27,11 +27,17 @@ use citrea_e2e::traits::{NodeT, Restart};
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
+use citrea_primitives::forks::{fork_from_block_number, get_forks, use_network_forks};
 use citrea_risc0_adapter::host::Risc0Host;
 use citrea_sequencer::SequencerRpcClient;
+use risc0_binfmt::compute_image_id;
 use risc0_zkvm::Digest;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::Zkvm as _;
+use sov_rollup_interface::spec::SpecId;
+use sov_rollup_interface::zk::batch_proof::input::v4::{
+    BatchProofCircuitInputV4Part1, BatchProofCircuitInputV4Part3, EcrecoverPubkeyWitnesses,
+};
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
 use sov_rollup_interface::zk::{ProvingSessionInfo, ReceiptType, ZkvmHost};
 use sov_rollup_interface::Network;
@@ -40,7 +46,7 @@ use uuid::Uuid;
 use super::get_citrea_path;
 use super::utils::wait_for_zkproofs;
 use crate::bitcoin::utils::{wait_for_prover_job, wait_for_prover_job_count};
-use crate::common::make_test_client;
+use crate::common::{make_test_client, make_test_client_from_private_key};
 
 /// This is a basic prover test showcasing spawning a bitcoin node as DA, a sequencer and a prover.
 /// It generates l2 blocks and wait until it reaches the first commitment.
@@ -575,241 +581,169 @@ async fn parallel_proving_test() -> Result<()> {
         .await
 }
 
-// struct ForkElfSwitchingTest;
+struct ForkElfSwitchingTest;
 
-// #[async_trait]
-// impl TestCase for ForkElfSwitchingTest {
-//     fn test_config() -> TestCaseConfig {
-//         TestCaseConfig {
-//             with_batch_prover: true,
-//             with_full_node: true,
-//             with_light_client_prover: true,
-//             mode: CitreaMode::DevAllForks,
-//             ..Default::default()
-//         }
-//     }
+#[async_trait]
+impl TestCase for ForkElfSwitchingTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            with_full_node: true,
+            mode: CitreaMode::DevAllForks,
+            ..Default::default()
+        }
+    }
 
-//     fn light_client_prover_config() -> LightClientProverConfig {
-//         LightClientProverConfig {
-//             initial_da_height: 171,
-//             ..Default::default()
-//         }
-//     }
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 15,
+            ..Default::default()
+        }
+    }
 
-//     fn sequencer_config() -> SequencerConfig {
-//         let kumquat_height = ForkManager::new(get_forks(), 0)
-//             .next_fork()
-//             .unwrap()
-//             .activation_height;
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            proof_sampling_number: 999_999_999,
+            ..Default::default()
+        }
+    }
 
-//         // Set just below kumquat height so we can generate first soft com txs in genesis
-//         // and second batch above kumquat
-//         SequencerConfig {
-//             max_l2_blocks_per_commitment: kumquat_height - 5,
-//             ..Default::default()
-//         }
-//     }
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
 
-//     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-//         let da = f.bitcoin_nodes.get(0).unwrap();
-//         let sequencer = f.sequencer.as_ref().unwrap();
-//         let batch_prover = f.batch_prover.as_ref().unwrap();
-//         let full_node = f.full_node.as_ref().unwrap();
-//         let light_client_prover = f.light_client_prover.as_ref().unwrap();
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
 
-//         // send evm tx
-//         let evm_client = make_test_client(SocketAddr::new(
-//             sequencer.config().rpc_bind_host().parse()?,
-//             sequencer.config().rpc_bind_port(),
-//         ))
-//         .await?;
+        let timeout = Some(Duration::from_secs(600));
 
-//         let pending_evm_tx = evm_client
-//             .send_eth(Address::random(), None, None, None, 100)
-//             .await
-//             .unwrap();
+        // L2 height at which the v4 pubkey-witness input activates.
+        let ecrecover_fork_height = get_forks()
+            .iter()
+            .find(|fork| fork.spec_id == SpecId::V3)
+            .expect("ALL_FORKS must contain v3")
+            .activation_height;
+        let pre_ecrecover_image_id = compute_image_id(include_bytes!(
+            "../../../../resources/guests/risc0/batch-proof-nightly-c9653aa4b"
+        ))
+        .expect("nightly-c9653aa4b ELF must have a valid image ID");
+        let current_image_id = Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID);
+        assert_ne!(
+            pre_ecrecover_image_id, current_image_id,
+            "test requires distinct old and current batch-proof ELFs"
+        );
 
-//         let min_l2_blocks = sequencer.max_l2_blocks_per_commitment();
+        // Produce L2 blocks well past the fork so the prover ends up with both
+        // pre-fork and post-fork sequencer commitments to prove.
+        let target_l2_height = ecrecover_fork_height + 2 * sequencer.max_l2_blocks_per_commitment();
+        while sequencer.client.ledger_get_head_l2_block_height().await? < target_l2_height {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        sequencer.wait_for_l2_height(target_l2_height, None).await?;
 
-//         for _ in 0..min_l2_blocks {
-//             sequencer.client.send_publish_batch_request().await?;
-//         }
+        // Mine all pending sequencer commitments into a finalized DA block.
+        da.wait_mempool_len(6, timeout).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let commitments_finalized_height = da.get_finalized_height(None).await?;
+        batch_prover
+            .wait_for_l1_height(commitments_finalized_height, timeout)
+            .await?;
 
-//         // assert that evm tx is mined
-//         let evm_tx = evm_client
-//             .eth_get_transaction_by_hash(*pending_evm_tx.tx_hash(), None)
-//             .await
-//             .unwrap();
+        // Prove every pending commitment. `Normal` partitioning splits the
+        // commitments at the `v3` boundary, so the prover
+        // proves the pre-fork partition(s) with the nightly-c9653aa4b ELF and the
+        // post-fork partition with the current ELF.
+        let job_ids = batch_prover
+            .client
+            .http_client()
+            .prove(PartitionMode::Normal)
+            .await?;
+        assert!(
+            job_ids.len() >= 2,
+            "expected at least one pre-fork and one post-fork proof, got {} job(s)",
+            job_ids.len()
+        );
 
-//         assert!(evm_tx.block_number.is_some());
+        // A proving job only completes after its receipt is verified against the
+        // code commitment for that partition's spec.
+        let mut job_outputs = Vec::with_capacity(job_ids.len());
+        for job_id in &job_ids {
+            let response = wait_for_prover_job(batch_prover, *job_id, timeout).await?;
+            let proof = response.proof.expect("completed job must have proof");
+            job_outputs.push(proof.proof_output);
+        }
 
-//         let height = sequencer
-//             .client
-//             .ledger_get_head_l2_block_height()
-//             .await?;
+        // Mine the batch proofs and let the full node verify and store them.
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let batch_proof_l1_height = da.get_finalized_height(None).await?;
+        full_node
+            .wait_for_l1_height(batch_proof_l1_height, timeout)
+            .await?;
+        let mut proofs =
+            wait_for_zkproofs(full_node, batch_proof_l1_height, timeout, job_ids.len()).await?;
+        assert_eq!(proofs.len(), job_ids.len());
 
-//         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Genesis);
+        // Order proofs by the L2 height they end at to reason about the boundary.
+        proofs.sort_by_key(|proof| proof.proof_output.last_l2_height.to::<u64>());
+        job_outputs.sort_by_key(|proof| proof.last_l2_height.to::<u64>());
 
-//         // Generate softcom in kumquat
-//         for _ in 0..min_l2_blocks {
-//             sequencer.client.send_publish_batch_request().await?;
-//         }
+        let full_node_proof_heights = proofs
+            .iter()
+            .map(|proof| proof.proof_output.last_l2_height.to::<u64>())
+            .collect::<Vec<_>>();
+        let job_proof_heights = job_outputs
+            .iter()
+            .map(|proof| proof.last_l2_height.to::<u64>())
+            .collect::<Vec<_>>();
+        assert_eq!(job_proof_heights, full_node_proof_heights);
 
-//         let height = sequencer
-//             .client
-//             .ledger_get_head_l2_block_height()
-//             .await?;
-//         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Kumquat);
+        for adjacent_proofs in proofs.windows(2) {
+            let previous = &adjacent_proofs[0].proof_output;
+            let next = &adjacent_proofs[1].proof_output;
 
-//         // Generate softcom in fork2
-//         for _ in 0..min_l2_blocks {
-//             sequencer.client.send_publish_batch_request().await?;
-//         }
+            assert_eq!(previous.final_state_root(), next.initial_state_root());
+            assert_eq!(
+                previous.sequencer_commitment_index_range.1.to::<u32>() + 1,
+                next.sequencer_commitment_index_range.0.to::<u32>()
+            );
+        }
 
-//         let last_sc_before_fork2 = sequencer
-//             .client
-//             .http_client()
-//             .get_l2_block_by_number(U64::from(199u64))
-//             .await
-//             .unwrap()
-//             .unwrap();
+        // At least one proof must come from a pre-fork spec (old ELF, legacy
+        // input) and one from `v3` (current ELF, v4 input).
+        let has_pre_fork = proofs.iter().any(|proof| {
+            fork_from_block_number(proof.proof_output.last_l2_height.to::<u64>()).spec_id
+                != SpecId::V3
+        });
+        let has_post_fork = proofs.iter().any(|proof| {
+            fork_from_block_number(proof.proof_output.last_l2_height.to::<u64>()).spec_id
+                == SpecId::V3
+        });
+        assert!(
+            has_pre_fork,
+            "expected a proof produced by the nightly-c9653aa4b ELF (pre-fork spec)"
+        );
+        assert!(
+            has_post_fork,
+            "expected a proof produced by the current ELF (v3)"
+        );
 
-//         // the last tx of last l2 block before fork2 should be the change authority sov tx
-//         let last_tx_hex = last_sc_before_fork2
-//             .clone()
-//             .txs
-//             .clone()
-//             .unwrap()
-//             .last()
-//             .expect("should have last tx")
-//             .clone();
+        Ok(())
+    }
+}
 
-//         let tx_vec = last_tx_hex.tx.clone();
+#[tokio::test]
+#[ignore]
+async fn test_fork_elf_switching() -> Result<()> {
+    use_network_forks(Network::TestNetworkWithForks);
 
-//         let tx = Transaction::try_from_slice(&tx_vec).expect("Should be the tx");
-
-//         let k256_pub_key_sequencer = K256PublicKey::try_from(
-//             sequencer
-//                 .config()
-//                 .rollup
-//                 .public_keys
-//                 .sequencer_public_key
-//                 .as_slice(),
-//         )
-//         .unwrap();
-
-//         let address = k256_pub_key_sequencer.to_address::<<DefaultContext as Spec>::Address>();
-
-//         // Going to ignore the first byte here because it's the call prefix
-//         // It is an enum of modules:
-//         // 0 is accounts,1 is evm, 2 is l2 block rule enforcer
-//         // assert the first byte is 2 as in sc rule enforcer
-//         assert_eq!(tx.runtime_msg()[0], 2);
-
-//         let change_authority_call_message: l2_block_rule_enforcer::CallMessage
-//         // Going to ignore the first byte here because it's the call prefix as explained above
-//         = l2_block_rule_enforcer::CallMessage::try_from_slice(&tx.runtime_msg()[1..])
-//             .expect("Should be the tx");
-
-//         match change_authority_call_message {
-//             l2_block_rule_enforcer::CallMessage::ChangeAuthority { new_authority } => {
-//                 assert_eq!(new_authority, address);
-//                 println!("New authority: {:?}", new_authority);
-//             }
-//             _ => panic!("Should be change authority"),
-//         }
-
-//         let height = sequencer
-//             .client
-//             .ledger_get_head_l2_block_height()
-//             .await?;
-//         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Fork2);
-
-//         da.wait_mempool_len(6, None).await?;
-
-//         da.generate(DEFAULT_FINALITY_DEPTH).await?;
-
-//         let finalized_height = da.get_finalized_height(None).await?;
-
-//         batch_prover
-//             .wait_for_l1_height(finalized_height, None)
-//             .await?;
-
-//         // Wait for batch proof tx to hit mempool
-//         da.wait_mempool_len(6, None).await?;
-//         da.generate(DEFAULT_FINALITY_DEPTH).await?;
-
-//         full_node
-//             .wait_for_l1_height(finalized_height + DEFAULT_FINALITY_DEPTH, None)
-//             .await?;
-//         let proofs = wait_for_zkproofs(full_node, finalized_height + DEFAULT_FINALITY_DEPTH, None, 3)
-//             .await
-//             .unwrap();
-
-//         assert_eq!(proofs.len(), 3);
-//         assert_eq!(
-//             SpecId::from_u8(
-//                 proofs[0]
-//                     .proof_output
-//                     .last_active_spec_id
-//                     .expect("should have field")
-//                     .to()
-//             )
-//             .expect("should be valid"),
-//             SpecId::Genesis
-//         );
-//         assert_eq!(
-//             fork_from_block_number(
-//                 proofs[1]
-//                     .proof_output
-//                     .last_l2_height
-//                     .expect("should have field")
-//                     .to()
-//             )
-//             .spec_id,
-//             SpecId::Kumquat
-//         );
-//         assert_eq!(
-//             fork_from_block_number(proofs[2].proof_output.last_l2_height.unwrap().to()).spec_id,
-//             SpecId::Fork2
-//         );
-
-//         light_client_prover
-//             .wait_for_l1_height(finalized_height + DEFAULT_FINALITY_DEPTH, None)
-//             .await?;
-//         let lcp = light_client_prover
-//             .client
-//             .http_client()
-//             .get_light_client_proof_by_l1_height(finalized_height + DEFAULT_FINALITY_DEPTH)
-//             .await
-//             .unwrap()
-//             .unwrap();
-
-//         assert!(lcp
-//             .light_client_proof_output
-//             .unchained_batch_proofs_info
-//             .is_empty());
-
-//         assert_eq!(
-//             lcp.light_client_proof_output.l2_state_root.to_vec(),
-//             proofs[2].proof_output.final_state_root
-//         );
-
-//         Ok(())
-//     }
-// }
-
-// // ignoring this test now as we won't be supporting backwards compatibility for proofs.
-// #[tokio::test]
-// #[ignore]
-// async fn test_fork_elf_switching() -> Result<()> {
-//     use_network_forks(Network::TestNetworkWithForks);
-
-//     TestCaseRunner::new(ForkElfSwitchingTest)
-//         .set_citrea_path(get_citrea_path())
-//         .run()
-//         .await
-// }
+    TestCaseRunner::new(ForkElfSwitchingTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
 
 struct L1HashOutputTest;
 
@@ -1331,9 +1265,6 @@ impl TestCase for BatchProverCreateInputTest {
             error_msg
         );
 
-        sequencer.wait_until_stopped().await?;
-        batch_prover.wait_until_stopped().await?;
-
         Ok(())
     }
 }
@@ -1341,6 +1272,312 @@ impl TestCase for BatchProverCreateInputTest {
 #[tokio::test]
 async fn batch_prover_create_input_test() -> Result<()> {
     TestCaseRunner::new(BatchProverCreateInputTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+/// Regression test pinning that the circuit input's recovered pubkeys contain
+/// only the signers of the blocks inside the targeted commitment, regardless of
+/// what other L2 blocks the prover has applied.
+///
+/// Block 1 (signer A) is committed and finalized. The prover is restarted to
+/// drop any in-process state, then block 2 (signer B) is synced but not
+/// included in any commitment passed to `create_circuit_input`. The witness for
+/// commitment 1 must contain exactly signer A's pubkey. Re-running input
+/// creation must produce the same result, guarding against any stateful drain
+/// that would leave subsequent collections empty or stale.
+///
+/// This guards against re-introducing unconditional pubkey recording on the hot
+/// path (every `recover_raw_transaction` call), which previously caused signer
+/// B's pubkey to be appended to commitment 1's witness and would lead the guest
+/// to verify block 1's transaction against the wrong pubkey.
+struct BatchProverPubkeyCollectionIsolationTest;
+
+#[async_trait]
+impl TestCase for BatchProverPubkeyCollectionIsolationTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 1,
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            proof_sampling_number: 999_999_999_999,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let batch_prover = f.batch_prover.as_mut().unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let da = f.bitcoin_nodes.get(0).unwrap();
+
+        let first_funded_private_key =
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+        let second_funded_private_key =
+            "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+
+        let sequencer_rpc_addr = SocketAddr::new(
+            sequencer.config().rpc_bind_host().parse()?,
+            sequencer.config().rpc_bind_port(),
+        );
+        let first_signer_client =
+            make_test_client_from_private_key(sequencer_rpc_addr, first_funded_private_key).await?;
+        let second_signer_client =
+            make_test_client_from_private_key(sequencer_rpc_addr, second_funded_private_key)
+                .await?;
+
+        let _ = first_signer_client
+            .send_eth(Address::random(), None, None, None, 100)
+            .await?;
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer.wait_for_l2_height(1, None).await?;
+        batch_prover.wait_for_l2_height(1, None).await?;
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        // Restarting clears process-local pubkey state while keeping the pending
+        // commitment in the prover DB. The next synced block is intentionally not
+        // part of the proof input below.
+        batch_prover.restart(None, None).await?;
+        batch_prover.wait_for_l2_height(1, None).await?;
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        let _ = second_signer_client
+            .send_eth(Address::random(), None, None, None, 100)
+            .await?;
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer.wait_for_l2_height(2, None).await?;
+        batch_prover.wait_for_l2_height(2, None).await?;
+
+        let inputs = batch_prover
+            .client
+            .http_client()
+            .create_circuit_input(1, 1, PartitionMode::Normal)
+            .await?;
+        assert_eq!(inputs.len(), 1);
+
+        let raw_input = BASE64_STANDARD.decode(&inputs[0]).unwrap();
+        // The pubkey-witness input serializes Part1, then pre-computed
+        // ecrecover pubkeys, then Part2.
+        let (_input_part, ecrecover_pubkey_witnesses, _): (
+            BatchProofCircuitInputV4Part1,
+            EcrecoverPubkeyWitnesses,
+            BatchProofCircuitInputV4Part3,
+        ) = borsh::from_slice(&raw_input)?;
+        assert_eq!(ecrecover_pubkey_witnesses.len(), 1);
+
+        let first_signer_pubkey = uncompressed_pubkey_from_private_key(first_funded_private_key)?;
+
+        // Strict equality also catches a regression where signer A's pubkey
+        // is recorded more than once, which a `contains` check would miss.
+        assert_eq!(
+            ecrecover_pubkey_witnesses.as_slice(),
+            &[first_signer_pubkey]
+        );
+
+        // Re-creating the input for the same commitment must yield the same
+        // pubkeys. A stateful drain that didn't reset between collections would
+        // surface here as an empty or stale pubkey-witness field.
+        let second_inputs = batch_prover
+            .client
+            .http_client()
+            .create_circuit_input(1, 1, PartitionMode::Normal)
+            .await?;
+        let raw_second_input = BASE64_STANDARD.decode(&second_inputs[0]).unwrap();
+        let (_second_input_part, second_pubkey_witnesses, _): (
+            BatchProofCircuitInputV4Part1,
+            EcrecoverPubkeyWitnesses,
+            BatchProofCircuitInputV4Part3,
+        ) = borsh::from_slice(&raw_second_input)?;
+        assert_eq!(second_pubkey_witnesses, ecrecover_pubkey_witnesses);
+
+        Ok(())
+    }
+}
+
+fn uncompressed_pubkey_from_private_key(private_key: &str) -> anyhow::Result<[u8; 65]> {
+    let private_key = private_key.strip_prefix("0x").unwrap_or(private_key);
+    let private_key = hex::decode(private_key)?;
+    let signing_key = k256::ecdsa::SigningKey::from_slice(&private_key)?;
+
+    Ok(signing_key
+        .verifying_key()
+        .to_encoded_point(false)
+        .as_bytes()
+        .try_into()
+        .expect("secp256k1 uncompressed pubkey must be 65 bytes"))
+}
+
+#[tokio::test]
+async fn batch_prover_pubkey_collection_isolation_test() -> Result<()> {
+    TestCaseRunner::new(BatchProverPubkeyCollectionIsolationTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+/// Runs a valid batch-proof input as a control, then tampers with its ecrecover
+/// pubkey witness and asserts that guest execution fails.
+struct IncorrectFedPubkeyTest;
+
+#[async_trait]
+impl TestCase for IncorrectFedPubkeyTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 1,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let batch_prover = f.batch_prover.as_mut().unwrap();
+        let sequencer = f.sequencer.as_mut().unwrap();
+        let da = f.bitcoin_nodes.get(0).unwrap();
+
+        // The commitment needs at least one user EVM transaction so it carries a
+        // recovered pubkey witness to tamper with.
+        let signer_private_key =
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+        let sequencer_rpc_addr = SocketAddr::new(
+            sequencer.config().rpc_bind_host().parse()?,
+            sequencer.config().rpc_bind_port(),
+        );
+        let signer_client =
+            make_test_client_from_private_key(sequencer_rpc_addr, signer_private_key).await?;
+        let _ = signer_client
+            .send_eth(Address::random(), None, None, None, 100)
+            .await?;
+
+        // Generate commitments to create input for proving. The user transaction
+        // above lands in the first published block, so the commitment carries
+        // exactly one recovered pubkey witness.
+        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+        for _ in 0..max_l2_blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for commitment transactions to hit the mempool
+        da.wait_mempool_len(2, None).await?;
+
+        // Finalize the commitments
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        // Ensure the batch prover sees the finalized commitments
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        // Call batchProver_createInput to generate input for proving
+        let inputs = batch_prover
+            .client
+            .http_client()
+            .create_circuit_input(0, 1, PartitionMode::Normal)
+            .await?;
+        assert_eq!(inputs.len(), 1);
+
+        let raw_input = BASE64_STANDARD.decode(&inputs[0]).unwrap();
+        let (input_part1, mut ecrecover_pubkey_witnesses, input_part3): (
+            BatchProofCircuitInputV4Part1,
+            EcrecoverPubkeyWitnesses,
+            BatchProofCircuitInputV4Part3,
+        ) = borsh::from_slice(&raw_input)?;
+
+        // Switch to another valid signer's pubkey
+        let wrong_pubkey = uncompressed_pubkey_from_private_key(
+            "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+        )?;
+        let first_pubkey = ecrecover_pubkey_witnesses
+            .first_mut()
+            .expect("input must carry at least one ecrecover pubkey to tamper with");
+        assert_ne!(
+            *first_pubkey, wrong_pubkey,
+            "tampered pubkey must differ from the original signer's pubkey"
+        );
+        *first_pubkey = wrong_pubkey;
+
+        let tampered_input =
+            borsh::to_vec(&(input_part1, ecrecover_pubkey_witnesses, input_part3))?;
+
+        let network = Network::Nightly;
+        let risc0_config = Risc0HostConfig::from_env().expect("Failed to load risc0 config");
+        let risc0_host = Risc0Host::new(network, risc0_config).await;
+
+        let mut untampered_risc0_host = risc0_host.clone();
+        untampered_risc0_host.add_hint(raw_input);
+        let untampered_run_result = untampered_risc0_host
+            .run(
+                Uuid::new_v4(),
+                citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec(),
+                ReceiptType::Groth16,
+                false,
+            )
+            .await
+            .expect("spawning guest execution should not fail")
+            .await;
+        assert!(
+            untampered_run_result.is_ok(),
+            "guest execution must succeed with an untampered pubkey witness"
+        );
+
+        let mut tampered_risc0_host = risc0_host;
+        tampered_risc0_host.add_hint(tampered_input);
+        let tampered_run_result = tampered_risc0_host
+            .run(
+                Uuid::new_v4(),
+                citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec(),
+                ReceiptType::Groth16,
+                false,
+            )
+            .await
+            .expect("spawning guest execution should not fail")
+            .await;
+
+        assert!(
+            tampered_run_result.is_err(),
+            "guest execution must fail when a witness pubkey is tampered with"
+        );
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn batch_prover_incorrect_pubkey_test() -> Result<()> {
+    TestCaseRunner::new(IncorrectFedPubkeyTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await

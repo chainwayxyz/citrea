@@ -48,17 +48,15 @@ pub(crate) static BATCH_PROOF_REGTEST_BITCOIN_GUESTS: LazyLock<HashMap<SpecId, (
         HashMap::from([
             (
                 SpecId::Tangerine,
-                (
-                    Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
-                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec(),
-                ),
+                guest!("../../../resources/guests/risc0/batch-proof-nightly-c9653aa4b"),
             ),
             (
                 SpecId::Tangelo,
-                (
-                    Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
-                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec(),
-                ),
+                guest!("../../../resources/guests/risc0/batch-proof-nightly-c9653aa4b"),
+            ),
+            (
+                SpecId::TangeloSelfdestructFix,
+                guest!("../../../resources/guests/risc0/batch-proof-nightly-c9653aa4b"),
             ),
             (
                 SpecId::latest(),

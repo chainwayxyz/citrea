@@ -1209,6 +1209,7 @@ dependencies = [
  "borsh",
  "citrea-primitives",
  "k256",
+ "recovered-pubkey-provider",
  "reth-primitives",
  "reth-primitives-traits",
  "revm",
@@ -1254,6 +1255,7 @@ dependencies = [
  "borsh",
  "citrea-evm",
  "l2-block-rule-enforcer",
+ "recovered-pubkey-provider",
  "serde",
  "short-header-proof-provider",
  "sov-accounts",
@@ -2796,6 +2798,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d25bf25ec5ae4a3f1b92f929810509a2f53d7dca2f50b794ff57e3face536c8f"
 dependencies = [
  "rand_core 0.6.4",
+]
+
+[[package]]
+name = "recovered-pubkey-provider"
+version = "2.6.0"
+dependencies = [
+ "thiserror 2.0.12",
 ]
 
 [[package]]

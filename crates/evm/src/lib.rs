@@ -1,6 +1,7 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 mod call;
+/// EVM handler and transaction processing
 mod evm;
 mod genesis;
 mod hooks;
@@ -12,6 +13,9 @@ use alloy_consensus::TxReceipt;
 pub use alloy_primitives::{keccak256, U256};
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 pub use call::*;
+#[cfg(feature = "native")]
+pub use evm::conversions::recover_pubkey;
+pub use evm::conversions::recover_raw_transaction;
 pub use evm::*;
 pub use genesis::*;
 #[cfg(feature = "native")]

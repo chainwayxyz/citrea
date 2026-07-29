@@ -3531,6 +3531,7 @@ dependencies = [
  "bincode",
  "borsh",
  "citrea-common",
+ "citrea-evm",
  "citrea-primitives",
  "citrea-stf",
  "faster-hex",
@@ -3682,6 +3683,7 @@ dependencies = [
  "metrics-derive",
  "rand 0.8.6",
  "rayon",
+ "recovered-pubkey-provider",
  "reth-chainspec",
  "reth-db",
  "reth-errors",
@@ -3914,6 +3916,7 @@ dependencies = [
  "citrea-stf",
  "jsonrpsee",
  "l2-block-rule-enforcer",
+ "recovered-pubkey-provider",
  "rs_merkle",
  "serde",
  "serde_json",
@@ -8680,6 +8683,13 @@ checksum = "1465873a3dfdaa8ae7cb14b4383657caab0b3e8a0aa9ae8e04b044854c8dfce2"
 dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
+]
+
+[[package]]
+name = "recovered-pubkey-provider"
+version = "2.6.0"
+dependencies = [
+ "thiserror 2.0.12",
 ]
 
 [[package]]
