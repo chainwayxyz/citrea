@@ -934,7 +934,7 @@ where
                     warn!(
                         "Failed to process pending proof with index {min_index}-{max_index}: {e:?}"
                     );
-                    break;
+                    self.ledger_db.remove_pending_proof(min_index, max_index)?;
                 }
                 Ok(ProcessingResult::Success) => {
                     info!("Successfully processed pending proof for commitment index range {min_index}-{max_index}");
