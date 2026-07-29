@@ -458,10 +458,16 @@ where
                             sequencer_commitment.index,
                             sequencer_commitment.index - 1
                         );
-                    self.ledger_db.store_pending_commitment(
-                        sequencer_commitment.clone(),
-                        found_in_l1_block_height,
-                    )?;
+                    if self
+                        .ledger_db
+                        .get_pending_commitment_by_index(sequencer_commitment.index)?
+                        .is_none()
+                    {
+                        self.ledger_db.store_pending_commitment(
+                            sequencer_commitment.clone(),
+                            found_in_l1_block_height,
+                        )?;
+                    }
                     return Ok(ProcessingResult::Pending);
                 }
             }
