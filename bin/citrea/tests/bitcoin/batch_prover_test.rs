@@ -1438,8 +1438,8 @@ async fn batch_prover_pubkey_collection_isolation_test() -> Result<()> {
         .await
 }
 
-/// Feeds the batch-proof guest an input whose ecrecover pubkey witness has been
-/// tampered with, and asserts that guest execution fails.
+/// Runs a valid batch-proof input as a control, then tampers with its ecrecover
+/// pubkey witness and asserts that guest execution fails.
 struct IncorrectFedPubkeyTest;
 
 #[async_trait]
@@ -1534,10 +1534,28 @@ impl TestCase for IncorrectFedPubkeyTest {
 
         let network = Network::Nightly;
         let risc0_config = Risc0HostConfig::from_env().expect("Failed to load risc0 config");
-        let mut risc0_host = Risc0Host::new(network, risc0_config).await;
-        risc0_host.add_hint(tampered_input);
+        let risc0_host = Risc0Host::new(network, risc0_config).await;
 
-        let run_result = risc0_host
+        let mut untampered_risc0_host = risc0_host.clone();
+        untampered_risc0_host.add_hint(raw_input);
+        let untampered_run_result = untampered_risc0_host
+            .run(
+                Uuid::new_v4(),
+                citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec(),
+                ReceiptType::Groth16,
+                false,
+            )
+            .await
+            .expect("spawning guest execution should not fail")
+            .await;
+        assert!(
+            untampered_run_result.is_ok(),
+            "guest execution must succeed with an untampered pubkey witness"
+        );
+
+        let mut tampered_risc0_host = risc0_host;
+        tampered_risc0_host.add_hint(tampered_input);
+        let tampered_run_result = tampered_risc0_host
             .run(
                 Uuid::new_v4(),
                 citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec(),
@@ -1549,7 +1567,7 @@ impl TestCase for IncorrectFedPubkeyTest {
             .await;
 
         assert!(
-            run_result.is_err(),
+            tampered_run_result.is_err(),
             "guest execution must fail when a witness pubkey is tampered with"
         );
 
