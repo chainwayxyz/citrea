@@ -48,10 +48,10 @@ pub struct PrevHashProof {
     pub prev_sequencer_commitment_start: u64,
 }
 
-/// Pre-computed ecrecover pubkey witnesses, grouped by sequencer commitment.
+/// Pre-computed ecrecover pubkey witnesses.
 ///
-/// Each inner `Vec` holds the uncompressed 65-byte pubkeys recovered from the
-/// signatures of the L2 blocks in that commitment, in circuit consumption order.
+/// Holds the uncompressed 65-byte pubkeys recovered from the signatures
+/// of the L2 blocks in that commitment, in circuit consumption order.
 pub type EcrecoverPubkeyWitnesses = Vec<[u8; 65]>;
 
 #[derive(BorshDeserialize, BorshSerialize)]
