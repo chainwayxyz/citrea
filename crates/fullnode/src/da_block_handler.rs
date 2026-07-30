@@ -414,6 +414,21 @@ where
             return Ok(ProcessingResult::Discarded);
         }
 
+        // Skip if a different commitment is already pending at this index
+        // The first commitment seen at an index stays canonical, even while it is still pending
+        if let Some((pending_commitment, _)) = self
+            .ledger_db
+            .get_pending_commitment_by_index(sequencer_commitment.index)?
+        {
+            if pending_commitment != *sequencer_commitment {
+                warn!(
+                    "Conflicting sequencer commitment at index {}.\nAlready pending: {:?}\nConflicting: {:?}",
+                    sequencer_commitment.index, pending_commitment, sequencer_commitment
+                );
+                return Ok(ProcessingResult::Discarded);
+            }
+        }
+
         let end_l2_height = sequencer_commitment.l2_end_block_number;
         // Check if this commitment advances the chain state
         // We only accept strictly increasing heights and indices
