@@ -464,9 +464,12 @@ where
             if let Some((existing_commitment, _)) =
                 ledger_db.get_pending_commitment_by_index(index)?
             {
-                if existing_commitment != *sequencer_commitment {
-                    warn!("Found a conflicting pending commitment on index {index}\nDA: {sequencer_commitment:?}\nDB:{existing_commitment:?}");
-                }
+                // Conflicting commitments are discarded at the top of `process_sequencer_commitment`,
+                // so anything reaching here matches what is already pending
+                assert!(
+                    existing_commitment == *sequencer_commitment,
+                    "Found a conflicting pending commitment on index {index}\nDA: {sequencer_commitment:?}\nDB:{existing_commitment:?}"
+                );
             } else {
                 ledger_db.store_pending_commitment(
                     sequencer_commitment.clone(),
