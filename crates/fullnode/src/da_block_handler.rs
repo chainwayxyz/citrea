@@ -446,11 +446,11 @@ where
             found_in_l1_block_height: u64,
         ) -> Result<(), anyhow::Error> {
             let index = sequencer_commitment.index;
-            if let Some((existing_commitment, _)) = ledger_db
-                .get_pending_commitment_by_index(index)?
+            if let Some((existing_commitment, _)) =
+                ledger_db.get_pending_commitment_by_index(index)?
             {
                 if existing_commitment != *sequencer_commitment {
-                   warn!("Found a conflicting pending commitment on index {index}\nDA: {sequencer_commitment:?}\nDB:{existing_commitment:?}");
+                    warn!("Found a conflicting pending commitment on index {index}\nDA: {sequencer_commitment:?}\nDB:{existing_commitment:?}");
                 }
             } else {
                 ledger_db.store_pending_commitment(
@@ -952,8 +952,10 @@ where
                             // Stop processing further pending proofs as they may depend on this one
                             break;
                         }
-                        _ => { 
-                            unreachable!("Unexpected error type while processing pending proof: {e:?}");
+                        _ => {
+                            unreachable!(
+                                "Unexpected error type while processing pending proof: {e:?}"
+                            );
                         }
                     }
                 }
