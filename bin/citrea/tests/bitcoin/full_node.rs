@@ -4188,3 +4188,246 @@ async fn test_full_node_state_diff_rpc() -> Result<()> {
         .run()
         .await
 }
+
+struct PendingCommitmentNotOverwrittenTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for PendingCommitmentNotOverwrittenTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_sequencer: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            // High enough that the sequencer never publishes commitments on its own,
+            // every commitment in this test is crafted and sent manually.
+            max_l2_blocks_per_commitment: 10_000,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(150)
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        /*
+        A commitment that is only pending must not lose its index to a conflicting pending commitment.
+
+        Sequencer publishes L2 blocks 1-30, full node syncs them.
+        Commitments used, all of them valid against the synced L2 blocks:
+            commitment 1  : L2 [1, 10]
+            commitment 2  : L2 [11, 20]
+            commitment 3a : L2 [21, 30]
+            commitment 3b : L2 [21, 29]
+
+        DA writes, in order:
+            commitment 2  -> pending,
+            commitment 3a -> pending,
+            commitment 3b -> must be rejected because index 3 is already pending,
+            commitment 1  -> unblocks the chain, commitments 1, 2 and 3a get processed
+         */
+        let task_executor = self.task_manager.executor();
+
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
+
+        let sequencer_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
+
+        for _ in 1..=30 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        sequencer.client.wait_for_l2_block(30, None).await?;
+        full_node.wait_for_l2_height(30, None).await?;
+
+        let sequencer_client = sequencer.client.http_client();
+
+        let merkle_root_1 = calculate_merkle_root(
+            &sequencer_client
+                .get_l2_block_range(U64::from(1), U64::from(10))
+                .await?,
+        );
+        let merkle_root_2 = calculate_merkle_root(
+            &sequencer_client
+                .get_l2_block_range(U64::from(11), U64::from(20))
+                .await?,
+        );
+        let merkle_root_3a = calculate_merkle_root(
+            &sequencer_client
+                .get_l2_block_range(U64::from(21), U64::from(30))
+                .await?,
+        );
+        let merkle_root_3b = calculate_merkle_root(
+            &sequencer_client
+                .get_l2_block_range(U64::from(21), U64::from(29))
+                .await?,
+        );
+
+        let commitment_1 = SequencerCommitment {
+            merkle_root: merkle_root_1,
+            l2_end_block_number: 10,
+            index: 1,
+        };
+        let commitment_2 = SequencerCommitment {
+            merkle_root: merkle_root_2,
+            l2_end_block_number: 20,
+            index: 2,
+        };
+        // Two conflicting commitments at index 3. 
+        // Both are valid against the L2 blocks the full node has synced.
+        let commitment_3a = SequencerCommitment {
+            merkle_root: merkle_root_3a,
+            l2_end_block_number: 30,
+            index: 3,
+        };
+        let commitment_3b = SequencerCommitment {
+            merkle_root: merkle_root_3b,
+            l2_end_block_number: 29,
+            index: 3,
+        };
+        assert_ne!(
+            commitment_3a.serialize_and_calculate_sha_256(),
+            commitment_3b.serialize_and_calculate_sha_256()
+        );
+
+        // Send commitment 2 first. Index 1 is unknown so it is stored as pending.
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment_2.clone()),
+                1.0,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        assert!(full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .is_none());
+        assert!(
+            full_node
+                .client
+                .http_client()
+                .get_sequencer_commitment_by_index(U32::from(2))
+                .await?
+                .is_none(),
+            "Commitment 2 should be pending, not processed"
+        );
+
+        // Send commitment 3a. 
+        // Its predecessor (2) is only pending, not processed, so 3a is stored as pending.
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment_3a.clone()),
+                1.0,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        assert!(
+            full_node
+                .client
+                .http_client()
+                .get_sequencer_commitment_by_index(U32::from(3))
+                .await?
+                .is_none(),
+            "Commitment 3a should be pending, not processed"
+        );
+
+        // Send the conflicting commitment 3b. It must not replace pending commitment 3a.
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment_3b.clone()),
+                1.0,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        // Send commitment 1, which makes the whole pending chain processable.
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment_1.clone()),
+                1.0,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        // Process one more L1 block to make sure pending commitments are drained
+        da.generate(1).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        // Commitment 3a was seen first at index 3, so it stays canonical and the conflicting
+        // commitment 3b is discarded
+        let stored_commitment_3 = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(3))
+            .await?
+            .unwrap();
+        assert_eq!(
+            stored_commitment_3.merkle_root, merkle_root_3a,
+            "Conflicting commitment 3b must not replace pending commitment 3a"
+        );
+        assert_eq!(
+            stored_commitment_3.l2_end_block_number.to::<u64>(),
+            commitment_3a.l2_end_block_number
+        );
+
+        let committed_height = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(committed_height.commitment_index, 3);
+        assert_eq!(committed_height.height, commitment_3a.l2_end_block_number);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_pending_commitment_not_overwritten() -> Result<()> {
+    TestCaseRunner::new(PendingCommitmentNotOverwrittenTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
+}
