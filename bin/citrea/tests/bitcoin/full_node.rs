@@ -1266,6 +1266,161 @@ async fn test_conflicting_commitments() -> Result<()> {
     .await
 }
 
+struct ConflictingPendingCommitmentTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for ConflictingPendingCommitmentTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_sequencer: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            // High enough that the sequencer never publishes commitments on its own
+            max_l2_blocks_per_commitment: 10_000,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(150)
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        /*
+            A commitment that is already pending must not lose its index to a conflicting one.
+
+            The sequencer publishes L2 blocks 1-10, then two conflicting commitments are sent at
+            index 1: commitment A : L2 [1, 1000], commitment B : L2 [1, 10].
+            Without the pending conflict check, commitment B is processed straight away and takes
+            index 1 from commitment A, which is still sitting in the pending table.
+        */
+        let task_executor = self.task_manager.executor();
+
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
+
+        let sequencer_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
+
+        for _ in 1..=10 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        full_node.wait_for_l2_height(10, None).await?;
+
+        let commitment_a = SequencerCommitment {
+            merkle_root: [0xAA; 32],
+            l2_end_block_number: 1000,
+            index: 1,
+        };
+        let merkle_root_b = calculate_merkle_root(
+            &sequencer
+                .client
+                .http_client()
+                .get_l2_block_range(U64::from(1), U64::from(10))
+                .await?,
+        );
+        let commitment_b = SequencerCommitment {
+            merkle_root: merkle_root_b,
+            l2_end_block_number: 10,
+            index: 1,
+        };
+
+        // Commitment A reaches beyond the synced L2 blocks, so it is stored as pending
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment_a.clone()),
+                1.0,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        assert!(
+            full_node
+                .client
+                .http_client()
+                .get_last_committed_l2_height()
+                .await?
+                .is_none(),
+            "Commitment A should be pending, not processed"
+        );
+
+        // Commitment B covers an already synced L2 range, but index 1 is taken by pending
+        // commitment A, so it must be discarded
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment_b.clone()),
+                1.0,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        assert!(
+            full_node
+                .client
+                .http_client()
+                .get_sequencer_commitment_by_index(U32::from(1))
+                .await?
+                .is_none(),
+            "Conflicting commitment B must not take index 1 from pending commitment A"
+        );
+        assert!(full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .is_none());
+
+        // Commitment B should have been discarded, not halted the full node
+        da.generate(1).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        let last_scanned_l1_height = full_node
+            .client
+            .http_client()
+            .get_last_scanned_l1_height()
+            .await?;
+        assert_eq!(last_scanned_l1_height.to::<u64>(), l1_height);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_conflicting_pending_commitment() -> Result<()> {
+    TestCaseRunner::new(ConflictingPendingCommitmentTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
+}
+
 struct OutOfRangeProofTest {
     task_manager: TaskManager,
 }
