@@ -447,12 +447,10 @@ where
         ) -> Result<(), anyhow::Error> {
             let index = sequencer_commitment.index;
             if let Some((existing_commitment, _)) = ledger_db
-                .get_pending_commitment_by_index(sequencer_commitment.index)?
+                .get_pending_commitment_by_index(index)?
             {
                 if existing_commitment != *sequencer_commitment {
                    warn!("Found a conflicting pending commitment on index {index}\nDA: {sequencer_commitment:?}\nDB:{existing_commitment:?}");
-                } else {
-                    warn!("Pending commitment with index {index} already exists in DB, skipping insert.");
                 }
             } else {
                 ledger_db.store_pending_commitment(
