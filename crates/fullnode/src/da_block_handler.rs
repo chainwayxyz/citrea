@@ -440,6 +440,29 @@ where
             }
         }
 
+        fn insert_pending_commitment_if_not_exists<DB: NodeLedgerOps>(
+            ledger_db: &DB,
+            sequencer_commitment: &SequencerCommitment,
+            found_in_l1_block_height: u64,
+        ) -> Result<(), anyhow::Error> {
+            let index = sequencer_commitment.index;
+            if let Some((existing_commitment, _)) = ledger_db
+                .get_pending_commitment_by_index(sequencer_commitment.index)?
+            {
+                if existing_commitment != *sequencer_commitment {
+                   warn!("Found a conflicting pending commitment on index {index}\nDA: {sequencer_commitment:?}\nDB:{existing_commitment:?}");
+                } else {
+                    warn!("Pending commitment with index {index} already exists in DB, skipping insert.");
+                }
+            } else {
+                ledger_db.store_pending_commitment(
+                    sequencer_commitment.clone(),
+                    found_in_l1_block_height,
+                )?;
+            }
+            Ok(())
+        }
+
         // Determine the starting L2 height for this commitment
         // For first commitment (index 1), start at Tangerine fork height
         // Otherwise, start at previous commitment's end height + 1
@@ -458,16 +481,11 @@ where
                             sequencer_commitment.index,
                             sequencer_commitment.index - 1
                         );
-                    if self
-                        .ledger_db
-                        .get_pending_commitment_by_index(sequencer_commitment.index)?
-                        .is_none()
-                    {
-                        self.ledger_db.store_pending_commitment(
-                            sequencer_commitment.clone(),
-                            found_in_l1_block_height,
-                        )?;
-                    }
+                    insert_pending_commitment_if_not_exists(
+                        &self.ledger_db,
+                        sequencer_commitment,
+                        found_in_l1_block_height,
+                    )?;
                     return Ok(ProcessingResult::Pending);
                 }
             }
@@ -491,21 +509,12 @@ where
                 end_l2_height,
                 hex::encode(sequencer_commitment.merkle_root)
             );
-            // Store as pending if we haven't synced all needed L2 blocks yet
-            if self
-                .ledger_db
-                .get_pending_commitment_by_index(sequencer_commitment.index)?
-                .is_none()
-            {
-                self.ledger_db.store_pending_commitment(
-                    sequencer_commitment.clone(),
-                    found_in_l1_block_height,
-                )?;
-                return Ok(ProcessingResult::Pending);
-            } else {
-                // Keep as pending if already stored as pending
-                return Ok(ProcessingResult::Pending);
-            }
+            insert_pending_commitment_if_not_exists(
+                &self.ledger_db,
+                sequencer_commitment,
+                found_in_l1_block_height,
+            )?;
+            return Ok(ProcessingResult::Pending);
         }
 
         // Verify the merkle root matches the L2 blocks
