@@ -943,7 +943,21 @@ where
                     warn!(
                         "Failed to process pending proof with index {min_index}-{max_index}: {e:?}"
                     );
-                    self.ledger_db.remove_pending_proof(min_index, max_index)?;
+                    match e {
+                        ProcessingError::HaltingError(HaltingError::Proof(e)) => {
+                            return Err(HaltingError::Proof(e).into());
+                        }
+                        ProcessingError::SkippableError(SkippableError::Proof(_)) => {
+                            self.ledger_db.remove_pending_proof(min_index, max_index)?;
+                        }
+                        ProcessingError::Other(_) => {
+                            // Stop processing further pending proofs as they may depend on this one
+                            break;
+                        }
+                        _ => { 
+                            unreachable!("Unexpected error type while processing pending proof: {e:?}");
+                        }
+                    }
                 }
                 Ok(ProcessingResult::Success) => {
                     info!("Successfully processed pending proof for commitment index range {min_index}-{max_index}");
