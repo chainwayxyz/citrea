@@ -1300,13 +1300,13 @@ impl TestCase for ConflictingPendingCommitmentTest {
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         /*
-            A commitment that is already pending must not lose its index to a conflicting one.
+        A commitment that is already pending must not lose its index to a conflicting one.
 
-            The sequencer publishes L2 blocks 1-10, then two conflicting commitments are sent at
-            index 1: commitment A : L2 [1, 1000], commitment B : L2 [1, 10].
-            Without the pending conflict check, commitment B is processed straight away and takes
-            index 1 from commitment A, which is still sitting in the pending table.
-        */
+        The sequencer publishes L2 blocks 1-10, then two conflicting commitments are sent at
+        index 1: commitment A : L2 [1, 1000], commitment B : L2 [1, 10].
+        Without the pending conflict check, commitment B is processed straight away and takes
+        index 1 from commitment A, which is still sitting in the pending table.
+         */
         let task_executor = self.task_manager.executor();
 
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
