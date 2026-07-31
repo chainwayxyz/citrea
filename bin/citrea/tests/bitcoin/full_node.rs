@@ -4379,7 +4379,7 @@ impl TestCase for PendingCommitmentNotOverwrittenTest {
             .await?
             .unwrap();
         assert_eq!(
-            stored_commitment_3.merkle_root, merkle_root_3a,
+            stored_commitment_3.merkle_root, commitment_3a.merkle_root,
             "Conflicting commitment 3b must not replace pending commitment 3a"
         );
         assert_eq!(
