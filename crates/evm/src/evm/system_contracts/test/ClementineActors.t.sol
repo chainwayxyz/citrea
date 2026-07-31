@@ -136,7 +136,7 @@ contract ClementineActorsTest is Test {
     ClementineActorsHarness public actors;
 
     address owner = makeAddr("citrea_owner");
-    address operator = makeAddr("citrea_operator");
+    address maintainer = makeAddr("citrea_maintainer");
     address user = makeAddr("citrea_user");
 
     bytes32 operatorKey = hex"1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f";
@@ -157,7 +157,7 @@ contract ClementineActorsTest is Test {
         address actorsImpl = address(new ClementineActorsHarness());
 
         bytes memory initializeData =
-            abi.encodeWithSelector(ClementineActors.initialize.selector, owner, operator, 1, 2, initialCouncil());
+            abi.encodeWithSelector(ClementineActors.initialize.selector, owner, maintainer, 1, 2, initialCouncil());
         address proxyImpl = address(new TransparentUpgradeableProxy(actorsImpl, address(proxyAdmin), initializeData));
         actors = ClementineActorsHarness(proxyImpl);
 
@@ -165,7 +165,7 @@ contract ClementineActorsTest is Test {
     }
 
     function testInitializeSetsRolesAndCouncil() public view {
-        assertEq(actors.operator(), operator);
+        assertEq(actors.maintainer(), maintainer);
         assertEq(actors.owner(), owner);
         assertEq(actors.circuitVersion(), 1);
         assertEq(actors.securityCouncilThreshold(), 2);
@@ -180,52 +180,52 @@ contract ClementineActorsTest is Test {
     }
 
     function testCannotReinitialize() public {
-        vm.expectRevert("Contract is already initialized");
-        actors.initialize(owner, operator, 1, 2, initialCouncil());
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        actors.initialize(owner, maintainer, 1, 2, initialCouncil());
     }
 
-    function testOnlyOwnerCanSetOperator() public {
+    function testOnlyOwnerCanSetMaintainer() public {
         vm.prank(user);
         vm.expectRevert();
-        actors.setOperator(user);
+        actors.setMaintainer(user);
     }
 
-    function testCannotSetOperatorToZero() public {
+    function testCannotSetMaintainerToZero() public {
         vm.prank(owner);
-        vm.expectRevert("Operator cannot be zero address");
-        actors.setOperator(address(0));
+        vm.expectRevert("Maintainer cannot be zero address");
+        actors.setMaintainer(address(0));
     }
 
-    function testOnlyOperatorCanAddCandidates() public {
+    function testOnlyMaintainerCanAddCandidates() public {
         bytes32[] memory operators = single(operatorKey);
         vm.prank(user);
-        vm.expectRevert("caller is not the operator");
+        vm.expectRevert("caller is not the maintainer");
         actors.addCandidateOperators(operators);
 
         bytes32[] memory watchtowers = single(watchtowerKey);
         vm.prank(user);
-        vm.expectRevert("caller is not the operator");
+        vm.expectRevert("caller is not the maintainer");
         actors.addCandidateWatchtowers(watchtowers);
     }
 
-    function testOperatorCanAddCandidateActors() public {
+    function testMaintainerCanAddCandidateActors() public {
         addCandidatePair(operatorKey, watchtowerKey);
 
         assertTrue(actors.isCandidateOperator(operatorKey));
         assertTrue(actors.isCandidateWatchtower(watchtowerKey));
-        assertEq(actors.getCandidateOperators().length, 1);
-        assertEq(actors.getCandidateWatchtowers().length, 1);
+        assertEq(actors.getKnownOperators().length, 1);
+        assertEq(actors.getKnownWatchtowers().length, 1);
     }
 
     function testCannotAddDuplicateCandidateActors() public {
         addCandidatePair(operatorKey, watchtowerKey);
 
-        vm.prank(operator);
-        vm.expectRevert("Candidate operator already exists");
+        vm.prank(maintainer);
+        vm.expectRevert("Candidate already exists");
         actors.addCandidateOperators(single(operatorKey));
 
-        vm.prank(operator);
-        vm.expectRevert("Candidate watchtower already exists");
+        vm.prank(maintainer);
+        vm.expectRevert("Candidate already exists");
         actors.addCandidateWatchtowers(single(watchtowerKey));
     }
 
@@ -252,10 +252,10 @@ contract ClementineActorsTest is Test {
     }
 
     function testCannotProveSetupForNonCandidateOperator() public {
-        vm.prank(operator);
+        vm.prank(maintainer);
         actors.addCandidateWatchtowers(single(watchtowerKey));
 
-        vm.expectRevert("Operator is not candidate");
+        vm.expectRevert("Operator is not candidate or active");
         actors.proveGarbledSetup(
             circuitGeneratedTx(),
             operatorKey,
@@ -267,10 +267,10 @@ contract ClementineActorsTest is Test {
     }
 
     function testCannotProveSetupForNonCandidateWatchtower() public {
-        vm.prank(operator);
+        vm.prank(maintainer);
         actors.addCandidateOperators(single(operatorKey));
 
-        vm.expectRevert("Watchtower is not candidate");
+        vm.expectRevert("Watchtower is not candidate or active");
         actors.proveGarbledSetup(
             circuitGeneratedTx(),
             operatorKey,
@@ -359,7 +359,7 @@ contract ClementineActorsTest is Test {
         addCandidatePair(operatorKey, watchtowerKey);
         actors.recordGarbledSetup_(operatorKey, watchtowerKey);
 
-        vm.prank(operator);
+        vm.prank(maintainer);
         actors.setActiveActors(single(operatorKey), single(watchtowerKey));
 
         assertTrue(actors.signingPaused());
@@ -368,8 +368,8 @@ contract ClementineActorsTest is Test {
         assertEq(actors.getActiveOperators().length, 1);
         assertEq(actors.getActiveWatchtowers().length, 1);
 
-        vm.prank(operator);
-        actors.setSigningPause(false);
+        vm.prank(maintainer);
+        actors.unpauseSigning();
         assertFalse(actors.signingPaused());
     }
 
@@ -382,7 +382,7 @@ contract ClementineActorsTest is Test {
         operators[0] = operatorKey;
         operators[1] = operatorKey2;
 
-        vm.prank(operator);
+        vm.prank(maintainer);
         vm.expectRevert("Missing garbled setup");
         actors.setActiveActors(operators, single(watchtowerKey));
     }
@@ -390,7 +390,7 @@ contract ClementineActorsTest is Test {
     function testCannotSetInitialActiveActorsTwice() public {
         setActivePair();
 
-        vm.prank(operator);
+        vm.prank(maintainer);
         vm.expectRevert("Active actors already set");
         actors.setActiveActors(single(operatorKey), single(watchtowerKey));
     }
@@ -398,11 +398,11 @@ contract ClementineActorsTest is Test {
     function testCanAddActiveOperatorWhenSetupWithAllWatchtowers() public {
         setActivePair();
 
-        vm.prank(operator);
+        vm.prank(maintainer);
         actors.addCandidateOperators(single(operatorKey2));
         actors.recordGarbledSetup_(operatorKey2, watchtowerKey);
 
-        vm.prank(operator);
+        vm.prank(maintainer);
         actors.addActiveOperators(single(operatorKey2));
 
         assertTrue(actors.isActiveOperator(operatorKey2));
@@ -413,10 +413,10 @@ contract ClementineActorsTest is Test {
     function testCannotAddActiveOperatorWithoutSetup() public {
         setActivePair();
 
-        vm.prank(operator);
+        vm.prank(maintainer);
         actors.addCandidateOperators(single(operatorKey2));
 
-        vm.prank(operator);
+        vm.prank(maintainer);
         vm.expectRevert("Missing garbled setup");
         actors.addActiveOperators(single(operatorKey2));
     }
@@ -424,11 +424,11 @@ contract ClementineActorsTest is Test {
     function testCanAddActiveWatchtowerWhenSetupWithAllOperators() public {
         setActivePair();
 
-        vm.prank(operator);
+        vm.prank(maintainer);
         actors.addCandidateWatchtowers(single(watchtowerKey2));
         actors.recordGarbledSetup_(operatorKey, watchtowerKey2);
 
-        vm.prank(operator);
+        vm.prank(maintainer);
         actors.addActiveWatchtowers(single(watchtowerKey2));
 
         assertTrue(actors.isActiveWatchtower(watchtowerKey2));
@@ -439,10 +439,10 @@ contract ClementineActorsTest is Test {
     function testCannotAddActiveWatchtowerWithoutSetup() public {
         setActivePair();
 
-        vm.prank(operator);
+        vm.prank(maintainer);
         actors.addCandidateWatchtowers(single(watchtowerKey2));
 
-        vm.prank(operator);
+        vm.prank(maintainer);
         vm.expectRevert("Missing garbled setup");
         actors.addActiveWatchtowers(single(watchtowerKey2));
     }
@@ -451,7 +451,7 @@ contract ClementineActorsTest is Test {
         setActivePair();
 
         vm.prank(owner);
-        actors.removeActiveOperator(operatorKey);
+        actors.disableOperator(operatorKey);
 
         assertFalse(actors.isActiveOperator(operatorKey));
         assertTrue(actors.isDisabledOperator(operatorKey));
@@ -463,7 +463,7 @@ contract ClementineActorsTest is Test {
         setActivePair();
 
         vm.prank(owner);
-        actors.removeActiveWatchtower(watchtowerKey);
+        actors.disableWatchtower(watchtowerKey);
 
         assertFalse(actors.isActiveWatchtower(watchtowerKey));
         assertTrue(actors.isDisabledWatchtower(watchtowerKey));
@@ -475,10 +475,10 @@ contract ClementineActorsTest is Test {
         setActivePair();
 
         vm.prank(owner);
-        actors.removeActiveOperator(operatorKey);
+        actors.disableOperator(operatorKey);
 
-        vm.prank(operator);
-        vm.expectRevert("Operator disabled");
+        vm.prank(maintainer);
+        vm.expectRevert("Actor is not candidate");
         actors.addActiveOperators(single(operatorKey));
     }
 
@@ -486,20 +486,75 @@ contract ClementineActorsTest is Test {
         setActivePair();
 
         vm.prank(owner);
-        actors.removeActiveWatchtower(watchtowerKey);
+        actors.disableWatchtower(watchtowerKey);
 
-        vm.prank(operator);
-        vm.expectRevert("Watchtower disabled");
+        vm.prank(maintainer);
+        vm.expectRevert("Actor is not candidate");
         actors.addActiveWatchtowers(single(watchtowerKey));
+    }
+
+    function testOwnerCanReinstateRemovedOperator() public {
+        setActivePair();
+
+        vm.prank(owner);
+        actors.disableOperator(operatorKey);
+
+        vm.prank(owner);
+        actors.reinstateOperator(operatorKey);
+
+        assertFalse(actors.isDisabledOperator(operatorKey));
+        assertTrue(actors.isCandidateOperator(operatorKey));
+        assertFalse(actors.isActiveOperator(operatorKey));
+    }
+
+    function testOwnerCanReinstateRemovedWatchtower() public {
+        setActivePair();
+
+        vm.prank(owner);
+        actors.disableWatchtower(watchtowerKey);
+
+        vm.prank(owner);
+        actors.reinstateWatchtower(watchtowerKey);
+
+        assertFalse(actors.isDisabledWatchtower(watchtowerKey));
+        assertTrue(actors.isCandidateWatchtower(watchtowerKey));
+        assertFalse(actors.isActiveWatchtower(watchtowerKey));
+    }
+
+    function testCannotReinstateActorThatIsNotDisabled() public {
+        setActivePair();
+
+        vm.prank(owner);
+        vm.expectRevert("Actor is not disabled");
+        actors.reinstateOperator(operatorKey);
+
+        vm.prank(owner);
+        vm.expectRevert("Actor is not disabled");
+        actors.reinstateWatchtower(watchtowerKey);
+    }
+
+    function testNonOwnerCannotReinstateActors() public {
+        setActivePair();
+
+        vm.prank(owner);
+        actors.disableOperator(operatorKey);
+
+        vm.prank(maintainer);
+        vm.expectRevert();
+        actors.reinstateOperator(operatorKey);
+
+        vm.prank(user);
+        vm.expectRevert();
+        actors.reinstateOperator(operatorKey);
     }
 
     function testDisabledOperatorCannotProveNewSetup() public {
         setActivePair();
 
         vm.prank(owner);
-        actors.removeActiveOperator(operatorKey);
+        actors.disableOperator(operatorKey);
 
-        vm.expectRevert("Operator disabled");
+        vm.expectRevert("Operator is not candidate or active");
         actors.proveGarbledSetup(
             circuitGeneratedTx(),
             operatorKey,
@@ -515,11 +570,11 @@ contract ClementineActorsTest is Test {
 
         vm.prank(user);
         vm.expectRevert();
-        actors.removeActiveOperator(operatorKey);
+        actors.disableOperator(operatorKey);
 
         vm.prank(user);
         vm.expectRevert();
-        actors.removeActiveWatchtower(watchtowerKey);
+        actors.disableWatchtower(watchtowerKey);
     }
 
     function testCircuitVersionUpdatePausesAndClearsState() public {
@@ -553,39 +608,39 @@ contract ClementineActorsTest is Test {
         assertFalse(actors.garbledSetups(operatorKey, watchtowerKey));
     }
 
-    function testOwnerOrOperatorCanSetSigningPause() public {
+    function testOwnerOrMaintainerCanPauseAndUnpauseSigning() public {
         setActivePair();
 
         vm.prank(owner);
-        actors.setSigningPause(true);
+        actors.pauseSigning();
         assertTrue(actors.signingPaused());
 
-        vm.prank(operator);
-        actors.setSigningPause(false);
+        vm.prank(maintainer);
+        actors.unpauseSigning();
         assertFalse(actors.signingPaused());
     }
 
     function testCannotUnpauseWithoutActiveActors() public {
-        vm.prank(operator);
+        vm.prank(maintainer);
         vm.expectRevert("No active operators");
-        actors.setSigningPause(false);
+        actors.unpauseSigning();
     }
 
     function testCannotUnpauseWithoutActiveWatchtowers() public {
         setActivePair();
 
         vm.prank(owner);
-        actors.removeActiveWatchtower(watchtowerKey);
+        actors.disableWatchtower(watchtowerKey);
 
-        vm.prank(operator);
+        vm.prank(maintainer);
         vm.expectRevert("No active watchtowers");
-        actors.setSigningPause(false);
+        actors.unpauseSigning();
     }
 
-    function testUserCannotSetSigningPause() public {
+    function testUserCannotUnpauseSigning() public {
         vm.prank(user);
-        vm.expectRevert("caller is not the owner or operator");
-        actors.setSigningPause(false);
+        vm.expectRevert("caller is not the owner or maintainer");
+        actors.unpauseSigning();
     }
 
     function testCannotSetSecurityCouncilAboveCap() public {
@@ -596,31 +651,15 @@ contract ClementineActorsTest is Test {
         actors.setSecurityCouncil(1, council);
     }
 
-    function testCannotAddCandidateOperatorsAboveCap() public {
-        bytes32[] memory operators = uniqueKeys(actors.MAX_CANDIDATE_OPERATORS() + 1, 1);
-
-        vm.prank(operator);
-        vm.expectRevert("Too many candidate operators");
-        actors.addCandidateOperators(operators);
-    }
-
-    function testCannotAddCandidateWatchtowersAboveCap() public {
-        bytes32[] memory watchtowers = uniqueKeys(actors.MAX_CANDIDATE_WATCHTOWERS() + 1, 1);
-
-        vm.prank(operator);
-        vm.expectRevert("Too many candidate watchtowers");
-        actors.addCandidateWatchtowers(watchtowers);
-    }
-
     function testCannotSetActiveActorsAboveCaps() public {
         uint256 maxActiveOperators = actors.MAX_ACTIVE_OPERATORS();
         uint256 maxActiveWatchtowers = actors.MAX_ACTIVE_WATCHTOWERS();
 
-        vm.prank(operator);
+        vm.prank(maintainer);
         vm.expectRevert("Too many active operators");
         actors.setActiveActors(uniqueKeys(maxActiveOperators + 1, 1), single(watchtowerKey));
 
-        vm.prank(operator);
+        vm.prank(maintainer);
         vm.expectRevert("Too many active watchtowers");
         actors.setActiveActors(single(operatorKey), uniqueKeys(maxActiveWatchtowers + 1, 1));
     }
@@ -633,7 +672,7 @@ contract ClementineActorsTest is Test {
     }
 
     function addCandidatePair(bytes32 _operatorKey, bytes32 _watchtowerKey) internal {
-        vm.startPrank(operator);
+        vm.startPrank(maintainer);
         if (!actors.isCandidateOperator(_operatorKey)) {
             actors.addCandidateOperators(single(_operatorKey));
         }
@@ -647,9 +686,9 @@ contract ClementineActorsTest is Test {
         addCandidatePair(operatorKey, watchtowerKey);
         actors.recordGarbledSetup_(operatorKey, watchtowerKey);
 
-        vm.startPrank(operator);
+        vm.startPrank(maintainer);
         actors.setActiveActors(single(operatorKey), single(watchtowerKey));
-        actors.setSigningPause(false);
+        actors.unpauseSigning();
         vm.stopPrank();
     }
 
