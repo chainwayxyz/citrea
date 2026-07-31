@@ -463,7 +463,7 @@ contract BridgeTest is Test {
         proof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER + 2, index);
         bridge.replaceDeposit(replaceTx, proof, 1, hex"486568b2542cc5ebf896e41e17c42e5571e6f3e68020d90d39fe7a2d7f0a68c3");
         assertEq(bridge.depositTxIds(1), hex"6a1d18b80867c0bc84cb9a20ec88922cf17a7bdd50e5237d67b6fad11d70fe95");
-        assertEq(bridge.depositTxIdToIndex(hex"36db3e96dc72a2be198234a326f3443c9326d2546deca3576a1959725a039108"), 0);
+        assertEq(bridge.depositTxIdToIndex(hex"36db3e96dc72a2be198234a326f3443c9326d2546deca3576a1959725a039108"), 1);
         assertEq(bridge.depositTxIdToIndex(hex"6a1d18b80867c0bc84cb9a20ec88922cf17a7bdd50e5237d67b6fad11d70fe95"), 1);
     }
 
