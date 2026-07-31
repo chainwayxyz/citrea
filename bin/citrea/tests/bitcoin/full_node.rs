@@ -4288,7 +4288,7 @@ impl TestCase for PendingCommitmentNotOverwrittenTest {
             l2_end_block_number: 20,
             index: 2,
         };
-        // Two conflicting commitments at index 3. 
+        // Two conflicting commitments at index 3.
         // Both are valid against the L2 blocks the full node has synced.
         let commitment_3a = SequencerCommitment {
             merkle_root: merkle_root_3a,
@@ -4335,7 +4335,7 @@ impl TestCase for PendingCommitmentNotOverwrittenTest {
             "Commitment 2 should be pending, not processed"
         );
 
-        // Send commitment 3a. 
+        // Send commitment 3a.
         // Its predecessor (2) is only pending, not processed, so 3a is stored as pending.
         sequencer_da_service
             .send_transaction_with_fee_rate(
@@ -4502,9 +4502,7 @@ impl TestCase for PendingProofDroppedOnPermanentErrorTest {
         let sequencer_client = sequencer.client.http_client();
 
         let mut commitments = Vec::with_capacity(4);
-        let commitments_ranges = [
-            (1, (1, 10)), (2, (11, 20)), (3, (21, 30)), (4, (31, 40))
-        ];
+        let commitments_ranges = [(1, (1, 10)), (2, (11, 20)), (3, (21, 30)), (4, (31, 40))];
 
         for (index, (start, end)) in commitments_ranges {
             let merkle_root = calculate_merkle_root(
@@ -4619,9 +4617,7 @@ impl TestCase for PendingProofDroppedOnPermanentErrorTest {
         da.wait_mempool_len(4, None).await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let proofs_l1_height = da.get_finalized_height(None).await?;
-        full_node
-            .wait_for_l1_height(proofs_l1_height, None)
-            .await?;
+        full_node.wait_for_l1_height(proofs_l1_height, None).await?;
 
         assert!(full_node
             .client
