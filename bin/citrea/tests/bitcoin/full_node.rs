@@ -4257,49 +4257,26 @@ impl TestCase for PendingCommitmentNotOverwrittenTest {
 
         let sequencer_client = sequencer.client.http_client();
 
-        let merkle_root_1 = calculate_merkle_root(
-            &sequencer_client
-                .get_l2_block_range(U64::from(1), U64::from(10))
-                .await?,
-        );
-        let merkle_root_2 = calculate_merkle_root(
-            &sequencer_client
-                .get_l2_block_range(U64::from(11), U64::from(20))
-                .await?,
-        );
-        let merkle_root_3a = calculate_merkle_root(
-            &sequencer_client
-                .get_l2_block_range(U64::from(21), U64::from(30))
-                .await?,
-        );
-        let merkle_root_3b = calculate_merkle_root(
-            &sequencer_client
-                .get_l2_block_range(U64::from(21), U64::from(29))
-                .await?,
-        );
-
-        let commitment_1 = SequencerCommitment {
-            merkle_root: merkle_root_1,
-            l2_end_block_number: 10,
-            index: 1,
-        };
-        let commitment_2 = SequencerCommitment {
-            merkle_root: merkle_root_2,
-            l2_end_block_number: 20,
-            index: 2,
-        };
-        // Two conflicting commitments at index 3.
+        let mut commitments = Vec::with_capacity(4);
+        // The last two are conflicting commitments at index 3.
         // Both are valid against the L2 blocks the full node has synced.
-        let commitment_3a = SequencerCommitment {
-            merkle_root: merkle_root_3a,
-            l2_end_block_number: 30,
-            index: 3,
-        };
-        let commitment_3b = SequencerCommitment {
-            merkle_root: merkle_root_3b,
-            l2_end_block_number: 29,
-            index: 3,
-        };
+        let commitments_ranges = [(1, (1, 10)), (2, (11, 20)), (3, (21, 30)), (3, (21, 29))];
+
+        for (index, (start, end)) in commitments_ranges {
+            let merkle_root = calculate_merkle_root(
+                &sequencer_client
+                    .get_l2_block_range(U64::from(start), U64::from(end))
+                    .await?,
+            );
+            commitments.push(SequencerCommitment {
+                merkle_root,
+                l2_end_block_number: end,
+                index,
+            });
+        }
+
+        let [commitment_1, commitment_2, commitment_3a, commitment_3b] =
+            <[SequencerCommitment; 4]>::try_from(commitments).unwrap();
         assert_ne!(
             commitment_3a.serialize_and_calculate_sha_256(),
             commitment_3b.serialize_and_calculate_sha_256()
