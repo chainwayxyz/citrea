@@ -1750,6 +1750,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Returns all logs in the given _inclusive_ range that match the filter
     ///
     /// Returns an error if:
+    ///  - block range is invalid
     ///  - underlying database error
     ///  - amount of matches exceeds configured limit
     pub fn get_logs_in_block_range(
