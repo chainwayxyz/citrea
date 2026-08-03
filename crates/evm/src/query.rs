@@ -1728,6 +1728,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .map(|num| convert_block_number(num, start_block))
                     .transpose()?
                     .flatten();
+
+                if matches!((from, to), (Some(from), Some(to)) if to < from) {
+                    return Err(EthFilterError::InvalidBlockRangeParams);
+                }
+
                 let (from_block_number, to_block_number) =
                     get_filter_block_range(from, to, start_block);
                 self.get_logs_in_block_range(

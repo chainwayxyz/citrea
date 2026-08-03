@@ -4,6 +4,7 @@ use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
 use alloy_eips::BlockNumberOrTag;
 use alloy_network::BlockResponse;
 use alloy_rpc_types::{Filter, FilterBlockOption, FilterSet};
+use jsonrpsee::types::error::INVALID_PARAMS_CODE;
 use reth_rpc::eth::filter::EthFilterError;
 use reth_rpc_eth_types::EthApiError;
 use revm::primitives::{B256, U256};
@@ -431,6 +432,42 @@ fn reversed_log_filter_range_is_rejected() {
         result,
         Err(EthFilterError::InvalidBlockRangeParams)
     ));
+}
+
+#[test]
+fn reversed_future_log_filter_range_is_rejected_by_eth_get_logs() {
+    let (evm, mut working_set, _, _, _, _) = init_evm(SpecId::latest());
+    let head = evm
+        .blocks
+        .last(&mut working_set.accessory_state())
+        .expect("Head block must be set")
+        .header
+        .number;
+
+    let filter = |from_block, to_block| Filter {
+        block_option: FilterBlockOption::Range {
+            from_block: Some(BlockNumberOrTag::Number(from_block)),
+            to_block: Some(BlockNumberOrTag::Number(to_block)),
+        },
+        address: FilterSet::default(),
+        topics: [
+            FilterSet::default(),
+            FilterSet::default(),
+            FilterSet::default(),
+            FilterSet::default(),
+        ],
+    };
+
+    let error = evm
+        .eth_get_logs(filter(head + 2, head + 1), &mut working_set)
+        .unwrap_err();
+
+    assert_eq!(error.code(), INVALID_PARAMS_CODE);
+    assert_eq!(error.message(), "invalid block range params");
+
+    assert!(evm
+        .eth_get_logs(filter(head + 1, head + 2), &mut working_set)
+        .is_ok());
 }
 
 #[test]
