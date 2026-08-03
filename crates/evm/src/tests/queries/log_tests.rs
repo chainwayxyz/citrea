@@ -4,6 +4,7 @@ use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
 use alloy_eips::BlockNumberOrTag;
 use alloy_network::BlockResponse;
 use alloy_rpc_types::{Filter, FilterBlockOption, FilterSet};
+use reth_rpc::eth::filter::EthFilterError;
 use reth_rpc_eth_types::EthApiError;
 use revm::primitives::{B256, U256};
 use sov_modules_api::default_context::DefaultContext;
@@ -404,6 +405,32 @@ fn log_filter_test_with_range() {
     let rpc_logs = evm.eth_get_logs(filter, &mut working_set).unwrap();
     // In the last block we have 2 logs
     assert_eq!(rpc_logs.len(), 2);
+}
+
+#[test]
+fn reversed_log_filter_range_is_rejected() {
+    let (evm, mut working_set, _, _, _, _) = init_evm(SpecId::latest());
+
+    let filter = Filter {
+        block_option: FilterBlockOption::Range {
+            from_block: Some(BlockNumberOrTag::Number(10)),
+            to_block: Some(BlockNumberOrTag::Number(1)),
+        },
+        address: FilterSet::default(),
+        topics: [
+            FilterSet::default(),
+            FilterSet::default(),
+            FilterSet::default(),
+            FilterSet::default(),
+        ],
+    };
+
+    let result = evm.logs_for_filter(filter, &mut working_set);
+
+    assert!(matches!(
+        result,
+        Err(EthFilterError::InvalidBlockRangeParams)
+    ));
 }
 
 #[test]

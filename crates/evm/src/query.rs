@@ -1755,6 +1755,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         to_block_number: u64,
         max_logs_per_response: usize,
     ) -> Result<Vec<Log>, EthFilterError> {
+        if to_block_number < from_block_number {
+            return Err(EthFilterError::InvalidBlockRangeParams);
+        }
+
         let max_blocks_per_filter: u64 = get_max_blocks_per_filter();
         if to_block_number - from_block_number >= max_blocks_per_filter {
             return Err(EthFilterError::QueryExceedsMaxBlocks(max_blocks_per_filter));
