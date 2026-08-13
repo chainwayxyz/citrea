@@ -1,5 +1,7 @@
 # Changelog
 ## [Unreleased]
+### Changed
+- fix(rpc): Set archival state in estimate tx expenses ([#3321](https://github.com/chainwayxyz/citrea/pull/3321))
 
 ## [v2.7.0](2026-07-29)
 ### Changed
