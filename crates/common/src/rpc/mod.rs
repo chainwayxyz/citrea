@@ -51,7 +51,7 @@ fn is_unsafe_forward_header(name: &HeaderName) -> bool {
             | "proxy-connection"
             | "proxy-authenticate"
             | "proxy-authorization"
-            | "te"
+            | "te" // codespell:ignore te
             | "trailer"
             | "transfer-encoding"
             | "upgrade"
