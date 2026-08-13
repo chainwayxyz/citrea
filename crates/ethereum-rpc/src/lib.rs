@@ -17,8 +17,8 @@ use alloy_rpc_types_trace::geth::{
     GethDebugTracerType, GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace,
     TraceResult,
 };
-use citrea_common::rpc::eip_7966;
 use citrea_common::rpc::utils::internal_rpc_error;
+use citrea_common::rpc::{build_forwarding_http_client, eip_7966};
 use citrea_common::RpcConfig;
 use citrea_evm::{generate_eth_proof, Evm, FilterKind};
 use citrea_sequencer::SequencerRpcClient;
@@ -26,7 +26,6 @@ pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
 use jsonrpsee::core::{RpcResult, SubscriptionResult};
-use jsonrpsee::http_client::HttpClientBuilder;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, RpcModule};
@@ -951,7 +950,7 @@ where
         eth_rpc_config,
         storage,
         ledger_db,
-        sequencer_client_url.map(|url| HttpClientBuilder::default().build(url).unwrap()),
+        sequencer_client_url.map(|url| build_forwarding_http_client(url).unwrap()),
         &l2_block_rx,
         task_executor,
     ));

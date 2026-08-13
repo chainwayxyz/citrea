@@ -34,7 +34,11 @@ pub fn start_rpc_server(
     let max_response_body_size = rpc_config.max_response_body_size;
     let batch_requests_limit = rpc_config.batch_requests_limit;
 
+    let forward_headers = super::forward_header_names_from_env();
     let middleware = tower::ServiceBuilder::new()
+        .map_request(move |request: jsonrpsee::server::HttpRequest| {
+            super::capture_forwarded_headers(request, &forward_headers)
+        })
         .layer(super::get_cors_layer())
         .layer(super::get_healthcheck_proxy_layer())
         .layer(TimeoutLayer::new(Duration::from_secs(rpc_config.timeout)));
@@ -42,7 +46,8 @@ pub fn start_rpc_server(
     let rpc_middleware = RpcServiceBuilder::new()
         .layer_fn(move |s| super::auth::Auth::new(s, rpc_config.api_key.clone()))
         .layer_fn(super::Logger)
-        .layer_fn(RpcMetrics);
+        .layer_fn(RpcMetrics)
+        .layer_fn(super::ForwardHeaders);
 
     task_executor.spawn_with_signal(move |cancellation_token| {
         async move {

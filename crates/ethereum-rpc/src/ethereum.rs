@@ -2,8 +2,8 @@ use std::sync::{Arc, Mutex};
 
 use alloy_primitives::U256;
 use alloy_rpc_types_trace::geth::TraceResult;
+use citrea_common::rpc::ForwardingHttpClient;
 use citrea_evm::{CitreaFilter, Evm};
-use jsonrpsee::http_client::HttpClient;
 use rustc_version_runtime::version;
 use schnellru::{ByLength, LruMap};
 use sov_db::ledger_db::LedgerDB;
@@ -34,7 +34,7 @@ pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
     pub(crate) gas_price_oracle: GasPriceOracle<C>,
     pub(crate) storage: C::Storage,
     pub(crate) ledger_db: LedgerDB,
-    pub(crate) sequencer_client: Option<HttpClient>,
+    pub(crate) sequencer_client: Option<ForwardingHttpClient>,
     pub(crate) web3_client_version: String,
     pub(crate) trace_cache: Mutex<LruMap<u64, Vec<TraceResult>, ByLength>>,
     pub(crate) subscription_manager: Option<SubscriptionManager>,
@@ -48,7 +48,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         eth_rpc_config: EthRpcConfig,
         storage: C::Storage,
         ledger_db: LedgerDB,
-        sequencer_client: Option<HttpClient>,
+        sequencer_client: Option<ForwardingHttpClient>,
         l2_block_rx: &Option<broadcast::Receiver<u64>>,
         task_executor: reth_tasks::TaskExecutor,
     ) -> Self {
