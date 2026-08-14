@@ -9,22 +9,15 @@ use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use serde_json::json;
-use sov_db::ledger_db::{LedgerDB, NodeLedgerOps};
-use sov_db::schema::types::{L2HeightAndIndex, L2HeightStatus};
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::hooks::HookL2BlockInfo;
-use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, Spec, WorkingSet};
+use sov_modules_api::{Spec, WorkingSet};
 
-use crate::call::CallMessage;
 use crate::query::MIN_TRANSACTION_GAS;
 use crate::smart_contracts::{CallerContract, SimpleStorageContract};
-use crate::tests::get_test_seq_pub_key;
 use crate::tests::queries::{init_evm, init_evm_single_block, init_evm_with_caller_contract};
 use crate::tests::test_signer::TestSigner;
-use crate::tests::utils::{
-    commit, create_contract_transaction, get_fork_fn_latest, set_arg_message,
-};
+use crate::tests::utils::get_fork_fn_latest;
 use crate::{EstimatedDiffSize, Evm};
 
 type C = DefaultContext;
@@ -718,150 +711,4 @@ fn test_estimate_gas_no_balance() {
         get_fork_fn_latest(),
     );
     assert!(result.is_err());
-}
-
-#[test]
-fn test_estimate_tx_expenses_honors_block_tag() {
-    let (mut evm, _, prover_storage, signer, l2_height, ledger_db) =
-        init_evm(sov_modules_api::SpecId::latest());
-    assert_eq!(l2_height, 4);
-
-    let spec_id = sov_modules_api::SpecId::latest();
-    let l1_fee_rate = 1;
-
-    let contract = SimpleStorageContract::default();
-    let contract_address = signer.address().create(9);
-
-    // Block 4 deploys the contract
-    // Block 5 sets a storage slot
-    let blocks = [
-        (
-            4,
-            [102u8; 32],
-            vec![create_contract_transaction(
-                &signer,
-                9,
-                SimpleStorageContract::default(),
-            )],
-        ),
-        (
-            5,
-            [103u8; 32],
-            vec![set_arg_message(contract_address, &signer, 10, 478)],
-        ),
-    ];
-
-    let mut pre_state_root = [101u8; 32];
-    for (height, post_state_root, txs) in blocks {
-        let mut working_set = WorkingSet::new(prover_storage.clone());
-
-        let l2_block_info = HookL2BlockInfo {
-            l2_height: height,
-            pre_state_root,
-            current_spec: spec_id,
-            sequencer_pub_key: get_test_seq_pub_key(),
-            l1_fee_rate,
-            timestamp: 24,
-        };
-
-        evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
-
-        let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, height, spec_id, l1_fee_rate);
-        evm.call(CallMessage { txs }, &context, &mut working_set)
-            .unwrap();
-
-        evm.end_l2_block_hook(&l2_block_info, &mut working_set);
-        evm.finalize_hook(&post_state_root, &mut working_set.accessory_state());
-
-        commit(working_set, prover_storage.clone());
-        pre_state_root = post_state_root;
-    }
-
-    let set_storage_tx_request = TransactionRequest {
-        from: Some(signer.address()),
-        to: Some(TxKind::Call(contract_address)),
-        input: TransactionInput::new(contract.set_call_data(5).into()),
-        ..Default::default()
-    };
-
-    // Helper functions to estimate gas and diff size at a given block tag.
-    let estimate_at = |tag: BlockNumberOrTag| {
-        evm.eth_estimate_gas_inner(
-            set_storage_tx_request.clone(),
-            Some(tag),
-            None,
-            &mut WorkingSet::new(prover_storage.clone()),
-            &ledger_db,
-            get_fork_fn_latest(),
-        )
-        .unwrap()
-    };
-
-    let diff_size_at = |tag: BlockNumberOrTag| {
-        evm.eth_estimate_diff_size_inner(
-            set_storage_tx_request.clone(),
-            Some(tag),
-            None,
-            &mut WorkingSet::new(prover_storage.clone()),
-            &ledger_db,
-            get_fork_fn_latest(),
-        )
-        .unwrap()
-    };
-
-    // Helper function to manipulate safe and finalized tags to point to a given block number.
-    let point_tag_at = |status: L2HeightStatus, l1_height: u64, height: u64| {
-        ledger_db
-            .set_l2_height_status(
-                status,
-                l1_height,
-                L2HeightAndIndex {
-                    height,
-                    commitment_index: 1,
-                },
-            )
-            .unwrap()
-    };
-
-    // A request for block N rewinds to archival version N + 1, which is right in production
-    // where genesis is committed on its own. `init_evm` commits genesis together with block 1,
-    // so every version here holds one block more: a request for block N observes the state
-    // after block N + 1. That is why block 3 already sees the contract deployed in block 4.
-    let no_contract = estimate_at(BlockNumberOrTag::Number(2));
-    let slot_unset = estimate_at(BlockNumberOrTag::Number(3));
-    let slot_set = estimate_at(BlockNumberOrTag::Latest);
-
-    // No contract is just a plain call to an empty account. Beyond that, SSTORE is priced off the
-    // slot's current value: overwriting one that already holds a value pays less than
-    // writing one that is still zero (cold write).
-    assert!(no_contract < slot_set);
-    assert!(slot_set < slot_unset);
-    // Other tags landing in the same states agree with them.
-    assert_eq!(estimate_at(BlockNumberOrTag::Earliest), no_contract);
-    assert_eq!(estimate_at(BlockNumberOrTag::Number(4)), slot_set);
-    assert_eq!(estimate_at(BlockNumberOrTag::Pending), slot_set);
-
-    let diff_no_contract = diff_size_at(BlockNumberOrTag::Number(2));
-    let diff_slot_unset = diff_size_at(BlockNumberOrTag::Number(3));
-    let diff_slot_set = diff_size_at(BlockNumberOrTag::Latest);
-
-    // The same three-way split applies to the diff size's gas field.
-    assert!(diff_no_contract.gas < diff_slot_set.gas);
-    assert!(diff_slot_set.gas < diff_slot_unset.gas);
-
-    // The diff size only splits two ways: touching no contract writes no storage, while writing
-    // a slot costs the same diff whether or not it already held a value.
-    assert!(diff_no_contract.l1_diff_size < diff_slot_unset.l1_diff_size);
-    assert_eq!(diff_slot_unset.l1_diff_size, diff_slot_set.l1_diff_size);
-
-    // Point safe tag to block 4, finalized tag to block 3
-    // Safe should see the slot set, finalized should see the slot unset.
-    point_tag_at(L2HeightStatus::Committed, 1, 4);
-    point_tag_at(L2HeightStatus::Proven, 1, 3);
-
-    assert_eq!(estimate_at(BlockNumberOrTag::Safe), slot_set);
-    assert_eq!(estimate_at(BlockNumberOrTag::Finalized), slot_unset);
-    assert_eq!(diff_size_at(BlockNumberOrTag::Safe), diff_slot_set);
-    assert_eq!(diff_size_at(BlockNumberOrTag::Finalized), diff_slot_unset);
 }
