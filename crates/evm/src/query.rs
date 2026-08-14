@@ -958,12 +958,19 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 )
             }
         };
+        // Set evm state to block if needed
+        let block_num = block_env.number;
+        match block_number {
+            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
+            _ => set_state_to_end_of_evm_block::<C>(block_num, working_set),
+        };
+
         let cfg = self
             .cfg
             .get(working_set)
             .expect("EVM chain config should be set");
 
-        let citrea_spec_id = fork_fn(block_env.number).spec_id;
+        let citrea_spec_id = fork_fn(block_num).spec_id;
         let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
 
         let cfg_env = get_cfg_env(cfg, evm_spec_id);
