@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use alloy_primitives::ruint::aliases::U256;
-use alloy_primitives::{Address, Bytes};
+use alloy_primitives::{keccak256, Address, Bytes};
 use alloy_rpc_types::{BlockId, BlockNumberOrTag, TransactionInput, TransactionRequest};
 use alloy_rpc_types_trace::geth::call::FlatCallFrame;
 use alloy_rpc_types_trace::geth::mux::{MuxConfig, MuxFrame};
@@ -10,13 +10,15 @@ use alloy_rpc_types_trace::geth::GethTrace::{
     self, CallTracer, FlatCallTracer, FourByteTracer, MuxTracer, PreStateTracer,
 };
 use alloy_rpc_types_trace::geth::{
-    CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType,
+    CallConfig, CallFrame, CallLogFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType,
     GethDebugTracingCallOptions, GethDebugTracingOptions, PreStateConfig, PreStateFrame,
     TraceResult,
 };
 // use citrea::initialize_logging;
 use citrea_common::SequencerConfig;
-use citrea_evm::smart_contracts::{CallerContract, SimpleStorageContract};
+use citrea_evm::smart_contracts::{
+    AnotherLogEvent, CallerContract, LogEvent, LogsContract, SimpleStorageContract, TestContract,
+};
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_tasks::TaskManager;
 use serde_json::{self, json};
@@ -520,6 +522,155 @@ async fn test_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
 
     task_manager.graceful_shutdown();
     Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_call_tracer_with_log() -> Result<(), Box<dyn std::error::Error>> {
+    let (task_manager, test_client, _contract_info) = init_sequencer().await?;
+
+    let logs_contract = LogsContract::default();
+    let deploy_logs_contract_req = test_client
+        .deploy_contract(logs_contract.byte_code(), None)
+        .await?;
+
+    test_client.send_publish_batch_request().await;
+
+    let logs_contract_address = deploy_logs_contract_req
+        .get_receipt()
+        .await?
+        .contract_address
+        .unwrap();
+
+    // publishEvent emits a Log and then an AnotherLog event
+    let test_msg = "5655".to_string();
+    let publish_event_req = test_client
+        .contract_transaction(
+            logs_contract_address,
+            logs_contract.publish_event(test_msg.clone()),
+            None,
+        )
+        .await;
+
+    test_client.send_publish_batch_request().await;
+
+    let tx_hash = publish_event_req.get_receipt().await?.transaction_hash;
+
+    let with_log_trace = test_client
+        .debug_trace_transaction(
+            tx_hash,
+            Some(
+                GethDebugTracingOptions::default()
+                    .with_tracer(GethDebugTracerType::BuiltInTracer(
+                        GethDebugBuiltInTracerType::CallTracer,
+                    ))
+                    .with_call_config(CallConfig {
+                        only_top_call: Some(false),
+                        with_log: Some(true),
+                    }),
+            ),
+        )
+        .await
+        .try_into_call_frame()
+        .unwrap();
+
+    let (log_payload, another_log_payload) = decode_call_frame_logs(&with_log_trace.logs);
+
+    assert_eq!(log_payload.address, logs_contract_address);
+    assert_eq!(log_payload.sender, test_client.from_addr);
+    assert_eq!(log_payload.contractAddress, logs_contract_address);
+    // senderMessage is an indexed string, so the event only carries its hash
+    assert_eq!(log_payload.senderMessage, keccak256(test_msg));
+    assert_eq!(log_payload.message, "Hello World!");
+    assert_eq!(another_log_payload.address, logs_contract_address);
+    assert_eq!(another_log_payload.contractAddress, logs_contract_address);
+
+    // The same request is now served from the trace cache
+    let cached_with_log_trace = test_client
+        .debug_trace_transaction(
+            tx_hash,
+            Some(
+                GethDebugTracingOptions::default()
+                    .with_tracer(GethDebugTracerType::BuiltInTracer(
+                        GethDebugBuiltInTracerType::CallTracer,
+                    ))
+                    .with_call_config(CallConfig {
+                        only_top_call: Some(false),
+                        with_log: Some(true),
+                    }),
+            ),
+        )
+        .await
+        .try_into_call_frame()
+        .unwrap();
+
+    assert_eq!(cached_with_log_trace, with_log_trace);
+
+    // withlog false must strip the logs off the cached trace and change nothing else
+    let without_log_trace = test_client
+        .debug_trace_transaction(
+            tx_hash,
+            Some(
+                GethDebugTracingOptions::default()
+                    .with_tracer(GethDebugTracerType::BuiltInTracer(
+                        GethDebugBuiltInTracerType::CallTracer,
+                    ))
+                    .with_call_config(CallConfig {
+                        only_top_call: Some(false),
+                        with_log: Some(false),
+                    }),
+            ),
+        )
+        .await
+        .try_into_call_frame()
+        .unwrap();
+
+    assert_eq!(
+        without_log_trace,
+        CallFrame {
+            logs: vec![],
+            ..with_log_trace.clone()
+        }
+    );
+
+    // no call config at all defaults to withlog false
+    let default_config_trace = test_client
+        .debug_trace_transaction(
+            tx_hash,
+            Some(GethDebugTracingOptions::default().with_tracer(
+                GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::CallTracer),
+            )),
+        )
+        .await
+        .try_into_call_frame()
+        .unwrap();
+
+    assert_eq!(default_config_trace, without_log_trace);
+
+    task_manager.graceful_shutdown();
+    Ok(())
+}
+
+fn decode_call_frame_logs(
+    logs: &[CallLogFrame],
+) -> (
+    alloy_primitives::Log<LogEvent>,
+    alloy_primitives::Log<AnotherLogEvent>,
+) {
+    assert_eq!(logs.len(), 2);
+
+    let into_log = |log: &CallLogFrame| {
+        alloy_primitives::Log::new_unchecked(
+            log.address.unwrap(),
+            log.topics.clone().unwrap(),
+            log.data.clone().unwrap(),
+        )
+    };
+
+    let log_payload = LogsContract::decode_log_event(&into_log(&logs[0])).unwrap();
+    let another_log_payload =
+        LogsContract::decode_another_log_event(&into_log(&logs[1])).unwrap();
+
+    (log_payload, another_log_payload)
 }
 
 #[tokio::test(flavor = "multi_thread")]
