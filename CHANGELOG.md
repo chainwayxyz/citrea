@@ -1,6 +1,10 @@
 # Changelog
 ## [Unreleased]
 ### Changed
+- fix(rpc): Set archival state in estimate tx expenses ([#3321](https://github.com/chainwayxyz/citrea/pull/3321))
+
+## [v2.7.0](2026-07-29)
+### Changed
 - perf: better tx validation in mempool ([#3311](https://github.com/chainwayxyz/citrea/pull/3311))\
   **New env vars:**\
   `SEQUENCER_MEMPOOL_ADDITIONAL_VALIDATION_TASKS`: Number of additional parallel transaction validation tasks in the sequencer mempool (default: 4)\
@@ -272,8 +276,9 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
 
-[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.6.0...HEAD
-[v2.6.0]: https://github.com/chainwayxyz/citrea/compare/v2.6.0...HEAD
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.7.0...HEAD
+[v2.7.0]: https://github.com/chainwayxyz/citrea/compare/v2.6.0...v2.7.0
+[v2.6.0]: https://github.com/chainwayxyz/citrea/compare/v2.5.0...v2.6.0
 [v2.5.0]: https://github.com/chainwayxyz/citrea/compare/v2.4.0...v2.5.0
 [v2.4.0]: https://github.com/chainwayxyz/citrea/compare/v2.3.1...v2.4.0
 [v2.3.1]: https://github.com/chainwayxyz/citrea/compare/v2.3.0...v2.3.1

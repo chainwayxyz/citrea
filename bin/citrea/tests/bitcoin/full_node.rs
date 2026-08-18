@@ -1,7 +1,8 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use alloy_primitives::{Address, U256, U32, U64};
+use alloy_primitives::{Address, TxKind, U256, U32, U64};
+use alloy_rpc_types::{BlockNumberOrTag, TransactionInput, TransactionRequest};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
@@ -14,12 +15,14 @@ use citrea_e2e::config::{
 };
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
-use citrea_e2e::traits::Restart;
+use citrea_e2e::traits::{NodeT, Restart};
 use citrea_e2e::Result;
-use citrea_evm::AccountInfo;
+use citrea_evm::smart_contracts::SimpleStorageContract;
+use citrea_evm::{AccountInfo, EvmRpcClient};
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::circuit::initial_values::bitcoinda::NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
+use citrea_stf::runtime::DefaultContext;
 use reth_tasks::TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_db::schema::types::L2HeightAndIndex;
@@ -4707,4 +4710,163 @@ async fn test_pending_proof_dropped_on_permanent_error() -> Result<()> {
     .set_citrea_path(get_citrea_path())
     .run()
     .await
+}
+
+struct EstimateTxExpensesHonorsBlockTagTest;
+
+#[async_trait]
+impl TestCase for EstimateTxExpensesHonorsBlockTagTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            // will generate a commitment for blocks 1-2
+            max_l2_blocks_per_commitment: 2,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(150)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_ref().expect("Sequencer not running");
+        let full_node = f.full_node.as_ref().expect("Full node not running");
+
+        let seq_test_client = make_test_client(SocketAddr::new(
+            sequencer.config().rpc_bind_host().parse()?,
+            sequencer.config().rpc_bind_port(),
+        ))
+        .await
+        .unwrap();
+
+        let contract = SimpleStorageContract::default();
+        let contract_address = seq_test_client.from_addr.create(0);
+
+        // Block 1 is empty, so that a numbered tag reaches the pre-deployment state.
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer.wait_for_l2_height(1, None).await?;
+
+        // Block 2 deploys the contract
+        let _ = seq_test_client
+            .deploy_contract(contract.byte_code(), None)
+            .await
+            .unwrap();
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer.wait_for_l2_height(2, None).await?;
+
+        // Block 3 sets a storage slot
+        let _ = seq_test_client
+            .contract_transaction(contract_address, contract.set_call_data(478), None)
+            .await;
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer.wait_for_l2_height(3, None).await?;
+        full_node.wait_for_l2_height(3, None).await?;
+
+        // Let sequencer generate the commitment for blocks 1-2, so the safe tag points to block 2
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(finalized_height, None).await?;
+
+        let set_storage_tx_request = TransactionRequest {
+            from: Some(seq_test_client.from_addr),
+            to: Some(TxKind::Call(contract_address)),
+            input: TransactionInput::new(contract.set_call_data(5).into()),
+            ..Default::default()
+        };
+
+        // Helper functions to estimate gas and diff size at a given block tag.
+        let estimate_at = async |tag: BlockNumberOrTag| {
+            EvmRpcClient::<DefaultContext>::eth_estimate_gas(
+                full_node.client.http_client(),
+                set_storage_tx_request.clone(),
+                Some(tag),
+                None,
+            )
+            .await
+            .unwrap()
+        };
+
+        let diff_size_at = async |tag: BlockNumberOrTag| {
+            EvmRpcClient::<DefaultContext>::eth_estimate_diff_size(
+                full_node.client.http_client(),
+                set_storage_tx_request.clone(),
+                Some(tag),
+                None,
+            )
+            .await
+            .unwrap()
+        };
+
+        let no_contract = estimate_at(BlockNumberOrTag::Earliest).await;
+        let slot_unset = estimate_at(BlockNumberOrTag::Number(2)).await;
+        let slot_set = estimate_at(BlockNumberOrTag::Latest).await;
+
+        // No contract is just a plain call to an empty account. Beyond that, SSTORE is priced off
+        // the slot's current value: overwriting one that already holds a value pays less than
+        // writing one that is still zero (cold write).
+        assert!(no_contract < slot_set);
+        assert!(slot_set < slot_unset);
+
+        // Number 0 and finalized point to the genesis block
+        assert_eq!(estimate_at(BlockNumberOrTag::Number(0)).await, no_contract);
+        assert_eq!(estimate_at(BlockNumberOrTag::Finalized).await, no_contract);
+        // Safe points to the block number 2
+        assert_eq!(estimate_at(BlockNumberOrTag::Safe).await, slot_unset);
+        // Block 3 is the latest block
+        assert_eq!(estimate_at(BlockNumberOrTag::Number(3)).await, slot_set);
+
+        let diff_no_contract = diff_size_at(BlockNumberOrTag::Earliest).await;
+        let diff_slot_unset = diff_size_at(BlockNumberOrTag::Number(2)).await;
+        let diff_slot_set = diff_size_at(BlockNumberOrTag::Latest).await;
+
+        // The same three-way split applies to the diff size's gas field.
+        assert!(diff_no_contract.gas < diff_slot_set.gas);
+        assert!(diff_slot_set.gas < diff_slot_unset.gas);
+
+        // The diff size only splits two ways: touching no contract writes no storage, while
+        // writing a slot costs the same diff whether or not it already held a value.
+        assert!(diff_no_contract.l1_diff_size < diff_slot_unset.l1_diff_size);
+        assert_eq!(diff_slot_unset.l1_diff_size, diff_slot_set.l1_diff_size);
+
+        // eth_estimateGas adds an l1 fee overhead to the gas estimate depending on the base fee and l1 fee of the block.
+        // Compare block 1 and pending through the diff size endpoint to avoid the overhead.
+        assert_eq!(
+            diff_size_at(BlockNumberOrTag::Number(1)).await,
+            diff_no_contract
+        );
+        assert_eq!(diff_size_at(BlockNumberOrTag::Pending).await, diff_slot_set);
+
+        // Mine the batch proof so that the full node can process it and update its finalized tag
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(finalized_height, None).await?;
+
+        // The finalized tag now points to block 2, which corresponds to the slot being unset.
+        assert_eq!(estimate_at(BlockNumberOrTag::Finalized).await, slot_unset);
+        assert_eq!(
+            diff_size_at(BlockNumberOrTag::Finalized).await,
+            diff_slot_unset
+        );
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn estimate_tx_expenses_honors_block_tag() -> Result<()> {
+    TestCaseRunner::new(EstimateTxExpensesHonorsBlockTagTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
 }
