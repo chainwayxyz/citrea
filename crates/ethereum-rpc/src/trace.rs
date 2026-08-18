@@ -234,15 +234,15 @@ fn apply_call_config(call_frame: CallFrame, call_config: CallConfig) -> CallFram
         new_call_frame.calls = vec![];
     }
     if !call_config.with_log.unwrap_or(false) {
-        remove_logs_from_call_frame(&mut vec![new_call_frame.clone()]);
+        remove_logs_from_call_frame(&mut new_call_frame);
     }
     new_call_frame
 }
 
-fn remove_logs_from_call_frame(call_frame: &mut Vec<CallFrame>) {
-    for frame in call_frame {
-        frame.logs = vec![];
-        remove_logs_from_call_frame(&mut frame.calls);
+fn remove_logs_from_call_frame(call_frame: &mut CallFrame) {
+    call_frame.logs = vec![];
+    for frame in &mut call_frame.calls {
+        remove_logs_from_call_frame(frame);
     }
 }
 
