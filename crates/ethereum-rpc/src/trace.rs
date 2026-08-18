@@ -493,10 +493,11 @@ fn convert_call_trace_into_4byte_map(
 
 fn create_trace_cache_opts() -> GethDebugTracingOptions {
     // Get the traces with call tracer onlytopcall false and withlog true and always cache this way
-    let mut call_config_map = serde_json::Map::new();
-    call_config_map.insert("only_top_call".to_string(), serde_json::Value::Bool(false));
-    call_config_map.insert("with_log".to_string(), serde_json::Value::Bool(true));
-    let call_config = serde_json::Value::Object(call_config_map);
+    let call_config = serde_json::to_value(CallConfig {
+        only_top_call: Some(false),
+        with_log: Some(true),
+    })
+    .expect("CallConfig must be serializable");
     GethDebugTracingOptions {
         tracer: Some(GethDebugTracerType::BuiltInTracer(
             GethDebugBuiltInTracerType::CallTracer,
