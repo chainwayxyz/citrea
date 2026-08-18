@@ -74,6 +74,20 @@ use crate::utils::recover_raw_transaction;
 /// Maximum number of DA blocks that can be missed per L2 block
 pub const MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK: u64 = 10;
 
+/// Returns whether a finalized L1 height should be accepted.
+///
+/// Rejects anything below our own view of L1, which is the higher of the last height we
+/// saw finalized and the last height already folded into the light client contract. An
+/// equal height is accepted, and dropped later by `produce_l2_block`, which skips a lone
+/// DA block the light client already holds.
+fn should_accept_finalized_l1_height(
+    last_finalized_l1_height: u64,
+    last_used_l1_height: u64,
+    new_finalized_l1_height: u64,
+) -> bool {
+    new_finalized_l1_height >= last_finalized_l1_height.max(last_used_l1_height)
+}
+
 /// The main sequencer implementation that manages block production and transaction processing
 ///
 /// This struct is responsible for:
@@ -1123,7 +1137,7 @@ where
         }
 
         // Get initial DA block data and fee rate
-        let mut last_finalized_block = match get_finalized_block(self.da_service.clone()).await {
+        let last_finalized_block = match get_finalized_block(self.da_service.clone()).await {
             Ok(block) => block,
             Err(e) => {
                 error!("{e}");
@@ -1158,6 +1172,13 @@ where
                 // Set to 1 less so that we do not skip processing the first l1 block
                 None => last_finalized_l1_height - 1,
             };
+        let mut last_finalized_block =
+            (last_finalized_l1_height >= last_used_l1_height).then_some(last_finalized_block);
+        // A DA node that is already behind at startup leaves us with a stale tip here. The
+        // light client contract is the better record of how far L1 got, so adopt it as our
+        // view: block accounting is unchanged either way, but logs and metrics stop
+        // reporting the stale height.
+        last_finalized_l1_height = last_finalized_l1_height.max(last_used_l1_height);
 
         // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
         let (da_block_update_tx, mut da_block_update_rx) = mpsc::channel::<DaBlockData<Da>>(1);
@@ -1220,20 +1241,46 @@ where
         let mut block_production_tick = tokio::time::interval(target_block_time);
         block_production_tick.tick().await;
 
+        // Whether we are currently ignoring what the DA layer reports
+        let mut da_behind = false;
+
         let backup_manager = self.backup_manager.clone();
         loop {
             tokio::select! {
                 // Receive DA block updates from DA layer worker.
                 da_block = da_block_update_rx.recv() => {
                     if let Some(block) = da_block {
-                        last_finalized_block = block;
-                        let new_finalized_l1_height = last_finalized_block.header().height();
-                        if new_finalized_l1_height < last_finalized_l1_height {
-                            info!("DA potential fork detected, known last finalized L1 height: {last_finalized_l1_height}, new finalized L1 height: {new_finalized_l1_height}")
+                        let new_finalized_l1_height = block.header().height();
+                        if !should_accept_finalized_l1_height(
+                            last_finalized_l1_height,
+                            last_used_l1_height,
+                            new_finalized_l1_height,
+                        ) {
+                            missed_da_blocks_count = 0;
+                            last_finalized_block = None;
+                            if !da_behind {
+                                da_behind = true;
+                                warn!(
+                                    "Ignoring L1 height below our own view of L1, the DA node is \
+                                     likely behind. L2 blocks keep being produced, L1 stays put. \
+                                     New finalized height: {new_finalized_l1_height}, last finalized \
+                                     height: {last_finalized_l1_height}, last used height {last_used_l1_height}"
+                                );
+                            }
+
+                            SM.current_l1_block.set(last_finalized_l1_height as f64);
+                            continue;
                         }
+
+                        if da_behind {
+                            info!("DA node caught back up at L1 height {new_finalized_l1_height}");
+                            da_behind = false;
+                        }
+
+                        last_finalized_block = Some(block);
                         last_finalized_l1_height = new_finalized_l1_height;
 
-                        info!("New finalized L1 block at height {}", last_finalized_l1_height);
+                        info!("New finalized L1 block at height {last_finalized_l1_height}");
 
                         missed_da_blocks_count = self.da_blocks_missed(last_finalized_l1_height, last_used_l1_height);
                     }
@@ -1266,7 +1313,8 @@ where
                                 missed_da_blocks_count = 0;
                             }
                             let _l2_lock = backup_manager.start_l2_processing().await;
-                            self.produce_l2_block(vec![last_finalized_block.clone()], l1_fee_rate, &mut last_used_l1_height).await?;
+                            let da_blocks = last_finalized_block.clone().into_iter().collect();
+                            self.produce_l2_block(da_blocks, l1_fee_rate, &mut last_used_l1_height).await?;
                         },
                         Some(SequencerRpcMessage::HaltCommitments) => {
                             // Forward halt signal to commitment service
@@ -1296,8 +1344,6 @@ where
                     // last_finalized_block. If there are missed DA blocks, we start producing
                     // empty blocks at ~2 second rate, 1 L2 block per respective missed DA block
                     // until we know we caught up with L1.
-                    let da_block = last_finalized_block.clone();
-
                     if missed_da_blocks_count > 0 {
                         if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, &mut last_used_l1_height, l1_fee_rate).await {
                             error!("Sequencer error: {}", e);
@@ -1310,7 +1356,8 @@ where
                     }
 
                     let _l2_lock = backup_manager.start_l2_processing().await;
-                    self.produce_l2_block(vec![da_block.clone()], l1_fee_rate, &mut last_used_l1_height).await?;
+                    let da_blocks = last_finalized_block.clone().into_iter().collect();
+                    self.produce_l2_block(da_blocks, l1_fee_rate, &mut last_used_l1_height).await?;
                 },
                 _ = &mut shutdown_signal => {
                     info!("Shutting down sequencer");
@@ -1703,5 +1750,32 @@ where
         }
 
         Ok((all_txs, working_set_to_discard))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_accept_finalized_l1_height;
+
+    #[test]
+    fn finalized_l1_height_acceptance() {
+        let cases = [
+            ("advancing tip", 194, 194, 195, true),
+            ("unchanged tip", 194, 194, 194, true),
+            ("regressed tip", 194, 194, 54, false),
+            ("stale tip on startup", 54, 194, 54, false),
+            ("partially synced tip", 54, 194, 193, false),
+            ("resynced to light client height", 54, 194, 194, true),
+            ("synced tip", 54, 194, 195, true),
+            ("pending DA catch-up", 194, 190, 195, true),
+        ];
+
+        for (case, last_finalized, last_used, new_finalized, expected) in cases {
+            assert_eq!(
+                should_accept_finalized_l1_height(last_finalized, last_used, new_finalized),
+                expected,
+                "{case}"
+            );
+        }
     }
 }
