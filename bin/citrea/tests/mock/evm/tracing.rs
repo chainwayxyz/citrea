@@ -10,9 +10,9 @@ use alloy_rpc_types_trace::geth::GethTrace::{
     self, CallTracer, FlatCallTracer, FourByteTracer, MuxTracer, PreStateTracer,
 };
 use alloy_rpc_types_trace::geth::{
-    CallConfig, CallFrame, CallLogFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType,
-    GethDebugTracingCallOptions, GethDebugTracingOptions, PreStateConfig, PreStateFrame,
-    TraceResult,
+    CallConfig, CallFrame, CallLogFrame, FourByteFrame, GethDebugBuiltInTracerType,
+    GethDebugTracerType, GethDebugTracingCallOptions, GethDebugTracingOptions, PreStateConfig,
+    PreStateFrame, TraceResult,
 };
 // use citrea::initialize_logging;
 use citrea_common::SequencerConfig;
@@ -667,8 +667,7 @@ fn decode_call_frame_logs(
     };
 
     let log_payload = LogsContract::decode_log_event(&into_log(&logs[0])).unwrap();
-    let another_log_payload =
-        LogsContract::decode_another_log_event(&into_log(&logs[1])).unwrap();
+    let another_log_payload = LogsContract::decode_another_log_event(&into_log(&logs[1])).unwrap();
 
     (log_payload, another_log_payload)
 }
