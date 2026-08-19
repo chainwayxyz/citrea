@@ -10,7 +10,7 @@ use bitcoin::hashes::Hash;
 use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
 use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_NIP};
 use bitcoin::script::PushBytesBuf;
-use bitcoin::secp256k1::{SecretKey, XOnlyPublicKey};
+use bitcoin::secp256k1::SecretKey;
 use bitcoin::{Address, Network, Transaction};
 use metrics::histogram;
 use secp256k1::SECP256K1;
@@ -20,7 +20,8 @@ use tracing::{info, instrument, trace, warn};
 
 use super::{
     build_commit_transaction, build_control_block, build_reveal_transaction, build_witness,
-    get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind, TxWithId,
+    da_keypair, get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind,
+    TxWithId,
 };
 use crate::spec::utxo::UTXO;
 use crate::utxo_manager::UtxoContext;
@@ -207,8 +208,7 @@ pub fn create_inscription_type_0(
     } = utxo_context;
 
     // Create reveal key
-    let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
-    let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
+    let (key_pair, public_key) = da_keypair(da_private_key);
 
     let kind = TransactionKind::Complete;
     let kind_bytes = kind.to_bytes();
@@ -351,8 +351,7 @@ pub fn create_inscription_type_1(
     } = utxo_context;
 
     // Create reveal key
-    let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
-    let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
+    let (key_pair, public_key) = da_keypair(da_private_key);
 
     let mut commit_chunks: Vec<Transaction> = vec![];
     let mut reveal_chunks: Vec<Transaction> = vec![];
@@ -645,8 +644,7 @@ pub fn create_inscription_type_3(
     } = utxo_context;
 
     // Create reveal key
-    let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
-    let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
+    let (key_pair, public_key) = da_keypair(da_private_key);
 
     let kind = TransactionKind::BatchProofMethodId;
     let kind_bytes = kind.to_bytes();
@@ -791,8 +789,7 @@ pub fn create_inscription_type_4(
     } = utxo_context;
 
     // Create reveal key
-    let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
-    let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
+    let (key_pair, public_key) = da_keypair(da_private_key);
 
     let kind = TransactionKind::SequencerCommitment;
     let kind_bytes = kind.to_bytes();

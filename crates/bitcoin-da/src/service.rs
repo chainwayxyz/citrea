@@ -110,6 +110,18 @@ pub struct BitcoinServiceConfig {
     pub rpc_connect_timeout_secs: Option<u64>,
 }
 
+impl BitcoinServiceConfig {
+    /// Parses the configured DA private key. `None` when the node is not configured to publish
+    /// on DA at all.
+    pub fn parse_da_private_key(&self) -> Result<Option<SecretKey>> {
+        self.da_private_key
+            .as_ref()
+            .map(|pk| SecretKey::from_str(pk))
+            .transpose()
+            .map_err(|_| BitcoinServiceError::InvalidPrivateKey)
+    }
+}
+
 impl citrea_common::FromEnv for BitcoinServiceConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
@@ -219,12 +231,7 @@ impl BitcoinService {
                 .map_err(BitcoinServiceError::BackupDirectoryError)?;
         }
 
-        let da_private_key = config
-            .da_private_key
-            .as_ref()
-            .map(|pk| SecretKey::from_str(pk))
-            .transpose()
-            .map_err(|_| BitcoinServiceError::InvalidPrivateKey)?;
+        let da_private_key = config.parse_da_private_key()?;
 
         let tx_queue = Arc::new(Mutex::new(VecDeque::new()));
         let utxo_manager = UtxoManager::new(

@@ -8,7 +8,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use anyhow::anyhow;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::hashes::Hash;
-use bitcoin::{Address, BlockHash, Transaction, Txid};
+use bitcoin::{Address, BlockHash, Transaction, Txid, XOnlyPublicKey};
 use bitcoincore_rpc::json::GetTransactionResult;
 use bitcoincore_rpc::{Client, RpcApi};
 use citrea_common::utils::read_env;
@@ -24,7 +24,7 @@ use tokio::time::{interval, MissedTickBehavior};
 use tracing::{debug, error, info, instrument, trace};
 
 use crate::helpers::builders::TxWithId;
-use crate::helpers::parsers::parse_relevant_transaction;
+use crate::helpers::parsers::parse_relevant_transaction_signed_by;
 use crate::spec::utxo::UTXO;
 
 type BlockHeight = u64;
@@ -223,6 +223,9 @@ pub enum MonitorError {
     /// Already monitored.
     #[error("Transaction already monitored")]
     AlreadyMonitored,
+    /// Restore requires the configured DA key to authenticate wallet-visible transactions.
+    #[error("DA public key is required to restore transaction monitoring")]
+    MissingDaPublicKey,
     /// BlockHash not set.
     #[error("BlockHash not set")]
     BlockHashNotSet,
@@ -346,6 +349,8 @@ pub struct MonitoringService {
     total_size: AtomicUsize,
     finality_depth: u64,
     block_tx: UnboundedSender<u64>,
+    /// DA key which must control every reveal adopted during wallet restore.
+    da_public_key: Option<XOnlyPublicKey>,
 }
 
 impl MonitoringService {
@@ -354,6 +359,7 @@ impl MonitoringService {
         client: Arc<Client>,
         config: Option<MonitoringConfig>,
         finality_depth: u64,
+        da_public_key: Option<XOnlyPublicKey>,
     ) -> (Self, UnboundedReceiver<u64>) {
         let (block_tx, block_rx) = tokio::sync::mpsc::unbounded_channel();
 
@@ -367,6 +373,7 @@ impl MonitoringService {
                 total_size: AtomicUsize::new(0),
                 finality_depth,
                 block_tx,
+                da_public_key,
             },
             block_rx,
         )
@@ -402,54 +409,80 @@ impl MonitoringService {
 
     // Restore TX chain from utxos using list_unspent in range [0..self.finality_depth] confirmations
     async fn restore_from_utxos(&self) -> Result<()> {
+        let da_public_key = self
+            .da_public_key
+            .as_ref()
+            .ok_or(MonitorError::MissingDaPublicKey)?;
+
         let mut unspent = self
             .client
             .list_unspent(None, Some(self.finality_depth as usize), None, None, None)
             .await?;
 
         unspent.sort_unstable_by_key(|utxo| {
-            utxo.ancestor_count.unwrap_or(0) as i64 - utxo.confirmations as i64 - utxo.vout as i64
+            utxo.ancestor_count.unwrap_or(0) as i64 - utxo.confirmations as i64
         });
         tracing::trace!("[restore_from_utxos] {unspent:?}");
 
+        let txids = unspent
+            .iter()
+            .filter(|utxo| utxo.vout == 0 && utxo.spendable && utxo.solvable)
+            .map(|utxo| utxo.txid)
+            .collect::<Vec<_>>();
+
         let mut txs = Vec::new();
-        for tx in &unspent {
-            let reveal_txid = tx.txid;
-            let reveal_tx = self
+        for reveal_txid in txids {
+            let Some(reveal_tx) = self
                 .client
                 .get_transaction(&reveal_txid, None)
-                .await?
-                .transaction()?;
+                .await
+                .ok()
+                .and_then(|result| result.transaction().ok())
+            else {
+                debug!("[restore_from_utxos] skipping unretrievable tx {reveal_txid}");
+                continue;
+            };
 
             let reveal_wtxid = reveal_tx.compute_wtxid();
             let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
 
-            // Assumes that no wallet can hold both txs utxos
-            if reveal_hash.starts_with(REVEAL_TX_PREFIX)
-                && parse_relevant_transaction(&reveal_tx).is_ok()
-            {
-                let commit_txid = reveal_tx.input[0].previous_output.txid;
-                let Some(commit_tx) = self
-                    .client
-                    .get_transaction(&commit_txid, None)
-                    .await
-                    .ok()
-                    .and_then(|result| result.transaction().ok())
-                else {
-                    continue;
-                };
-
-                txs.push([
-                    TxWithId {
-                        id: commit_txid,
-                        tx: commit_tx,
-                    },
-                    TxWithId {
-                        id: reveal_txid,
-                        tx: reveal_tx,
-                    },
-                ]);
+            if !reveal_hash.starts_with(REVEAL_TX_PREFIX) {
+                continue;
             }
+
+            let previous_output = reveal_tx.input[0].previous_output;
+            let commit_txid = previous_output.txid;
+            let Some(commit_tx) = self
+                .client
+                .get_transaction(&commit_txid, None)
+                .await
+                .ok()
+                .and_then(|result| result.transaction().ok())
+            else {
+                debug!(
+                    "[restore_from_utxos] skipping {reveal_txid}: parent {commit_txid} is unretrievable"
+                );
+                continue;
+            };
+
+            let spent_output = &commit_tx.output[previous_output.vout as usize];
+            if let Err(e) =
+                parse_relevant_transaction_signed_by(&reveal_tx, spent_output, da_public_key)
+            {
+                debug!("[restore_from_utxos] skipping {reveal_txid}: {e}");
+                continue;
+            }
+
+            txs.push([
+                TxWithId {
+                    id: commit_txid,
+                    tx: commit_tx,
+                },
+                TxWithId {
+                    id: reveal_txid,
+                    tx: reveal_tx,
+                },
+            ]);
         }
 
         tracing::trace!("[restore_from_utxos] {txs:?}");
