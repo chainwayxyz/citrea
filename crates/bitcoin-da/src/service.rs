@@ -414,7 +414,10 @@ impl BitcoinService {
         let network = self.network;
         let da_private_key = self.da_private_key.expect("No private key set");
         // get address from a utxo
-        let address = utxo_context.available_utxos[0]
+        let address = utxo_context
+            .available_utxos
+            .first()
+            .ok_or(BitcoinServiceError::MissingUTXO)?
             .address
             .clone()
             .ok_or(BitcoinServiceError::MissingAddress)?
