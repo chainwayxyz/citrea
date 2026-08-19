@@ -62,10 +62,10 @@ impl FromEnv for RunnerConfig {
         Ok(Self {
             sequencer_client_url: read_env("SEQUENCER_CLIENT_URL")?,
             include_tx_body: read_env("INCLUDE_TX_BODY")?.parse()?,
-            sync_blocks_count: read_env("SYNC_BLOCKS_COUNT")
-                .ok()
-                .and_then(|val| val.parse().ok())
-                .unwrap_or_else(default_sync_blocks_count),
+            sync_blocks_count: match read_env("SYNC_BLOCKS_COUNT") {
+                Ok(value) => value.parse()?,
+                Err(_) => default_sync_blocks_count(),
+            },
             pruning_config: PruningConfig::from_env().ok(),
             scan_l1_start_height: read_env("SCAN_L1_START_HEIGHT")?.parse()?,
         })
@@ -774,6 +774,23 @@ mod tests {
             dry_run_time_limit_ms: default_dry_run_time_limit_ms(),
         };
         assert_eq!(sequencer_config, expected);
+    }
+
+    #[test]
+    fn test_invalid_sync_blocks_count_from_env_is_rejected() {
+        std::env::set_var("SEQUENCER_CLIENT_URL", "http://127.0.0.1:12346");
+        std::env::set_var("INCLUDE_TX_BODY", "true");
+        std::env::set_var("SCAN_L1_START_HEIGHT", "1");
+        std::env::set_var("SYNC_BLOCKS_COUNT", "not-a-number");
+
+        let result = RunnerConfig::from_env();
+
+        std::env::remove_var("SEQUENCER_CLIENT_URL");
+        std::env::remove_var("INCLUDE_TX_BODY");
+        std::env::remove_var("SCAN_L1_START_HEIGHT");
+        std::env::remove_var("SYNC_BLOCKS_COUNT");
+
+        assert!(result.is_err());
     }
 
     #[test]
