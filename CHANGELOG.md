@@ -2,6 +2,7 @@
 ## [Unreleased]
 ### Changed
 - fix(rpc): Set archival state in estimate tx expenses ([#3321](https://github.com/chainwayxyz/citrea/pull/3321))
+- fix(rpc): with log config in debug trace cache ([#3323](https://github.com/chainwayxyz/citrea/pull/3323))
 
 ## [v2.7.0](2026-07-29)
 ### Changed
