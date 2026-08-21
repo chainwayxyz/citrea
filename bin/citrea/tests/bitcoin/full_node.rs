@@ -1,7 +1,8 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use alloy_primitives::{Address, U256, U32, U64};
+use alloy_primitives::{Address, TxKind, U256, U32, U64};
+use alloy_rpc_types::{BlockNumberOrTag, TransactionInput, TransactionRequest};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
@@ -14,12 +15,14 @@ use citrea_e2e::config::{
 };
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
-use citrea_e2e::traits::Restart;
+use citrea_e2e::traits::{NodeT, Restart};
 use citrea_e2e::Result;
-use citrea_evm::AccountInfo;
+use citrea_evm::smart_contracts::SimpleStorageContract;
+use citrea_evm::{AccountInfo, EvmRpcClient};
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::circuit::initial_values::bitcoinda::NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
+use citrea_stf::runtime::DefaultContext;
 use reth_tasks::TaskManager;
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_db::schema::types::L2HeightAndIndex;
@@ -1259,6 +1262,161 @@ impl TestCase for ConflictingCommitmentsTest {
 #[tokio::test]
 async fn test_conflicting_commitments() -> Result<()> {
     TestCaseRunner::new(ConflictingCommitmentsTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
+}
+
+struct ConflictingPendingCommitmentTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for ConflictingPendingCommitmentTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_sequencer: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            // High enough that the sequencer never publishes commitments on its own
+            max_l2_blocks_per_commitment: 10_000,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(150)
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        /*
+        A commitment that is already pending must not lose its index to a conflicting one.
+
+        The sequencer publishes L2 blocks 1-10, then two conflicting commitments are sent at
+        index 1: commitment A : L2 [1, 1000], commitment B : L2 [1, 10].
+        Without the pending conflict check, commitment B is processed straight away and takes
+        index 1 from commitment A, which is still sitting in the pending table.
+         */
+        let task_executor = self.task_manager.executor();
+
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
+
+        let sequencer_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
+
+        for _ in 1..=10 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        full_node.wait_for_l2_height(10, None).await?;
+
+        let commitment_a = SequencerCommitment {
+            merkle_root: [0xAA; 32],
+            l2_end_block_number: 1000,
+            index: 1,
+        };
+        let merkle_root_b = calculate_merkle_root(
+            &sequencer
+                .client
+                .http_client()
+                .get_l2_block_range(U64::from(1), U64::from(10))
+                .await?,
+        );
+        let commitment_b = SequencerCommitment {
+            merkle_root: merkle_root_b,
+            l2_end_block_number: 10,
+            index: 1,
+        };
+
+        // Commitment A reaches beyond the synced L2 blocks, so it is stored as pending
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment_a.clone()),
+                1.0,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        assert!(
+            full_node
+                .client
+                .http_client()
+                .get_last_committed_l2_height()
+                .await?
+                .is_none(),
+            "Commitment A should be pending, not processed"
+        );
+
+        // Commitment B covers an already synced L2 range, but index 1 is taken by pending
+        // commitment A, so it must be discarded
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment_b.clone()),
+                1.0,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        assert!(
+            full_node
+                .client
+                .http_client()
+                .get_sequencer_commitment_by_index(U32::from(1))
+                .await?
+                .is_none(),
+            "Conflicting commitment B must not take index 1 from pending commitment A"
+        );
+        assert!(full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .is_none());
+
+        // Commitment B should have been discarded, not halted the full node
+        da.generate(1).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        let last_scanned_l1_height = full_node
+            .client
+            .http_client()
+            .get_last_scanned_l1_height()
+            .await?;
+        assert_eq!(last_scanned_l1_height.to::<u64>(), l1_height);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_conflicting_pending_commitment() -> Result<()> {
+    TestCaseRunner::new(ConflictingPendingCommitmentTest {
         task_manager: TaskManager::current(),
     })
     .set_citrea_path(get_citrea_path())
@@ -4029,6 +4187,685 @@ impl TestCase for StateDiffRpcTest {
 #[tokio::test]
 async fn test_full_node_state_diff_rpc() -> Result<()> {
     TestCaseRunner::new(StateDiffRpcTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+struct PendingCommitmentNotOverwrittenTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for PendingCommitmentNotOverwrittenTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_sequencer: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            // High enough that the sequencer never publishes commitments on its own,
+            // every commitment in this test is crafted and sent manually.
+            max_l2_blocks_per_commitment: 10_000,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(150)
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        /*
+        A commitment that is only pending must not lose its index to a conflicting pending commitment.
+
+        Sequencer publishes L2 blocks 1-30, full node syncs them.
+        Commitments used, all of them valid against the synced L2 blocks:
+            commitment 1  : L2 [1, 10]
+            commitment 2  : L2 [11, 20]
+            commitment 3a : L2 [21, 30]
+            commitment 3b : L2 [21, 29]
+
+        DA writes, in order:
+            commitment 2  -> pending,
+            commitment 3a -> pending,
+            commitment 3b -> must be rejected because index 3 is already pending,
+            commitment 1  -> unblocks the chain, commitments 1, 2 and 3a get processed
+         */
+        let task_executor = self.task_manager.executor();
+
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
+
+        let sequencer_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
+
+        for _ in 1..=30 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        sequencer.client.wait_for_l2_block(30, None).await?;
+        full_node.wait_for_l2_height(30, None).await?;
+
+        let sequencer_client = sequencer.client.http_client();
+
+        let mut commitments = Vec::with_capacity(4);
+        // The last two are conflicting commitments at index 3.
+        // Both are valid against the L2 blocks the full node has synced.
+        let commitments_ranges = [(1, (1, 10)), (2, (11, 20)), (3, (21, 30)), (3, (21, 29))];
+
+        for (index, (start, end)) in commitments_ranges {
+            let merkle_root = calculate_merkle_root(
+                &sequencer_client
+                    .get_l2_block_range(U64::from(start), U64::from(end))
+                    .await?,
+            );
+            commitments.push(SequencerCommitment {
+                merkle_root,
+                l2_end_block_number: end,
+                index,
+            });
+        }
+
+        let [commitment_1, commitment_2, commitment_3a, commitment_3b] =
+            <[SequencerCommitment; 4]>::try_from(commitments).unwrap();
+        assert_ne!(
+            commitment_3a.serialize_and_calculate_sha_256(),
+            commitment_3b.serialize_and_calculate_sha_256()
+        );
+
+        // Send commitment 2 first. Index 1 is unknown so it is stored as pending.
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment_2.clone()),
+                1.0,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        assert!(full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .is_none());
+        assert!(
+            full_node
+                .client
+                .http_client()
+                .get_sequencer_commitment_by_index(U32::from(2))
+                .await?
+                .is_none(),
+            "Commitment 2 should be pending, not processed"
+        );
+
+        // Send commitment 3a.
+        // Its predecessor (2) is only pending, not processed, so 3a is stored as pending.
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment_3a.clone()),
+                1.0,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        assert!(
+            full_node
+                .client
+                .http_client()
+                .get_sequencer_commitment_by_index(U32::from(3))
+                .await?
+                .is_none(),
+            "Commitment 3a should be pending, not processed"
+        );
+
+        // Send the conflicting commitment 3b. It must not replace pending commitment 3a.
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment_3b.clone()),
+                1.0,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        // Send commitment 1, which makes the whole pending chain processable.
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment_1.clone()),
+                1.0,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        // Process one more L1 block to make sure pending commitments are drained
+        da.generate(1).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        // Commitment 3a was seen first at index 3, so it stays canonical and the conflicting
+        // commitment 3b is discarded
+        let stored_commitment_3 = full_node
+            .client
+            .http_client()
+            .get_sequencer_commitment_by_index(U32::from(3))
+            .await?
+            .unwrap();
+        assert_eq!(
+            stored_commitment_3.merkle_root, commitment_3a.merkle_root,
+            "Conflicting commitment 3b must not replace pending commitment 3a"
+        );
+        assert_eq!(
+            stored_commitment_3.l2_end_block_number.to::<u64>(),
+            commitment_3a.l2_end_block_number
+        );
+
+        let committed_height = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(committed_height.commitment_index, 3);
+        assert_eq!(committed_height.height, commitment_3a.l2_end_block_number);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_pending_commitment_not_overwritten() -> Result<()> {
+    TestCaseRunner::new(PendingCommitmentNotOverwrittenTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
+}
+
+struct PendingProofDroppedOnPermanentErrorTest {
+    task_manager: TaskManager,
+}
+
+#[async_trait]
+impl TestCase for PendingProofDroppedOnPermanentErrorTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_sequencer: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            // High enough that the sequencer never publishes commitments on its own,
+            // every commitment in this test is crafted and sent manually.
+            max_l2_blocks_per_commitment: 10_000,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(150)
+    }
+
+    async fn cleanup(self) -> Result<()> {
+        self.task_manager
+            .graceful_shutdown_with_timeout(Duration::from_secs(1));
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        /*
+        A pending proof that can never become valid must be dropped.
+
+        DA writes, in order:
+            commitment 2 (L2: 11-20)
+            commitment 3 (L2: 21-30), 4 (L2: 31-40)
+            proof [3, 3] -> has invalid pre state root.
+            proof [3, 4]
+            commitment 1 (L2: 1-10)
+            proof [1, 2]
+
+        If the failing proof over [3, 3] were kept in the pending proofs table instead, every retry
+        would stop at it and the proven height would stay at commitment index 2 forever.
+         */
+        let task_executor = self.task_manager.executor();
+
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
+
+        let sequencer_da_service =
+            spawn_bitcoin_da_sequencer_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
+        let prover_da_service =
+            spawn_bitcoin_da_prover_service(&task_executor, &da.config, Self::test_config().dir)
+                .await;
+
+        for _ in 1..=40 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+        sequencer.client.wait_for_l2_block(40, None).await?;
+        full_node.wait_for_l2_height(40, None).await?;
+
+        let sequencer_client = sequencer.client.http_client();
+
+        let mut commitments = Vec::with_capacity(4);
+        let commitments_ranges = [(1, (1, 10)), (2, (11, 20)), (3, (21, 30)), (4, (31, 40))];
+
+        for (index, (start, end)) in commitments_ranges {
+            let merkle_root = calculate_merkle_root(
+                &sequencer_client
+                    .get_l2_block_range(U64::from(start), U64::from(end))
+                    .await?,
+            );
+            commitments.push(SequencerCommitment {
+                merkle_root,
+                l2_end_block_number: end,
+                index,
+            });
+        }
+
+        let genesis_state_root: [u8; 32] = full_node
+            .client
+            .http_client()
+            .get_l2_genesis_state_root()
+            .await?
+            .unwrap()
+            .0
+            .try_into()
+            .unwrap();
+
+        let mut state_roots = Vec::with_capacity(4);
+        for commitment in &commitments {
+            state_roots.push(
+                sequencer_client
+                    .get_l2_block_by_number(U64::from(commitment.l2_end_block_number))
+                    .await?
+                    .unwrap()
+                    .header
+                    .state_root,
+            );
+        }
+        let [commitment_1, commitment_2, commitment_3, commitment_4] =
+            <[SequencerCommitment; 4]>::try_from(commitments).unwrap();
+        let [state_root_1, state_root_2, state_root_3, state_root_4] =
+            <[[u8; 32]; 4]>::try_from(state_roots).unwrap();
+
+        // Send commitment 2 first. Its predecessor is unknown so it is stored as pending.
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment_2.clone()),
+                1.0,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        // Commitments 3 and 4 follow, both pending as well
+        for commitment in [&commitment_3, &commitment_4] {
+            sequencer_da_service
+                .send_transaction_with_fee_rate(
+                    DaTxRequest::SequencerCommitment(commitment.clone()),
+                    1.0,
+                )
+                .await
+                .unwrap();
+        }
+
+        da.wait_mempool_len(4, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        assert!(
+            full_node
+                .client
+                .http_client()
+                .get_last_committed_l2_height()
+                .await?
+                .is_none(),
+            "Commitments 2, 3 and 4 should all be pending"
+        );
+
+        // Proof over [3, 3] with a false initial state root, and a correct proof over [3, 4].
+        // Both reference commitments that are only pending, so both are stored as pending before
+        // their initial state root is checked.
+        let l1_hash = da.get_block_hash(l1_height).await?;
+        let invalid_proof_3 = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            [1; 32], // false initial state root
+            commitment_3.l2_end_block_number,
+            None,
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment_3.clone()],
+            vec![state_root_3],
+            Some(commitment_2.serialize_and_calculate_sha_256()),
+        );
+        let proof_34 = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            state_root_2,
+            commitment_4.l2_end_block_number,
+            None,
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment_3.clone(), commitment_4.clone()],
+            vec![state_root_3, state_root_4],
+            Some(commitment_2.serialize_and_calculate_sha_256()),
+        );
+        for proof in [invalid_proof_3, proof_34] {
+            prover_da_service
+                .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof), 1.0)
+                .await
+                .unwrap();
+        }
+
+        da.wait_mempool_len(4, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let proofs_l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(proofs_l1_height, None).await?;
+
+        assert!(full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .is_none());
+
+        // Send commitment 1, which makes the whole pending chain processable
+        sequencer_da_service
+            .send_transaction_with_fee_rate(
+                DaTxRequest::SequencerCommitment(commitment_1.clone()),
+                1.0,
+            )
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        // Process one more L1 block to make sure pending commitments are drained
+        da.generate(1).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        let committed_height = full_node
+            .client
+            .http_client()
+            .get_last_committed_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(committed_height.commitment_index, 4);
+        assert_eq!(committed_height.height, commitment_4.l2_end_block_number);
+
+        // The proof over [3, 3] failed on its initial state root by now, and the proof over [3, 4]
+        // is still waiting for commitments 1 and 2 to be proven
+        assert!(full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .is_none());
+
+        // Send a proof over commitment range [1, 2], which moves the proven index to 2 and lets
+        // the pending proof over [3, 4] be processed
+        let l1_hash = da.get_block_hash(l1_height).await?;
+        let proof_12 = create_serialized_fake_receipt_batch_proof_with_state_roots(
+            genesis_state_root,
+            commitment_2.l2_end_block_number,
+            None,
+            false,
+            l1_hash.as_raw_hash().to_byte_array(),
+            vec![commitment_1.clone(), commitment_2.clone()],
+            vec![state_root_1, state_root_2],
+            None,
+        );
+        prover_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(proof_12), 1.0)
+            .await
+            .unwrap();
+
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        // Process one more L1 block to make sure pending proofs are drained
+        da.generate(1).await?;
+        let l1_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(l1_height, None).await?;
+
+        let proven_height = full_node
+            .client
+            .http_client()
+            .get_last_proven_l2_height()
+            .await?
+            .unwrap();
+        assert_eq!(
+            proven_height.commitment_index, 4,
+            "The proof over [3, 4] should have been processed"
+        );
+        assert_eq!(proven_height.height, commitment_4.l2_end_block_number);
+
+        // Only the proof over [3, 4] was applied out of the two proofs sent in that L1 block
+        let verified_proofs = full_node
+            .client
+            .http_client()
+            .get_verified_batch_proofs_by_slot_height(U64::from(proofs_l1_height))
+            .await?
+            .unwrap();
+        assert_eq!(verified_proofs.len(), 1);
+        assert_eq!(
+            verified_proofs[0]
+                .proof_output
+                .sequencer_commitment_index_range,
+            (U32::from(3), U32::from(4))
+        );
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_pending_proof_dropped_on_permanent_error() -> Result<()> {
+    TestCaseRunner::new(PendingProofDroppedOnPermanentErrorTest {
+        task_manager: TaskManager::current(),
+    })
+    .set_citrea_path(get_citrea_path())
+    .run()
+    .await
+}
+
+struct EstimateTxExpensesHonorsBlockTagTest;
+
+#[async_trait]
+impl TestCase for EstimateTxExpensesHonorsBlockTagTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_full_node: true,
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            // will generate a commitment for blocks 1-2
+            max_l2_blocks_per_commitment: 2,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(150)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        let sequencer = f.sequencer.as_ref().expect("Sequencer not running");
+        let full_node = f.full_node.as_ref().expect("Full node not running");
+
+        let seq_test_client = make_test_client(SocketAddr::new(
+            sequencer.config().rpc_bind_host().parse()?,
+            sequencer.config().rpc_bind_port(),
+        ))
+        .await
+        .unwrap();
+
+        let contract = SimpleStorageContract::default();
+        let contract_address = seq_test_client.from_addr.create(0);
+
+        // Block 1 is empty, so that a numbered tag reaches the pre-deployment state.
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer.wait_for_l2_height(1, None).await?;
+
+        // Block 2 deploys the contract
+        let _ = seq_test_client
+            .deploy_contract(contract.byte_code(), None)
+            .await
+            .unwrap();
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer.wait_for_l2_height(2, None).await?;
+
+        // Block 3 sets a storage slot
+        let _ = seq_test_client
+            .contract_transaction(contract_address, contract.set_call_data(478), None)
+            .await;
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer.wait_for_l2_height(3, None).await?;
+        full_node.wait_for_l2_height(3, None).await?;
+
+        // Let sequencer generate the commitment for blocks 1-2, so the safe tag points to block 2
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(finalized_height, None).await?;
+
+        let set_storage_tx_request = TransactionRequest {
+            from: Some(seq_test_client.from_addr),
+            to: Some(TxKind::Call(contract_address)),
+            input: TransactionInput::new(contract.set_call_data(5).into()),
+            ..Default::default()
+        };
+
+        // Helper functions to estimate gas and diff size at a given block tag.
+        let estimate_at = async |tag: BlockNumberOrTag| {
+            EvmRpcClient::<DefaultContext>::eth_estimate_gas(
+                full_node.client.http_client(),
+                set_storage_tx_request.clone(),
+                Some(tag),
+                None,
+            )
+            .await
+            .unwrap()
+        };
+
+        let diff_size_at = async |tag: BlockNumberOrTag| {
+            EvmRpcClient::<DefaultContext>::eth_estimate_diff_size(
+                full_node.client.http_client(),
+                set_storage_tx_request.clone(),
+                Some(tag),
+                None,
+            )
+            .await
+            .unwrap()
+        };
+
+        let no_contract = estimate_at(BlockNumberOrTag::Earliest).await;
+        let slot_unset = estimate_at(BlockNumberOrTag::Number(2)).await;
+        let slot_set = estimate_at(BlockNumberOrTag::Latest).await;
+
+        // No contract is just a plain call to an empty account. Beyond that, SSTORE is priced off
+        // the slot's current value: overwriting one that already holds a value pays less than
+        // writing one that is still zero (cold write).
+        assert!(no_contract < slot_set);
+        assert!(slot_set < slot_unset);
+
+        // Number 0 and finalized point to the genesis block
+        assert_eq!(estimate_at(BlockNumberOrTag::Number(0)).await, no_contract);
+        assert_eq!(estimate_at(BlockNumberOrTag::Finalized).await, no_contract);
+        // Safe points to the block number 2
+        assert_eq!(estimate_at(BlockNumberOrTag::Safe).await, slot_unset);
+        // Block 3 is the latest block
+        assert_eq!(estimate_at(BlockNumberOrTag::Number(3)).await, slot_set);
+
+        let diff_no_contract = diff_size_at(BlockNumberOrTag::Earliest).await;
+        let diff_slot_unset = diff_size_at(BlockNumberOrTag::Number(2)).await;
+        let diff_slot_set = diff_size_at(BlockNumberOrTag::Latest).await;
+
+        // The same three-way split applies to the diff size's gas field.
+        assert!(diff_no_contract.gas < diff_slot_set.gas);
+        assert!(diff_slot_set.gas < diff_slot_unset.gas);
+
+        // The diff size only splits two ways: touching no contract writes no storage, while
+        // writing a slot costs the same diff whether or not it already held a value.
+        assert!(diff_no_contract.l1_diff_size < diff_slot_unset.l1_diff_size);
+        assert_eq!(diff_slot_unset.l1_diff_size, diff_slot_set.l1_diff_size);
+
+        // eth_estimateGas adds an l1 fee overhead to the gas estimate depending on the base fee and l1 fee of the block.
+        // Compare block 1 and pending through the diff size endpoint to avoid the overhead.
+        assert_eq!(
+            diff_size_at(BlockNumberOrTag::Number(1)).await,
+            diff_no_contract
+        );
+        assert_eq!(diff_size_at(BlockNumberOrTag::Pending).await, diff_slot_set);
+
+        // Mine the batch proof so that the full node can process it and update its finalized tag
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+        full_node.wait_for_l1_height(finalized_height, None).await?;
+
+        // The finalized tag now points to block 2, which corresponds to the slot being unset.
+        assert_eq!(estimate_at(BlockNumberOrTag::Finalized).await, slot_unset);
+        assert_eq!(
+            diff_size_at(BlockNumberOrTag::Finalized).await,
+            diff_slot_unset
+        );
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn estimate_tx_expenses_honors_block_tag() -> Result<()> {
+    TestCaseRunner::new(EstimateTxExpensesHonorsBlockTagTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await

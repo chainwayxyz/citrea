@@ -1,5 +1,8 @@
 # Changelog
 ## [Unreleased]
+### Changed
+- fix(rpc): Set archival state in estimate tx expenses ([#3321](https://github.com/chainwayxyz/citrea/pull/3321))
+- fix(rpc): with log config in debug trace cache ([#3323](https://github.com/chainwayxyz/citrea/pull/3323))
 
 ## [v2.7.0](2026-07-29)
 ### Changed
@@ -7,6 +10,7 @@
   **New env vars:**\
   `SEQUENCER_MEMPOOL_ADDITIONAL_VALIDATION_TASKS`: Number of additional parallel transaction validation tasks in the sequencer mempool (default: 4)\
   `SEQUENCER_DRY_RUN_TIME_LIMIT_MS`: Time budget in milliseconds for the sequencer's per-block transaction-selection (dry run) loop (default: 500)
+- fix(fullnode): pending commitment overwrites & failing pending proofs ([#3317](https://github.com/chainwayxyz/citrea/pull/3317))
 ### Added
 - feat: full node state diff rpc ([#3310](https://github.com/chainwayxyz/citrea/pull/3310))
 
