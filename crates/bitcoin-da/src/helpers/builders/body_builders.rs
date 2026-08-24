@@ -79,7 +79,7 @@ pub enum DaTxs {
 }
 
 /// Mine the reveal transaction's prefix using `sign_schnorr` internal randomness
-fn mine_reveal_prefix(
+pub(crate) fn mine_reveal_prefix(
     commit_tx: &Transaction,
     reveal_tx: &mut Transaction,
     tapscript_hash: bitcoin::TapLeafHash,

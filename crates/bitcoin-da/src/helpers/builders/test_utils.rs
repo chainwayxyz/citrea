@@ -20,7 +20,7 @@ use super::{
     build_commit_transaction, build_control_block, build_reveal_transaction, build_witness,
     da_keypair, get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKind,
 };
-use crate::helpers::builders::body_builders::DaTxs;
+use crate::helpers::builders::body_builders::{mine_reveal_prefix, DaTxs};
 use crate::helpers::builders::TxWithId;
 use crate::spec::utxo::UTXO;
 use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
@@ -64,106 +64,86 @@ pub fn test_create_foreign_inscription(
         reveal_script_builder = reveal_script_builder
             .push_slice(PushBytesBuf::try_from(chunk.to_vec()).expect("Cannot push body chunk"));
     }
-    let reveal_script_builder = reveal_script_builder.push_opcode(OP_ENDIF);
+    // Nonce is kept for legacy reasons but is now fixed at 16.
+    let nonce: i64 = 16; // >= 16 to avoid OP_PUSHNUM_X interpretation
+    let reveal_script = reveal_script_builder
+        .push_opcode(OP_ENDIF)
+        .push_slice(nonce.to_le_bytes())
+        // drop the second item, bc there is a big chance it's 0 (tx kind) and nonce is >= 16
+        .push_opcode(OP_NIP)
+        .into_script();
+
+    let (control_block, merkle_root, tapscript_hash) =
+        build_control_block(&reveal_script, public_key, SECP256K1);
+    let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
     let dust = Amount::from_sat(REVEAL_OUTPUT_AMOUNT);
     let victim_total = dust * victim_outputs as u64;
 
-    let mut nonce: i64 = 16;
-    loop {
-        if nonce % 1000 == 0 {
-            trace!(nonce, "Trying to find commit & reveal nonce for chunk");
-            if nonce > 16384 {
-                warn!("Too many iterations finding nonce for chunk");
-            }
-        }
-        let mut reveal_script_builder = reveal_script_builder.clone();
-        reveal_script_builder = reveal_script_builder
-            .push_slice(nonce.to_le_bytes())
-            .push_opcode(OP_NIP);
-        nonce += 1;
+    let reveal_value = REVEAL_OUTPUT_AMOUNT;
+    let size = get_size_reveal(
+        reveal_recipient.script_pubkey(),
+        reveal_value,
+        &reveal_script,
+        &control_block,
+    ) + victim_outputs * EXTRA_OUTPUT_VSIZE;
+    let fee = (size as f64 * reveal_fee_rate).ceil() as u64;
+    let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD + victim_total.to_sat();
 
-        let reveal_script = reveal_script_builder.into_script();
-        let (control_block, merkle_root, tapscript_hash) =
-            build_control_block(&reveal_script, public_key, SECP256K1);
-        let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
+    let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
+        None,
+        utxos,
+        commit_tx_address,
+        victim.clone(),
+        reveal_input_value,
+        commit_fee_rate,
+    )?;
 
-        let reveal_value = REVEAL_OUTPUT_AMOUNT;
-        let size = get_size_reveal(
-            reveal_recipient.script_pubkey(),
-            reveal_value,
-            &reveal_script,
-            &control_block,
-        ) + victim_outputs * EXTRA_OUTPUT_VSIZE;
-        let fee = (size as f64 * reveal_fee_rate).ceil() as u64;
-        let reveal_input_value =
-            fee + reveal_value + REVEAL_OUTPUT_THRESHOLD + victim_total.to_sat();
+    let mut outputs = vec![TxOut {
+        value: Amount::from_sat(reveal_value + REVEAL_OUTPUT_THRESHOLD),
+        script_pubkey: reveal_recipient.script_pubkey(),
+    }];
+    outputs.extend((0..victim_outputs).map(|_| TxOut {
+        value: dust,
+        script_pubkey: victim.script_pubkey(),
+    }));
 
-        let (mut unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
-            None,
-            utxos.clone(),
-            commit_tx_address,
-            victim.clone(),
-            reveal_input_value,
-            commit_fee_rate,
-        )?;
+    let mut reveal_tx = Transaction {
+        lock_time: LockTime::ZERO,
+        version: Version(2),
+        input: vec![TxIn {
+            previous_output: bitcoin::OutPoint {
+                txid: unsigned_commit_tx.compute_txid(),
+                vout: 0,
+            },
+            script_sig: script::Builder::new().into_script(),
+            witness: bitcoin::Witness::new(),
+            sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
+        }],
+        output: outputs,
+    };
 
-        let mut outputs = vec![TxOut {
-            value: Amount::from_sat(reveal_value + REVEAL_OUTPUT_THRESHOLD),
-            script_pubkey: reveal_recipient.script_pubkey(),
-        }];
-        outputs.extend((0..victim_outputs).map(|_| TxOut {
-            value: dust,
-            script_pubkey: victim.script_pubkey(),
-        }));
+    build_witness(
+        &unsigned_commit_tx,
+        &mut reveal_tx,
+        tapscript_hash,
+        reveal_script,
+        control_block,
+        &key_pair,
+        SECP256K1,
+    );
 
-        let mut reveal_tx = Transaction {
-            lock_time: LockTime::ZERO,
-            version: Version(2),
-            input: vec![TxIn {
-                previous_output: bitcoin::OutPoint {
-                    txid: unsigned_commit_tx.compute_txid(),
-                    vout: 0,
-                },
-                script_sig: script::Builder::new().into_script(),
-                witness: bitcoin::Witness::new(),
-                sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
-            }],
-            output: outputs,
-        };
+    mine_reveal_prefix(
+        &unsigned_commit_tx,
+        &mut reveal_tx,
+        tapscript_hash,
+        &key_pair,
+        SECP256K1,
+        reveal_tx_prefix,
+        "chunk",
+    );
 
-        build_witness(
-            &unsigned_commit_tx,
-            &mut reveal_tx,
-            tapscript_hash,
-            reveal_script,
-            control_block,
-            &key_pair,
-            SECP256K1,
-        );
-
-        let min_commit_value = Amount::from_sat(fee + reveal_value) + victim_total;
-        while unsigned_commit_tx.output[0].value >= min_commit_value
-            && reveal_tx.output[0].value > dust
-        {
-            let reveal_hash = reveal_tx.compute_wtxid().as_raw_hash().to_byte_array();
-            if reveal_hash.starts_with(reveal_tx_prefix) {
-                return Ok((unsigned_commit_tx, reveal_tx));
-            }
-
-            unsigned_commit_tx.output[0].value -= Amount::ONE_SAT;
-            unsigned_commit_tx.output[1].value += Amount::ONE_SAT;
-            reveal_tx.output[0].value -= Amount::ONE_SAT;
-            reveal_tx.input[0].previous_output.txid = unsigned_commit_tx.compute_txid();
-            update_witness(
-                &unsigned_commit_tx,
-                &mut reveal_tx,
-                tapscript_hash,
-                &key_pair,
-                SECP256K1,
-            );
-        }
-    }
+    Ok((unsigned_commit_tx, reveal_tx))
 }
 
 /// Creates a single chunk transaction for testing purposes as if
