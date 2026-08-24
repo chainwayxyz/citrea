@@ -234,15 +234,15 @@ fn apply_call_config(call_frame: CallFrame, call_config: CallConfig) -> CallFram
         new_call_frame.calls = vec![];
     }
     if !call_config.with_log.unwrap_or(false) {
-        remove_logs_from_call_frame(&mut vec![new_call_frame.clone()]);
+        remove_logs_from_call_frame(&mut new_call_frame);
     }
     new_call_frame
 }
 
-fn remove_logs_from_call_frame(call_frame: &mut Vec<CallFrame>) {
-    for frame in call_frame {
-        frame.logs = vec![];
-        remove_logs_from_call_frame(&mut frame.calls);
+fn remove_logs_from_call_frame(call_frame: &mut CallFrame) {
+    call_frame.logs = vec![];
+    for frame in &mut call_frame.calls {
+        remove_logs_from_call_frame(frame);
     }
 }
 
@@ -492,16 +492,6 @@ fn convert_call_trace_into_4byte_map(
 }
 
 fn create_trace_cache_opts() -> GethDebugTracingOptions {
-    // Get the traces with call tracer onlytopcall false and withlog true and always cache this way
-    let mut call_config_map = serde_json::Map::new();
-    call_config_map.insert("only_top_call".to_string(), serde_json::Value::Bool(false));
-    call_config_map.insert("with_log".to_string(), serde_json::Value::Bool(true));
-    let call_config = serde_json::Value::Object(call_config_map);
-    GethDebugTracingOptions {
-        tracer: Some(GethDebugTracerType::BuiltInTracer(
-            GethDebugBuiltInTracerType::CallTracer,
-        )),
-        tracer_config: GethDebugTracerConfig(call_config),
-        ..Default::default()
-    }
+    // Get the traces with call tracer onlytopcall None (false) and withlog true and always cache this way
+    GethDebugTracingOptions::call_tracer(CallConfig::default().with_log())
 }

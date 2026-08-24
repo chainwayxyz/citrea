@@ -958,12 +958,19 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 )
             }
         };
+        // Set evm state to block if needed
+        let block_num = block_env.number;
+        match block_number {
+            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
+            _ => set_state_to_end_of_evm_block::<C>(block_num, working_set),
+        };
+
         let cfg = self
             .cfg
             .get(working_set)
             .expect("EVM chain config should be set");
 
-        let citrea_spec_id = fork_fn(block_env.number).spec_id;
+        let citrea_spec_id = fork_fn(block_num).spec_id;
         let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
 
         let cfg_env = get_cfg_env(cfg, evm_spec_id);
@@ -1728,6 +1735,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .map(|num| convert_block_number(num, start_block))
                     .transpose()?
                     .flatten();
+
+                if matches!((from, to), (Some(from), Some(to)) if to < from) {
+                    return Err(EthFilterError::InvalidBlockRangeParams);
+                }
+
                 let (from_block_number, to_block_number) =
                     get_filter_block_range(from, to, start_block);
                 self.get_logs_in_block_range(
@@ -1745,6 +1757,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Returns all logs in the given _inclusive_ range that match the filter
     ///
     /// Returns an error if:
+    ///  - block range is invalid
     ///  - underlying database error
     ///  - amount of matches exceeds configured limit
     pub fn get_logs_in_block_range(
@@ -1755,6 +1768,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         to_block_number: u64,
         max_logs_per_response: usize,
     ) -> Result<Vec<Log>, EthFilterError> {
+        if to_block_number < from_block_number {
+            return Err(EthFilterError::InvalidBlockRangeParams);
+        }
+
         let max_blocks_per_filter: u64 = get_max_blocks_per_filter();
         if to_block_number - from_block_number >= max_blocks_per_filter {
             return Err(EthFilterError::QueryExceedsMaxBlocks(max_blocks_per_filter));
