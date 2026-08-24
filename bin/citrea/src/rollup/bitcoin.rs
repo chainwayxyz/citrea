@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bitcoin_da::fee::FeeService;
+use bitcoin_da::helpers::builders::da_public_key;
 use bitcoin_da::monitoring::MonitoringService;
 use bitcoin_da::network_constants::get_network_constants;
 use bitcoin_da::rpc::create_rpc_module as create_da_rpc_module;
@@ -149,10 +150,15 @@ impl RollupBlueprint for BitcoinRollup {
 
         let network = network_to_bitcoin_network(&chain_params.network);
         let network_constants = get_network_constants(&network);
+        let expected_da_public_key = da_config
+            .parse_da_private_key()?
+            .as_ref()
+            .map(da_public_key);
         let (monitoring_service, block_rx) = MonitoringService::new(
             client.clone(),
             da_config.monitoring.clone(),
             network_constants.finality_depth,
+            expected_da_public_key,
         );
         let monitoring_service = Arc::new(monitoring_service);
 
