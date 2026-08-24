@@ -1,5 +1,8 @@
 # Changelog
 ## [Unreleased]
+### Changed
+fix: Harden DA monitoring reveal restore ([#3329](https://github.com/chainwayxyz/citrea/pull/3329))
+
 
 ## [v2.7.0](2026-07-29)
 ### Changed
