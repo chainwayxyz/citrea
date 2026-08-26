@@ -28,22 +28,20 @@ pub struct HeaderWrapper {
 }
 
 impl BlockHeaderTrait for HeaderWrapper {
-    type Hash = BlockHashWrapper;
-
-    fn prev_hash(&self) -> Self::Hash {
-        BlockHashWrapper::from(self.header.prev_blockhash.to_byte_array())
+    fn prev_hash(&self) -> [u8; 32] {
+        self.header.prev_blockhash.to_byte_array()
     }
 
-    fn hash(&self) -> Self::Hash {
-        self.precomputed_hash.clone()
+    fn hash(&self) -> [u8; 32] {
+        self.precomputed_hash.to_byte_array()
     }
 
     fn verify_hash(&self) -> bool {
-        self.hash() == BlockHashWrapper(self.block_hash())
+        self.hash() == self.block_hash().to_byte_array()
     }
 
-    fn txs_commitment(&self) -> Self::Hash {
-        BlockHashWrapper::from(self.txs_commitment)
+    fn txs_commitment(&self) -> [u8; 32] {
+        self.txs_commitment
     }
 
     fn height(&self) -> u64 {

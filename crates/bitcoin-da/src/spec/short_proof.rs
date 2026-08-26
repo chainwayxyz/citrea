@@ -82,12 +82,11 @@ impl VerifiableShortHeaderProof for BitcoinHeaderShortProof {
                 // If non-segwit block, claimed tx commitment should equal to
                 // header.merkle_root if there are more than one tx
                 if self.header.tx_count > 1
-                    && self.header.merkle_root()
-                        != Into::<[u8; 32]>::into(self.header.txs_commitment())
+                    && self.header.merkle_root() != self.header.txs_commitment()
                 {
                     return Err(ShortHeaderProofVerificationError::WrongTxCommitment {
                         expected: self.header.merkle_root(),
-                        actual: Into::<[u8; 32]>::into(self.header.txs_commitment()),
+                        actual: self.header.txs_commitment(),
                     });
                 }
             }
@@ -99,7 +98,7 @@ impl VerifiableShortHeaderProof for BitcoinHeaderShortProof {
 
                 let mut vec_merkle = Vec::with_capacity(input_witness_value.len() + 32);
 
-                vec_merkle.extend_from_slice(&self.header.txs_commitment().to_byte_array());
+                vec_merkle.extend_from_slice(&self.header.txs_commitment());
                 vec_merkle.extend_from_slice(input_witness_value);
 
                 // check with sha256(sha256(<merkle root><witness value>))
@@ -110,7 +109,7 @@ impl VerifiableShortHeaderProof for BitcoinHeaderShortProof {
                         expected: script_pubkey[6..38]
                             .try_into()
                             .expect("Must have hash in witness commitment output"),
-                        actual: Into::<[u8; 32]>::into(self.header.txs_commitment()),
+                        actual: self.header.txs_commitment(),
                     });
                 }
             }
@@ -147,14 +146,14 @@ impl VerifiableShortHeaderProof for BitcoinHeaderShortProof {
 
         // Finally return hash, wtxid root, txid proof count, and height
         Ok(L1UpdateSystemTransactionInfo {
-            header_hash: self.header.hash().into(),
+            header_hash: self.header.hash(),
             prev_header_hash: self
                 .header
                 .inner()
                 .prev_blockhash
                 .as_raw_hash()
                 .to_byte_array(),
-            tx_commitment: self.header.txs_commitment().into(),
+            tx_commitment: self.header.txs_commitment(),
             coinbase_txid_merkle_proof_height: self.coinbase_tx_txid_merkle_proof.len() as u8,
             block_height: height,
         })
