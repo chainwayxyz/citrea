@@ -1,0 +1,14 @@
+# NOTE: A specific UID is used to match the production environment's datasource UID
+# to enable seamless dashboard import/export.
+
+apiVersion: 1
+
+datasources:
+  - name: prometheus
+    type: prometheus
+    access: proxy
+    uid: eed8s4geh3myob
+    url: http://prometheus.citrea:9090
+    isDefault: true
+    readOnly: false
+    editable: true
