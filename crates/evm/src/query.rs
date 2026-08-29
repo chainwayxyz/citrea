@@ -1819,7 +1819,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         Ok(all_logs)
     }
 
-    // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/logs_utils.rs#L21
+    // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-eth-types/src/logs_utils.rs#L69
     fn append_matching_block_logs(
         &self,
         working_set: &mut WorkingSet<C::Storage>,
