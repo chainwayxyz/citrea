@@ -17,6 +17,7 @@ use bitcoin::absolute::LockTime;
 use bitcoin::blockdata::script;
 use bitcoin::hashes::Hash;
 use bitcoin::key::constants::SCHNORR_SIGNATURE_SIZE;
+use bitcoin::key::UntweakedKeypair;
 use bitcoin::secp256k1::{self, All, Keypair, Message, Secp256k1, SecretKey};
 use bitcoin::sighash::{Prevouts, SighashCache};
 use bitcoin::taproot::{ControlBlock, LeafVersion, TaprootBuilder};
@@ -462,6 +463,18 @@ fn choose_utxos(
     let leftovers: Vec<_> = leftovers_set.copied().cloned().collect();
 
     Ok((chosen_utxos, sum, leftovers))
+}
+
+/// Derives the untweaked keypair and the x-only public key of the DA private key
+pub fn da_keypair(da_private_key: &SecretKey) -> (UntweakedKeypair, XOnlyPublicKey) {
+    let key_pair = UntweakedKeypair::from_secret_key(SECP256K1, da_private_key);
+    let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
+    (key_pair, public_key)
+}
+
+/// X-only public key that controls reveals produced with `da_private_key`.
+pub fn da_public_key(da_private_key: &SecretKey) -> XOnlyPublicKey {
+    da_keypair(da_private_key).1
 }
 
 /// Signs a message with a private key

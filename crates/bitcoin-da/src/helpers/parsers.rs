@@ -157,6 +157,10 @@ pub enum ParserError {
     /// Invalid opcode in the script.
     #[error("Invalid opcode in the script")]
     UnexpectedOpcode,
+    /// The reveal was not signed by the expected DA key.
+    #[cfg(feature = "native")]
+    #[error("Invalid DA reveal signature")]
+    InvalidDaRevealSignature,
     /// Body was not parsed correctly.
     #[error("Body was not parsed correctly")]
     InvalidBody,
@@ -180,6 +184,231 @@ pub fn parse_relevant_transaction(tx: &Transaction) -> Result<ParsedTransaction,
 
     parse_transaction(&mut instructions)
 }
+
+/// DA-key authentication of reveal transactions. Native-only: the circuit never authenticates a
+/// reveal against the DA key, so none of this is compiled into the guest.
+#[cfg(feature = "native")]
+mod reveal_auth {
+    use bitcoin::hashes::Hash;
+    use bitcoin::secp256k1::Message;
+    use bitcoin::sighash::{Prevouts, SighashCache, TapSighashType};
+    use bitcoin::taproot::{LeafVersion, Signature as TaprootSignature};
+    use bitcoin::{TapLeafHash, Transaction, TxOut, XOnlyPublicKey};
+    use secp256k1::SECP256K1;
+
+    use super::{get_script, parse_transaction, ParsedTransaction, ParserError};
+
+    /// Parses a relevant transaction only if it was signed by `expected_public_key`.
+    ///
+    /// Verifying the reveal's BIP341 signature proves the DA key authorized it. Finding the
+    /// public key in a witness would not: public keys can be copied into any transaction.
+    pub fn parse_relevant_transaction_signed_by(
+        tx: &Transaction,
+        spent_output: &TxOut,
+        expected_public_key: &XOnlyPublicKey,
+    ) -> Result<ParsedTransaction, ParserError> {
+        if tx.input.len() != 1 {
+            return Err(ParserError::InvalidDaRevealSignature);
+        }
+
+        let input = &tx.input[0];
+        let script = get_script(tx)?;
+
+        // Our builders always produce [signature, tapscript, control block] with SIGHASH_DEFAULT,
+        // which is what binds the signature to every input and output.
+        if input.witness.len() != 3 {
+            return Err(ParserError::InvalidDaRevealSignature);
+        }
+        let signature = input
+            .witness
+            .nth(0)
+            .and_then(|bytes| TaprootSignature::from_slice(bytes).ok())
+            .filter(|signature| signature.sighash_type == TapSighashType::Default)
+            .ok_or(ParserError::InvalidDaRevealSignature)?;
+
+        let tapleaf_hash = TapLeafHash::from_script(script, LeafVersion::TapScript);
+        let signature_hash = SighashCache::new(tx)
+            .taproot_script_spend_signature_hash(
+                0,
+                &Prevouts::All(&[spent_output]),
+                tapleaf_hash,
+                signature.sighash_type,
+            )
+            .map_err(|_| ParserError::InvalidDaRevealSignature)?;
+        let message = Message::from_digest_slice(signature_hash.as_byte_array())
+            .map_err(|_| ParserError::InvalidDaRevealSignature)?;
+        SECP256K1
+            .verify_schnorr(&signature.signature, &message, expected_public_key)
+            .map_err(|_| ParserError::InvalidDaRevealSignature)?;
+
+        let mut instructions = script.instructions().map(|r| r.map_err(ParserError::from));
+        parse_transaction(&mut instructions)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use bitcoin::absolute::LockTime;
+        use bitcoin::hashes::Hash;
+        use bitcoin::key::UntweakedKeypair;
+        use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_ENDIF, OP_IF, OP_NIP};
+        use bitcoin::opcodes::OP_FALSE;
+        use bitcoin::script::{self, PushBytesBuf};
+        use bitcoin::secp256k1::{Secp256k1, SecretKey};
+        use bitcoin::taproot::TaprootBuilder;
+        use bitcoin::transaction::Version;
+        use bitcoin::{Amount, OutPoint, ScriptBuf, Sequence, TxIn, Witness};
+
+        use super::*;
+        use crate::helpers::TransactionKind;
+
+        fn chunk_reveal_script(public_key: &XOnlyPublicKey) -> ScriptBuf {
+            script::Builder::new()
+                .push_x_only_key(public_key)
+                .push_opcode(OP_CHECKSIGVERIFY)
+                .push_slice(PushBytesBuf::from(TransactionKind::Chunks.to_bytes()))
+                .push_opcode(OP_FALSE)
+                .push_opcode(OP_IF)
+                .push_slice([1u8])
+                .push_opcode(OP_ENDIF)
+                .push_slice(16i64.to_le_bytes())
+                .push_opcode(OP_NIP)
+                .into_script()
+        }
+
+        fn taproot_prevout_and_control_block(
+            reveal_script: &ScriptBuf,
+            internal_key: XOnlyPublicKey,
+        ) -> (TxOut, Vec<u8>) {
+            let secp = Secp256k1::new();
+            let spend_info = TaprootBuilder::new()
+                .add_leaf(0, reveal_script.clone())
+                .unwrap()
+                .finalize(&secp, internal_key)
+                .unwrap();
+            let control_block = spend_info
+                .control_block(&(reveal_script.clone(), LeafVersion::TapScript))
+                .unwrap();
+            let spent_output = TxOut {
+                value: Amount::from_sat(10_000),
+                script_pubkey: ScriptBuf::new_p2tr(&secp, internal_key, spend_info.merkle_root()),
+            };
+
+            (spent_output, control_block.serialize())
+        }
+
+        fn signed_chunk_reveal(private_key: &SecretKey) -> (Transaction, TxOut, XOnlyPublicKey) {
+            let secp = Secp256k1::new();
+            let key_pair = UntweakedKeypair::from_secret_key(&secp, private_key);
+            let public_key = XOnlyPublicKey::from_keypair(&key_pair).0;
+            let reveal_script = chunk_reveal_script(&public_key);
+            let (spent_output, control_block) =
+                taproot_prevout_and_control_block(&reveal_script, public_key);
+            let mut tx = Transaction {
+                version: Version(2),
+                lock_time: LockTime::ZERO,
+                input: vec![TxIn {
+                    previous_output: OutPoint::null(),
+                    script_sig: ScriptBuf::new(),
+                    sequence: Sequence::MAX,
+                    witness: Witness::new(),
+                }],
+                output: vec![TxOut {
+                    value: Amount::ONE_SAT,
+                    script_pubkey: ScriptBuf::new(),
+                }],
+            };
+            let tapleaf_hash = TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript);
+            let signature_hash = SighashCache::new(&tx)
+                .taproot_script_spend_signature_hash(
+                    0,
+                    &Prevouts::All(&[&spent_output]),
+                    tapleaf_hash,
+                    TapSighashType::Default,
+                )
+                .unwrap();
+            let message = Message::from_digest_slice(signature_hash.as_byte_array()).unwrap();
+            let signature = secp.sign_schnorr_no_aux_rand(&message, &key_pair);
+
+            let mut witness = Witness::new();
+            witness.push(signature.as_ref());
+            witness.push(reveal_script);
+            witness.push(control_block);
+            tx.input[0].witness = witness;
+
+            (tx, spent_output, public_key)
+        }
+
+        #[test]
+        fn relevant_transaction_must_be_signed_by_expected_da_key() {
+            let private_key = SecretKey::from_slice(&[1; 32]).unwrap();
+            let (tx, spent_output, expected_public_key) = signed_chunk_reveal(&private_key);
+
+            assert!(
+                parse_relevant_transaction_signed_by(&tx, &spent_output, &expected_public_key)
+                    .is_ok()
+            );
+
+            let secp = Secp256k1::new();
+            let other_private_key = SecretKey::from_slice(&[2; 32]).unwrap();
+            let other_key_pair = UntweakedKeypair::from_secret_key(&secp, &other_private_key);
+            let other_public_key = XOnlyPublicKey::from_keypair(&other_key_pair).0;
+            assert_eq!(
+                parse_relevant_transaction_signed_by(&tx, &spent_output, &other_public_key)
+                    .unwrap_err(),
+                ParserError::InvalidDaRevealSignature
+            );
+
+            let script = tx.input[0].witness.nth(1).unwrap().to_vec();
+            let control_block = tx.input[0].witness.nth(2).unwrap().to_vec();
+            let mut invalid_signature_tx = tx.clone();
+            let mut witness = Witness::new();
+            witness.push([0u8; 64]);
+            witness.push(script);
+            witness.push(control_block);
+            invalid_signature_tx.input[0].witness = witness;
+            assert_eq!(
+                parse_relevant_transaction_signed_by(
+                    &invalid_signature_tx,
+                    &spent_output,
+                    &expected_public_key,
+                )
+                .unwrap_err(),
+                ParserError::InvalidDaRevealSignature
+            );
+
+            let mut tampered_tx = tx.clone();
+            tampered_tx.output[0].value += Amount::ONE_SAT;
+            assert_eq!(
+                parse_relevant_transaction_signed_by(
+                    &tampered_tx,
+                    &spent_output,
+                    &expected_public_key,
+                )
+                .unwrap_err(),
+                ParserError::InvalidDaRevealSignature
+            );
+
+            // The signature also covers the spent output, tying the reveal to the parent the
+            // caller fetched.
+            let other_spent_output = TxOut {
+                value: spent_output.value + Amount::ONE_SAT,
+                script_pubkey: spent_output.script_pubkey.clone(),
+            };
+            assert_eq!(
+                parse_relevant_transaction_signed_by(
+                    &tx,
+                    &other_spent_output,
+                    &expected_public_key,
+                )
+                .unwrap_err(),
+                ParserError::InvalidDaRevealSignature
+            );
+        }
+    }
+}
+
+#[cfg(feature = "native")]
+pub use reveal_auth::parse_relevant_transaction_signed_by;
 
 // Returns the script from the first input of the transaction
 fn get_script(tx: &Transaction) -> Result<&Script, ParserError> {

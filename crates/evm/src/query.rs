@@ -1735,6 +1735,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .map(|num| convert_block_number(num, start_block))
                     .transpose()?
                     .flatten();
+
+                if matches!((from, to), (Some(from), Some(to)) if to < from) {
+                    return Err(EthFilterError::InvalidBlockRangeParams);
+                }
+
                 let (from_block_number, to_block_number) =
                     get_filter_block_range(from, to, start_block);
                 self.get_logs_in_block_range(
@@ -1752,6 +1757,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Returns all logs in the given _inclusive_ range that match the filter
     ///
     /// Returns an error if:
+    ///  - block range is invalid
     ///  - underlying database error
     ///  - amount of matches exceeds configured limit
     pub fn get_logs_in_block_range(
@@ -1762,6 +1768,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         to_block_number: u64,
         max_logs_per_response: usize,
     ) -> Result<Vec<Log>, EthFilterError> {
+        if to_block_number < from_block_number {
+            return Err(EthFilterError::InvalidBlockRangeParams);
+        }
+
         let max_blocks_per_filter: u64 = get_max_blocks_per_filter();
         if to_block_number - from_block_number >= max_blocks_per_filter {
             return Err(EthFilterError::QueryExceedsMaxBlocks(max_blocks_per_filter));
