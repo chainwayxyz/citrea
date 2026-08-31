@@ -74,6 +74,9 @@ use crate::utils::recover_raw_transaction;
 /// Maximum number of DA blocks that can be missed per L2 block
 pub const MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK: u64 = 10;
 
+/// How often the warning about a DA node that is behind is repeated
+const DA_BEHIND_WARN_INTERVAL: Duration = Duration::from_secs(60);
+
 /// Returns whether a finalized L1 height should be accepted.
 ///
 /// Rejects anything below our own view of L1, which is the higher of the last height we
@@ -136,6 +139,10 @@ where
     canon_state_tx: mpsc::UnboundedSender<CanonStateNotification>,
     /// Executor for spawning async tasks
     task_executor: TaskExecutor,
+    /// How many L2 blocks were produced on the L1 block currently held by the light
+    /// client. Counted from this process' first block, so after a restart it trails the
+    /// rule enforcer's own counter until the next L1 block arrives.
+    l2_blocks_on_current_l1: u64,
 }
 
 impl<Da> CitreaSequencer<Da>
@@ -200,6 +207,7 @@ where
             backup_manager,
             canon_state_tx,
             task_executor,
+            l2_blocks_on_current_l1: 0,
         })
     }
 
@@ -466,6 +474,7 @@ where
     ) -> anyhow::Result<()> {
         let start: Instant = Instant::now();
         let l2_height = self.ledger_db.get_head_l2_block_height()?.unwrap_or(0) + 1;
+        let previous_used_l1_height = *last_used_l1_height;
         self.fork_manager.register_block(l2_height)?;
         let result = {
             if da_blocks.len() == 1 && da_blocks[0].header().height() == *last_used_l1_height {
@@ -479,6 +488,17 @@ where
 
         match result {
             Ok(l2_height) => {
+                // Mirror the counter the L2 block rule enforcer keeps, which restarts at 1
+                // on every new L1 block, so that dashboards can see the block getting
+                // close to `max_l2_blocks_per_l1`.
+                if *last_used_l1_height == previous_used_l1_height {
+                    self.l2_blocks_on_current_l1 += 1;
+                } else {
+                    self.l2_blocks_on_current_l1 = 1;
+                }
+                SM.l2_blocks_on_current_l1
+                    .set(self.l2_blocks_on_current_l1 as f64);
+
                 // Only errors when there are no receivers
                 if let Err(_closed) = self.l2_block_tx.send(l2_height) {
                     debug!("l2_block_tx is closed");
@@ -1172,13 +1192,25 @@ where
                 // Set to 1 less so that we do not skip processing the first l1 block
                 None => last_finalized_l1_height - 1,
             };
+        SM.da_reported_l1_block.set(last_finalized_l1_height as f64);
         let mut last_finalized_block =
             (last_finalized_l1_height >= last_used_l1_height).then_some(last_finalized_block);
-        // A DA node that is already behind at startup leaves us with a stale tip here. The
-        // light client contract is the better record of how far L1 got, so adopt it as our
-        // view: block accounting is unchanged either way, but logs and metrics stop
-        // reporting the stale height.
+        // Whether we are currently ignoring what the DA layer reports. A DA node that is
+        // already behind at startup leaves us with a stale tip here. The light client
+        // contract is the better record of how far L1 got, so adopt it as our view: block
+        // accounting is unchanged either way, but logs and metrics stop reporting the
+        // stale height.
+        let mut da_behind = last_finalized_block.is_none();
+        if da_behind {
+            warn!(
+                "DA node reports finalized L1 height {last_finalized_l1_height}, below the last \
+                 height {last_used_l1_height} folded into the light client. Starting off the \
+                 light client's view of L1 instead."
+            );
+        }
         last_finalized_l1_height = last_finalized_l1_height.max(last_used_l1_height);
+        SM.current_l1_block.set(last_finalized_l1_height as f64);
+        SM.da_behind.set(da_behind as u8 as f64);
 
         // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
         let (da_block_update_tx, mut da_block_update_rx) = mpsc::channel::<DaBlockData<Da>>(1);
@@ -1241,8 +1273,9 @@ where
         let mut block_production_tick = tokio::time::interval(target_block_time);
         block_production_tick.tick().await;
 
-        // Whether we are currently ignoring what the DA layer reports
-        let mut da_behind = false;
+        // A DA node stays behind for as long as it takes to catch up, so repeat the
+        // warning rather than logging it once and going quiet.
+        let mut last_da_behind_warn: Option<Instant> = None;
 
         let backup_manager = self.backup_manager.clone();
         loop {
@@ -1251,6 +1284,7 @@ where
                 da_block = da_block_update_rx.recv() => {
                     if let Some(block) = da_block {
                         let new_finalized_l1_height = block.header().height();
+                        SM.da_reported_l1_block.set(new_finalized_l1_height as f64);
                         if !should_accept_finalized_l1_height(
                             last_finalized_l1_height,
                             last_used_l1_height,
@@ -1258,14 +1292,20 @@ where
                         ) {
                             missed_da_blocks_count = 0;
                             last_finalized_block = None;
-                            if !da_behind {
-                                da_behind = true;
+                            let repeat_warning = last_da_behind_warn
+                                .is_none_or(|at| at.elapsed() >= DA_BEHIND_WARN_INTERVAL);
+                            if !da_behind || repeat_warning {
+                                last_da_behind_warn = Some(Instant::now());
                                 warn!(
                                     "Ignoring L1 height below our own view of L1, the DA node is \
                                      likely behind. L2 blocks keep being produced, L1 stays put. \
                                      New finalized height: {new_finalized_l1_height}, last finalized \
                                      height: {last_finalized_l1_height}, last used height {last_used_l1_height}"
                                 );
+                            }
+                            if !da_behind {
+                                da_behind = true;
+                                SM.da_behind.set(1.0);
                             }
 
                             SM.current_l1_block.set(last_finalized_l1_height as f64);
@@ -1275,6 +1315,8 @@ where
                         if da_behind {
                             info!("DA node caught back up at L1 height {new_finalized_l1_height}");
                             da_behind = false;
+                            last_da_behind_warn = None;
+                            SM.da_behind.set(0.0);
                         }
 
                         last_finalized_block = Some(block);
