@@ -110,7 +110,7 @@ impl VerifiableShortHeaderProof for BitcoinHeaderShortProof {
                         expected: script_pubkey[6..38]
                             .try_into()
                             .expect("Must have hash in witness commitment output"),
-                        actual: Into::<[u8; 32]>::into(self.header.txs_commitment()),
+                        actual: commitment,
                     });
                 }
             }
