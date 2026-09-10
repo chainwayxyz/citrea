@@ -2,7 +2,7 @@
 
 [package]
 name = "sp1-batch-prover-bitcoin"
-version = "2.7.0"
+version = "2.8.0"
 edition = "2021"
 resolver = "2"
 
