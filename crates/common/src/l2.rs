@@ -273,7 +273,7 @@ async fn get_l2_blocks_range(
             .get_l2_block_range(U64::from(start_l2_height), U64::from(end_l2_height))
             .await;
         match l2_blocks {
-            Ok(l2_blocks) => Ok(l2_blocks.into_iter().flatten().collect::<Vec<_>>()),
+            Ok(l2_blocks) => Ok(l2_blocks),
             Err(e) => match e {
                 JsonrpseeError::Call(e) => {
                     if e.message().eq("Response is too big") {
