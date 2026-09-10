@@ -74,5 +74,8 @@ ignore = [
   "RUSTSEC-2026-0173", # Ignore unmaintained proc-macro-error2
   "RUSTSEC-2026-0183", # git2: Remote::list() unsoundness. Build-time only (vergen-git2 embedding git info). Fix requires git2 >=0.21, bounded by reth v1.3.7 → vergen-git2. Remove when reth tag is bumped.
   "RUSTSEC-2026-0184", # git2: BlameHunk Signature unsoundness. Build-time only (vergen-git2 embedding git info). Fix requires git2 >=0.21, bounded by reth v1.3.7 → vergen-git2. Remove when reth tag is bumped.
+  "RUSTSEC-2026-0220", # ruint: wrong overflow flag on Uint shifts. Fix needs ruint >=1.20.0, which requires Rust 1.90 (we are on 1.88) and unpinning serde =1.0.218. We never call the affected APIs (checked/overflowing/saturating/strict shifts, to_base_be); revm guards SHL/SHR/SAR with `shift < 256` before using the plain operators.
+  "RUSTSEC-2026-0253", # lru: unsound LruCache::pop() on a panicking key Drop. Our own lru is on 0.18.4; the remaining copies are lru 0.12.5 (discv5 via reth v1.3.7, aws-sdk-s3) and lru 0.13.0 (alloy-provider 1.0.9 via boundless-market =1.0.1). Needs catch_unwind around a pop with a panicking key Drop, which none of them do. Remove when reth and boundless-market are bumped.
+  "RUSTSEC-2026-0258", # h2: unbounded empty DATA frames. No fix on the 0.3 line (patched >=0.4.16); our h2 0.4 is on 0.4.19. h2 0.3.26 is bounded by boundless-market =1.0.1 → aws-sdk-s3/httpmock, i.e. only against the operator-configured S3 endpoint and an in-process mock server. Remove when boundless-market is bumped.
 ]
 unsound = "all"
