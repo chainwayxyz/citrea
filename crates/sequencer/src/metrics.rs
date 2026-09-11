@@ -59,6 +59,15 @@ pub struct SequencerMetrics {
     /// Current L1 block number
     #[metric(describe = "The height of the current L1 block put into the Bitcoin Light Client")]
     pub current_l1_block: Gauge,
+    /// Finalized L1 height as reported by the DA node
+    #[metric(describe = "The finalized L1 height that the DA node reports")]
+    pub da_reported_l1_block: Gauge,
+    /// Whether the DA node's view of L1 is being ignored
+    #[metric(describe = "1 when the sequencer ignores the DA node, 0 otherwise")]
+    pub da_behind: Gauge,
+    /// Number of L2 blocks produced on the L1 block currently held by the light client
+    #[metric(describe = "The number of L2 blocks made on the current L1 block")]
+    pub l2_blocks_on_current_l1: Gauge,
     /// The number of transactions that are dry run in the current block
     #[metric(
         describe = "The time in milliseconds it took to run transactions in the current block, this does not include the time to dry run the transactions"
