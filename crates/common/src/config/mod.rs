@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use citrea_primitives::PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS;
 use serde::de::DeserializeOwned;
@@ -9,6 +10,23 @@ use serde::{Deserialize, Serialize};
 pub use crate::config::rpc::RpcConfig;
 use crate::risc0::Risc0HostConfig;
 use crate::utils::read_env;
+
+fn read_optional_env<T>(key: &str) -> anyhow::Result<Option<T>>
+where
+    T: FromStr,
+    T::Err: std::fmt::Display,
+{
+    match std::env::var(key) {
+        Ok(value) => value
+            .parse()
+            .map(Some)
+            .map_err(|error| anyhow::anyhow!("Invalid value for {key}: {error}")),
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(std::env::VarError::NotUnicode(_)) => {
+            Err(anyhow::anyhow!("Env {key} contains invalid UTF-8"))
+        }
+    }
+}
 
 /// Configuration types for RISC0 provers
 pub mod risc0;
@@ -62,9 +80,7 @@ impl FromEnv for RunnerConfig {
         Ok(Self {
             sequencer_client_url: read_env("SEQUENCER_CLIENT_URL")?,
             include_tx_body: read_env("INCLUDE_TX_BODY")?.parse()?,
-            sync_blocks_count: read_env("SYNC_BLOCKS_COUNT")
-                .ok()
-                .and_then(|val| val.parse().ok())
+            sync_blocks_count: read_optional_env("SYNC_BLOCKS_COUNT")?
                 .unwrap_or_else(default_sync_blocks_count),
             pruning_config: PruningConfig::from_env().ok(),
             scan_l1_start_height: read_env("SCAN_L1_START_HEIGHT")?.parse()?,
@@ -88,12 +104,8 @@ impl FromEnv for StorageConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             path: read_env("STORAGE_PATH")?.into(),
-            backup_path: read_env("STORAGE_BACKUP_PATH")
-                .ok()
-                .and_then(|v| v.parse().ok()),
-            db_max_open_files: read_env("DB_MAX_OPEN_FILES")
-                .ok()
-                .and_then(|val| val.parse().ok()),
+            backup_path: read_optional_env("STORAGE_BACKUP_PATH")?,
+            db_max_open_files: read_optional_env("DB_MAX_OPEN_FILES")?,
         })
     }
 }
@@ -210,9 +222,7 @@ impl FromEnv for BatchProverConfig {
         Ok(BatchProverConfig {
             proving_mode: serde_json::from_str(&format!("\"{}\"", read_env("PROVING_MODE")?))?,
             proof_sampling_number: read_env("PROOF_SAMPLING_NUMBER")?.parse()?,
-            max_commitments_per_proof: read_env("MAX_COMMITMENTS_PER_PROOF")
-                .ok()
-                .and_then(|val| val.parse().ok()),
+            max_commitments_per_proof: read_optional_env("MAX_COMMITMENTS_PER_PROOF")?,
             risc0_host: Risc0HostConfig::from_env()?,
         })
     }
@@ -330,21 +340,13 @@ impl FromEnv for SequencerConfig {
             da_update_interval_ms: read_env("DA_UPDATE_INTERVAL_MS")?.parse()?,
             block_production_interval_ms: read_env("BLOCK_PRODUCTION_INTERVAL_MS")?.parse()?,
             bridge_initialize_params: hex::decode(read_env("BRIDGE_INITIALIZE_PARAMS")?)?,
-            l1_fee_rate_multiplier: read_env("L1_FEE_RATE_MULTIPLIER")
-                .ok()
-                .and_then(|v| v.parse().ok())
+            l1_fee_rate_multiplier: read_optional_env("L1_FEE_RATE_MULTIPLIER")?
                 .unwrap_or_else(default_l1_fee_rate_multiplier),
-            max_l1_fee_rate_sat_vb: read_env("MAX_L1_FEE_RATE_SAT_VB")
-                .ok()
-                .and_then(|v| v.parse().ok())
+            max_l1_fee_rate_sat_vb: read_optional_env("MAX_L1_FEE_RATE_SAT_VB")?
                 .unwrap_or_else(default_max_l1_fee_rate_sat_vb),
-            l1_fee_rate_update_interval_ms: read_env("L1_FEE_RATE_UPDATE_INTERVAL_MS")
-                .ok()
-                .and_then(|v| v.parse().ok())
+            l1_fee_rate_update_interval_ms: read_optional_env("L1_FEE_RATE_UPDATE_INTERVAL_MS")?
                 .unwrap_or_else(default_l1_fee_rate_update_interval_ms),
-            dry_run_time_limit_ms: read_env("SEQUENCER_DRY_RUN_TIME_LIMIT_MS")
-                .ok()
-                .and_then(|v| v.parse().ok())
+            dry_run_time_limit_ms: read_optional_env("SEQUENCER_DRY_RUN_TIME_LIMIT_MS")?
                 .unwrap_or_else(default_dry_run_time_limit_ms),
         })
     }
@@ -387,13 +389,9 @@ impl Default for MempoolMaintenanceConfig {
 impl FromEnv for MempoolMaintenanceConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
-            max_reload_accounts: std::env::var("SEQUENCER_MEMPOOL_MAX_RELOAD_ACCOUNTS")
-                .ok()
-                .and_then(|v| v.parse().ok())
+            max_reload_accounts: read_optional_env("SEQUENCER_MEMPOOL_MAX_RELOAD_ACCOUNTS")?
                 .unwrap_or_else(default_max_reload_accounts),
-            max_tx_lifetime_secs: std::env::var("SEQUENCER_MEMPOOL_MAX_TX_LIFETIME_SECS")
-                .ok()
-                .and_then(|v| v.parse().ok())
+            max_tx_lifetime_secs: read_optional_env("SEQUENCER_MEMPOOL_MAX_TX_LIFETIME_SECS")?
                 .unwrap_or_else(default_max_tx_lifetime_secs),
         })
     }
@@ -462,10 +460,9 @@ impl FromEnv for SequencerMempoolConfig {
             base_fee_tx_limit: read_env("BASE_FEE_TX_LIMIT")?.parse()?,
             base_fee_tx_size: read_env("BASE_FEE_TX_SIZE")?.parse()?,
             max_account_slots: read_env("MAX_ACCOUNT_SLOTS")?.parse()?,
-            additional_validation_tasks: read_env("SEQUENCER_MEMPOOL_ADDITIONAL_VALIDATION_TASKS")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or_else(default_additional_validation_tasks),
+            additional_validation_tasks:
+                read_optional_env("SEQUENCER_MEMPOOL_ADDITIONAL_VALIDATION_TASKS")?
+                    .unwrap_or_else(default_additional_validation_tasks),
             maintenance: MempoolMaintenanceConfig::from_env()?,
         })
     }
@@ -774,6 +771,23 @@ mod tests {
             dry_run_time_limit_ms: default_dry_run_time_limit_ms(),
         };
         assert_eq!(sequencer_config, expected);
+    }
+
+    #[test]
+    fn test_invalid_sync_blocks_count_from_env_is_rejected() {
+        std::env::set_var("SEQUENCER_CLIENT_URL", "http://127.0.0.1:12346");
+        std::env::set_var("INCLUDE_TX_BODY", "true");
+        std::env::set_var("SCAN_L1_START_HEIGHT", "1");
+        std::env::set_var("SYNC_BLOCKS_COUNT", "not-a-number");
+
+        let result = RunnerConfig::from_env();
+
+        std::env::remove_var("SEQUENCER_CLIENT_URL");
+        std::env::remove_var("INCLUDE_TX_BODY");
+        std::env::remove_var("SCAN_L1_START_HEIGHT");
+        std::env::remove_var("SYNC_BLOCKS_COUNT");
+
+        assert!(result.is_err());
     }
 
     #[test]
@@ -1106,5 +1120,78 @@ mod tests {
 
         std::env::remove_var("BOUNDLESS_PRICING_SERVICE_URL");
         std::env::remove_var("BOUNDLESS_PRICING_SERVICE_TIMEOUT_SECS");
+    }
+
+    #[test]
+    fn test_invalid_optional_storage_value_is_rejected() {
+        std::env::set_var("STORAGE_PATH", "/tmp/rollup");
+        std::env::set_var("DB_MAX_OPEN_FILES", "not-a-number");
+
+        let result = StorageConfig::from_env();
+
+        std::env::remove_var("STORAGE_PATH");
+        std::env::remove_var("DB_MAX_OPEN_FILES");
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_invalid_optional_prover_value_is_rejected() {
+        std::env::set_var("PROVING_MODE", "skip");
+        std::env::set_var("PROOF_SAMPLING_NUMBER", "1");
+        std::env::set_var("RISC0_PROVER", "ipc");
+        std::env::set_var("MAX_COMMITMENTS_PER_PROOF", "not-a-number");
+
+        let result = BatchProverConfig::from_env();
+
+        std::env::remove_var("PROVING_MODE");
+        std::env::remove_var("PROOF_SAMPLING_NUMBER");
+        std::env::remove_var("RISC0_PROVER");
+        std::env::remove_var("MAX_COMMITMENTS_PER_PROOF");
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_invalid_optional_sequencer_values_are_rejected() {
+        let bridge_params = hex::encode(PRE_TANGERINE_BRIDGE_INITIALIZE_PARAMS);
+        let required = [
+            ("PRIVATE_KEY", "1212121212121212121212121212121212121212121212121212121212121212"),
+            ("MAX_L2_BLOCKS_PER_COMMITMENT", "4"),
+            ("TEST_MODE", "false"),
+            ("DEPOSIT_MEMPOOL_FETCH_LIMIT", "10"),
+            ("DA_UPDATE_INTERVAL_MS", "1000"),
+            ("BLOCK_PRODUCTION_INTERVAL_MS", "1000"),
+            ("PENDING_TX_LIMIT", "100000"),
+            ("PENDING_TX_SIZE", "200"),
+            ("QUEUE_TX_LIMIT", "100000"),
+            ("QUEUE_TX_SIZE", "200"),
+            ("BASE_FEE_TX_LIMIT", "100000"),
+            ("BASE_FEE_TX_SIZE", "200"),
+            ("MAX_ACCOUNT_SLOTS", "16"),
+        ];
+        for (key, value) in required {
+            std::env::set_var(key, value);
+        }
+        std::env::set_var("BRIDGE_INITIALIZE_PARAMS", bridge_params);
+
+        for key in [
+            "L1_FEE_RATE_MULTIPLIER",
+            "MAX_L1_FEE_RATE_SAT_VB",
+            "L1_FEE_RATE_UPDATE_INTERVAL_MS",
+            "SEQUENCER_DRY_RUN_TIME_LIMIT_MS",
+            "SEQUENCER_MEMPOOL_ADDITIONAL_VALIDATION_TASKS",
+            "SEQUENCER_MEMPOOL_MAX_RELOAD_ACCOUNTS",
+            "SEQUENCER_MEMPOOL_MAX_TX_LIFETIME_SECS",
+        ] {
+            std::env::set_var(key, "not-a-number");
+            assert!(SequencerConfig::from_env().is_err(), "{key} should reject invalid values");
+            std::env::remove_var(key);
+        }
+
+        for (key, _) in required {
+            std::env::remove_var(key);
+        }
+        std::env::remove_var("BRIDGE_INITIALIZE_PARAMS");
     }
 }
