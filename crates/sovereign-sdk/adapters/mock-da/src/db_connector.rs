@@ -44,9 +44,9 @@ impl DbConnector {
                 "INSERT INTO blocks (prev_hash, hash, txs_commitment, height, time, is_valid, blobs)
                 VALUES (?, ?, ?, ?, ?, ?, ?)",
                 params![
-                    block.header.prev_hash.0,
+                    block.header.prev_hash,
                     block.header.hash.0,
-                    block.header.txs_commitment.0,
+                    block.header.txs_commitment,
                     block.header.height,
                     serde_json::to_string(&block.header.time)
                         .expect("DbConnector: Failed to serialize time"),
@@ -127,9 +127,9 @@ impl DbConnector {
     fn row_to_block(row: &rusqlite::Row) -> MockBlock {
         MockBlock {
             header: MockBlockHeader {
-                prev_hash: MockHash(row.get(0).unwrap()),
+                prev_hash: row.get(0).unwrap(),
                 hash: MockHash(row.get(1).unwrap()),
-                txs_commitment: MockHash(row.get(2).unwrap()),
+                txs_commitment: row.get(2).unwrap(),
                 height: row.get(3).unwrap(),
                 time: serde_json::from_str(row.get::<_, String>(4).unwrap().as_str()).unwrap(),
                 bits: 0,

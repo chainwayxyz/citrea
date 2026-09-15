@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use super::{StateCodec, StateKeyCodec};
 use crate::codec::StateValueCodec;
 
@@ -9,8 +11,8 @@ impl<K> StateKeyCodec<K> for BcsCodec
 where
     K: serde::Serialize,
 {
-    fn encode_key(&self, key: &K) -> Vec<u8> {
-        bcs::to_bytes(key).expect("Failed to serialize key")
+    fn encode_key<'k>(&self, key: &'k K) -> Cow<'k, [u8]> {
+        Cow::Owned(bcs::to_bytes(key).expect("Failed to serialize key"))
     }
 }
 

@@ -111,7 +111,7 @@ impl DaVerifier for MockDaVerifier {
             return Err(anyhow!("Block heights are not consecutive"));
         }
         // Check prev hash matches with prev light client proof hash
-        if block_header.prev_hash.0 != latest_da_state.block_hash {
+        if block_header.prev_hash != latest_da_state.block_hash {
             return Err(anyhow!(
                 "Block prev hash does not match with prev light client proof hash"
             ));
