@@ -3,6 +3,7 @@
 
 ## [v2.8.0](2026-09-10)
 ### Changed
+- fix: stop log subscription tasks after send failures
 - fix(bitcoin-da): Harden DA monitoring reveal restore ([#3329](https://github.com/chainwayxyz/citrea/pull/3329))
 - fix(rpc): Set archival state in estimate tx expenses ([#3321](https://github.com/chainwayxyz/citrea/pull/3321))
 - fix(rpc): with log config in debug trace cache ([#3323](https://github.com/chainwayxyz/citrea/pull/3323))
