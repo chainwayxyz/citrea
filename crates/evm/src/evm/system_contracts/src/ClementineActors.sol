@@ -65,12 +65,14 @@ contract ClementineActors is Initializable, Ownable2StepUpgradeable {
     ActorSet internal watchtowers;
 
     mapping(bytes32 => mapping(bytes32 => uint256)) internal garbledSetupGenerations;
+    // Serialized Bitcoin outpoint: 32-byte transaction hash followed by the 4-byte little-endian output index.
+    mapping(bytes32 => bytes) public operatorCollateralOutpoints;
 
     event MaintainerUpdated(address oldMaintainer, address newMaintainer);
     event SigningPauseUpdated(bool signingPaused);
     event CircuitVersionUpdated(uint256 oldCircuitVersion, uint256 newCircuitVersion);
     event SecurityCouncilUpdated(uint256 threshold, bytes32[] members);
-    event CandidateOperatorsAdded(bytes32[] operatorKeys, uint256 startIndex);
+    event CandidateOperatorsAdded(bytes32[] operatorKeys, bytes[] collateralOutpoints, uint256 startIndex);
     event CandidateWatchtowersAdded(bytes32[] watchtowerKeys, uint256 startIndex);
     event GarbledSetupProven(
         bytes32 operatorKey, bytes32 watchtowerKey, bytes32 wtxId, bytes32 txId, uint256 setupGeneration
@@ -152,9 +154,17 @@ contract ClementineActors is Initializable, Ownable2StepUpgradeable {
         _resetSigningState();
     }
 
-    function addCandidateOperators(bytes32[] calldata operatorKeys) external onlyMaintainer {
+    function addCandidateOperators(bytes32[] calldata operatorKeys, bytes[] calldata collateralOutpoints)
+        external
+        onlyMaintainer
+    {
+        require(operatorKeys.length == collateralOutpoints.length, "Collateral outpoint count mismatch");
         uint256 startIndex = _addCandidates(operators, operatorKeys);
-        emit CandidateOperatorsAdded(operatorKeys, startIndex);
+        for (uint256 i = 0; i < operatorKeys.length; i++) {
+            require(collateralOutpoints[i].length == 36, "Invalid collateral outpoint");
+            operatorCollateralOutpoints[operatorKeys[i]] = collateralOutpoints[i];
+        }
+        emit CandidateOperatorsAdded(operatorKeys, collateralOutpoints, startIndex);
     }
 
     function addCandidateWatchtowers(bytes32[] calldata watchtowerKeys) external onlyMaintainer {
@@ -490,6 +500,10 @@ contract ClementineActors is Initializable, Ownable2StepUpgradeable {
         view
         returns (bytes memory expectedScriptWithLen)
     {
+        require(
+            keccak256(operatorCollateralOutpoint) == keccak256(operatorCollateralOutpoints[operatorKey]),
+            "Operator collateral outpoint mismatch"
+        );
         (uint256 varIntDataLen, uint256 scriptLen) = BTCUtils.parseVarInt(scriptWithLen);
         require(varIntDataLen != BTCUtils.ERR_BAD_ARG, "Bad circuit script length");
 
