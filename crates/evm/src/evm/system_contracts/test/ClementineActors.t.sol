@@ -200,7 +200,7 @@ contract ClementineActorsTest is Test {
         bytes32[] memory operators = single(operatorKey);
         vm.prank(user);
         vm.expectRevert("caller is not the maintainer");
-        actors.addCandidateOperators(operators);
+        actors.addCandidateOperators(operators, singleOutpoint(collateralOutpoint()));
 
         bytes32[] memory watchtowers = single(watchtowerKey);
         vm.prank(user);
@@ -215,6 +215,50 @@ contract ClementineActorsTest is Test {
         assertTrue(actors.isCandidateWatchtower(watchtowerKey));
         assertEq(actors.getKnownOperators().length, 1);
         assertEq(actors.getKnownWatchtowers().length, 1);
+        assertEq(actors.operatorCollateralOutpoints(operatorKey), collateralOutpoint());
+    }
+
+    function testMaintainerCanRegisterDistinctOperatorCollateralOutpoints() public {
+        bytes32[] memory keys = new bytes32[](2);
+        keys[0] = operatorKey;
+        keys[1] = operatorKey2;
+        bytes[] memory outpoints = new bytes[](2);
+        outpoints[0] = collateralOutpoint();
+        outpoints[1] = collateralOutpoint();
+        outpoints[1][32] = bytes1(0x01);
+
+        vm.expectEmit();
+        emit ClementineActors.CandidateOperatorsAdded(keys, outpoints, 0);
+        vm.prank(maintainer);
+        actors.addCandidateOperators(keys, outpoints);
+
+        assertEq(actors.operatorCollateralOutpoints(operatorKey), outpoints[0]);
+        assertEq(actors.operatorCollateralOutpoints(operatorKey2), outpoints[1]);
+        assertTrue(actors.isCandidateOperator(operatorKey));
+        assertTrue(actors.isCandidateOperator(operatorKey2));
+    }
+
+    function testCannotRegisterOperatorsWithMismatchedCollateralCount() public {
+        vm.startPrank(maintainer);
+        vm.expectRevert("Collateral outpoint count mismatch");
+        actors.addCandidateOperators(single(operatorKey), new bytes[](0));
+        vm.expectRevert("Collateral outpoint count mismatch");
+        actors.addCandidateOperators(new bytes32[](0), singleOutpoint(collateralOutpoint()));
+        vm.stopPrank();
+
+        assertEq(actors.getKnownOperators().length, 0);
+    }
+
+    function testCannotRegisterMalformedCollateralOutpoints() public {
+        uint256[3] memory lengths = [uint256(0), 35, 37];
+        for (uint256 i = 0; i < lengths.length; i++) {
+            vm.prank(maintainer);
+            vm.expectRevert("Invalid collateral outpoint");
+            actors.addCandidateOperators(single(operatorKey), singleOutpoint(new bytes(lengths[i])));
+            assertFalse(actors.isCandidateOperator(operatorKey));
+            assertEq(actors.getKnownOperators().length, 0);
+            assertEq(actors.operatorCollateralOutpoints(operatorKey).length, 0);
+        }
     }
 
     function testCannotAddDuplicateCandidateActors() public {
@@ -222,7 +266,7 @@ contract ClementineActorsTest is Test {
 
         vm.prank(maintainer);
         vm.expectRevert("Candidate already exists");
-        actors.addCandidateOperators(single(operatorKey));
+        actors.addCandidateOperators(single(operatorKey), singleOutpoint(collateralOutpoint()));
 
         vm.prank(maintainer);
         vm.expectRevert("Candidate already exists");
@@ -268,7 +312,7 @@ contract ClementineActorsTest is Test {
 
     function testCannotProveSetupForNonCandidateWatchtower() public {
         vm.prank(maintainer);
-        actors.addCandidateOperators(single(operatorKey));
+        actors.addCandidateOperators(single(operatorKey), singleOutpoint(collateralOutpoint()));
 
         vm.expectRevert("Watchtower is not candidate or active");
         actors.proveGarbledSetup(
@@ -310,7 +354,7 @@ contract ClementineActorsTest is Test {
         bytes memory wrongCollateralOutpoint = collateralOutpoint();
         wrongCollateralOutpoint[35] = bytes1(0xfe);
 
-        vm.expectRevert("Invalid circuit script");
+        vm.expectRevert("Operator collateral outpoint mismatch");
         actors.proveGarbledSetup(
             circuitGeneratedTx(),
             operatorKey,
@@ -319,6 +363,27 @@ contract ClementineActorsTest is Test {
             wrongCollateralOutpoint,
             sourceShaScriptPubkeys
         );
+    }
+
+    function testCannotProveSetupWhenRegisteredCollateralDiffersFromScript() public {
+        bytes memory registeredOutpoint = collateralOutpoint();
+        registeredOutpoint[0] = bytes1(0xff);
+        vm.startPrank(maintainer);
+        actors.addCandidateOperators(single(operatorKey), singleOutpoint(registeredOutpoint));
+        actors.addCandidateWatchtowers(single(watchtowerKey));
+        vm.stopPrank();
+
+        vm.expectRevert("Operator collateral outpoint mismatch");
+        actors.proveGarbledSetup(
+            circuitGeneratedTx(), operatorKey, watchtowerKey, 990, collateralOutpoint(), sourceShaScriptPubkeys
+        );
+        assertFalse(actors.garbledSetups(operatorKey, watchtowerKey));
+
+        vm.expectRevert("Invalid circuit script");
+        actors.proveGarbledSetup(
+            circuitGeneratedTx(), operatorKey, watchtowerKey, 990, registeredOutpoint, sourceShaScriptPubkeys
+        );
+        assertFalse(actors.garbledSetups(operatorKey, watchtowerKey));
     }
 
     function testCannotReplaySetupAfterSecurityCouncilUpdate() public {
@@ -399,7 +464,7 @@ contract ClementineActorsTest is Test {
         setActivePair();
 
         vm.prank(maintainer);
-        actors.addCandidateOperators(single(operatorKey2));
+        actors.addCandidateOperators(single(operatorKey2), singleOutpoint(collateralOutpoint()));
         actors.recordGarbledSetup_(operatorKey2, watchtowerKey);
 
         vm.prank(maintainer);
@@ -414,7 +479,7 @@ contract ClementineActorsTest is Test {
         setActivePair();
 
         vm.prank(maintainer);
-        actors.addCandidateOperators(single(operatorKey2));
+        actors.addCandidateOperators(single(operatorKey2), singleOutpoint(collateralOutpoint()));
 
         vm.prank(maintainer);
         vm.expectRevert("Missing garbled setup");
@@ -505,6 +570,7 @@ contract ClementineActorsTest is Test {
         assertFalse(actors.isDisabledOperator(operatorKey));
         assertTrue(actors.isCandidateOperator(operatorKey));
         assertFalse(actors.isActiveOperator(operatorKey));
+        assertEq(actors.operatorCollateralOutpoints(operatorKey), collateralOutpoint());
     }
 
     function testOwnerCanReinstateRemovedWatchtower() public {
@@ -674,7 +740,7 @@ contract ClementineActorsTest is Test {
     function addCandidatePair(bytes32 _operatorKey, bytes32 _watchtowerKey) internal {
         vm.startPrank(maintainer);
         if (!actors.isCandidateOperator(_operatorKey)) {
-            actors.addCandidateOperators(single(_operatorKey));
+            actors.addCandidateOperators(single(_operatorKey), singleOutpoint(collateralOutpoint()));
         }
         if (!actors.isCandidateWatchtower(_watchtowerKey)) {
             actors.addCandidateWatchtowers(single(_watchtowerKey));
@@ -694,6 +760,11 @@ contract ClementineActorsTest is Test {
 
     function single(bytes32 value) internal pure returns (bytes32[] memory values) {
         values = new bytes32[](1);
+        values[0] = value;
+    }
+
+    function singleOutpoint(bytes memory value) internal pure returns (bytes[] memory values) {
+        values = new bytes[](1);
         values[0] = value;
     }
 
