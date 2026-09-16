@@ -65,12 +65,13 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
 
     UTXO[] public withdrawalUTXOs;
     bytes32[] public depositTxIds;
-    bytes32[] public signers;
+
 
     mapping(bytes32 => bool) public processedTxIds;
     mapping(bytes32 => bool) public usedWithdrawalUTXO;
 
     uint256 public optimisticWithdrawAmountSats;
+    bytes32[] public signers;
     mapping(bytes32 => uint256) public depositTxIdToIndex;
 
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
@@ -163,19 +164,19 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     }
 
     /// @notice Sets the x-only Schnorr signer keys expected in deposit and replacement Bitcoin scripts
+    /// @notice The list must be strictly ascending, an order that also rules out duplicates
     /// @param _signers New signer list in the same order as the Bitcoin script checks signatures
+    /// @dev `depositPrefix` contains x-only Schnorr signer keys, so it should be updated accordingly when the signer list is updated 
     function setSigners(bytes32[] calldata _signers) external onlyOwner {
         require(_signers.length != 0, "Signers cannot be empty");
-
-        for (uint256 i = 0; i < _signers.length; i++) {
-            require(_signers[i] != bytes32(0), "Signer cannot be empty");
-            for (uint256 j = i + 1; j < _signers.length; j++) {
-                require(_signers[i] != _signers[j], "Duplicate signer");
-            }
-        }
+        // Strictly ascending order implies no duplicates, and since bytes32(0) is the smallest
+        // possible value, an empty signer can only appear at index 0
+        require(_signers[0] != bytes32(0), "Signer cannot be empty");
 
         delete signers;
-        for (uint256 i = 0; i < _signers.length; i++) {
+        signers.push(_signers[0]);
+        for (uint256 i = 1; i < _signers.length; i++) {
+            require(_signers[i] > _signers[i - 1], "Signers not sorted");
             signers.push(_signers[i]);
         }
 
@@ -240,10 +241,6 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         depositTxIdToIndex[txId] = depositTxIds.length - 1;
         
         uint256 signerCount = getSignerCount();
-        // Our P2TR script path spend unlocking witness should have one item per signer plus script and control block
-        (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
-        require(nItems == signerCount + 2, "Invalid witness items");
-
         bytes memory script = WitnessUtils.extractItemFromWitness(witness0, signerCount); // skip signer signatures
         // Unlocking witness script is consisted of a fixed prefix and suffix part with a variable receiver address in between
         uint256 prefixLen = depositPrefix.length;
@@ -419,13 +416,10 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         // Cache the existing txId to be replaced before overwriting it
         bytes32 txIdToReplace = depositTxIds[idToReplace];
         depositTxIds[idToReplace] = newTxId;
-        delete depositTxIdToIndex[txIdToReplace];
+        // Not deleting the old txId from `depositTxIdToIndex` mapping since Clementine uses this information
         depositTxIdToIndex[newTxId] = idToReplace;
 
         uint256 signerCount = getSignerCount();
-        (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
-        // Our P2TR script path spend unlocking witness should have one item per signer plus script and control block
-        require(nItems == signerCount + 2, "Invalid witness items");
         bytes memory script = WitnessUtils.extractItemFromWitness(witness0, signerCount); // skip signer signatures
 
         // Unlocking witness script is consisted of a fixed prefix and suffix part with a variable txId of the transaction to be replaced in between
@@ -468,10 +462,6 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         uint256 offset = replacePrefix.length;
         bytes32 txId = bytesToBytes32(_script.slice(offset, 32));
         return txId;
-    }
-
-    function getAggregatedKey() public view returns (bytes memory) {
-        return depositPrefix.slice(2, 32);
     }
 
     function getSignerCount() internal view returns (uint256) {
@@ -540,6 +530,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     function verifySigInTx(bytes memory input, bytes memory outputs, bytes memory witness0, bytes4 version, bytes4 locktime, bytes32 shaScriptPubkeys) internal view {
         uint256 signerCount = getSignerCount();
         (, uint256 nItems) = BTCUtils.parseVarInt(witness0);
+        // Our P2TR script path spend unlocking witness should have one item per signer plus script and control block
         require(nItems == signerCount + 2, "Invalid witness items");
 
         bytes32 shaPrevouts = sha256(input.extractOutpoint());

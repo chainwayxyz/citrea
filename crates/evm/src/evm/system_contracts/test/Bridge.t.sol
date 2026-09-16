@@ -235,31 +235,39 @@ contract BridgeTest is Test {
     }
 
     function testIndividualSchnorrDeposit() public {
-        bytes32[] memory individualSigners = new bytes32[](2);
-        individualSigners[0] = hex"4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa";
-        individualSigners[1] = hex"466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27";
+        bytes32[] memory individualSigners = new bytes32[](10);
+        individualSigners[0] = hex"2f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01";
+        individualSigners[1] = hex"2f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4";
+        individualSigners[2] = hex"5cbdf0646e5db4eaa398f365f2ea7a0e3d419b7e0330e39ce92bddedcac4f9bc";
+        individualSigners[3] = hex"79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+        individualSigners[4] = hex"a0434d9e47f3c86235477c7b1ae6ae5d3442d49b1943c2b752a68e2a47e247c7";
+        individualSigners[5] = hex"acd484e2f0c7f65309ad178a9f559abde09796974c57e714c35f110dfc27ccbe";
+        individualSigners[6] = hex"c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5";
+        individualSigners[7] = hex"e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13";
+        individualSigners[8] = hex"f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9";
+        individualSigners[9] = hex"fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556";
 
         vm.startPrank(owner);
         bridge.setSigners(individualSigners);
         bridge.setDepositScript(
-            hex"64204f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aaad20466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27ad5100630663697472656114",
+            hex"fd7401202f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01ad202f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4ad205cbdf0646e5db4eaa398f365f2ea7a0e3d419b7e0330e39ce92bddedcac4f9bcad2079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad20a0434d9e47f3c86235477c7b1ae6ae5d3442d49b1943c2b752a68e2a47e247c7ad20acd484e2f0c7f65309ad178a9f559abde09796974c57e714c35f110dfc27ccbead20c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5ad20e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13ad20f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9ad20fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556ad5100630663697472656114",
             hex"68"
         );
         vm.stopPrank();
 
         vm.prank(SYSTEM_CALLER);
         bitcoinLightClient.setBlockInfo(
-            keccak256("CITREA_INDIVIDUAL_SCHNORR_TEST"),
-            hex"41270fcd3ca5e5bb533f9381c4fa211df266227101fbe4921c0d2ed0783b065a",
+            keccak256("CITREA_TEN_SIGNER_SCHNORR_TEST"),
+            hex"f4cf72c711aafaaa04015311bdd10b7513bcae2e12e1e3cd5a18454b669ba03a",
             1
         );
 
         Bridge.Transaction memory individualDepositTx = Bridge.Transaction(
             hex"03000000",
             hex"0001",
-            hex"0176030e6f4fa1181099fdf6c779800b40e2c4eb23d6848855b670a38a6ffe67220000000000fdffffff",
-            hex"0200ca9a3b00000000225120825694c468b0b2f2e78ede30bc1c2a34caa622bfd3264468b6315cde7db7ca4700000000000000000451024e73",
-            hex"044043aff11d80e1ff05214a7782829d3a05000e9f30bb23308e1c2c814023e2b5240ff56a60932a9327b0406e809efb4b951d55e94bee197f0d73ddc2901bbbd546408e1f14927c61fb0a90cd7744470a71d29cf258aee966a2330186cda36cd9bbec099cac38042caaa5f936497808d4ac1a0bd98782dd15221267f81b94f8218f5464204f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aaad20466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27ad510063066369747265611442424242424242424242424242424242424242426841c150929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac03cddcefc5ae27173bd5f847b9c187dac975eac5a6cdefbddd849e5ba1fd4cb73",
+            hex"01319b4a58f07eeb47382a5146ddff3a9a070dda114cad75376e31d47a382090360100000000fdffffff",
+            hex"0200ca9a3b000000002251200ab74e41f70996c0b65670879b246a53810cffa571b326b6e67c853ba26a3c4000000000000000000451024e73",
+            hex"0c4078b551c91ad9bdad1e5f0beb3ee4a3f6092b435cfc409358b9fa03fd7ac557e63722b95e15ceffff9abe0f8a9eae9ee92c1a50b1b816f28b9cb123c3d6033f8e4065e78e00b2ee8c43acbf7df056fde5acc462275a30f57cc0efa17e70c95bc2d4af424592476b2fbc0f00da84a529d277b6b271f408bbfd009fadafa7ee14193e4055631cdf46e54cd71153ce9d8400957c31e0a445fd4e610db1e8cc223c50c9356492955bb269b3610da7428362f504e9119336b99313a6d6002d8f20023c344c402719841fcc26d1eabfa754cf18a09c888918861537c030f0f8ec95b590125cd5123cb81324e2def4aa485fdc9c7fddea2b2f4c0a06bf30fd7b67e025719141a840fe7074efbd4aa04b04b75423e4f990f122f3caa221f3f2f1c251b3c0b39754d777d368907cfc2294289b4f7ddd9d8c53d03cbd52e05e559a9ff3caba496d79f540a9a0a905e3679a374d2965ea76b65519d173b0406aaa5e0eb95401f2789afb76c9838e664dea302a753d6ef7b58e2f214a0b4ea76a4f4f0fcc190dac2169f4a8402460811a25b3b61420461dd3b91a95a75a83cddb9e608f122fdadc0f3bd585701ecaceeb458792da9dae1248999d81d30bd0dcc3fde071adc930eb5158c797e9401d0e2ea6e9ab5e2387927218b8869a4d1957afdaaeefca62669bd2d0e91acfd8fa745f12f5ebc34b4cd50ac129988309e5c65afdc9a320c8f980aceccabb4c2f408e33b338f5031e199d2394c31b464366807d911f6383e2b438be22a4b9f33c20caa3f10de334a0caa315ff50673a5e721417ed0cb3a492bc771a480e7288dc7a400bb2aef8d5072b743bffe5b34f58711c2ba9454a9b6f2e7a40f1f152ce523d81563536239375cc2e3d8f4b4ae539b54c5bae07eaa62f458392d0d3e8f88c4ee5fd7401202f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01ad202f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4ad205cbdf0646e5db4eaa398f365f2ea7a0e3d419b7e0330e39ce92bddedcac4f9bcad2079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad20a0434d9e47f3c86235477c7b1ae6ae5d3442d49b1943c2b752a68e2a47e247c7ad20acd484e2f0c7f65309ad178a9f559abde09796974c57e714c35f110dfc27ccbead20c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5ad20e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13ad20f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9ad20fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556ad510063066369747265611442424242424242424242424242424242424242426841c050929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac03cddcefc5ae27173bd5f847b9c187dac975eac5a6cdefbddd849e5ba1fd4cb73",
             hex"00000000"
         );
         Bridge.MerkleProof memory proof = Bridge.MerkleProof(
@@ -268,13 +276,13 @@ contract BridgeTest is Test {
 
         vm.prank(operator);
         bridge.deposit(
-            individualDepositTx, proof, hex"2174d11cf27bed78e8e8aceadf325bdde2ca15aa6ce0d4ede1248fdaf60f4ac3"
+            individualDepositTx, proof, hex"d78daf0f5a06cf8822fa72af1998d67e4848610d70e5f90d028b9648a1848ba2"
         );
 
         address individualReceiver = address(0x4242424242424242424242424242424242424242);
         assertEq(individualReceiver.balance, DEPOSIT_AMOUNT);
-        assertTrue(bridge.processedTxIds(hex"cb324d848c2fc8b58e5db4fb05d5d8f4c093c78b7e3765464aa82e5fdf53690d"));
-        assertEq(bridge.depositTxIds(0), hex"cb324d848c2fc8b58e5db4fb05d5d8f4c093c78b7e3765464aa82e5fdf53690d");
+        assertTrue(bridge.processedTxIds(hex"a41c81bce8332a227ddb7c6552cc681cf532cf5b3422a37248f1f35ac6aca496"));
+        assertEq(bridge.depositTxIds(0), hex"a41c81bce8332a227ddb7c6552cc681cf532cf5b3422a37248f1f35ac6aca496");
     }
 
     function testDepositThenWithdraw() public {
@@ -455,7 +463,7 @@ contract BridgeTest is Test {
         proof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER + 2, index);
         bridge.replaceDeposit(replaceTx, proof, 1, hex"486568b2542cc5ebf896e41e17c42e5571e6f3e68020d90d39fe7a2d7f0a68c3");
         assertEq(bridge.depositTxIds(1), hex"6a1d18b80867c0bc84cb9a20ec88922cf17a7bdd50e5237d67b6fad11d70fe95");
-        assertEq(bridge.depositTxIdToIndex(hex"36db3e96dc72a2be198234a326f3443c9326d2546deca3576a1959725a039108"), 0);
+        assertEq(bridge.depositTxIdToIndex(hex"36db3e96dc72a2be198234a326f3443c9326d2546deca3576a1959725a039108"), 1);
         assertEq(bridge.depositTxIdToIndex(hex"6a1d18b80867c0bc84cb9a20ec88922cf17a7bdd50e5237d67b6fad11d70fe95"), 1);
     }
 
@@ -546,8 +554,8 @@ contract BridgeTest is Test {
 
     function testOwnerCanSetSigners() public {
         bytes32[] memory newSigners = new bytes32[](2);
-        newSigners[0] = hex"4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa";
-        newSigners[1] = hex"466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27";
+        newSigners[0] = hex"466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27";
+        newSigners[1] = hex"4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa";
 
         vm.prank(owner);
         vm.expectEmit();
@@ -587,13 +595,34 @@ contract BridgeTest is Test {
         bridge.setSigners(newSigners);
     }
 
+    /// @dev A zero signer is only reachable at index 0, as ascending order rules it out everywhere else
+    function testCannotSetZeroSignerAtFirstIndex() public {
+        bytes32[] memory newSigners = new bytes32[](2);
+        newSigners[0] = bytes32(0);
+        newSigners[1] = legacySigner;
+
+        vm.prank(owner);
+        vm.expectRevert("Signer cannot be empty");
+        bridge.setSigners(newSigners);
+    }
+
     function testCannotSetDuplicateSigner() public {
         bytes32[] memory newSigners = new bytes32[](2);
         newSigners[0] = legacySigner;
         newSigners[1] = legacySigner;
 
         vm.prank(owner);
-        vm.expectRevert("Duplicate signer");
+        vm.expectRevert("Signers not sorted");
+        bridge.setSigners(newSigners);
+    }
+
+    function testCannotSetUnsortedSigners() public {
+        bytes32[] memory newSigners = new bytes32[](2);
+        newSigners[0] = hex"4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa";
+        newSigners[1] = hex"466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27";
+
+        vm.prank(owner);
+        vm.expectRevert("Signers not sorted");
         bridge.setSigners(newSigners);
     }
 
