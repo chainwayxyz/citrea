@@ -231,7 +231,7 @@ pub(crate) async fn get_fee_rate_from_mempool_space(mempool_space_url: &str) -> 
         .await
         .map_err(|e| {
             trace!("Failed to fetch from {}: {:?}", url, e);
-            FeeServiceError::MempoolSpaceParseError
+            FeeServiceError::MempoolSpaceRequestError(e)
         })?;
 
     let json = response.json::<serde_json::Value>().await.map_err(|e| {
