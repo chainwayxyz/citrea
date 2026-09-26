@@ -28,8 +28,13 @@ impl StateDB {
 
     /// Initialize [`DB`] that should be globally used
     pub fn setup_schema_db(cfg: &RocksdbConfig) -> anyhow::Result<sov_schema_db::DB> {
-        let raw_options = cfg.as_raw_options(false);
-        let state_db_path = cfg.path.join(Self::DB_PATH_SUFFIX);
+        let mut state_db_config = cfg.clone();
+
+        // RocksDB config assign available open files but since we spawn 3 different rocksdb instances, we need to share between them
+        // Allocate 70% for StateDB
+        state_db_config.max_open_files = state_db_config.max_open_files * 70 / 100;
+        let raw_options = state_db_config.as_raw_options(false);
+        let state_db_path = state_db_config.path.join(Self::DB_PATH_SUFFIX);
         sov_schema_db::DB::open(
             state_db_path,
             Self::DB_NAME,

@@ -24,8 +24,14 @@ impl NativeDB {
 
     /// Initialize [`sov_schema_db::DB`] that matches tables and columns for NativeDB
     pub fn setup_schema_db(cfg: &RocksdbConfig) -> anyhow::Result<sov_schema_db::DB> {
-        let raw_options = cfg.as_raw_options(false);
-        let path = cfg.path.join(Self::DB_PATH_SUFFIX);
+        let mut schema_db_config = cfg.clone();
+
+        // RocksDB config assign available open files but since we spawn 3 different rocksdb instances, we need to share between them
+        // Allocate 20% for NativeDB
+        schema_db_config.max_open_files = schema_db_config.max_open_files * 20 / 100;
+
+        let raw_options = schema_db_config.as_raw_options(false);
+        let path = schema_db_config.path.join(Self::DB_PATH_SUFFIX);
         sov_schema_db::DB::open(
             path,
             Self::DB_NAME,
