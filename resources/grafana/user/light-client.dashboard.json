@@ -18,13 +18,13 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 8,
+  "id": 491,
   "links": [],
   "panels": [
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "eeycninjxliwwb"
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
@@ -37,7 +37,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               }
             ]
           }
@@ -66,15 +66,15 @@
         "showThresholdMarkers": true,
         "sizing": "auto"
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "11.5.1",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "eeycninjxliwwb"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "light_client_prover_current_l1_block",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
@@ -90,7 +90,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "eeycninjxliwwb"
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
@@ -136,7 +136,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -167,15 +167,15 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "11.5.1",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "eeycninjxliwwb"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "light_client_prover_proving_time",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
@@ -191,7 +191,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "eeycninjxliwwb"
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
@@ -226,7 +226,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -241,7 +241,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 8
       },
       "id": 3,
       "interval": "1s",
@@ -275,12 +275,12 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "11.5.1",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "eeycninjxliwwb"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
           "editorMode": "builder",
@@ -295,7 +295,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "eeycninjxliwwb"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
           "editorMode": "builder",
@@ -319,10 +319,10 @@
       ],
       "type": "xychart"
     },
-        {
+    {
       "datasource": {
         "type": "prometheus",
-        "uid": "eeycninjxliwwb"
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
@@ -368,7 +368,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -399,15 +399,15 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "11.5.1",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "eeycninjxliwwb"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "proving_session_cycle_count",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
@@ -423,7 +423,93 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "eeycninjxliwwb"
+        "uid": "eed8s4geh3myob"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "light_client_prover_highest_proven_index",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "Commitment index",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "light_client_prover_highest_proven_l2_height",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "L2 height",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        }
+      ],
+      "title": "Proven L2 height and commitment index",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
@@ -469,7 +555,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -483,8 +569,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 16
+        "x": 0,
+        "y": 24
       },
       "id": 5,
       "options": {
@@ -500,16 +586,16 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "11.5.1",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "eeycninjxliwwb"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "light_client_prover_rpc_response_time{job=\"citrea-light-prover\"}",
+          "editorMode": "code",
+          "expr": "light_client_prover_rpc_response_time",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
@@ -520,136 +606,22 @@
       ],
       "title": "Rpc Response Times",
       "type": "timeseries"
-    },
-        {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "eeycninjxliwwb"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
-      },
-      "id": 6,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.1.1",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "eeycninjxliwwb"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "light_client_prover_highest_proven_index",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "Commitment index",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "eeycninjxliwwb"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "exemplar": false,
-          "expr": "light_client_prover_highest_proven_l2_height",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "L2 height",
-          "range": true,
-          "refId": "B",
-          "useBackend": false
-        }
-      ],
-      "title": "Proven L2 height and commitment index",
-      "type": "stat"
     }
   ],
   "preload": false,
-  "schemaVersion": 41,
+  "schemaVersion": 40,
   "tags": [],
   "templating": {
-    "list": [
-      {
-        "allowCustomValue": false,
-        "current": {
-          "text": "test-net",
-          "value": "test-net"
-        },
-        "label": "Net Name",
-        "name": "net_name",
-        "options": [
-          {
-            "selected": true,
-            "text": "test-net",
-            "value": "test-net"
-          },
-          {
-            "selected": false,
-            "text": "dev-net",
-            "value": "dev-net"
-          },
-          {
-            "selected": false,
-            "text": "main-net",
-            "value": "main-net"
-          }
-        ],
-        "query": "test-net,dev-net,main-net",
-        "type": "custom"
-      }
-    ]
+    "list": []
   },
   "time": {
-    "from": "now-15m",
+    "from": "now-5m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "New Light Client Prover Dashboard",
-  "uid": "2364282f-fe43-4718-b561-6dc2c0c771ee",
-  "version": 11
+  "uid": "2364282f-fe43-4718-b561-6dc2c0c7715b",
+  "version": 9,
+  "weekStart": ""
 }

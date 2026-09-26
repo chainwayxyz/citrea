@@ -1,19 +1,15 @@
 services:
   prometheus:
     container_name: prometheus.citrea
-    build:
-      context: ./prometheus
-      dockerfile: Dockerfile
-    image: local-prometheus
+    image: prom/prometheus
     ports:
       - 9090:9090
     volumes:
-      - ./telemetry/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./telemetry-user/prometheus.yml:/etc/prometheus/prometheus.yml
     networks:
       - monitoring
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
   grafana:
     image: grafana/grafana-enterprise
     ports:
@@ -21,8 +17,8 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=password
     volumes:
-      - grafana_data:/var/lib/grafana
-      - ./telemetry/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - grafana_data_user:/var/lib/grafana
+      - ./telemetry-user/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
     networks:
       - monitoring
 
@@ -44,4 +40,4 @@ networks:
     driver: bridge
 
 volumes:
-  grafana_data: {}
+  grafana_data_user: {}
