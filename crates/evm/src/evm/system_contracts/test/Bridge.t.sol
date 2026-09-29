@@ -20,6 +20,15 @@ contract BridgeHarness is Bridge {
     function verifySigInTx_(bytes memory input, bytes memory output, bytes memory witness0, bytes4 version, bytes4 locktime, bytes32 shaScriptPubkeys) public view {
         super.verifySigInTx(input, output, witness0, version, locktime, shaScriptPubkeys);
     }
+
+    function pushDepositTxId_(bytes32 _txId) public {
+        depositTxIds.push(_txId);
+        depositTxIdToIndex[_txId] = depositTxIds.length;
+    }
+
+    function pushWithdrawal_(bytes32 _txId, bytes4 _outputId) public {
+        withdrawalUTXOs.push(UTXO({txId: _txId, outputId: _outputId}));
+    }
 }
 
 contract RevertingReceiver {}
@@ -467,6 +476,137 @@ contract BridgeTest is Test {
         assertEq(bridge.depositTxIds(1), hex"6a1d18b80867c0bc84cb9a20ec88922cf17a7bdd50e5237d67b6fad11d70fe95");
         assertEq(bridge.depositTxIdToIndex(hex"36db3e96dc72a2be198234a326f3443c9326d2546deca3576a1959725a039108"), 2);
         assertEq(bridge.depositTxIdToIndex(hex"6a1d18b80867c0bc84cb9a20ec88922cf17a7bdd50e5237d67b6fad11d70fe95"), 2);
+    }
+
+    function testSplitDepositAmount() public {
+        seedSplitState(15, 4);
+
+        vm.expectEmit(address(bridge));
+        emit Bridge.DepositAmountSplit(10 ether, 1 ether, 4, 15, 15, 10);
+        vm.expectEmit(address(bridge));
+        emit Bridge.OptimisticWithdrawAmountSet(1e8 - 240);
+        vm.prank(owner);
+        bridge.splitDepositAmount(1 ether);
+
+        assertEq(bridge.depositAmount(), 1 ether);
+        assertEq(bridge.optimisticWithdrawAmountSats(), 1e8 - 240);
+
+        assertEq(bridge.getWithdrawalCount(), 15);
+        for (uint256 i = 0; i < 4; i++) {
+            (bytes32 utxoTxId, bytes4 utxoOutputId) = bridge.withdrawalUTXOs(i);
+            assertEq(utxoTxId, keccak256(abi.encode("withdrawal", i)));
+            assertEq(utxoOutputId, bytes4(uint32(i)));
+        }
+        for (uint256 i = 4; i < 15; i++) {
+            (bytes32 utxoTxId, bytes4 utxoOutputId) = bridge.withdrawalUTXOs(i);
+            assertEq(utxoTxId, bytes32(0));
+            assertEq(utxoOutputId, bytes4(0));
+        }
+
+        bytes memory tag = bridge.DEPOSIT_SPLIT_TAG();
+        for (uint256 i = 0; i < 15; i++) {
+            assertEq(bridge.depositTxIds(i), keccak256(abi.encode("deposit", i)));
+        }
+        for (uint256 i = 4; i < 15; i++) {
+            bytes32 sourceTxId = bridge.depositTxIds(i);
+            for (uint256 j = 0; j < 10; j++) {
+                uint256 fakeIndex = 15 + (i - 4) * 10 + j;
+                bytes32 fakeTxId = sha256(abi.encodePacked(tag, sourceTxId, uint32(j)));
+                assertEq(bridge.depositTxIds(fakeIndex), fakeTxId);
+                assertEq(bridge.depositTxIdToIndex(fakeTxId), fakeIndex + 1);
+                assertFalse(bridge.processedTxIds(fakeTxId));
+            }
+        }
+        vm.expectRevert();
+        bridge.depositTxIds(125);
+    }
+
+    function testSplitDepositAmountFakeTxIdDerivation() public {
+        doDeposit();
+
+        vm.prank(owner);
+        bridge.splitDepositAmount(1 ether);
+
+        assertEq(bridge.getWithdrawalCount(), 1);
+        assertEq(bridge.depositTxIds(1), hex"0985c0333798ea930026e74219cbdeade55b3de7f97c25dc8e6ad3e49d5baf58");
+        assertEq(bridge.depositTxIds(10), hex"dfeeb338b09e2e12799053e1a2656893b18d166a7be13deae2bba2ad732a698c");
+        assertEq(bridge.depositTxIdToIndex(hex"0985c0333798ea930026e74219cbdeade55b3de7f97c25dc8e6ad3e49d5baf58"), 2);
+        assertEq(bridge.depositTxIdToIndex(hex"dfeeb338b09e2e12799053e1a2656893b18d166a7be13deae2bba2ad732a698c"), 11);
+    }
+
+    function testSplitDepositAmountWithNoLiveDeposits() public {
+        seedSplitState(4, 4);
+
+        vm.prank(owner);
+        bridge.splitDepositAmount(1 ether);
+
+        assertEq(bridge.depositAmount(), 1 ether);
+        assertEq(bridge.getWithdrawalCount(), 4);
+        vm.expectRevert();
+        bridge.depositTxIds(4);
+    }
+
+    function testWithdrawAfterSplitDepositAmount() public {
+        seedSplitState(15, 4);
+        vm.prank(owner);
+        bridge.splitDepositAmount(1 ether);
+
+        vm.deal(user, 11 ether);
+        vm.startPrank(user);
+        vm.expectRevert("Invalid withdraw amount");
+        bridge.withdraw{value: 10 ether}(txId, outputId);
+
+        vm.expectEmit(address(bridge));
+        emit Bridge.Withdrawal(Bridge.UTXO(txId, outputId), 15, block.timestamp);
+        bridge.withdraw{value: 1 ether}(txId, outputId);
+        vm.stopPrank();
+    }
+
+    function testCannotSplitDepositAmountWithInvalidAmount() public {
+        seedSplitState(15, 4);
+        vm.startPrank(owner);
+
+        vm.expectRevert("Invalid new deposit amount");
+        bridge.splitDepositAmount(0);
+        vm.expectRevert("Invalid new deposit amount");
+        bridge.splitDepositAmount(10 ether);
+        vm.expectRevert("Invalid new deposit amount");
+        bridge.splitDepositAmount(20 ether);
+        vm.expectRevert("Deposit amount must have valid satoshi value");
+        bridge.splitDepositAmount(5e9);
+        vm.expectRevert("Deposit amount must divide evenly");
+        bridge.splitDepositAmount(3 ether);
+
+        vm.stopPrank();
+    }
+
+    function testCannotSplitDepositAmountWithMoreWithdrawalsThanDeposits() public {
+        seedSplitState(1, 2);
+        vm.prank(owner);
+        vm.expectRevert("More withdrawals than deposits");
+        bridge.splitDepositAmount(1 ether);
+    }
+
+    function testNonOwnerCannotSplitDepositAmount() public {
+        vm.prank(operator);
+        vm.expectRevert();
+        bridge.splitDepositAmount(1 ether);
+
+        vm.prank(user);
+        vm.expectRevert();
+        bridge.splitDepositAmount(1 ether);
+    }
+
+    function testSplitDepositAmountFitsInBlockGasLimit() public {
+        seedSplitState(15, 4);
+
+        vm.prank(owner);
+        uint256 gasBefore = gasleft();
+        bridge.splitDepositAmount(1 ether);
+        uint256 gasUsed = gasBefore - gasleft();
+
+        console.log("splitDepositAmount gas for 11 live deposits:", gasUsed);
+        assertLt(gasUsed, 10_000_000);
     }
 
     function testCannotReplaceDepositWithMoreThanOneInputInReplaceTx() public {
@@ -1039,6 +1179,15 @@ contract BridgeTest is Test {
         Bridge.MerkleProof memory proof = Bridge.MerkleProof(intermediateNodes, INITIAL_BLOCK_NUMBER, index);
         bridge.deposit(depositTx, proof, shaScriptPubkeys);
         vm.stopPrank();
+    }
+
+    function seedSplitState(uint256 depositCount, uint256 withdrawalCount) internal {
+        for (uint256 i = 0; i < depositCount; i++) {
+            bridge.pushDepositTxId_(keccak256(abi.encode("deposit", i)));
+        }
+        for (uint256 i = 0; i < withdrawalCount; i++) {
+            bridge.pushWithdrawal_(keccak256(abi.encode("withdrawal", i)), bytes4(uint32(i)));
+        }
     }
 
     function doWithdraw() public {
