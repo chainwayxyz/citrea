@@ -284,14 +284,7 @@ contract ClementineActorsTest is Test {
             hex"d468a796bdbdbe6ea731320bb349e48da925f65f68aec64e1fa048f96d723f04",
             1
         );
-        actors.proveGarbledSetup(
-            circuitGeneratedTx(),
-            operatorKey,
-            watchtowerKey,
-            990,
-            collateralOutpoint(),
-            sourceShaScriptPubkeys
-        );
+        actors.proveGarbledSetup(circuitGeneratedTx(), operatorKey, watchtowerKey, 990, sourceShaScriptPubkeys);
         assertTrue(actors.garbledSetups(operatorKey, watchtowerKey));
     }
 
@@ -300,14 +293,7 @@ contract ClementineActorsTest is Test {
         actors.addCandidateWatchtowers(single(watchtowerKey));
 
         vm.expectRevert("Operator is not candidate or active");
-        actors.proveGarbledSetup(
-            circuitGeneratedTx(),
-            operatorKey,
-            watchtowerKey,
-            990,
-            collateralOutpoint(),
-            sourceShaScriptPubkeys
-        );
+        actors.proveGarbledSetup(circuitGeneratedTx(), operatorKey, watchtowerKey, 990, sourceShaScriptPubkeys);
     }
 
     function testCannotProveSetupForNonCandidateWatchtower() public {
@@ -315,21 +301,14 @@ contract ClementineActorsTest is Test {
         actors.addCandidateOperators(single(operatorKey), singleOutpoint(collateralOutpoint()));
 
         vm.expectRevert("Watchtower is not candidate or active");
-        actors.proveGarbledSetup(
-            circuitGeneratedTx(),
-            operatorKey,
-            watchtowerKey,
-            990,
-            collateralOutpoint(),
-            sourceShaScriptPubkeys
-        );
+        actors.proveGarbledSetup(circuitGeneratedTx(), operatorKey, watchtowerKey, 990, sourceShaScriptPubkeys);
     }
 
     function testCannotProveSetupWithWrongShaScriptPubkeys() public {
         addCandidatePair(operatorKey, watchtowerKey);
 
         vm.expectRevert("Invalid signature");
-        actors.proveGarbledSetup(circuitGeneratedTx(), operatorKey, watchtowerKey, 990, collateralOutpoint(), bytes32(0));
+        actors.proveGarbledSetup(circuitGeneratedTx(), operatorKey, watchtowerKey, 990, bytes32(0));
     }
 
     function testCannotProveSetupWithWrongCircuitVersion() public {
@@ -339,30 +318,7 @@ contract ClementineActorsTest is Test {
         actors.setCircuitVersion(2);
 
         vm.expectRevert("Invalid circuit script");
-        actors.proveGarbledSetup(
-            circuitGeneratedTx(),
-            operatorKey,
-            watchtowerKey,
-            990,
-            collateralOutpoint(),
-            sourceShaScriptPubkeys
-        );
-    }
-
-    function testCannotProveSetupWithWrongCollateralOutpoint() public {
-        addCandidatePair(operatorKey, watchtowerKey);
-        bytes memory wrongCollateralOutpoint = collateralOutpoint();
-        wrongCollateralOutpoint[35] = bytes1(0xfe);
-
-        vm.expectRevert("Operator collateral outpoint mismatch");
-        actors.proveGarbledSetup(
-            circuitGeneratedTx(),
-            operatorKey,
-            watchtowerKey,
-            990,
-            wrongCollateralOutpoint,
-            sourceShaScriptPubkeys
-        );
+        actors.proveGarbledSetup(circuitGeneratedTx(), operatorKey, watchtowerKey, 990, sourceShaScriptPubkeys);
     }
 
     function testCannotProveSetupWhenRegisteredCollateralDiffersFromScript() public {
@@ -373,16 +329,8 @@ contract ClementineActorsTest is Test {
         actors.addCandidateWatchtowers(single(watchtowerKey));
         vm.stopPrank();
 
-        vm.expectRevert("Operator collateral outpoint mismatch");
-        actors.proveGarbledSetup(
-            circuitGeneratedTx(), operatorKey, watchtowerKey, 990, collateralOutpoint(), sourceShaScriptPubkeys
-        );
-        assertFalse(actors.garbledSetups(operatorKey, watchtowerKey));
-
         vm.expectRevert("Invalid circuit script");
-        actors.proveGarbledSetup(
-            circuitGeneratedTx(), operatorKey, watchtowerKey, 990, registeredOutpoint, sourceShaScriptPubkeys
-        );
+        actors.proveGarbledSetup(circuitGeneratedTx(), operatorKey, watchtowerKey, 990, sourceShaScriptPubkeys);
         assertFalse(actors.garbledSetups(operatorKey, watchtowerKey));
     }
 
@@ -395,14 +343,7 @@ contract ClementineActorsTest is Test {
         actors.setSecurityCouncil(2, council);
 
         vm.expectRevert("Invalid circuit script");
-        actors.proveGarbledSetup(
-            circuitGeneratedTx(),
-            operatorKey,
-            watchtowerKey,
-            990,
-            collateralOutpoint(),
-            sourceShaScriptPubkeys
-        );
+        actors.proveGarbledSetup(circuitGeneratedTx(), operatorKey, watchtowerKey, 990, sourceShaScriptPubkeys);
     }
 
     function testCannotProveSetupWithInvalidSignature() public {
@@ -410,14 +351,7 @@ contract ClementineActorsTest is Test {
         vm.etch(address(0x200), address(new MockSchnorrPrecompileAlwaysRejectForActors()).code);
 
         vm.expectRevert("Invalid signature");
-        actors.proveGarbledSetup(
-            circuitGeneratedTx(),
-            operatorKey,
-            watchtowerKey,
-            990,
-            collateralOutpoint(),
-            sourceShaScriptPubkeys
-        );
+        actors.proveGarbledSetup(circuitGeneratedTx(), operatorKey, watchtowerKey, 990, sourceShaScriptPubkeys);
     }
 
     function testCanSetInitialActiveActors() public {
@@ -621,14 +555,7 @@ contract ClementineActorsTest is Test {
         actors.disableOperator(operatorKey);
 
         vm.expectRevert("Operator is not candidate or active");
-        actors.proveGarbledSetup(
-            circuitGeneratedTx(),
-            operatorKey,
-            watchtowerKey,
-            990,
-            collateralOutpoint(),
-            sourceShaScriptPubkeys
-        );
+        actors.proveGarbledSetup(circuitGeneratedTx(), operatorKey, watchtowerKey, 990, sourceShaScriptPubkeys);
     }
 
     function testNonOwnerCannotRemoveActiveActors() public {
