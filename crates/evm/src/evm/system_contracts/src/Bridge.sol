@@ -72,6 +72,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
 
     uint256 public optimisticWithdrawAmountSats;
     bytes32[] public signers;
+    /// @dev 1-indexed (`depositTxIds` index + 1) so that 0 means the txId is not a deposit
     mapping(bytes32 => uint256) public depositTxIdToIndex;
 
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
@@ -238,7 +239,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         require(!processedTxIds[txId], "txId already spent");
         processedTxIds[txId] = true;
         depositTxIds.push(txId);
-        depositTxIdToIndex[txId] = depositTxIds.length - 1;
+        depositTxIdToIndex[txId] = depositTxIds.length;
         
         uint256 signerCount = getSignerCount();
         bytes memory script = WitnessUtils.extractItemFromWitness(witness0, signerCount); // skip signer signatures
@@ -417,7 +418,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         bytes32 txIdToReplace = depositTxIds[idToReplace];
         depositTxIds[idToReplace] = newTxId;
         // Not deleting the old txId from `depositTxIdToIndex` mapping since Clementine uses this information
-        depositTxIdToIndex[newTxId] = idToReplace;
+        depositTxIdToIndex[newTxId] = idToReplace + 1;
 
         uint256 signerCount = getSignerCount();
         bytes memory script = WitnessUtils.extractItemFromWitness(witness0, signerCount); // skip signer signatures
