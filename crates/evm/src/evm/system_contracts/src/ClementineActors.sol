@@ -177,7 +177,6 @@ contract ClementineActors is Initializable, Ownable2StepUpgradeable {
         bytes32 operatorKey,
         bytes32 watchtowerKey,
         uint256 sourceUtxoValueSats,
-        bytes calldata operatorCollateralOutpoint,
         bytes32 shaScriptPubkeys
     ) external {
         ActorStatus operatorStatus_ = operators.status[operatorKey];
@@ -185,7 +184,6 @@ contract ClementineActors is Initializable, Ownable2StepUpgradeable {
         require(_isCandidateOrActive(operatorStatus_), "Operator is not candidate or active");
         require(_isCandidateOrActive(watchtowerStatus_), "Watchtower is not candidate or active");
         require(!garbledSetups(operatorKey, watchtowerKey), "Garbled setup already proven");
-        require(operatorCollateralOutpoint.length == 36, "Invalid collateral outpoint");
 
         (bytes32 wtxId, uint256 nIns) = _validateTransaction(circuitGeneratedTx);
         require(nIns == 1, "Only one input allowed");
@@ -198,9 +196,7 @@ contract ClementineActors is Initializable, Ownable2StepUpgradeable {
         require(nItems == 4, "Invalid witness items");
 
         bytes memory script = witness0.extractItemFromWitness(2);
-        bytes memory expectedScript = _validateCircuitGeneratedScript(
-            script, operatorKey, watchtowerKey, operatorCollateralOutpoint
-        );
+        bytes memory expectedScript = _validateCircuitGeneratedScript(script, operatorKey, watchtowerKey);
         _verifyCircuitGeneratedSignatures(
             input,
             outputs,
@@ -490,27 +486,18 @@ contract ClementineActors is Initializable, Ownable2StepUpgradeable {
         return (wtxId, nIns);
     }
 
-    function _validateCircuitGeneratedScript(
-        bytes memory scriptWithLen,
-        bytes32 operatorKey,
-        bytes32 watchtowerKey,
-        bytes calldata operatorCollateralOutpoint
-    )
+    function _validateCircuitGeneratedScript(bytes memory scriptWithLen, bytes32 operatorKey, bytes32 watchtowerKey)
         internal
         view
         returns (bytes memory expectedScriptWithLen)
     {
-        require(
-            keccak256(operatorCollateralOutpoint) == keccak256(operatorCollateralOutpoints[operatorKey]),
-            "Operator collateral outpoint mismatch"
-        );
         (uint256 varIntDataLen, uint256 scriptLen) = BTCUtils.parseVarInt(scriptWithLen);
         require(varIntDataLen != BTCUtils.ERR_BAD_ARG, "Bad circuit script length");
 
         uint256 offset = 1 + varIntDataLen;
         require(scriptWithLen.length == offset + scriptLen, "Invalid circuit script length");
 
-        bytes memory expectedScript = _buildCircuitGeneratedScript(operatorKey, watchtowerKey, operatorCollateralOutpoint);
+        bytes memory expectedScript = _buildCircuitGeneratedScript(operatorKey, watchtowerKey);
         expectedScriptWithLen = abi.encodePacked(_compactSize(expectedScript.length), expectedScript);
         require(scriptWithLen.length == expectedScriptWithLen.length, "Invalid circuit script length");
         require(keccak256(scriptWithLen) == keccak256(expectedScriptWithLen), "Invalid circuit script");
@@ -576,11 +563,12 @@ contract ClementineActors is Initializable, Ownable2StepUpgradeable {
         return vector.slice(offset, vector.length - offset);
     }
 
-    function _buildCircuitGeneratedScript(
-        bytes32 operatorKey,
-        bytes32 watchtowerKey,
-        bytes calldata operatorCollateralOutpoint
-    ) internal view returns (bytes memory) {
+    function _buildCircuitGeneratedScript(bytes32 operatorKey, bytes32 watchtowerKey)
+        internal
+        view
+        returns (bytes memory)
+    {
+        bytes memory operatorCollateralOutpoint = operatorCollateralOutpoints[operatorKey];
         bytes memory securityCouncilScript = _buildSecurityCouncilScript();
         return abi.encodePacked(
             hex"20",
