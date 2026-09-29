@@ -53,6 +53,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     bytes public constant INPUT_INDEX = hex"00000000";
     bytes public constant KEY_VERSION = hex"00";
     bytes public constant CODESEP_POS = hex"ffffffff";
+    bytes public constant DEPOSIT_SPLIT_TAG = "CITREA_DEPOSIT_SPLIT";
 
     bool public initialized;
     address public operator;
@@ -72,6 +73,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
 
     uint256 public optimisticWithdrawAmountSats;
     bytes32[] public signers;
+    /// @dev 1-indexed (`depositTxIds` index + 1) so that 0 means the txId is not a deposit
     mapping(bytes32 => uint256) public depositTxIdToIndex;
 
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
@@ -85,6 +87,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     event DepositTransferFailed(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event OptimisticWithdrawAmountSet(uint256 amount);
     event SignersUpdated(bytes32[] signers);
+    event DepositAmountSplit(uint256 oldDepositAmount, uint256 newDepositAmount, uint256 fillerWithdrawalStart, uint256 splitSourceEnd, uint256 fakeDepositStart, uint256 splitCount);
 
     modifier onlySystem() {
         require(msg.sender == SYSTEM_CALLER, "caller is not the system caller");
@@ -205,6 +208,43 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         emit OptimisticWithdrawAmountSet(_optimisticWithdrawAmountSats);
     }
 
+    /// @notice Lowers `depositAmount` by an integer factor, splitting every live deposit into `splitCount` deposits of the new amount
+    /// @notice Live deposits are the ones not yet paired with a withdrawal at the same index. `withdrawalUTXOs` is padded with zero UTXOs
+    /// so that every live deposit gets paired, then `splitCount` fake txIds are appended to `depositTxIds` per live deposit.
+    /// @dev Fake txIds are `sha256(DEPOSIT_SPLIT_TAG || sourceTxId || uint32 splitIndex)` and are meant to be swapped with real
+    /// move transactions of the new amount via `replaceDeposit`. They are not marked in `processedTxIds`.
+    /// @param _newDepositAmount The new CBTC amount that can be deposited and withdrawn, must evenly divide the current `depositAmount`
+    function splitDepositAmount(uint256 _newDepositAmount) external onlyOwner {
+        uint256 oldDepositAmount = depositAmount;
+        require(_newDepositAmount != 0 && _newDepositAmount < oldDepositAmount, "Invalid new deposit amount");
+        require(_newDepositAmount % SAT_TO_WEI == 0, "Deposit amount must have valid satoshi value");
+        require(oldDepositAmount % _newDepositAmount == 0, "Deposit amount must divide evenly");
+        uint256 splitCount = oldDepositAmount / _newDepositAmount;
+
+        uint256 withdrawalCount = withdrawalUTXOs.length;
+        uint256 depositCount = depositTxIds.length;
+        require(withdrawalCount <= depositCount, "More withdrawals than deposits");
+
+        for (uint256 i = withdrawalCount; i < depositCount; i++) {
+            withdrawalUTXOs.push(UTXO({txId: bytes32(0), outputId: bytes4(0)}));
+        }
+        for (uint256 i = withdrawalCount; i < depositCount; i++) {
+            bytes32 sourceTxId = depositTxIds[i];
+            for (uint256 j = 0; j < splitCount; j++) {
+                bytes32 fakeTxId = sha256(abi.encodePacked(DEPOSIT_SPLIT_TAG, sourceTxId, uint32(j)));
+                depositTxIds.push(fakeTxId);
+                depositTxIdToIndex[fakeTxId] = depositTxIds.length;
+            }
+        }
+
+        depositAmount = _newDepositAmount;
+        uint256 _optimisticWithdrawAmountSats = (_newDepositAmount / SAT_TO_WEI) - PAYOUT_ANCHOR_OUTPUT_AMOUNT;
+        optimisticWithdrawAmountSats = _optimisticWithdrawAmountSats;
+
+        emit DepositAmountSplit(oldDepositAmount, _newDepositAmount, withdrawalCount, depositCount, depositCount, splitCount);
+        emit OptimisticWithdrawAmountSet(_optimisticWithdrawAmountSats);
+    }
+
     /// @notice Checks if the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
     /// @param moveTx Transaction parameters of the move transaction on Bitcoin
     /// @param proof Merkle proof of the move transaction
@@ -238,7 +278,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         require(!processedTxIds[txId], "txId already spent");
         processedTxIds[txId] = true;
         depositTxIds.push(txId);
-        depositTxIdToIndex[txId] = depositTxIds.length - 1;
+        depositTxIdToIndex[txId] = depositTxIds.length;
         
         uint256 signerCount = getSignerCount();
         bytes memory script = WitnessUtils.extractItemFromWitness(witness0, signerCount); // skip signer signatures
@@ -417,7 +457,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
         bytes32 txIdToReplace = depositTxIds[idToReplace];
         depositTxIds[idToReplace] = newTxId;
         // Not deleting the old txId from `depositTxIdToIndex` mapping since Clementine uses this information
-        depositTxIdToIndex[newTxId] = idToReplace;
+        depositTxIdToIndex[newTxId] = idToReplace + 1;
 
         uint256 signerCount = getSignerCount();
         bytes memory script = WitnessUtils.extractItemFromWitness(witness0, signerCount); // skip signer signatures
