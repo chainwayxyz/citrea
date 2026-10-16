@@ -436,7 +436,7 @@ pub trait LedgerRpcProvider {
         &self,
         start: u64,
         end: u64,
-    ) -> Result<Vec<Option<L2BlockResponse>>, anyhow::Error>;
+    ) -> Result<Vec<L2BlockResponse>, anyhow::Error>;
 
     /// Returns the L2 genesis state root
     fn get_l2_genesis_state_root(&self) -> Result<Option<Vec<u8>>, anyhow::Error>;
