@@ -270,7 +270,7 @@ where
             )
             .map_err(internal_rpc_error)?;
 
-        let l1_hash = l1_block.header().hash().into();
+        let l1_hash = l1_block.header().hash();
         let raw_input = borsh::to_vec(&prepared.circuit_input).map_err(internal_rpc_error)?;
         Ok(LightClientCircuitInputRpcResponse {
             l1_height: U64::from(l1_height),

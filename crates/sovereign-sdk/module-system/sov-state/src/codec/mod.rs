@@ -12,6 +12,8 @@ pub use rlp_codec::RlpCodec;
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
+
     use proptest::collection::vec;
     use proptest::prelude::any;
     use proptest::strategy::Strategy;
@@ -41,8 +43,8 @@ mod tests {
             #[allow(non_local_definitions)]
             impl EncodeKeyLike<[i32], Vec<i32>> for BorshCodec
             {
-                fn encode_key_like(&self, borrowed: &[i32]) -> Vec<u8> {
-                    borsh::to_vec(&borrowed).unwrap()
+                fn encode_key_like<'k>(&self, borrowed: &'k [i32]) -> Cow<'k, [u8]> {
+                    Cow::Owned(borsh::to_vec(&borrowed).unwrap())
                 }
             }
             let codec = BorshCodec;

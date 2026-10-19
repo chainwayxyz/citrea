@@ -137,7 +137,7 @@ pub trait DaSpec:
     type SlotHash: BlockHashTrait;
 
     /// The block header type used by the DA layer
-    type BlockHeader: BlockHeaderTrait<Hash = Self::SlotHash> + Send + Sync;
+    type BlockHeader: BlockHeaderTrait + Send + Sync;
 
     /// The transaction type used by the DA layer.
     type BlobTransaction: BlobReaderTrait<Address = Self::Address> + Send + Sync + Clone;
@@ -381,22 +381,19 @@ pub trait BlockHashTrait:
 pub trait BlockHeaderTrait:
     PartialEq + Debug + Clone + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned
 {
-    /// Each block header must have a unique canonical hash.
-    type Hash: Clone + core::fmt::Display + Into<[u8; 32]>;
-
     /// Each block header must contain the hash of the previous block.
-    fn prev_hash(&self) -> Self::Hash;
+    fn prev_hash(&self) -> [u8; 32];
 
     /// Hash the type to get the digest.
     /// This is pre computed so can't be trusted in zk
     /// until `verify_hash` is called
-    fn hash(&self) -> Self::Hash;
+    fn hash(&self) -> [u8; 32];
 
     /// Verify the hash of the block.
     fn verify_hash(&self) -> bool;
 
     /// Transactions commitment of the block.
-    fn txs_commitment(&self) -> Self::Hash;
+    fn txs_commitment(&self) -> [u8; 32];
 
     /// The current header height
     fn height(&self) -> u64;

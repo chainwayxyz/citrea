@@ -400,7 +400,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
             WorkingSet::with_witness(storage.clone(), witness, Default::default());
 
         // first insert the block hash into the JMT
-        BlockHashAccessor::<S>::insert(da_block_header.hash().into(), &mut working_set);
+        BlockHashAccessor::<S>::insert(da_block_header.hash(), &mut working_set);
 
         let (mut last_l2_state_root, mut last_l2_height, mut last_sequencer_commitment_index) =
             previous_light_client_proof_output.as_ref().map_or_else(

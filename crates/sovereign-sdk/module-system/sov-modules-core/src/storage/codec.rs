@@ -1,5 +1,6 @@
 //! Encoding codec definitions
 
+use alloc::borrow::Cow;
 use alloc::format;
 use alloc::vec::Vec;
 use core::fmt;
@@ -57,7 +58,7 @@ pub trait StateKeyCodec<K> {
     /// 2. The serialization result **MUST NOT** depend on the compilation target
     ///    and other runtime environment parameters. If that were the case, zkVM
     ///    code and native code wouldn't produce the same keys.
-    fn encode_key(&self, key: &K) -> Vec<u8>;
+    fn encode_key<'k>(&self, key: &'k K) -> Cow<'k, [u8]>;
 }
 
 /// A trait for types that can serialize keys and values, as well
@@ -89,7 +90,7 @@ pub trait StateCodec {
 /// encodings by default.
 pub trait EncodeKeyLike<Ref: ?Sized, Target> {
     /// Encodes a reference to `Ref` as if it were a reference to `Target`.
-    fn encode_key_like(&self, borrowed: &Ref) -> Vec<u8>;
+    fn encode_key_like<'k>(&self, borrowed: &'k Ref) -> Cow<'k, [u8]>;
 }
 
 // All items can be encoded like themselves by all codecs
@@ -97,7 +98,7 @@ impl<C, T> EncodeKeyLike<T, T> for C
 where
     C: StateKeyCodec<T>,
 {
-    fn encode_key_like(&self, borrowed: &T) -> Vec<u8> {
+    fn encode_key_like<'k>(&self, borrowed: &'k T) -> Cow<'k, [u8]> {
         self.encode_key(borrowed)
     }
 }

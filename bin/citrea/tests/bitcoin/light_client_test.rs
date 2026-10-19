@@ -3773,7 +3773,7 @@ impl TestCase for LightClientCreateCircuitInputRpcTest {
         let circuit_input =
             LightClientCircuitInput::<BitcoinSpec>::try_from_slice(&input_response.input)?;
 
-        let input_l1_hash: [u8; 32] = circuit_input.da_block_header.hash().into();
+        let input_l1_hash: [u8; 32] = circuit_input.da_block_header.hash();
         assert_eq!(
             circuit_input.da_block_header.height(),
             batch_proof_l1_height
