@@ -45,14 +45,14 @@ contract MockSchnorrPrecompile {
         uint256 rx;
         uint256 s;
         bytes32 m;
-
+        
         assembly {
             px := calldataload(0)
             m := calldataload(32)
             rx := calldataload(64)
             s := calldataload(96)
         }
-
+        
         return abi.encode(verify(px, rx, s, m));
     }
 
@@ -61,17 +61,17 @@ contract MockSchnorrPrecompile {
         if (px >= PP || rx >= PP || s >= NN) {
             return hex"";
         }
-
+        
         (address exp_, bool ok) = convToFakeAddr(rx);
         if (!ok) {
             return hex"";
         }
-
+        
         uint256 e = computeChallenge(bytes32(rx), bytes32(px), m);
         bytes32 sp = bytes32(NN - mulmod(s, px, NN));
         bytes32 ep = bytes32(NN - mulmod(e, px, NN));
         address rvh = ecrecover(sp, 27, bytes32(px), ep);
-
+        
         assembly {
             if eq(rvh, exp_) {
                 let result := mload(0x40)
@@ -89,7 +89,7 @@ contract MockSchnorrPrecompile {
         if (_x >= PP) {
             return (0, false);
         }
-
+        
         // Taken from the EllipticCurve code.
         uint256 y2 = addmod(mulmod(_x, mulmod(_x, _x, PP), PP), addmod(mulmod(_x, AA, PP), BB, PP), PP);
         y2 = expMod(y2, (PP + 1) / 4, PP);
@@ -192,7 +192,7 @@ contract BridgeTest is Test {
         address proxy_impl = address(new TransparentUpgradeableProxy(bridgeImpl, address(proxyAdmin), ""));
 
         vm.etch(address(bridge), proxy_impl.code);
-
+        
         // Mock Schnorr verifier precompile
         vm.etch(address(0x200), address(new MockSchnorrPrecompile()).code);
 
@@ -298,7 +298,7 @@ contract BridgeTest is Test {
         (bytes32 _txId, bytes4 _outputId) = bridge.withdrawalUTXOs(withdrawalCount);
         assertEq(_txId, txId);
         assertEq(_outputId, outputId);
-
+        
         // Assert if tokens are burned from receiver
         assertEq(receiver.balance, 0);
 
@@ -320,7 +320,7 @@ contract BridgeTest is Test {
             assertEq(_txId, txIds[i]);
             assertEq(_outputId, outputIds[i]);
         }
-
+        
         assertEq(user.balance, 0);
     }
 
@@ -750,9 +750,9 @@ contract BridgeTest is Test {
 
     function testDepositRedirectsWhenReceiverReverts() public {
         RevertingReceiver rev = new RevertingReceiver();
-        vm.etch(receiver, address(rev).code);
+        vm.etch(receiver, address(rev).code); 
 
-        address vault = bridge.failedDepositVault();
+        address vault = bridge.failedDepositVault(); 
         uint256 vaultBalBefore = vault.balance;
 
         vm.startPrank(operator);
@@ -775,7 +775,7 @@ contract BridgeTest is Test {
 
         assertTrue(bridge.processedTxIds(hex"663453afeb5214bc2e60f40d4dc0a8a275324db880fe3233e7d677fb85ebf929"));
     }
-
+    
     function testSecondDepositId() public {
         doDeposit();
         vm.startPrank(SYSTEM_CALLER);
@@ -804,7 +804,7 @@ contract BridgeTest is Test {
         assertEq(receiver.balance, DEPOSIT_AMOUNT);
         prepareSafeWithdraw();
         doSafeWithdraw();
-
+        
         assertEq(receiver.balance, 0);
         // Assert if withdrawal UTXO is stored properly
         uint256 withdrawalCount = bridge.getWithdrawalCount();
@@ -1053,10 +1053,10 @@ contract BridgeTest is Test {
 
     function safeWithdrawTxInfo() public pure returns (Bridge.Transaction memory prepareTx, Bridge.MerkleProof memory proof, Bridge.Transaction memory payoutTx) {
         prepareTx = Bridge.Transaction(
-            hex"02000000",
-            hex"0001",
-            hex"0180f01d40c4c53e10a58e0e63d84ee369173c3b03e9c4787f33416beefac82f910000000000fdffffff",
-            hex"02e7251a1e01000000225120af6d60391056de5e15fd91efc05330439f58eaa811a24fe4bba53cd8c660562c26020000000000002251202a64b1ee3375f3bb4b367b8cb8384a47f73cf231717f827c6c6fbbf5aecf0c36",
+            hex"02000000", 
+            hex"0001", 
+            hex"0180f01d40c4c53e10a58e0e63d84ee369173c3b03e9c4787f33416beefac82f910000000000fdffffff", 
+            hex"02e7251a1e01000000225120af6d60391056de5e15fd91efc05330439f58eaa811a24fe4bba53cd8c660562c26020000000000002251202a64b1ee3375f3bb4b367b8cb8384a47f73cf231717f827c6c6fbbf5aecf0c36", 
             hex"01404344971b6185f8724449b964393220cf37cbc124727ad29df7540ee9048f47a704845f8f3d7c2c240ae904c45de08b0187cc41745d5266b8e5a5d092d30ed19b",
             hex"d5000000"
         );
@@ -1066,10 +1066,10 @@ contract BridgeTest is Test {
             2
         );
         payoutTx = Bridge.Transaction(
-            hex"02000000",
-            hex"0001",
-            hex"019e7138d6bebcc9cab3de962a1d2dd35163d49a0f9053ad1afc9cd5539249af780100000000fdffffff",
-            hex"016043993b000000002251209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90",
+            hex"02000000", 
+            hex"0001", 
+            hex"019e7138d6bebcc9cab3de962a1d2dd35163d49a0f9053ad1afc9cd5539249af780100000000fdffffff", 
+            hex"016043993b000000002251209baa4044688dbec6a8b2044155f3d82b80fbc007115154c04eefd64491262f90", 
             hex"0141834e7a701035bb446dd4112c3a0498c1d7b44f89000f2c14e9a3ef8c04a05e6b1faa5727d1a7a62e6d46b7942ee17cb6766bde46f5b5d1e4337c57240e3c712a83",
             hex"00000000"
         );

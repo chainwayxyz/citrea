@@ -66,14 +66,13 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     UTXO[] public withdrawalUTXOs;
     bytes32[] public depositTxIds;
 
-
     mapping(bytes32 => bool) public processedTxIds;
     mapping(bytes32 => bool) public usedWithdrawalUTXO;
 
     uint256 public optimisticWithdrawAmountSats;
     bytes32[] public signers;
     mapping(bytes32 => uint256) public depositTxIdToIndex;
-
+    
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
     event SafeWithdrawal(Transaction payoutTx, UTXO spentUtxo, uint256 index);
@@ -166,7 +165,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     /// @notice Sets the x-only Schnorr signer keys expected in deposit and replacement Bitcoin scripts
     /// @notice The list must be strictly ascending, an order that also rules out duplicates
     /// @param _signers New signer list in the same order as the Bitcoin script checks signatures
-    /// @dev `depositPrefix` contains x-only Schnorr signer keys, so it should be updated accordingly when the signer list is updated 
+    /// @dev `depositPrefix` contains x-only Schnorr signer keys, so it should be updated accordingly when the signer list is updated
     function setSigners(bytes32[] calldata _signers) external onlyOwner {
         require(_signers.length != 0, "Signers cannot be empty");
         // Strictly ascending order implies no duplicates, and since bytes32(0) is the smallest
@@ -374,7 +373,7 @@ contract Bridge is Ownable2StepUpgradeable, PausableUpgradeable {
     function getWithdrawalCount() external view returns (uint256) {
         return withdrawalUTXOs.length;
     }
-
+    
     /// @notice Sets the operator address that can process user deposits
     /// @param _operator Address of the privileged operator
     function setOperator(address _operator) external onlyOwner {
