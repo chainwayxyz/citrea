@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use std::vec;
 
 use alloy_eips::eip2718::{Decodable2718, Encodable2718};
-use alloy_primitives::{keccak256, Address, Bytes, TxHash, U256};
+use alloy_primitives::{keccak256, Address, TxHash, U256};
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
@@ -30,8 +30,7 @@ use reth_tasks::shutdown::GracefulShutdown;
 use reth_tasks::TaskExecutor;
 use reth_transaction_pool::error::InvalidPoolTransactionError;
 use reth_transaction_pool::{
-    BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
-    ValidPoolTransaction,
+    BestTransactions, BestTransactionsAttributes, EthPooledTransaction, ValidPoolTransaction,
 };
 use revm::database::{AccountStatus, BundleAccount, BundleState};
 use revm::state::AccountInfo as ReVmAccountInfo;
@@ -69,7 +68,6 @@ use crate::deposit_data_mempool::{Deposit, DepositDataMempool};
 use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS as SM;
 use crate::types::SequencerRpcMessage;
-use crate::utils::recover_raw_transaction;
 
 /// Maximum number of DA blocks that can be missed per L2 block
 pub const MAX_MISSED_DA_BLOCKS_PER_L2_BLOCK: u64 = 10;
@@ -669,10 +667,9 @@ where
                 .as_secs_f64(),
         );
 
-        // Handle L1 fee failed transactions and persistent storage cleanup
+        // Handle L1 fee failed transactions
         // Note: Mined transaction removal from mempool is handled by the maintenance task
-        self.maintain_mempool(l1_fee_failed_txs)
-            .expect("Maintain mempool should NOT fail");
+        self.maintain_mempool(l1_fee_failed_txs);
 
         SM.no_dry_run_block_production_duration_secs.set(
             Instant::now()
@@ -1056,30 +1053,17 @@ where
         Chain::from_block(recovered_block, execution_outcome, None)
     }
 
-    /// Handles cleanup for L1 fee failed transactions and persistent storage
+    /// Handles cleanup for L1 fee failed transactions
     ///
     /// # Arguments
     /// * `l1_fee_failed_txs` - Transactions that failed due to L1 fee issues
-    pub(crate) fn maintain_mempool(&self, l1_fee_failed_txs: Vec<TxHash>) -> anyhow::Result<()> {
+    pub(crate) fn maintain_mempool(&self, l1_fee_failed_txs: Vec<TxHash>) {
         let start_maintain_mempool = Instant::now();
 
         // Remove L1 fee failed transactions from the mempool
         // These are not handled by the maintenance task
         if !l1_fee_failed_txs.is_empty() {
-            self.mempool.remove_transactions(l1_fee_failed_txs.clone());
-        }
-
-        // Clean up persistent storage for both included and failed transactions
-        let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
-        txs_to_remove.extend(l1_fee_failed_txs);
-
-        // Remove transactions from persistent storage
-        let txs = txs_to_remove
-            .iter()
-            .map(|tx_hash| tx_hash.to_vec())
-            .collect::<Vec<Vec<u8>>>();
-        if let Err(e) = self.ledger_db.remove_mempool_txs(txs) {
-            warn!("Failed to remove txs from mempool: {:?}", e);
+            self.mempool.remove_transactions(l1_fee_failed_txs);
         }
 
         SM.maintain_mempool_time.set(
@@ -1087,7 +1071,6 @@ where
                 .saturating_duration_since(start_maintain_mempool)
                 .as_secs_f64(),
         );
-        Ok(())
     }
 
     /// Main sequencer run loop
@@ -1098,6 +1081,11 @@ where
         &mut self,
         mut shutdown_signal: GracefulShutdown,
     ) -> Result<(), anyhow::Error> {
+        // Restore before anything can fail, so the shutdown save never overwrites an unread file.
+        if let Err(e) = self.mempool.restore().await {
+            warn!("Sequencer: Mempool restore error: {:?}", e);
+        }
+
         let l1_fee_rate_multiplier = self.config.l1_fee_rate_multiplier;
         let max_l1_fee_rate_sat_vb = self.config.max_l1_fee_rate_sat_vb;
 
@@ -1113,14 +1101,6 @@ where
             .get_block_at(1)
             .await
             .map_err(|e| anyhow!(e))?;
-
-        // Restore mempool state from persistent storage
-        match self.restore_mempool().await {
-            Ok(()) => debug!("Sequencer: Mempool restored"),
-            Err(e) => {
-                warn!("Sequencer: Mempool restore error: {:?}", e);
-            }
-        }
 
         // Get initial DA block data and fee rate
         let mut last_finalized_block = match get_finalized_block(self.da_service.clone()).await {
@@ -1317,7 +1297,7 @@ where
                     da_block_update_rx.close();
                     fee_rate_update_rx.close();
                     self.rpc_message_rx.close();
-                    return Ok(());
+                    return self.mempool.save();
                 }
             }
         }
@@ -1426,29 +1406,6 @@ where
             AccountExists { addr: _, nonce } => Ok(nonce),
             AccountEmpty => Ok(0),
         }
-    }
-
-    /// Restores the mempool state after a restart
-    pub async fn restore_mempool(&self) -> Result<(), anyhow::Error> {
-        // Load transactions from persistent storage
-        let mempool_txs = self.ledger_db.get_mempool_txs()?;
-
-        let mut failed_txs = vec![];
-
-        for (tx_hash, tx) in mempool_txs {
-            // Recover and add each transaction back to mempool
-            let recovered = recover_raw_transaction(Bytes::from(tx.as_slice().to_vec()))?;
-            let pooled_tx = EthPooledTransaction::from_pooled(recovered);
-
-            if let Err(e) = self.mempool.add_external_transaction(pooled_tx).await {
-                warn!("Failed to restore transaction: {}", e);
-                failed_txs.push(tx_hash);
-            }
-        }
-
-        self.ledger_db.remove_mempool_txs(failed_txs)?;
-
-        Ok(())
     }
 
     /// Processes missed DA blocks to catch up with L1

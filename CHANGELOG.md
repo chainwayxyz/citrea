@@ -1,5 +1,7 @@
 # Changelog
 ## [Unreleased]
+### Changed
+- feat(sequencer): Snapshot the in-memory mempool on graceful shutdown and revalidate transactions on startup, without going through DB.
 
 ## [v2.8.0](2026-09-10)
 ### Changed

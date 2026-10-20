@@ -7,7 +7,9 @@ use alloy::signers::Signer;
 use alloy_primitives::{Address, U256};
 use alloy_rpc_types::BlockNumberOrTag;
 use citrea_common::SequencerConfig;
+use citrea_sequencer::SequencerRpcClient;
 use citrea_stf::genesis_config::GenesisPaths;
+use jsonrpsee::http_client::HttpClientBuilder;
 use reth_tasks::TaskManager;
 use sov_db::ledger_db::migrations::copy_db_dir_recursive;
 
@@ -460,178 +462,188 @@ async fn test_l1_fee_failed_transactions() {
     seq_task.graceful_shutdown();
 }
 
-/// Test that persistent storage cleanup works correctly after restart
-///
-/// This test verifies that Citrea properly synchronizes with
-/// persistent storage and correctly handles the mempool state across node restarts.
+/// Waits for asynchronous startup revalidation or pool maintenance to finish.
+async fn wait_for_mempool_count(client: &TestClient, count: usize) {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while client.get_mempool_transaction_count().await.unwrap() != count {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("Timed out waiting for expected mempool contents");
+}
+
+/// Shutdown snapshots retain pending and queued transactions, including only the current
+/// replacement. Mined and explicitly removed transactions must never reappear.
 #[tokio::test(flavor = "multi_thread")]
-async fn test_persistent_storage_cleanup() {
-    let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
-    let da_db_dir = db_dir.path().join("DA").to_path_buf();
-    let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
-
+async fn test_mempool_restored_after_restart() {
+    let db_dir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = db_dir.path().join("DA");
+    let sequencer_db_dir = db_dir.path().join("sequencer");
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
-    let mut persistent_tx_hash;
-    let published_tx_hash;
+    let (seq_task, client) = initialize_test(sequencer_db_dir.clone(), da_db_dir.clone()).await;
 
-    // First sequencer instance
-    {
-        let (seq_task, test_client) =
-            initialize_test(sequencer_db_dir.clone(), da_db_dir.clone()).await;
+    let mined = *client
+        .send_eth(addr, None, None, Some(0), 1)
+        .await
+        .unwrap()
+        .tx_hash();
+    client.send_publish_batch_request().await;
+    wait_for_l2_block(&client, 1, None).await;
+    wait_for_mempool_count(&client, 0).await;
+    let pending = *client
+        .send_eth(addr, None, None, Some(1), 1)
+        .await
+        .unwrap()
+        .tx_hash();
+    let removed = *client
+        .send_eth(addr, None, None, Some(11), 1)
+        .await
+        .unwrap()
+        .tx_hash();
+    let rpc = HttpClientBuilder::default()
+        .build(format!("http://{}", client.rpc_addr))
+        .unwrap();
+    assert_eq!(
+        rpc.txpool_remove_txs_by_hash(vec![removed]).await.unwrap(),
+        vec![removed]
+    );
+    let replaced = *client
+        .send_eth(addr, None, None, Some(10), 1)
+        .await
+        .unwrap()
+        .tx_hash();
+    let queued = *client
+        .send_eth(addr, Some(20), Some(MAX_FEE_PER_GAS * 2), Some(10), 1)
+        .await
+        .unwrap()
+        .tx_hash();
+    assert!(!client.is_transaction_in_mempool(replaced).await.unwrap());
+    assert_eq!(client.get_mempool_transaction_count().await.unwrap(), 2);
+    assert!(
+        !sequencer_db_dir.join("mempool.rlp").exists(),
+        "No per-transaction disk writes"
+    );
+    seq_task.graceful_shutdown();
 
-        // Send transactions and verify persistence
-        let tx1 = test_client
-            .send_eth(addr, None, None, Some(0), 1_000_000_000u128)
-            .await
-            .unwrap();
-        let tx2 = test_client
-            .send_eth(addr, None, None, Some(1), 2_000_000_000u128)
-            .await
-            .unwrap();
-
-        published_tx_hash = *tx1.tx_hash();
-        persistent_tx_hash = *tx2.tx_hash();
-
-        assert_eq!(
-            test_client.get_mempool_transaction_count().await.unwrap(),
-            2,
-            "Should have 2 transactions in mempool initially"
-        );
-        assert!(
-            test_client
-                .is_transaction_in_mempool(published_tx_hash)
-                .await
-                .unwrap(),
-            "TX1 should be in mempool initially"
-        );
-        assert!(
-            test_client
-                .is_transaction_in_mempool(persistent_tx_hash)
-                .await
-                .unwrap(),
-            "TX2 should be in mempool initially"
-        );
-
-        test_client.send_publish_batch_request().await;
-        wait_for_l2_block(&test_client, 1, None).await;
-
-        // Wait for maintenance to process
-        tokio::time::sleep(Duration::from_millis(500)).await;
-
-        let block = test_client
-            .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
-            .await;
-        let block_transactions = block.transactions.as_hashes().unwrap();
-
-        assert!(
-            block_transactions.contains(&published_tx_hash),
-            "TX1 (nonce 0) should be published in block 1"
-        );
-        assert!(
-            block_transactions.contains(&persistent_tx_hash),
-            "TX2 (nonce 1) should also be published in block 1"
-        );
-
-        assert!(
-            !test_client
-                .is_transaction_in_mempool(published_tx_hash)
-                .await
-                .unwrap(),
-            "Published TX1 should be removed from mempool before shutdown"
-        );
-        assert!(
-            !test_client
-                .is_transaction_in_mempool(persistent_tx_hash)
-                .await
-                .unwrap(),
-            "Published TX2 should be removed from mempool before shutdown"
-        );
-
-        assert_eq!(
-            test_client.get_mempool_transaction_count().await.unwrap(),
-            0,
-            "Mempool should be empty after both transactions are published"
-        );
-
-        // Send a new transaction that will persist across restart
-        let tx3 = test_client
-            .send_eth(addr, None, None, Some(2), 3_000_000_000u128)
-            .await
-            .unwrap();
-        persistent_tx_hash = *tx3.tx_hash();
-
-        assert!(
-            test_client
-                .is_transaction_in_mempool(persistent_tx_hash)
-                .await
-                .unwrap(),
-            "TX3 should be in mempool before shutdown"
-        );
-
-        seq_task.graceful_shutdown();
+    let copy_dir = db_dir.path().join("sequencer_copy");
+    copy_db_dir_recursive(&sequencer_db_dir, &copy_dir).unwrap();
+    let (seq_task, client) = initialize_test(copy_dir.clone(), da_db_dir.clone()).await;
+    wait_for_mempool_count(&client, 2).await;
+    for hash in [pending, queued] {
+        assert!(client.is_transaction_in_mempool(hash).await.unwrap());
+    }
+    for hash in [mined, removed, replaced] {
+        assert!(!client.is_transaction_in_mempool(hash).await.unwrap());
     }
 
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    client.send_publish_batch_request().await;
+    wait_for_l2_block(&client, 2, None).await;
+    // Block production starts only after restoration has finished.
+    assert!(
+        !copy_dir.join("mempool.rlp").exists(),
+        "Restored snapshots should be consumed"
+    );
+    let block = client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(2)))
+        .await;
+    assert!(block.transactions.as_hashes().unwrap().contains(&pending));
+    wait_for_mempool_count(&client, 1).await;
+    let rpc = HttpClientBuilder::default()
+        .build(format!("http://{}", client.rpc_addr))
+        .unwrap();
+    assert_eq!(
+        rpc.txpool_remove_txs_by_hash(vec![queued]).await.unwrap(),
+        vec![queued]
+    );
+    seq_task.graceful_shutdown();
 
-    let sequencer_copy_dir = db_dir.path().join("sequencer_copy").to_path_buf();
-    copy_db_dir_recursive(&sequencer_db_dir, &sequencer_copy_dir)
-        .expect("Failed to copy sequencer database");
+    let empty_dir = db_dir.path().join("sequencer_empty");
+    copy_db_dir_recursive(&copy_dir, &empty_dir).unwrap();
+    let (seq_task, client) = initialize_test(empty_dir, da_db_dir).await;
+    // The explicitly removed queued transaction must not come back.
+    let fresh = *client
+        .send_eth(addr, None, None, Some(2), 1)
+        .await
+        .unwrap()
+        .tx_hash();
+    assert_eq!(client.get_mempool_transaction_count().await.unwrap(), 1);
+    assert!(client.is_transaction_in_mempool(fresh).await.unwrap());
+    seq_task.graceful_shutdown();
+}
 
-    {
-        let (seq_task, test_client) = initialize_test(sequencer_copy_dir, da_db_dir).await;
+/// An old snapshot must be revalidated against the current chain, dropping stale nonces while
+/// retaining valid queued transactions.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_mempool_snapshot_revalidation() {
+    let db_dir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = db_dir.path().join("DA");
+    let sequencer_db_dir = db_dir.path().join("sequencer");
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+    let (seq_task, client) = initialize_test(sequencer_db_dir.clone(), da_db_dir.clone()).await;
+    // Commit the initial DA header before restarting; the mock proof provider retains this ledger.
+    client.send_publish_batch_request().await;
+    wait_for_l2_block(&client, 1, None).await;
+    let stale = *client
+        .send_eth(addr, None, None, Some(0), 1)
+        .await
+        .unwrap()
+        .tx_hash();
+    let queued = *client
+        .send_eth(addr, None, None, Some(10), 1)
+        .await
+        .unwrap()
+        .tx_hash();
+    seq_task.graceful_shutdown();
+    let original_snapshot = std::fs::read(sequencer_db_dir.join("mempool.rlp")).unwrap();
 
-        // Wait for sequencer startup
-        tokio::time::sleep(Duration::from_millis(1000)).await;
+    let copy_dir = db_dir.path().join("sequencer_copy");
+    copy_db_dir_recursive(&sequencer_db_dir, &copy_dir).unwrap();
+    let (seq_task, client) = initialize_test(copy_dir.clone(), da_db_dir.clone()).await;
+    wait_for_mempool_count(&client, 2).await;
+    client.send_publish_batch_request().await;
+    wait_for_l2_block(&client, 2, None).await;
+    wait_for_mempool_count(&client, 1).await;
+    seq_task.graceful_shutdown();
 
-        // Get mempool count after restart
-        let mempool_count = test_client.get_mempool_transaction_count().await.unwrap();
+    let stale_dir = db_dir.path().join("sequencer_stale");
+    copy_db_dir_recursive(&copy_dir, &stale_dir).unwrap();
+    std::fs::write(stale_dir.join("mempool.rlp"), original_snapshot).unwrap();
+    let (seq_task, client) = initialize_test(stale_dir, da_db_dir).await;
+    // Transactions are restored in nonce order, so the stale one has been processed by now.
+    wait_for_mempool_count(&client, 1).await;
+    assert!(!client.is_transaction_in_mempool(stale).await.unwrap());
+    assert!(client.is_transaction_in_mempool(queued).await.unwrap());
+    seq_task.graceful_shutdown();
+}
 
-        let published_tx_in_mempool = test_client
-            .is_transaction_in_mempool(published_tx_hash)
-            .await
-            .unwrap();
-        assert!(
-            !published_tx_in_mempool,
-            "Published TX1 should NOT be restored to mempool after restart (maintenance removes it)"
-        );
-
-        let persistent_tx_in_mempool = test_client
-            .is_transaction_in_mempool(persistent_tx_hash)
-            .await
-            .unwrap();
-        assert!(
-            persistent_tx_in_mempool,
-            "Unpublished TX3 should be restored to mempool after restart"
-        );
-
-        assert_eq!(
-            mempool_count, 1,
-            "Mempool should have exactly 1 transaction after restart (only TX3)"
-        );
-
-        test_client.send_publish_batch_request().await;
-        wait_for_l2_block(&test_client, 2, None).await;
-        tokio::time::sleep(Duration::from_millis(500)).await;
-
-        let block = test_client
-            .eth_get_block_by_number(Some(BlockNumberOrTag::Number(2)))
-            .await;
-        let block_transactions = block.transactions.as_hashes().unwrap();
-
-        assert!(
-            block_transactions.contains(&persistent_tx_hash),
-            "TX3 should be published in block 2 after restart"
-        );
-
-        // Mempool should be empty after publishing TX3
-        assert_eq!(
-            test_client.get_mempool_transaction_count().await.unwrap(),
-            0,
-            "Mempool should be empty after publishing the persistent transaction"
-        );
-
-        seq_task.graceful_shutdown();
-    }
+/// A corrupt snapshot is best-effort recovery data and must not prevent node startup.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_mempool_corrupt_snapshot() {
+    let db_dir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = db_dir.path().join("DA");
+    let sequencer_db_dir = db_dir.path().join("sequencer");
+    let (seq_task, _) = initialize_test(sequencer_db_dir.clone(), da_db_dir.clone()).await;
+    seq_task.graceful_shutdown();
+    let corrupt_dir = db_dir.path().join("sequencer_corrupt");
+    copy_db_dir_recursive(&sequencer_db_dir, &corrupt_dir).unwrap();
+    // An RLP list declaring more bytes than are present.
+    std::fs::write(corrupt_dir.join("mempool.rlp"), [0xf8, 0xff]).unwrap();
+    let (seq_task, client) = initialize_test(corrupt_dir.clone(), da_db_dir).await;
+    let _ = client
+        .send_eth(client.from_addr, None, None, Some(10), 1)
+        .await
+        .unwrap();
+    assert_eq!(client.get_mempool_transaction_count().await.unwrap(), 1);
+    seq_task.graceful_shutdown();
+    let bytes = std::fs::read(corrupt_dir.join("mempool.rlp")).unwrap();
+    let transactions: Vec<reth_primitives::TransactionSigned> =
+        alloy_rlp::decode_exact(bytes).unwrap();
+    assert_eq!(
+        transactions.len(),
+        1,
+        "Shutdown should replace the corrupt snapshot"
+    );
 }
 
 /// Test that stale transactions are evicted from mempool after max lifetime
@@ -665,7 +677,7 @@ async fn test_stale_tx_eviction() {
         None,
         None,
         rollup_config,
-        Some(sequencer_config),
+        Some(sequencer_config.clone()),
         None,
         false,
     )
@@ -673,6 +685,9 @@ async fn test_stale_tx_eviction() {
 
     let seq_port = seq_port_rx.await.unwrap();
     let test_client = make_test_client(seq_port).await.unwrap();
+
+    test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 1, None).await;
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
@@ -722,6 +737,31 @@ async fn test_stale_tx_eviction() {
         "TX3 should be in mempool initially"
     );
 
+    seq_task.graceful_shutdown();
+    let restored_dir = db_dir.path().join("sequencer_restored");
+    copy_db_dir_recursive(&sequencer_db_dir, &restored_dir).unwrap();
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+    let rollup_config = create_default_rollup_config(
+        true,
+        &restored_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
+    let test_client = make_test_client(seq_port_rx.await.unwrap()).await.unwrap();
+    wait_for_mempool_count(&test_client, 3).await;
+
     // Wait for transactions to become stale
     // We set max_tx_lifetime to 2 seconds, so wait 3 seconds to ensure they're stale
     tokio::time::sleep(Duration::from_secs(3)).await;
@@ -729,7 +769,7 @@ async fn test_stale_tx_eviction() {
     // Trigger maintenance by publishing an empty block
     // The future nonce transactions won't be included, but maintenance should evict them as stale
     test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&test_client, 1, None).await;
+    wait_for_l2_block(&test_client, 2, None).await;
 
     // Wait a bit for maintenance task to process
     tokio::time::sleep(Duration::from_secs(1)).await;
@@ -738,7 +778,7 @@ async fn test_stale_tx_eviction() {
     let block = test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
-    let block_transactions = block.transactions.as_hashes().unwrap();
+    let block_transactions = block.transactions.hashes().collect::<Vec<_>>();
 
     // Future nonce transactions should NOT be in the block
     assert!(
