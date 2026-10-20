@@ -644,6 +644,19 @@ contract ClementineActorsTest is Test {
         actors.setSecurityCouncil(1, council);
     }
 
+    function testCannotSetSameSecurityCouncil() public {
+        vm.prank(owner);
+        vm.expectRevert("Security council unchanged");
+        actors.setSecurityCouncil(2, initialCouncil());
+    }
+
+    function testCanSetSameSecurityCouncilWithDifferentThreshold() public {
+        vm.prank(owner);
+        actors.setSecurityCouncil(3, initialCouncil());
+        assertEq(actors.securityCouncilThreshold(), 3);
+        assertEq(actors.setupGeneration(), 2);
+    }
+
     function testCannotSetActiveActorsAboveCaps() public {
         uint256 maxActiveOperators = actors.MAX_ACTIVE_OPERATORS();
         uint256 maxActiveWatchtowers = actors.MAX_ACTIVE_WATCHTOWERS();

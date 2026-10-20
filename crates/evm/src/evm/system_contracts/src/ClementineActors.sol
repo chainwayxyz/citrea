@@ -150,6 +150,7 @@ contract ClementineActors is Initializable, Ownable2StepUpgradeable {
         uint256 _securityCouncilThreshold,
         bytes32[] calldata _securityCouncil
     ) external onlyOwner {
+        require(keccak256(abi.encode(_securityCouncilThreshold, _securityCouncil)) != keccak256(abi.encode(securityCouncilThreshold, securityCouncil)), "Security council unchanged");
         _setSecurityCouncil(_securityCouncilThreshold, _securityCouncil);
         _resetSigningState();
     }
