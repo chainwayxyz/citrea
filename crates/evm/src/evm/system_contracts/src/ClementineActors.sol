@@ -344,8 +344,7 @@ contract ClementineActors is Initializable, Ownable2StepUpgradeable {
 
     function _setCircuitVersion(uint256 _circuitVersion) internal {
         uint256 oldCircuitVersion = circuitVersion;
-        require(_circuitVersion != oldCircuitVersion, "Circuit version unchanged");
-        require(_circuitVersion != 0, "Circuit version cannot be 0");
+        require(_circuitVersion > oldCircuitVersion, "Circuit version must increase");
         require(_circuitVersion <= type(uint16).max, "Circuit version too large");
         circuitVersion = _circuitVersion;
         emit CircuitVersionUpdated(oldCircuitVersion, _circuitVersion);

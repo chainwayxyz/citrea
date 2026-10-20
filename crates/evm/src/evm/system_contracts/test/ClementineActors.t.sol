@@ -570,6 +570,15 @@ contract ClementineActorsTest is Test {
         actors.disableWatchtower(watchtowerKey);
     }
 
+    function testCannotDecreaseCircuitVersion() public {
+        vm.prank(owner);
+        actors.setCircuitVersion(3);
+
+        vm.prank(owner);
+        vm.expectRevert("Circuit version must increase");
+        actors.setCircuitVersion(2);
+    }
+
     function testCircuitVersionUpdatePausesAndClearsState() public {
         setActivePair();
 
