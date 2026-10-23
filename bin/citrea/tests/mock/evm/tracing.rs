@@ -1614,7 +1614,7 @@ async fn test_noop_tracer() -> Result<(), Box<dyn std::error::Error>> {
     } = contract_info;
 
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92255").unwrap();
-    let _ = test_client
+    let send_eth_req = test_client
         .send_eth(addr, None, None, None, 5_000_000_000_000_000_000u128)
         .await
         .unwrap();
@@ -1628,26 +1628,50 @@ async fn test_noop_tracer() -> Result<(), Box<dyn std::error::Error>> {
         .await;
     test_client.send_publish_batch_request().await;
 
-    let call_tx_hash = call_get_value_req
-        .get_receipt()
-        .await
-        .unwrap()
-        .transaction_hash;
+    let send_eth_receipt = send_eth_req.get_receipt().await.unwrap();
+    let call_receipt = call_get_value_req.get_receipt().await.unwrap();
+    let call_tx_hash = call_receipt.transaction_hash;
 
     let noop_opts = Some(GethDebugTracingOptions::default().with_tracer(
         GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::NoopTracer),
     ));
 
     let noop_call_get_trace = test_client
-        .debug_trace_transaction(call_tx_hash, noop_opts)
+        .debug_trace_transaction(call_tx_hash, noop_opts.clone())
         .await;
     let expected_noop_call_get_trace = serde_json::from_value::<FourByteFrame>(json![{}]).unwrap();
     // the response is deserialized into fourbytes from the rpc response
     // that is why we need to compare it with the FourByteTracer
     assert_eq!(
         noop_call_get_trace,
-        FourByteTracer(expected_noop_call_get_trace),
+        FourByteTracer(expected_noop_call_get_trace.clone()),
     );
+
+    // Block traces return one empty frame per transaction, each with its hash, in block order
+    assert_eq!(send_eth_receipt.block_number, call_receipt.block_number);
+    let mut receipts = [&send_eth_receipt, &call_receipt];
+    receipts.sort_by_key(|receipt| receipt.transaction_index);
+    let expected_block_traces = receipts
+        .iter()
+        .map(|receipt| {
+            TraceResult::new_success(
+                FourByteTracer(expected_noop_call_get_trace.clone()),
+                Some(receipt.transaction_hash),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    // the first request traces the block and fills the cache, the second is served from it
+    let block_number = call_receipt.block_number.unwrap();
+    let traces_by_number = test_client
+        .debug_trace_block_by_number(BlockNumberOrTag::Number(block_number), noop_opts.clone())
+        .await;
+    assert_eq!(traces_by_number, expected_block_traces);
+
+    let traces_by_hash = test_client
+        .debug_trace_block_by_hash(call_receipt.block_hash.unwrap(), noop_opts)
+        .await;
+    assert_eq!(traces_by_hash, expected_block_traces);
 
     task_manager.graceful_shutdown();
 

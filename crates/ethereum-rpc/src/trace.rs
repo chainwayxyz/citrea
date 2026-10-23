@@ -336,10 +336,16 @@ fn get_traces_with_requested_tracer_and_config(
                     });
                     Ok(new_traces)
                 }
-                GethDebugBuiltInTracerType::NoopTracer => Ok(vec![TraceResult::new_success(
-                    GethTrace::NoopTracer(NoopFrame::default()),
-                    None,
-                )]),
+                // One empty frame per transaction, keeping its hash, as geth and reth do
+                GethDebugBuiltInTracerType::NoopTracer => Ok(traces
+                    .iter()
+                    .map(|trace| {
+                        TraceResult::new_success(
+                            GethTrace::NoopTracer(NoopFrame::default()),
+                            trace.tx_hash(),
+                        )
+                    })
+                    .collect()),
                 _ => Err(EthApiError::Unsupported("This tracer is not supported")),
             }
         }
