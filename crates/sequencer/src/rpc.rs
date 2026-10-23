@@ -19,7 +19,7 @@ use reth_rpc_types_compat::TransactionCompat;
 use reth_transaction_pool::{
     AllPoolTransactions, EthPooledTransaction, PoolTransaction, ValidPoolTransaction,
 };
-use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps, SharedLedgerOps};
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_modules_api::{Spec, WorkingSet};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error};
@@ -225,10 +225,8 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
     async fn eth_send_raw_transaction(&self, data: Bytes) -> RpcResult<B256> {
         debug!("Sequencer: eth_sendRawTransaction");
 
-        let recovered = recover_raw_transaction(data.clone())?;
+        let recovered = recover_raw_transaction(data)?;
         let pool_transaction = EthPooledTransaction::from_pooled(recovered);
-
-        let rlp_encoded_tx = pool_transaction.transaction().inner().encoded_2718();
 
         let hash = self
             .context
@@ -236,15 +234,6 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             .add_external_transaction(pool_transaction)
             .await
             .map_err(EthApiError::from)?;
-
-        // Do not return error here just log
-        if let Err(e) = self
-            .context
-            .ledger
-            .insert_mempool_tx(hash.to_vec(), rlp_encoded_tx)
-        {
-            tracing::warn!("Failed to insert mempool tx into db: {:?}", e);
-        }
 
         Ok(hash)
     }

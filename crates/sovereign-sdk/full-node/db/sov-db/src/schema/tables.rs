@@ -49,7 +49,6 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     L2GenesisStateRoot::table_name(),
     L2RangeByL1Height::table_name(),
     LastPrunedBlock::table_name(),
-    MempoolTxs::table_name(),
     ProverLastScannedSlot::table_name(),
     SequencerCommitmentByIndex::table_name(),
     ShortHeaderProofBySlotHash::table_name(),
@@ -153,7 +152,6 @@ pub const LEDGER_TABLES: &[&str] = &[
     L2Witness::table_name(),
     LastPrunedBlock::table_name(),
     LightClientProofBySlotNumber::table_name(),
-    MempoolTxs::table_name(),
     PendingL1SubmissionJobs::table_name(),
     PendingProofs::table_name(),
     PendingSequencerCommitments::table_name(),
@@ -511,11 +509,6 @@ define_table_with_default_codec!(
 define_table_with_seek_key_codec!(
     /// Proof data on L1 slot verified by full node
     (VerifiedBatchProofsBySlotNumber) SlotNumber => Vec<StoredVerifiedProof>
-);
-
-define_table_with_default_codec!(
-    /// Transactions in mempool (TxHash, TxData)
-    (MempoolTxs) Vec<u8> => Vec<u8>
 );
 
 define_table_with_default_codec!(

@@ -330,15 +330,6 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
         &self,
         l2_height_range: RangeInclusive<L2BlockNumber>,
     ) -> Result<()>;
-
-    /// Insert mempool transaction
-    fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> anyhow::Result<()>;
-
-    /// Insert mempool transaction
-    fn remove_mempool_txs(&self, tx_hashes: Vec<Vec<u8>>) -> anyhow::Result<()>;
-
-    /// Fetch mempool transactions
-    fn get_mempool_txs(&self) -> anyhow::Result<Vec<(Vec<u8>, Vec<u8>)>>;
 }
 
 /// Test ledger operations

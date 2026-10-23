@@ -18,7 +18,7 @@ use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
     CommitmentIndicesByJobId, CommitmentIndicesByL1, CommitmentMerkleRoots, CommitmentsByNumber,
     ExecutedMigrations, JobIdOfCommitment, L2BlockByHash, L2BlockByNumber, L2GenesisStateRoot,
-    L2RangeByL1Height, L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber, MempoolTxs,
+    L2RangeByL1Height, L2StatusHeights, LastPrunedBlock, LightClientProofBySlotNumber,
     PendingL1SubmissionJobs, PendingProofs, PendingSequencerCommitments, ProofByJobId,
     ProverLastScannedSlot, ProverPendingCommitments, ProverStateDiffs, ProvingSessionInfoByJobId,
     ProvingSessionInfoBySlotNumber, SequencerCommitmentByIndex, ShortHeaderProofBySlotHash,
@@ -810,35 +810,6 @@ impl SequencerLedgerOps for LedgerDB {
         self.db
             .get::<StateDiffByBlockNumber>(&l2_height)
             .map(|diff| diff.unwrap_or_default())
-    }
-
-    fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<MempoolTxs>(&tx_hash, &tx)?;
-
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
-    }
-
-    fn get_mempool_txs(&self) -> anyhow::Result<Vec<(Vec<u8>, Vec<u8>)>> {
-        let mut iter = self.db.iter::<MempoolTxs>()?;
-        iter.seek_to_first();
-
-        let txs = iter
-            .map(|item| item.map(|item| (item.key, item.value)))
-            .collect::<Result<Vec<(Vec<u8>, Vec<u8>)>, _>>()?;
-
-        Ok(txs)
-    }
-
-    fn remove_mempool_txs(&self, tx_hashes: Vec<Vec<u8>>) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-        for tx_hash in tx_hashes {
-            schema_batch.delete::<MempoolTxs>(&tx_hash)?;
-        }
-        self.db.write_schemas(schema_batch)?;
-        Ok(())
     }
 }
 

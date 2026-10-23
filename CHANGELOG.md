@@ -1,6 +1,7 @@
 # Changelog
 ## [Unreleased]
 ### Changed
+- feat(sequencer): Snapshot the in-memory mempool on graceful shutdown and revalidate transactions on startup, without going through DB.
 - fix(rpc): return one noopTracer result per tx in block traces ([#3339](https://github.com/chainwayxyz/citrea/pull/3339))
 
 ## [v2.8.0](2026-09-10)

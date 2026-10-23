@@ -3898,6 +3898,7 @@ dependencies = [
  "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-state",
+ "tempfile",
  "tokio",
  "tokio-stream",
  "tracing",

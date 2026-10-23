@@ -18,6 +18,13 @@ Key characteristics:
 - Interacts directly with the DA layer
 - Manages the state progression of the L2 chain
 
+The sequencer keeps its mempool in memory. On graceful shutdown, it writes pending and queued
+user transactions to `mempool.rlp` in the node's storage directory. On startup, it re-adds the
+transactions, revalidating them against the current chain state, and removes the file when
+finished. Rejected transactions and corrupt files are logged and skipped. Restored transactions
+follow the normal external-transaction limits and expiry rules, with their queued lifetime
+restarting at restoration. This is best-effort: crashes do not save the mempool.
+
 ## 2. Full Node
 
 The Full Node is responsible for:

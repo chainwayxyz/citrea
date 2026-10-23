@@ -6,7 +6,7 @@ use alloy_genesis::Genesis;
 use alloy_primitives::{
     Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, TxHash, TxNumber, B256, U256,
 };
-use alloy_rpc_types::{BlockTransactions, Withdrawals};
+use alloy_rpc_types::Withdrawals;
 use alloy_rpc_types_eth::Block as AlloyRpcBlock;
 use alloy_serde::WithOtherFields;
 use citrea_evm::{Evm, EvmChainConfig};
@@ -74,19 +74,6 @@ impl DbProvider {
     pub fn cfg(&self) -> EvmChainConfig {
         let mut working_set = WorkingSet::new(self.storage.clone());
         self.evm.get_chain_config(&mut working_set)
-    }
-
-    /// Returns the transaction hashes from the last block
-    pub fn last_block_tx_hashes(&self) -> RpcResult<Vec<B256>> {
-        let mut working_set = WorkingSet::new(self.storage.clone());
-        let rich_block =
-            self.evm
-                .get_block_by_number(None, None, &mut working_set, &self.ledger_db)?;
-        let hashes = rich_block.map(|b| b.inner.transactions);
-        match hashes {
-            Some(BlockTransactions::Hashes(hashes)) => Ok(hashes),
-            _ => Ok(vec![]),
-        }
     }
 
     /// Returns the last block with full transaction details
