@@ -17,6 +17,7 @@ pub(crate) fn create_txn_env(
     cap_to_balance: Option<U256>,
     nonce: u64,
     chain_id_to_set: u64,
+    gas_cap: u64,
 ) -> EthResult<TxEnv> {
     let tx_type = if request.authorization_list.is_some() {
         TxType::Eip7702
@@ -68,28 +69,37 @@ pub(crate) fn create_txn_env(
         None,
     )?;
 
-    // set gas limit initially to block gas limit
-    let mut gas_limit = U256::from(block_env.gas_limit);
+    // The gas ceiling for this call. `eth_call`/`debug_traceCall` pass a non-zero RPC gas cap so a
+    // read-only call may run above the real block gas limit up to that cap; `eth_estimateGas` and
+    // `eth_createAccessList` pass 0 and stay bounded by the block gas limit. The cap is applied to
+    // the transaction gas only - `block_env.gas_limit`, what the `GASLIMIT` opcode reports, is left
+    // untouched so the simulated block context still matches the chain, as geth and reth do.
+    let ceiling = if gas_cap != 0 {
+        U256::from(gas_cap)
+    } else {
+        U256::from(block_env.gas_limit)
+    };
+    let mut gas_limit = ceiling;
     let request_gas_limit = gas.map(U256::from);
 
     if let Some(request_gas_limit) = request_gas_limit {
         // gas limit is set by user in the request
-        // we must make sure it does not exceed the block gas limit
+        // we must make sure it does not exceed the ceiling
         // otherwise there is a DoS vector
-        gas_limit = min(request_gas_limit, gas_limit);
+        gas_limit = min(request_gas_limit, ceiling);
     } else if cap_to_balance.is_some() && gas_price > U256::ZERO {
         // cap_to_balance is Some only when called from eth_call and eth_createAccessList
         // we fall in this branch when user set gas price but not gas limit
         // before passing the transaction environment to evm, we must set a gas limit
         // that is capped by the caller's balance
         // but the from address might have a high balance
-        // we don't want the gas limit to be more then the block gas limit
+        // we don't want the gas limit to be more than the ceiling
         let max_gas_limit = caller_gas_allowance(
             cap_to_balance.unwrap(),
             value.unwrap_or_default(),
             gas_price,
         )?;
-        gas_limit = min(gas_limit, max_gas_limit);
+        gas_limit = min(ceiling, max_gas_limit);
     }
 
     let gas_priority_fee: Option<u128> = if let Some(gas_priority) = max_priority_fee_per_gas {
@@ -141,6 +151,7 @@ pub(crate) fn prepare_call_env(
     cap_to_balance: U256,
     nonce: u64,
     chain_id_to_set: u64,
+    gas_cap: u64,
 ) -> EthResult<TxEnv> {
     // we want to disable this in eth_call, since this is common practice used by other node
     // impls and providers <https://github.com/foundry-rs/foundry/issues/4388>
@@ -166,12 +177,15 @@ pub(crate) fn prepare_call_env(
         request.max_priority_fee_per_gas = None;
     }
 
+    // `create_txn_env` caps the transaction gas to `gas_cap` (the RPC gas cap), leaving
+    // `block_env.gas_limit` - the `GASLIMIT` opcode - as the real block gas limit.
     create_txn_env(
         block_env,
         request.clone(),
         Some(cap_to_balance),
         nonce,
         chain_id_to_set,
+        gas_cap,
     )
 }
 

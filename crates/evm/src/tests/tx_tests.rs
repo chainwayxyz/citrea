@@ -108,7 +108,7 @@ fn prepare_call_env_conversion() {
 
     let block_env = BlockEnv::default();
 
-    let tx_env = create_txn_env(&block_env, request, None, nonce, 1).unwrap();
+    let tx_env = create_txn_env(&block_env, request, None, nonce, 1, 0).unwrap();
     let expected = TxEnv {
         tx_type: TxType::Eip1559 as u8,
         caller: from,

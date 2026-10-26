@@ -1,6 +1,12 @@
 # Changelog
 ## [Unreleased]
 ### Changed
+- feat(rpc): configurable gas, memory, and concurrency limits for `debug_trace*` and `eth_call` ([#3344](https://github.com/chainwayxyz/citrea/pull/3344))\
+  **New env vars:**\
+  `RPC_GAS_CAP`: Max gas for `eth_call` and `debug_traceCall`, decoupled from the block gas limit (default: 100000000, also the enforced maximum; 0 keeps the block gas limit)\
+  `RPC_TRACE_MEMORY_LIMIT_MB`: Approximate memory a single `debug_trace*` request may retain before it is aborted (default: 512; 0 disables)\
+  `RPC_TRACE_CACHE_LIMIT_MB`: Megabytes of block traces kept in the `debug_trace*` cache (default: 512)\
+  `RPC_MAX_TRACING_REQUESTS`: Max concurrent `debug_trace*` requests; the rest queue (default: 4)
 - feat(sequencer): Snapshot the in-memory mempool on graceful shutdown and revalidate transactions on startup, without going through DB.
 - fix(rpc): return one noopTracer result per tx in block traces ([#3339](https://github.com/chainwayxyz/citrea/pull/3339))
 

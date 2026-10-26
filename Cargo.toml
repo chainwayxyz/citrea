@@ -177,7 +177,7 @@ citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "67c724b
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "a6e011a" }
 # Use our fork of revm-inspectors to apply fixes after v0.18.1
 # Cannot update to latest as it requires latest revm, which we cannot use yet
-revm-inspectors = { git = "https://github.com/chainwayxyz/revm-inspectors", rev = "574d614ce505d3c0c4534d8b8e62d8acb3fa9651" }
+revm-inspectors = { git = "https://github.com/chainwayxyz/revm-inspectors", rev = "3490c2beadcd36b5a4a8f1d8cc0baf2093494184" }
 
 [profile.release]
 opt-level = 3

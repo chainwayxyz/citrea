@@ -9,7 +9,8 @@ use reth_rpc_eth_api::FromEthApiError;
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use revm::context::result::{EVMError, ResultAndState};
 use revm::context::{Cfg, CfgEnv, JournalTr, Transaction, TxEnv};
-use revm::{Context, InspectEvm, Inspector, Journal};
+use revm::{Context, ExecuteEvm, InspectEvm, Inspector, Journal};
+use revm_inspectors::tracing::geth::PrestateError;
 use revm_inspectors::tracing::js::JsInspector;
 use revm_inspectors::tracing::{
     FourByteInspector, MuxInspector, TracingInspector, TracingInspectorConfig, TransactionContext,
@@ -19,7 +20,23 @@ use crate::db::{AccountExistsProvider, DBError};
 use crate::evm::db::immutable::EvmDbRef;
 use crate::evm::db::EvmDb;
 use crate::handler::{CitreaBuilder, CitreaChain, CitreaChainExt, CitreaContext, TxInfo};
+use crate::rpc_helpers::trace_limit::{
+    trace_memory_limit_exceeded, TraceMemoryBudget, TraceMemoryLimiter, TraceMemoryUsage,
+};
 use crate::rpc_helpers::*;
+
+/// Maps a prestate build error to an RPC error: a response that would exceed the trace memory
+/// budget becomes the same memory-limit error the step budget raises mid-execution, everything
+/// else is the underlying database error.
+fn map_prestate_err<E>(err: PrestateError<E>, usage: &TraceMemoryUsage) -> EthApiError
+where
+    EthApiError: From<E>,
+{
+    match err {
+        PrestateError::Database(e) => EthApiError::from_eth_err(e),
+        PrestateError::MaxResponseSize { .. } => EthApiError::EvmCustom(usage.response_too_large()),
+    }
+}
 
 pub(crate) fn trace_call<C: sov_modules_api::Context>(
     tracing_options: GethDebugTracingOptions,
@@ -28,6 +45,7 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
     tx_env: TxEnv,
     db: &mut EvmDb<'_, C>,
     l1_fee_rate: u128,
+    usage: &TraceMemoryUsage,
 ) -> EthResult<GethTrace> {
     let GethDebugTracingOptions {
         config,
@@ -49,6 +67,7 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         None,
                         l1_fee_rate,
                         &mut inspector,
+                        TraceMemoryBudget::opaque(usage),
                     )?;
                     return Ok(FourByteFrame::from(inspector).into());
                 }
@@ -57,9 +76,9 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         .into_call_config()
                         .map_err(|_| EthApiError::InvalidTracerConfig)?;
 
-                    let mut inspector = TracingInspector::new(
-                        TracingInspectorConfig::from_geth_call_config(&call_config),
-                    );
+                    let inspector_config =
+                        TracingInspectorConfig::from_geth_call_config(&call_config);
+                    let mut inspector = TracingInspector::new(inspector_config);
 
                     let mut db_ref = EvmDbRef::new(db);
                     let res = trace_citrea(
@@ -70,6 +89,7 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         None,
                         l1_fee_rate,
                         &mut inspector,
+                        TraceMemoryBudget::steps(usage, &inspector_config),
                     )?;
                     let frame = inspector
                         .into_geth_builder()
@@ -80,9 +100,9 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                     let prestate_config = tracer_config
                         .into_pre_state_config()
                         .map_err(|_| EthApiError::InvalidTracerConfig)?;
-                    let mut inspector = TracingInspector::new(
-                        TracingInspectorConfig::from_geth_prestate_config(&prestate_config),
-                    );
+                    let inspector_config =
+                        TracingInspectorConfig::from_geth_prestate_config(&prestate_config);
+                    let mut inspector = TracingInspector::new(inspector_config);
 
                     let mut db_ref = EvmDbRef::new(db);
                     let res = trace_citrea(
@@ -93,12 +113,22 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         None,
                         l1_fee_rate,
                         &mut inspector,
+                        TraceMemoryBudget::steps(usage, &inspector_config),
                     )?;
-                    let frame = inspector
+                    let (frame, size) = inspector
                         .with_transaction_gas_limit(tx_env.gas_limit())
                         .into_geth_builder()
-                        .geth_prestate_traces(&res, &prestate_config, &db_ref)
-                        .map_err(EthApiError::from_eth_err)?;
+                        .geth_prestate_traces_with_size_limit(
+                            &res,
+                            &prestate_config,
+                            &db_ref,
+                            usage.remaining(),
+                        )
+                        .map_err(|e| map_prestate_err(e, usage))?;
+                    // Charge the retained prestate against the shared request budget: it is built
+                    // after execution, so no per-step charge covered it, and a block traces many
+                    // transactions against this same budget.
+                    usage.charge(size);
 
                     Ok(frame.into())
                 }
@@ -107,9 +137,9 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         .into_flat_call_config()
                         .map_err(|_| EthApiError::InvalidTracerConfig)?;
 
-                    let mut inspector = TracingInspector::new(
-                        TracingInspectorConfig::from_flat_call_config(&flat_call_config),
-                    );
+                    let inspector_config =
+                        TracingInspectorConfig::from_flat_call_config(&flat_call_config);
+                    let mut inspector = TracingInspector::new(inspector_config);
 
                     let mut db_ref = EvmDbRef::new(db);
                     let _res = trace_citrea(
@@ -120,12 +150,20 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         None,
                         l1_fee_rate,
                         &mut inspector,
+                        TraceMemoryBudget::steps(usage, &inspector_config),
                     )?;
                     let tx_info = TransactionInfo::default();
-                    let frame: FlatCallFrame = inspector
+                    let (frame, size): (FlatCallFrame, usize) = inspector
                         .with_transaction_gas_limit(tx_env.gas_limit())
                         .into_parity_builder()
-                        .into_localized_transaction_traces(tx_info);
+                        .try_into_localized_transaction_traces_with_size_limit(
+                            tx_info,
+                            usage.remaining(),
+                        )
+                        .map_err(|_| EthApiError::EvmCustom(usage.response_too_large()))?;
+                    // The traceAddress vectors are built after execution, so no per-step charge
+                    // covered them; charge them against the shared request budget.
+                    usage.charge(size);
                     Ok(frame.into())
                 }
                 GethDebugBuiltInTracerType::MuxTracer => {
@@ -136,6 +174,18 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                     let mut inspector = MuxInspector::try_from_config(mux_config)
                         .map_err(EthApiError::from_eth_err)?;
 
+                    // Charge the budget the mux's inner tracing inspector actually retains: a mux
+                    // holding `callTracer: {withLog: true}` keeps every log, which `call_frames`
+                    // would never charge. `tracing_config` is the merged config of all muxed
+                    // tracers; `None` means only the four byte / noop tracers are present, which
+                    // retain nothing attributable to a frame - so use the same opaque budget as a
+                    // standalone four byte tracer rather than `call_frames`, which would charge the
+                    // calldata of every frame and falsely reject a call-heavy transaction.
+                    let budget = match inspector.tracing_config() {
+                        Some(config) => TraceMemoryBudget::steps(usage, config),
+                        None => TraceMemoryBudget::opaque(usage),
+                    };
+
                     let mut db_ref = EvmDbRef::new(db);
                     let res = trace_citrea(
                         &mut db_ref,
@@ -145,6 +195,7 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         None,
                         l1_fee_rate,
                         &mut inspector,
+                        budget,
                     )?;
                     let tx_info = TransactionInfo {
                         block_number: Some(block_env.number),
@@ -154,9 +205,17 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                         index: None,
                     };
 
-                    let frame = inspector
-                        .try_into_mux_frame(&res, &db_ref, tx_info)
-                        .map_err(EthApiError::from_eth_err)?;
+                    let (frame, size) = inspector
+                        .try_into_mux_frame_with_size_limit(
+                            &res,
+                            &db_ref,
+                            tx_info,
+                            usage.remaining(),
+                        )
+                        .map_err(|e| map_prestate_err(e, usage))?;
+                    // Charge the prestate and flat-call payload the mux retained against the shared
+                    // request budget (see the direct prestate and flat-call paths).
+                    usage.charge(size);
                     Ok(frame.into())
                 }
                 GethDebugBuiltInTracerType::NoopTracer => Ok(NoopFrame::default().into()),
@@ -175,6 +234,7 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
                     None,
                     l1_fee_rate,
                     &mut inspector,
+                    TraceMemoryBudget::opaque(usage),
                 )?;
 
                 let json_value = inspector
@@ -197,6 +257,7 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
         None,
         l1_fee_rate,
         &mut inspector,
+        TraceMemoryBudget::steps(usage, &inspector_config),
     )?;
     let gas_used = res.result.gas_used();
     let return_value = res.result.into_output().unwrap_or_default();
@@ -207,6 +268,7 @@ pub(crate) fn trace_call<C: sov_modules_api::Context>(
     Ok(frame.into())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
     opts: GethDebugTracingOptions,
     config_env: CfgEnv,
@@ -215,6 +277,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
     tx_hash: &TxHash,
     db: &mut EvmDb<'_, C>,
     l1_fee_rate: u128,
+    usage: &TraceMemoryUsage,
 ) -> EthResult<(GethTrace, revm::state::EvmState)> {
     let GethDebugTracingOptions {
         config,
@@ -236,6 +299,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         Some(tx_hash),
                         l1_fee_rate,
                         &mut inspector,
+                        TraceMemoryBudget::opaque(usage),
                     )?;
                     return Ok((FourByteFrame::from(inspector).into(), res.state));
                 }
@@ -243,10 +307,11 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                     let call_config = tracer_config
                         .into_call_config()
                         .map_err(|_| EthApiError::InvalidTracerConfig)?;
-                    let mut inspector = TracingInspector::new(
-                        TracingInspectorConfig::from_geth_config(&config)
-                            .set_record_logs(call_config.with_log.unwrap_or_default()),
-                    );
+                    // the call tracer only reads call frames, recording opcode level steps here
+                    // would retain one `CallTraceStep` per executed opcode for nothing
+                    let inspector_config =
+                        TracingInspectorConfig::from_geth_call_config(&call_config);
+                    let mut inspector = TracingInspector::new(inspector_config);
                     let res = trace_citrea(
                         db,
                         config_env,
@@ -255,6 +320,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         Some(tx_hash),
                         l1_fee_rate,
                         &mut inspector,
+                        TraceMemoryBudget::steps(usage, &inspector_config),
                     )?;
                     let frame = inspector
                         .into_geth_builder()
@@ -265,9 +331,9 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                     let prestate_config = tracer_config
                         .into_pre_state_config()
                         .map_err(|_| EthApiError::InvalidTracerConfig)?;
-                    let mut inspector = TracingInspector::new(
-                        TracingInspectorConfig::from_geth_prestate_config(&prestate_config),
-                    );
+                    let inspector_config =
+                        TracingInspectorConfig::from_geth_prestate_config(&prestate_config);
+                    let mut inspector = TracingInspector::new(inspector_config);
                     let mut db_ref = EvmDbRef::new(db);
                     let res = trace_citrea(
                         &mut db_ref,
@@ -277,12 +343,22 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         Some(tx_hash),
                         l1_fee_rate,
                         &mut inspector,
+                        TraceMemoryBudget::steps(usage, &inspector_config),
                     )?;
-                    let frame = inspector
+                    let (frame, size) = inspector
                         .with_transaction_gas_limit(tx_env.gas_limit())
                         .into_geth_builder()
-                        .geth_prestate_traces(&res, &prestate_config, db_ref)
-                        .map_err(EthApiError::from_eth_err)?;
+                        .geth_prestate_traces_with_size_limit(
+                            &res,
+                            &prestate_config,
+                            db_ref,
+                            usage.remaining(),
+                        )
+                        .map_err(|e| map_prestate_err(e, usage))?;
+                    // Charge the retained prestate against the shared request budget: it is built
+                    // after execution, so no per-step charge covered it, and a block traces many
+                    // transactions against this same budget.
+                    usage.charge(size);
 
                     Ok((frame.into(), res.state))
                 }
@@ -291,9 +367,9 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         .into_flat_call_config()
                         .map_err(|_| EthApiError::InvalidTracerConfig)?;
 
-                    let mut inspector = TracingInspector::new(
-                        TracingInspectorConfig::from_flat_call_config(&flat_call_config),
-                    );
+                    let inspector_config =
+                        TracingInspectorConfig::from_flat_call_config(&flat_call_config);
+                    let mut inspector = TracingInspector::new(inspector_config);
                     let mut db_ref = EvmDbRef::new(db);
                     let res = trace_citrea(
                         &mut db_ref,
@@ -303,13 +379,21 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         Some(tx_hash),
                         l1_fee_rate,
                         &mut inspector,
+                        TraceMemoryBudget::steps(usage, &inspector_config),
                     )?;
 
                     let tx_info = TransactionInfo::default();
-                    let frame: FlatCallFrame = inspector
+                    let (frame, size): (FlatCallFrame, usize) = inspector
                         .with_transaction_gas_limit(tx_env.gas_limit())
                         .into_parity_builder()
-                        .into_localized_transaction_traces(tx_info);
+                        .try_into_localized_transaction_traces_with_size_limit(
+                            tx_info,
+                            usage.remaining(),
+                        )
+                        .map_err(|_| EthApiError::EvmCustom(usage.response_too_large()))?;
+                    // The traceAddress vectors are built after execution, so no per-step charge
+                    // covered them; charge them against the shared request budget.
+                    usage.charge(size);
                     Ok((frame.into(), res.state))
                 }
                 GethDebugBuiltInTracerType::MuxTracer => {
@@ -321,6 +405,18 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                     let mut inspector = MuxInspector::try_from_config(mux_config)
                         .map_err(EthApiError::from_eth_err)?;
 
+                    // Charge the budget the mux's inner tracing inspector actually retains: a mux
+                    // holding `callTracer: {withLog: true}` keeps every log, which `call_frames`
+                    // would never charge. `tracing_config` is the merged config of all muxed
+                    // tracers; `None` means only the four byte / noop tracers are present, which
+                    // retain nothing attributable to a frame - so use the same opaque budget as a
+                    // standalone four byte tracer rather than `call_frames`, which would charge the
+                    // calldata of every frame and falsely reject a call-heavy transaction.
+                    let budget = match inspector.tracing_config() {
+                        Some(config) => TraceMemoryBudget::steps(usage, config),
+                        None => TraceMemoryBudget::opaque(usage),
+                    };
+
                     let mut db_ref = EvmDbRef::new(db);
                     let res = trace_citrea(
                         &mut db_ref,
@@ -330,6 +426,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         Some(tx_hash),
                         l1_fee_rate,
                         &mut inspector,
+                        budget,
                     )?;
                     let tx_info = TransactionInfo {
                         block_number: Some(block_env.number),
@@ -338,9 +435,17 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         block_hash: None,
                         index: None,
                     };
-                    let frame = inspector
-                        .try_into_mux_frame(&res, &db_ref, tx_info)
-                        .map_err(EthApiError::from_eth_err)?;
+                    let (frame, size) = inspector
+                        .try_into_mux_frame_with_size_limit(
+                            &res,
+                            &db_ref,
+                            tx_info,
+                            usage.remaining(),
+                        )
+                        .map_err(|e| map_prestate_err(e, usage))?;
+                    // Charge the prestate and flat-call payload the mux retained against the shared
+                    // request budget (see the direct prestate and flat-call paths).
+                    usage.charge(size);
                     return Ok((frame.into(), res.state));
                 }
                 GethDebugBuiltInTracerType::NoopTracer => {
@@ -367,6 +472,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                     Some(tx_hash),
                     l1_fee_rate,
                     &mut inspector,
+                    TraceMemoryBudget::opaque(usage),
                 )?;
                 let state = result_and_state.state.clone();
 
@@ -390,6 +496,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
         Some(tx_hash),
         l1_fee_rate,
         &mut inspector,
+        TraceMemoryBudget::steps(usage, &inspector_config),
     )?;
     let gas_used = res.result.gas_used();
     let return_value = res.result.into_output().unwrap_or_default();
@@ -401,6 +508,10 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
 }
 
 /// Executes the [Env] against the given [Database] without committing state changes.
+///
+/// The trace is aborted with [`EVMError::Custom`] if the inspector retains more than `budget`
+/// allows, see [`TraceMemoryLimiter`].
+#[allow(clippy::too_many_arguments)]
 fn trace_citrea<DB, I>(
     db: DB,
     config_env: CfgEnv,
@@ -409,11 +520,13 @@ fn trace_citrea<DB, I>(
     tx_hash: Option<&TxHash>,
     l1_fee_rate: u128,
     inspector: I,
+    budget: TraceMemoryBudget<'_>,
 ) -> Result<ResultAndState, EVMError<<DB as revm::Database>::Error>>
 where
     DB: Database + AccountExistsProvider,
     I: for<'c> Inspector<CitreaContext<'c, DB>>,
 {
+    let inspector = TraceMemoryLimiter::new(inspector, budget);
     let mut ext = CitreaChain::new(l1_fee_rate);
 
     let tx_hash = tx_hash.unwrap_or_else(|| b"hash_of_an_ephemeral_transaction".into());
@@ -432,7 +545,14 @@ where
     }
     .build_citrea_with_inspector(inspector);
 
-    evm.inspect_replay()
+    let result = evm.inspect_replay()?;
+    // `step` is the only hook that can abort, so a charge recorded after the last step - the root
+    // frame's retained output, charged in `call_end` with no parent step to follow it - escapes the
+    // in-flight check. Re-check the budget here, before the trace is handed back and retained.
+    if let Some(limit) = budget.exceeded() {
+        return Err(EVMError::Custom(trace_memory_limit_exceeded(limit)));
+    }
+    Ok(result)
 }
 
 pub(crate) fn inspect_with_citrea_handler<'a, C, I>(
@@ -465,6 +585,40 @@ where
     .build_citrea_with_inspector(inspector);
 
     let result_and_state = evm.inspect_replay()?;
+    let tx_info = ext.get_tx_info(&tmp_hash).unwrap_or_default(); // default 0 in case tx was unsuccessful;
+
+    Ok((result_and_state, tx_info))
+}
+
+/// Like [`inspect_with_citrea_handler`], but uses the non-inspecting [`ExecuteEvm::replay`] path.
+pub(crate) fn execute_with_citrea_handler<'a, C>(
+    db: EvmDb<'a, C>,
+    config_env: CfgEnv,
+    block_env: BlockEnv,
+    tx_env: TxEnv,
+    l1_fee_rate: u128,
+) -> Result<(ResultAndState, TxInfo), EVMError<DBError>>
+where
+    C: sov_modules_api::Context,
+{
+    let mut ext = CitreaChain::new(l1_fee_rate);
+    let tmp_hash: TxHash = b"hash_of_an_ephemeral_transaction".into();
+
+    ext.set_current_tx_hash(&tmp_hash);
+
+    let mut journal = Journal::new(db);
+    journal.set_spec_id(config_env.spec());
+    let mut evm = Context {
+        block: block_env,
+        cfg: config_env,
+        chain: &mut ext,
+        tx: tx_env,
+        error: Ok(()),
+        journaled_state: journal,
+    }
+    .build_citrea();
+
+    let result_and_state = evm.replay()?;
     let tx_info = ext.get_tx_info(&tmp_hash).unwrap_or_default(); // default 0 in case tx was unsuccessful;
 
     Ok((result_and_state, tx_info))

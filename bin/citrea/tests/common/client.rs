@@ -12,8 +12,10 @@ use alloy::rpc::types::eth::{Block, Transaction, TransactionRequest};
 use alloy::serde::WithOtherFields;
 use alloy::signers::local::PrivateKeySigner;
 use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U32, U64};
+use alloy_rpc_types::state::StateOverride;
 use alloy_rpc_types::{
-    BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, Filter, FilterChanges, Log,
+    BlockId, BlockNumberOrTag, BlockOverrides, EIP1186AccountProofResponse, Filter, FilterChanges,
+    Log,
 };
 // use reth_rpc_types::TransactionReceipt;
 use alloy_rpc_types::{FilterId, SyncStatus as EthSyncStatus};
@@ -721,6 +723,34 @@ impl TestClient {
             .request("debug_traceCall", rpc_params![request, block_id, opts])
             .await
             .unwrap()
+    }
+
+    /// Like [`Self::debug_trace_call`], but surfaces the RPC error instead of panicking on it.
+    pub(crate) async fn debug_trace_call_result(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        opts: Option<GethDebugTracingCallOptions>,
+    ) -> Result<GethTrace, Error> {
+        self.http_client
+            .request("debug_traceCall", rpc_params![request, block_id, opts])
+            .await
+    }
+
+    /// `eth_call` surfacing the RPC error, with optional state and block overrides.
+    pub(crate) async fn eth_call_result(
+        &self,
+        request: TransactionRequest,
+        block_id: Option<BlockId>,
+        state_override: Option<StateOverride>,
+        block_override: Option<BlockOverrides>,
+    ) -> Result<Bytes, Error> {
+        self.http_client
+            .request(
+                "eth_call",
+                rpc_params![request, block_id, state_override, block_override],
+            )
+            .await
     }
 
     pub(crate) async fn debug_trace_block_by_number(

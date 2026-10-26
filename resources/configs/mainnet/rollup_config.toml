@@ -51,6 +51,26 @@ bind_port = 8080
 # no limit set by default.
 # trace_chain_block_limit = 100
 
+# approximate memory a single debug_trace* request may retain, in megabytes, shared by every
+# transaction it traces. the trace is aborted with an error once it is exceeded, 0 disables the limit.
+# defaults to 512
+# trace_memory_limit_mb = 512
+
+# megabytes of block traces to keep in the debug_trace* cache.
+# defaults to 512
+# trace_cache_limit_mb = 512
+
+# maximum number of debug_trace* requests executing at the same time; the rest queue.
+# together with trace_memory_limit_mb this bounds the memory tracing can use at once,
+# roughly max_tracing_requests * trace_memory_limit_mb on top of the trace cache.
+# defaults to 4
+# max_tracing_requests = 4
+
+# gas cap for eth_call and debug_traceCall, may exceed the block gas limit.
+# values above 100000000 are clamped to it, 0 keeps calls bounded by the block gas limit.
+# defaults to 100000000
+# gas_cap = 100000000
+
 # enables JS tracer in debug endpoints
 # true by default
 # enable_js_tracer = true
