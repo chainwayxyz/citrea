@@ -2715,7 +2715,7 @@ dependencies = [
 
 [[package]]
 name = "bitcoin-da"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3438,7 +3438,7 @@ dependencies = [
 
 [[package]]
 name = "citrea"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "alloy 0.13.0",
  "alloy-primitives 0.8.26",
@@ -3521,7 +3521,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-batch-prover"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -3569,7 +3569,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-cli"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "anyhow",
  "citrea-batch-prover",
@@ -3588,7 +3588,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-common"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "alloy-consensus 0.13.0",
  "alloy-primitives 0.8.26",
@@ -3657,7 +3657,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-evm"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "alloy 0.13.0",
  "alloy-consensus 0.13.0",
@@ -3720,7 +3720,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-fullnode"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -3754,7 +3754,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-light-client-prover"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "alloy-signer 0.13.0",
@@ -3791,7 +3791,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "alloy-eips 0.13.0",
  "brotli",
@@ -3802,7 +3802,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-adapter"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -3831,14 +3831,14 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-batch-proof"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "risc0-build",
 ]
 
 [[package]]
 name = "citrea-risc0-light-client"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "citrea-risc0-batch-proof",
  "risc0-build",
@@ -3846,7 +3846,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-sequencer"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "alloy-eips 0.13.0",
  "alloy-genesis 0.13.0",
@@ -3907,7 +3907,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-stf"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3937,7 +3937,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-storage-ops"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "anyhow",
  "citrea-common",
@@ -5015,7 +5015,7 @@ dependencies = [
 
 [[package]]
 name = "ethereum-rpc"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "alloy-consensus 0.13.0",
  "alloy-network 0.13.0",
@@ -6494,7 +6494,7 @@ dependencies = [
 
 [[package]]
 name = "integration-tests"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "anyhow",
  "borsh",
@@ -6931,7 +6931,7 @@ dependencies = [
 
 [[package]]
 name = "l2-block-rule-enforcer"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "borsh",
  "chrono",
@@ -8479,7 +8479,7 @@ dependencies = [
 
 [[package]]
 name = "prover-services"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11670,7 +11670,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "short-header-proof-provider"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "borsh",
  "futures",
@@ -11811,7 +11811,7 @@ dependencies = [
 
 [[package]]
 name = "sov-accounts"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "borsh",
  "hex",
@@ -11831,7 +11831,7 @@ dependencies = [
 
 [[package]]
 name = "sov-db"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -11854,7 +11854,7 @@ dependencies = [
 
 [[package]]
 name = "sov-keys"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "borsh",
  "derive_more 1.0.0",
@@ -11871,7 +11871,7 @@ dependencies = [
 
 [[package]]
 name = "sov-ledger-rpc"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -11887,7 +11887,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-da"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11906,7 +11906,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-zkvm"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11919,7 +11919,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -11950,7 +11950,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -11976,7 +11976,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-macros"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "borsh",
  "jsonrpsee",
@@ -11994,7 +11994,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-rollup-blueprint"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12016,7 +12016,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "anyhow",
  "borsh",
@@ -12036,7 +12036,7 @@ dependencies = [
 
 [[package]]
 name = "sov-prover-storage-manager"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "anyhow",
  "rand 0.8.6",
@@ -12050,7 +12050,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -12074,7 +12074,7 @@ dependencies = [
 
 [[package]]
 name = "sov-schema-db"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -12090,7 +12090,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "2.8.0"
+version = "2.9.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "alloy-rlp",
