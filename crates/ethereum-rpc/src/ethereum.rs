@@ -5,7 +5,7 @@ use alloy_rpc_types_trace::geth::TraceResult;
 use citrea_evm::{CitreaFilter, Evm};
 use jsonrpsee::http_client::HttpClient;
 use rustc_version_runtime::version;
-use schnellru::{ByLength, LruMap};
+use schnellru::LruMap;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
@@ -16,8 +16,8 @@ use tracing::instrument;
 use crate::gas_price::fee_history::FeeHistoryCacheConfig;
 use crate::gas_price::gas_oracle::{GasPriceOracle, GasPriceOracleConfig};
 use crate::subscription::SubscriptionManager;
+use crate::trace_cache::ByTraceSize;
 
-const MAX_TRACE_BLOCK: u32 = 1000;
 const DEFAULT_PRIORITY_FEE: U256 = U256::from_limbs([100, 0, 0, 0]);
 
 #[derive(Clone)]
@@ -26,6 +26,8 @@ pub struct EthRpcConfig {
     pub fee_history_cache_config: FeeHistoryCacheConfig,
     pub stale_filter_ttl: Option<usize>,
     pub enable_filters: bool,
+    /// Bytes of block traces to keep cached.
+    pub trace_cache_limit_mb: u64,
 }
 
 pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
@@ -36,7 +38,7 @@ pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
     pub(crate) ledger_db: LedgerDB,
     pub(crate) sequencer_client: Option<HttpClient>,
     pub(crate) web3_client_version: String,
-    pub(crate) trace_cache: Mutex<LruMap<u64, Vec<TraceResult>, ByLength>>,
+    pub(crate) trace_cache: Mutex<LruMap<u64, Vec<TraceResult>, ByTraceSize>>,
     pub(crate) subscription_manager: Option<SubscriptionManager>,
     pub(crate) citrea_filter: Arc<CitreaFilter>,
 }
@@ -66,7 +68,9 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
 
         let current_version = format!("{rollup}/{CITREA_VERSION}/{arch}/rust-{rustc_v}");
 
-        let trace_cache = Mutex::new(LruMap::new(ByLength::new(MAX_TRACE_BLOCK)));
+        let trace_cache = Mutex::new(LruMap::new(ByTraceSize::from_mb(
+            eth_rpc_config.trace_cache_limit_mb,
+        )));
 
         let subscription_manager = l2_block_rx.as_ref().map(|rx| {
             SubscriptionManager::new::<C>(storage.clone(), ledger_db.clone(), rx.resubscribe())

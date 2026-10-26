@@ -10428,7 +10428,7 @@ dependencies = [
 [[package]]
 name = "revm-inspectors"
 version = "0.18.1"
-source = "git+https://github.com/chainwayxyz/revm-inspectors?rev=574d614ce505d3c0c4534d8b8e62d8acb3fa9651#574d614ce505d3c0c4534d8b8e62d8acb3fa9651"
+source = "git+https://github.com/chainwayxyz/revm-inspectors?rev=3490c2beadcd36b5a4a8f1d8cc0baf2093494184#3490c2beadcd36b5a4a8f1d8cc0baf2093494184"
 dependencies = [
  "alloy-primitives 0.8.26",
  "alloy-rpc-types-eth 0.13.0",

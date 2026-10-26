@@ -14,10 +14,13 @@ use revm::{Database, DatabaseCommit};
 
 mod filter;
 mod log_utils;
+mod trace_limit;
 mod tracing_utils;
 
 use sov_modules_api::{StateMapAccessor, WorkingSet};
 use sov_state::storage::{NativeStorage, StateCodec, StorageKey};
+pub(crate) use trace_limit::TraceMemoryUsage;
+pub use trace_limit::{mb_to_bytes, trace_memory_limit_exceeded};
 pub(crate) use tracing_utils::*;
 
 use crate::db::EvmDb;
@@ -134,7 +137,14 @@ pub(crate) fn apply_block_overrides<C: sov_modules_api::Context>(
         block_env.timestamp = time;
     }
     if let Some(gas_limit) = gas_limit {
-        block_env.gas_limit = gas_limit;
+        // A block override may only *lower* the block gas limit, never raise it, so the `GASLIMIT`
+        // opcode a call sees is at most the chain's real value. This clamp is also the safety net
+        // for a `gas_cap` of 0 ("keep the block gas limit"): there the transaction gas is bounded
+        // by `block_env.gas_limit` (see `create_txn_env`), so without the clamp a `u64::MAX`
+        // override would let one call expand EVM memory without bound (e.g. an `MSTORE` at a
+        // multi-GiB offset). With a non-zero cap the transaction gas is bounded by the cap
+        // regardless, so the override only affects the opcode.
+        block_env.gas_limit = block_env.gas_limit.min(gas_limit);
     }
     if let Some(coinbase) = coinbase {
         block_env.beneficiary = coinbase;

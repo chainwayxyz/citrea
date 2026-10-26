@@ -40,6 +40,7 @@ use crate::common::{
 
 mod archival_state;
 mod diff_sizes;
+mod eth_call_gas_cap;
 mod fee;
 mod gas_price;
 mod precompiles;

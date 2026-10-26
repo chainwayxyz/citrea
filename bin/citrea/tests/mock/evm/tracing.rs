@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::Arc;
+use std::time::Instant;
 
 use alloy_primitives::ruint::aliases::U256;
 use alloy_primitives::{keccak256, Address, Bytes};
+use alloy_rpc_types::state::{AccountOverride, StateOverride};
 use alloy_rpc_types::{BlockId, BlockNumberOrTag, TransactionInput, TransactionRequest};
 use alloy_rpc_types_trace::geth::call::FlatCallFrame;
 use alloy_rpc_types_trace::geth::mux::{MuxConfig, MuxFrame};
@@ -20,6 +23,9 @@ use citrea_evm::smart_contracts::{
     AnotherLogEvent, CallerContract, LogEvent, LogsContract, SimpleStorageContract, TestContract,
 };
 use citrea_stf::genesis_config::GenesisPaths;
+use jsonrpsee::core::client::ClientT;
+use jsonrpsee::http_client::HttpClientBuilder;
+use jsonrpsee::rpc_params;
 use reth_tasks::TaskManager;
 use serde_json::{self, json};
 
@@ -37,19 +43,29 @@ struct TestContractInfo {
 
 async fn init_sequencer(
 ) -> Result<(TaskManager, Box<TestClient>, TestContractInfo), Box<dyn std::error::Error>> {
+    init_sequencer_with_trace_memory_limit(
+        citrea_common::RpcConfig::default().trace_memory_limit_mb,
+    )
+    .await
+}
+
+async fn init_sequencer_with_trace_memory_limit(
+    trace_memory_limit_mb: u64,
+) -> Result<(TaskManager, Box<TestClient>, TestContractInfo), Box<dyn std::error::Error>> {
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
 
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config = create_default_rollup_config(
+    let mut rollup_config = create_default_rollup_config(
         true,
         &sequencer_db_dir,
         &da_db_dir,
         NodeMode::SequencerNode,
         None,
     );
+    rollup_config.rpc.trace_memory_limit_mb = trace_memory_limit_mb;
     let sequencer_config = SequencerConfig::default();
 
     // Don't provide a prover since the EVM is not currently provable
@@ -117,6 +133,85 @@ async fn init_sequencer(
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn test_call_tracer_cache_miss_only_traces_target() -> Result<(), Box<dyn std::error::Error>>
+{
+    let (task_manager, test_client, _) = init_sequencer_with_trace_memory_limit(1).await?;
+    let recipient = Address::from([0xEE; 20]);
+    let call_with_512kib_input = [
+        0x5f, 0x5f, 0x62, 0x08, 0x00, 0x00, 0x5f, 0x5f, 0x60, 0x01, 0x5f, 0xf1, 0x50,
+    ];
+    let mut heavy_init_code = call_with_512kib_input.repeat(3);
+    heavy_init_code.push(0x00);
+
+    let early = test_client.send_eth(recipient, None, None, None, 1).await?;
+    let prefix = test_client
+        .deploy_contract(heavy_init_code.clone(), None)
+        .await?;
+    let target = test_client.send_eth(recipient, None, None, None, 2).await?;
+    let suffix = test_client.deploy_contract(heavy_init_code, None).await?;
+    test_client.send_publish_batch_request().await;
+
+    let early = early.get_receipt().await?;
+    let prefix = prefix.get_receipt().await?;
+    let target = target.get_receipt().await?;
+    let suffix = suffix.get_receipt().await?;
+    let block_number = target.block_number.unwrap();
+    for receipt in [&early, &prefix, &suffix] {
+        assert_eq!(receipt.block_number, Some(block_number));
+    }
+    assert!(prefix.transaction_index.unwrap() < target.transaction_index.unwrap());
+    assert!(target.transaction_index.unwrap() < suffix.transaction_index.unwrap());
+
+    let opts = GethDebugTracingOptions::call_tracer(CallConfig::default());
+    for (receipt, value) in [(&target, 2u64), (&early, 1), (&target, 2)] {
+        let frame = test_client
+            .debug_trace_transaction(receipt.transaction_hash, Some(opts.clone()))
+            .await
+            .try_into_call_frame()
+            .unwrap();
+        assert_eq!(frame.from, test_client.from_addr);
+        assert_eq!(frame.to, Some(recipient));
+        assert_eq!(frame.value, Some(U256::from(value)));
+        assert_eq!(frame.gas_used, U256::from(21_000));
+        assert!(frame.calls.is_empty());
+    }
+
+    let flat_trace = test_client
+        .debug_trace_transaction(
+            target.transaction_hash,
+            Some(GethDebugTracingOptions::default().with_tracer(
+                GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::FlatCallTracer),
+            )),
+        )
+        .await
+        .try_into_flat_call_frame()
+        .unwrap();
+    assert_eq!(flat_trace.len(), 1);
+    assert_eq!(
+        flat_trace[0].transaction_hash,
+        Some(target.transaction_hash)
+    );
+    assert_eq!(flat_trace[0].transaction_position, target.transaction_index);
+    assert_eq!(flat_trace[0].block_number, Some(block_number));
+
+    let rpc = HttpClientBuilder::default().build(format!("http://{}", test_client.rpc_addr))?;
+    let whole_block: Result<Vec<TraceResult>, _> = rpc
+        .request(
+            "debug_traceBlockByNumber",
+            rpc_params![BlockNumberOrTag::Number(block_number), opts],
+        )
+        .await;
+    let err = whole_block.expect_err("a single-target trace must not populate the block cache");
+    assert!(
+        err.to_string().contains("memory limit"),
+        "expected the full block to exceed the memory budget, got: {err}"
+    );
+
+    task_manager.graceful_shutdown();
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn test_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
     let (task_manager, test_client, contract_info) = init_sequencer().await?;
     let TestContractInfo {
@@ -165,14 +260,14 @@ async fn test_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
 
     let json_value = serde_json::from_value::<CallFrame>(json! [{
       "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-      "gas": "0x1c96f3c",
+      "gas": "0x5f58cbc",
       "gasUsed": "0xba65",
       "to": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
       "input": "0xb7d5b6580000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa30000000000000000000000000000000000000000000000000000000000000003",
       "calls": [
         {
           "from": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
-          "gas": "0x1c23bb5",
+          "gas": "0x5dda8bf",
           "gasUsed": "0x57f2",
           "to": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
           "input": "0x60fe47b10000000000000000000000000000000000000000000000000000000000000003",
@@ -553,7 +648,8 @@ async fn test_call_tracer_with_log() -> Result<(), Box<dyn std::error::Error>> {
 
     test_client.send_publish_batch_request().await;
 
-    let tx_hash = publish_event_req.get_receipt().await?.transaction_hash;
+    let receipt = publish_event_req.get_receipt().await?;
+    let tx_hash = receipt.transaction_hash;
 
     let with_log_trace = test_client
         .debug_trace_transaction(
@@ -583,6 +679,13 @@ async fn test_call_tracer_with_log() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(log_payload.message, "Hello World!");
     assert_eq!(another_log_payload.address, logs_contract_address);
     assert_eq!(another_log_payload.contractAddress, logs_contract_address);
+
+    test_client
+        .debug_trace_block_by_number(
+            BlockNumberOrTag::Number(receipt.block_number.unwrap()),
+            Some(GethDebugTracingOptions::call_tracer(CallConfig::default())),
+        )
+        .await;
 
     // The same request is now served from the trace cache
     let cached_with_log_trace = test_client
@@ -718,7 +821,7 @@ async fn test_flat_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
         "action": {
             "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
             "callType": "call",
-            "gas": "0x1c9c380",
+            "gas": "0x5f5e100",
             "input": "0xb7d5b6580000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa30000000000000000000000000000000000000000000000000000000000000003",
             "to": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
             "value": "0x0"
@@ -734,7 +837,7 @@ async fn test_flat_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
         "action": {
             "from": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
             "callType": "call",
-            "gas": "0x1c23bb5",
+            "gas": "0x5dda8bf",
             "input": "0x60fe47b10000000000000000000000000000000000000000000000000000000000000003",
             "to": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
             "value": "0x0"
@@ -792,7 +895,7 @@ async fn test_flat_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
         "action": {
             "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
             "callType": "call",
-            "gas": "0x1c9c380",
+            "gas": "0x5f5e100",
             "input": "0x",
             "to": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92255",
             "value": "0x4563918244f40000"
@@ -1448,7 +1551,7 @@ async fn test_mux_tracer() -> Result<(), Box<dyn std::error::Error>> {
         },
         "callTracer": {
             "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-            "gas": "0x1c96f3c",
+            "gas": "0x5f58cbc",
             "gasUsed": "0xba65",
             "to": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
             "input": "0xb7d5b6580000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa30000000000000000000000000000000000000000000000000000000000000003",
@@ -1678,6 +1781,265 @@ async fn test_noop_tracer() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Tracing an endless loop of large calls must come back as an error rather than growing until the
+/// node runs out of memory.
+///
+/// Every `CALL` whose arguments come from memory makes revm copy those arguments into a fresh
+/// buffer, and the call tracer keeps a reference to that copy in the trace of the frame. A loop of
+/// calls with 1MB of arguments therefore retains a megabyte per iteration for the whole trace, even
+/// though the tracer records no opcode level steps at all.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_debug_trace_call_memory_limit() -> Result<(), Box<dyn std::error::Error>> {
+    let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+
+    let mut rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+    // the default is 512MB, a smaller budget makes the test abort after a handful of iterations
+    // instead of allocating half a gigabyte first
+    rollup_config.rpc.trace_memory_limit_mb = 32;
+    let sequencer_config = SequencerConfig::default();
+
+    let rollup_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
+
+    let port = port_rx.await.unwrap();
+    let test_client = make_test_client(port).await?;
+
+    // 0x5b5f5f621000005f5f60015ff1505f56
+    // JUMPDEST; PUSH0 (retLength); PUSH0 (retOffset); PUSH3 0x100000 (argsLength, 1MB);
+    // PUSH0 (argsOffset); PUSH0 (value); PUSH1 0x01 (ecrecover); PUSH0 (gas); CALL; POP;
+    // PUSH0; JUMP - calls the precompile with a megabyte of arguments until the gas runs out
+    let init_code = Bytes::from_static(&[
+        0x5b, 0x5f, 0x5f, 0x62, 0x10, 0x00, 0x00, 0x5f, 0x5f, 0x60, 0x01, 0x5f, 0xf1, 0x50, 0x5f,
+        0x56,
+    ]);
+
+    let err = test_client
+        .debug_trace_call_result(
+            TransactionRequest {
+                // no `to`, so the init code above is what gets executed
+                to: None,
+                input: TransactionInput::new(init_code),
+                gas: Some(25_000_000),
+                ..Default::default()
+            },
+            Some(BlockId::Number(BlockNumberOrTag::Pending)),
+            Some(GethDebugTracingCallOptions::default().with_tracing_options(
+                GethDebugTracingOptions::default().with_tracer(GethDebugTracerType::BuiltInTracer(
+                    GethDebugBuiltInTracerType::CallTracer,
+                )),
+            )),
+        )
+        .await
+        .expect_err("tracing an endless loop of 1MB calls should exhaust the memory limit");
+
+    assert!(
+        err.to_string().contains("memory limit"),
+        "expected a memory limit error, got: {err}"
+    );
+
+    rollup_task.graceful_shutdown();
+
+    Ok(())
+}
+
+/// A prestate response that would retain more than `trace_memory_limit_mb` is rejected, for the
+/// prestate tracer and for a mux tracer that embeds it. The prestate frame is built from
+/// post-execution state after tracing finishes, so the per-step budget never sees it - the size
+/// bound while the frame is built is what keeps it in check.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_debug_trace_call_prestate_memory_limit() -> Result<(), Box<dyn std::error::Error>> {
+    let (task_manager, test_client, _) = init_sequencer_with_trace_memory_limit(1).await?;
+
+    // A contract whose code alone is 2 MiB, all STOP (0x00) so execution halts on the first byte.
+    // A prestate response must carry this code, so it exceeds the 1 MiB budget on its own.
+    let heavy = Address::from([0xcc; 20]);
+    let mut state_override = StateOverride::default();
+    state_override.insert(
+        heavy,
+        AccountOverride {
+            code: Some(Bytes::from(vec![0x00u8; 2 * 1024 * 1024])),
+            ..Default::default()
+        },
+    );
+
+    let request = TransactionRequest {
+        from: Some(test_client.from_addr),
+        to: Some(alloy_primitives::TxKind::Call(heavy)),
+        gas: Some(1_000_000),
+        ..Default::default()
+    };
+
+    // direct prestate tracer
+    let prestate_opts = GethDebugTracingCallOptions {
+        tracing_options: GethDebugTracingOptions::default().with_tracer(
+            GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::PreStateTracer),
+        ),
+        state_overrides: Some(state_override.clone()),
+        ..Default::default()
+    };
+    let err = test_client
+        .debug_trace_call_result(
+            request.clone(),
+            Some(BlockId::Number(BlockNumberOrTag::Pending)),
+            Some(prestate_opts),
+        )
+        .await
+        .expect_err("a 2 MiB prestate response must exceed a 1 MiB limit");
+    assert!(
+        err.to_string().contains("memory limit"),
+        "expected a memory limit error from the prestate tracer, got: {err}"
+    );
+
+    // mux tracer embedding the prestate tracer takes the same bound
+    let mut mux_opts = GethDebugTracingCallOptions {
+        state_overrides: Some(state_override),
+        ..Default::default()
+    };
+    mux_opts.tracing_options.tracer = Some(GethDebugTracerType::BuiltInTracer(
+        GethDebugBuiltInTracerType::MuxTracer,
+    ));
+    mux_opts.tracing_options.tracer_config = MuxConfig(HashMap::from_iter([(
+        GethDebugBuiltInTracerType::PreStateTracer,
+        Some(PreStateConfig::default().into()),
+    )]))
+    .into();
+    let err = test_client
+        .debug_trace_call_result(
+            request,
+            Some(BlockId::Number(BlockNumberOrTag::Pending)),
+            Some(mux_opts),
+        )
+        .await
+        .expect_err("a mux prestate response must exceed a 1 MiB limit");
+    assert!(
+        err.to_string().contains("memory limit"),
+        "expected a memory limit error from the mux tracer, got: {err}"
+    );
+
+    task_manager.graceful_shutdown();
+
+    Ok(())
+}
+
+/// With a single tracing permit, concurrent `debug_trace*` requests queue instead of running at
+/// once. That is what turns `trace_memory_limit_mb` into a bound on the node rather than on a
+/// single request: peak tracing memory is the per trace limit times the number of permits.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_tracing_requests_are_serialized_by_permits() -> Result<(), Box<dyn std::error::Error>>
+{
+    let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+
+    let mut rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+    // a single permit makes the serialization observable
+    rollup_config.rpc.max_tracing_requests = 1;
+    let sequencer_config = SequencerConfig::default();
+
+    let rollup_task = start_rollup(
+        port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
+
+    let port = port_rx.await.unwrap();
+    let test_client = Arc::new(make_test_client(port).await?);
+
+    // a trace that takes a measurable amount of time: a loop that runs until it is out of gas
+    let request = TransactionRequest {
+        to: None,
+        input: TransactionInput::new(Bytes::from_static(&[0x5b, 0x60, 0x00, 0x56])),
+        gas: Some(5_000_000),
+        ..Default::default()
+    };
+    let opts = GethDebugTracingCallOptions::default().with_tracing_options(
+        GethDebugTracingOptions::default().with_tracer(GethDebugTracerType::BuiltInTracer(
+            GethDebugBuiltInTracerType::CallTracer,
+        )),
+    );
+
+    // time one trace on its own
+    let started = Instant::now();
+    test_client
+        .debug_trace_call_result(
+            request.clone(),
+            Some(BlockId::Number(BlockNumberOrTag::Pending)),
+            Some(opts.clone()),
+        )
+        .await?;
+    let single = started.elapsed();
+
+    // four at once cannot overlap through one permit, so the batch takes several times as long as
+    // one rather than about the same
+    let concurrent = 4;
+    let started = Instant::now();
+    let mut handles = Vec::new();
+    for _ in 0..concurrent {
+        let client = test_client.clone();
+        let request = request.clone();
+        let opts = opts.clone();
+        handles.push(tokio::spawn(async move {
+            client
+                .debug_trace_call_result(
+                    request,
+                    Some(BlockId::Number(BlockNumberOrTag::Pending)),
+                    Some(opts),
+                )
+                .await
+        }));
+    }
+    for handle in handles {
+        // queued requests are served, not rejected
+        handle
+            .await?
+            .expect("every queued trace should still be served");
+    }
+    let batch = started.elapsed();
+
+    assert!(
+        batch > single * 2,
+        "expected {concurrent} traces through one permit to serialize, but the batch took \
+         {batch:?} which is not meaningfully longer than the {single:?} one trace took"
+    );
+
+    rollup_task.graceful_shutdown();
+
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn test_trace_chain_block_limit() -> Result<(), Box<dyn std::error::Error>> {
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
@@ -1713,8 +2075,15 @@ async fn test_trace_chain_block_limit() -> Result<(), Box<dyn std::error::Error>
 
     let test_client = make_test_client(port).await?;
 
-    for _ in 0..15 {
+    // `citrea_testPublishBlock` returns before the block is committed, and under parallel test
+    // load a request does not always turn into a block, so publish until the head really is at 15.
+    // The handler checks that the end block exists before it checks the range, so asking for a
+    // block past the head would fail with "header not found" instead of the range error.
+    let mut attempts = 0;
+    while test_client.eth_block_number().await < 15 {
+        assert!(attempts < 30, "sequencer did not reach block 15");
         test_client.send_publish_batch_request().await;
+        attempts += 1;
     }
 
     let result = test_client
@@ -1726,9 +2095,11 @@ async fn test_trace_chain_block_limit() -> Result<(), Box<dyn std::error::Error>
         .await
         .expect_err("Expected error due to exceeding block limit");
 
-    assert!(result
-        .to_string()
-        .contains("Block range too large. Maximum allowed range is 10 blocks"));
+    let message = result.to_string();
+    assert!(
+        message.contains("Block range too large. Maximum allowed range is 10 blocks"),
+        "unexpected error: {message}"
+    );
     rollup_task.graceful_shutdown();
 
     Ok(())

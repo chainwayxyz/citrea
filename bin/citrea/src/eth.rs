@@ -28,6 +28,7 @@ pub fn register_ethereum<Da: DaService>(
             fee_history_cache_config: FeeHistoryCacheConfig::default(),
             stale_filter_ttl: rpc_config.stale_filter_ttl,
             enable_filters: rpc_config.enable_filters,
+            trace_cache_limit_mb: rpc_config.trace_cache_limit_mb,
         }
     };
 

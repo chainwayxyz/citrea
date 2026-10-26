@@ -15,6 +15,69 @@ use crate::evm::primitive_types::{CitreaReceiptWithBloom, TransactionSignedAndRe
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
 use crate::{citrea_spec_id_to_evm_spec_id, Evm, PendingTransaction};
 
+/// Default and maximum gas cap for `eth_call` and `debug_traceCall`, in gas units.
+///
+/// Set above the block gas limit so complex read-only calls can run, while still bounding the EVM
+/// memory (~7 MiB at 100M gas) and CPU a single call can consume. This is also the hard ceiling:
+/// [`RpcGasCap::new`] clamps any larger configured value down to it, so a misconfiguration cannot
+/// lift that bound. Analogous to reth's `RPC_DEFAULT_GAS_CAP` (50M) and geth's
+/// `RPCGasCap`, but higher. Keep in sync with the `default_gas_cap` used by `citrea_common`'s
+/// `RpcConfig`.
+pub const RPC_DEFAULT_GAS_CAP: u64 = 100_000_000;
+
+/// Immutable gas cap for `eth_call` and `debug_traceCall`, constructed at RPC server startup from
+/// `RpcConfig::gas_cap` via [`RpcGasCap::new`].
+///
+/// Each RPC server owns its cap and passes a copy into the EVM helpers for every request, so
+/// another server or test cannot change its configuration. A value of 0 means "do not raise the
+/// gas ceiling above the block gas limit".
+#[derive(Clone, Copy, Debug)]
+pub struct RpcGasCap(u64);
+
+impl RpcGasCap {
+    /// Constructs an RPC gas cap, clamped to at most [`RPC_DEFAULT_GAS_CAP`]. Use at RPC
+    /// server startup; see [`Self::get`]. A value of 0 is preserved and means "do not raise the
+    /// gas ceiling above the block gas limit".
+    pub fn new(gas_cap: u64) -> Self {
+        Self(gas_cap.min(RPC_DEFAULT_GAS_CAP))
+    }
+
+    /// Returns this instance's RPC gas cap for `eth_call` and `debug_traceCall`.
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+}
+
+impl Default for RpcGasCap {
+    fn default() -> Self {
+        Self::new(RPC_DEFAULT_GAS_CAP)
+    }
+}
+
+#[cfg(test)]
+mod gas_cap_tests {
+    use super::{RpcGasCap, RPC_DEFAULT_GAS_CAP};
+
+    #[test]
+    fn rpc_gas_cap_clamps_to_max_and_preserves_zero() {
+        // A configured value above the maximum is clamped down to it.
+        assert_eq!(
+            RpcGasCap::new(RPC_DEFAULT_GAS_CAP + 50_000_000).get(),
+            RPC_DEFAULT_GAS_CAP
+        );
+        // u64::MAX (the previously dangerous case) is clamped too.
+        assert_eq!(RpcGasCap::new(u64::MAX).get(), RPC_DEFAULT_GAS_CAP);
+        // A value below the maximum passes through unchanged.
+        let lowered = RpcGasCap::new(30_000_000);
+        assert_eq!(lowered.get(), 30_000_000);
+        // 0 is preserved: "do not raise above the block gas limit".
+        assert_eq!(RpcGasCap::new(0).get(), 0);
+        // Constructing a default cap does not change an existing instance.
+        assert_eq!(RpcGasCap::default().get(), RPC_DEFAULT_GAS_CAP);
+        assert_eq!(lowered.get(), 30_000_000);
+    }
+}
+
 /// EVM call message.
 #[derive(
     borsh::BorshDeserialize,

@@ -37,7 +37,8 @@ use crate::tests::utils::{
 };
 use crate::tests::{get_test_seq_pub_key, DEFAULT_CHAIN_ID};
 use crate::{
-    AccountData, EvmConfig, RlpEvmTransaction, BASE_FEE_VAULT, L1_FEE_VAULT, PRIORITY_FEE_VAULT,
+    AccountData, EvmConfig, RlpEvmTransaction, RpcGasCap, BASE_FEE_VAULT, L1_FEE_VAULT,
+    PRIORITY_FEE_VAULT,
 };
 type C = DefaultContext;
 
@@ -1590,7 +1591,7 @@ fn test_eip7702_tx() {
     );
     // let's try the same thing with eth_call
     assert_eq!(
-        evm.get_call(
+        evm.get_call_with_gas_cap(
             TransactionRequest::default()
                 .to(signer1.address())
                 .input(TransactionInput::from(
@@ -1601,6 +1602,7 @@ fn test_eip7702_tx() {
             None,
             &mut working_set,
             &ledger_db,
+            RpcGasCap::default(),
         )
         .unwrap(),
         Bytes::from_str("0x0000000000000000000000000000000000000000000000000000000000000064")

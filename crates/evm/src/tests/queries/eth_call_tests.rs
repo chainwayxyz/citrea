@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 
+use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::map::AddressMap;
 use alloy_primitives::{Address, Bytes, TxKind, B256};
@@ -21,7 +22,7 @@ use crate::tests::get_test_seq_pub_key;
 use crate::tests::queries::{init_evm, init_evm_single_block};
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{create_contract_message, get_evm, get_evm_config, get_fork_fn_latest};
-use crate::{CallMessage, Evm};
+use crate::{CallMessage, Evm, RpcGasCap, RPC_DEFAULT_GAS_CAP};
 
 type C = DefaultContext;
 
@@ -863,6 +864,289 @@ fn test_call_with_block_overrides() {
         .unwrap();
     let expected_hash = Bytes::from_iter([2; 32]);
     assert_eq!(call_result, expected_hash);
+}
+
+/// `eth_call` and `debug_traceCall` are bounded by the RPC gas cap (default 100M), not the block
+/// gas limit, which also bounds how far one call can expand EVM memory (one `MSTORE` at a
+/// multi-MiB offset). Here the request gas and a block override both ask for `u64::MAX`; the call
+/// must still be rejected for lack of gas - capped to the RPC gas cap - rather than allocate
+/// 32 MiB.
+#[test]
+fn gas_cap_bounds_memory_expansion() {
+    let (evm, mut working_set, _, _signer, _, ledger_db) = init_evm(SpecId::latest());
+    // The default cap is explicit and cannot be changed by other in-process tests.
+
+    // PUSH1 1, PUSH4 0x02000000 (32 MiB), MSTORE, STOP. Expanding EVM memory to 32 MiB costs
+    // ~2.4e9 gas: affordable under a u64::MAX limit but far above the 100M RPC gas cap.
+    let expander = Address::from([0xAA; 20]);
+    // PUSH1 1, PUSH1 0, MSTORE, STOP: a cheap store at offset 0.
+    let benign = Address::from([0xBB; 20]);
+    let mut overrides = AddressMap::<AccountOverride>::default();
+    overrides.insert(
+        expander,
+        AccountOverride {
+            code: Some(Bytes::from(vec![
+                0x60, 0x01, 0x63, 0x02, 0x00, 0x00, 0x00, 0x52, 0x00,
+            ])),
+            ..Default::default()
+        },
+    );
+    overrides.insert(
+        benign,
+        AccountOverride {
+            code: Some(Bytes::from(vec![0x60, 0x01, 0x60, 0x00, 0x52, 0x00])),
+            ..Default::default()
+        },
+    );
+
+    let block_gas_limit_override = |gas_limit: u64| BlockOverrides {
+        gas_limit: Some(gas_limit),
+        ..Default::default()
+    };
+
+    // Raise both the block gas limit and the request gas to u64::MAX. The 32 MiB memory
+    // expansion must be rejected for lack of gas - capped to the RPC gas cap - instead of allocated.
+    let capped = evm.get_call_inner(
+        TransactionRequest {
+            to: Some(TxKind::Call(expander)),
+            gas: Some(u64::MAX),
+            ..Default::default()
+        },
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
+        Some(overrides.clone()),
+        Some(block_gas_limit_override(u64::MAX)),
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+    );
+    let err = capped.expect_err("call must be capped to the RPC gas cap");
+    assert!(
+        err.message().contains("gas"),
+        "expected an out-of-gas error, got: {err:?}"
+    );
+
+    // The override path still works: a cheap call with a lowered block gas limit succeeds.
+    let ok = evm.get_call_inner(
+        TransactionRequest {
+            to: Some(TxKind::Call(benign)),
+            gas: Some(100_000),
+            ..Default::default()
+        },
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
+        Some(overrides),
+        Some(block_gas_limit_override(1_000_000)),
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+    );
+    assert_eq!(ok.unwrap(), Bytes::from_str("0x").unwrap());
+}
+
+/// The RPC gas cap is decoupled from the block gas limit: a read-only call may consume more gas
+/// than a block, up to the cap. A call needing ~76M gas succeeds under the default 100M cap even
+/// though the block gas limit is 30M, and is rejected once the cap is lowered below what it needs.
+#[test]
+fn call_gas_cap_allows_running_above_block_gas_limit() {
+    let (evm, mut working_set, _, _signer, _, ledger_db) = init_evm(SpecId::latest());
+
+    // PUSH1 1, PUSH4 0x00600000 (6 MiB), MSTORE, STOP. Expanding EVM memory to ~6 MiB costs ~76M
+    // gas: above the 30M block gas limit but below the 100M RPC gas cap.
+    let heavy = Address::from([0xCC; 20]);
+    let mut overrides = AddressMap::<AccountOverride>::default();
+    overrides.insert(
+        heavy,
+        AccountOverride {
+            code: Some(Bytes::from(vec![
+                0x60, 0x01, 0x63, 0x00, 0x60, 0x00, 0x00, 0x52, 0x00,
+            ])),
+            ..Default::default()
+        },
+    );
+    let request = || TransactionRequest {
+        to: Some(TxKind::Call(heavy)),
+        ..Default::default()
+    };
+
+    // Under the default 100M cap the call runs above the 30M block gas limit and succeeds.
+    let ok = evm.get_call_inner(
+        request(),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
+        Some(overrides.clone()),
+        None,
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+    );
+    assert_eq!(
+        ok.expect("a ~76M gas call must succeed under the 100M gas cap"),
+        Bytes::from_str("0x").unwrap()
+    );
+
+    // Lower the cap below what the call needs: it is now rejected for lack of gas.
+    let capped = evm.get_call_inner_with_gas_cap(
+        request(),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
+        Some(overrides),
+        None,
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+        RpcGasCap::new(30_000_000),
+    );
+    // No shared cap needs restoring before other in-process tests run.
+    let err = capped.expect_err("call above the lowered gas cap must run out of gas");
+    assert!(
+        err.message().contains("gas"),
+        "expected an out-of-gas error, got: {err:?}"
+    );
+}
+
+/// The `GASLIMIT` opcode in a call reports the real block gas limit, not the RPC gas cap, so the
+/// simulated block context matches the chain (as geth and reth do). A block override may still
+/// lower that value but, per the kept `apply_block_overrides` clamp, never raise it.
+#[test]
+fn block_override_cannot_raise_the_block_gas_limit() {
+    let (evm, mut working_set, _, _signer, _, ledger_db) = init_evm(SpecId::latest());
+
+    // GASLIMIT, PUSH1 0, MSTORE, PUSH1 32, PUSH1 0, RETURN: returns the block gas limit the EVM
+    // sees as a 32-byte word.
+    let reporter = Address::from([0xDD; 20]);
+    let mut overrides = AddressMap::<AccountOverride>::default();
+    overrides.insert(
+        reporter,
+        AccountOverride {
+            code: Some(Bytes::from(vec![
+                0x45, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xf3,
+            ])),
+            ..Default::default()
+        },
+    );
+
+    let gas_limit_seen = |working_set: &mut WorkingSet<<C as Spec>::Storage>,
+                          block_override: Option<BlockOverrides>| {
+        let out = evm
+            .get_call_inner(
+                TransactionRequest {
+                    to: Some(TxKind::Call(reporter)),
+                    ..Default::default()
+                },
+                Some(BlockId::Number(BlockNumberOrTag::Latest)),
+                Some(overrides.clone()),
+                block_override,
+                working_set,
+                &ledger_db,
+                get_fork_fn_latest(),
+            )
+            .unwrap();
+        U256::from_be_slice(&out)
+    };
+
+    let real = gas_limit_seen(&mut working_set, None);
+    // With no override the EVM reports the real block gas limit (30M), not the 100M RPC gas cap.
+    assert_eq!(real, U256::from(ETHEREUM_BLOCK_GAS_LIMIT_30M));
+    assert_ne!(real, U256::from(RPC_DEFAULT_GAS_CAP));
+    // A u64::MAX override must not raise the block gas limit the EVM reports above its real value.
+    let raised = gas_limit_seen(
+        &mut working_set,
+        Some(BlockOverrides {
+            gas_limit: Some(u64::MAX),
+            ..Default::default()
+        }),
+    );
+    assert_eq!(
+        raised, real,
+        "override must not raise the block gas limit above its real value"
+    );
+    // But a smaller override may still lower it.
+    let lowered = gas_limit_seen(
+        &mut working_set,
+        Some(BlockOverrides {
+            gas_limit: Some(1_000_000),
+            ..Default::default()
+        }),
+    );
+    assert_eq!(lowered, U256::from(1_000_000u64));
+    assert!(
+        real > U256::from(1_000_000u64),
+        "the cap should exceed the lowered override"
+    );
+}
+
+/// A block override affects only the `GASLIMIT` opcode, not how much gas the call may burn - that
+/// ceiling is the RPC gas cap, as in geth. A ~76M gas call runs under the 100M cap even with an
+/// override lowering the block gas limit to 30M; only lowering the cap itself rejects it.
+#[test]
+fn block_override_does_not_bound_the_call_gas() {
+    let (evm, mut working_set, _, _signer, _, ledger_db) = init_evm(SpecId::latest());
+
+    // PUSH1 1, PUSH4 0x00600000 (6 MiB), MSTORE, STOP: expanding EVM memory to ~6 MiB costs ~76M
+    // gas, above the 30M override but below the 100M cap.
+    let heavy = Address::from([0xCC; 20]);
+    let mut overrides = AddressMap::<AccountOverride>::default();
+    overrides.insert(
+        heavy,
+        AccountOverride {
+            code: Some(Bytes::from(vec![
+                0x60, 0x01, 0x63, 0x00, 0x60, 0x00, 0x00, 0x52, 0x00,
+            ])),
+            ..Default::default()
+        },
+    );
+    let request = || TransactionRequest {
+        to: Some(TxKind::Call(heavy)),
+        ..Default::default()
+    };
+
+    // No override: the call runs under the 100M cap.
+    let ok = evm.get_call_inner(
+        request(),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
+        Some(overrides.clone()),
+        None,
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+    );
+    assert_eq!(
+        ok.expect("the call should run under the 100M cap"),
+        Bytes::from_str("0x").unwrap()
+    );
+
+    // A block override lowering the block gas limit to 30M does NOT bound the ~76M call: it only
+    // changes the `GASLIMIT` opcode, so the call still runs under the 100M cap.
+    let still_ok = evm.get_call_inner(
+        request(),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
+        Some(overrides.clone()),
+        Some(BlockOverrides {
+            gas_limit: Some(30_000_000),
+            ..Default::default()
+        }),
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+    );
+    assert_eq!(
+        still_ok.expect("a block override must not bound the call's gas"),
+        Bytes::from_str("0x").unwrap()
+    );
+
+    // Lowering the RPC gas cap itself to 30M, on the other hand, does reject the ~76M call.
+    let capped = evm.get_call_inner_with_gas_cap(
+        request(),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
+        Some(overrides),
+        None,
+        &mut working_set,
+        &ledger_db,
+        get_fork_fn_latest(),
+        RpcGasCap::new(30_000_000),
+    );
+    let err = capped.expect_err("call above the lowered gas cap must run out of gas");
+    assert!(
+        err.message().contains("gas"),
+        "expected an out-of-gas error, got: {err:?}"
+    );
 }
 
 // TODO: add eth_call with authorization list

@@ -7,7 +7,7 @@ use alloy_primitives::{Address, Bytes, B256, U256};
 use alloy_rpc_types::{SyncInfo, SyncStatus as EthSyncStatus, Transaction};
 use alloy_rpc_types_txpool::TxpoolContent;
 use citrea_common::rpc::utils::internal_rpc_error;
-use citrea_evm::Evm;
+use citrea_evm::{Evm, RpcGasCap};
 use citrea_stf::runtime::DefaultContext;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
@@ -332,13 +332,17 @@ impl SequencerRpcServer for SequencerRpcServerImpl {
             .make_deposit_tx_from_data(deposit.clone().into());
 
         let start = std::time::Instant::now();
-        let tx_res = evm.get_call(
+        let tx_res = evm.get_call_with_gas_cap(
             dep_tx,
             Some(BlockId::pending()),
             None,
             None,
             &mut working_set,
             &self.context.ledger,
+            // Deposit validation is not `eth_call`/`debug_traceCall`, so the configurable RPC gas
+            // cap must not apply: a cap below the 1M system deposit gas limit would reject valid
+            // deposits. `new(0)` keeps the block-gas-limit ceiling these transactions expect.
+            RpcGasCap::new(0),
         );
         let deposit_tx_call_duration = Instant::now()
             .saturating_duration_since(start)
