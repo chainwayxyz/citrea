@@ -1835,7 +1835,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 }
 
                 let (from_block_number, to_block_number) =
-                    get_filter_block_range(from, to, start_block);
+                    get_filter_block_range(from, to, start_block, start_block);
                 self.get_logs_in_block_range(
                     working_set,
                     &filter,
