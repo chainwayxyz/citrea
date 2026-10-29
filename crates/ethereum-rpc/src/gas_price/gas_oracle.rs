@@ -33,8 +33,9 @@ pub const MAX_HEADER_HISTORY: u64 = 1024;
 
 /// Maximum `rewardPercentiles` entries `eth_feeHistory` will accept.
 ///
-/// Same default as reth's `MAX_REWARD_PERCENTILE_COUNT`. Reth rejects a longer array before
-/// building the reward matrix:
+/// Matches Reth v1.3.7's default maximum of 100 entries (`MAX_REWARD_PERCENTILE_COUNT`):
+/// <https://github.com/paradigmxyz/reth/blob/v1.3.7/crates/rpc/rpc-server-types/src/constants.rs#L72>
+/// Reth rejects arrays exceeding its configured maximum before building the reward matrix:
 /// <https://github.com/paradigmxyz/reth/blob/v1.3.7/crates/rpc/rpc-eth-api/src/helpers/fee.rs>
 ///
 /// Block count is already capped, but each accepted percentile is stored once per block, and
