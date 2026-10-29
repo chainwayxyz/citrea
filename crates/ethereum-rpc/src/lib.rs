@@ -438,8 +438,8 @@ where
         block_id: Option<BlockId>,
     ) -> RpcResult<EIP1186AccountProofResponse> {
         if keys.len() > MAX_GET_PROOF_KEYS {
-            // Reth maps InvalidParams to JSON-RPC -32602:
-            // https://github.com/paradigmxyz/reth/blob/v1.3.7/crates/rpc/rpc-eth-types/src/error/mod.rs#L218
+            // Match Geth's storage-key cap check before state access:
+            // https://github.com/ethereum/go-ethereum/blob/bd14ba80c6a7ab5a7c37aa21cd0a3d784a2b1c69/internal/ethapi/api.go#L388-L391
             return Err(EthApiError::InvalidParams(format!(
                 "too many storage keys requested (max {MAX_GET_PROOF_KEYS}, got {})",
                 keys.len()
