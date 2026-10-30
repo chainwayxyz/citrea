@@ -8,10 +8,7 @@ contract BridgeMigration is Bridge {
     BridgeMigrationState public immutable migration = new BridgeMigrationState();
 
     function startMigration(uint256 newDepositAmount) external onlyOwner whenPaused {
-        require(newDepositAmount != 0 && newDepositAmount < depositAmount, "Invalid deposit amount");
-        require(depositAmount % newDepositAmount == 0, "Deposit amount must divide evenly");
-        require(newDepositAmount % SAT_TO_WEI == 0, "Deposit amount must have valid satoshi value");
-        migration.start(withdrawalUTXOs.length, depositTxIds.length, newDepositAmount, depositAmount / newDepositAmount);
+        migration.start(withdrawalUTXOs.length, depositTxIds.length, newDepositAmount, depositAmount);
     }
 
     function padWithdrawalUTXOs(uint256 count) external onlyOwner whenPaused {
@@ -52,12 +49,6 @@ contract BridgeMigration is Bridge {
     }
 
     function validateMigration() external view {
-        uint256 splitCount = migration.splitCount();
-        uint256 depositCount = migration.depositCount();
-        require(splitCount != 0, "Migration not started");
-        require(migration.splitIndex() == depositCount, "Deposits not split");
-        require(withdrawalUTXOs.length == depositCount, "Unexpected withdrawal count");
-        require(depositTxIds.length == depositCount + (depositCount - migration.withdrawalCount()) * splitCount, "Unexpected deposit count");
-        require(depositAmount == migration.newDepositAmount(), "Deposit amount not set");
+        migration.validate(withdrawalUTXOs.length, depositTxIds.length, depositAmount);
     }
 }
