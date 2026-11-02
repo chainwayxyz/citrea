@@ -1,5 +1,10 @@
 # Changelog
 ## [Unreleased]
+### Changed
+- fix(rpc): return all unpolled logs from `eth_getFilterChanges` ([#3349](https://github.com/chainwayxyz/citrea/pull/3349))
+- fix(rpc): bound method labels in RPC metrics ([#3348](https://github.com/chainwayxyz/citrea/pull/3348))
+- fix(rpc): cap `eth_feeHistory` reward percentiles to 100 ([#3347](https://github.com/chainwayxyz/citrea/pull/3347))
+- fix(rpc): limit `eth_getProof` storage keys to 1024 ([#3346](https://github.com/chainwayxyz/citrea/pull/3346))
 
 ## [v2.9.0](2026-10-26)
 ### Changed
