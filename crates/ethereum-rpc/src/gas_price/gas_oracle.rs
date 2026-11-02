@@ -31,6 +31,18 @@ pub const SAMPLE_NUMBER: u32 = 3;
 /// The default maximum number of blocks to use for the gas price oracle.
 pub const MAX_HEADER_HISTORY: u64 = 1024;
 
+/// Maximum `rewardPercentiles` entries `eth_feeHistory` will accept.
+///
+/// Matches Reth v1.3.7's default maximum of 100 entries (`MAX_REWARD_PERCENTILE_COUNT`):
+/// <https://github.com/paradigmxyz/reth/blob/v1.3.7/crates/rpc/rpc-server-types/src/constants.rs#L72>
+/// Reth rejects arrays exceeding its configured maximum before building the reward matrix:
+/// <https://github.com/paradigmxyz/reth/blob/v1.3.7/crates/rpc/rpc-eth-api/src/helpers/fee.rs>
+///
+/// Block count is already capped, but each accepted percentile is stored once per block, and
+/// duplicate values pass the monotonicity check. A request body of repeated zeros would otherwise
+/// allocate `max_block_history` vectors of that length.
+pub const MAX_REWARD_PERCENTILE_COUNT: u64 = 100;
+
 /// The default maximum gas price to use for the estimate
 pub const DEFAULT_MAX_PRICE: U256 = U256::from_limbs([500_000_000_000u64, 0, 0, 0]);
 
@@ -158,6 +170,15 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
     ) -> EthResult<FeeHistory> {
         if block_count == 0 {
             return Ok(FeeHistory::default());
+        }
+
+        // Reject before the per-block reward allocation below. See [`MAX_REWARD_PERCENTILE_COUNT`].
+        if reward_percentiles
+            .as_ref()
+            .map(|percentiles| percentiles.len() as u64)
+            > Some(MAX_REWARD_PERCENTILE_COUNT)
+        {
+            return Err(EthApiError::InvalidRewardPercentiles);
         }
 
         // See https://github.com/ethereum/go-ethereum/blob/2754b197c935ee63101cbbca2752338246384fec/eth/gasprice/feehistory.go#L218C8-L225

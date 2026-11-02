@@ -529,6 +529,46 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(acc_proof_latest, acc_proof_2);
     }
 
+    // Count every requested key, including duplicates, and reject before resolving the block.
+    for block in [
+        None,
+        Some(BlockNumberOrTag::Latest),
+        Some(BlockNumberOrTag::Pending),
+        Some(BlockNumberOrTag::Number(u64::MAX)),
+    ] {
+        for keys in [
+            vec![U256::ZERO; 1025],
+            (0u64..1025).map(U256::from).collect(),
+        ] {
+            let err = seq_test_client
+                .eth_get_proof(contract_address, keys, block)
+                .await
+                .map(|_| ())
+                .expect_err("eth_getProof must reject more than 1024 storage keys");
+            let err = err.downcast::<jsonrpsee::core::client::Error>()?;
+            let jsonrpsee::core::client::Error::Call(err) = err.as_ref() else {
+                panic!("expected a JSON-RPC error, got {err}");
+            };
+            assert_eq!(err.code(), -32602);
+            assert_eq!(
+                err.message(),
+                "too many storage keys requested (max 1024, got 1025)"
+            );
+        }
+    }
+
+    // Account-only proofs and the inclusive storage-key boundary must still work.
+    for keys in [vec![], (0u64..1024).map(U256::from).collect()] {
+        let proof = seq_test_client
+            .eth_get_proof(contract_address, keys.clone(), None)
+            .await?;
+        assert_eq!(proof.storage_proof.len(), keys.len());
+        for (entry, key) in proof.storage_proof.iter().zip(keys) {
+            assert_eq!(entry.key.as_b256(), B256::from(key));
+        }
+        check_proof(&proof, contract_address);
+    }
+
     seq_task.graceful_shutdown();
     Ok(())
 }
