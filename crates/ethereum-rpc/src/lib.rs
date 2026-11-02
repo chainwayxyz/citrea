@@ -47,6 +47,10 @@ use tokio::join;
 use tokio::sync::{broadcast, Semaphore};
 use trace::{debug_trace_by_block_number, handle_debug_trace_chain};
 
+/// Maximum storage keys per `eth_getProof` request, matching Geth's `maxGetProofKeys`.
+/// Bounds storage reads, JMT proof generation, and response memory per request.
+const MAX_GET_PROOF_KEYS: usize = 1024;
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncValues {
@@ -115,6 +119,7 @@ pub trait EthereumRpc {
     ) -> RpcResult<FeeHistory>;
 
     /// Returns zkproof by EIP-1186.
+    /// At most 1024 storage keys may be requested.
     #[method(name = "eth_getProof")]
     #[blocking]
     fn eth_get_proof(
@@ -432,6 +437,16 @@ where
         keys: Vec<JsonStorageKey>,
         block_id: Option<BlockId>,
     ) -> RpcResult<EIP1186AccountProofResponse> {
+        if keys.len() > MAX_GET_PROOF_KEYS {
+            // Match Geth's storage-key cap check before state access:
+            // https://github.com/ethereum/go-ethereum/blob/bd14ba80c6a7ab5a7c37aa21cd0a3d784a2b1c69/internal/ethapi/api.go#L388-L391
+            return Err(EthApiError::InvalidParams(format!(
+                "too many storage keys requested (max {MAX_GET_PROOF_KEYS}, got {})",
+                keys.len()
+            ))
+            .into());
+        }
+
         let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
 
         let evm = Evm::<C>::default();

@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use jsonrpsee::core::server::Methods;
 use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
 use jsonrpsee::RpcModule;
 use reth_tasks::TaskExecutor;
@@ -39,10 +40,11 @@ pub fn start_rpc_server(
         .layer(super::get_healthcheck_proxy_layer())
         .layer(TimeoutLayer::new(Duration::from_secs(rpc_config.timeout)));
 
+    let registered_methods: Methods = methods.clone().into();
     let rpc_middleware = RpcServiceBuilder::new()
         .layer_fn(move |s| super::auth::Auth::new(s, rpc_config.api_key.clone()))
         .layer_fn(super::Logger)
-        .layer_fn(RpcMetrics);
+        .layer_fn(move |service| RpcMetrics::new(service, registered_methods.clone()));
 
     task_executor.spawn_with_signal(move |cancellation_token| {
         async move {

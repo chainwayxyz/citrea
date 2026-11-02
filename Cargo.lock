@@ -3606,6 +3606,7 @@ dependencies = [
  "jsonrpsee",
  "lru 0.18.4",
  "metrics",
+ "metrics-util",
  "reth-primitives",
  "reth-tasks",
  "reth-transaction-pool",
