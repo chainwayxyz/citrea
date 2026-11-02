@@ -138,10 +138,17 @@ where
 
         debug!("Starting telemetry server on: {}", telemetry_addr);
 
-        let builder = PrometheusBuilder::new().with_http_listener(telemetry_addr);
-        builder
-            .install()
-            .map_err(|_| anyhow!("failed to install Prometheus recorder"))?;
+        // Install from a thread with no Tokio context, so the exporter starts its own
+        // current-thread runtime and thread. /metrics then keeps answering when RPC load
+        // keeps the main runtime's worker threads busy.
+        std::thread::spawn(move || {
+            PrometheusBuilder::new()
+                .with_http_listener(telemetry_addr)
+                .install()
+        })
+        .join()
+        .map_err(|_| anyhow!("metrics exporter install thread panicked"))?
+        .map_err(|_| anyhow!("failed to install Prometheus recorder"))?;
     }
 
     let rollup_blueprint = S::new(network);
