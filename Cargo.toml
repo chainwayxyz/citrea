@@ -41,7 +41,7 @@ members = [
 ]
 
 [workspace.package]
-version = "2.9.0"
+version = "2.10.0"
 edition = "2021"
 license = "GPL-3.0-only"
 authors = ["Chainway Labs <info@chainway.xyz>"]
@@ -84,14 +84,21 @@ jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "550a2f2" }
 jsonrpsee = { version = "0.24.8", features = ["jsonrpsee-types"] }
 k256 = { version = "0.13.4" }
 lru = "0.18"
-hex = { version = "0.4.3", default-features = false, features = ["alloc", "serde"] }
+hex = { version = "0.4.3", default-features = false, features = [
+  "alloc",
+  "serde",
+] }
 log-panics = { version = "2", features = ["with-backtrace"] }
 metrics = "0.24.3"
 metrics-derive = "0.1"
 metrics-exporter-prometheus = { version = "0.16.0", default-features = false }
 metrics-util = "0.19.0"
 # 1.13 uses getrandom 0.3
-uuid = { version = "=1.12.1", default-features = false, features = ["serde", "borsh", "v7"] }
+uuid = { version = "=1.12.1", default-features = false, features = [
+  "serde",
+  "borsh",
+  "v7",
+] }
 parking_lot = "0.12.3"
 proptest = { version = "1.6.0", default-features = false, features = ["alloc"] }
 rand = "0.8"
@@ -99,20 +106,48 @@ rayon = "1.8.0"
 rlimit = "0.10.2"
 rustc_version_runtime = { version = "0.3.0", default-features = false }
 rs_merkle = "1.4.2"
-reqwest = { version = "0.12.12", features = ["rustls-tls", "json", "http2"], default-features = false }
-rocksdb = { version = "0.24.0", features = ["lz4", "jemalloc", "bindgen-runtime"], default-features = false }
-serde = { version = "=1.0.218", default-features = false, features = ["alloc", "derive"] }
+reqwest = { version = "0.12.12", features = [
+  "rustls-tls",
+  "json",
+  "http2",
+], default-features = false }
+rocksdb = { version = "0.24.0", features = [
+  "lz4",
+  "jemalloc",
+  "bindgen-runtime",
+], default-features = false }
+serde = { version = "=1.0.218", default-features = false, features = [
+  "alloc",
+  "derive",
+] }
 serde_json = { version = "1", default-features = false, features = ["alloc"] }
 sha2 = { version = "0.10.8", default-features = false, features = ["asm"] }
 schemars = { version = "0.8.16", features = ["derive"] }
-secp256k1 = { version = "0.30.0", default-features = false, features = ["global-context", "recovery"] }
+secp256k1 = { version = "0.30.0", default-features = false, features = [
+  "global-context",
+  "recovery",
+] }
 thiserror = { version = "2", default-features = false }
-tinyvec = { version = "1", default-features = false, features = ["alloc", "rustc_1_61", "rustc_1_57", "rustc_1_55"] }
-tracing = { version = "0.1.41", default-features = false, features = ["attributes"] }
+tinyvec = { version = "1", default-features = false, features = [
+  "alloc",
+  "rustc_1_61",
+  "rustc_1_57",
+  "rustc_1_55",
+] }
+tracing = { version = "0.1.41", default-features = false, features = [
+  "attributes",
+] }
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "fmt"] }
 toml = { version = "0.8.0", default-features = false, features = ["parse"] }
 tempfile = "3.8"
-tokio = { version = "1.46.1", features = ["macros", "rt", "rt-multi-thread", "sync", "time", "fs"] }
+tokio = { version = "1.46.1", features = [
+  "macros",
+  "rt",
+  "rt-multi-thread",
+  "sync",
+  "time",
+  "fs",
+] }
 tokio-stream = { version = "0.1" }
 tower-http = { version = "0.5.0", features = ["cors"] }
 tower = { version = "0.4.13", features = ["util", "timeout"] }
@@ -151,22 +186,37 @@ reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", defaul
 reth-stages = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
 
 revm = { version = "21.0.0", features = ["serde"], default-features = false }
-revm-precompile = { version = "18.0.0", default-features = false, features = ['secp256r1', 'blst', 'bn'] }
+revm-precompile = { version = "18.0.0", default-features = false, features = [
+  'secp256r1',
+  'blst',
+  'bn',
+] }
 revm-primitives = { version = "17.0.0", default-features = false }
 revm-bytecode = { version = "2.0.0", default-features = false }
 alloy-genesis = { version = "0.13", default-features = false }
 alloy-trie = { version = "0.7.9", default-features = false }
 alloy-rlp = { version = "0.3.10", default-features = false }
-alloy-rpc-types = { version = "0.13", features = ["eth"], default-features = false }
+alloy-rpc-types = { version = "0.13", features = [
+  "eth",
+], default-features = false }
 alloy-rpc-types-eth = { version = "0.13", default-features = false }
 alloy-rpc-types-trace = { version = "0.13", default-features = false }
 alloy-rpc-types-txpool = { version = "0.13", default-features = false }
-alloy-primitives = { version = "0.8.26", default-features = false, features = ["serde", "tiny-keccak", "k256"] }
+alloy-primitives = { version = "0.8.26", default-features = false, features = [
+  "serde",
+  "tiny-keccak",
+  "k256",
+] }
 alloy-serde = { version = "0.13", default-features = false }
-alloy-sol-types = { version = "0.8.26", default-features = false, features = ["json"] }
+alloy-sol-types = { version = "0.8.26", default-features = false, features = [
+  "json",
+] }
 alloy = { version = "0.13", default-features = false }
 alloy-eips = { version = "0.13", default-features = false }
-alloy-consensus = { version = "0.13", default-features = false, features = ["serde", "serde-bincode-compat"] }
+alloy-consensus = { version = "0.13", default-features = false, features = [
+  "serde",
+  "serde-bincode-compat",
+] }
 alloy-network = { version = "0.13", default-features = false }
 alloy-signer = { version = "0.13", default-features = false }
 alloy-signer-local = { version = "0.13.0", default-features = false }
