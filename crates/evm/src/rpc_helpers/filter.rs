@@ -84,7 +84,7 @@ impl ActiveFilters {
 /// An installed filter
 #[derive(Debug)]
 struct ActiveFilter {
-    /// At which block the filter was polled last.
+    /// The next block from which to fetch changes.
     block: u64,
     /// Last time this filter was polled.
     last_poll_timestamp: Instant,
@@ -196,7 +196,19 @@ impl CitreaFilter {
             ))
             .into());
         }
-        let last_poll_block_number = evm.last_sealed_header(working_set).number;
+        let head_block = evm.last_sealed_header(working_set).number;
+        // Honor a historical fromBlock on the first poll, then advance only via the cursor.
+        let start_block = if let FilterKind::Log(filter) = &kind {
+            let from = filter
+                .block_option
+                .get_from_block()
+                .map(|num| convert_block_number(*num, head_block))
+                .transpose()?
+                .flatten();
+            from.map_or(head_block, |from| head_block.min(from))
+        } else {
+            head_block
+        };
         let subscription_id = self.id_provider.next_id();
 
         let id = match subscription_id {
@@ -207,7 +219,7 @@ impl CitreaFilter {
         filters.insert(
             id.clone(),
             ActiveFilter {
-                block: last_poll_block_number,
+                block: start_block,
                 last_poll_timestamp: Instant::now(),
                 kind,
             },
@@ -290,19 +302,12 @@ impl CitreaFilter {
             }
             FilterKind::Log(filter) => {
                 let (from_block_number, to_block_number) = match filter.block_option {
-                    FilterBlockOption::Range {
-                        from_block,
-                        to_block,
-                    } => {
-                        let from = from_block
-                            .map(|num| convert_block_number(num, start_block))
-                            .transpose()?
-                            .flatten();
+                    FilterBlockOption::Range { to_block, .. } => {
                         let to = to_block
                             .map(|num| convert_block_number(num, latest_block_number))
                             .transpose()?
                             .flatten();
-                        get_filter_block_range(from, to, start_block)
+                        get_filter_block_range(None, to, start_block, latest_block_number)
                     }
                     FilterBlockOption::AtBlockHash(_) => {
                         // blockHash is equivalent to fromBlock = toBlock = the block number with
@@ -311,6 +316,10 @@ impl CitreaFilter {
                         (start_block, latest_block_number)
                     }
                 };
+                // An explicit toBlock can be behind the cursor after its range is exhausted.
+                if from_block_number > to_block_number {
+                    return Ok(FilterChanges::Empty);
+                }
                 let logs = evm.get_logs_in_block_range(
                     working_set,
                     &filter,

@@ -2,6 +2,7 @@ mod basic_queries;
 mod estimate_gas_override_tests;
 mod estimate_gas_tests;
 mod eth_call_tests;
+mod filter_tests;
 mod log_tests;
 mod pending_block_tests;
 mod trace_call_tests;
