@@ -69,7 +69,7 @@ bind_port = 8080
 
 # maximum number of block-range log scans (eth_getLogs, eth_getFilterLogs, eth_getFilterChanges)
 # executing at the same time; the rest queue, including single-block queries and filter polls
-# that return no changes. this keeps a flood of log queries from starving L2 block sync.
+# that return no changes.
 # defaults to 4
 # max_log_requests = 4
 
