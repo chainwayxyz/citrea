@@ -1,6 +1,9 @@
 # Changelog
 ## [Unreleased]
 ### Changed
+- fix(rpc): improve `eth_getLogs` performance: run RPC storage reads concurrently, serve `/metrics` from its own thread, and limit concurrent log scans ([#3351](https://github.com/chainwayxyz/citrea/pull/3351))\
+  **New env vars:**\
+  `RPC_MAX_LOG_REQUESTS`: Max concurrent block-range log scans (`eth_getLogs`, `eth_getFilterLogs`, `eth_getFilterChanges`); the rest queue (default: 4)
 - fix(rpc): return all unpolled logs from `eth_getFilterChanges` ([#3349](https://github.com/chainwayxyz/citrea/pull/3349))
 - fix(rpc): bound method labels in RPC metrics ([#3348](https://github.com/chainwayxyz/citrea/pull/3348))
 - fix(rpc): cap `eth_feeHistory` reward percentiles to 100 ([#3347](https://github.com/chainwayxyz/citrea/pull/3347))
