@@ -1,5 +1,7 @@
 # Changelog
 ## [Unreleased]
+
+## [v2.10.0](2026-11-02)
 ### Changed
 - fix(rpc): return all unpolled logs from `eth_getFilterChanges` ([#3349](https://github.com/chainwayxyz/citrea/pull/3349))
 - fix(rpc): bound method labels in RPC metrics ([#3348](https://github.com/chainwayxyz/citrea/pull/3348))
@@ -296,7 +298,8 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
 
-[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.9.0...HEAD
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.10.0...HEAD
+[v2.10.0]: https://github.com/chainwayxyz/citrea/compare/v2.9.0...v2.10.0
 [v2.9.0]: https://github.com/chainwayxyz/citrea/compare/v2.8.0...v2.9.0
 [v2.8.0]: https://github.com/chainwayxyz/citrea/compare/v2.7.0...v2.8.0
 [v2.7.0]: https://github.com/chainwayxyz/citrea/compare/v2.6.0...v2.7.0

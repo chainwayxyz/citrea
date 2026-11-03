@@ -2350,11 +2350,11 @@ dependencies = [
  "hyper 0.14.32",
  "hyper 1.6.0",
  "hyper-rustls 0.24.2",
- "hyper-rustls 0.27.5",
+ "hyper-rustls 0.27.10",
  "hyper-util",
  "pin-project-lite",
  "rustls 0.21.12",
- "rustls 0.23.25",
+ "rustls 0.23.28",
  "rustls-native-certs 0.8.1",
  "rustls-pki-types",
  "tokio",
@@ -2615,7 +2615,7 @@ dependencies = [
  "bitflags 2.8.0",
  "cexpr",
  "clang-sys",
- "itertools 0.11.0",
+ "itertools 0.10.5",
  "lazy_static",
  "lazycell",
  "log",
@@ -2715,7 +2715,7 @@ dependencies = [
 
 [[package]]
 name = "bitcoin-da"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3438,7 +3438,7 @@ dependencies = [
 
 [[package]]
 name = "citrea"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "alloy 0.13.0",
  "alloy-primitives 0.8.26",
@@ -3521,7 +3521,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-batch-prover"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -3569,7 +3569,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-cli"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "anyhow",
  "citrea-batch-prover",
@@ -3588,7 +3588,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-common"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "alloy-consensus 0.13.0",
  "alloy-primitives 0.8.26",
@@ -3658,7 +3658,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-evm"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "alloy 0.13.0",
  "alloy-consensus 0.13.0",
@@ -3721,7 +3721,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-fullnode"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -3755,7 +3755,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-light-client-prover"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "alloy-signer 0.13.0",
@@ -3792,7 +3792,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "alloy-eips 0.13.0",
  "brotli",
@@ -3803,7 +3803,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-adapter"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -3832,14 +3832,14 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-batch-proof"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "risc0-build",
 ]
 
 [[package]]
 name = "citrea-risc0-light-client"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "citrea-risc0-batch-proof",
  "risc0-build",
@@ -3847,7 +3847,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-sequencer"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "alloy-eips 0.13.0",
  "alloy-genesis 0.13.0",
@@ -3908,7 +3908,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-stf"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3938,7 +3938,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-storage-ops"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "anyhow",
  "citrea-common",
@@ -5016,7 +5016,7 @@ dependencies = [
 
 [[package]]
 name = "ethereum-rpc"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "alloy-consensus 0.13.0",
  "alloy-network 0.13.0",
@@ -6106,22 +6106,20 @@ dependencies = [
 
 [[package]]
 name = "hyper-rustls"
-version = "0.27.5"
+version = "0.27.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d191583f3da1305256f22463b9bb0471acad48a4e534a5218b9963e9c1f59b2"
+checksum = "dfa8e654703247911e29c23fbeaa261834bd9bb74efba2f9acddc37bfb127f53"
 dependencies = [
- "futures-util",
  "http 1.2.0",
  "hyper 1.6.0",
  "hyper-util",
  "log",
- "rustls 0.23.25",
+ "rustls 0.23.28",
  "rustls-native-certs 0.8.1",
- "rustls-pki-types",
  "tokio",
- "tokio-rustls 0.26.1",
+ "tokio-rustls 0.26.6",
  "tower-service",
- "webpki-roots",
+ "webpki-roots 1.0.11",
 ]
 
 [[package]]
@@ -6495,7 +6493,7 @@ dependencies = [
 
 [[package]]
 name = "integration-tests"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "anyhow",
  "borsh",
@@ -6516,6 +6514,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "189d0897e4cbe8c75efedf3502c18c887b05046e59d28404d4d8e46cbc4d1e86"
 dependencies = [
  "memoffset",
+]
+
+[[package]]
+name = "io-uring"
+version = "0.7.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed3bd0ecfbb87805f538bb7b32e5239ca0763890c623e349860ecba69469f2bb"
+dependencies = [
+ "bitflags 2.8.0",
+ "cfg-if",
+ "libc",
 ]
 
 [[package]]
@@ -6712,13 +6721,13 @@ dependencies = [
  "http 1.2.0",
  "jsonrpsee-core",
  "pin-project",
- "rustls 0.23.25",
+ "rustls 0.23.28",
  "rustls-pki-types",
  "rustls-platform-verifier",
  "soketto",
  "thiserror 1.0.69",
  "tokio",
- "tokio-rustls 0.26.1",
+ "tokio-rustls 0.26.6",
  "tokio-util",
  "tracing",
  "url",
@@ -6761,11 +6770,11 @@ dependencies = [
  "base64 0.22.1",
  "http-body 1.0.1",
  "hyper 1.6.0",
- "hyper-rustls 0.27.5",
+ "hyper-rustls 0.27.10",
  "hyper-util",
  "jsonrpsee-core",
  "jsonrpsee-types",
- "rustls 0.23.25",
+ "rustls 0.23.28",
  "rustls-platform-verifier",
  "serde",
  "serde_json",
@@ -6932,7 +6941,7 @@ dependencies = [
 
 [[package]]
 name = "l2-block-rule-enforcer"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "borsh",
  "chrono",
@@ -7166,9 +7175,9 @@ dependencies = [
 
 [[package]]
 name = "libz-sys"
-version = "1.1.21"
+version = "1.1.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df9b68e50e6e0b26f672573834882eb57759f6db9b3be2ea3c35c91188bb4eaa"
+checksum = "ff20308ecabd635a2dc1dd5834a86c462cca20efba1d5d3ddab1f8aea3455cb2"
 dependencies = [
  "cc",
  "libc",
@@ -7428,7 +7437,7 @@ dependencies = [
  "base64 0.22.1",
  "http-body-util",
  "hyper 1.6.0",
- "hyper-rustls 0.27.5",
+ "hyper-rustls 0.27.10",
  "hyper-util",
  "indexmap 2.7.1",
  "ipnet",
@@ -8480,7 +8489,7 @@ dependencies = [
 
 [[package]]
 name = "prover-services"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8538,7 +8547,7 @@ dependencies = [
  "quinn-proto",
  "quinn-udp",
  "rustc-hash 2.1.1",
- "rustls 0.23.25",
+ "rustls 0.23.28",
  "socket2",
  "thiserror 1.0.69",
  "tokio",
@@ -8555,7 +8564,7 @@ dependencies = [
  "rand 0.8.6",
  "ring",
  "rustc-hash 2.1.1",
- "rustls 0.23.25",
+ "rustls 0.23.28",
  "slab",
  "thiserror 1.0.69",
  "tinyvec",
@@ -8815,7 +8824,7 @@ dependencies = [
  "http-body 1.0.1",
  "http-body-util",
  "hyper 1.6.0",
- "hyper-rustls 0.27.5",
+ "hyper-rustls 0.27.10",
  "hyper-tls",
  "hyper-util",
  "ipnet",
@@ -8828,7 +8837,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "quinn",
- "rustls 0.23.25",
+ "rustls 0.23.28",
  "rustls-pemfile 2.2.0",
  "rustls-pki-types",
  "serde",
@@ -8838,7 +8847,7 @@ dependencies = [
  "system-configuration",
  "tokio",
  "tokio-native-tls",
- "tokio-rustls 0.26.1",
+ "tokio-rustls 0.26.6",
  "tokio-util",
  "tower 0.5.2",
  "tower-service",
@@ -8847,7 +8856,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-streams",
  "web-sys",
- "webpki-roots",
+ "webpki-roots 0.26.11",
  "windows-registry",
 ]
 
@@ -11088,16 +11097,16 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.25"
+version = "0.23.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "822ee9188ac4ec04a2f0531e55d035fb2de73f18b41a63c70c2712503b6fb13c"
+checksum = "7160e3e10bf4535308537f3c4e1641468cd0e485175d6163087c0393c7d46643"
 dependencies = [
  "aws-lc-rs",
  "log",
  "once_cell",
  "ring",
  "rustls-pki-types",
- "rustls-webpki 0.103.0",
+ "rustls-webpki 0.103.3",
  "subtle",
  "zeroize",
 ]
@@ -11161,13 +11170,13 @@ dependencies = [
  "jni",
  "log",
  "once_cell",
- "rustls 0.23.25",
+ "rustls 0.23.28",
  "rustls-native-certs 0.8.1",
  "rustls-platform-verifier-android",
- "rustls-webpki 0.103.0",
+ "rustls-webpki 0.103.3",
  "security-framework 3.2.0",
  "security-framework-sys",
- "webpki-root-certs",
+ "webpki-root-certs 0.26.11",
  "windows-sys 0.59.0",
 ]
 
@@ -11189,9 +11198,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.0"
+version = "0.103.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0aa4eeac2588ffff23e9d7a7e9b3f971c5fb5b7ebc9452745e0c232c64f83b2f"
+checksum = "e4a72fe2bcf7a6ac6fd7d0b9e5cb68aeb7d4c0a0271730218b3e92d43b4eb435"
 dependencies = [
  "aws-lc-rs",
  "ring",
@@ -11671,7 +11680,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "short-header-proof-provider"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "borsh",
  "futures",
@@ -11812,7 +11821,7 @@ dependencies = [
 
 [[package]]
 name = "sov-accounts"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "borsh",
  "hex",
@@ -11832,7 +11841,7 @@ dependencies = [
 
 [[package]]
 name = "sov-db"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -11855,7 +11864,7 @@ dependencies = [
 
 [[package]]
 name = "sov-keys"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "borsh",
  "derive_more 1.0.0",
@@ -11872,7 +11881,7 @@ dependencies = [
 
 [[package]]
 name = "sov-ledger-rpc"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -11888,7 +11897,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-da"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11907,7 +11916,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-zkvm"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11920,7 +11929,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -11951,7 +11960,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -11977,7 +11986,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-macros"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "borsh",
  "jsonrpsee",
@@ -11995,7 +12004,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-rollup-blueprint"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12017,7 +12026,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "anyhow",
  "borsh",
@@ -12037,7 +12046,7 @@ dependencies = [
 
 [[package]]
 name = "sov-prover-storage-manager"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "anyhow",
  "rand 0.8.6",
@@ -12051,7 +12060,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "anyhow",
@@ -12075,7 +12084,7 @@ dependencies = [
 
 [[package]]
 name = "sov-schema-db"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -12091,7 +12100,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "alloy-primitives 0.8.26",
  "alloy-rlp",
@@ -12564,17 +12573,19 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.44.2"
+version = "1.46.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6b88822cbe49de4185e3a4cbf8321dd487cf5fe0c5c65695fef6346371e9c48"
+checksum = "0cc3a2344dafbe23a245241fe8b09735b521110d30fcefbbd5feb1797ca35d17"
 dependencies = [
  "backtrace",
  "bytes",
+ "io-uring",
  "libc",
  "mio",
  "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
+ "slab",
  "socket2",
  "tokio-macros",
  "windows-sys 0.52.0",
@@ -12613,11 +12624,11 @@ dependencies = [
 
 [[package]]
 name = "tokio-rustls"
-version = "0.26.1"
+version = "0.26.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f6d0975eaace0cf0fcadee4e4aaa5da15b5c079146f2cffb67c113be122bf37"
+checksum = "c9cc2678c2cdd569ef8215e2afd7954ada2ae20b4fdd2c5fe6139a3b02d105db"
 dependencies = [
- "rustls 0.23.25",
+ "rustls 0.23.28",
  "tokio",
 ]
 
@@ -13340,18 +13351,36 @@ dependencies = [
 
 [[package]]
 name = "webpki-root-certs"
-version = "0.26.8"
+version = "0.26.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09aed61f5e8d2c18344b3faa33a4c837855fe56642757754775548fee21386c4"
+checksum = "75c7f0ef91146ebfb530314f5f1d24528d7f0767efbfd31dce919275413e393e"
+dependencies = [
+ "webpki-root-certs 1.0.11",
+]
+
+[[package]]
+name = "webpki-root-certs"
+version = "1.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e49d0e65abc00c142e8f9428da991da9f1a250c39be97459901eb12b9b49f62a"
 dependencies = [
  "rustls-pki-types",
 ]
 
 [[package]]
 name = "webpki-roots"
-version = "0.26.8"
+version = "0.26.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2210b291f7ea53617fbafcc4939f10914214ec15aace5ba62293a668f322c5c9"
+checksum = "521bc38abb08001b01866da9f51eb7c5d647a19260e00054a8c7fd5f9e57f7a9"
+dependencies = [
+ "webpki-roots 1.0.11",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "1.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5f280bbb2b287bc8e7de7e3852945a0ff50d1bbcb5ed42b6c7a568c546df171"
 dependencies = [
  "rustls-pki-types",
 ]
@@ -13396,7 +13425,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -14037,27 +14066,27 @@ dependencies = [
 
 [[package]]
 name = "zstd"
-version = "0.13.3"
+version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e91ee311a569c327171651566e07972200e76fcfe2242a4fa446149a3881c08a"
+checksum = "cdb02c3132d251ab1606e9fc913a7da6c6ed08cc263df15edf082e1dc497d157"
 dependencies = [
  "zstd-safe",
 ]
 
 [[package]]
 name = "zstd-safe"
-version = "7.2.3"
+version = "7.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3051792fbdc2e1e143244dc28c60f73d8470e93f3f9cbd0ead44da5ed802722"
+checksum = "1c8ea04668f5de8d8d51051714ba560c9536519cadcdb8829bba4fe2ad159b03"
 dependencies = [
  "zstd-sys",
 ]
 
 [[package]]
 name = "zstd-sys"
-version = "2.0.14+zstd.1.5.7"
+version = "2.1.2+zstd.1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fb060d4926e4ac3a3ad15d864e99ceb5f343c6b34f5bd6d81ae6ed417311be5"
+checksum = "481ada9c543b2323cbb7bbdbb5249177fbf0188ed959ed2c15e4b22421c84ed3"
 dependencies = [
  "cc",
  "pkg-config",
