@@ -506,6 +506,7 @@ pub fn create_default_rollup_config(
             trace_memory_limit_mb: 512,
             trace_cache_limit_mb: 512,
             max_tracing_requests: 4,
+            max_log_requests: 4,
             gas_cap: 100_000_000,
             proving_jobs_limit: 100,
             timeout: 30,
