@@ -66,6 +66,12 @@ bind_port = 8080
 # defaults to 4
 # max_tracing_requests = 4
 
+# maximum number of block-range log scans (eth_getLogs, eth_getFilterLogs, eth_getFilterChanges)
+# executing at the same time; the rest queue, including single-block queries and filter polls
+# that return no changes.
+# defaults to 4
+# max_log_requests = 4
+
 # gas cap for eth_call and debug_traceCall, may exceed the block gas limit.
 # values above 100000000 are clamped to it, 0 keeps calls bounded by the block gas limit.
 # defaults to 100000000
