@@ -129,7 +129,7 @@ async fn log_subscriber_task(
                                 )
                                 .unwrap();
                                 if sink.send_timeout(msg, SUBSCRIPTION_TIMEOUT).await.is_err() {
-                                    break;
+                                    return;
                                 }
                             }
                         }
@@ -195,5 +195,68 @@ async fn l2_block_event_handler<C: sov_modules_api::Context>(
             .expect("Error getting logs in block range");
 
         let _ = logs_tx.send(Arc::new(logs));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::{Address, Bytes, B256};
+    use jsonrpsee::RpcModule;
+    use tokio::time::timeout;
+
+    use super::*;
+
+    fn test_log() -> Log {
+        Log {
+            inner: alloy_primitives::Log::new_unchecked(Address::ZERO, Vec::new(), Bytes::new()),
+            block_hash: Some(B256::ZERO),
+            block_number: Some(0),
+            block_timestamp: Some(0),
+            transaction_hash: Some(B256::ZERO),
+            transaction_index: Some(0),
+            log_index: Some(0),
+            removed: false,
+        }
+    }
+
+    #[tokio::test]
+    async fn log_subscriber_exits_after_send_timeout() {
+        let (sink_tx, mut sink_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut module = RpcModule::new(());
+        module
+            .register_subscription(
+                "subscribe",
+                "subscription",
+                "unsubscribe",
+                move |_, pending, _, _| {
+                    let sink_tx = sink_tx.clone();
+                    async move {
+                        let sink = pending.accept().await?;
+                        sink_tx.send(sink).unwrap();
+                        Ok(())
+                    }
+                },
+            )
+            .unwrap();
+
+        // Keep the bounded notification channel open and unread so the second
+        // log notification reaches the send timeout.
+        let (_response, _notifications) = module
+            .raw_json_request(r#"{"jsonrpc":"2.0","method":"subscribe","id":1}"#, 1)
+            .await
+            .unwrap();
+        let sink = Arc::new(sink_rx.recv().await.unwrap());
+        let (logs_tx, logs_rx) = broadcast::channel(1);
+        let subscriber = tokio::spawn(log_subscriber_task(logs_rx, None, sink));
+
+        logs_tx
+            .send(Arc::new(vec![test_log(), test_log()]))
+            .unwrap();
+
+        timeout(SUBSCRIPTION_TIMEOUT + Duration::from_secs(5), subscriber)
+            .await
+            .expect("log subscriber should exit after send timeout")
+            .unwrap();
+        assert_eq!(logs_tx.receiver_count(), 0);
     }
 }
