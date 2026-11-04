@@ -240,6 +240,16 @@ fn test_seek_for_prev_by_2prefix() {
 }
 
 #[test]
+fn test_backward_iter_starts_at_last_without_seek() {
+    let db = TestDB::new();
+    let iter = db.rev_iter();
+    assert_eq!(
+        collect_values(iter),
+        [202, 200, 114, 112, 110, 104, 102, 100]
+    );
+}
+
+#[test]
 fn test_schema_batch_iteration_order() {
     let mut batch = SchemaBatch::new();
 
