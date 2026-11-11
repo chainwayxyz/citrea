@@ -1,59 +1,4 @@
 {
-  "__inputs": [
-    {
-      "name": "DS_PROMETHEUS",
-      "label": "prometheus",
-      "description": "",
-      "type": "datasource",
-      "pluginId": "prometheus",
-      "pluginName": "Prometheus"
-    }
-  ],
-  "__elements": {},
-  "__requires": [
-    {
-      "type": "panel",
-      "id": "gauge",
-      "name": "Gauge",
-      "version": ""
-    },
-    {
-      "type": "grafana",
-      "id": "grafana",
-      "name": "Grafana",
-      "version": "12.0.1+security-01"
-    },
-    {
-      "type": "datasource",
-      "id": "prometheus",
-      "name": "Prometheus",
-      "version": "1.0.0"
-    },
-    {
-      "type": "panel",
-      "id": "stat",
-      "name": "Stat",
-      "version": ""
-    },
-    {
-      "type": "panel",
-      "id": "timeseries",
-      "name": "Time series",
-      "version": ""
-    },
-    {
-      "type": "panel",
-      "id": "trend",
-      "name": "Trend",
-      "version": ""
-    },
-    {
-      "type": "panel",
-      "id": "xychart",
-      "name": "XY Chart",
-      "version": ""
-    }
-  ],
   "annotations": {
     "list": [
       {
@@ -73,13 +18,13 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": null,
+  "id": 0,
   "links": [],
   "panels": [
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
@@ -91,7 +36,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               }
             ]
           }
@@ -122,12 +68,12 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.0.1+security-01",
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
           "editorMode": "builder",
@@ -146,7 +92,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
@@ -158,7 +104,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               }
             ]
           }
@@ -189,12 +136,12 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.0.1+security-01",
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
           "editorMode": "builder",
@@ -213,7 +160,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
@@ -244,6 +191,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -258,7 +206,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -289,22 +238,22 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.1+security-01",
+      "pluginVersion": "12.3.0",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
           "disableTextWrap": false,
-          "editorMode": "code",
+          "editorMode": "builder",
           "expr": "rate(sequencer_deposit_data_mempool_txs_inc[1m])",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
+          "useBackend": false
         }
       ],
       "title": "Num Of Deposit Txs In A Minute",
@@ -313,7 +262,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
@@ -325,7 +274,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               }
             ]
           }
@@ -356,12 +306,12 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.0.1+security-01",
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
           "editorMode": "builder",
@@ -380,237 +330,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "The duration eth_call for deposit txs",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 16
-      },
-      "id": 30,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.0.1+security-01",
-      "targets": [
-        {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_deposit_tx_call_duration",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
-        }
-      ],
-      "title": "Deposit Tx Call Duration",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "fillOpacity": 50,
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "pointShape": "circle",
-            "pointSize": {
-              "fixed": 5
-            },
-            "pointStrokeWidth": 1,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "show": "points+lines"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 16
-      },
-      "id": 24,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "mapping": "auto",
-        "series": [
-          {
-            "x": {
-              "matcher": {
-                "id": "byName",
-                "options": "{__name__=\"sequencer_current_l2_block\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
-              }
-            },
-            "y": {
-              "matcher": {
-                "id": "byName",
-                "options": "{__name__=\"evm_block_base_fee\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
-              }
-            }
-          }
-        ],
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.0.1+security-01",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "evm_block_base_fee",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_current_l2_block",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "B",
-          "useBackend": false
-        }
-      ],
-      "title": "Base Fee Per Block Number",
-      "transformations": [
-        {
-          "id": "joinByField",
-          "options": {}
-        }
-      ],
-      "type": "xychart"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
@@ -641,6 +361,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -655,7 +376,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -670,7 +392,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 24
+        "y": 16
       },
       "id": 37,
       "interval": "2s",
@@ -687,22 +409,22 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.1+security-01",
+      "pluginVersion": "12.3.0",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
           "disableTextWrap": false,
-          "editorMode": "code",
+          "editorMode": "builder",
           "expr": "rate(rpc_requests_total[5m])",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
+          "useBackend": false
         }
       ],
       "title": "Per-second average rate of RPC requests over the last 5 minutes",
@@ -711,19 +433,54 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -738,51 +495,47 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 24
+        "y": 16
       },
-      "id": 33,
+      "id": 27,
       "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
         },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
       },
-      "pluginVersion": "12.0.1+security-01",
+      "pluginVersion": "12.3.0",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sequencer_unaccepted_deposit_txs",
+          "expr": "rpc_response_time_seconds",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
+          "useBackend": false
         }
       ],
-      "title": "Unaccepted Deposit Txs",
-      "type": "stat"
+      "title": "Rpc Response Times",
+      "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
@@ -816,6 +569,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -830,7 +584,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -845,7 +600,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 32
+        "y": 24
       },
       "id": 22,
       "interval": "2s",
@@ -861,14 +616,14 @@
           "mode": "single",
           "sort": "none"
         },
-        "xField": "{__name__=\"sequencer_current_l2_block\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
+        "xField": "sequencer_current_l2_block"
       },
-      "pluginVersion": "12.0.1+security-01",
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
           "editorMode": "builder",
@@ -885,7 +640,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
           "editorMode": "builder",
@@ -902,10 +657,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "sequencer_dry_run_system_txs_duration_secs",
           "fullMetaSearch": false,
           "hide": false,
@@ -919,10 +674,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "sequencer_dry_run_execution_gauge",
           "fullMetaSearch": false,
           "hide": false,
@@ -936,10 +691,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "sequencer_begin_l2_block_time",
           "fullMetaSearch": false,
           "hide": false,
@@ -953,10 +708,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "sequencer_encode_and_sign_sov_tx_time",
           "fullMetaSearch": false,
           "hide": false,
@@ -970,10 +725,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "sequencer_apply_l2_block_txs_time",
           "fullMetaSearch": false,
           "hide": false,
@@ -987,10 +742,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "sequencer_end_l2_block_time",
           "fullMetaSearch": false,
           "hide": false,
@@ -1004,10 +759,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "sequencer_finalize_l2_block_time",
           "fullMetaSearch": false,
           "hide": false,
@@ -1021,10 +776,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "sequencer_calculate_tx_merkle_root_time",
           "fullMetaSearch": false,
           "hide": false,
@@ -1038,10 +793,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "sequencer_sign_l2_block_header_time",
           "fullMetaSearch": false,
           "hide": false,
@@ -1055,7 +810,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
           "editorMode": "builder",
@@ -1072,10 +827,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "sequencer_maintain_mempool_time",
           "fullMetaSearch": false,
           "hide": false,
@@ -1089,36 +844,28 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
-          "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "sequencer_mempool_extract_bundle_state_time",
-          "fullMetaSearch": false,
           "hide": false,
-          "includeNullMetadata": true,
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
-          "refId": "N",
-          "useBackend": false
+          "refId": "N"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
-          "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "sequencer_mempool_canonical_notification_time",
-          "fullMetaSearch": false,
           "hide": false,
-          "includeNullMetadata": true,
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
-          "refId": "O",
-          "useBackend": false
+          "refId": "O"
         }
       ],
       "title": "Stacked Sequencer Block Production Flow",
@@ -1133,7 +880,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
@@ -1146,39 +893,29 @@
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
+            "fillOpacity": 50,
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
+            "pointShape": "circle",
+            "pointSize": {
+              "fixed": 5
+            },
+            "pointStrokeWidth": 1,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
+            "show": "points+lines"
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -1193,1204 +930,140 @@
         "h": 8,
         "w": 12,
         "x": 12,
+        "y": 24
+      },
+      "id": 24,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "mapping": "auto",
+        "series": [
+          {
+            "x": {
+              "matcher": {
+                "id": "byName",
+                "options": "sequencer_current_l2_block"
+              }
+            },
+            "y": {
+              "matcher": {
+                "id": "byName",
+                "options": "evm_block_base_fee"
+              }
+            }
+          }
+        ],
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "evm_block_base_fee",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sequencer_current_l2_block",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        }
+      ],
+      "title": "Base Fee Per Block Number",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {}
+        }
+      ],
+      "type": "xychart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "eed8s4geh3myob"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 50,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "pointShape": "circle",
+            "pointSize": {
+              "fixed": 5
+            },
+            "pointStrokeWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "show": "points+lines"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
         "y": 32
       },
-      "id": 7,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.0.1+security-01",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "bitcoin_da_transaction_queue_processing_time",
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Bitcoin DA Queue Processing Time",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 40
-      },
-      "id": 35,
-      "interval": "2s",
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.0.1+security-01",
-      "targets": [
-        {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_latest_sequencer_commitment_index",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "Latest Commitment Index",
-          "range": true,
-          "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_latest_sequencer_commitment_l2_start_height",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "Latest Commitment Start L2 Height",
-          "range": true,
-          "refId": "B",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_latest_sequencer_commitment_l2_end_height",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "Latest Commitment End L2 Height",
-          "range": true,
-          "refId": "C",
-          "useBackend": false
-        }
-      ],
-      "title": "Latest Commitment Data",
-      "transformations": [
-        {
-          "id": "joinByField",
-          "options": {}
-        }
-      ],
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 40
-      },
-      "id": 29,
-      "options": {
-        "minVizHeight": 75,
-        "minVizWidth": 75,
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "sizing": "auto"
-      },
-      "pluginVersion": "12.0.1+security-01",
-      "targets": [
-        {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_deposit_data_mempool_txs",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
-        }
-      ],
-      "title": "Number of txs in deposit data mempool",
-      "type": "gauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "fillOpacity": 50,
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "pointShape": "circle",
-            "pointSize": {
-              "fixed": 5
-            },
-            "pointStrokeWidth": 1,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "show": "points+lines"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 48
-      },
-      "id": 36,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "mapping": "auto",
-        "series": [
-          {}
-        ],
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.0.1+security-01",
-      "targets": [
-        {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_current_l2_block",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_l1_fee_failed_txs_count",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "B",
-          "useBackend": false
-        }
-      ],
-      "title": "L1 Fee Failed Txs Count By Block Number",
-      "transformations": [
-        {
-          "id": "joinByField",
-          "options": {}
-        }
-      ],
-      "type": "xychart"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Complete Block Production Time(secs) By Block Num",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 21,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineStyle": {
-              "fill": "solid"
-            },
-            "lineWidth": 1,
-            "pointSize": 3,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "fieldMinMax": true,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "#EAB839",
-                "value": 0.001
-              },
-              {
-                "color": "red",
-                "value": 120000
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 48
-      },
-      "id": 1,
-      "interval": "2s",
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.0.1+security-01",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_current_l2_block",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_block_production_time",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "B",
-          "useBackend": false
-        }
-      ],
-      "title": "No Dry Run Block Production Time(secs) By Block Num",
-      "transformations": [
-        {
-          "id": "joinByField",
-          "options": {
-            "byField": "Time",
-            "mode": "outer"
-          }
-        }
-      ],
-      "type": "trend"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "fillOpacity": 50,
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "pointShape": "circle",
-            "pointSize": {
-              "fixed": 5
-            },
-            "pointStrokeWidth": 1,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "show": "points+lines"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 56
-      },
-      "id": 34,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "mapping": "auto",
-        "series": [
-          {
-            "x": {
-              "matcher": {
-                "id": "byName",
-                "options": "{__name__=\"sequencer_latest_sequencer_commitment_index\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
-              }
-            },
-            "y": {
-              "matcher": {
-                "id": "byName",
-                "options": "{__name__=\"sequencer_latest_sequencer_commitment_process_duration_secs\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
-              }
-            }
-          }
-        ],
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.0.1+security-01",
-      "targets": [
-        {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_latest_sequencer_commitment_index",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_latest_sequencer_commitment_process_duration_secs",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "D",
-          "useBackend": false
-        }
-      ],
-      "title": "Commitment Process Duration By Index",
-      "transformations": [
-        {
-          "id": "joinByField",
-          "options": {}
-        }
-      ],
-      "type": "xychart"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 56
-      },
-      "id": 21,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.0.1+security-01",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_dry_run_execution",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Total Dry Run Execution Time",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 64
-      },
-      "id": 32,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.0.1+security-01",
-      "targets": [
-        {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_deposit_tx_size",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
-        }
-      ],
-      "title": "Deposit Tx Size",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "__systemRef": "hideSeriesFrom",
-            "matcher": {
-              "id": "byNames",
-              "options": {
-                "mode": "exclude",
-                "names": [
-                  "{__name__=\"rpc_response_time_seconds\", instance=\"host.docker.internal:8001\", job=\"sequencer\", method=\"ledger_getHeadL2BlockHeight\", quantile=\"0.5\", success=\"true\"}"
-                ],
-                "prefix": "All except:",
-                "readOnly": true
-              }
-            },
-            "properties": [
-              {
-                "id": "custom.hideFrom",
-                "value": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": true
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 64
-      },
-      "id": 27,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.0.1+security-01",
-      "targets": [
-        {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "rpc_response_time_seconds",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
-        }
-      ],
-      "title": "Rpc Response Times",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "fillOpacity": 50,
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "pointShape": "circle",
-            "pointSize": {
-              "fixed": 5
-            },
-            "pointStrokeWidth": 1,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "show": "points+lines"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 72
-      },
-      "id": 25,
-      "interval": "1s",
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "mapping": "auto",
-        "series": [
-          {
-            "x": {
-              "matcher": {
-                "id": "byName",
-                "options": "{__name__=\"sequencer_current_l2_block\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
-              }
-            },
-            "y": {
-              "matcher": {
-                "id": "byName",
-                "options": "{__name__=\"sequencer_l1_fee_rate\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
-              }
-            }
-          }
-        ],
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.0.1+security-01",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_current_l2_block",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "B",
-          "useBackend": false
-        },
-        {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_l1_fee_rate",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
-        }
-      ],
-      "title": "L1 Fee Rate Per Block",
-      "transformations": [
-        {
-          "id": "joinByField",
-          "options": {}
-        }
-      ],
-      "type": "xychart"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 72
-      },
-      "id": 26,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.0.1+security-01",
-      "targets": [
-        {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_commitment_mine_da_transaction",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
-        }
-      ],
-      "title": "Mine Sequencer Commitment Tx Duration",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "fillOpacity": 50,
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "pointShape": "circle",
-            "pointSize": {
-              "fixed": 5
-            },
-            "pointStrokeWidth": 1,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "show": "points+lines"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 80
-      },
       "id": 23,
-      "interval": "1s",
+      "interval": "2s",
       "options": {
         "legend": {
           "calcs": [],
@@ -2404,13 +1077,13 @@
             "x": {
               "matcher": {
                 "id": "byName",
-                "options": "{__name__=\"sequencer_current_l2_block\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
+                "options": "sequencer_current_l2_block"
               }
             },
             "y": {
               "matcher": {
                 "id": "byName",
-                "options": "{__name__=\"evm_block_gas_usage\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
+                "options": "evm_block_gas_usage"
               }
             }
           }
@@ -2421,12 +1094,12 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.1+security-01",
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
           "editorMode": "builder",
@@ -2441,10 +1114,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "sequencer_current_l2_block",
           "fullMetaSearch": false,
           "hide": false,
@@ -2468,7 +1141,79 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "eed8s4geh3myob"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "id": 33,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sequencer_unaccepted_deposit_txs",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Unaccepted Deposit Txs",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
@@ -2499,6 +1244,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -2513,7 +1259,110 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "sequencer_block_production_execution",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Complete Produce L2 Block",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "eed8s4geh3myob"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -2528,7 +1377,459 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 80
+        "y": 40
+      },
+      "id": 21,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "sequencer_dry_run_execution",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Total Dry Run Execution Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "eed8s4geh3myob"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 50,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "pointShape": "circle",
+            "pointSize": {
+              "fixed": 5
+            },
+            "pointStrokeWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "show": "points+lines"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "id": 25,
+      "interval": "1s",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "mapping": "auto",
+        "series": [
+          {
+            "x": {
+              "matcher": {
+                "id": "byName",
+                "options": "sequencer_current_l2_block"
+              }
+            },
+            "y": {
+              "matcher": {
+                "id": "byName",
+                "options": "sequencer_l1_fee_rate"
+              }
+            }
+          }
+        ],
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sequencer_current_l2_block",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sequencer_l1_fee_rate",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "L1 Fee Rate Per Block",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {}
+        }
+      ],
+      "type": "xychart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "eed8s4geh3myob"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 50,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "pointShape": "circle",
+            "pointSize": {
+              "fixed": 5
+            },
+            "pointStrokeWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "show": "points+lines"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "id": 36,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "mapping": "auto",
+        "series": [
+          {}
+        ],
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "sequencer_current_l2_block",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "sequencer_l1_fee_failed_txs_count",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        }
+      ],
+      "title": "L1 Fee Failed Txs Count By Block Number",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {}
+        }
+      ],
+      "type": "xychart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "eed8s4geh3myob"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 56
+      },
+      "id": 26,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "sequencer_commitment_mine_da_transaction",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Mine Sequencer Commitment Tx Duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "eed8s4geh3myob"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 56
       },
       "id": 28,
       "interval": "1s",
@@ -2545,9 +1846,13 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.1+security-01",
+      "pluginVersion": "12.3.0",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
           "disableTextWrap": false,
           "editorMode": "code",
           "expr": "rate(transaction_pool_inserted_transactions[1m])",
@@ -2556,11 +1861,7 @@
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
+          "useBackend": false
         }
       ],
       "title": "Number of txs coming to the mempool in the last minute",
@@ -2569,7 +1870,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "eed8s4geh3myob"
       },
       "description": "This does not work perfect in scenarios where there are over couple hundered missed DA blocks, and new l2 blocks are produced for every 10 L1 block instantly",
       "fieldConfig": {
@@ -2604,7 +1905,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -2619,7 +1921,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 88
+        "y": 64
       },
       "id": 2,
       "interval": "1",
@@ -2636,13 +1938,13 @@
             "x": {
               "matcher": {
                 "id": "byName",
-                "options": "{__name__=\"sequencer_current_l2_block\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
+                "options": "sequencer_current_l2_block"
               }
             },
             "y": {
               "matcher": {
                 "id": "byName",
-                "options": "{__name__=\"sequencer_l2_block_tx_count\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
+                "options": "sequencer_l2_block_tx_count"
               }
             }
           }
@@ -2653,15 +1955,15 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.1+security-01",
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "sequencer_current_l2_block",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
@@ -2673,10 +1975,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "sequencer_l2_block_tx_count",
           "fullMetaSearch": false,
           "hide": false,
@@ -2700,7 +2002,284 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "eed8s4geh3myob"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 64
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "bitcoin_da_transaction_queue_processing_time",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Bitcoin DA Queue Processing Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "eed8s4geh3myob"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 72
+      },
+      "id": 35,
+      "interval": "2s",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "sequencer_latest_sequencer_commitment_index",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "Latest Commitment Index",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "sequencer_latest_sequencer_commitment_l2_start_height",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "Latest Commitment Start L2 Height",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "sequencer_latest_sequencer_commitment_l2_end_height",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "Latest Commitment End L2 Height",
+          "range": true,
+          "refId": "C",
+          "useBackend": false
+        }
+      ],
+      "title": "Latest Commitment Data",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {}
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "eed8s4geh3myob"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 72
+      },
+      "id": 29,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "sequencer_deposit_data_mempool_txs",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Number of txs in deposit data mempool",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
@@ -2734,7 +2313,380 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 80
+      },
+      "id": 34,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "mapping": "auto",
+        "series": [
+          {
+            "x": {
+              "matcher": {
+                "id": "byName",
+                "options": "sequencer_latest_sequencer_commitment_index"
+              }
+            },
+            "y": {
+              "matcher": {
+                "id": "byName",
+                "options": "sequencer_latest_sequencer_commitment_process_duration_secs"
+              }
+            }
+          }
+        ],
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sequencer_latest_sequencer_commitment_index",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "sequencer_latest_sequencer_commitment_process_duration_secs",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "D",
+          "useBackend": false
+        }
+      ],
+      "title": "Commitment Process Duration By Index",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {}
+        }
+      ],
+      "type": "xychart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "eed8s4geh3myob"
+      },
+      "description": "Complete Block Production Time(secs) By Block Num",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 21,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 3,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "fieldMinMax": true,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "#EAB839",
+                "value": 0.001
+              },
+              {
+                "color": "red",
+                "value": 120000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 80
+      },
+      "id": 1,
+      "interval": "2s",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "sequencer_current_l2_block"
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sequencer_current_l2_block",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sequencer_no_dry_run_block_production_duration_secs",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        }
+      ],
+      "title": "No Dry Run Block Production Time(secs) By Block Num",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "Time",
+            "mode": "outer"
+          }
+        }
+      ],
+      "type": "trend"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "eed8s4geh3myob"
+      },
+      "description": "The duration eth_call for deposit txs",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 88
+      },
+      "id": 30,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sequencer_deposit_tx_call_duration",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Deposit Tx Call Duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "eed8s4geh3myob"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 50,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "pointShape": "circle",
+            "pointSize": {
+              "fixed": 5
+            },
+            "pointStrokeWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "show": "points+lines"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -2771,13 +2723,13 @@
             "x": {
               "matcher": {
                 "id": "byName",
-                "options": "{__name__=\"sequencer_currently_committing_index\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
+                "options": "sequencer_currently_committing_index"
               }
             },
             "y": {
               "matcher": {
                 "id": "byName",
-                "options": "{__name__=\"sequencer_commitment_blocks_count\", instance=\"host.docker.internal:8001\", job=\"sequencer\"}"
+                "options": "sequencer_commitment_blocks_count"
               }
             }
           }
@@ -2788,12 +2740,12 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.1+security-01",
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
           "editorMode": "builder",
@@ -2808,10 +2760,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "sequencer_commitment_blocks_count",
           "fullMetaSearch": false,
           "hide": false,
@@ -2835,7 +2787,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
@@ -2866,6 +2818,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -2880,7 +2833,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -2897,7 +2851,7 @@
         "x": 0,
         "y": 96
       },
-      "id": 6,
+      "id": 32,
       "options": {
         "legend": {
           "calcs": [],
@@ -2911,16 +2865,16 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.1+security-01",
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sequencer_block_production_execution",
+          "editorMode": "code",
+          "expr": "sequencer_deposit_tx_size",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
@@ -2929,13 +2883,13 @@
           "useBackend": false
         }
       ],
-      "title": "Complete Produce L2 Block",
+      "title": "Deposit Tx Size",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
@@ -2966,6 +2920,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -2980,172 +2935,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Pending Pool"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "green",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Basefee Pool"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "yellow",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Queued Pool"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "orange",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 96
-      },
-      "id": 40,
-      "options": {
-        "legend": {
-          "calcs": ["lastNotNull"],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "12.0.1+security-01",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "transaction_pool_pending_pool_transactions",
-          "legendFormat": "Pending Pool",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "transaction_pool_basefee_pool_transactions",
-          "legendFormat": "Basefee Pool",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "transaction_pool_queued_pool_transactions",
-          "legendFormat": "Queued Pool",
-          "range": true,
-          "refId": "C"
-        }
-      ],
-      "title": "Stacked Mempool Transaction Types",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 50,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "normal"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -3209,10 +3000,12 @@
         "x": 12,
         "y": 96
       },
-      "id": 41,
+      "id": 38,
       "options": {
         "legend": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
@@ -3223,12 +3016,12 @@
           "sort": "desc"
         }
       },
-      "pluginVersion": "12.0.1+security-01",
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "editorMode": "code",
           "expr": "transaction_pool_pending_pool_size_bytes",
@@ -3239,7 +3032,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "editorMode": "code",
           "expr": "transaction_pool_basefee_pool_size_bytes",
@@ -3250,7 +3043,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "editorMode": "code",
           "expr": "transaction_pool_queued_pool_size_bytes",
@@ -3265,7 +3058,176 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "eed8s4geh3myob"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 50,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pending Pool"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Basefee Pool"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Queued Pool"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 104
+      },
+      "id": 39,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "editorMode": "code",
+          "expr": "transaction_pool_pending_pool_transactions",
+          "legendFormat": "Pending Pool",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "editorMode": "code",
+          "expr": "transaction_pool_basefee_pool_transactions",
+          "legendFormat": "Basefee Pool",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "eed8s4geh3myob"
+          },
+          "editorMode": "code",
+          "expr": "transaction_pool_queued_pool_transactions",
+          "legendFormat": "Queued Pool",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Stacked Mempool Transaction Types",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "eed8s4geh3myob"
       },
       "fieldConfig": {
         "defaults": {
@@ -3296,6 +3258,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -3310,7 +3273,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -3325,13 +3289,16 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
+        "x": 12,
         "y": 104
       },
-      "id": 42,
+      "id": 40,
       "options": {
         "legend": {
-          "calcs": ["lastNotNull", "mean"],
+          "calcs": [
+            "lastNotNull",
+            "mean"
+          ],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
@@ -3342,12 +3309,12 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.1+security-01",
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "editorMode": "code",
           "expr": "rate(transaction_pool_inserted_transactions[1m])",
@@ -3358,7 +3325,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "eed8s4geh3myob"
           },
           "editorMode": "code",
           "expr": "rate(transaction_pool_removed_transactions[1m])",
@@ -3367,24 +3334,24 @@
           "refId": "B"
         }
       ],
-      "title": "Mempool Transaction Flow (per second)",
+      "title": "Mempool Transaction Flow (per minute)",
       "type": "timeseries"
     }
   ],
-  "refresh": "",
-  "schemaVersion": 41,
+  "preload": false,
+  "refresh": "5s",
+  "schemaVersion": 42,
   "tags": [],
   "templating": {
     "list": []
   },
   "time": {
-    "from": "now-30s",
+    "from": "now-1m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Sequencer Dashboard",
+  "title": "Clean import New Sequencer Dashboard",
   "uid": "d1faed80-531c-4c31-bd06-acc46d388c84",
-  "version": 10,
-  "weekStart": ""
+  "version": 1
 }

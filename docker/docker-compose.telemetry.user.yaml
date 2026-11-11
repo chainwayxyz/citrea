@@ -1,0 +1,43 @@
+services:
+  prometheus:
+    container_name: prometheus.citrea
+    image: prom/prometheus
+    ports:
+      - 9090:9090
+    volumes:
+      - ./telemetry-user/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - monitoring
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  grafana:
+    image: grafana/grafana-enterprise
+    ports:
+      - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=password
+    volumes:
+      - grafana_data_user:/var/lib/grafana
+      - ./telemetry-user/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+    networks:
+      - monitoring
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor
+    ports:
+      - 8080:8080
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro # Add only if you have your containers running on Mac
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+    driver: bridge
+
+volumes:
+  grafana_data_user: {}
