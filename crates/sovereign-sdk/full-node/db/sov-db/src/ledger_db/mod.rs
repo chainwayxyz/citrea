@@ -65,9 +65,15 @@ impl LedgerDB {
     /// The returned instance will be at the path `{path}/ledger`.
     #[instrument(level = "trace", skip_all, err)]
     pub fn with_config(cfg: &RocksdbConfig) -> Result<Self, anyhow::Error> {
-        let path = cfg.path.join(LedgerDB::DB_PATH_SUFFIX);
-        let raw_options = cfg.as_raw_options(false);
-        let tables = cfg
+        let mut ledger_db_config = cfg.clone();
+
+        // RocksDB config assign available open files but since we spawn 3 different rocksdb instances, we need to share between them
+        // Allocate 10% for LedgerDB
+        ledger_db_config.max_open_files = ledger_db_config.max_open_files * 10 / 100;
+
+        let path = ledger_db_config.path.join(LedgerDB::DB_PATH_SUFFIX);
+        let raw_options = ledger_db_config.as_raw_options(false);
+        let tables = ledger_db_config
             .column_families
             .clone()
             .unwrap_or_else(|| LEDGER_TABLES.iter().map(|e| e.to_string()).collect());
