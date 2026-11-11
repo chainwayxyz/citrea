@@ -10,7 +10,7 @@ use std::fmt::Debug;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{env, fs};
+use std::env;
 
 use alloy_primitives::{U32, U64};
 use base64::prelude::BASE64_STANDARD;
@@ -583,9 +583,11 @@ where
             .as_nanos();
         for (i, raw_input) in raw_inputs.into_iter().enumerate() {
             if let Ok(backup_dir) = env::var("TX_BACKUP_DIR") {
-                let input_path =
-                    Path::new(&backup_dir).join(format!("{unix_nanos}-rpc-proof-input-{i}.bin"));
-                fs::write(input_path, &raw_input).expect("Proof input write cannot fail");
+                let input_path = Path::new(&backup_dir)
+                    .join(format!("{}-rpc-proof-input-{}.bin", unix_nanos, i));
+                tokio::fs::write(input_path, &raw_input)
+                    .await
+                    .expect("Proof input write cannot fail");
             }
             b64_inputs.push(BASE64_STANDARD.encode(&raw_input));
         }
