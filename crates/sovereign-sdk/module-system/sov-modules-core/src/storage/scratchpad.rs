@@ -730,9 +730,35 @@ impl<S: Storage> StateReaderAndWriter for WorkingSet<S> {
     }
 
     fn set(&mut self, key: &StorageKey, value: StorageValue) {
+        // FIXME: ^ this is a hack
+        fn fits_for_statediff(key: &[u8]) -> bool {
+            key.starts_with(b"Evm/a/")
+                || key.starts_with(b"Evm/s/")
+                || key.starts_with(b"Evm/t/")
+                || key.starts_with(b"Evm/S/")
+        }
         match &mut self.archival_working_set {
-            None => self.delta.set(key, value),
-            Some(ref mut archival_working_set) => archival_working_set.set(key, value),
+            None => {
+                {
+                    // Fetch prev value to populate ordered reads
+                    // FIXME: ^ this is a hack
+                    if fits_for_statediff(&key.key) {
+                        let _ = self.delta.get(key);
+                    }
+                }
+
+                self.delta.set(key, value)
+            }
+            Some(ref mut archival_working_set) => {
+                {
+                    // Fetch prev value to populate ordered reads
+                    // FIXME: ^ this is a hack
+                    if fits_for_statediff(&key.key) {
+                        let _ = archival_working_set.get(key);
+                    }
+                }
+                archival_working_set.set(key, value)
+            }
         }
     }
 

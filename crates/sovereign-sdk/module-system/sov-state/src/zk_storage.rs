@@ -68,6 +68,12 @@ impl Storage for ZkStorage {
             proof.verify(jmt::RootHash(prev_state_root), key_hash, value)?;
         }
 
+        let pre_state = crate::stateful_statediff::build_pre_state(state_log.ordered_reads());
+        let post_state =
+            crate::stateful_statediff::build_post_state(state_log.iter_ordered_writes());
+
+        let _st_statediff = crate::stateful_statediff::compress_state(pre_state, post_state);
+
         let mut diff = vec![];
 
         // Compute the jmt update from the write batch
@@ -107,6 +113,21 @@ impl Storage for ZkStorage {
                 batch,
             )
             .expect("Updates must be valid");
+
+        let unparsed_len: usize = _st_statediff
+            .unparsed
+            .iter()
+            .map(|(_k, v)| if let Some(x) = v { x.len() } else { 0 })
+            .sum();
+        let ststdiff = borsh::to_vec(&_st_statediff).unwrap();
+        let prevdiff = borsh::to_vec(&diff).unwrap();
+
+        println!(
+            "zk: ststdiff: {} bytes, diff: {} bytes, ststdiff unparsed: {} bytes \n",
+            ststdiff.len(),
+            prevdiff.len(),
+            unparsed_len
+        );
 
         Ok((
             StateRootTransition {
