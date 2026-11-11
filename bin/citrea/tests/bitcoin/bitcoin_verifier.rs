@@ -727,7 +727,7 @@ impl BitcoinVerifierTest {
             new_header,
             block.header.tx_count(),
             block.header.height(),
-            block.header.txs_commitment().to_byte_array(),
+            block.header.txs_commitment(),
         );
 
         // The verifier should still successfully extract the relevant txs

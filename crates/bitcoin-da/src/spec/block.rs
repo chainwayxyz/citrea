@@ -20,7 +20,7 @@ impl SlotData for BitcoinBlock {
     type BlockHeader = HeaderWrapper;
 
     fn hash(&self) -> [u8; 32] {
-        self.header.hash().to_byte_array()
+        self.header.hash()
     }
 
     fn header(&self) -> &Self::BlockHeader {

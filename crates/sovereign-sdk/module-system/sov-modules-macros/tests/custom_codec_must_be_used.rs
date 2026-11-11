@@ -1,4 +1,5 @@
 use std::panic::catch_unwind;
+use std::borrow::Cow;
 
 use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::prelude::*;
@@ -39,7 +40,7 @@ impl StateCodec for CustomCodec {
 }
 
 impl<K> StateKeyCodec<K> for CustomCodec {
-    fn encode_key(&self, _key: &K) -> Vec<u8> {
+    fn encode_key<'k>(&self, _key: &'k K) -> Cow<'k, [u8]> {
         unimplemented!()
     }
 }

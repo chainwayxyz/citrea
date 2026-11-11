@@ -228,7 +228,7 @@ where
         let short_header_proof: <<Da as DaService>::Spec as DaSpec>::ShortHeaderProof =
             Da::block_to_short_header_proof(l1_block.clone());
         self.ledger_db.put_short_header_proof_by_l1_hash(
-            &l1_block.header().hash().into(),
+            &l1_block.header().hash(),
             borsh::to_vec(&short_header_proof).expect("Should serialize short header proof"),
         )?;
 
@@ -237,7 +237,7 @@ where
 
         // Set the l1 height of the l1 hash
         self.ledger_db
-            .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)?;
+            .set_l1_height_of_l1_hash(l1_block.header().hash(), l1_height)?;
 
         let commitments_and_proofs = extract_zk_proofs_and_sequencer_commitments(
             self.da_service.clone(),
