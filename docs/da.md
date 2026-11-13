@@ -164,3 +164,25 @@ A relevant transaction is a transaction which wtxid starts from the `reveal_tx_p
 In tests the `reveal_tx_prefix` is of 1 byte length, but in production it is of 2 bytes length. Because in production it's 2 bytes long, the probability of getting a random wtxid to match our prefix is 1/2^16. That's how we can ignore the transactions that do not start with our prefix. And it saves us from parsing all the transactions in the Bitcoin blockchain.
 
 The process of finding the right wtxid prefix is called "mining". It is done by adding a nonce to the reveal script. Changing the nonce changes the wtxid of the transaction.
+
+## Verification
+
+Citrea verifies Bitcoin DA data inside the batch proof and light client proof
+circuits. The verifier receives Bitcoin block headers, inclusion proofs, and the
+transactions carrying Citrea DA payloads. Verification checks that:
+
+- each supplied DA transaction is included in the Bitcoin block's transaction
+  merkle root;
+- each transaction's witness transaction id matches the configured
+  `reveal_tx_prefix`;
+- each reveal script parses according to the transaction type format described
+  above;
+- signed payloads are authorized by the expected sequencer or prover public key;
+- aggregate proofs reference the exact chunk transaction ids and wtxids that
+  carry the proof chunks;
+- method id updates include the required security council signatures.
+
+Full nodes and provers use the Bitcoin DA service to fetch and pre-process
+Bitcoin data from a Bitcoin node. The service is outside the proven state
+transition, but it must provide enough data for the verifier to independently
+check inclusion, parse the reveal scripts, and validate the payload signatures.
