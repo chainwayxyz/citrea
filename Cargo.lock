@@ -2367,6 +2367,7 @@ dependencies = [
  "sha2 0.10.9",
  "sov-db",
  "sov-rollup-interface",
+ "sov-schema-db",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",

@@ -14,6 +14,7 @@ repository = { workspace = true }
 citrea-common = { path = "../common", optional = true }
 citrea-primitives = { path = "../primitives" }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
+sov-schema-db = { path = "../sovereign-sdk/full-node/db/sov-schema-db", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
 anyhow = { workspace = true }
@@ -62,6 +63,7 @@ native = [
   "sov-rollup-interface/native",
   "dep:citrea-common",
   "dep:sov-db",
+  "dep:sov-schema-db",
   "dep:bitcoincore-rpc",
   "dep:reqwest",
   "dep:jsonrpsee",

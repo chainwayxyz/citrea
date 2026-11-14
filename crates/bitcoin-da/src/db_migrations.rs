@@ -9,12 +9,16 @@ use bitcoin::transaction::Version;
 use bitcoin::{Amount, OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid, Witness};
 use borsh::BorshDeserialize;
 use sov_db::ledger_db::migrations::LedgerMigration;
-use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
+use sov_db::ledger_db::LedgerDB;
 use sov_db::schema::tables::ShortHeaderProofBySlotHash;
+use sov_schema_db::SchemaBatch;
 use tracing::info;
 
 use crate::spec::header::HeaderWrapper;
 use crate::spec::short_proof::BitcoinHeaderShortProof;
+
+/// How many re-encoded proofs [`ReencodeShortHeaderProofs`] writes in one batch.
+const REENCODE_BATCH_SIZE: usize = 10_000;
 
 /// Rewrites the short header proofs v2.10 cached in the current encoding.
 ///
@@ -39,6 +43,8 @@ impl LedgerMigration for ReencodeShortHeaderProofs {
         let db = ledger_db.db_handle();
         let mut rows = db.iter::<ShortHeaderProofBySlotHash>()?;
         rows.seek_to_first();
+        let mut batch = SchemaBatch::new();
+        let mut batched = 0;
         let mut reencoded = 0;
         for row in rows {
             let row = row?;
@@ -52,8 +58,17 @@ impl LedgerMigration for ReencodeShortHeaderProofs {
                         hex::encode(row.key)
                     )
                 })?;
-            ledger_db.put_short_header_proof_by_l1_hash(&row.key, borsh::to_vec(&proof)?)?;
+            batch.put::<ShortHeaderProofBySlotHash>(&row.key, &borsh::to_vec(&proof)?)?;
+            batched += 1;
             reencoded += 1;
+            // Each write is synced, so one per proof makes the migration slow
+            if batched == REENCODE_BATCH_SIZE {
+                db.write_schemas(std::mem::take(&mut batch))?;
+                batched = 0;
+            }
+        }
+        if batched > 0 {
+            db.write_schemas(batch)?;
         }
         info!("Re-encoded {reencoded} short header proofs cached by v2.10");
         Ok(())
@@ -114,6 +129,7 @@ mod tests {
     use std::sync::OnceLock;
 
     use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
+    use sov_db::ledger_db::SharedLedgerOps;
     use sov_db::rocks_db_config::RocksdbConfig;
     use sov_db::schema::tables::FULL_NODE_LEDGER_TABLES;
     use sov_rollup_interface::services::da::DaService;
