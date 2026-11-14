@@ -25,17 +25,19 @@ pub(crate) struct SignedTxWithId {
 
 /// Pair of commit/reveal signed transactions
 #[derive(Debug, Clone)]
-pub(crate) struct SignedTxPair {
-    pub commit: SignedTxWithId,
-    pub reveal: SignedTxWithId,
-    pub kind: TransactionKind,
+pub struct SignedTxPair {
+    pub(crate) commit: SignedTxWithId,
+    pub(crate) reveal: SignedTxWithId,
+    pub(crate) kind: TransactionKind,
 }
 
 impl SignedTxPair {
+    /// Raw `[commit, reveal]` transactions.
     pub fn as_raw_txs(&self) -> [&Vec<u8>; 2] {
         [&self.commit.hex, &self.reveal.hex]
     }
 
+    /// `[commit, reveal]` transactions with their txids.
     pub fn into_txs_with_id(self) -> [TxWithId; 2] {
         [
             TxWithId {
@@ -49,28 +51,31 @@ impl SignedTxPair {
         ]
     }
 
-    // Pre-computed commit txid
+    /// Pre-computed commit txid
     pub fn commit_txid(&self) -> Txid {
         self.commit.id
     }
 
-    // Pre-computed reveal txid
+    /// Pre-computed reveal txid
     pub fn reveal_txid(&self) -> Txid {
         self.reveal.id
     }
 }
 
+/// Signs DA transactions with the node wallet.
 #[derive(Debug)]
-pub(crate) struct TxSigner {
+pub struct TxSigner {
     client: Arc<Client>,
 }
 
 impl TxSigner {
+    /// Creates a signer backed by the given node client.
     pub fn new(client: Arc<Client>) -> Self {
         Self { client }
     }
 
-    pub(crate) async fn sign_da_txs(&self, da_txs: DaTxs) -> Result<Vec<SignedTxPair>> {
+    /// Signs DA transactions, returning one commit/reveal pair per DA transaction pair.
+    pub async fn sign_da_txs(&self, da_txs: DaTxs) -> Result<Vec<SignedTxPair>> {
         let queued_txs = match da_txs {
             DaTxs::Complete { commit, reveal } => {
                 vec![

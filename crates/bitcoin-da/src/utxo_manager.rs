@@ -48,15 +48,17 @@ pub struct UtxoContext {
 /// Queries available UTXOs via bitcoin RPC, filters based on mode and queue state,
 /// and ensures available UTXOs don't conflict with queued transactions.
 #[derive(Debug)]
-pub(crate) struct UtxoManager {
+pub struct UtxoManager {
     client: Arc<Client>,
     monitoring: Arc<MonitoringService>,
     tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
     network_constants: NetworkConstants,
+    /// UTXO selection mode.
     pub mode: UtxoSelectionMode,
 }
 
 impl UtxoManager {
+    /// Creates a UTXO manager.
     pub fn new(
         client: Arc<Client>,
         monitoring: Arc<MonitoringService>,

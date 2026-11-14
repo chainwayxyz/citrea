@@ -163,11 +163,14 @@ pub struct BitcoinService {
     pub(crate) tx_backup_dir: PathBuf,
     /// Monitoring service for tracking transaction status.
     pub monitoring: Arc<MonitoringService>,
-    fee: FeeService,
+    /// Fee rate source.
+    pub fee: FeeService,
     l1_block_hash_to_height: Arc<Mutex<LruCache<BlockHash, usize>>>,
     tx_queue: Arc<Mutex<VecDeque<SignedTxPair>>>,
-    pub(crate) tx_signer: TxSigner,
-    pub(crate) utxo_manager: UtxoManager,
+    /// Signs DA transactions with the node wallet.
+    pub tx_signer: TxSigner,
+    /// Selects UTXOs for new DA transactions.
+    pub utxo_manager: UtxoManager,
 }
 
 impl BitcoinService {
@@ -400,7 +403,7 @@ impl BitcoinService {
 
     /// Sends a transaction to the Bitcoin network with a specified fee rate.
     #[instrument(level = "trace", fields(prev_utxo), ret, err, skip(self))]
-    async fn create_da_transactions_with_fee_rate(
+    pub async fn create_da_transactions_with_fee_rate(
         &self,
         tx_request: DaTxRequest,
         fee_sat_per_vbyte: f64,
